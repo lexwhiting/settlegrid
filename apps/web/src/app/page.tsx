@@ -130,15 +130,16 @@ function PricingSection() {
         </div>
         <div className="p-8 rounded-xl border-2 border-gray-200 text-center">
           <h3 className="font-semibold text-lg text-indigo mb-2">Enterprise</h3>
-          <div className="text-4xl font-bold text-brand-text mb-2">Custom</div>
-          <p className="text-sm text-gray-500 mb-6">volume discounts</p>
+          <div className="text-4xl font-bold text-brand-text mb-2">90/10</div>
+          <p className="text-sm text-gray-500 mb-6">revenue split</p>
           <ul className="text-sm text-gray-600 space-y-2 text-left">
-            <li>&#10003; Volume pricing</li>
-            <li>&#10003; Custom revenue split</li>
-            <li>&#10003; Priority support</li>
-            <li>&#10003; SLA guarantees</li>
-            <li>&#10003; White-label option</li>
+            <li>&#10003; 90% revenue share</li>
+            <li>&#10003; Priority webhook delivery</li>
+            <li>&#10003; Advanced analytics &amp; exports</li>
+            <li>&#10003; 99.9% uptime SLA</li>
+            <li>&#10003; Dedicated Slack support</li>
           </ul>
+          <p className="text-xs text-gray-400 mt-4">$199/mo per tool, self-serve</p>
         </div>
       </div>
     </div>
