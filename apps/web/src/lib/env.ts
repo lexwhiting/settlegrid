@@ -24,6 +24,15 @@ function buildEnv() {
   } as const
 }
 
+// Gate env vars — optional, only needed when password gate is enabled
+export function getGatePassword(): string {
+  return requireEnv('GATE_PASSWORD')
+}
+
+export function getGateSecret(): string {
+  return requireEnv('GATE_SECRET')
+}
+
 // Individual lazy getters — only validate the var you actually need
 export function getDatabaseUrl(): string {
   return requireEnv('DATABASE_URL')
