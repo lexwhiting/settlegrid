@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 export default function MarketplaceError({
   error,
@@ -11,10 +12,7 @@ export default function MarketplaceError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Marketplace Error]', {
-      digest: error.digest,
-      timestamp: new Date().toISOString(),
-    })
+    logger.error('page_error', {}, error)
   }, [error])
 
   return (

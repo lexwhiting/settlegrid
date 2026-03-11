@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 export default function DocsError({
   error,
@@ -11,10 +12,7 @@ export default function DocsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Documentation Error]', {
-      digest: error.digest,
-      timestamp: new Date().toISOString(),
-    })
+    logger.error('page_error', {}, error)
   }, [error])
 
   return (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { logger } from '@/lib/logger'
 
 export default function PayoutsError({
   error,
@@ -10,10 +11,7 @@ export default function PayoutsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Payouts Error]', {
-      digest: error.digest,
-      timestamp: new Date().toISOString(),
-    })
+    logger.error('page_error', {}, error)
   }, [error])
 
   return (

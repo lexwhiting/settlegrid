@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { logger } from '@/lib/logger'
 
-export default function AuthError({
+export default function GateError({
   error,
   reset,
 }: {
@@ -16,9 +16,9 @@ export default function AuthError({
   }, [error])
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center">
-        <h2 className="text-xl font-bold text-indigo mb-2">Authentication Error</h2>
+        <h2 className="text-xl font-bold text-indigo mb-2">Gate Error</h2>
         <p className="text-gray-600 mb-4" role="alert">
           Something went wrong. Please try again.
         </p>
