@@ -60,13 +60,26 @@ export async function checkRateLimit(
   }
 }
 
-// ─── Pre-configured rate limiters ──────────────────────────────────────────────
+// ─── Pre-configured rate limiters (lazy — only instantiate on first use) ──────
+
+function lazyLimiter(
+  requests: number,
+  window: `${number} ${'s' | 'ms' | 'm' | 'h' | 'd'}`
+): Ratelimit {
+  let instance: Ratelimit | null = null
+  return new Proxy({} as Ratelimit, {
+    get(_target, prop) {
+      if (!instance) instance = createRateLimiter(requests, window)
+      return (instance as unknown as Record<string | symbol, unknown>)[prop]
+    },
+  })
+}
 
 /** 5 requests per minute — for auth endpoints (login, register, password reset) */
-export const authLimiter = createRateLimiter(5, '1 m')
+export const authLimiter = lazyLimiter(5, '1 m')
 
 /** 100 requests per minute — for standard API endpoints */
-export const apiLimiter = createRateLimiter(100, '1 m')
+export const apiLimiter = lazyLimiter(100, '1 m')
 
 /** 1000 requests per minute — for SDK/tool invocation endpoints */
-export const sdkLimiter = createRateLimiter(1000, '1 m')
+export const sdkLimiter = lazyLimiter(1000, '1 m')

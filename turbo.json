@@ -3,7 +3,20 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
+      "outputs": [".next/**", "dist/**"],
+      "env": [
+        "NEXT_PUBLIC_APP_URL",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_CONNECT_CLIENT_ID",
+        "STRIPE_WEBHOOK_SECRET",
+        "RESEND_API_KEY",
+        "JWT_SECRET",
+        "GATE_PASSWORD",
+        "GATE_SECRET"
+      ]
     },
     "dev": {
       "cache": false,
