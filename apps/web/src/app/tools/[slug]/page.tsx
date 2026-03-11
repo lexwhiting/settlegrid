@@ -9,16 +9,51 @@ interface ToolData {
   slug: string
   description: string
   developerName: string
+  category: string
+  currentVersion: string
   pricingConfig: {
     defaultCostCents: number
     methods?: Record<string, { costCents: number; displayName?: string }>
   }
+  reviews: {
+    id: string
+    consumerName: string
+    rating: number
+    comment: string
+    createdAt: string
+  }[]
+  changelog: {
+    version: string
+    changeType: string
+    summary: string
+    releasedAt: string
+  }[]
+  averageRating: number
+  reviewCount: number
 }
 
 function formatCents(cents: number): string {
   return cents < 100
-    ? `${cents}¢`
+    ? `${cents}\u00A2`
     : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+}
+
+function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
+  const iconSize = size === 'lg' ? 'w-5 h-5' : 'w-4 h-4'
+  return (
+    <div className="flex items-center gap-0.5" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className={`${iconSize} ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-200'}`}
+          fill="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+        </svg>
+      ))}
+    </div>
+  )
 }
 
 async function getToolData(slug: string): Promise<ToolData | null> {
@@ -65,6 +100,18 @@ export default async function ToolStorefrontPage({
 
   const methods = tool.pricingConfig.methods ?? {}
   const methodEntries = Object.entries(methods)
+  const reviews = tool.reviews ?? []
+  const changelog = tool.changelog ?? []
+
+  const changeTypeBadge = (type: string) => {
+    switch (type) {
+      case 'feature': return 'bg-green-100 text-green-800'
+      case 'fix': return 'bg-blue-100 text-blue-800'
+      case 'breaking': return 'bg-red-100 text-red-800'
+      case 'deprecation': return 'bg-yellow-100 text-yellow-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -74,6 +121,9 @@ export default async function ToolStorefrontPage({
             <SettleGridLogo variant="horizontal" size={28} />
           </Link>
           <div className="flex items-center gap-4">
+            <Link href="/tools" className="text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
+              Marketplace
+            </Link>
             <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-indigo">
               Log in
             </Link>
@@ -87,11 +137,33 @@ export default async function ToolStorefrontPage({
       <main className="flex-1 px-6 py-12">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-indigo mb-3">{tool.name}</h1>
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              <h1 className="text-4xl font-bold text-indigo">{tool.name}</h1>
+              {tool.category && (
+                <span className="inline-flex items-center rounded-full border border-transparent bg-brand/10 text-brand-text px-2.5 py-0.5 text-xs font-semibold">
+                  {tool.category}
+                </span>
+              )}
+              {tool.currentVersion && (
+                <span className="inline-flex items-center rounded-full border border-gray-300 text-gray-600 px-2.5 py-0.5 text-xs font-medium">
+                  v{tool.currentVersion}
+                </span>
+              )}
+            </div>
             <p className="text-lg text-gray-600 mb-4">{tool.description}</p>
-            <p className="text-sm text-gray-500">
-              by <span className="text-gray-600">{tool.developerName}</span>
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-gray-500">
+                by <span className="text-gray-600">{tool.developerName}</span>
+              </p>
+              {tool.reviewCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <StarRating rating={tool.averageRating ?? 0} />
+                  <span className="text-sm text-gray-500">
+                    ({tool.reviewCount} review{tool.reviewCount !== 1 ? 's' : ''})
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -157,6 +229,73 @@ curl -X POST https://settlegrid.ai/api/sdk/meter \\
                   Credits never expire. You can purchase more at any time.
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div className="mt-12">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-indigo mb-6">Reviews</h2>
+              {reviews.length === 0 ? (
+                <p className="text-gray-500 text-sm">No reviews yet. Be the first to review this tool after using it.</p>
+              ) : (
+                <div className="space-y-6">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border-b border-gray-100 pb-5 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo/10 flex items-center justify-center">
+                            <span className="text-sm font-semibold text-indigo">
+                              {review.consumerName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{review.consumerName}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                        <StarRating rating={review.rating} />
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed ml-11">{review.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Changelog Section */}
+          <div className="mt-8">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-indigo mb-6">Changelog</h2>
+              {changelog.length === 0 ? (
+                <p className="text-gray-500 text-sm">No changelog entries yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {changelog.map((entry, i) => (
+                    <div key={i} className="flex items-start gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                      <div className="shrink-0">
+                        <span className="inline-flex items-center rounded-full border border-gray-300 text-gray-700 px-2.5 py-0.5 text-xs font-mono font-medium">
+                          v{entry.version}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${changeTypeBadge(entry.changeType)}`}>
+                            {entry.changeType}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.releasedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700">{entry.summary}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
