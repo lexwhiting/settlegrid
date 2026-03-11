@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 48" fill="none">
+  <g transform="translate(2,6)">
+    <circle cx="4" cy="4" r="3" fill="#FFFFFF" opacity="0.35"/>
+    <circle cx="18" cy="4" r="3" fill="#FFFFFF"/>
+    <circle cx="32" cy="4" r="3" fill="#FFFFFF" opacity="0.35"/>
+    <circle cx="4" cy="18" r="3" fill="#FFFFFF"/>
+    <circle cx="18" cy="18" r="4" fill="#FFFFFF"/>
+    <circle cx="32" cy="18" r="3" fill="#FFFFFF"/>
+    <circle cx="4" cy="32" r="3" fill="#FFFFFF" opacity="0.35"/>
+    <circle cx="18" cy="32" r="3" fill="#FFFFFF"/>
+    <circle cx="32" cy="32" r="3" fill="#FFFFFF" opacity="0.35"/>
+    <line x1="18" y1="4" x2="18" y2="18" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4"/>
+    <line x1="4" y1="18" x2="18" y2="18" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4"/>
+    <line x1="18" y1="18" x2="32" y2="18" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4"/>
+    <line x1="18" y1="18" x2="18" y2="32" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4"/>
+  </g>
+  <text x="54" y="33" font-family="Outfit, sans-serif" font-weight="700" font-size="28" fill="#FFFFFF" letter-spacing="-0.5">Settle<tspan font-weight="400" fill="rgba(255,255,255,0.75)">Grid</tspan></text>
+</svg>

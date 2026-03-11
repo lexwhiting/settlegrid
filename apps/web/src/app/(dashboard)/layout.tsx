@@ -28,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
           <Link href="/dashboard">
-            <SettleGridLogo variant="horizontal" size={28} className="text-white" />
+            <SettleGridLogo variant="horizontal" size={28} theme="dark" />
           </Link>
           <button
             type="button"

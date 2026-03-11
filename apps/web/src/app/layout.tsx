@@ -23,11 +23,23 @@ export const metadata: Metadata = {
     'MCP',
     'tool marketplace',
   ],
+  icons: {
+    icon: '/logos/favicon-color.svg',
+    apple: '/logos/icon-color.svg',
+  },
   openGraph: {
     title: 'SettleGrid — The Settlement Layer for the AI Economy',
     description:
       'Monetize your AI tools with per-call billing, automated payouts, and a unified API gateway.',
     type: 'website',
+    images: [{ url: '/social/og-image.svg', width: 1200, height: 630, alt: 'SettleGrid' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SettleGrid — The Settlement Layer for the AI Economy',
+    description:
+      'Monetize your AI tools with per-call billing, automated payouts, and a unified API gateway.',
+    images: ['/social/og-image.svg'],
   },
 }
 

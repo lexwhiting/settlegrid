@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <g transform="translate(6,6)">
+    <circle cx="18" cy="4" r="4" fill="#10B981"/>
+    <circle cx="4" cy="18" r="4" fill="#10B981"/>
+    <circle cx="18" cy="18" r="6" fill="#10B981"/>
+    <circle cx="32" cy="18" r="4" fill="#10B981"/>
+    <circle cx="18" cy="32" r="4" fill="#10B981"/>
+  </g>
+</svg>

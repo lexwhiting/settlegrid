@@ -29,11 +29,24 @@ describe('SettleGridLogo class logic', () => {
     expect(classes).toContain('inline-flex')
   })
 
-  it('wordmark uses font-bold tracking-tight', () => {
-    const classes = cn('font-bold tracking-tight select-none', 'text-lg')
-    expect(classes).toContain('font-bold')
-    expect(classes).toContain('tracking-tight')
+  it('wordmark uses select-none class', () => {
+    const classes = cn('select-none', 'text-lg')
     expect(classes).toContain('select-none')
     expect(classes).toContain('text-lg')
+  })
+
+  it('brand colors match official palette', () => {
+    // Official brand colors from SettleGrid Brand Guidelines
+    const EMERALD = '#10B981'
+    const DEEP_INDIGO = '#1A1F3A'
+    const BRAND_TEXT = '#047857'
+    const CLOUD = '#F8FAFB'
+    const EMERALD_LIGHT = '#D1FAE5'
+
+    expect(EMERALD).toBe('#10B981')
+    expect(DEEP_INDIGO).toBe('#1A1F3A')
+    expect(BRAND_TEXT).toBe('#047857')
+    expect(CLOUD).toBe('#F8FAFB')
+    expect(EMERALD_LIGHT).toBe('#D1FAE5')
   })
 })

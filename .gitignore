@@ -6,3 +6,5 @@ dist/
 .turbo/
 coverage/
 *.tsbuildinfo
+.vercel
+.env*.local

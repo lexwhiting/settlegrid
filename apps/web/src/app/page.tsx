@@ -194,7 +194,7 @@ export default function HomePage() {
         </section>
 
         {/* Features */}
-        <section className="px-6 py-20 bg-gray-50">
+        <section className="px-6 py-20 bg-cloud">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl font-bold text-indigo text-center mb-12">
               Everything you need to monetize AI tools
@@ -248,7 +248,7 @@ export default function HomePage() {
         </section>
 
         {/* Pricing */}
-        <section className="px-6 py-20 bg-gray-50">
+        <section className="px-6 py-20 bg-cloud">
           <div className="max-w-6xl mx-auto">
             <PricingSection />
           </div>

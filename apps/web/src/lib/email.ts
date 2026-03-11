@@ -14,7 +14,7 @@ function baseTemplate(content: string): string {
 <body style="margin:0;padding:0;background:#f9fafb;font-family:'Outfit',system-ui,sans-serif">
 <div style="max-width:560px;margin:0 auto;padding:32px 24px">
 <div style="text-align:center;margin-bottom:24px">
-<div style="display:inline-block;background:#10B981;color:#fff;font-weight:700;font-size:20px;padding:8px 16px;border-radius:8px;letter-spacing:0.02em">SettleGrid</div>
+<div style="display:inline-block;font-size:22px;letter-spacing:-0.5px"><span style="font-weight:700;color:#1A1F3A">Settle</span><span style="font-weight:400;color:#10B981">Grid</span></div>
 </div>
 <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px">
 ${content}
