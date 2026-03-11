@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, gte, sql } from 'drizzle-orm'
+import { eq, and, desc, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { invocations, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'

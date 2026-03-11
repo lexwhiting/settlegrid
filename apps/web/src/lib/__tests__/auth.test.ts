@@ -159,7 +159,8 @@ describe('verifyToken', () => {
         exp: Math.floor(Date.now() / 1000) + 604800,
       },
       protectedHeader: { alg: 'HS256' },
-    })
+      key: new Uint8Array(),
+    } as never)
 
     const session = await verifyToken('consumer-token')
     expect(session.id).toBe('con-789')
@@ -186,5 +187,124 @@ describe('clearSessionCookie', () => {
     const cookie = result.cookies.get('sg-token')
     expect(cookie).toBeDefined()
     expect(cookie?.value).toBe('')
+  })
+
+  it('returns the same response object', () => {
+    const response = NextResponse.json({ ok: true })
+    const result = clearSessionCookie(response)
+    expect(result).toBe(response)
+  })
+
+  it('sets maxAge to 0 for immediate expiry', () => {
+    const response = NextResponse.json({})
+    clearSessionCookie(response)
+    const cookieHeader = response.headers.get('set-cookie')
+    expect(cookieHeader).toContain('Max-Age=0')
+  })
+})
+
+describe('setSessionCookie (extended)', () => {
+  it('returns the same response object', () => {
+    const response = NextResponse.json({ ok: true })
+    const result = setSessionCookie(response, 'token-val')
+    expect(result).toBe(response)
+  })
+
+  it('sets httpOnly flag', () => {
+    const response = NextResponse.json({})
+    setSessionCookie(response, 'token')
+    const cookieHeader = response.headers.get('set-cookie')
+    expect(cookieHeader).toContain('HttpOnly')
+  })
+
+  it('sets SameSite=Lax', () => {
+    const response = NextResponse.json({})
+    setSessionCookie(response, 'token')
+    const cookieHeader = response.headers.get('set-cookie')
+    expect(cookieHeader?.toLowerCase()).toContain('samesite=lax')
+  })
+
+  it('sets path to /', () => {
+    const response = NextResponse.json({})
+    setSessionCookie(response, 'token')
+    const cookieHeader = response.headers.get('set-cookie')
+    expect(cookieHeader).toContain('Path=/')
+  })
+
+  it('sets 7-day max age (604800s)', () => {
+    const response = NextResponse.json({})
+    setSessionCookie(response, 'token')
+    const cookieHeader = response.headers.get('set-cookie')
+    expect(cookieHeader).toContain('Max-Age=604800')
+  })
+})
+
+describe('createToken (extended)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('creates token for consumer role', async () => {
+    const payload: TokenPayload = {
+      id: 'con-789',
+      email: 'consumer@example.com',
+      role: 'consumer',
+    }
+    const token = await createToken(payload)
+    expect(typeof token).toBe('string')
+  })
+
+  it('returns a string token', async () => {
+    const payload: TokenPayload = { id: 'x', email: 'x@x.com', role: 'developer' }
+    const token = await createToken(payload)
+    expect(typeof token).toBe('string')
+    expect(token.length).toBeGreaterThan(0)
+  })
+})
+
+describe('verifyToken (extended)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('verifies with issuer settlegrid and HS256', async () => {
+    await verifyToken('some-token')
+    expect(jwtVerify).toHaveBeenCalledWith(
+      'some-token',
+      expect.any(Uint8Array),
+      expect.objectContaining({ issuer: 'settlegrid', algorithms: ['HS256'] })
+    )
+  })
+
+  it('returns numeric iat and exp', async () => {
+    const session = await verifyToken('valid-token')
+    expect(typeof session.iat).toBe('number')
+    expect(typeof session.exp).toBe('number')
+    expect(session.exp).toBeGreaterThan(session.iat)
+  })
+})
+
+describe('hashPassword (extended)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('hashes different passwords separately', async () => {
+    await hashPassword('password1')
+    await hashPassword('password2')
+    expect(bcrypt.hash).toHaveBeenCalledTimes(2)
+    expect(bcrypt.hash).toHaveBeenCalledWith('password1', 12)
+    expect(bcrypt.hash).toHaveBeenCalledWith('password2', 12)
+  })
+})
+
+describe('comparePassword (extended)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('passes password and hash to bcrypt.compare', async () => {
+    await comparePassword('plain', '$2a$12$stored')
+    expect(bcrypt.compare).toHaveBeenCalledWith('plain', '$2a$12$stored')
   })
 })

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-export default function DashboardError({
+export default function ConsumerError({
   error,
   reset,
 }: {
@@ -10,13 +10,16 @@ export default function DashboardError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Dashboard error:', error)
+    console.error('Consumer dashboard error:', error)
   }, [error])
 
   return (
     <div className="text-center py-12">
-      <h2 className="text-xl font-bold text-indigo mb-2">Dashboard Error</h2>
-      <p className="text-gray-600 mb-4" role="alert">Something went wrong loading the dashboard.</p>
+      <h2 className="text-xl font-bold text-indigo mb-2">Consumer Dashboard Error</h2>
+      <p className="text-gray-600 mb-4">Something went wrong loading your dashboard.</p>
+      <div role="alert" className="text-sm text-red-600 mb-4">
+        {error.message || 'An unexpected error occurred.'}
+      </div>
       <button
         onClick={reset}
         className="bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors text-sm font-medium"

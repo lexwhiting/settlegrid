@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import Stripe from 'stripe'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, payouts } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'

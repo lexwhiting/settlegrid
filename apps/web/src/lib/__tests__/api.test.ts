@@ -185,4 +185,118 @@ describe('internalErrorResponse', () => {
       code: 'VALIDATION_ERROR',
     })
   })
+
+  it('handles null error', async () => {
+    const response = internalErrorResponse(null)
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe('INTERNAL_ERROR')
+  })
+
+  it('handles undefined error', async () => {
+    const response = internalErrorResponse(undefined)
+    expect(response.status).toBe(500)
+  })
+})
+
+describe('ParseBodyError', () => {
+  it('extends Error', () => {
+    const err = new ParseBodyError('test', 400)
+    expect(err).toBeInstanceOf(Error)
+  })
+
+  it('has name ParseBodyError', () => {
+    const err = new ParseBodyError('msg', 422)
+    expect(err.name).toBe('ParseBodyError')
+  })
+
+  it('carries statusCode', () => {
+    const err = new ParseBodyError('bad', 400)
+    expect(err.statusCode).toBe(400)
+  })
+
+  it('carries message', () => {
+    const err = new ParseBodyError('Validation failed: email: Invalid', 422)
+    expect(err.message).toBe('Validation failed: email: Invalid')
+  })
+})
+
+describe('successResponse (extended)', () => {
+  it('handles nested objects', async () => {
+    const response = successResponse({ a: { b: { c: true } } })
+    const body = await response.json()
+    expect(body.a.b.c).toBe(true)
+  })
+
+  it('handles empty object', async () => {
+    const response = successResponse({})
+    const body = await response.json()
+    expect(body).toEqual({})
+  })
+
+  it('defaults to 200 status', () => {
+    const response = successResponse('anything')
+    expect(response.status).toBe(200)
+  })
+})
+
+describe('errorResponse (extended)', () => {
+  it('returns 401 for unauthorized', () => {
+    const response = errorResponse('Unauthorized', 401)
+    expect(response.status).toBe(401)
+  })
+
+  it('returns 403 for forbidden', () => {
+    const response = errorResponse('Forbidden', 403)
+    expect(response.status).toBe(403)
+  })
+
+  it('returns 409 for conflict', async () => {
+    const response = errorResponse('Conflict', 409, 'SLUG_EXISTS')
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.code).toBe('SLUG_EXISTS')
+  })
+
+  it('returns 500 for server error', () => {
+    const response = errorResponse('Server error', 500, 'INTERNAL_ERROR')
+    expect(response.status).toBe(500)
+  })
+})
+
+describe('parseBody (extended)', () => {
+  const strictSchema = z.object({
+    name: z.string().min(1).max(200),
+  })
+
+  it('validates max length constraint', async () => {
+    const request = new Request('http://localhost/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'a'.repeat(201) }),
+    })
+
+    await expect(parseBody(request, strictSchema)).rejects.toThrow(ParseBodyError)
+  })
+
+  it('passes with valid short name', async () => {
+    const request = new Request('http://localhost/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Valid Name' }),
+    })
+
+    const result = await parseBody(request, strictSchema)
+    expect(result.name).toBe('Valid Name')
+  })
+
+  it('rejects empty name', async () => {
+    const request = new Request('http://localhost/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '' }),
+    })
+
+    await expect(parseBody(request, strictSchema)).rejects.toThrow(ParseBodyError)
+  })
 })

@@ -14,7 +14,7 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? request.ip ?? 'unknown'
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
     const rateLimit = await checkRateLimit(authLimiter, `con-login:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

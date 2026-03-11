@@ -107,9 +107,12 @@ export default function ConsumerDashboardPage() {
                   <div className="flex items-center gap-3">
                     {b.autoRefill && <Badge variant="secondary">Auto-refill</Badge>}
                     <span className="font-semibold text-brand">{formatCents(b.balanceCents)}</span>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`/tools/${b.toolSlug}`}>Add Credits</a>
-                    </Button>
+                    <a
+                      href={`/tools/${b.toolSlug}`}
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 h-9 px-3 transition-colors"
+                    >
+                      Add Credits
+                    </a>
                   </div>
                 </div>
               ))}

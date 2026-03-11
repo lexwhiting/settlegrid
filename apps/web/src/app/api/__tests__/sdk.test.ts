@@ -2,23 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const { mockDb, mockCheckRateLimit } = vi.hoisted(() => {
-  // Create a chainable mock that resolves to an empty array when awaited
-  // This avoids infinite .then() loops
-  const createChainablePromise = (resolveValue: unknown = []) => {
-    const chain: Record<string, unknown> = {}
-    const methods = ['select', 'from', 'where', 'limit', 'insert', 'values', 'returning', 'update', 'set', 'innerJoin', 'groupBy', 'orderBy']
-    for (const m of methods) {
-      chain[m] = vi.fn().mockReturnValue(chain)
-    }
-    // Make the chain thenable so it resolves when awaited
-    chain.then = vi.fn().mockImplementation((resolve: (val: unknown) => void) => {
-      resolve(resolveValue)
-      return Promise.resolve(resolveValue)
-    })
-    chain.catch = vi.fn().mockReturnValue(chain)
-    return chain
-  }
-
   // For the validate-key route, we need a specific mock that handles multiple
   // sequential queries, so we use a different approach
   const mockDb = {
@@ -315,12 +298,6 @@ describe('Meter (POST /api/sdk/meter)', () => {
   })
 
   it('meters a successful invocation and deducts credits', async () => {
-    // Make mockDb thenable (resolves when awaited without .returning())
-    mockDb.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
-      resolve(undefined)
-      return Promise.resolve(undefined)
-    })
-
     // Balance check: select().from().where().limit()
     mockDb.limit
       .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 5000 }]) // balance check

@@ -115,14 +115,14 @@ import { POST as webhook } from '@/app/api/billing/webhook/route'
 import { GET as purchaseHistory } from '@/app/api/billing/purchases/route'
 
 function makeRequest(url: string, method: string = 'GET', body?: unknown, headers?: Record<string, string>): NextRequest {
-  const options: RequestInit = {
+  const init: { method: string; headers: Record<string, string>; body?: string } = {
     method,
     headers: { 'Content-Type': 'application/json', ...headers },
   }
   if (body) {
-    options.body = typeof body === 'string' ? body : JSON.stringify(body)
+    init.body = typeof body === 'string' ? body : JSON.stringify(body)
   }
-  return new NextRequest(`http://localhost:3005${url}`, options)
+  return new NextRequest(`http://localhost:3005${url}`, init)
 }
 
 describe('Checkout (POST /api/billing/checkout)', () => {

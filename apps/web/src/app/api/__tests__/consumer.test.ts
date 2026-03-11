@@ -115,9 +115,12 @@ import { GET as getBalance } from '@/app/api/consumer/balance/route'
 import { GET as getUsage } from '@/app/api/consumer/usage/route'
 
 function makeRequest(url: string, method: string = 'GET', body?: unknown): NextRequest {
-  const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } }
-  if (body) options.body = JSON.stringify(body)
-  return new NextRequest(`http://localhost:3005${url}`, options)
+  const init: { method: string; headers: Record<string, string>; body?: string } = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  }
+  if (body) init.body = JSON.stringify(body)
+  return new NextRequest(`http://localhost:3005${url}`, init)
 }
 
 describe('Consumer Register (POST /api/auth/consumer/register)', () => {

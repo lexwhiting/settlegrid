@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? request.ip ?? 'unknown'
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
     const rateLimit = await checkRateLimit(apiLimiter, `public-tool:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
