@@ -11,6 +11,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit } = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([]),
+    offset: vi.fn().mockReturnThis(),
   }
 
   return {
@@ -49,6 +50,11 @@ vi.mock('@/lib/db/schema', () => ({
     toolId: 'tool_id',
     rating: 'rating',
   },
+  invocations: {
+    id: 'id',
+    toolId: 'tool_id',
+    latencyMs: 'latency_ms',
+  },
 }))
 
 vi.mock('@/lib/middleware/auth', () => ({
@@ -60,10 +66,15 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
+vi.mock('@/lib/request-id', () => ({
+  getOrCreateRequestId: vi.fn().mockReturnValue('test-request-id-123'),
+}))
+
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
+  count: vi.fn().mockImplementation((col: unknown) => ({ count: col })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
       sql: strings,
@@ -101,7 +112,11 @@ describe('Public Developer Profile (GET /api/developers/[id]/profile)', () => {
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
   })
 
-  it('returns public profile with tools', async () => {
+  it('returns public profile with tools and aggregate stats', async () => {
+    // Three queries, each ending with .limit():
+    // Q1: developer record
+    // Q2: active tools list
+    // Q3: aggregate stats
     mockDb.limit
       .mockResolvedValueOnce([{
         id: devUuid,
@@ -113,6 +128,7 @@ describe('Public Developer Profile (GET /api/developers/[id]/profile)', () => {
       }])
       .mockResolvedValueOnce([
         {
+          id: 'tool-abc',
           name: 'My Tool',
           slug: 'my-tool',
           category: 'nlp',
@@ -120,6 +136,10 @@ describe('Public Developer Profile (GET /api/developers/[id]/profile)', () => {
           averageRating: 4.5,
         },
       ])
+      .mockResolvedValueOnce([{
+        totalInvocations: 500,
+        avgResponseTimeMs: 120.5,
+      }])
 
     const response = await getPublicProfile(
       makeRequest(`/api/developers/${devUuid}/profile`),
@@ -130,8 +150,12 @@ describe('Public Developer Profile (GET /api/developers/[id]/profile)', () => {
     expect(response.status).toBe(200)
     expect(data.name).toBe('Jane Dev')
     expect(data.bio).toBe('Building cool tools')
+    expect(data.stats.toolCount).toBe(1)
+    expect(data.stats.totalInvocations).toBe(500)
+    expect(data.stats.avgResponseTimeMs).toBe(120.5)
     expect(data.tools).toHaveLength(1)
     expect(data.tools[0].name).toBe('My Tool')
+    expect(response.headers.get('x-request-id')).toBe('test-request-id-123')
   })
 
   it('returns 404 for private profile', async () => {
@@ -186,6 +210,30 @@ describe('Public Developer Profile (GET /api/developers/[id]/profile)', () => {
       makeIdParams(devUuid)
     )
     expect(response.status).toBe(429)
+  })
+
+  it('returns zero stats when developer has no tools', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: devUuid,
+        name: 'New Dev',
+        publicBio: 'Just starting out',
+        avatarUrl: null,
+        publicProfile: true,
+        createdAt: new Date('2026-03-01').toISOString(),
+      }])
+      .mockResolvedValueOnce([]) // no active tools — aggregate stats skipped
+
+    const response = await getPublicProfile(
+      makeRequest(`/api/developers/${devUuid}/profile`),
+      makeIdParams(devUuid)
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.stats.toolCount).toBe(0)
+    expect(data.stats.totalInvocations).toBe(0)
+    expect(data.stats.avgResponseTimeMs).toBe(0)
   })
 })
 

@@ -4,18 +4,27 @@ import { logger } from '@/lib/logger'
 
 /**
  * Returns a JSON success response with the given data and status code.
+ * Optionally attaches `x-request-id` header when a requestId is provided.
  */
-export function successResponse<T>(data: T, status: number = 200): NextResponse {
-  return NextResponse.json(data, { status })
+export function successResponse<T>(data: T, status: number = 200, requestId?: string): NextResponse {
+  const response = NextResponse.json(data, { status })
+
+  if (requestId) {
+    response.headers.set('x-request-id', requestId)
+  }
+
+  return response
 }
 
 /**
  * Returns a JSON error response with a message, HTTP status code, and optional error code.
+ * Optionally attaches `x-request-id` header when a requestId is provided.
  */
 export function errorResponse(
   message: string,
   status: number,
-  code?: string
+  code?: string,
+  requestId?: string
 ): NextResponse {
   const body: { error: string; code?: string } = { error: message }
 
@@ -23,7 +32,13 @@ export function errorResponse(
     body.code = code
   }
 
-  return NextResponse.json(body, { status })
+  const response = NextResponse.json(body, { status })
+
+  if (requestId) {
+    response.headers.set('x-request-id', requestId)
+  }
+
+  return response
 }
 
 /**
@@ -75,16 +90,17 @@ export class ParseBodyError extends Error {
 /**
  * Catches unknown errors and returns a sanitized 500 response.
  * Logs the full error for server-side debugging.
+ * Optionally attaches `x-request-id` header when a requestId is provided.
  */
-export function internalErrorResponse(error: unknown): NextResponse {
+export function internalErrorResponse(error: unknown, requestId?: string): NextResponse {
   if (error instanceof ParseBodyError) {
-    return errorResponse(error.message, error.statusCode, 'VALIDATION_ERROR')
+    return errorResponse(error.message, error.statusCode, 'VALIDATION_ERROR', requestId)
   }
 
   const message =
     error instanceof Error ? error.message : 'An unexpected error occurred'
 
-  logger.error('internal_error', { message }, error)
+  logger.error('internal_error', { message, ...(requestId ? { requestId } : {}) }, error)
 
-  return errorResponse('Internal server error', 500, 'INTERNAL_ERROR')
+  return errorResponse('Internal server error', 500, 'INTERNAL_ERROR', requestId)
 }

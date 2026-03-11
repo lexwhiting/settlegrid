@@ -5,19 +5,22 @@ import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { csvEscape } from '@/lib/csv'
+import { getOrCreateRequestId } from '@/lib/request-id'
 
 export const maxDuration = 30
 
 /** GET /api/dashboard/developer/stats/export — CSV export of invocation data */
 export async function GET(request: NextRequest) {
+  const requestId = getOrCreateRequestId(request)
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
     const rl = await checkRateLimit(apiLimiter, `dev-export:${ip}`)
-    if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+    if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
 
     let auth
     try { auth = await requireDeveloper(request) } catch (err) {
-      return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
+      return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED', requestId)
     }
 
     // Parse days param (default 30, max 365 for enterprise, 90 for standard)
@@ -45,6 +48,7 @@ export async function GET(request: NextRequest) {
         headers: {
           'Content-Type': 'text/csv',
           'Content-Disposition': `attachment; filename="settlegrid-export-${days}d.csv"`,
+          'x-request-id': requestId,
         },
       })
     }
@@ -69,12 +73,19 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(invocations.createdAt))
       .limit(50000)
 
-    // Build CSV
+    // Build CSV with proper escaping
     const lines: string[] = ['timestamp,tool,method,cost_cents,latency_ms,status']
     for (const row of rows) {
-      const toolName = (toolNameMap.get(row.toolId) ?? row.toolId).replace(/,/g, ' ')
+      const toolName = toolNameMap.get(row.toolId) ?? row.toolId
       lines.push(
-        `${row.createdAt.toISOString()},${toolName},${row.method},${row.costCents},${row.latencyMs ?? ''},${row.status}`
+        [
+          csvEscape(row.createdAt.toISOString()),
+          csvEscape(toolName),
+          csvEscape(row.method),
+          csvEscape(String(row.costCents)),
+          csvEscape(row.latencyMs != null ? String(row.latencyMs) : ''),
+          csvEscape(row.status),
+        ].join(',')
       )
     }
 
@@ -83,9 +94,10 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'text/csv',
         'Content-Disposition': `attachment; filename="settlegrid-export-${days}d.csv"`,
+        'x-request-id': requestId,
       },
     })
   } catch (error) {
-    return internalErrorResponse(error)
+    return internalErrorResponse(error, requestId)
   }
 }

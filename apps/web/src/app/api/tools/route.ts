@@ -7,8 +7,11 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { getOrCreateRequestId } from '@/lib/request-id'
 
 export const maxDuration = 15
+
+const SEMVER_RE = /^\d+\.\d+\.\d+$/
 
 const pricingConfigSchema = z.object({
   model: z.enum(['per_call', 'tiered', 'flat']),
@@ -34,14 +37,19 @@ const createToolSchema = z.object({
   description: z.string().max(2000, 'Description too long').optional(),
   pricingConfig: pricingConfigSchema,
   healthEndpoint: z.string().url().max(500).optional(),
+  currentVersion: z
+    .string()
+    .regex(SEMVER_RE, 'Version must be valid semver (e.g. 1.0.0)')
+    .optional(),
 })
 
 export async function GET(request: NextRequest) {
+  const requestId = getOrCreateRequestId(request)
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
     const rateLimit = await checkRateLimit(apiLimiter, `tools-list:${ip}`)
     if (!rateLimit.success) {
-      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
     let auth
@@ -49,7 +57,7 @@ export async function GET(request: NextRequest) {
       auth = await requireDeveloper(request)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
-      return errorResponse(message, 401, 'UNAUTHORIZED')
+      return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
     const developerTools = await db
@@ -63,6 +71,7 @@ export async function GET(request: NextRequest) {
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,
+        currentVersion: tools.currentVersion,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })
@@ -70,18 +79,19 @@ export async function GET(request: NextRequest) {
       .where(eq(tools.developerId, auth.id))
       .limit(500)
 
-    return successResponse({ tools: developerTools })
+    return successResponse({ tools: developerTools }, 200, requestId)
   } catch (error) {
-    return internalErrorResponse(error)
+    return internalErrorResponse(error, requestId)
   }
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = getOrCreateRequestId(request)
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
     const rateLimit = await checkRateLimit(apiLimiter, `tools-create:${ip}`)
     if (!rateLimit.success) {
-      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
     let auth
@@ -89,7 +99,7 @@ export async function POST(request: NextRequest) {
       auth = await requireDeveloper(request)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
-      return errorResponse(message, 401, 'UNAUTHORIZED')
+      return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
     const body = await parseBody(request, createToolSchema)
@@ -102,7 +112,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (existing) {
-      return errorResponse('A tool with this slug already exists.', 409, 'SLUG_EXISTS')
+      return errorResponse('A tool with this slug already exists.', 409, 'SLUG_EXISTS', requestId)
     }
 
     const [tool] = await db
@@ -114,6 +124,7 @@ export async function POST(request: NextRequest) {
         description: body.description ?? null,
         pricingConfig: body.pricingConfig,
         healthEndpoint: body.healthEndpoint ?? null,
+        currentVersion: body.currentVersion ?? '1.0.0',
       })
       .returning({
         id: tools.id,
@@ -125,6 +136,7 @@ export async function POST(request: NextRequest) {
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,
+        currentVersion: tools.currentVersion,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })
@@ -139,8 +151,8 @@ export async function POST(request: NextRequest) {
       ipAddress: ip,
     }).catch(() => {})
 
-    return successResponse({ tool }, 201)
+    return successResponse({ tool }, 201, requestId)
   } catch (error) {
-    return internalErrorResponse(error)
+    return internalErrorResponse(error, requestId)
   }
 }

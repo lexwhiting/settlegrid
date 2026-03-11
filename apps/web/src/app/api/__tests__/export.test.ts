@@ -48,6 +48,10 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
+vi.mock('@/lib/request-id', () => ({
+  getOrCreateRequestId: vi.fn().mockReturnValue('test-request-id-export'),
+}))
+
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
@@ -89,6 +93,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('text/csv')
     expect(response.headers.get('Content-Disposition')).toContain('settlegrid-export')
+    expect(response.headers.get('x-request-id')).toBe('test-request-id-export')
 
     const text = await response.text()
     expect(text).toContain('timestamp,tool,method,cost_cents,latency_ms,status')
@@ -142,7 +147,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
     expect(response.status).toBe(429)
   })
 
-  it('escapes commas in tool names', async () => {
+  it('properly escapes commas in tool names with RFC 4180 quoting', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{ id: 'tool-1', name: 'Tool, With, Commas' }])
       .mockResolvedValueOnce([
@@ -159,8 +164,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
     const response = await GET(makeRequest('/api/dashboard/developer/stats/export'))
     const text = await response.text()
 
-    // Commas should be replaced with spaces in CSV output
-    expect(text).not.toContain('Tool, With, Commas')
-    expect(text).toContain('Tool  With  Commas')
+    // Commas should be enclosed in double quotes per RFC 4180
+    expect(text).toContain('"Tool, With, Commas"')
   })
 })
