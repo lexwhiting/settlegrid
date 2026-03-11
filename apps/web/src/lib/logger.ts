@@ -37,13 +37,10 @@ function emit(level: LogLevel, msg: string, meta?: Record<string, unknown>, err?
   const line = JSON.stringify(entry)
 
   if (level === 'error') {
-    // eslint-disable-next-line no-console
     console.error(line)
   } else if (level === 'warn') {
-    // eslint-disable-next-line no-console
     console.warn(line)
   } else {
-    // eslint-disable-next-line no-console
     console.log(line)
   }
 }
