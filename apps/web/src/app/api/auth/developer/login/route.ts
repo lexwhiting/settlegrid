@@ -7,6 +7,8 @@ import { comparePassword, createToken, setSessionCookie } from '@/lib/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 10
+
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),

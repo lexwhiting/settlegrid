@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 30
 
 export async function GET() {
   const components: Record<string, { status: string; latencyMs?: number }> = {}

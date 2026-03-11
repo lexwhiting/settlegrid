@@ -8,6 +8,8 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { generateApiKey } from '@/lib/crypto'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 15
+
 const createKeySchema = z.object({
   toolId: z.string().uuid('Invalid tool ID'),
 })

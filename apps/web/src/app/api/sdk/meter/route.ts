@@ -6,6 +6,8 @@ import { tools, developers, consumerToolBalances, invocations } from '@/lib/db/s
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 15
+
 const meterSchema = z.object({
   toolSlug: z.string().min(1, 'Tool slug is required'),
   consumerId: z.string().uuid('Invalid consumer ID'),

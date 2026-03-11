@@ -5,6 +5,8 @@ import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 15
+
 const VALID_CATEGORIES = [
   'data', 'nlp', 'image', 'code', 'search',
   'finance', 'productivity', 'analytics', 'security', 'other',

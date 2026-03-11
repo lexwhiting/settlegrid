@@ -3,6 +3,8 @@ import { clearSessionCookie } from '@/lib/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 10
+
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'

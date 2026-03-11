@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
+export const maxDuration = 15
+
 // Simple in-memory rate limiter: max 10 attempts per IP per 15 minutes
 const attempts = new Map<string, { count: number; resetAt: number }>()
 const MAX_ATTEMPTS = 10

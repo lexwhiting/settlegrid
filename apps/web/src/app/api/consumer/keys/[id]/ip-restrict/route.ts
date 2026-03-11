@@ -8,6 +8,8 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { isValidIpOrCidr } from '@/lib/ip-validation'
 
+export const maxDuration = 15
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const ipRestrictSchema = z.object({

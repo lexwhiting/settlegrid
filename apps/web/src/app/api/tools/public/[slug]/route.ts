@@ -5,6 +5,8 @@ import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 15
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }

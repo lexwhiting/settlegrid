@@ -7,6 +7,8 @@ import { hashPassword, createToken, setSessionCookie } from '@/lib/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 10
+
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password too long'),
