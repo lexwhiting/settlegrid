@@ -75,6 +75,7 @@ vi.mock('@/lib/db/schema', () => ({
   developers: {
     id: 'id',
     balanceCents: 'balance_cents',
+    revenueSharePct: 'revenue_share_pct',
     updatedAt: 'updated_at',
   },
 }))

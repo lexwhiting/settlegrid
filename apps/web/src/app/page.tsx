@@ -30,7 +30,7 @@ function ComparisonTable() {
     { name: 'Per-method pricing', settlegrid: true, mcpize: false, apify: false, moesif: true },
     { name: 'Consumer API keys', settlegrid: true, mcpize: false, apify: true, moesif: true },
     { name: 'Auto-refill credits', settlegrid: true, mcpize: false, apify: false, moesif: false },
-    { name: '80/20 revenue split', settlegrid: true, mcpize: false, apify: false, moesif: false },
+    { name: '85/15 revenue split', settlegrid: true, mcpize: false, apify: false, moesif: false },
     { name: '<50ms overhead', settlegrid: true, mcpize: false, apify: false, moesif: true },
     { name: 'Open-source SDK', settlegrid: true, mcpize: true, apify: false, moesif: false },
   ]
@@ -98,7 +98,7 @@ function PricingSection() {
     <div className="text-center">
       <h2 className="text-3xl font-bold text-indigo mb-4">Simple, Fair Pricing</h2>
       <p className="text-gray-600 mb-10 max-w-xl mx-auto">
-        No monthly fees. No setup costs. We take 20% of each transaction — you keep 80%.
+        No monthly fees. No setup costs. We take 15% of each transaction — you keep 85%.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
         <div className="p-8 rounded-xl border-2 border-gray-200 text-center">
@@ -110,7 +110,7 @@ function PricingSection() {
             <li>&#10003; Per-call billing</li>
             <li>&#10003; Stripe Connect payouts</li>
             <li>&#10003; Dashboard analytics</li>
-            <li>&#10003; 80% revenue share</li>
+            <li>&#10003; 85% revenue share</li>
           </ul>
         </div>
         <div className="p-8 rounded-xl border-2 border-brand text-center relative">

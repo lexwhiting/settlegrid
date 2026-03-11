@@ -107,7 +107,7 @@ export default function DeveloperDashboardPage() {
         <StatCard
           title="Revenue (24h)"
           value={formatCents(
-            (stats?.recentInvocations ?? []).reduce((sum, r) => sum + r.count, 0) * 1
+            (stats?.recentInvocations ?? []).reduce((sum, r) => sum + ((r as { revenueCents?: number }).revenueCents ?? 0), 0)
           )}
           subtitle="Last 24 hours"
         />

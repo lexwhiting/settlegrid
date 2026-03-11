@@ -30,11 +30,12 @@ export async function POST(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
-    // Get developer with balance and Stripe status
+    // Get developer with balance, Stripe status, and revenue share
     const [developer] = await db
       .select({
         id: developers.id,
         balanceCents: developers.balanceCents,
+        revenueSharePct: developers.revenueSharePct,
         stripeConnectId: developers.stripeConnectId,
         stripeConnectStatus: developers.stripeConnectStatus,
         payoutMinimumCents: developers.payoutMinimumCents,
@@ -71,12 +72,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calculate 80/20 split: the balanceCents already represents 80% of revenue
-    // The platform fee is the 20% that was never added to developer balance
+    // The balanceCents already represents the developer's share (e.g. 85% or 90% of revenue)
     // For the payout, we transfer the full developer balance
     const payoutAmountCents = developer.balanceCents
-    // Platform fee already retained (20% of gross) — calculate for record keeping
-    const platformFeeCents = Math.floor(payoutAmountCents * 0.25) // 20% of gross = 25% of developer share
+    // Platform fee already retained — calculate for record keeping
+    const sharePct = developer.revenueSharePct ?? 85
+    const platformPct = 100 - sharePct
+    const platformFeeCents = Math.floor(payoutAmountCents * (platformPct / sharePct))
 
     const stripe = getStripe()
     const now = new Date()

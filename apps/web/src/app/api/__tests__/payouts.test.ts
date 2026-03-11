@@ -46,6 +46,7 @@ vi.mock('@/lib/db/schema', () => ({
   developers: {
     id: 'id',
     balanceCents: 'balance_cents',
+    revenueSharePct: 'revenue_share_pct',
     stripeConnectId: 'stripe_connect_id',
     stripeConnectStatus: 'stripe_connect_status',
     payoutMinimumCents: 'payout_minimum_cents',

@@ -17,8 +17,11 @@ export const developers = pgTable('developers', {
   email: text('email').notNull().unique(),
   name: text('name'),
   passwordHash: text('password_hash').notNull(),
+  tier: text('tier').notNull().default('standard'), // 'standard' | 'enterprise'
+  revenueSharePct: integer('revenue_share_pct').notNull().default(85), // 85 = developer keeps 85%
   stripeConnectId: text('stripe_connect_id'),
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),
+  stripeSubscriptionId: text('stripe_subscription_id'), // Enterprise tier subscription
   apiKeyHash: text('api_key_hash'),
   balanceCents: integer('balance_cents').notNull().default(0),
   payoutSchedule: text('payout_schedule').notNull().default('monthly'),
@@ -30,6 +33,7 @@ export const developers = pgTable('developers', {
 export const developersRelations = relations(developers, ({ many }) => ({
   tools: many(tools),
   payouts: many(payouts),
+  webhookEndpoints: many(webhookEndpoints),
 }))
 
 // ─── Tools ─────────────────────────────────────────────────────────────────────
@@ -217,5 +221,53 @@ export const payoutsRelations = relations(payouts, ({ one }) => ({
   developer: one(developers, {
     fields: [payouts.developerId],
     references: [developers.id],
+  }),
+}))
+
+// ─── Webhook Endpoints ────────────────────────────────────────────────────────
+
+export const webhookEndpoints = pgTable('webhook_endpoints', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  developerId: uuid('developer_id')
+    .notNull()
+    .references(() => developers.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  secret: text('secret').notNull(), // HMAC signing secret
+  events: jsonb('events').notNull().default('["invocation.completed","payout.initiated","tool.status_changed"]'),
+  status: text('status').notNull().default('active'), // 'active' | 'disabled'
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const webhookEndpointsRelations = relations(webhookEndpoints, ({ one, many }) => ({
+  developer: one(developers, {
+    fields: [webhookEndpoints.developerId],
+    references: [developers.id],
+  }),
+  deliveries: many(webhookDeliveries),
+}))
+
+// ─── Webhook Deliveries ───────────────────────────────────────────────────────
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  endpointId: uuid('endpoint_id')
+    .notNull()
+    .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
+  event: text('event').notNull(),
+  payload: jsonb('payload').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending' | 'delivered' | 'failed'
+  httpStatus: integer('http_status'),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(3), // 3 standard, 5 enterprise
+  lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one }) => ({
+  endpoint: one(webhookEndpoints, {
+    fields: [webhookDeliveries.endpointId],
+    references: [webhookEndpoints.id],
   }),
 }))

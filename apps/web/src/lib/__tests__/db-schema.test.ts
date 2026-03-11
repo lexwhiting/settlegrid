@@ -50,6 +50,18 @@ describe('developers table schema', () => {
     expect(schema.developers.updatedAt).toBeDefined()
   })
 
+  it('has tier column', () => {
+    expect(schema.developers.tier).toBeDefined()
+  })
+
+  it('has revenueSharePct column', () => {
+    expect(schema.developers.revenueSharePct).toBeDefined()
+  })
+
+  it('has stripeSubscriptionId column', () => {
+    expect(schema.developers.stripeSubscriptionId).toBeDefined()
+  })
+
   it('has developersRelations defined', () => {
     expect(schema.developersRelations).toBeDefined()
   })
@@ -281,8 +293,80 @@ describe('payouts table schema', () => {
   })
 })
 
+describe('webhookEndpoints table schema', () => {
+  it('exports webhookEndpoints table', () => {
+    expect(schema.webhookEndpoints).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.webhookEndpoints.id).toBeDefined()
+  })
+
+  it('has developerId column', () => {
+    expect(schema.webhookEndpoints.developerId).toBeDefined()
+  })
+
+  it('has url column', () => {
+    expect(schema.webhookEndpoints.url).toBeDefined()
+  })
+
+  it('has secret column', () => {
+    expect(schema.webhookEndpoints.secret).toBeDefined()
+  })
+
+  it('has events column', () => {
+    expect(schema.webhookEndpoints.events).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.webhookEndpoints.status).toBeDefined()
+  })
+
+  it('has webhookEndpointsRelations defined', () => {
+    expect(schema.webhookEndpointsRelations).toBeDefined()
+  })
+})
+
+describe('webhookDeliveries table schema', () => {
+  it('exports webhookDeliveries table', () => {
+    expect(schema.webhookDeliveries).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.webhookDeliveries.id).toBeDefined()
+  })
+
+  it('has endpointId column', () => {
+    expect(schema.webhookDeliveries.endpointId).toBeDefined()
+  })
+
+  it('has event column', () => {
+    expect(schema.webhookDeliveries.event).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.webhookDeliveries.status).toBeDefined()
+  })
+
+  it('has httpStatus column', () => {
+    expect(schema.webhookDeliveries.httpStatus).toBeDefined()
+  })
+
+  it('has attempts column', () => {
+    expect(schema.webhookDeliveries.attempts).toBeDefined()
+  })
+
+  it('has maxAttempts column', () => {
+    expect(schema.webhookDeliveries.maxAttempts).toBeDefined()
+  })
+
+  it('has webhookDeliveriesRelations defined', () => {
+    expect(schema.webhookDeliveriesRelations).toBeDefined()
+  })
+})
+
 describe('schema table count', () => {
-  it('exports 8 tables total', () => {
+  it('exports 10 tables total', () => {
     const tables = [
       schema.developers,
       schema.tools,
@@ -292,8 +376,10 @@ describe('schema table count', () => {
       schema.invocations,
       schema.purchases,
       schema.payouts,
+      schema.webhookEndpoints,
+      schema.webhookDeliveries,
     ]
-    expect(tables).toHaveLength(8)
+    expect(tables).toHaveLength(10)
     tables.forEach(t => expect(t).toBeDefined())
   })
 })

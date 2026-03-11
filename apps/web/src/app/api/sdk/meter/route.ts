@@ -81,19 +81,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get tool to find developer
-    const [tool] = await db
-      .select({ developerId: tools.developerId })
+    // Get tool + developer to find revenue share percentage
+    const [toolDev] = await db
+      .select({
+        developerId: tools.developerId,
+        revenueSharePct: developers.revenueSharePct,
+      })
       .from(tools)
+      .innerJoin(developers, eq(tools.developerId, developers.id))
       .where(eq(tools.id, body.toolId))
       .limit(1)
 
-    if (!tool) {
+    if (!toolDev) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    // Calculate 80/20 split: developer gets 80%, platform keeps 20%
-    const developerShareCents = Math.floor(body.costCents * 0.8)
+    // Dynamic revenue split based on developer tier (85% standard, 90% enterprise)
+    const developerShareCents = Math.floor(body.costCents * (toolDev.revenueSharePct / 100))
 
     // Execute all updates atomically using a transaction
     // Drizzle doesn't have a built-in transaction for postgres-js, so we do sequential ops
@@ -138,7 +142,7 @@ export async function POST(request: NextRequest) {
         balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
         updatedAt: new Date(),
       })
-      .where(eq(developers.id, tool.developerId))
+      .where(eq(developers.id, toolDev.developerId))
 
     // 4. Insert invocation record
     const [invocation] = await db
