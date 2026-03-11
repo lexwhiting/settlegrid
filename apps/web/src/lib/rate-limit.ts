@@ -1,0 +1,72 @@
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
+import { getRedisUrl } from './env'
+
+export interface RateLimitResult {
+  success: boolean
+  limit: number
+  remaining: number
+  reset: number
+}
+
+let redisInstance: Redis | null = null
+
+function getRedis(): Redis {
+  if (!redisInstance) {
+    const url = getRedisUrl()
+    // Upstash Redis URL contains both the URL and token
+    // Format: https://....upstash.io with UPSTASH_REDIS_REST_TOKEN as separate env
+    redisInstance = new Redis({
+      url,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN ?? '',
+    })
+  }
+  return redisInstance
+}
+
+/**
+ * Creates a sliding-window rate limiter with the given parameters.
+ * @param requests - Maximum number of requests allowed in the window
+ * @param window - Time window string (e.g. '1 m', '1 h', '10 s')
+ * @returns A rate limiter instance
+ */
+export function createRateLimiter(
+  requests: number,
+  window: `${number} ${'s' | 'ms' | 'm' | 'h' | 'd'}`
+): Ratelimit {
+  return new Ratelimit({
+    redis: getRedis(),
+    limiter: Ratelimit.slidingWindow(requests, window),
+    analytics: true,
+    prefix: 'settlegrid:ratelimit',
+  })
+}
+
+/**
+ * Checks the rate limit for a given identifier.
+ * Returns a normalized result object.
+ */
+export async function checkRateLimit(
+  limiter: Ratelimit,
+  identifier: string
+): Promise<RateLimitResult> {
+  const result = await limiter.limit(identifier)
+
+  return {
+    success: result.success,
+    limit: result.limit,
+    remaining: result.remaining,
+    reset: result.reset,
+  }
+}
+
+// ─── Pre-configured rate limiters ──────────────────────────────────────────────
+
+/** 5 requests per minute — for auth endpoints (login, register, password reset) */
+export const authLimiter = createRateLimiter(5, '1 m')
+
+/** 100 requests per minute — for standard API endpoints */
+export const apiLimiter = createRateLimiter(100, '1 m')
+
+/** 1000 requests per minute — for SDK/tool invocation endpoints */
+export const sdkLimiter = createRateLimiter(1000, '1 m')
