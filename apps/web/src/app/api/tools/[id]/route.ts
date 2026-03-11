@@ -6,6 +6,7 @@ import { tools } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -144,6 +145,16 @@ export async function PATCH(
         updatedAt: tools.updatedAt,
       })
 
+    // Audit log: tool updated
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'tool.updated',
+      resourceType: 'tool',
+      resourceId: id,
+      details: { updatedFields: Object.keys(body).filter((k) => (body as Record<string, unknown>)[k] !== undefined) },
+      ipAddress: ip,
+    }).catch(() => {})
+
     return successResponse({ tool })
   } catch (error) {
     return internalErrorResponse(error)
@@ -193,6 +204,15 @@ export async function DELETE(
       .update(tools)
       .set({ status: 'deleted', updatedAt: new Date() })
       .where(eq(tools.id, id))
+
+    // Audit log: tool deleted
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'tool.deleted',
+      resourceType: 'tool',
+      resourceId: id,
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({ message: 'Tool deleted successfully.' })
   } catch (error) {

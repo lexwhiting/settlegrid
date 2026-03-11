@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, developers, consumerToolBalances, invocations } from '@/lib/db/schema'
+import { tools, developers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
@@ -17,6 +17,8 @@ const meterSchema = z.object({
   method: z.string().min(1, 'Method is required').max(200),
   costCents: z.number().int().min(0, 'Cost must be non-negative'),
   latencyMs: z.number().int().min(0).optional(),
+  isTestKey: z.boolean().optional(),
+  referralCode: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -28,6 +30,52 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await parseBody(request, meterSchema)
+
+    // ── Test mode: skip all billing, record invocation with isTest=true ───────
+    if (body.isTestKey) {
+      // Verify the key is actually a test key (don't trust client blindly)
+      const [keyRecord] = await db
+        .select({ isTestKey: apiKeys.isTestKey })
+        .from(apiKeys)
+        .where(eq(apiKeys.id, body.keyId))
+        .limit(1)
+
+      if (keyRecord?.isTestKey) {
+        // Record invocation but don't charge
+        const [invocation] = await db
+          .insert(invocations)
+          .values({
+            toolId: body.toolId,
+            consumerId: body.consumerId,
+            apiKeyId: body.keyId,
+            method: body.method,
+            costCents: 0,
+            latencyMs: body.latencyMs ?? null,
+            status: 'success',
+            isTest: true,
+          })
+          .returning({ id: invocations.id })
+
+        // Increment tool invocation count (but not revenue)
+        await db
+          .update(tools)
+          .set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(tools.id, body.toolId))
+
+        return successResponse({
+          success: true,
+          remainingBalanceCents: 999999,
+          costCents: 0,
+          invocationId: invocation.id,
+          billed: false,
+          reason: 'TEST_MODE',
+        })
+      }
+      // If key is not actually a test key, fall through to normal billing
+    }
 
     // If costCents is 0, skip balance deduction but still record the invocation
     if (body.costCents === 0) {
@@ -41,6 +89,7 @@ export async function POST(request: NextRequest) {
           costCents: 0,
           latencyMs: body.latencyMs ?? null,
           status: 'success',
+          referralCode: body.referralCode ?? null,
         })
         .returning({ id: invocations.id })
 
@@ -100,6 +149,7 @@ export async function POST(request: NextRequest) {
         latencyMs: body.latencyMs ?? null,
         developerId: toolDev.developerId,
         revenueSharePct: toolDev.revenueSharePct,
+        referralCode: body.referralCode,
       })
 
       // Track budget spend
@@ -182,8 +232,15 @@ export async function POST(request: NextRequest) {
         costCents: body.costCents,
         latencyMs: body.latencyMs ?? null,
         status: 'success',
+        referralCode: body.referralCode ?? null,
       })
       .returning({ id: invocations.id })
+
+    // Credit referral commission if applicable
+    if (body.referralCode && body.costCents > 0) {
+      const { creditReferralCommission } = await import('@/lib/metering')
+      creditReferralCommission(body.referralCode, body.costCents)
+    }
 
     return successResponse({
       success: true,

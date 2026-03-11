@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
         toolSlug: tools.slug,
         toolStatus: tools.status,
         ipAllowlist: apiKeys.ipAllowlist,
+        isTestKey: apiKeys.isTestKey,
       })
       .from(apiKeys)
       .innerJoin(tools, eq(apiKeys.toolId, tools.id))
@@ -69,6 +70,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // For test keys, return unlimited virtual balance
+    if (row.isTestKey) {
+      // Update lastUsedAt in the background (non-blocking)
+      db.update(apiKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(apiKeys.id, row.keyId))
+        .then(() => {})
+        .catch(() => {})
+
+      return successResponse({
+        valid: true,
+        consumerId: row.consumerId,
+        toolId: row.toolId,
+        keyId: row.keyId,
+        balanceCents: 999999,
+        isTestKey: true,
+      })
+    }
+
     // Get consumer balance for this tool
     const [balance] = await db
       .select({ balanceCents: consumerToolBalances.balanceCents })
@@ -96,6 +116,7 @@ export async function POST(request: NextRequest) {
       toolId: row.toolId,
       keyId: row.keyId,
       balanceCents,
+      isTestKey: false,
     })
   } catch (error) {
     return internalErrorResponse(error)

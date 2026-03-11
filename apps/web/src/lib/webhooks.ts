@@ -5,6 +5,59 @@ import { webhookEndpoints, webhookDeliveries, developers } from '@/lib/db/schema
 import { logger } from '@/lib/logger'
 
 /**
+ * Compute the next retry timestamp using exponential backoff.
+ * nextRetryAt = NOW() + (2^attempts * 60) seconds
+ */
+export function computeNextRetryAt(attempts: number): Date {
+  const delaySec = Math.pow(2, attempts) * 60
+  return new Date(Date.now() + delaySec * 1000)
+}
+
+/**
+ * Attempt to deliver a webhook payload to a single URL.
+ * Returns { httpStatus, status }.
+ */
+export async function attemptWebhookDelivery(
+  url: string,
+  secret: string,
+  event: string,
+  payload: Record<string, unknown>
+): Promise<{ httpStatus: number | null; status: 'delivered' | 'failed' }> {
+  const body = JSON.stringify({ event, data: payload, timestamp: new Date().toISOString() })
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(body)
+    .digest('hex')
+
+  let httpStatus: number | null = null
+  let status: 'delivered' | 'failed' = 'failed'
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-SettleGrid-Signature': signature,
+        'X-SettleGrid-Event': event,
+      },
+      body,
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeout)
+    httpStatus = res.status
+    status = res.ok ? 'delivered' : 'failed'
+  } catch {
+    // Network error — stays as 'failed'
+  }
+
+  return { httpStatus, status }
+}
+
+/**
  * Dispatch a webhook event to all registered endpoints for a developer.
  * Enterprise tier gets 5 max attempts; standard gets 3.
  */
@@ -41,36 +94,7 @@ export async function dispatchWebhook(
     })
 
     for (const ep of activeEndpoints) {
-      const body = JSON.stringify({ event, data: payload, timestamp: new Date().toISOString() })
-      const signature = crypto
-        .createHmac('sha256', ep.secret)
-        .update(body)
-        .digest('hex')
-
-      let httpStatus: number | null = null
-      let status: 'delivered' | 'failed' = 'failed'
-
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000)
-
-        const res = await fetch(ep.url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-SettleGrid-Signature': signature,
-            'X-SettleGrid-Event': event,
-          },
-          body,
-          signal: controller.signal,
-        })
-
-        clearTimeout(timeout)
-        httpStatus = res.status
-        status = res.ok ? 'delivered' : 'failed'
-      } catch {
-        // Network error — stays as 'failed'
-      }
+      const { httpStatus, status } = await attemptWebhookDelivery(ep.url, ep.secret, event, payload)
 
       await db
         .insert(webhookDeliveries)
@@ -84,6 +108,7 @@ export async function dispatchWebhook(
           maxAttempts,
           lastAttemptAt: new Date(),
           deliveredAt: status === 'delivered' ? new Date() : null,
+          nextRetryAt: status === 'failed' && maxAttempts > 1 ? computeNextRetryAt(1) : null,
         })
     }
   } catch (err) {

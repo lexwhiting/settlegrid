@@ -5,6 +5,7 @@ import { webhookEndpoints } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -43,6 +44,15 @@ export async function DELETE(
     if (deleted.length === 0) {
       return errorResponse('Webhook endpoint not found.', 404, 'NOT_FOUND')
     }
+
+    // Audit log: webhook deleted
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'webhook.deleted',
+      resourceType: 'webhook',
+      resourceId: id,
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({ deleted: true })
   } catch (error) {

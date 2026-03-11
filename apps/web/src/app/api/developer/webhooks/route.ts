@@ -7,6 +7,7 @@ import { webhookEndpoints, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -108,6 +109,16 @@ export async function POST(request: NextRequest) {
         status: webhookEndpoints.status,
         createdAt: webhookEndpoints.createdAt,
       })
+
+    // Audit log: webhook created
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'webhook.created',
+      resourceType: 'webhook',
+      resourceId: endpoint.id,
+      details: { url: body.url, events: body.events },
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({
       endpoint: {

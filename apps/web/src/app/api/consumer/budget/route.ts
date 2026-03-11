@@ -7,6 +7,7 @@ import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { syncBudgetToRedis } from '@/lib/metering'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -138,6 +139,16 @@ export async function PATCH(request: NextRequest) {
       updated.currentPeriodSpendCents,
       updated.periodResetAt
     ).catch(() => {})
+
+    // Audit log: budget updated
+    writeAuditLog({
+      consumerId: auth.id,
+      action: 'budget.updated',
+      resourceType: 'budget',
+      resourceId: existing.id,
+      details: { ...body },
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({ budget: updated })
   } catch (error) {

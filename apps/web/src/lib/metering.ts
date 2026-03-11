@@ -1,6 +1,6 @@
 import { getRedis, tryRedis } from './redis'
 import { db } from './db'
-import { consumerToolBalances, invocations, tools, developers } from './db/schema'
+import { consumerToolBalances, invocations, tools, developers, referrals } from './db/schema'
 import { eq, and, sql } from 'drizzle-orm'
 import { logger } from './logger'
 
@@ -249,6 +249,40 @@ export async function deductCreditsRedis(
 }
 
 /**
+ * Credit referral commission for an invocation if the invocation was
+ * attributed to a referral code. Calculates costCents * commissionPct / 100
+ * and increments the referral's totalEarnedCents.
+ */
+export function creditReferralCommission(referralCode: string, costCents: number): void {
+  if (!referralCode || costCents <= 0) return
+
+  db.select({
+    id: referrals.id,
+    commissionPct: referrals.commissionPct,
+    status: referrals.status,
+  })
+    .from(referrals)
+    .where(eq(referrals.referralCode, referralCode))
+    .limit(1)
+    .then(([referral]) => {
+      if (!referral || referral.status !== 'active') return
+
+      const commissionCents = Math.floor(costCents * referral.commissionPct / 100)
+      if (commissionCents <= 0) return
+
+      return db
+        .update(referrals)
+        .set({
+          totalEarnedCents: sql`${referrals.totalEarnedCents} + ${commissionCents}`,
+        })
+        .where(eq(referrals.id, referral.id))
+    })
+    .catch((err) => {
+      logger.error('metering.referral_commission_failed', { referralCode, costCents }, err)
+    })
+}
+
+/**
  * Async writeback: persist the deduction to the database.
  * Fire-and-forget — failure is handled by periodic reconciliation.
  */
@@ -261,36 +295,42 @@ export function recordInvocationAsync(params: {
   latencyMs: number | null
   developerId: string
   revenueSharePct: number
+  isTest?: boolean
+  referralCode?: string
 }): void {
-  const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, revenueSharePct } = params
+  const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, revenueSharePct, isTest, referralCode } = params
   const developerShareCents = Math.floor(costCents * (revenueSharePct / 100))
 
   // All DB writes in parallel (fire-and-forget)
   Promise.all([
-    // Deduct from DB balance
-    db.update(consumerToolBalances)
-      .set({ balanceCents: sql`${consumerToolBalances.balanceCents} - ${costCents}` })
-      .where(
-        and(
-          eq(consumerToolBalances.consumerId, consumerId),
-          eq(consumerToolBalances.toolId, toolId)
-        )
-      ),
+    // Deduct from DB balance (skip for test mode)
+    ...(isTest ? [] : [
+      db.update(consumerToolBalances)
+        .set({ balanceCents: sql`${consumerToolBalances.balanceCents} - ${costCents}` })
+        .where(
+          and(
+            eq(consumerToolBalances.consumerId, consumerId),
+            eq(consumerToolBalances.toolId, toolId)
+          )
+        ),
+    ]),
     // Increment tool stats
     db.update(tools)
       .set({
         totalInvocations: sql`${tools.totalInvocations} + 1`,
-        totalRevenueCents: sql`${tools.totalRevenueCents} + ${costCents}`,
+        totalRevenueCents: isTest ? tools.totalRevenueCents : sql`${tools.totalRevenueCents} + ${costCents}`,
         updatedAt: new Date(),
       })
       .where(eq(tools.id, toolId)),
-    // Developer revenue share
-    db.update(developers)
-      .set({
-        balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(developers.id, developerId)),
+    // Developer revenue share (skip for test mode)
+    ...(isTest ? [] : [
+      db.update(developers)
+        .set({
+          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(developers.id, developerId)),
+    ]),
     // Insert invocation record
     db.insert(invocations)
       .values({
@@ -298,13 +338,20 @@ export function recordInvocationAsync(params: {
         consumerId,
         apiKeyId: keyId,
         method,
-        costCents,
+        costCents: isTest ? 0 : costCents,
         latencyMs,
         status: 'success',
+        isTest: isTest ?? false,
+        referralCode: referralCode ?? null,
       }),
   ]).catch((err) => {
     logger.error('metering.writeback_failed', { toolId, consumerId, costCents }, err)
   })
+
+  // Credit referral commission (only for non-test, paid invocations)
+  if (referralCode && !isTest && costCents > 0) {
+    creditReferralCommission(referralCode, costCents)
+  }
 }
 
 /**

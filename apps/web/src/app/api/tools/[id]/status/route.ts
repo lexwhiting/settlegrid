@@ -6,6 +6,7 @@ import { tools } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -68,6 +69,16 @@ export async function PATCH(
         status: tools.status,
         updatedAt: tools.updatedAt,
       })
+
+    // Audit log: tool status changed
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'tool.status_changed',
+      resourceType: 'tool',
+      resourceId: id,
+      details: { fromStatus: existing.status, toStatus: body.status },
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({ tool })
   } catch (error) {

@@ -5,6 +5,7 @@ import { apiKeys } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -53,6 +54,15 @@ export async function DELETE(
       .update(apiKeys)
       .set({ status: 'revoked' })
       .where(eq(apiKeys.id, id))
+
+    // Audit log: API key revoked
+    writeAuditLog({
+      consumerId: auth.id,
+      action: 'api_key.revoked',
+      resourceType: 'apiKey',
+      resourceId: id,
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({ message: 'API key revoked successfully.' })
   } catch (error) {

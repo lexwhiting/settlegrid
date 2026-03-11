@@ -7,6 +7,7 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getStripeSecretKey } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 30
 
@@ -123,6 +124,16 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(developers.id, developer.id))
+
+    // Audit log: payout triggered
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'payout.triggered',
+      resourceType: 'payout',
+      resourceId: payout.id,
+      details: { amountCents: payoutAmountCents, stripeTransferId: transfer.id },
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({
       payout: {

@@ -297,6 +297,7 @@ export const webhookDeliveries = pgTable('webhook_deliveries', {
   maxAttempts: integer('max_attempts').notNull().default(3),
   lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
   deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

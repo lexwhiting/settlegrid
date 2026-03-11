@@ -7,6 +7,7 @@ import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { generateApiKey } from '@/lib/crypto'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -120,6 +121,16 @@ export async function POST(request: NextRequest) {
         status: apiKeys.status,
         createdAt: apiKeys.createdAt,
       })
+
+    // Audit log: API key created
+    writeAuditLog({
+      consumerId: auth.id,
+      action: 'api_key.created',
+      resourceType: 'apiKey',
+      resourceId: created.id,
+      details: { toolId: body.toolId, keyPrefix: prefix },
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse(
       {

@@ -6,6 +6,7 @@ import { tools } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 15
 
@@ -127,6 +128,16 @@ export async function POST(request: NextRequest) {
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })
+
+    // Audit log: tool created
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'tool.created',
+      resourceType: 'tool',
+      resourceId: tool.id,
+      details: { name: body.name, slug: body.slug },
+      ipAddress: ip,
+    }).catch(() => {})
 
     return successResponse({ tool }, 201)
   } catch (error) {

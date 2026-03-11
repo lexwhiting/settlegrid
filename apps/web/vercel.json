@@ -6,6 +6,14 @@
     {
       "path": "/api/cron/health-checks",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/webhook-retry",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/alert-check",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
