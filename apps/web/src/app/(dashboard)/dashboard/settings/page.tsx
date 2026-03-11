@@ -96,7 +96,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <dt className="text-sm font-medium text-gray-500">Balance</dt>
-              <dd className="text-sm font-semibold text-brand">{formatCents(profile?.balanceCents ?? 0)}</dd>
+              <dd className="text-sm font-semibold text-brand-text">{formatCents(profile?.balanceCents ?? 0)}</dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-gray-500">Payout Schedule</dt>

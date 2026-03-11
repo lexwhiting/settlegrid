@@ -89,7 +89,7 @@ export default async function ToolStorefrontPage({
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-indigo mb-3">{tool.name}</h1>
             <p className="text-lg text-gray-600 mb-4">{tool.description}</p>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-500">
               by <span className="text-gray-600">{tool.developerName}</span>
             </p>
           </div>
@@ -102,15 +102,15 @@ export default async function ToolStorefrontPage({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-600">Default (per call)</span>
-                    <span className="font-semibold text-brand">{formatCents(tool.pricingConfig.defaultCostCents)}</span>
+                    <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.defaultCostCents)}</span>
                   </div>
                   {methodEntries.map(([method, config]) => (
                     <div key={method} className="flex items-center justify-between py-2 border-b border-gray-100">
                       <span className="text-gray-600">
                         <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{method}</code>
-                        {config.displayName && <span className="ml-2 text-gray-400">{config.displayName}</span>}
+                        {config.displayName && <span className="ml-2 text-gray-500">{config.displayName}</span>}
                       </span>
-                      <span className="font-semibold text-brand">{formatCents(config.costCents)}</span>
+                      <span className="font-semibold text-brand-text">{formatCents(config.costCents)}</span>
                     </div>
                   ))}
                 </div>
@@ -153,7 +153,7 @@ curl -X POST https://settlegrid.ai/api/sdk/meter \\
                     </a>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 text-center">
+                <p className="text-xs text-gray-500 text-center">
                   Credits never expire. You can purchase more at any time.
                 </p>
               </div>
@@ -164,7 +164,7 @@ curl -X POST https://settlegrid.ai/api/sdk/meter \\
 
       <footer className="border-t border-gray-200 px-6 py-6">
         <div className="max-w-4xl mx-auto text-center text-sm text-gray-500">
-          Powered by <Link href="/" className="text-brand hover:text-brand-dark">SettleGrid</Link>
+          Powered by <Link href="/" className="text-brand-text hover:text-brand-dark">SettleGrid</Link>
         </div>
       </footer>
     </div>

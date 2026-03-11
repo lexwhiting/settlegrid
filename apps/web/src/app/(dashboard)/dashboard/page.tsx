@@ -25,7 +25,7 @@ function StatCard({ title, value, subtitle }: { title: string; value: string; su
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-bold text-indigo">{value}</div>
-        {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
       </CardContent>
     </Card>
   )
@@ -138,7 +138,7 @@ export default function DeveloperDashboardPage() {
               })}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm">No invocations yet. Publish a tool to get started.</p>
+            <p className="text-gray-500 text-sm">No invocations yet. Publish a tool to get started.</p>
           )}
         </CardContent>
       </Card>

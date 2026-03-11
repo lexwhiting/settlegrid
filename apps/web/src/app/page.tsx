@@ -41,7 +41,7 @@ function ComparisonTable() {
         <thead>
           <tr className="border-b border-gray-200">
             <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Feature</th>
-            <th scope="col" className="text-center py-3 px-4 font-semibold text-brand">SettleGrid</th>
+            <th scope="col" className="text-center py-3 px-4 font-semibold text-brand-text">SettleGrid</th>
             <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">MCPize</th>
             <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">Apify</th>
             <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">Moesif</th>
@@ -51,7 +51,7 @@ function ComparisonTable() {
           {features.map((f) => (
             <tr key={f.name} className="border-b border-gray-100">
               <td className="py-3 px-4 text-gray-700">{f.name}</td>
-              <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand-text font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
               <td className="text-center py-3 px-4">{f.mcpize ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
               <td className="text-center py-3 px-4">{f.apify ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
               <td className="text-center py-3 px-4">{f.moesif ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
@@ -103,7 +103,7 @@ function PricingSection() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
         <div className="p-8 rounded-xl border-2 border-gray-200 text-center">
           <h3 className="font-semibold text-lg text-indigo mb-2">Developers</h3>
-          <div className="text-4xl font-bold text-brand mb-2">$0</div>
+          <div className="text-4xl font-bold text-brand-text mb-2">$0</div>
           <p className="text-sm text-gray-500 mb-6">to get started</p>
           <ul className="text-sm text-gray-600 space-y-2 text-left">
             <li>&#10003; Unlimited tools</li>
@@ -118,7 +118,7 @@ function PricingSection() {
             Most Popular
           </div>
           <h3 className="font-semibold text-lg text-indigo mb-2">Consumers</h3>
-          <div className="text-4xl font-bold text-brand mb-2">Pay-as-you-go</div>
+          <div className="text-4xl font-bold text-brand-text mb-2">Pay-as-you-go</div>
           <p className="text-sm text-gray-500 mb-6">prepaid credits</p>
           <ul className="text-sm text-gray-600 space-y-2 text-left">
             <li>&#10003; $5 / $20 / $50 credit packs</li>
@@ -130,7 +130,7 @@ function PricingSection() {
         </div>
         <div className="p-8 rounded-xl border-2 border-gray-200 text-center">
           <h3 className="font-semibold text-lg text-indigo mb-2">Enterprise</h3>
-          <div className="text-4xl font-bold text-brand mb-2">Custom</div>
+          <div className="text-4xl font-bold text-brand-text mb-2">Custom</div>
           <p className="text-sm text-gray-500 mb-6">volume discounts</p>
           <ul className="text-sm text-gray-600 space-y-2 text-left">
             <li>&#10003; Volume pricing</li>
@@ -172,7 +172,7 @@ export default function HomePage() {
             <div>
               <h1 className="text-5xl font-bold tracking-tight text-indigo mb-6">
                 The Settlement Layer for the{' '}
-                <span className="text-brand">AI Economy</span>
+                <span className="text-brand-text">AI Economy</span>
               </h1>
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
                 Monetize your MCP tools with per-call billing. One SDK wrapper,

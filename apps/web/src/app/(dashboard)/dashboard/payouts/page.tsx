@@ -91,7 +91,7 @@ export default function PayoutsPage() {
       ) : payouts.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <p className="text-gray-400">No payouts yet. Payouts are processed when your balance reaches the minimum threshold ($25).</p>
+            <p className="text-gray-500">No payouts yet. Payouts are processed when your balance reaches the minimum threshold ($25).</p>
           </CardContent>
         </Card>
       ) : (

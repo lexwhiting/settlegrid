@@ -80,7 +80,7 @@ export default function DocsPage() {
 
             <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">2. Register as a developer</h3>
             <p className="text-gray-600 mb-4">
-              <Link href="/register" className="text-brand hover:text-brand-dark">Create a developer account</Link>{' '}
+              <Link href="/register" className="text-brand-text hover:text-brand-dark">Create a developer account</Link>{' '}
               and connect your Stripe account to receive payouts.
             </p>
 

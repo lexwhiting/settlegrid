@@ -75,9 +75,19 @@ export default function ToolsPage() {
     }
   }
 
-  async function toggleStatus(toolId: string) {
+  async function toggleStatus(toolId: string, currentStatus: string) {
+    const newStatus = currentStatus === 'active' ? 'draft' : 'active'
     try {
-      await fetch(`/api/tools/${toolId}/status`, { method: 'PATCH' })
+      const res = await fetch(`/api/tools/${toolId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || 'Failed to toggle status')
+        return
+      }
       fetchTools()
     } catch {
       setError('Failed to toggle status')
@@ -144,7 +154,7 @@ export default function ToolsPage() {
       ) : tools.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <p className="text-gray-400 mb-4">No tools yet. Create your first tool to start earning.</p>
+            <p className="text-gray-500 mb-4">No tools yet. Create your first tool to start earning.</p>
             <Button onClick={() => setShowCreate(true)}>Create Tool</Button>
           </CardContent>
         </Card>
@@ -170,7 +180,7 @@ export default function ToolsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => toggleStatus(tool.id)}>
+                    <Button variant="outline" size="sm" onClick={() => toggleStatus(tool.id, tool.status)}>
                       {tool.status === 'active' ? 'Deactivate' : 'Activate'}
                     </Button>
                     <Link href={`/tools/${tool.slug}`}>

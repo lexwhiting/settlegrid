@@ -95,18 +95,18 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {balances.length === 0 ? (
-            <p className="text-gray-400 text-sm">No credits yet. Browse tools and purchase credits to get started.</p>
+            <p className="text-gray-500 text-sm">No credits yet. Browse tools and purchase credits to get started.</p>
           ) : (
             <div className="space-y-3">
               {balances.map((b) => (
                 <div key={b.toolId} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
                   <div>
                     <span className="font-medium text-indigo">{b.toolName}</span>
-                    <span className="text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
+                    <span className="text-gray-500 text-sm ml-2">/{b.toolSlug}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {b.autoRefill && <Badge variant="secondary">Auto-refill</Badge>}
-                    <span className="font-semibold text-brand">{formatCents(b.balanceCents)}</span>
+                    <span className="font-semibold text-brand-text">{formatCents(b.balanceCents)}</span>
                     <a
                       href={`/tools/${b.toolSlug}`}
                       className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 h-9 px-3 transition-colors"
@@ -128,7 +128,7 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {keys.length === 0 ? (
-            <p className="text-gray-400 text-sm">No API keys yet. Create a key from a tool storefront to start making API calls.</p>
+            <p className="text-gray-500 text-sm">No API keys yet. Create a key from a tool storefront to start making API calls.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table">

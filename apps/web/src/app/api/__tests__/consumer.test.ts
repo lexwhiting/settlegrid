@@ -251,7 +251,8 @@ describe('Consumer Me (GET /api/auth/consumer/me)', () => {
 
 describe('Consumer Logout (POST /api/auth/consumer/logout)', () => {
   it('returns success on logout', async () => {
-    const response = await consumerLogout()
+    const request = makeRequest('/api/auth/consumer/logout', 'POST')
+    const response = await consumerLogout(request)
     const data = await response.json()
 
     expect(response.status).toBe(200)
