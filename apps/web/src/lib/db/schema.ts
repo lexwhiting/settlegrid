@@ -183,6 +183,9 @@ export const invocations = pgTable('invocations', {
   isTest: boolean('is_test').notNull().default(false),
   // R5: Custom metadata
   metadata: jsonb('metadata'), // max 1KB, developer-defined
+  // R11: Usage Fingerprinting
+  sessionId: text('session_id'), // tracks session context
+  referralCode: text('referral_code'), // tracks referral source
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -371,5 +374,132 @@ export const toolChangelogsRelations = relations(toolChangelogs, ({ one }) => ({
   tool: one(tools, {
     fields: [toolChangelogs.toolId],
     references: [tools.id],
+  }),
+}))
+
+// ─── Conversion Events (R12) ────────────────────────────────────────────────
+
+export const conversionEvents = pgTable('conversion_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  toolId: uuid('tool_id')
+    .notNull()
+    .references(() => tools.id, { onDelete: 'cascade' }),
+  consumerId: uuid('consumer_id')
+    .notNull()
+    .references(() => consumers.id, { onDelete: 'cascade' }),
+  event: text('event').notNull(), // 'free_trial' | 'upgrade' | 'downgrade' | 'churn'
+  fromTier: text('from_tier'),
+  toTier: text('to_tier'),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const conversionEventsRelations = relations(conversionEvents, ({ one }) => ({
+  tool: one(tools, {
+    fields: [conversionEvents.toolId],
+    references: [tools.id],
+  }),
+  consumer: one(consumers, {
+    fields: [conversionEvents.consumerId],
+    references: [consumers.id],
+  }),
+}))
+
+// ─── Consumer Alerts (R14) ──────────────────────────────────────────────────
+
+export const consumerAlerts = pgTable('consumer_alerts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  consumerId: uuid('consumer_id')
+    .notNull()
+    .references(() => consumers.id, { onDelete: 'cascade' }),
+  toolId: uuid('tool_id')
+    .notNull()
+    .references(() => tools.id, { onDelete: 'cascade' }),
+  alertType: text('alert_type').notNull(), // 'low_balance' | 'budget_exceeded' | 'usage_spike'
+  threshold: integer('threshold').notNull(), // e.g. balance in cents or invocation count
+  channel: text('channel').notNull().default('email'), // 'email' | 'webhook'
+  status: text('status').notNull().default('active'), // 'active' | 'paused'
+  lastTriggeredAt: timestamp('last_triggered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const consumerAlertsRelations = relations(consumerAlerts, ({ one }) => ({
+  consumer: one(consumers, {
+    fields: [consumerAlerts.consumerId],
+    references: [consumers.id],
+  }),
+  tool: one(tools, {
+    fields: [consumerAlerts.toolId],
+    references: [tools.id],
+  }),
+}))
+
+// ─── Tool Health Checks (R16) ───────────────────────────────────────────────
+
+export const toolHealthChecks = pgTable('tool_health_checks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  toolId: uuid('tool_id')
+    .notNull()
+    .references(() => tools.id, { onDelete: 'cascade' }),
+  status: text('status').notNull(), // 'up' | 'down' | 'degraded'
+  responseTimeMs: integer('response_time_ms'),
+  checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const toolHealthChecksRelations = relations(toolHealthChecks, ({ one }) => ({
+  tool: one(tools, {
+    fields: [toolHealthChecks.toolId],
+    references: [tools.id],
+  }),
+}))
+
+// ─── Referrals (R17) ────────────────────────────────────────────────────────
+
+export const referrals = pgTable('referrals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  referrerId: uuid('referrer_id')
+    .notNull()
+    .references(() => developers.id, { onDelete: 'cascade' }),
+  referredToolId: uuid('referred_tool_id')
+    .notNull()
+    .references(() => tools.id, { onDelete: 'cascade' }),
+  referralCode: text('referral_code').notNull().unique(),
+  commissionPct: integer('commission_pct').notNull().default(10), // 10 = 10%
+  totalEarnedCents: integer('total_earned_cents').notNull().default(0),
+  status: text('status').notNull().default('active'), // 'active' | 'revoked'
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const referralsRelations = relations(referrals, ({ one }) => ({
+  referrer: one(developers, {
+    fields: [referrals.referrerId],
+    references: [developers.id],
+  }),
+  referredTool: one(tools, {
+    fields: [referrals.referredToolId],
+    references: [tools.id],
+  }),
+}))
+
+// ─── Developer Reputation (R20) ─────────────────────────────────────────────
+
+export const developerReputation = pgTable('developer_reputation', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  developerId: uuid('developer_id')
+    .notNull()
+    .references(() => developers.id, { onDelete: 'cascade' }),
+  score: integer('score').notNull().default(50), // 0-100
+  responseTimePct: integer('response_time_pct').notNull().default(0), // percentile
+  uptimePct: integer('uptime_pct').notNull().default(100), // percentage
+  reviewAvg: integer('review_avg').notNull().default(0), // avg rating * 100 (e.g. 450 = 4.50)
+  totalTools: integer('total_tools').notNull().default(0),
+  totalConsumers: integer('total_consumers').notNull().default(0),
+  calculatedAt: timestamp('calculated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const developerReputationRelations = relations(developerReputation, ({ one }) => ({
+  developer: one(developers, {
+    fields: [developerReputation.developerId],
+    references: [developers.id],
   }),
 }))

@@ -551,8 +551,236 @@ describe('toolChangelogs table schema', () => {
   })
 })
 
+// ─── R11: Invocations new columns ───────────────────────────────────────────
+
+describe('invocations table R11 columns', () => {
+  it('has sessionId column', () => {
+    expect(schema.invocations.sessionId).toBeDefined()
+  })
+
+  it('has referralCode column', () => {
+    expect(schema.invocations.referralCode).toBeDefined()
+  })
+})
+
+// ─── R12: Conversion Events ────────────────────────────────────────────────
+
+describe('conversionEvents table schema', () => {
+  it('exports conversionEvents table', () => {
+    expect(schema.conversionEvents).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.conversionEvents.id).toBeDefined()
+  })
+
+  it('has toolId column', () => {
+    expect(schema.conversionEvents.toolId).toBeDefined()
+  })
+
+  it('has consumerId column', () => {
+    expect(schema.conversionEvents.consumerId).toBeDefined()
+  })
+
+  it('has event column', () => {
+    expect(schema.conversionEvents.event).toBeDefined()
+  })
+
+  it('has fromTier column', () => {
+    expect(schema.conversionEvents.fromTier).toBeDefined()
+  })
+
+  it('has toTier column', () => {
+    expect(schema.conversionEvents.toTier).toBeDefined()
+  })
+
+  it('has metadata column', () => {
+    expect(schema.conversionEvents.metadata).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.conversionEvents.createdAt).toBeDefined()
+  })
+
+  it('has conversionEventsRelations defined', () => {
+    expect(schema.conversionEventsRelations).toBeDefined()
+  })
+})
+
+// ─── R14: Consumer Alerts ──────────────────────────────────────────────────
+
+describe('consumerAlerts table schema', () => {
+  it('exports consumerAlerts table', () => {
+    expect(schema.consumerAlerts).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.consumerAlerts.id).toBeDefined()
+  })
+
+  it('has consumerId column', () => {
+    expect(schema.consumerAlerts.consumerId).toBeDefined()
+  })
+
+  it('has toolId column', () => {
+    expect(schema.consumerAlerts.toolId).toBeDefined()
+  })
+
+  it('has alertType column', () => {
+    expect(schema.consumerAlerts.alertType).toBeDefined()
+  })
+
+  it('has threshold column', () => {
+    expect(schema.consumerAlerts.threshold).toBeDefined()
+  })
+
+  it('has channel column', () => {
+    expect(schema.consumerAlerts.channel).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.consumerAlerts.status).toBeDefined()
+  })
+
+  it('has lastTriggeredAt column', () => {
+    expect(schema.consumerAlerts.lastTriggeredAt).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.consumerAlerts.createdAt).toBeDefined()
+  })
+
+  it('has consumerAlertsRelations defined', () => {
+    expect(schema.consumerAlertsRelations).toBeDefined()
+  })
+})
+
+// ─── R16: Tool Health Checks ───────────────────────────────────────────────
+
+describe('toolHealthChecks table schema', () => {
+  it('exports toolHealthChecks table', () => {
+    expect(schema.toolHealthChecks).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.toolHealthChecks.id).toBeDefined()
+  })
+
+  it('has toolId column', () => {
+    expect(schema.toolHealthChecks.toolId).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.toolHealthChecks.status).toBeDefined()
+  })
+
+  it('has responseTimeMs column', () => {
+    expect(schema.toolHealthChecks.responseTimeMs).toBeDefined()
+  })
+
+  it('has checkedAt column', () => {
+    expect(schema.toolHealthChecks.checkedAt).toBeDefined()
+  })
+
+  it('has toolHealthChecksRelations defined', () => {
+    expect(schema.toolHealthChecksRelations).toBeDefined()
+  })
+})
+
+// ─── R17: Referrals ────────────────────────────────────────────────────────
+
+describe('referrals table schema', () => {
+  it('exports referrals table', () => {
+    expect(schema.referrals).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.referrals.id).toBeDefined()
+  })
+
+  it('has referrerId column', () => {
+    expect(schema.referrals.referrerId).toBeDefined()
+  })
+
+  it('has referredToolId column', () => {
+    expect(schema.referrals.referredToolId).toBeDefined()
+  })
+
+  it('has referralCode column', () => {
+    expect(schema.referrals.referralCode).toBeDefined()
+  })
+
+  it('has commissionPct column', () => {
+    expect(schema.referrals.commissionPct).toBeDefined()
+  })
+
+  it('has totalEarnedCents column', () => {
+    expect(schema.referrals.totalEarnedCents).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.referrals.status).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.referrals.createdAt).toBeDefined()
+  })
+
+  it('has referralsRelations defined', () => {
+    expect(schema.referralsRelations).toBeDefined()
+  })
+})
+
+// ─── R20: Developer Reputation ─────────────────────────────────────────────
+
+describe('developerReputation table schema', () => {
+  it('exports developerReputation table', () => {
+    expect(schema.developerReputation).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.developerReputation.id).toBeDefined()
+  })
+
+  it('has developerId column', () => {
+    expect(schema.developerReputation.developerId).toBeDefined()
+  })
+
+  it('has score column', () => {
+    expect(schema.developerReputation.score).toBeDefined()
+  })
+
+  it('has responseTimePct column', () => {
+    expect(schema.developerReputation.responseTimePct).toBeDefined()
+  })
+
+  it('has uptimePct column', () => {
+    expect(schema.developerReputation.uptimePct).toBeDefined()
+  })
+
+  it('has reviewAvg column', () => {
+    expect(schema.developerReputation.reviewAvg).toBeDefined()
+  })
+
+  it('has totalTools column', () => {
+    expect(schema.developerReputation.totalTools).toBeDefined()
+  })
+
+  it('has totalConsumers column', () => {
+    expect(schema.developerReputation.totalConsumers).toBeDefined()
+  })
+
+  it('has calculatedAt column', () => {
+    expect(schema.developerReputation.calculatedAt).toBeDefined()
+  })
+
+  it('has developerReputationRelations defined', () => {
+    expect(schema.developerReputationRelations).toBeDefined()
+  })
+})
+
 describe('schema table count', () => {
-  it('exports 13 tables total', () => {
+  it('exports 18 tables total', () => {
     const tables = [
       schema.developers,
       schema.tools,
@@ -567,8 +795,13 @@ describe('schema table count', () => {
       schema.auditLogs,
       schema.toolReviews,
       schema.toolChangelogs,
+      schema.conversionEvents,
+      schema.consumerAlerts,
+      schema.toolHealthChecks,
+      schema.referrals,
+      schema.developerReputation,
     ]
-    expect(tables).toHaveLength(13)
+    expect(tables).toHaveLength(18)
     tables.forEach(t => expect(t).toBeDefined())
   })
 })
