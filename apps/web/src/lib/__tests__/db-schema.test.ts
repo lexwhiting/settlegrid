@@ -62,6 +62,18 @@ describe('developers table schema', () => {
     expect(schema.developers.stripeSubscriptionId).toBeDefined()
   })
 
+  it('has publicProfile column', () => {
+    expect(schema.developers.publicProfile).toBeDefined()
+  })
+
+  it('has publicBio column', () => {
+    expect(schema.developers.publicBio).toBeDefined()
+  })
+
+  it('has avatarUrl column', () => {
+    expect(schema.developers.avatarUrl).toBeDefined()
+  })
+
   it('has developersRelations defined', () => {
     expect(schema.developersRelations).toBeDefined()
   })
@@ -102,6 +114,18 @@ describe('tools table schema', () => {
 
   it('has totalRevenueCents column', () => {
     expect(schema.tools.totalRevenueCents).toBeDefined()
+  })
+
+  it('has category column', () => {
+    expect(schema.tools.category).toBeDefined()
+  })
+
+  it('has tags column', () => {
+    expect(schema.tools.tags).toBeDefined()
+  })
+
+  it('has currentVersion column', () => {
+    expect(schema.tools.currentVersion).toBeDefined()
   })
 
   it('has toolsRelations defined', () => {
@@ -163,6 +187,26 @@ describe('consumerToolBalances table schema', () => {
   it('has autoRefillThresholdCents column', () => {
     expect(schema.consumerToolBalances.autoRefillThresholdCents).toBeDefined()
   })
+
+  it('has spendingLimitCents column', () => {
+    expect(schema.consumerToolBalances.spendingLimitCents).toBeDefined()
+  })
+
+  it('has spendingLimitPeriod column', () => {
+    expect(schema.consumerToolBalances.spendingLimitPeriod).toBeDefined()
+  })
+
+  it('has currentPeriodSpendCents column', () => {
+    expect(schema.consumerToolBalances.currentPeriodSpendCents).toBeDefined()
+  })
+
+  it('has periodResetAt column', () => {
+    expect(schema.consumerToolBalances.periodResetAt).toBeDefined()
+  })
+
+  it('has alertAtPct column', () => {
+    expect(schema.consumerToolBalances.alertAtPct).toBeDefined()
+  })
 })
 
 describe('apiKeys table schema', () => {
@@ -188,6 +232,14 @@ describe('apiKeys table schema', () => {
 
   it('has status column', () => {
     expect(schema.apiKeys.status).toBeDefined()
+  })
+
+  it('has isTestKey column', () => {
+    expect(schema.apiKeys.isTestKey).toBeDefined()
+  })
+
+  it('has ipAllowlist column', () => {
+    expect(schema.apiKeys.ipAllowlist).toBeDefined()
   })
 
   it('has lastUsedAt column', () => {
@@ -226,6 +278,14 @@ describe('invocations table schema', () => {
 
   it('has status column', () => {
     expect(schema.invocations.status).toBeDefined()
+  })
+
+  it('has isTest column', () => {
+    expect(schema.invocations.isTest).toBeDefined()
+  })
+
+  it('has metadata column', () => {
+    expect(schema.invocations.metadata).toBeDefined()
   })
 })
 
@@ -365,8 +425,134 @@ describe('webhookDeliveries table schema', () => {
   })
 })
 
+describe('auditLogs table schema', () => {
+  it('exports auditLogs table', () => {
+    expect(schema.auditLogs).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.auditLogs.id).toBeDefined()
+  })
+
+  it('has developerId column', () => {
+    expect(schema.auditLogs.developerId).toBeDefined()
+  })
+
+  it('has consumerId column', () => {
+    expect(schema.auditLogs.consumerId).toBeDefined()
+  })
+
+  it('has action column', () => {
+    expect(schema.auditLogs.action).toBeDefined()
+  })
+
+  it('has resourceType column', () => {
+    expect(schema.auditLogs.resourceType).toBeDefined()
+  })
+
+  it('has resourceId column', () => {
+    expect(schema.auditLogs.resourceId).toBeDefined()
+  })
+
+  it('has details column', () => {
+    expect(schema.auditLogs.details).toBeDefined()
+  })
+
+  it('has ipAddress column', () => {
+    expect(schema.auditLogs.ipAddress).toBeDefined()
+  })
+
+  it('has userAgent column', () => {
+    expect(schema.auditLogs.userAgent).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.auditLogs.createdAt).toBeDefined()
+  })
+
+  it('has auditLogsRelations defined', () => {
+    expect(schema.auditLogsRelations).toBeDefined()
+  })
+})
+
+describe('toolReviews table schema', () => {
+  it('exports toolReviews table', () => {
+    expect(schema.toolReviews).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.toolReviews.id).toBeDefined()
+  })
+
+  it('has toolId column', () => {
+    expect(schema.toolReviews.toolId).toBeDefined()
+  })
+
+  it('has consumerId column', () => {
+    expect(schema.toolReviews.consumerId).toBeDefined()
+  })
+
+  it('has rating column', () => {
+    expect(schema.toolReviews.rating).toBeDefined()
+  })
+
+  it('has comment column', () => {
+    expect(schema.toolReviews.comment).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.toolReviews.createdAt).toBeDefined()
+  })
+
+  it('has updatedAt column', () => {
+    expect(schema.toolReviews.updatedAt).toBeDefined()
+  })
+
+  it('has toolReviewsRelations defined', () => {
+    expect(schema.toolReviewsRelations).toBeDefined()
+  })
+})
+
+describe('toolChangelogs table schema', () => {
+  it('exports toolChangelogs table', () => {
+    expect(schema.toolChangelogs).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.toolChangelogs.id).toBeDefined()
+  })
+
+  it('has toolId column', () => {
+    expect(schema.toolChangelogs.toolId).toBeDefined()
+  })
+
+  it('has version column', () => {
+    expect(schema.toolChangelogs.version).toBeDefined()
+  })
+
+  it('has changeType column', () => {
+    expect(schema.toolChangelogs.changeType).toBeDefined()
+  })
+
+  it('has summary column', () => {
+    expect(schema.toolChangelogs.summary).toBeDefined()
+  })
+
+  it('has details column', () => {
+    expect(schema.toolChangelogs.details).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.toolChangelogs.createdAt).toBeDefined()
+  })
+
+  it('has toolChangelogsRelations defined', () => {
+    expect(schema.toolChangelogsRelations).toBeDefined()
+  })
+})
+
 describe('schema table count', () => {
-  it('exports 10 tables total', () => {
+  it('exports 13 tables total', () => {
     const tables = [
       schema.developers,
       schema.tools,
@@ -378,8 +564,11 @@ describe('schema table count', () => {
       schema.payouts,
       schema.webhookEndpoints,
       schema.webhookDeliveries,
+      schema.auditLogs,
+      schema.toolReviews,
+      schema.toolChangelogs,
     ]
-    expect(tables).toHaveLength(10)
+    expect(tables).toHaveLength(13)
     tables.forEach(t => expect(t).toBeDefined())
   })
 })
