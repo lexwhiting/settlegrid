@@ -2,10 +2,10 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { apiKeys, tools, consumerToolBalances } from '@/lib/db/schema'
+import { apiKeys, tools, consumerToolBalances, developers } from '@/lib/db/schema'
 import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
 import { isIpInAllowlist } from '@/lib/ip-validation'
 
 export const maxDuration = 15
@@ -18,6 +18,8 @@ const validateKeySchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+
+    // Fast global rate limit guard
     const rateLimit = await checkRateLimit(sdkLimiter, `sdk-validate:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
@@ -38,6 +40,7 @@ export async function POST(request: NextRequest) {
         toolStatus: tools.status,
         ipAllowlist: apiKeys.ipAllowlist,
         isTestKey: apiKeys.isTestKey,
+        developerId: tools.developerId,
       })
       .from(apiKeys)
       .innerJoin(tools, eq(apiKeys.toolId, tools.id))
@@ -68,6 +71,21 @@ export async function POST(request: NextRequest) {
       if (!isIpInAllowlist(ip, allowlist)) {
         return successResponse({ valid: false, reason: 'IP_NOT_ALLOWED' })
       }
+    }
+
+    // Look up developer tier for tiered rate limiting
+    const [dev] = await db
+      .select({ tier: developers.tier })
+      .from(developers)
+      .where(eq(developers.id, row.developerId))
+      .limit(1)
+
+    const tier = dev?.tier ?? 'free'
+
+    // Apply tiered rate limit
+    const tieredRl = await checkTieredRateLimit(`sdk-validate:${row.consumerId}`, tier, 'sdk')
+    if (!tieredRl.success) {
+      return errorResponse('Too many requests for your plan tier.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     // For test keys, return unlimited virtual balance

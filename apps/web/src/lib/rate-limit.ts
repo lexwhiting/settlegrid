@@ -67,3 +67,56 @@ export const apiLimiter = lazyLimiter(100, '1 m')
 
 /** 1000 requests per minute — for SDK/tool invocation endpoints */
 export const sdkLimiter = lazyLimiter(1000, '1 m')
+
+// ─── Tiered Rate Limiting ────────────────────────────────────────────────────
+
+export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise'
+
+export interface TierLimits {
+  api: number // requests per minute
+  sdk: number // requests per minute
+}
+
+const TIER_LIMITS: Record<PlanTier, TierLimits> = {
+  free: { api: 30, sdk: 100 },
+  starter: { api: 60, sdk: 500 },
+  pro: { api: 200, sdk: 2000 },
+  enterprise: { api: 1000, sdk: 10000 },
+}
+
+/**
+ * Returns the rate limits for a given plan tier.
+ * Falls back to 'free' tier if tier is unknown.
+ */
+export function getTierLimits(tier: string): TierLimits {
+  const key = tier.toLowerCase() as PlanTier
+  return TIER_LIMITS[key] ?? TIER_LIMITS.free
+}
+
+// Cache of tiered rate limiters keyed by "tier:type"
+const tieredLimiterCache = new Map<string, Ratelimit>()
+
+/**
+ * Checks rate limit using tier-specific limits.
+ * @param identifier - Unique identifier (e.g. IP, API key, consumer ID)
+ * @param tier - The plan tier of the user
+ * @param type - 'api' or 'sdk'
+ * @returns Rate limit result
+ */
+export async function checkTieredRateLimit(
+  identifier: string,
+  tier: string,
+  type: 'api' | 'sdk'
+): Promise<RateLimitResult> {
+  const limits = getTierLimits(tier)
+  const requestsPerMin = type === 'sdk' ? limits.sdk : limits.api
+  const cacheKey = `${tier}:${type}`
+
+  let limiter = tieredLimiterCache.get(cacheKey)
+  if (!limiter) {
+    limiter = createRateLimiter(requestsPerMin, '1 m')
+    tieredLimiterCache.set(cacheKey, limiter)
+  }
+
+  return checkRateLimit(limiter, identifier)
+}

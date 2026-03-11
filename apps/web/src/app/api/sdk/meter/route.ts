@@ -4,8 +4,10 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
+import { detectFraud } from '@/lib/fraud'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 15
 
@@ -24,12 +26,41 @@ const meterSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+
+    // ── Tiered rate limiting: look up developer tier for the tool ────────────
+    // First try flat rate limit as a fast guard
     const rateLimit = await checkRateLimit(sdkLimiter, `sdk-meter:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     const body = await parseBody(request, meterSchema)
+
+    // ── Look up developer tier for tiered rate limiting ─────────────────────
+    const [toolDev] = await db
+      .select({
+        developerId: tools.developerId,
+        revenueSharePct: developers.revenueSharePct,
+        developerTier: developers.tier,
+      })
+      .from(tools)
+      .innerJoin(developers, eq(tools.developerId, developers.id))
+      .where(eq(tools.id, body.toolId))
+      .limit(1)
+
+    if (!toolDev) {
+      return errorResponse('Tool not found.', 404, 'NOT_FOUND')
+    }
+
+    // Apply tiered rate limit based on developer's plan
+    const tieredRl = await checkTieredRateLimit(
+      `sdk-meter:${body.consumerId}`,
+      toolDev.developerTier ?? 'free',
+      'sdk'
+    )
+    if (!tieredRl.success) {
+      return errorResponse('Too many requests for your plan tier.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
 
     // ── Test mode: skip all billing, record invocation with isTest=true ───────
     if (body.isTestKey) {
@@ -110,6 +141,47 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // ── Fraud detection ──────────────────────────────────────────────────────
+    // Look up key creation date for new-key check
+    const [keyInfo] = await db
+      .select({ createdAt: apiKeys.createdAt })
+      .from(apiKeys)
+      .where(eq(apiKeys.id, body.keyId))
+      .limit(1)
+
+    const fraudResult = await detectFraud(
+      body.consumerId,
+      body.toolId,
+      body.costCents,
+      ip,
+      keyInfo?.createdAt ? new Date(keyInfo.createdAt) : undefined
+    )
+
+    // If risk score > 95, reject the request entirely
+    if (fraudResult.riskScore > 95) {
+      logger.warn('fraud.rejected', {
+        consumerId: body.consumerId,
+        toolId: body.toolId,
+        costCents: body.costCents,
+        ip,
+        riskScore: fraudResult.riskScore,
+        reasons: fraudResult.reasons,
+      })
+      return errorResponse('Request blocked due to suspicious activity.', 429, 'FRAUD_DETECTED')
+    }
+
+    // If risk score > 80, log warning but allow
+    if (fraudResult.riskScore > 80) {
+      logger.warn('fraud.flagged', {
+        consumerId: body.consumerId,
+        toolId: body.toolId,
+        costCents: body.costCents,
+        ip,
+        riskScore: fraudResult.riskScore,
+        reasons: fraudResult.reasons,
+      })
+    }
+
     // ── Budget check ──────────────────────────────────────────────────────────
     const budgetResult = await checkBudget(body.consumerId, body.toolId, body.costCents)
     if (!budgetResult.allowed) {
@@ -118,21 +190,6 @@ export async function POST(request: NextRequest) {
         402,
         'BUDGET_EXCEEDED'
       )
-    }
-
-    // Get tool + developer to find revenue share percentage
-    const [toolDev] = await db
-      .select({
-        developerId: tools.developerId,
-        revenueSharePct: developers.revenueSharePct,
-      })
-      .from(tools)
-      .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(eq(tools.id, body.toolId))
-      .limit(1)
-
-    if (!toolDev) {
-      return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
     // ── Try Redis-accelerated deduction (fast path) ───────────────────────────
@@ -150,6 +207,7 @@ export async function POST(request: NextRequest) {
         developerId: toolDev.developerId,
         revenueSharePct: toolDev.revenueSharePct,
         referralCode: body.referralCode,
+        isFlagged: fraudResult.flagged,
       })
 
       // Track budget spend
@@ -159,6 +217,7 @@ export async function POST(request: NextRequest) {
         success: true,
         remainingBalanceCents: redisRemaining,
         costCents: body.costCents,
+        isFlagged: fraudResult.flagged || undefined,
       })
     }
 
@@ -221,7 +280,7 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(developers.id, toolDev.developerId))
 
-    // Insert invocation record
+    // Insert invocation record (with fraud flag if applicable)
     const [invocation] = await db
       .insert(invocations)
       .values({
@@ -233,6 +292,7 @@ export async function POST(request: NextRequest) {
         latencyMs: body.latencyMs ?? null,
         status: 'success',
         referralCode: body.referralCode ?? null,
+        isFlagged: fraudResult.flagged,
       })
       .returning({ id: invocations.id })
 
@@ -247,6 +307,7 @@ export async function POST(request: NextRequest) {
       remainingBalanceCents: updatedBalance.balanceCents,
       costCents: body.costCents,
       invocationId: invocation.id,
+      isFlagged: fraudResult.flagged || undefined,
     })
   } catch (error) {
     return internalErrorResponse(error)

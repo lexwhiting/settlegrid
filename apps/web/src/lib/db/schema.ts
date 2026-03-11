@@ -190,6 +190,8 @@ export const invocations = pgTable('invocations', {
   // R11: Usage Fingerprinting
   sessionId: text('session_id'), // tracks session context
   referralCode: text('referral_code'), // tracks referral source
+  // Fraud detection flag
+  isFlagged: boolean('is_flagged').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -249,6 +251,8 @@ export const payouts = pgTable('payouts', {
   periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
   periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
   status: text('status').notNull().default('pending'),
+  // Payout safety: error message for failed payouts
+  errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

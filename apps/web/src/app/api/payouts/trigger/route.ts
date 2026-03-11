@@ -8,6 +8,7 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { getStripeSecretKey } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 30
 
@@ -74,47 +75,80 @@ export async function POST(request: NextRequest) {
     }
 
     // The balanceCents already represents the developer's share (e.g. 85% or 90% of revenue)
-    // For the payout, we transfer the full developer balance
     const payoutAmountCents = developer.balanceCents
     // Platform fee already retained — calculate for record keeping
     const sharePct = developer.revenueSharePct ?? 85
     const platformPct = 100 - sharePct
     const platformFeeCents = Math.floor(payoutAmountCents * (platformPct / sharePct))
 
-    const stripe = getStripe()
     const now = new Date()
 
-    // Create Stripe transfer to connected account
-    const transfer = await stripe.transfers.create({
-      amount: payoutAmountCents,
-      currency: 'usd',
-      destination: developer.stripeConnectId,
-      metadata: {
-        developerId: developer.id,
-        payoutAmountCents: payoutAmountCents.toString(),
-      },
-    })
-
-    // Insert payout record
-    const [payout] = await db
+    // ── Step 1: Insert payout record with status='processing' ─────────────────
+    const [payoutRecord] = await db
       .insert(payouts)
       .values({
         developerId: developer.id,
         amountCents: payoutAmountCents,
         platformFeeCents,
-        stripeTransferId: transfer.id,
-        periodStart: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+        periodStart: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
         periodEnd: now,
-        status: 'completed',
+        status: 'processing',
       })
       .returning({
         id: payouts.id,
         amountCents: payouts.amountCents,
         platformFeeCents: payouts.platformFeeCents,
-        stripeTransferId: payouts.stripeTransferId,
         status: payouts.status,
         createdAt: payouts.createdAt,
       })
+
+    // ── Step 2: Attempt Stripe transfer ───────────────────────────────────────
+    let transfer: Stripe.Transfer
+    try {
+      const stripe = getStripe()
+      transfer = await stripe.transfers.create({
+        amount: payoutAmountCents,
+        currency: 'usd',
+        destination: developer.stripeConnectId,
+        metadata: {
+          developerId: developer.id,
+          payoutId: payoutRecord.id,
+          payoutAmountCents: payoutAmountCents.toString(),
+        },
+      })
+    } catch (stripeError) {
+      // ── Step 4 (failure): Mark payout as 'failed', do NOT touch balance ───
+      const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown Stripe error'
+
+      await db
+        .update(payouts)
+        .set({
+          status: 'failed',
+          errorMessage: errorMsg,
+        })
+        .where(eq(payouts.id, payoutRecord.id))
+
+      logger.error('payout.stripe_transfer_failed', {
+        developerId: developer.id,
+        payoutId: payoutRecord.id,
+        amountCents: payoutAmountCents,
+      }, stripeError)
+
+      return errorResponse(
+        `Payout failed: ${errorMsg}`,
+        502,
+        'STRIPE_TRANSFER_FAILED'
+      )
+    }
+
+    // ── Step 3: Success — update payout to 'completed' + reset balance ────────
+    await db
+      .update(payouts)
+      .set({
+        status: 'completed',
+        stripeTransferId: transfer.id,
+      })
+      .where(eq(payouts.id, payoutRecord.id))
 
     // Reset developer balance to 0
     await db
@@ -130,19 +164,19 @@ export async function POST(request: NextRequest) {
       developerId: auth.id,
       action: 'payout.triggered',
       resourceType: 'payout',
-      resourceId: payout.id,
+      resourceId: payoutRecord.id,
       details: { amountCents: payoutAmountCents, stripeTransferId: transfer.id },
       ipAddress: ip,
     }).catch(() => {})
 
     return successResponse({
       payout: {
-        id: payout.id,
-        amountCents: payout.amountCents,
-        platformFeeCents: payout.platformFeeCents,
-        stripeTransferId: payout.stripeTransferId,
-        status: payout.status,
-        createdAt: payout.createdAt,
+        id: payoutRecord.id,
+        amountCents: payoutRecord.amountCents,
+        platformFeeCents: payoutRecord.platformFeeCents,
+        stripeTransferId: transfer.id,
+        status: 'completed',
+        createdAt: payoutRecord.createdAt,
       },
     })
   } catch (error) {

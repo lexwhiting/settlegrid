@@ -296,9 +296,10 @@ export function recordInvocationAsync(params: {
   developerId: string
   revenueSharePct: number
   isTest?: boolean
+  isFlagged?: boolean
   referralCode?: string
 }): void {
-  const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, revenueSharePct, isTest, referralCode } = params
+  const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, revenueSharePct, isTest, referralCode, isFlagged } = params
   const developerShareCents = Math.floor(costCents * (revenueSharePct / 100))
 
   // All DB writes in parallel (fire-and-forget)
@@ -343,6 +344,7 @@ export function recordInvocationAsync(params: {
         status: 'success',
         isTest: isTest ?? false,
         referralCode: referralCode ?? null,
+        isFlagged: isFlagged ?? false,
       }),
   ]).catch((err) => {
     logger.error('metering.writeback_failed', { toolId, consumerId, costCents }, err)

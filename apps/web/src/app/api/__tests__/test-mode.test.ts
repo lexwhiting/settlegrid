@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockCheckRateLimit, mockHashApiKey, mockCheckBudget, mockDeductCreditsRedis, mockRecordInvocationAsync, mockIncrementPeriodSpend } = vi.hoisted(() => {
+const { mockDb, mockCheckRateLimit, mockCheckTieredRateLimit, mockHashApiKey, mockCheckBudget, mockDeductCreditsRedis, mockRecordInvocationAsync, mockIncrementPeriodSpend, mockDetectFraud } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn(),
     from: vi.fn(),
@@ -32,11 +32,13 @@ const { mockDb, mockCheckRateLimit, mockHashApiKey, mockCheckBudget, mockDeductC
   return {
     mockDb,
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 }),
+    mockCheckTieredRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 2000, remaining: 1999, reset: 0 }),
     mockHashApiKey: vi.fn().mockReturnValue('hashed-key'),
     mockCheckBudget: vi.fn().mockResolvedValue({ allowed: true }),
     mockDeductCreditsRedis: vi.fn().mockResolvedValue(null),
     mockRecordInvocationAsync: vi.fn(),
     mockIncrementPeriodSpend: vi.fn(),
+    mockDetectFraud: vi.fn().mockResolvedValue({ flagged: false, reasons: [], riskScore: 0 }),
   }
 })
 
@@ -55,6 +57,7 @@ vi.mock('@/lib/db/schema', () => ({
     isTestKey: 'is_test_key',
     ipAllowlist: 'ip_allowlist',
     lastUsedAt: 'last_used_at',
+    createdAt: 'created_at',
   },
   tools: {
     id: 'id',
@@ -76,6 +79,7 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'id',
     revenueSharePct: 'revenue_share_pct',
     balanceCents: 'balance_cents',
+    tier: 'tier',
     updatedAt: 'updated_at',
   },
   invocations: {
@@ -89,6 +93,7 @@ vi.mock('@/lib/db/schema', () => ({
     status: 'status',
     isTest: 'is_test',
     referralCode: 'referral_code',
+    isFlagged: 'is_flagged',
   },
 }))
 
@@ -99,6 +104,7 @@ vi.mock('@/lib/crypto', () => ({
 vi.mock('@/lib/rate-limit', () => ({
   sdkLimiter: {},
   checkRateLimit: mockCheckRateLimit,
+  checkTieredRateLimit: mockCheckTieredRateLimit,
 }))
 
 vi.mock('@/lib/ip-validation', () => ({
@@ -111,6 +117,14 @@ vi.mock('@/lib/metering', () => ({
   recordInvocationAsync: mockRecordInvocationAsync,
   incrementPeriodSpend: mockIncrementPeriodSpend,
   creditReferralCommission: vi.fn(),
+}))
+
+vi.mock('@/lib/fraud', () => ({
+  detectFraud: mockDetectFraud,
+}))
+
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -147,11 +161,13 @@ describe('Validate Key — Test Mode (POST /api/sdk/validate-key)', () => {
     vi.clearAllMocks()
     resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
+    mockCheckTieredRateLimit.mockResolvedValue({ success: true, limit: 2000, remaining: 1999, reset: 0 })
   })
 
   it('returns isTestKey=true and virtual balance for test keys', async () => {
     const { POST } = await import('@/app/api/sdk/validate-key/route')
 
+    // 1st limit: apiKeys+tools join
     mockDb.limit.mockResolvedValueOnce([{
       keyId: 'key-test-1',
       keyStatus: 'active',
@@ -161,7 +177,10 @@ describe('Validate Key — Test Mode (POST /api/sdk/validate-key)', () => {
       toolStatus: 'active',
       ipAllowlist: null,
       isTestKey: true,
+      developerId: 'dev-1',
     }])
+    // 2nd limit: developer tier lookup
+    .mockResolvedValueOnce([{ tier: 'starter' }])
 
     const response = await POST(makeRequest('/api/sdk/validate-key', {
       apiKey: 'sg_test_abc123',
@@ -178,6 +197,7 @@ describe('Validate Key — Test Mode (POST /api/sdk/validate-key)', () => {
   it('returns isTestKey=false and real balance for live keys', async () => {
     const { POST } = await import('@/app/api/sdk/validate-key/route')
 
+    // 1st limit: apiKeys+tools join
     mockDb.limit
       .mockResolvedValueOnce([{
         keyId: 'key-live-1',
@@ -188,7 +208,11 @@ describe('Validate Key — Test Mode (POST /api/sdk/validate-key)', () => {
         toolStatus: 'active',
         ipAllowlist: null,
         isTestKey: false,
+        developerId: 'dev-1',
       }])
+      // 2nd limit: developer tier lookup
+      .mockResolvedValueOnce([{ tier: 'free' }])
+      // 3rd limit: balance lookup
       .mockResolvedValueOnce([{ balanceCents: 5000 }])
 
     const response = await POST(makeRequest('/api/sdk/validate-key', {
@@ -209,13 +233,18 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
     vi.clearAllMocks()
     resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
+    mockCheckTieredRateLimit.mockResolvedValue({ success: true, limit: 2000, remaining: 1999, reset: 0 })
+    mockDetectFraud.mockResolvedValue({ flagged: false, reasons: [], riskScore: 0 })
   })
 
   it('skips billing for test keys and returns billed=false', async () => {
     const { POST } = await import('@/app/api/sdk/meter/route')
 
-    // Verify key is test key
-    mockDb.limit.mockResolvedValueOnce([{ isTestKey: true }])
+    // 1st limit: tool+dev lookup (moved to top of route)
+    mockDb.limit
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      // 2nd limit: verify key is test key
+      .mockResolvedValueOnce([{ isTestKey: true }])
     // Insert invocation
     mockDb.returning.mockResolvedValueOnce([{ id: 'inv-test-1' }])
 
@@ -241,18 +270,18 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
   it('falls through to normal billing if isTestKey flag is false in DB', async () => {
     const { POST } = await import('@/app/api/sdk/meter/route')
 
-    // Key is NOT actually a test key in DB
+    // 1st limit: tool+dev lookup
     mockDb.limit
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      // 2nd limit: key is NOT actually a test key in DB
       .mockResolvedValueOnce([{ isTestKey: false }])
-      // Tool lookup for budget check etc will return the tool
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85 }])
-      // Balance check fallback
+      // 3rd limit: apiKeys createdAt for fraud check
+      .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }])
+      // 4th limit: balance check fallback
       .mockResolvedValueOnce([{ id: 'bal-1', balanceCents: 1000 }])
 
     // DB deduction
     mockDb.returning.mockResolvedValueOnce([{ balanceCents: 990 }])
-    // Tool update returning
-    // Developer update
     // Insert invocation
     mockDb.returning.mockResolvedValueOnce([{ id: 'inv-1' }])
 
