@@ -1,0 +1,41 @@
+import { NextRequest } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { developers } from '@/lib/db/schema'
+import { requireDeveloper } from '@/lib/middleware/auth'
+import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
+
+export async function GET(request: NextRequest) {
+  try {
+    let auth
+    try {
+      auth = await requireDeveloper(request)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Authentication required'
+      return errorResponse(message, 401, 'UNAUTHORIZED')
+    }
+
+    const [developer] = await db
+      .select({
+        id: developers.id,
+        email: developers.email,
+        name: developers.name,
+        stripeConnectStatus: developers.stripeConnectStatus,
+        balanceCents: developers.balanceCents,
+        payoutSchedule: developers.payoutSchedule,
+        payoutMinimumCents: developers.payoutMinimumCents,
+        createdAt: developers.createdAt,
+      })
+      .from(developers)
+      .where(eq(developers.id, auth.id))
+      .limit(1)
+
+    if (!developer) {
+      return errorResponse('Developer not found.', 404, 'NOT_FOUND')
+    }
+
+    return successResponse({ developer })
+  } catch (error) {
+    return internalErrorResponse(error)
+  }
+}
