@@ -39,6 +39,11 @@ vi.mock('@/lib/middleware/auth', () => ({
   requireDeveloper: mockRequireDeveloper,
 }))
 
+vi.mock('@/lib/rate-limit', () => ({
+  apiLimiter: {},
+  checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+}))
+
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),

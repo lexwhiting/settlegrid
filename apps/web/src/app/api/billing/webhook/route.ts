@@ -6,6 +6,8 @@ import { purchases, consumerToolBalances } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
 
+export const maxDuration = 30
+
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
 }
@@ -86,9 +88,13 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        console.log(
-          `[Stripe Webhook] Checkout completed: purchase=${purchaseId}, consumer=${consumerId}, tool=${toolId}, amount=${amountCents}c`
-        )
+        console.info('[Stripe Webhook] Checkout completed', {
+          purchaseId,
+          consumerId,
+          toolId,
+          amountCents,
+          timestamp: new Date().toISOString(),
+        })
         break
       }
 
@@ -108,18 +114,26 @@ export async function POST(request: NextRequest) {
             .set({ status: 'failed' })
             .where(eq(purchases.id, purchase.id))
 
-          console.log(`[Stripe Webhook] Payment failed: purchase=${purchase.id}`)
+          console.warn('[Stripe Webhook] Payment failed', {
+            purchaseId: purchase.id,
+            paymentIntentId: paymentIntent.id,
+            timestamp: new Date().toISOString(),
+          })
         } else {
-          console.warn(
-            `[Stripe Webhook] Payment failed but no matching purchase found for intent: ${paymentIntent.id}`
-          )
+          console.warn('[Stripe Webhook] Payment failed, no matching purchase', {
+            paymentIntentId: paymentIntent.id,
+            timestamp: new Date().toISOString(),
+          })
         }
         break
       }
 
       default:
         // Unhandled event type — acknowledge receipt
-        console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`)
+        console.info('[Stripe Webhook] Unhandled event type', {
+          type: event.type,
+          timestamp: new Date().toISOString(),
+        })
     }
 
     return successResponse({ received: true })

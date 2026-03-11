@@ -87,6 +87,7 @@ vi.mock('@/lib/middleware/auth', () => ({
 
 vi.mock('@/lib/rate-limit', () => ({
   authLimiter: {},
+  apiLimiter: {},
   checkRateLimit: mockCheckRateLimit,
 }))
 
@@ -319,10 +320,11 @@ describe('API Key Management', () => {
   })
 
   it('revokes an API key', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'key-1', status: 'active' }])
+    const keyId = '550e8400-e29b-41d4-a716-446655440099'
+    mockDb.limit.mockResolvedValueOnce([{ id: keyId, status: 'active' }])
 
-    const request = makeRequest('/api/consumer/keys/key-1', 'DELETE')
-    const response = await revokeKey(request, { params: Promise.resolve({ id: 'key-1' }) })
+    const request = makeRequest(`/api/consumer/keys/${keyId}`, 'DELETE')
+    const response = await revokeKey(request, { params: Promise.resolve({ id: keyId }) })
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -330,10 +332,11 @@ describe('API Key Management', () => {
   })
 
   it('returns 404 for non-existent key revocation', async () => {
+    const keyId = '550e8400-e29b-41d4-a716-446655440098'
     mockDb.limit.mockResolvedValueOnce([])
 
-    const request = makeRequest('/api/consumer/keys/nonexistent', 'DELETE')
-    const response = await revokeKey(request, { params: Promise.resolve({ id: 'nonexistent' }) })
+    const request = makeRequest(`/api/consumer/keys/${keyId}`, 'DELETE')
+    const response = await revokeKey(request, { params: Promise.resolve({ id: keyId }) })
 
     expect(response.status).toBe(404)
   })

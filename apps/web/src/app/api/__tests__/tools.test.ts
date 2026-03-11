@@ -181,6 +181,9 @@ describe('Create Tool (POST /api/tools)', () => {
 })
 
 describe('Get Tool by ID (GET /api/tools/[id])', () => {
+  const toolUuid = '550e8400-e29b-41d4-a716-446655440001'
+  const missingUuid = '550e8400-e29b-41d4-a716-446655440099'
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockDb.select.mockReturnThis()
@@ -191,8 +194,8 @@ describe('Get Tool by ID (GET /api/tools/[id])', () => {
   it('returns a single tool by id', async () => {
     mockDb.limit.mockResolvedValueOnce([mockTool])
 
-    const request = makeRequest('/api/tools/tool-1')
-    const response = await getById(request, { params: Promise.resolve({ id: 'tool-1' }) })
+    const request = makeRequest(`/api/tools/${toolUuid}`)
+    const response = await getById(request, { params: Promise.resolve({ id: toolUuid }) })
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -202,14 +205,17 @@ describe('Get Tool by ID (GET /api/tools/[id])', () => {
   it('returns 404 for non-existent tool', async () => {
     mockDb.limit.mockResolvedValueOnce([])
 
-    const request = makeRequest('/api/tools/nonexistent')
-    const response = await getById(request, { params: Promise.resolve({ id: 'nonexistent' }) })
+    const request = makeRequest(`/api/tools/${missingUuid}`)
+    const response = await getById(request, { params: Promise.resolve({ id: missingUuid }) })
 
     expect(response.status).toBe(404)
   })
 })
 
 describe('Update Tool (PATCH /api/tools/[id])', () => {
+  const toolUuid = '550e8400-e29b-41d4-a716-446655440002'
+  const otherUuid = '550e8400-e29b-41d4-a716-446655440003'
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockDb.select.mockReturnThis()
@@ -220,11 +226,11 @@ describe('Update Tool (PATCH /api/tools/[id])', () => {
   })
 
   it('updates tool fields', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1' }])
+    mockDb.limit.mockResolvedValueOnce([{ id: toolUuid }])
     mockDb.returning.mockResolvedValueOnce([{ ...mockTool, name: 'Updated Tool' }])
 
-    const request = makeRequest('/api/tools/tool-1', 'PATCH', { name: 'Updated Tool' })
-    const response = await PATCH(request, { params: Promise.resolve({ id: 'tool-1' }) })
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'PATCH', { name: 'Updated Tool' })
+    const response = await PATCH(request, { params: Promise.resolve({ id: toolUuid }) })
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -234,14 +240,16 @@ describe('Update Tool (PATCH /api/tools/[id])', () => {
   it('returns 404 for tool not belonging to developer', async () => {
     mockDb.limit.mockResolvedValueOnce([])
 
-    const request = makeRequest('/api/tools/other-tool', 'PATCH', { name: 'Nope' })
-    const response = await PATCH(request, { params: Promise.resolve({ id: 'other-tool' }) })
+    const request = makeRequest(`/api/tools/${otherUuid}`, 'PATCH', { name: 'Nope' })
+    const response = await PATCH(request, { params: Promise.resolve({ id: otherUuid }) })
 
     expect(response.status).toBe(404)
   })
 })
 
 describe('Delete Tool (DELETE /api/tools/[id])', () => {
+  const toolUuid = '550e8400-e29b-41d4-a716-446655440004'
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockDb.select.mockReturnThis()
@@ -252,10 +260,10 @@ describe('Delete Tool (DELETE /api/tools/[id])', () => {
   })
 
   it('soft-deletes a tool', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
+    mockDb.limit.mockResolvedValueOnce([{ id: toolUuid, status: 'active' }])
 
-    const request = makeRequest('/api/tools/tool-1', 'DELETE')
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'tool-1' }) })
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'DELETE')
+    const response = await DELETE(request, { params: Promise.resolve({ id: toolUuid }) })
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -263,16 +271,18 @@ describe('Delete Tool (DELETE /api/tools/[id])', () => {
   })
 
   it('returns 400 for already deleted tool', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'deleted' }])
+    mockDb.limit.mockResolvedValueOnce([{ id: toolUuid, status: 'deleted' }])
 
-    const request = makeRequest('/api/tools/tool-1', 'DELETE')
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'tool-1' }) })
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'DELETE')
+    const response = await DELETE(request, { params: Promise.resolve({ id: toolUuid }) })
 
     expect(response.status).toBe(400)
   })
 })
 
 describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
+  const statusUuid = '550e8400-e29b-41d4-a716-446655440005'
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockDb.select.mockReturnThis()
@@ -283,11 +293,11 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
   })
 
   it('toggles tool to active', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'draft' }])
-    mockDb.returning.mockResolvedValueOnce([{ id: 'tool-1', name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
 
-    const request = makeRequest('/api/tools/tool-1/status', 'PATCH', { status: 'active' })
-    const response = await patchStatus(request, { params: Promise.resolve({ id: 'tool-1' }) })
+    const request = makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' })
+    const response = await patchStatus(request, { params: Promise.resolve({ id: statusUuid }) })
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -295,10 +305,10 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
   })
 
   it('returns 400 for deleted tool', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'deleted' }])
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'deleted' }])
 
-    const request = makeRequest('/api/tools/tool-1/status', 'PATCH', { status: 'active' })
-    const response = await patchStatus(request, { params: Promise.resolve({ id: 'tool-1' }) })
+    const request = makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' })
+    const response = await patchStatus(request, { params: Promise.resolve({ id: statusUuid }) })
 
     expect(response.status).toBe(400)
   })
@@ -311,6 +321,8 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     mockDb.from.mockReturnThis()
     mockDb.where.mockReturnThis()
     mockDb.innerJoin.mockReturnThis()
+    mockDb.limit.mockReset()
+    mockDb.limit.mockResolvedValue([])
   })
 
   it('returns public tool data for active tool', async () => {

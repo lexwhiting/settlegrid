@@ -67,6 +67,11 @@ vi.mock('@/lib/env', () => ({
   getStripeSecretKey: vi.fn().mockReturnValue('sk_test_fake'),
 }))
 
+vi.mock('@/lib/rate-limit', () => ({
+  apiLimiter: {},
+  checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+}))
+
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),

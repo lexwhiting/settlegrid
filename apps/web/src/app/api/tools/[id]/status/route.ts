@@ -5,6 +5,9 @@ import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const statusSchema = z.object({
   status: z.enum(['active', 'draft'], {
@@ -17,6 +20,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `tool-status:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireDeveloper(request)
@@ -26,6 +35,9 @@ export async function PATCH(
     }
 
     const { id } = await params
+    if (!UUID_REGEX.test(id)) {
+      return errorResponse('Invalid tool ID format.', 400, 'INVALID_ID')
+    }
     const body = await parseBody(request, statusSchema)
 
     // Verify tool belongs to developer and is not deleted

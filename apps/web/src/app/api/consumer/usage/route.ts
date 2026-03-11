@@ -4,9 +4,18 @@ import { db } from '@/lib/db'
 import { invocations, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `usage:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireConsumer(request)
@@ -29,6 +38,9 @@ export async function GET(request: NextRequest) {
     ]
 
     if (toolId) {
+      if (!UUID_REGEX.test(toolId)) {
+        return errorResponse('Invalid tool ID format.', 400, 'INVALID_ID')
+      }
       conditions.push(eq(invocations.toolId, toolId))
     }
 

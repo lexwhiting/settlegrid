@@ -205,36 +205,40 @@ describe('Consumer Keys - DELETE /api/consumer/keys/[id]', () => {
   })
 
   it('revokes an active key', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'key-1', status: 'active' }])
+    const keyId = '550e8400-e29b-41d4-a716-446655440099'
+    mockDb.limit.mockResolvedValueOnce([{ id: keyId, status: 'active' }])
 
-    const request = makeRequest('/api/consumer/keys/key-1', 'DELETE')
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'key-1' }) })
+    const request = makeRequest(`/api/consumer/keys/${keyId}`, 'DELETE')
+    const response = await DELETE(request, { params: Promise.resolve({ id: keyId }) })
     const data = await response.json()
     expect(response.status).toBe(200)
     expect(data.message).toContain('revoked')
   })
 
   it('returns 404 for non-existent key', async () => {
+    const keyId = '550e8400-e29b-41d4-a716-446655440098'
     mockDb.limit.mockResolvedValueOnce([])
 
-    const request = makeRequest('/api/consumer/keys/nonexistent', 'DELETE')
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'nonexistent' }) })
+    const request = makeRequest(`/api/consumer/keys/${keyId}`, 'DELETE')
+    const response = await DELETE(request, { params: Promise.resolve({ id: keyId }) })
     expect(response.status).toBe(404)
   })
 
   it('returns 400 for already revoked key', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'key-1', status: 'revoked' }])
+    const keyId = '550e8400-e29b-41d4-a716-446655440097'
+    mockDb.limit.mockResolvedValueOnce([{ id: keyId, status: 'revoked' }])
 
-    const request = makeRequest('/api/consumer/keys/key-1', 'DELETE')
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'key-1' }) })
+    const request = makeRequest(`/api/consumer/keys/${keyId}`, 'DELETE')
+    const response = await DELETE(request, { params: Promise.resolve({ id: keyId }) })
     expect(response.status).toBe(400)
   })
 
   it('returns 401 when unauthenticated', async () => {
+    const keyId = '550e8400-e29b-41d4-a716-446655440096'
     mockRequireConsumer.mockRejectedValueOnce(new Error('No session'))
 
-    const request = makeRequest('/api/consumer/keys/key-1', 'DELETE')
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'key-1' }) })
+    const request = makeRequest(`/api/consumer/keys/${keyId}`, 'DELETE')
+    const response = await DELETE(request, { params: Promise.resolve({ id: keyId }) })
     expect(response.status).toBe(401)
   })
 })

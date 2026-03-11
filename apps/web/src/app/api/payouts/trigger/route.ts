@@ -6,6 +6,9 @@ import { developers, payouts } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getStripeSecretKey } from '@/lib/env'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+
+export const maxDuration = 30
 
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
@@ -13,6 +16,12 @@ function getStripe(): Stripe {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `payout-trigger:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireDeveloper(request)

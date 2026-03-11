@@ -11,17 +11,19 @@ export default function DocsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Documentation error:', error)
+    console.error('[Documentation Error]', {
+      digest: error.digest,
+      timestamp: new Date().toISOString(),
+    })
   }, [error])
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center">
         <h2 className="text-xl font-bold text-indigo mb-2">Documentation Error</h2>
-        <p className="text-gray-600 mb-4">Something went wrong loading the documentation.</p>
-        <div role="alert" className="text-sm text-red-600 mb-4">
-          {error.message || 'An unexpected error occurred.'}
-        </div>
+        <p className="text-gray-600 mb-4" role="alert">
+          Something went wrong loading the documentation. Please try again.
+        </p>
         <div className="flex gap-3 justify-center">
           <button
             onClick={reset}

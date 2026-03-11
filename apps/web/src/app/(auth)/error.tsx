@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 
-export default function ToolStorefrontError({
+export default function AuthError({
   error,
   reset,
 }: {
@@ -11,18 +11,18 @@ export default function ToolStorefrontError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Tool Storefront Error]', {
+    console.error('[Auth Error]', {
       digest: error.digest,
       timestamp: new Date().toISOString(),
     })
   }, [error])
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="text-center">
-        <h2 className="text-xl font-bold text-indigo mb-2">Tool Storefront Error</h2>
+        <h2 className="text-xl font-bold text-indigo mb-2">Authentication Error</h2>
         <p className="text-gray-600 mb-4" role="alert">
-          Something went wrong loading this tool. Please try again.
+          Something went wrong. Please try again.
         </p>
         <div className="flex gap-3 justify-center">
           <button

@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 const pricingConfigSchema = z.object({
   model: z.enum(['per_call', 'tiered', 'flat']),
@@ -33,6 +34,12 @@ const createToolSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `tools-list:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireDeveloper(request)
@@ -66,6 +73,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `tools-create:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireDeveloper(request)

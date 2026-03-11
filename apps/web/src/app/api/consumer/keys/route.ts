@@ -6,6 +6,7 @@ import { apiKeys, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { generateApiKey } from '@/lib/crypto'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 const createKeySchema = z.object({
   toolId: z.string().uuid('Invalid tool ID'),
@@ -13,6 +14,12 @@ const createKeySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `keys-list:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireConsumer(request)
@@ -42,6 +49,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `keys-create:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireConsumer(request)

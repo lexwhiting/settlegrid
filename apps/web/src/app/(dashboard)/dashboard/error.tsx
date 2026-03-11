@@ -10,7 +10,10 @@ export default function DashboardError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Dashboard error:', error)
+    console.error('[Dashboard Error]', {
+      digest: error.digest,
+      timestamp: new Date().toISOString(),
+    })
   }, [error])
 
   return (

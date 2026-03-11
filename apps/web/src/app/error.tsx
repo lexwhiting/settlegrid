@@ -10,7 +10,10 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Page error:', error)
+    console.error('[Page Error]', {
+      digest: error.digest,
+      timestamp: new Date().toISOString(),
+    })
   }, [error])
 
   return (

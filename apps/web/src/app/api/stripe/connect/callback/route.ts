@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 
+export const maxDuration = 30
+
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
 }
@@ -48,7 +50,10 @@ export async function GET(request: NextRequest) {
     )
   } catch (error) {
     const appUrl = getAppUrl()
-    console.error('[Stripe Connect Callback] Error:', error)
+    console.error('[Stripe Connect Callback]', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    })
     return NextResponse.redirect(`${appUrl}/dashboard/developer/settings?stripe=error`)
   }
 }

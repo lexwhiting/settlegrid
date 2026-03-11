@@ -7,6 +7,9 @@ import { purchases, tools, consumers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+
+export const maxDuration = 30
 
 const PRESET_AMOUNTS = [500, 2000, 5000]
 const MIN_CUSTOM_AMOUNT = 100
@@ -27,6 +30,12 @@ function getStripe(): Stripe {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `checkout:${ip}`)
+    if (!rateLimit.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     let auth
     try {
       auth = await requireConsumer(request)

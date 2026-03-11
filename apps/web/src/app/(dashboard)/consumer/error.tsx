@@ -10,16 +10,18 @@ export default function ConsumerError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Consumer dashboard error:', error)
+    console.error('[Consumer Dashboard Error]', {
+      digest: error.digest,
+      timestamp: new Date().toISOString(),
+    })
   }, [error])
 
   return (
     <div className="text-center py-12">
       <h2 className="text-xl font-bold text-indigo mb-2">Consumer Dashboard Error</h2>
-      <p className="text-gray-600 mb-4">Something went wrong loading your dashboard.</p>
-      <div role="alert" className="text-sm text-red-600 mb-4">
-        {error.message || 'An unexpected error occurred.'}
-      </div>
+      <p className="text-gray-600 mb-4" role="alert">
+        Something went wrong loading your dashboard. Please try again.
+      </p>
       <button
         onClick={reset}
         className="bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors text-sm font-medium"
