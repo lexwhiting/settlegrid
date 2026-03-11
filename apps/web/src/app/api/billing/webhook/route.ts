@@ -4,6 +4,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { purchases, consumerToolBalances } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
+import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
 
 export const maxDuration = 30
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       event = stripe.webhooks.constructEvent(body, signature, getStripeWebhookSecret())
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid signature'
-      console.error('[Stripe Webhook] Signature verification failed:', message)
+      logger.error('stripe.webhook.signature_failed', { reason: message })
       return errorResponse('Invalid webhook signature.', 400, 'INVALID_SIGNATURE')
     }
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
         const amountCents = parseInt(session.metadata?.amountCents ?? '0', 10)
 
         if (!purchaseId || !consumerId || !toolId || !amountCents) {
-          console.error('[Stripe Webhook] Missing metadata in checkout session:', session.id)
+          logger.error('stripe.webhook.missing_metadata', { sessionId: session.id })
           return successResponse({ received: true })
         }
 
@@ -88,12 +89,11 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        console.info('[Stripe Webhook] Checkout completed', {
+        logger.info('stripe.webhook.checkout_completed', {
           purchaseId,
           consumerId,
           toolId,
           amountCents,
-          timestamp: new Date().toISOString(),
         })
         break
       }
@@ -114,15 +114,13 @@ export async function POST(request: NextRequest) {
             .set({ status: 'failed' })
             .where(eq(purchases.id, purchase.id))
 
-          console.warn('[Stripe Webhook] Payment failed', {
+          logger.warn('stripe.webhook.payment_failed', {
             purchaseId: purchase.id,
             paymentIntentId: paymentIntent.id,
-            timestamp: new Date().toISOString(),
           })
         } else {
-          console.warn('[Stripe Webhook] Payment failed, no matching purchase', {
+          logger.warn('stripe.webhook.payment_failed_no_purchase', {
             paymentIntentId: paymentIntent.id,
-            timestamp: new Date().toISOString(),
           })
         }
         break
@@ -130,10 +128,7 @@ export async function POST(request: NextRequest) {
 
       default:
         // Unhandled event type — acknowledge receipt
-        console.info('[Stripe Webhook] Unhandled event type', {
-          type: event.type,
-          timestamp: new Date().toISOString(),
-        })
+        logger.info('stripe.webhook.unhandled_event', { type: event.type })
     }
 
     return successResponse({ received: true })

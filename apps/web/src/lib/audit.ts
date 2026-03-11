@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { auditLogs } from '@/lib/db/schema'
+import { logger } from '@/lib/logger'
 
 export async function writeAuditLog(params: {
   developerId?: string
@@ -23,9 +24,6 @@ export async function writeAuditLog(params: {
       userAgent: params.userAgent ?? null,
     })
   } catch (err) {
-    console.error('[Audit Log Write Error]', {
-      action: params.action,
-      error: err instanceof Error ? err.message : 'Unknown',
-    })
+    logger.error('audit.write_failed', { action: params.action }, err)
   }
 }

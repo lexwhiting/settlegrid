@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
+import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 
 export const maxDuration = 30
@@ -50,10 +51,7 @@ export async function GET(request: NextRequest) {
     )
   } catch (error) {
     const appUrl = getAppUrl()
-    console.error('[Stripe Connect Callback]', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString(),
-    })
+    logger.error('stripe.connect.callback_failed', {}, error)
     return NextResponse.redirect(`${appUrl}/dashboard/developer/settings?stripe=error`)
   }
 }

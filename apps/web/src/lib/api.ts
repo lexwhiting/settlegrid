@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { ZodSchema, ZodError } from 'zod'
+import { logger } from '@/lib/logger'
 
 /**
  * Returns a JSON success response with the given data and status code.
@@ -83,11 +84,7 @@ export function internalErrorResponse(error: unknown): NextResponse {
   const message =
     error instanceof Error ? error.message : 'An unexpected error occurred'
 
-  console.error('[SettleGrid Internal Error]', {
-    message,
-    stack: error instanceof Error ? error.stack : undefined,
-    timestamp: new Date().toISOString(),
-  })
+  logger.error('internal_error', { message }, error)
 
   return errorResponse('Internal server error', 500, 'INTERNAL_ERROR')
 }

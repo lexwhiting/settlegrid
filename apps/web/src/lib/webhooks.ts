@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { webhookEndpoints, webhookDeliveries, developers } from '@/lib/db/schema'
+import { logger } from '@/lib/logger'
 
 /**
  * Dispatch a webhook event to all registered endpoints for a developer.
@@ -86,11 +87,6 @@ export async function dispatchWebhook(
         })
     }
   } catch (err) {
-    console.error('[Webhook Dispatch Error]', {
-      developerId,
-      event,
-      error: err instanceof Error ? err.message : 'Unknown error',
-      timestamp: new Date().toISOString(),
-    })
+    logger.error('webhook.dispatch_failed', { developerId, event }, err)
   }
 }
