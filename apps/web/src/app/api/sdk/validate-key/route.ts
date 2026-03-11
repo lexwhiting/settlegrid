@@ -6,6 +6,7 @@ import { apiKeys, tools, consumerToolBalances } from '@/lib/db/schema'
 import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { isIpInAllowlist } from '@/lib/ip-validation'
 
 export const maxDuration = 15
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
         toolId: apiKeys.toolId,
         toolSlug: tools.slug,
         toolStatus: tools.status,
+        ipAllowlist: apiKeys.ipAllowlist,
       })
       .from(apiKeys)
       .innerJoin(tools, eq(apiKeys.toolId, tools.id))
@@ -57,6 +59,14 @@ export async function POST(request: NextRequest) {
 
     if (row.toolStatus !== 'active') {
       return successResponse({ valid: false, reason: 'Tool is not active.' })
+    }
+
+    // Check IP allowlist
+    const allowlist = row.ipAllowlist as string[] | null
+    if (allowlist && allowlist.length > 0) {
+      if (!isIpInAllowlist(ip, allowlist)) {
+        return successResponse({ valid: false, reason: 'IP_NOT_ALLOWED' })
+      }
     }
 
     // Get consumer balance for this tool

@@ -32,6 +32,7 @@ const createToolSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(2000, 'Description too long').optional(),
   pricingConfig: pricingConfigSchema,
+  healthEndpoint: z.string().url().max(500).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
         status: tools.status,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
+        healthEndpoint: tools.healthEndpoint,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })
@@ -110,6 +112,7 @@ export async function POST(request: NextRequest) {
         slug: body.slug,
         description: body.description ?? null,
         pricingConfig: body.pricingConfig,
+        healthEndpoint: body.healthEndpoint ?? null,
       })
       .returning({
         id: tools.id,
@@ -120,6 +123,7 @@ export async function POST(request: NextRequest) {
         status: tools.status,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
+        healthEndpoint: tools.healthEndpoint,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })

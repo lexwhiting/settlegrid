@@ -101,6 +101,17 @@ vi.mock('drizzle-orm', () => ({
   ),
 }))
 
+vi.mock('@/lib/metering', () => ({
+  checkBudget: vi.fn().mockResolvedValue({ allowed: true }),
+  deductCreditsRedis: vi.fn().mockResolvedValue(null), // null = fallback to DB
+  recordInvocationAsync: vi.fn(),
+  incrementPeriodSpend: vi.fn(),
+}))
+
+vi.mock('@/lib/ip-validation', () => ({
+  isIpInAllowlist: vi.fn().mockReturnValue(true),
+}))
+
 import { POST as validateKey } from '@/app/api/sdk/validate-key/route'
 import { POST as meter } from '@/app/api/sdk/meter/route'
 
@@ -299,10 +310,10 @@ describe('Meter (POST /api/sdk/meter)', () => {
   })
 
   it('meters a successful invocation and deducts credits', async () => {
-    // Balance check: select().from().where().limit()
+    // First limit() = tool+dev lookup, second limit() = balance check
     mockDb.limit
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85 }]) // tool lookup
       .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 5000 }]) // balance check
-      .mockResolvedValueOnce([{ developerId: 'dev-1' }]) // tool lookup
 
     // Balance deduction + invocation insert: .returning()
     mockDb.returning
@@ -328,7 +339,10 @@ describe('Meter (POST /api/sdk/meter)', () => {
   })
 
   it('returns 402 for insufficient credits', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 2 }])
+    // First limit() = tool+dev lookup, second limit() = balance check
+    mockDb.limit
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85 }])
+      .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 2 }])
 
     const request = makeRequest('/api/sdk/meter', {
       toolSlug: 'my-tool',
@@ -347,7 +361,10 @@ describe('Meter (POST /api/sdk/meter)', () => {
   })
 
   it('returns 402 when no balance record exists', async () => {
-    mockDb.limit.mockResolvedValueOnce([])
+    // First limit() = tool+dev lookup, second limit() = balance check (empty)
+    mockDb.limit
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85 }])
+      .mockResolvedValueOnce([])
 
     const request = makeRequest('/api/sdk/meter', {
       toolSlug: 'my-tool',

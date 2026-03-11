@@ -98,6 +98,70 @@ export async function POST(request: NextRequest) {
         break
       }
 
+      case 'payment_intent.succeeded': {
+        const succeededIntent = event.data.object as Stripe.PaymentIntent
+
+        // Check if this is an auto-refill payment
+        if (succeededIntent.metadata?.type === 'auto_refill') {
+          const consumerId = succeededIntent.metadata.consumerId
+          const toolId = succeededIntent.metadata.toolId
+          const amountCents = parseInt(succeededIntent.metadata.amountCents ?? '0', 10)
+
+          if (consumerId && toolId && amountCents > 0) {
+            // Credit the balance
+            const [existingBalance] = await db
+              .select({ id: consumerToolBalances.id })
+              .from(consumerToolBalances)
+              .where(
+                and(
+                  eq(consumerToolBalances.consumerId, consumerId),
+                  eq(consumerToolBalances.toolId, toolId)
+                )
+              )
+              .limit(1)
+
+            if (existingBalance) {
+              await db
+                .update(consumerToolBalances)
+                .set({
+                  balanceCents: sql`${consumerToolBalances.balanceCents} + ${amountCents}`,
+                })
+                .where(eq(consumerToolBalances.id, existingBalance.id))
+            }
+
+            // Update purchase status
+            const [purchase] = await db
+              .select({ id: purchases.id })
+              .from(purchases)
+              .where(eq(purchases.stripePaymentIntentId, succeededIntent.id))
+              .limit(1)
+
+            if (purchase) {
+              await db
+                .update(purchases)
+                .set({ status: 'completed' })
+                .where(eq(purchases.id, purchase.id))
+            }
+
+            // Invalidate Redis balance cache
+            try {
+              const { invalidateBalanceCache } = await import('@/lib/metering')
+              await invalidateBalanceCache(consumerId, toolId)
+            } catch {
+              // metering module may not be available in all contexts
+            }
+
+            logger.info('stripe.webhook.auto_refill_completed', {
+              consumerId,
+              toolId,
+              amountCents,
+              paymentIntentId: succeededIntent.id,
+            })
+          }
+        }
+        break
+      }
+
       case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
 

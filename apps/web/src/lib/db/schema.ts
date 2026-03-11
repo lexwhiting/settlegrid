@@ -61,6 +61,8 @@ export const tools = pgTable('tools', {
   tags: jsonb('tags').default('[]'), // string[]
   // R10: Tool Versioning
   currentVersion: text('current_version').notNull().default('1.0.0'),
+  // S4: Health Check Endpoint
+  healthEndpoint: text('health_endpoint'), // URL to ping for health checks
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -85,6 +87,8 @@ export const consumers = pgTable('consumers', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   stripeCustomerId: text('stripe_customer_id'),
+  // S5: Auto-Refill default payment method
+  defaultPaymentMethodId: text('default_payment_method_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

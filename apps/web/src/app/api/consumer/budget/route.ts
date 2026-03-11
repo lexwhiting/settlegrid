@@ -6,6 +6,7 @@ import { consumerToolBalances, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { syncBudgetToRedis } from '@/lib/metering'
 
 export const maxDuration = 15
 
@@ -128,6 +129,15 @@ export async function PATCH(request: NextRequest) {
         periodResetAt: consumerToolBalances.periodResetAt,
         alertAtPct: consumerToolBalances.alertAtPct,
       })
+
+    // Sync budget to Redis for metering fast path
+    syncBudgetToRedis(
+      auth.id,
+      body.toolId,
+      updated.spendingLimitCents,
+      updated.currentPeriodSpendCents,
+      updated.periodResetAt
+    ).catch(() => {})
 
     return successResponse({ budget: updated })
   } catch (error) {

@@ -1,5 +1,11 @@
 {
   "framework": "nextjs",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm turbo build --filter=@settlegrid/web"
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@settlegrid/web",
+  "crons": [
+    {
+      "path": "/api/cron/health-checks",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

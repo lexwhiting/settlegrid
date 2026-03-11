@@ -29,6 +29,7 @@ const updateToolSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   pricingConfig: pricingConfigSchema.optional(),
+  healthEndpoint: z.string().url().max(500).nullable().optional(),
 })
 
 export async function GET(
@@ -65,6 +66,7 @@ export async function GET(
         status: tools.status,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
+        healthEndpoint: tools.healthEndpoint,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })
@@ -122,6 +124,7 @@ export async function PATCH(
     if (body.name !== undefined) updateData.name = body.name
     if (body.description !== undefined) updateData.description = body.description
     if (body.pricingConfig !== undefined) updateData.pricingConfig = body.pricingConfig
+    if (body.healthEndpoint !== undefined) updateData.healthEndpoint = body.healthEndpoint
 
     const [tool] = await db
       .update(tools)
@@ -136,6 +139,7 @@ export async function PATCH(
         status: tools.status,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
+        healthEndpoint: tools.healthEndpoint,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })

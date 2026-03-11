@@ -1,27 +1,11 @@
 import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
-import { getRedisUrl } from './env'
+import { getRedis } from './redis'
 
 export interface RateLimitResult {
   success: boolean
   limit: number
   remaining: number
   reset: number
-}
-
-let redisInstance: Redis | null = null
-
-function getRedis(): Redis {
-  if (!redisInstance) {
-    const url = getRedisUrl()
-    // Upstash Redis URL contains both the URL and token
-    // Format: https://....upstash.io with UPSTASH_REDIS_REST_TOKEN as separate env
-    redisInstance = new Redis({
-      url,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN ?? '',
-    })
-  }
-  return redisInstance
 }
 
 /**

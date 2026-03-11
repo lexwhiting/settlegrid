@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { tools, developers, consumerToolBalances, invocations } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
 
 export const maxDuration = 15
 
@@ -60,26 +61,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Check consumer balance for this tool
-    const [balance] = await db
-      .select({
-        id: consumerToolBalances.id,
-        balanceCents: consumerToolBalances.balanceCents,
-      })
-      .from(consumerToolBalances)
-      .where(
-        and(
-          eq(consumerToolBalances.consumerId, body.consumerId),
-          eq(consumerToolBalances.toolId, body.toolId)
-        )
-      )
-      .limit(1)
-
-    if (!balance || balance.balanceCents < body.costCents) {
+    // ── Budget check ──────────────────────────────────────────────────────────
+    const budgetResult = await checkBudget(body.consumerId, body.toolId, body.costCents)
+    if (!budgetResult.allowed) {
       return errorResponse(
-        'Insufficient credits.',
+        'Spending budget exceeded for this billing period.',
         402,
-        'INSUFFICIENT_CREDITS'
+        'BUDGET_EXCEEDED'
       )
     }
 
@@ -98,18 +86,59 @@ export async function POST(request: NextRequest) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    // Dynamic revenue split based on developer tier (85% standard, 90% enterprise)
+    // ── Try Redis-accelerated deduction (fast path) ───────────────────────────
+    const redisRemaining = await deductCreditsRedis(body.consumerId, body.toolId, body.costCents)
+
+    if (redisRemaining !== null) {
+      // Redis deduction succeeded — fire-and-forget DB writeback
+      recordInvocationAsync({
+        toolId: body.toolId,
+        consumerId: body.consumerId,
+        keyId: body.keyId,
+        method: body.method,
+        costCents: body.costCents,
+        latencyMs: body.latencyMs ?? null,
+        developerId: toolDev.developerId,
+        revenueSharePct: toolDev.revenueSharePct,
+      })
+
+      // Track budget spend
+      incrementPeriodSpend(body.consumerId, body.toolId, body.costCents)
+
+      return successResponse({
+        success: true,
+        remainingBalanceCents: redisRemaining,
+        costCents: body.costCents,
+      })
+    }
+
+    // ── DB-only fallback (Redis unavailable or no cached balance) ─────────────
+    const [balance] = await db
+      .select({
+        id: consumerToolBalances.id,
+        balanceCents: consumerToolBalances.balanceCents,
+      })
+      .from(consumerToolBalances)
+      .where(
+        and(
+          eq(consumerToolBalances.consumerId, body.consumerId),
+          eq(consumerToolBalances.toolId, body.toolId)
+        )
+      )
+      .limit(1)
+
+    if (!balance || balance.balanceCents < body.costCents) {
+      return errorResponse('Insufficient credits.', 402, 'INSUFFICIENT_CREDITS')
+    }
+
     const developerShareCents = Math.floor(body.costCents * (toolDev.revenueSharePct / 100))
 
-    // Execute all updates atomically using a transaction
-    // Drizzle doesn't have a built-in transaction for postgres-js, so we do sequential ops
-    // and rely on the atomic SQL operations
-
-    // 1. Deduct from consumer balance (atomic)
+    // Atomic DB deduction
     const [updatedBalance] = await db
       .update(consumerToolBalances)
       .set({
         balanceCents: sql`${consumerToolBalances.balanceCents} - ${body.costCents}`,
+        currentPeriodSpendCents: sql`${consumerToolBalances.currentPeriodSpendCents} + ${body.costCents}`,
       })
       .where(
         and(
@@ -120,14 +149,10 @@ export async function POST(request: NextRequest) {
       .returning({ balanceCents: consumerToolBalances.balanceCents })
 
     if (!updatedBalance) {
-      return errorResponse(
-        'Insufficient credits (race condition).',
-        402,
-        'INSUFFICIENT_CREDITS'
-      )
+      return errorResponse('Insufficient credits (race condition).', 402, 'INSUFFICIENT_CREDITS')
     }
 
-    // 2. Increment tool totalInvocations and totalRevenueCents
+    // Increment tool totalInvocations and totalRevenueCents
     await db
       .update(tools)
       .set({
@@ -137,7 +162,7 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(tools.id, body.toolId))
 
-    // 3. Add developer share to developer balance
+    // Add developer share
     await db
       .update(developers)
       .set({
@@ -146,7 +171,7 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(developers.id, toolDev.developerId))
 
-    // 4. Insert invocation record
+    // Insert invocation record
     const [invocation] = await db
       .insert(invocations)
       .values({
