@@ -63,6 +63,10 @@ function ComparisonTable() {
     { name: 'IP allowlisting', settlegrid: true, mcpize: false, apify: false, moesif: false },
     { name: 'Tool versioning', settlegrid: true, mcpize: false, apify: true, moesif: false },
     { name: 'Reviews & ratings', settlegrid: true, mcpize: false, apify: true, moesif: false },
+    { name: 'Integration templates', settlegrid: true, mcpize: false, apify: false, moesif: false },
+    { name: 'Uptime monitoring', settlegrid: true, mcpize: false, apify: true, moesif: true },
+    { name: 'Referral system', settlegrid: true, mcpize: false, apify: false, moesif: false },
+    { name: 'Pricing simulator', settlegrid: true, mcpize: false, apify: false, moesif: false },
   ]
 
   return (
@@ -214,20 +218,34 @@ const iconWebhooks = "M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 
 const iconAudit = "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z"
 // Budget (wallet)
 const iconBudget = "M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3"
-// Metadata (tag)
-const iconMetadata = "M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z M6 6h.008v.008H6V6Z"
 // IP allowlist (globe-lock)
 const iconIpAllowlist = "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
 // Directory (squares-2x2)
 const iconDirectory = "M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z"
 // Reviews (star)
 const iconReviews = "M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"
-// Profiles (user-circle)
-const iconProfiles = "M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-// Versioning (arrows-up-down)
-const iconVersioning = "M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"
 // Rate limiting (funnel)
 const iconRateLimiting = "M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z"
+// Integration templates (document-duplicate)
+const iconTemplates = "M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75"
+// Pricing widget (currency-dollar in square)
+const iconPricingWidget = "M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z"
+// Revenue attribution (arrow-trending-up)
+const iconRevenue = "M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"
+// Conversion analytics (chart-pie)
+const iconConversion = "M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z M13.5 3.5a7.5 7.5 0 0 1 6 6h-6v-6Z"
+// Usage alerts (bell-alert)
+const iconUsageAlerts = "M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0M3.75 9h.008v.008H3.75V9Zm16.5 0h.008v.008h-.008V9Z"
+// Subscription hub (rectangle-stack)
+const iconSubscriptionHub = "M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m0 0a2.246 2.246 0 0 0-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0 1 21 12v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6c0-1.011.668-1.866 1.586-2.147m17.828 0c-.918.281-1.586 1.136-1.586 2.147"
+// Uptime monitoring (signal)
+const iconUptime = "M9.348 14.652a3.75 3.75 0 0 1 0-5.304m5.304 0a3.75 3.75 0 0 1 0 5.304m-7.425 2.121a6.75 6.75 0 0 1 0-9.546m9.546 0a6.75 6.75 0 0 1 0 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
+// Pricing simulator (calculator)
+const iconSimulator = "M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25V13.5Zm0 2.25h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25V18Zm2.498-6.75h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007V13.5Zm0 2.25h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007V18Zm2.504-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V13.5Zm0 2.25h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V18Zm2.498-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V13.5ZM8.25 6h7.5v2.25h-7.5V6ZM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 0 0 2.25 2.25h10.5a2.25 2.25 0 0 0 2.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0 0 12 2.25Z"
+// Referral system (gift)
+const iconReferral = "M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+// Reputation scores (trophy)
+const iconReputation = "M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.996.144-1.985.3-2.963.465A.479.479 0 0 0 2 5.165c0 .354.21.678.545.86a7.488 7.488 0 0 0 4.15 1.074h.1M5.25 4.236V4.5c0 2.178.924 4.14 2.4 5.521M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.996.144 1.985.3 2.963.465.16.029.287.187.287.45 0 .354-.21.678-.545.86a7.488 7.488 0 0 1-4.15 1.074h-.1M18.75 4.236V4.5c0 2.178-.924 4.14-2.4 5.522"
 
 /* -------------------------------------------------------------------------- */
 /*  Page                                                                      */
@@ -301,7 +319,7 @@ export default function HomePage() {
         </section>
 
         {/* ================================================================ */}
-        {/*  2. Features grid — 16 cards across 5 logical groups              */}
+        {/*  2. Features grid — 26 cards across 5 logical groups              */}
         {/* ================================================================ */}
         <section className="px-6 py-24 bg-cloud">
           <div className="max-w-6xl mx-auto">
@@ -315,7 +333,7 @@ export default function HomePage() {
 
             {/* -- Core Platform -- */}
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Core Platform</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconBilling} />}
                 title="Per-Call Billing"
@@ -336,20 +354,35 @@ export default function HomePage() {
                 title="Tool Storefronts"
                 description="Auto-generated public pages for every tool. SEO-optimized with pricing, docs, and one-click credit purchase."
               />
+              <FeatureCard
+                icon={<Icon d={iconTemplates} />}
+                title="Integration Templates"
+                description="Copy-paste configs for Claude, Cursor, Windsurf, VS Code, and Continue. Get consumers connected in under a minute."
+              />
+              <FeatureCard
+                icon={<Icon d={iconPricingWidget} />}
+                title="Pricing Widget"
+                description="Embeddable pricing page for any MCP tool. Drop a script tag on your site and let consumers purchase credits inline."
+              />
             </div>
 
             {/* -- Developer Tools -- */}
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Developer Tools</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconAnalytics} />}
                 title="Advanced Analytics"
                 description="Method breakdown, hourly usage patterns, latency percentiles (p50/p95/p99), error rates, and revenue projections."
               />
               <FeatureCard
-                icon={<Icon d={iconVersioning} />}
-                title="Tool Versioning"
-                description="Semver management with public changelogs. Consumers pin versions; deprecation notices with migration windows."
+                icon={<Icon d={iconRevenue} />}
+                title="Revenue Attribution"
+                description="Track revenue by referral source and session patterns. See which channels, tools, and campaigns drive the most earnings."
+              />
+              <FeatureCard
+                icon={<Icon d={iconConversion} />}
+                title="Conversion Analytics"
+                description="Monitor free-to-paid conversion rates, churn signals, and cohort retention. Identify drop-off points and optimize your funnel."
               />
               <FeatureCard
                 icon={<Icon d={iconWebhooks} />}
@@ -357,24 +390,34 @@ export default function HomePage() {
                 description="Real-time event notifications signed with HMAC-SHA256. Delivery tracking, retry logic, and configurable event filters."
               />
               <FeatureCard
-                icon={<Icon d={iconProfiles} />}
-                title="Developer Profiles"
-                description="Public profiles with bios, avatars, and tool portfolios. Build reputation and trust with verified developer badges."
+                icon={<Icon d={iconUptime} />}
+                title="Uptime Monitoring"
+                description="Automatic health checks with public status pages. Get alerted to outages before your consumers notice them."
+              />
+              <FeatureCard
+                icon={<Icon d={iconSimulator} />}
+                title="Pricing Simulator"
+                description="Model pricing changes against historical usage data. Preview revenue impact before adjusting rates on live tools."
               />
             </div>
 
             {/* -- Consumer Features -- */}
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Consumer Features</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconBudget} />}
                 title="Budget Controls"
-                description="Per-tool spending limits and low-balance alerts. Consumers stay in control of their credit spend at all times."
+                description="Per-tool spending limits and daily caps. Consumers stay in control of their credit spend at all times."
               />
               <FeatureCard
-                icon={<Icon d={iconMetadata} />}
-                title="Custom Metadata"
-                description="Attach structured JSON metadata to every invocation. Tag calls by project, environment, or user for fine-grained tracking."
+                icon={<Icon d={iconUsageAlerts} />}
+                title="Usage Alerts"
+                description="Low balance, budget exceeded, and usage spike notifications. Stay informed via email or webhook before credits run out."
+              />
+              <FeatureCard
+                icon={<Icon d={iconSubscriptionHub} />}
+                title="Subscription Hub"
+                description="Unified view of all active tools, credit balances, and spending history. Manage every subscription from one dashboard."
               />
               <FeatureCard
                 icon={<Icon d={iconReviews} />}
@@ -415,16 +458,11 @@ export default function HomePage() {
 
             {/* -- Marketplace -- */}
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Marketplace</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <FeatureCard
                 icon={<Icon d={iconDirectory} />}
                 title="Tool Directory"
                 description="Public searchable marketplace of all published tools. Category browsing, search filters, and curated collections."
-              />
-              <FeatureCard
-                icon={<Icon d={iconReviews} />}
-                title="Ratings & Discovery"
-                description="Algorithmic ranking by usage, rating, and recency. Featured tools, trending lists, and category leaderboards."
               />
               <FeatureCard
                 icon={<Icon d={iconStorefront} />}
@@ -432,9 +470,19 @@ export default function HomePage() {
                 description="Consumers buy credits and start calling tools in seconds. Stripe Checkout, Apple Pay, and Google Pay supported."
               />
               <FeatureCard
-                icon={<Icon d={iconProfiles} />}
-                title="Developer Ecosystem"
-                description="Follow developers, get notified of new tools and updates. Community-driven discovery through social proof."
+                icon={<Icon d={iconReferral} />}
+                title="Referral System"
+                description="Revenue sharing for cross-promotion between tool builders. Earn a cut when you refer consumers to other tools."
+              />
+              <FeatureCard
+                icon={<Icon d={iconReputation} />}
+                title="Reputation Scores"
+                description="Public developer reputation based on uptime, reviews, and response time. Higher scores rank higher in search."
+              />
+              <FeatureCard
+                icon={<Icon d={iconReviews} />}
+                title="Ratings & Discovery"
+                description="Algorithmic ranking by usage, rating, and recency. Featured tools, trending lists, and category leaderboards."
               />
             </div>
           </div>
