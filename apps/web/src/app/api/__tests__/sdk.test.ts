@@ -2,20 +2,45 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const { mockDb, mockCheckRateLimit } = vi.hoisted(() => {
-  const mockDb = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockResolvedValue([]),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    then: vi.fn().mockReturnThis(),
-    catch: vi.fn().mockReturnThis(),
+  // Create a chainable mock that resolves to an empty array when awaited
+  // This avoids infinite .then() loops
+  const createChainablePromise = (resolveValue: unknown = []) => {
+    const chain: Record<string, unknown> = {}
+    const methods = ['select', 'from', 'where', 'limit', 'insert', 'values', 'returning', 'update', 'set', 'innerJoin', 'groupBy', 'orderBy']
+    for (const m of methods) {
+      chain[m] = vi.fn().mockReturnValue(chain)
+    }
+    // Make the chain thenable so it resolves when awaited
+    chain.then = vi.fn().mockImplementation((resolve: (val: unknown) => void) => {
+      resolve(resolveValue)
+      return Promise.resolve(resolveValue)
+    })
+    chain.catch = vi.fn().mockReturnValue(chain)
+    return chain
   }
+
+  // For the validate-key route, we need a specific mock that handles multiple
+  // sequential queries, so we use a different approach
+  const mockDb = {
+    select: vi.fn(),
+    from: vi.fn(),
+    where: vi.fn(),
+    limit: vi.fn(),
+    insert: vi.fn(),
+    values: vi.fn(),
+    returning: vi.fn(),
+    update: vi.fn(),
+    set: vi.fn(),
+    innerJoin: vi.fn(),
+    then: vi.fn(),
+    catch: vi.fn(),
+  }
+
+  // By default, all methods return mockDb for chaining
+  for (const key of Object.keys(mockDb)) {
+    (mockDb as Record<string, ReturnType<typeof vi.fn>>)[key].mockReturnValue(mockDb)
+  }
+
   return {
     mockDb,
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 }),
@@ -103,18 +128,27 @@ function makeRequest(url: string, body: unknown): NextRequest {
   })
 }
 
+function resetMockDb() {
+  for (const key of Object.keys(mockDb)) {
+    vi.mocked((mockDb as Record<string, ReturnType<typeof vi.fn>>)[key]).mockClear()
+    if (key === 'then') {
+      // Make the mock thenable: when awaited, resolve to undefined
+      vi.mocked(mockDb.then).mockImplementation((resolve?: (v: unknown) => unknown) => {
+        return Promise.resolve(undefined).then(resolve)
+      })
+    } else if (key === 'catch') {
+      vi.mocked(mockDb.catch).mockReturnValue(mockDb)
+    } else {
+      vi.mocked((mockDb as Record<string, ReturnType<typeof vi.fn>>)[key]).mockReturnValue(mockDb)
+    }
+  }
+}
+
 describe('Validate Key (POST /api/sdk/validate-key)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
-    mockDb.select.mockReturnThis()
-    mockDb.from.mockReturnThis()
-    mockDb.where.mockReturnThis()
-    mockDb.innerJoin.mockReturnThis()
-    mockDb.update.mockReturnThis()
-    mockDb.set.mockReturnThis()
-    mockDb.then.mockReturnThis()
-    mockDb.catch.mockReturnThis()
   })
 
   it('returns valid=true for active key with matching slug', async () => {
@@ -276,25 +310,26 @@ describe('Validate Key (POST /api/sdk/validate-key)', () => {
 describe('Meter (POST /api/sdk/meter)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
-    mockDb.select.mockReturnThis()
-    mockDb.from.mockReturnThis()
-    mockDb.where.mockReturnThis()
-    mockDb.innerJoin.mockReturnThis()
-    mockDb.update.mockReturnThis()
-    mockDb.set.mockReturnThis()
-    mockDb.insert.mockReturnThis()
-    mockDb.values.mockReturnThis()
   })
 
   it('meters a successful invocation and deducts credits', async () => {
-    mockDb.limit
-      .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 5000 }])
-      .mockResolvedValueOnce([{ developerId: 'dev-1' }])
+    // Make mockDb thenable (resolves when awaited without .returning())
+    mockDb.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
+      resolve(undefined)
+      return Promise.resolve(undefined)
+    })
 
+    // Balance check: select().from().where().limit()
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 5000 }]) // balance check
+      .mockResolvedValueOnce([{ developerId: 'dev-1' }]) // tool lookup
+
+    // Balance deduction + invocation insert: .returning()
     mockDb.returning
-      .mockResolvedValueOnce([{ balanceCents: 4995 }])
-      .mockResolvedValueOnce([{ id: 'inv-1' }])
+      .mockResolvedValueOnce([{ balanceCents: 4995 }])  // balance deduction
+      .mockResolvedValueOnce([{ id: 'inv-1' }]) // invocation insert
 
     const request = makeRequest('/api/sdk/meter', {
       toolSlug: 'my-tool',
@@ -350,6 +385,13 @@ describe('Meter (POST /api/sdk/meter)', () => {
   })
 
   it('handles zero-cost invocations', async () => {
+    // Make mockDb thenable for await db.update().set().where()
+    mockDb.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
+      resolve(undefined)
+      return Promise.resolve(undefined)
+    })
+
+    // insert().values().returning() for invocation
     mockDb.returning.mockResolvedValueOnce([{ id: 'inv-free' }])
 
     const request = makeRequest('/api/sdk/meter', {
