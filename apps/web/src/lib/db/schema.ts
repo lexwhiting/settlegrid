@@ -9,6 +9,7 @@ import {
   jsonb,
   smallint,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -45,28 +46,36 @@ export const developersRelations = relations(developers, ({ many }) => ({
 
 // ─── Tools ─────────────────────────────────────────────────────────────────────
 
-export const tools = pgTable('tools', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  developerId: uuid('developer_id')
-    .notNull()
-    .references(() => developers.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  description: text('description'),
-  pricingConfig: jsonb('pricing_config'),
-  status: text('status').notNull().default('draft'),
-  totalInvocations: integer('total_invocations').notNull().default(0),
-  totalRevenueCents: integer('total_revenue_cents').notNull().default(0),
-  // R7: Tool Categories & Directory
-  category: text('category'), // e.g. 'data', 'nlp', 'image', 'code', 'search', 'finance'
-  tags: jsonb('tags').default('[]'), // string[]
-  // R10: Tool Versioning
-  currentVersion: text('current_version').notNull().default('1.0.0'),
-  // S4: Health Check Endpoint
-  healthEndpoint: text('health_endpoint'), // URL to ping for health checks
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const tools = pgTable(
+  'tools',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    description: text('description'),
+    pricingConfig: jsonb('pricing_config'),
+    status: text('status').notNull().default('draft'),
+    totalInvocations: integer('total_invocations').notNull().default(0),
+    totalRevenueCents: integer('total_revenue_cents').notNull().default(0),
+    // R7: Tool Categories & Directory
+    category: text('category'), // e.g. 'data', 'nlp', 'image', 'code', 'search', 'finance'
+    tags: jsonb('tags').default('[]'), // string[]
+    // R10: Tool Versioning
+    currentVersion: text('current_version').notNull().default('1.0.0'),
+    // S4: Health Check Endpoint
+    healthEndpoint: text('health_endpoint'), // URL to ping for health checks
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('tools_developer_id_idx').on(table.developerId),
+    index('tools_status_idx').on(table.status),
+    index('tools_category_idx').on(table.category),
+  ]
+)
 
 export const toolsRelations = relations(tools, ({ one, many }) => ({
   developer: one(developers, {
@@ -103,25 +112,33 @@ export const consumersRelations = relations(consumers, ({ many }) => ({
 
 // ─── Consumer Tool Balances ────────────────────────────────────────────────────
 
-export const consumerToolBalances = pgTable('consumer_tool_balances', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  balanceCents: integer('balance_cents').notNull().default(0),
-  autoRefill: boolean('auto_refill').notNull().default(false),
-  autoRefillAmountCents: integer('auto_refill_amount_cents').notNull().default(2000),
-  autoRefillThresholdCents: integer('auto_refill_threshold_cents').notNull().default(500),
-  // R4: Consumer Budget Controls
-  spendingLimitCents: integer('spending_limit_cents'), // null = unlimited
-  spendingLimitPeriod: text('spending_limit_period'), // 'daily' | 'weekly' | 'monthly'
-  currentPeriodSpendCents: integer('current_period_spend_cents').notNull().default(0),
-  periodResetAt: timestamp('period_reset_at', { withTimezone: true }),
-  alertAtPct: integer('alert_at_pct'), // e.g. 80 = alert at 80% of limit
-})
+export const consumerToolBalances = pgTable(
+  'consumer_tool_balances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    balanceCents: integer('balance_cents').notNull().default(0),
+    autoRefill: boolean('auto_refill').notNull().default(false),
+    autoRefillAmountCents: integer('auto_refill_amount_cents').notNull().default(2000),
+    autoRefillThresholdCents: integer('auto_refill_threshold_cents').notNull().default(500),
+    // R4: Consumer Budget Controls
+    spendingLimitCents: integer('spending_limit_cents'), // null = unlimited
+    spendingLimitPeriod: text('spending_limit_period'), // 'daily' | 'weekly' | 'monthly'
+    currentPeriodSpendCents: integer('current_period_spend_cents').notNull().default(0),
+    periodResetAt: timestamp('period_reset_at', { withTimezone: true }),
+    alertAtPct: integer('alert_at_pct'), // e.g. 80 = alert at 80% of limit
+  },
+  (table) => [
+    index('ctb_consumer_id_idx').on(table.consumerId),
+    index('ctb_tool_id_idx').on(table.toolId),
+    uniqueIndex('ctb_consumer_tool_idx').on(table.consumerId, table.toolId),
+  ]
+)
 
 export const consumerToolBalancesRelations = relations(consumerToolBalances, ({ one }) => ({
   consumer: one(consumers, {
@@ -136,24 +153,32 @@ export const consumerToolBalancesRelations = relations(consumerToolBalances, ({ 
 
 // ─── API Keys ──────────────────────────────────────────────────────────────────
 
-export const apiKeys = pgTable('api_keys', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  keyHash: text('key_hash').notNull(),
-  keyPrefix: varchar('key_prefix', { length: 12 }).notNull(),
-  status: text('status').notNull().default('active'),
-  // R1: Sandbox/Test Mode
-  isTestKey: boolean('is_test_key').notNull().default(false),
-  // R6: IP Allowlisting
-  ipAllowlist: jsonb('ip_allowlist'), // string[] of IPs/CIDRs, null = unrestricted
-  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    keyHash: text('key_hash').notNull(),
+    keyPrefix: varchar('key_prefix', { length: 12 }).notNull(),
+    status: text('status').notNull().default('active'),
+    // R1: Sandbox/Test Mode
+    isTestKey: boolean('is_test_key').notNull().default(false),
+    // R6: IP Allowlisting
+    ipAllowlist: jsonb('ip_allowlist'), // string[] of IPs/CIDRs, null = unrestricted
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('api_keys_consumer_id_idx').on(table.consumerId),
+    index('api_keys_tool_id_idx').on(table.toolId),
+    uniqueIndex('api_keys_key_hash_idx').on(table.keyHash),
+  ]
+)
 
 export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
   consumer: one(consumers, {
@@ -169,32 +194,42 @@ export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
 
 // ─── Invocations ───────────────────────────────────────────────────────────────
 
-export const invocations = pgTable('invocations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  apiKeyId: uuid('api_key_id')
-    .notNull()
-    .references(() => apiKeys.id, { onDelete: 'cascade' }),
-  method: text('method').notNull(),
-  costCents: integer('cost_cents').notNull(),
-  latencyMs: integer('latency_ms'),
-  status: text('status').notNull().default('success'),
-  // R1: Sandbox flag
-  isTest: boolean('is_test').notNull().default(false),
-  // R5: Custom metadata
-  metadata: jsonb('metadata'), // max 1KB, developer-defined
-  // R11: Usage Fingerprinting
-  sessionId: text('session_id'), // tracks session context
-  referralCode: text('referral_code'), // tracks referral source
-  // Fraud detection flag
-  isFlagged: boolean('is_flagged').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const invocations = pgTable(
+  'invocations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    apiKeyId: uuid('api_key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    method: text('method').notNull(),
+    costCents: integer('cost_cents').notNull(),
+    latencyMs: integer('latency_ms'),
+    status: text('status').notNull().default('success'),
+    // R1: Sandbox flag
+    isTest: boolean('is_test').notNull().default(false),
+    // R5: Custom metadata
+    metadata: jsonb('metadata'), // max 1KB, developer-defined
+    // R11: Usage Fingerprinting
+    sessionId: text('session_id'), // tracks session context
+    referralCode: text('referral_code'), // tracks referral source
+    // Fraud detection flag
+    isFlagged: boolean('is_flagged').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('invocations_tool_id_idx').on(table.toolId),
+    index('invocations_consumer_id_idx').on(table.consumerId),
+    index('invocations_api_key_id_idx').on(table.apiKeyId),
+    index('invocations_created_at_idx').on(table.createdAt),
+    index('invocations_tool_created_idx').on(table.toolId, table.createdAt),
+  ]
+)
 
 export const invocationsRelations = relations(invocations, ({ one }) => ({
   tool: one(tools, {
@@ -213,20 +248,28 @@ export const invocationsRelations = relations(invocations, ({ one }) => ({
 
 // ─── Purchases ─────────────────────────────────────────────────────────────────
 
-export const purchases = pgTable('purchases', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  amountCents: integer('amount_cents').notNull(),
-  stripeSessionId: text('stripe_session_id'),
-  stripePaymentIntentId: text('stripe_payment_intent_id'),
-  status: text('status').notNull().default('pending'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const purchases = pgTable(
+  'purchases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    amountCents: integer('amount_cents').notNull(),
+    stripeSessionId: text('stripe_session_id'),
+    stripePaymentIntentId: text('stripe_payment_intent_id'),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('purchases_consumer_id_idx').on(table.consumerId),
+    index('purchases_tool_id_idx').on(table.toolId),
+    index('purchases_stripe_session_idx').on(table.stripeSessionId),
+  ]
+)
 
 export const purchasesRelations = relations(purchases, ({ one }) => ({
   consumer: one(consumers, {
@@ -241,21 +284,28 @@ export const purchasesRelations = relations(purchases, ({ one }) => ({
 
 // ─── Payouts ───────────────────────────────────────────────────────────────────
 
-export const payouts = pgTable('payouts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  developerId: uuid('developer_id')
-    .notNull()
-    .references(() => developers.id, { onDelete: 'cascade' }),
-  amountCents: integer('amount_cents').notNull(),
-  platformFeeCents: integer('platform_fee_cents').notNull(),
-  stripeTransferId: text('stripe_transfer_id'),
-  periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
-  periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
-  status: text('status').notNull().default('pending'),
-  // Payout safety: error message for failed payouts
-  errorMessage: text('error_message'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const payouts = pgTable(
+  'payouts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    amountCents: integer('amount_cents').notNull(),
+    platformFeeCents: integer('platform_fee_cents').notNull(),
+    stripeTransferId: text('stripe_transfer_id'),
+    periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+    periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+    status: text('status').notNull().default('pending'),
+    // Payout safety: error message for failed payouts
+    errorMessage: text('error_message'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('payouts_developer_id_idx').on(table.developerId),
+    index('payouts_status_idx').on(table.status),
+  ]
+)
 
 export const payoutsRelations = relations(payouts, ({ one }) => ({
   developer: one(developers, {
@@ -266,18 +316,24 @@ export const payoutsRelations = relations(payouts, ({ one }) => ({
 
 // ─── Webhook Endpoints ────────────────────────────────────────────────────────
 
-export const webhookEndpoints = pgTable('webhook_endpoints', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  developerId: uuid('developer_id')
-    .notNull()
-    .references(() => developers.id, { onDelete: 'cascade' }),
-  url: text('url').notNull(),
-  secret: text('secret').notNull(),
-  events: jsonb('events').notNull().default('["invocation.completed","payout.initiated","tool.status_changed"]'),
-  status: text('status').notNull().default('active'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const webhookEndpoints = pgTable(
+  'webhook_endpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    secret: text('secret').notNull(),
+    events: jsonb('events').notNull().default('["invocation.completed","payout.initiated","tool.status_changed"]'),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('webhook_endpoints_developer_id_idx').on(table.developerId),
+  ]
+)
 
 export const webhookEndpointsRelations = relations(webhookEndpoints, ({ one, many }) => ({
   developer: one(developers, {
@@ -289,22 +345,30 @@ export const webhookEndpointsRelations = relations(webhookEndpoints, ({ one, man
 
 // ─── Webhook Deliveries ───────────────────────────────────────────────────────
 
-export const webhookDeliveries = pgTable('webhook_deliveries', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  endpointId: uuid('endpoint_id')
-    .notNull()
-    .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
-  event: text('event').notNull(),
-  payload: jsonb('payload').notNull(),
-  status: text('status').notNull().default('pending'),
-  httpStatus: integer('http_status'),
-  attempts: integer('attempts').notNull().default(0),
-  maxAttempts: integer('max_attempts').notNull().default(3),
-  lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
-  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
-  nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    endpointId: uuid('endpoint_id')
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: text('status').notNull().default('pending'),
+    httpStatus: integer('http_status'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('webhook_deliveries_endpoint_id_idx').on(table.endpointId),
+    index('webhook_deliveries_status_idx').on(table.status),
+    index('webhook_deliveries_next_retry_idx').on(table.nextRetryAt),
+  ]
+)
 
 export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one }) => ({
   endpoint: one(webhookEndpoints, {
@@ -315,18 +379,27 @@ export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one })
 
 // ─── Audit Logs (R3) ─────────────────────────────────────────────────────────
 
-export const auditLogs = pgTable('audit_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  developerId: uuid('developer_id').references(() => developers.id, { onDelete: 'set null' }),
-  consumerId: uuid('consumer_id').references(() => consumers.id, { onDelete: 'set null' }),
-  action: text('action').notNull(), // e.g. 'tool.created', 'key.revoked', 'payout.triggered'
-  resourceType: text('resource_type').notNull(), // 'tool' | 'apiKey' | 'webhook' | 'payout' | 'settings'
-  resourceId: text('resource_id'), // UUID of affected resource
-  details: jsonb('details'), // additional context
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id').references(() => developers.id, { onDelete: 'set null' }),
+    consumerId: uuid('consumer_id').references(() => consumers.id, { onDelete: 'set null' }),
+    action: text('action').notNull(), // e.g. 'tool.created', 'key.revoked', 'payout.triggered'
+    resourceType: text('resource_type').notNull(), // 'tool' | 'apiKey' | 'webhook' | 'payout' | 'settings'
+    resourceId: text('resource_id'), // UUID of affected resource
+    details: jsonb('details'), // additional context
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('audit_logs_developer_id_idx').on(table.developerId),
+    index('audit_logs_consumer_id_idx').on(table.consumerId),
+    index('audit_logs_action_idx').on(table.action),
+    index('audit_logs_created_at_idx').on(table.createdAt),
+  ]
+)
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   developer: one(developers, {
@@ -341,19 +414,27 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 
 // ─── Tool Reviews (R8) ───────────────────────────────────────────────────────
 
-export const toolReviews = pgTable('tool_reviews', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  rating: smallint('rating').notNull(), // 1-5
-  comment: text('comment'), // max 1000 chars
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const toolReviews = pgTable(
+  'tool_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    rating: smallint('rating').notNull(), // 1-5
+    comment: text('comment'), // max 1000 chars
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('tool_reviews_tool_id_idx').on(table.toolId),
+    index('tool_reviews_consumer_id_idx').on(table.consumerId),
+    uniqueIndex('tool_reviews_tool_consumer_idx').on(table.toolId, table.consumerId),
+  ]
+)
 
 export const toolReviewsRelations = relations(toolReviews, ({ one }) => ({
   tool: one(tools, {
@@ -368,17 +449,23 @@ export const toolReviewsRelations = relations(toolReviews, ({ one }) => ({
 
 // ─── Tool Changelogs (R10) ───────────────────────────────────────────────────
 
-export const toolChangelogs = pgTable('tool_changelogs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  version: text('version').notNull(), // e.g. '1.1.0'
-  changeType: text('change_type').notNull(), // 'major' | 'minor' | 'patch'
-  summary: text('summary').notNull(), // e.g. 'Added new endpoint for batch processing'
-  details: jsonb('details'), // structured change details
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const toolChangelogs = pgTable(
+  'tool_changelogs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    version: text('version').notNull(), // e.g. '1.1.0'
+    changeType: text('change_type').notNull(), // 'major' | 'minor' | 'patch'
+    summary: text('summary').notNull(), // e.g. 'Added new endpoint for batch processing'
+    details: jsonb('details'), // structured change details
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('tool_changelogs_tool_id_idx').on(table.toolId),
+  ]
+)
 
 export const toolChangelogsRelations = relations(toolChangelogs, ({ one }) => ({
   tool: one(tools, {
@@ -389,20 +476,27 @@ export const toolChangelogsRelations = relations(toolChangelogs, ({ one }) => ({
 
 // ─── Conversion Events (R12) ────────────────────────────────────────────────
 
-export const conversionEvents = pgTable('conversion_events', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  event: text('event').notNull(), // 'free_trial' | 'upgrade' | 'downgrade' | 'churn'
-  fromTier: text('from_tier'),
-  toTier: text('to_tier'),
-  metadata: jsonb('metadata'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const conversionEvents = pgTable(
+  'conversion_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(), // 'free_trial' | 'upgrade' | 'downgrade' | 'churn'
+    fromTier: text('from_tier'),
+    toTier: text('to_tier'),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('conversion_events_tool_id_idx').on(table.toolId),
+    index('conversion_events_consumer_id_idx').on(table.consumerId),
+  ]
+)
 
 export const conversionEventsRelations = relations(conversionEvents, ({ one }) => ({
   tool: one(tools, {
@@ -417,21 +511,28 @@ export const conversionEventsRelations = relations(conversionEvents, ({ one }) =
 
 // ─── Consumer Alerts (R14) ──────────────────────────────────────────────────
 
-export const consumerAlerts = pgTable('consumer_alerts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  consumerId: uuid('consumer_id')
-    .notNull()
-    .references(() => consumers.id, { onDelete: 'cascade' }),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  alertType: text('alert_type').notNull(), // 'low_balance' | 'budget_exceeded' | 'usage_spike'
-  threshold: integer('threshold').notNull(), // e.g. balance in cents or invocation count
-  channel: text('channel').notNull().default('email'), // 'email' | 'webhook'
-  status: text('status').notNull().default('active'), // 'active' | 'paused'
-  lastTriggeredAt: timestamp('last_triggered_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const consumerAlerts = pgTable(
+  'consumer_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    alertType: text('alert_type').notNull(), // 'low_balance' | 'budget_exceeded' | 'usage_spike'
+    threshold: integer('threshold').notNull(), // e.g. balance in cents or invocation count
+    channel: text('channel').notNull().default('email'), // 'email' | 'webhook'
+    status: text('status').notNull().default('active'), // 'active' | 'paused'
+    lastTriggeredAt: timestamp('last_triggered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('consumer_alerts_consumer_id_idx').on(table.consumerId),
+    index('consumer_alerts_status_idx').on(table.status),
+  ]
+)
 
 export const consumerAlertsRelations = relations(consumerAlerts, ({ one }) => ({
   consumer: one(consumers, {
@@ -446,15 +547,22 @@ export const consumerAlertsRelations = relations(consumerAlerts, ({ one }) => ({
 
 // ─── Tool Health Checks (R16) ───────────────────────────────────────────────
 
-export const toolHealthChecks = pgTable('tool_health_checks', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  toolId: uuid('tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  status: text('status').notNull(), // 'up' | 'down' | 'degraded'
-  responseTimeMs: integer('response_time_ms'),
-  checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const toolHealthChecks = pgTable(
+  'tool_health_checks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(), // 'up' | 'down' | 'degraded'
+    responseTimeMs: integer('response_time_ms'),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('tool_health_checks_tool_id_idx').on(table.toolId),
+    index('tool_health_checks_checked_at_idx').on(table.checkedAt),
+  ]
+)
 
 export const toolHealthChecksRelations = relations(toolHealthChecks, ({ one }) => ({
   tool: one(tools, {
@@ -465,20 +573,26 @@ export const toolHealthChecksRelations = relations(toolHealthChecks, ({ one }) =
 
 // ─── Referrals (R17) ────────────────────────────────────────────────────────
 
-export const referrals = pgTable('referrals', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  referrerId: uuid('referrer_id')
-    .notNull()
-    .references(() => developers.id, { onDelete: 'cascade' }),
-  referredToolId: uuid('referred_tool_id')
-    .notNull()
-    .references(() => tools.id, { onDelete: 'cascade' }),
-  referralCode: text('referral_code').notNull().unique(),
-  commissionPct: integer('commission_pct').notNull().default(10), // 10 = 10%
-  totalEarnedCents: integer('total_earned_cents').notNull().default(0),
-  status: text('status').notNull().default('active'), // 'active' | 'revoked'
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const referrals = pgTable(
+  'referrals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    referredToolId: uuid('referred_tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    referralCode: text('referral_code').notNull().unique(),
+    commissionPct: integer('commission_pct').notNull().default(10), // 10 = 10%
+    totalEarnedCents: integer('total_earned_cents').notNull().default(0),
+    status: text('status').notNull().default('active'), // 'active' | 'revoked'
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('referrals_referrer_id_idx').on(table.referrerId),
+  ]
+)
 
 export const referralsRelations = relations(referrals, ({ one }) => ({
   referrer: one(developers, {
@@ -493,19 +607,25 @@ export const referralsRelations = relations(referrals, ({ one }) => ({
 
 // ─── Developer Reputation (R20) ─────────────────────────────────────────────
 
-export const developerReputation = pgTable('developer_reputation', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  developerId: uuid('developer_id')
-    .notNull()
-    .references(() => developers.id, { onDelete: 'cascade' }),
-  score: integer('score').notNull().default(50), // 0-100
-  responseTimePct: integer('response_time_pct').notNull().default(0), // percentile
-  uptimePct: integer('uptime_pct').notNull().default(100), // percentage
-  reviewAvg: integer('review_avg').notNull().default(0), // avg rating * 100 (e.g. 450 = 4.50)
-  totalTools: integer('total_tools').notNull().default(0),
-  totalConsumers: integer('total_consumers').notNull().default(0),
-  calculatedAt: timestamp('calculated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const developerReputation = pgTable(
+  'developer_reputation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    score: integer('score').notNull().default(50), // 0-100
+    responseTimePct: integer('response_time_pct').notNull().default(0), // percentile
+    uptimePct: integer('uptime_pct').notNull().default(100), // percentage
+    reviewAvg: integer('review_avg').notNull().default(0), // avg rating * 100 (e.g. 450 = 4.50)
+    totalTools: integer('total_tools').notNull().default(0),
+    totalConsumers: integer('total_consumers').notNull().default(0),
+    calculatedAt: timestamp('calculated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('developer_reputation_developer_id_idx').on(table.developerId),
+  ]
+)
 
 export const developerReputationRelations = relations(developerReputation, ({ one }) => ({
   developer: one(developers, {

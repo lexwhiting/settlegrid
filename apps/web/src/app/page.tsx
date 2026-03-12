@@ -1,5 +1,12 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
+
+export const metadata: Metadata = {
+  title: 'SettleGrid — The Settlement Layer for the AI Economy',
+  description:
+    'Monetize your MCP tools with per-call billing, automated Stripe payouts, consumer storefronts, and a public marketplace with reviews and ratings.',
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Reusable blocks                                                           */
@@ -91,10 +98,10 @@ function ComparisonTable() {
           {features.map((f) => (
             <tr key={f.name} className="border-b border-gray-100">
               <td className="py-3 px-4 text-gray-700">{f.name}</td>
-              <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand-text font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
-              <td className="text-center py-3 px-4">{f.mcpize ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
-              <td className="text-center py-3 px-4">{f.apify ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
-              <td className="text-center py-3 px-4">{f.moesif ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-300" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand-text font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.mcpize ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.apify ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.moesif ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -581,7 +588,7 @@ export default function HomePage() {
                       <span className="text-brand-light mt-1 font-bold" aria-hidden="true">&#10003;</span>
                       <div>
                         <span className="font-semibold">{item.label}</span>
-                        <span className="text-gray-500"> — {item.desc}</span>
+                        <span className="text-gray-400"> — {item.desc}</span>
                       </div>
                     </li>
                   ))}
