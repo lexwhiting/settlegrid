@@ -4,14 +4,15 @@
 
 ## Production Testing
 
-You only need valid test credentials to run these smoke tests against production. No local setup required.
+Authentication is handled by **Clerk**. Sign up or sign in at `/login` using your email or OAuth provider. No shared password — each user has their own Clerk account.
 
 | Field | Value |
 |-------|-------|
-| Email | `lexwhiting@gmail.com` |
-| Password | `You@r3enough!` |
-| Role | Developer (enterprise tier) |
-| Revenue Share | 90% |
+| Auth Provider | Clerk (production instance) |
+| Sign In URL | `https://settlegrid.ai/login` |
+| Sign Up URL | `https://settlegrid.ai/register` |
+| Developer Email | `lexwhiting@gmail.com` |
+| Tier | Enterprise (90% revenue share) |
 
 ---
 
@@ -22,9 +23,10 @@ You only need valid test credentials to run these smoke tests against production
 ```bash
 cp apps/web/.env.example apps/web/.env.local
 # Fill in all required values:
-#   DATABASE_URL, JWT_SECRET, REDIS_URL, STRIPE_SECRET_KEY,
+#   DATABASE_URL, REDIS_URL, STRIPE_SECRET_KEY,
 #   STRIPE_CONNECT_CLIENT_ID, STRIPE_WEBHOOK_SECRET,
-#   RESEND_API_KEY, NEXT_PUBLIC_APP_URL
+#   RESEND_API_KEY, NEXT_PUBLIC_APP_URL,
+#   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY
 ```
 
 ### 2. Database
@@ -45,7 +47,8 @@ docker run -d --name settlegrid-redis -p 6380:6379 redis:7
 
 ### 4. Seed Admin Account
 ```bash
-SEED_PASSWORD='You@r3enough!' pnpm -F web exec tsx scripts/seed-admin.ts
+# Link your Clerk user ID to the enterprise developer DB record
+CLERK_USER_ID='user_xxx' pnpm -F web exec tsx scripts/seed-admin.ts
 ```
 
 ### 5. Start Dev Server
@@ -64,28 +67,31 @@ pnpm dev --filter web   # → http://localhost:3005
 - [ ] If gated: enter gate password → marketing page renders
 
 ### 1.2 Developer Registration
-- [ ] Click "Get Started" → developer registration page
-- [ ] Fill in: name, email, password
-- [ ] Submit → redirected to developer dashboard
-- [ ] Verify: sidebar shows developer name
+- [ ] Click "Get Started" → Clerk sign-up UI renders
+- [ ] Select "Developer" user type (or use `?type=developer` query param)
+- [ ] Sign up with email or OAuth provider
+- [ ] Clerk webhook provisions developer DB record automatically
+- [ ] Redirected to developer dashboard
 
 ### 1.3 Consumer Registration
-- [ ] Visit `/register` → consumer registration page
-- [ ] Fill in: email, password
-- [ ] Submit → redirected to consumer dashboard
+- [ ] Visit `/register?type=consumer` → Clerk sign-up UI renders
+- [ ] Sign up with email or OAuth
+- [ ] Clerk webhook provisions consumer DB record
+- [ ] Redirected to consumer dashboard
 
-### 1.4 Login (seeded account)
-- [ ] Navigate to `/login`
-- [ ] Enter `lexwhiting@gmail.com` / `You@r3enough!`
-- [ ] Submit → redirected to developer dashboard
+### 1.4 Login (existing account)
+- [ ] Navigate to `/login` → Clerk sign-in UI renders
+- [ ] Sign in with `lexwhiting@gmail.com` (via Clerk)
+- [ ] Redirected to developer dashboard
 - [ ] Verify: "Enterprise" tier badge visible
 
 ### 1.5 Session Persistence
-- [ ] Refresh page → still logged in
-- [ ] DevTools > Cookies → `sg-token` exists (httpOnly)
+- [ ] Refresh page → still logged in (Clerk session persists)
+- [ ] DevTools > Cookies → Clerk session cookie exists
 
 ### 1.6 Logout
-- [ ] Click logout → redirected to login
+- [ ] Click user avatar (Clerk `<UserButton>`) → Sign out
+- [ ] Redirected to login
 - [ ] Visit `/dashboard` → redirected to login
 
 ---
@@ -333,8 +339,8 @@ curl -s https://settlegrid.ai/api/sdk/meter \
 
 ### 13.1 Developer Settings
 - [ ] Update name → saved
-- [ ] Update email → saved (unique constraint enforced)
-- [ ] Change password → saved (bcrypt rehash)
+- [ ] Update email → managed via Clerk (synced by webhook)
+- [ ] Password/auth managed by Clerk (not in-app)
 
 ### 13.2 Sandbox Mode
 - [ ] Enable sandbox mode for a tool
@@ -347,15 +353,14 @@ curl -s https://settlegrid.ai/api/sdk/meter \
 
 ### 14.1 Invalid Input
 - [ ] Submit empty tool creation form → validation errors
-- [ ] Invalid email format → Zod error
-- [ ] Short password (< 8 chars) → validation error
+- [ ] Invalid data → Zod error
 
 ### 14.2 Rate Limiting
-- [ ] Rapidly submit login 6+ times → 429 response
+- [ ] Rapidly hit API endpoints → 429 response
 - [ ] SDK rate limits per tier enforced (free: 100/min, enterprise: 10,000/min)
 
 ### 14.3 Unauthorized Access
-- [ ] Clear cookies → visit `/dashboard` → redirected to login
+- [ ] Clear cookies → visit `/dashboard` → Clerk redirects to login
 - [ ] Consumer tries developer endpoint → 403
 - [ ] Invalid API key → 401
 
@@ -392,30 +397,16 @@ curl -s https://settlegrid.ai/api/sdk/meter \
 
 ## Phase 16: API Direct Testing
 
-### 16.1 Developer Auth
+### 16.1 Auth
 ```bash
-# Login
-TOKEN=$(curl -s https://settlegrid.ai/api/auth/developer/login \
-  -X POST -H "Content-Type: application/json" \
-  -d '{"email":"lexwhiting@gmail.com","password":"You@r3enough!"}' \
-  | jq -r '.data.token')
-
-# Get profile
-curl -s https://settlegrid.ai/api/auth/developer/me \
-  -H "Cookie: sg-token=$TOKEN" | jq .
+# Session-based auth: sign in via Clerk at /login, then use browser cookies.
+# For programmatic SDK access, use consumer API keys (sg_live_...).
 ```
 
 ### 16.2 Tool CRUD
 ```bash
-# Create tool
-curl -s https://settlegrid.ai/api/tools \
-  -X POST -H "Cookie: sg-token=$TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test Tool","description":"A test","category":"AI/ML","priceCentsPerCall":1}' | jq .
-
-# List tools
-curl -s https://settlegrid.ai/api/tools \
-  -H "Cookie: sg-token=$TOKEN" | jq .
+# Tool CRUD requires Clerk session (browser-based).
+# Use the dashboard UI or browser DevTools to copy session cookies for curl testing.
 ```
 
 ### 16.3 Health Check
