@@ -211,7 +211,7 @@ export default function HealthPage() {
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-gray-500 mb-2">No tools with health endpoints configured.</p>
-            <p className="text-gray-400 text-sm">Add a health endpoint URL to your tools to enable monitoring.</p>
+            <p className="text-gray-500 text-sm">Add a health endpoint URL to your tools to enable monitoring.</p>
           </CardContent>
         </Card>
       ) : (

@@ -431,7 +431,7 @@ export default function ConsumerDashboardPage() {
                                 {ip}
                                 <button
                                   onClick={() => removeIp(key.id, ip)}
-                                  className="text-gray-400 hover:text-red-500 ml-0.5"
+                                  className="text-gray-500 hover:text-red-500 ml-0.5"
                                   aria-label={`Remove IP ${ip}`}
                                 >
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -442,7 +442,7 @@ export default function ConsumerDashboardPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-400">No IP restrictions. All IPs are allowed.</p>
+                          <p className="text-xs text-gray-500">No IP restrictions. All IPs are allowed.</p>
                         )}
                       </div>
                     )}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { z } from 'zod'
+import { getGatePassword, getGateSecret, getGateAuthTimeoutHours, isProduction } from '@/lib/env'
 
 const gateSchema = z.object({
   password: z.string().min(1).max(256),
@@ -36,9 +37,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const gatePassword = process.env.GATE_PASSWORD
-    const gateSecret = process.env.GATE_SECRET
-    if (!gatePassword || !gateSecret) {
+    let gatePassword: string
+    let gateSecret: string
+    try {
+      gatePassword = getGatePassword()
+      gateSecret = getGateSecret()
+    } catch {
       return NextResponse.json(
         { error: 'Gate not configured' },
         { status: 503 }
@@ -73,16 +77,13 @@ export async function POST(request: NextRequest) {
       .update('settlegrid-access-granted')
       .digest('hex')
 
-    const timeoutHours = parseInt(
-      process.env.GATE_AUTH_TIMEOUT_HOURS || '24',
-      10
-    )
+    const timeoutHours = getGateAuthTimeoutHours()
     const maxAge = timeoutHours * 60 * 60
 
     const response = NextResponse.json({ success: true })
     response.cookies.set('settlegrid_access', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction(),
       sameSite: 'lax',
       maxAge,
       path: '/',

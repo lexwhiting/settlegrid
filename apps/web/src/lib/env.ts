@@ -70,6 +70,30 @@ export function getUpstashRedisRestToken(): string {
   return requireEnv('UPSTASH_REDIS_REST_TOKEN')
 }
 
+// Cron secret — optional, only needed when cron endpoints are secured
+export function getCronSecret(): string | undefined {
+  return process.env.CRON_SECRET
+}
+
+// Health route — Redis connectivity check vars (optional)
+export function getHealthRedisUrl(): string | undefined {
+  return process.env.REDIS_URL
+}
+
+export function getHealthRedisToken(): string {
+  return process.env.REDIS_TOKEN ?? ''
+}
+
+// Gate auth timeout — optional, defaults to 24 hours
+export function getGateAuthTimeoutHours(): number {
+  return parseInt(process.env.GATE_AUTH_TIMEOUT_HOURS || '24', 10)
+}
+
+// Node env helper — safe to read directly but centralised here for consistency
+export function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production'
+}
+
 // Full env object — validates ALL vars at once, cached after first call
 export function getEnv() {
   if (!cached) {

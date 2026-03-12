@@ -50,6 +50,7 @@ vi.mock('bcryptjs', () => ({
 
 vi.mock('@/lib/env', () => ({
   getJwtSecret: vi.fn().mockReturnValue('test-jwt-secret-at-least-32-chars-long'),
+  isProduction: vi.fn().mockReturnValue(false),
 }))
 
 import {

@@ -277,7 +277,7 @@ export default function AnalyticsPage() {
                       <td className="py-3 px-4">
                         <div>
                           <span className="font-medium text-indigo">{tool.toolName}</span>
-                          <span className="text-gray-400 text-xs ml-2">/{tool.toolSlug}</span>
+                          <span className="text-gray-500 text-xs ml-2">/{tool.toolSlug}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right text-gray-700">{tool.totalInvocations.toLocaleString()}</td>

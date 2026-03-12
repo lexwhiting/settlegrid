@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { tools, toolHealthChecks } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
+import { getCronSecret } from '@/lib/env'
 
 export const maxDuration = 60
 
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     // Verify CRON_SECRET header (Vercel sends this for cron jobs)
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
+    const cronSecret = getCronSecret()
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }

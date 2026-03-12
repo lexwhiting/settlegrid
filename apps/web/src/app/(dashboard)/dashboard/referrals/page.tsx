@@ -255,7 +255,7 @@ export default function ReferralsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="font-medium text-indigo">{ref.toolName}</span>
-                        <span className="text-gray-400 text-xs ml-1">/{ref.toolSlug}</span>
+                        <span className="text-gray-500 text-xs ml-1">/{ref.toolSlug}</span>
                       </td>
                       <td className="py-3 px-4 text-right text-gray-700">{ref.commissionPct}%</td>
                       <td className="py-3 px-4 text-right font-medium text-indigo">{formatCents(ref.totalEarnedCents)}</td>
@@ -303,7 +303,7 @@ export default function ReferralsPage() {
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-gray-700">
                           {ref.toolName}
-                          <span className="text-gray-400 text-xs ml-1">({ref.commissionPct}%)</span>
+                          <span className="text-gray-500 text-xs ml-1">({ref.commissionPct}%)</span>
                         </span>
                         <span className="text-sm font-medium text-indigo">{formatCents(ref.totalEarnedCents)}</span>
                       </div>

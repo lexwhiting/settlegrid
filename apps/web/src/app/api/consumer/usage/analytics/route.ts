@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
           gte(invocations.createdAt, cutoff)
         )
       )
-      .limit(10000)
+      .limit(2000)
 
     // ── Aggregate daily trend ───────────────────────────────────────────────
     const dailyMap = new Map<string, { count: number; totalCostCents: number }>()

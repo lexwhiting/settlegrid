@@ -276,7 +276,7 @@ export default function DeveloperDashboardPage() {
                 <tbody>
                   {analytics.topConsumers.slice(0, 5).map((consumer, i) => (
                     <tr key={consumer.email} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-gray-400 font-medium">{i + 1}</td>
+                      <td className="py-3 px-4 text-gray-500 font-medium">{i + 1}</td>
                       <td className="py-3 px-4 text-gray-700">{consumer.email}</td>
                       <td className="py-3 px-4 text-right font-medium text-indigo">{formatCents(consumer.totalSpendCents)}</td>
                       <td className="py-3 px-4 text-right text-gray-500">{consumer.invocations.toLocaleString()}</td>

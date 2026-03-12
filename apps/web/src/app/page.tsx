@@ -185,7 +185,7 @@ function PricingSection() {
             <li>&#10003; 99.9% uptime SLA</li>
             <li>&#10003; Dedicated Slack support</li>
           </ul>
-          <p className="text-xs text-gray-400 mt-4">$199/mo per tool, self-serve</p>
+          <p className="text-xs text-gray-500 mt-4">$199/mo per tool, self-serve</p>
         </div>
       </div>
     </div>
@@ -346,7 +346,7 @@ export default function HomePage() {
             </p>
 
             {/* -- Core Platform -- */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Core Platform</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Core Platform</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconRedisMetering} />}
@@ -396,7 +396,7 @@ export default function HomePage() {
             </div>
 
             {/* -- Developer Tools -- */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Developer Tools</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Developer Tools</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconAnalytics} />}
@@ -436,7 +436,7 @@ export default function HomePage() {
             </div>
 
             {/* -- Consumer Features -- */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Consumer Features</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Consumer Features</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconBudget} />}
@@ -466,7 +466,7 @@ export default function HomePage() {
             </div>
 
             {/* -- Security & Compliance -- */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Security & Compliance</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Security & Compliance</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconSandbox} />}
@@ -491,7 +491,7 @@ export default function HomePage() {
             </div>
 
             {/* -- Marketplace -- */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Marketplace</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Marketplace</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <FeatureCard
                 icon={<Icon d={iconDirectory} />}
@@ -581,7 +581,7 @@ export default function HomePage() {
                       <span className="text-brand-light mt-1 font-bold" aria-hidden="true">&#10003;</span>
                       <div>
                         <span className="font-semibold">{item.label}</span>
-                        <span className="text-gray-400"> — {item.desc}</span>
+                        <span className="text-gray-500"> — {item.desc}</span>
                       </div>
                     </li>
                   ))}

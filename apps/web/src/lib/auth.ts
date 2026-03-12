@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
 import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
-import { getJwtSecret } from './env'
+import { getJwtSecret, isProduction } from './env'
 
 const COOKIE_NAME = 'sg-token'
 const TOKEN_EXPIRY = '7d'
@@ -105,7 +105,7 @@ export function setSessionCookie(
 ): NextResponse {
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction(),
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
@@ -120,7 +120,7 @@ export function setSessionCookie(
 export function clearSessionCookie(response: NextResponse): NextResponse {
   response.cookies.set(COOKIE_NAME, '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

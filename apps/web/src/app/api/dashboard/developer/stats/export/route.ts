@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         )
       )
       .orderBy(desc(invocations.createdAt))
-      .limit(50000)
+      .limit(2000)
 
     // Build CSV with proper escaping
     const lines: string[] = ['timestamp,tool,method,cost_cents,latency_ms,status']

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getGateSecret, getGatePassword } from '@/lib/env'
 
 async function computeExpectedToken(secret: string): Promise<string> {
   const encoder = new TextEncoder()
@@ -20,8 +21,12 @@ async function computeExpectedToken(secret: string): Promise<string> {
 }
 
 async function verifyGateAccess(request: NextRequest): Promise<boolean> {
-  const secret = process.env.GATE_SECRET
-  if (!secret) return true // No secret configured = open access
+  let secret: string
+  try {
+    secret = getGateSecret()
+  } catch {
+    return true // No secret configured = open access
+  }
 
   const token = request.cookies.get('settlegrid_access')?.value
   if (!token || token.length !== 64) return false
@@ -54,7 +59,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Enforce password gate
-  const gatePassword = process.env.GATE_PASSWORD
+  let gatePassword: string | undefined
+  try {
+    gatePassword = getGatePassword()
+  } catch {
+    gatePassword = undefined
+  }
   if (gatePassword && !(await verifyGateAccess(request))) {
     return NextResponse.redirect(new URL('/gate', request.url))
   }

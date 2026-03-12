@@ -1,95 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { SettleGridLogo } from '@/components/ui/logo'
-import { Badge } from '@/components/ui/badge'
-
-interface PublicTool {
-  id: string
-  name: string
-  slug: string
-  description: string
-  developerName: string
-  category: string
-  averageRating: number
-  reviewCount: number
-  defaultCostCents: number
-}
-
-const CATEGORIES = [
-  'All',
-  'AI & ML',
-  'Data & Analytics',
-  'Developer Tools',
-  'Finance',
-  'Communication',
-  'Productivity',
-  'Security',
-  'Infrastructure',
-  'Content',
-  'Other',
-] as const
-
-function formatCents(cents: number): string {
-  return cents < 100
-    ? `${cents}\u00A2`
-    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
-}
-
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <div className="flex items-center gap-1" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <svg
-          key={star}
-          className={`w-4 h-4 ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-200'}`}
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
-        </svg>
-      ))}
-      <span className="text-xs text-gray-500 ml-1">{rating.toFixed(1)}</span>
-    </div>
-  )
-}
 
 export default function MarketplacePage() {
-  const [tools, setTools] = useState<PublicTool[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState<string>('All')
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
-  useEffect(() => {
-    async function fetchTools() {
-      try {
-        const res = await fetch('/api/tools/public')
-        if (!res.ok) {
-          setError('Failed to load marketplace')
-          return
-        }
-        const data = await res.json()
-        setTools(data.data ?? [])
-      } catch {
-        setError('Network error loading marketplace')
-      } finally {
-        setLoading(false)
-      }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (email.trim()) {
+      setSubmitted(true)
     }
-    fetchTools()
-  }, [])
-
-  const filtered = tools.filter((tool) => {
-    const matchesSearch =
-      !search ||
-      tool.name.toLowerCase().includes(search.toLowerCase()) ||
-      tool.description.toLowerCase().includes(search.toLowerCase()) ||
-      tool.developerName.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory = category === 'All' || tool.category === category
-    return matchesSearch && matchesCategory
-  })
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -112,119 +36,49 @@ export default function MarketplacePage() {
         </nav>
       </header>
 
-      <main className="flex-1 px-6 py-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-indigo mb-3">Tool Marketplace</h1>
-            <p className="text-lg text-gray-600">
-              Discover and integrate monetized MCP tools built by the developer community.
+      <main className="flex-1 flex items-center justify-center px-6 py-24">
+        <div className="max-w-lg w-full">
+          <div className="rounded-xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-brand/10">
+              <svg className="w-7 h-7 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-indigo mb-3">Tool Marketplace</h1>
+            <p className="text-sm text-gray-600 leading-relaxed mb-2">Coming Soon</p>
+            <p className="text-sm text-gray-500 leading-relaxed mb-8">
+              When the SettleGrid developer ecosystem reaches critical mass, you will be
+              able to discover, compare, and integrate tools from other developers directly
+              from this marketplace.
             </p>
-          </div>
 
-          {/* Search & Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-8">
-            <div className="flex-1">
-              <label htmlFor="marketplace-search" className="sr-only">Search tools</label>
-              <div className="relative">
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                </svg>
+            {submitted ? (
+              <div className="rounded-lg bg-brand/5 border border-brand/20 p-4">
+                <p className="text-sm font-medium text-brand-text">
+                  You are on the list. We will notify you when the marketplace launches.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+                <label htmlFor="marketplace-notify-email" className="sr-only">Email address</label>
                 <input
-                  id="marketplace-search"
-                  type="text"
-                  placeholder="Search tools by name, description, or developer..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white pl-10 pr-3 py-2 text-sm placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  id="marketplace-notify-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="flex-1 h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                 />
-              </div>
-            </div>
-            <div className="w-full sm:w-48">
-              <label htmlFor="marketplace-category" className="sr-only">Filter by category</label>
-              <select
-                id="marketplace-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+                <button
+                  type="submit"
+                  className="h-10 px-5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors shrink-0"
+                >
+                  Notify me
+                </button>
+              </form>
+            )}
           </div>
-
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3 mb-6" role="alert">
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="rounded-xl border border-gray-200 bg-white p-6">
-                  <div className="h-6 bg-gray-200 rounded animate-pulse w-40 mb-3" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-24 mb-3" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-full mb-2" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
-                </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-gray-500 text-lg">
-                {search || category !== 'All'
-                  ? 'No tools match your search. Try adjusting your filters.'
-                  : 'No tools published yet. Be the first to list a tool!'}
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-gray-500 mb-4">{filtered.length} tool{filtered.length !== 1 ? 's' : ''} found</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filtered.map((tool) => (
-                  <Link
-                    key={tool.id}
-                    href={`/tools/${tool.slug}`}
-                    className="group rounded-xl border border-gray-200 bg-white p-6 hover:border-brand/40 hover:shadow-md transition-all duration-200"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-lg text-indigo group-hover:text-brand-text transition-colors">
-                        {tool.name}
-                      </h3>
-                      <Badge variant="secondary" className="text-[10px] shrink-0 ml-2">
-                        {tool.category || 'Other'}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      by {tool.developerName}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
-                      {tool.description}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <StarRating rating={tool.averageRating ?? 0} />
-                      <span className="text-sm font-semibold text-brand-text">
-                        {formatCents(tool.defaultCostCents)}/call
-                      </span>
-                    </div>
-                    {tool.reviewCount > 0 && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        {tool.reviewCount} review{tool.reviewCount !== 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
         </div>
       </main>
 

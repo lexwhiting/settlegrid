@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       .from(auditLogs)
       .where(and(...conditions))
       .orderBy(desc(auditLogs.createdAt))
-      .limit(50000)
+      .limit(2000)
 
     // Build CSV
     const lines: string[] = ['timestamp,action,resource_type,resource_id,ip_address,details']

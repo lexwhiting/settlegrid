@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { getHealthRedisUrl, getHealthRedisToken } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -28,11 +29,11 @@ export async function GET(request: NextRequest) {
   // Check Redis (Upstash) connectivity
   const redisStart = Date.now()
   try {
-    const redisUrl = process.env.REDIS_URL
+    const redisUrl = getHealthRedisUrl()
     if (redisUrl) {
       // Simple ping via REST API (Upstash pattern)
       const res = await fetch(`${redisUrl}/ping`, {
-        headers: { Authorization: `Bearer ${process.env.REDIS_TOKEN ?? ''}` },
+        headers: { Authorization: `Bearer ${getHealthRedisToken()}` },
         signal: AbortSignal.timeout(3000),
       })
       components.redis = {

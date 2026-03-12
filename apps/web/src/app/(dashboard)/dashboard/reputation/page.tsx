@@ -210,7 +210,7 @@ export default function ReputationPage() {
                 </div>
                 <div className={`text-2xl font-bold ${grade.color}`}>Grade: {grade.letter}</div>
                 <p className="text-sm text-gray-500 mt-1">{grade.description}</p>
-                <p className="text-xs text-gray-400 mt-4">
+                <p className="text-xs text-gray-500 mt-4">
                   Last calculated: {new Date(reputation.calculatedAt).toLocaleString('en-US', {
                     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                   })}
@@ -320,24 +320,24 @@ export default function ReputationPage() {
                         <span className={`text-2xl font-bold ${grade.color}`}>{reputation.score}</span>
                         <span className="text-gray-500">reputation</span>
                       </div>
-                      <div className="text-gray-400">|</div>
+                      <div className="text-gray-500">|</div>
                       <div>
                         <span className="font-medium text-gray-700">{reputation.breakdown.totalTools}</span>
                         <span className="text-gray-500 ml-1">tools</span>
                       </div>
-                      <div className="text-gray-400">|</div>
+                      <div className="text-gray-500">|</div>
                       <div>
                         <span className="font-medium text-gray-700">{reputation.breakdown.totalConsumers}</span>
                         <span className="text-gray-500 ml-1">consumers</span>
                       </div>
-                      <div className="text-gray-400">|</div>
+                      <div className="text-gray-500">|</div>
                       <div>
                         <span className="font-medium text-gray-700">{reputation.breakdown.uptimePct}%</span>
                         <span className="text-gray-500 ml-1">uptime</span>
                       </div>
                       {reputation.breakdown.reviewAvg > 0 && (
                         <>
-                          <div className="text-gray-400">|</div>
+                          <div className="text-gray-500">|</div>
                           <div>
                             <span className="font-medium text-gray-700">{reputation.breakdown.reviewAvg.toFixed(1)}</span>
                             <span className="text-gray-500 ml-1">avg rating</span>
@@ -349,7 +349,7 @@ export default function ReputationPage() {
                 </div>
               </div>
               {!profile?.publicProfile && (
-                <p className="text-xs text-gray-400 mt-3">
+                <p className="text-xs text-gray-500 mt-3">
                   Your profile is currently private. Enable public profile in Settings to make it visible to consumers.
                 </p>
               )}
