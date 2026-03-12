@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { z } from 'zod'
 import { getGatePassword, getGateSecret, getGateAuthTimeoutHours, isProduction } from '@/lib/env'
+import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 const gateSchema = z.object({
   password: z.string().min(1).max(256),
@@ -9,28 +10,13 @@ const gateSchema = z.object({
 
 export const maxDuration = 15
 
-// Simple in-memory rate limiter: max 10 attempts per IP per 15 minutes
-const attempts = new Map<string, { count: number; resetAt: number }>()
-const MAX_ATTEMPTS = 10
-const WINDOW_MS = 15 * 60 * 1000
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now()
-  const record = attempts.get(ip)
-  if (!record || now > record.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS })
-    return false
-  }
-  record.count++
-  return record.count > MAX_ATTEMPTS
-}
-
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
+    // Rate limiting via Upstash Redis (consistent with other auth routes)
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    if (isRateLimited(ip)) {
+    const rl = await checkRateLimit(authLimiter, `gate:${ip}`)
+    if (!rl.success) {
       return NextResponse.json(
         { error: 'Too many attempts. Please try again later.' },
         { status: 429 }

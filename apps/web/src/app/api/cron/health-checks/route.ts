@@ -5,6 +5,7 @@ import { tools, toolHealthChecks } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -15,6 +16,10 @@ export const maxDuration = 60
  */
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const rl = await checkRateLimit(apiLimiter, `cron-health-checks:${ip}`)
+    if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     // Verify CRON_SECRET header (Vercel sends this for cron jobs)
     const authHeader = request.headers.get('authorization')
     const cronSecret = getCronSecret()

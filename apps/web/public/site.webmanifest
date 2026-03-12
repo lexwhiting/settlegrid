@@ -1,0 +1,22 @@
+{
+  "name": "SettleGrid",
+  "short_name": "SettleGrid",
+  "description": "The Settlement Layer for the AI Economy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10B981",
+  "icons": [
+    {
+      "src": "/brand/icon-color.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/brand/favicon-color.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
