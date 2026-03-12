@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 30
 
@@ -14,6 +15,13 @@ function getStripe(): Stripe {
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `stripe-callback:${ip}`)
+    if (!rateLimit.success) {
+      const appUrl = getAppUrl()
+      return NextResponse.redirect(`${appUrl}/dashboard/developer/settings?stripe=error&reason=rate_limited`)
+    }
+
     const url = new URL(request.url)
     const accountId = url.searchParams.get('account_id')
     const appUrl = getAppUrl()

@@ -1,11 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const rateLimit = await checkRateLimit(apiLimiter, `health:${ip}`)
+  if (!rateLimit.success) {
+    return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
+  }
   const components: Record<string, { status: string; latencyMs?: number }> = {}
   let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy'
 

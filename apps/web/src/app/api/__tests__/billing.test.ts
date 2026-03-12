@@ -99,6 +99,7 @@ vi.mock('@/lib/env', () => ({
 
 vi.mock('@/lib/rate-limit', () => ({
   apiLimiter: {},
+  sdkLimiter: {},
   checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
 }))
 

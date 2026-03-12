@@ -67,6 +67,12 @@ function ComparisonTable() {
     { name: 'Uptime monitoring', settlegrid: true, mcpize: false, apify: true, moesif: true },
     { name: 'Referral system', settlegrid: true, mcpize: false, apify: false, moesif: false },
     { name: 'Pricing simulator', settlegrid: true, mcpize: false, apify: false, moesif: false },
+    { name: 'Fraud detection (3-check)', settlegrid: true, mcpize: false, apify: false, moesif: false },
+    { name: 'Tiered rate limiting', settlegrid: true, mcpize: false, apify: false, moesif: true },
+    { name: 'SDK LRU caching', settlegrid: true, mcpize: false, apify: false, moesif: false },
+    { name: 'Version history', settlegrid: true, mcpize: false, apify: true, moesif: false },
+    { name: 'Conversion tracking', settlegrid: true, mcpize: false, apify: false, moesif: true },
+    { name: 'Reputation scores', settlegrid: true, mcpize: false, apify: false, moesif: false },
   ]
 
   return (
@@ -246,6 +252,14 @@ const iconSimulator = "M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008Zm0 2.25h.0
 const iconReferral = "M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
 // Reputation scores (trophy)
 const iconReputation = "M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.996.144-1.985.3-2.963.465A.479.479 0 0 0 2 5.165c0 .354.21.678.545.86a7.488 7.488 0 0 0 4.15 1.074h.1M5.25 4.236V4.5c0 2.178.924 4.14 2.4 5.521M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.996.144 1.985.3 2.963.465.16.029.287.187.287.45 0 .354-.21.678-.545.86a7.488 7.488 0 0 1-4.15 1.074h-.1M18.75 4.236V4.5c0 2.178-.924 4.14-2.4 5.522"
+// Redis metering (bolt)
+const iconRedisMetering = "M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
+// Fraud detection (exclamation-triangle)
+const iconFraud = "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+// Auto-refill (arrow-path)
+const iconAutoRefill = "M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+// Version history (clock)
+const iconVersionHistory = "M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
 
 /* -------------------------------------------------------------------------- */
 /*  Page                                                                      */
@@ -335,9 +349,19 @@ export default function HomePage() {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Core Platform</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
+                icon={<Icon d={iconRedisMetering} />}
+                title="Sub-50ms Redis Metering"
+                description="Every tool call is metered through Redis with sub-50ms overhead. Balance checks, deductions, and usage recording in a single atomic pipeline."
+              />
+              <FeatureCard
                 icon={<Icon d={iconBilling} />}
                 title="Per-Call Billing"
-                description="Charge consumers per API call with configurable per-method pricing. Prepaid credit balances with optional auto-refill."
+                description="Charge consumers per API call with configurable per-method pricing. Prepaid credit balances keep revenue flowing predictably."
+              />
+              <FeatureCard
+                icon={<Icon d={iconAutoRefill} />}
+                title="Auto-Refill Credits"
+                description="Consumers set a threshold and refill amount. When credits drop below the limit, a Stripe PaymentIntent fires automatically — zero interruption."
               />
               <FeatureCard
                 icon={<Icon d={iconPayouts} />}
@@ -346,8 +370,8 @@ export default function HomePage() {
               />
               <FeatureCard
                 icon={<Icon d={iconSdk} />}
-                title="MCP-Native SDK"
-                description="Wrap any function as a monetized MCP tool. TypeScript SDK with ESM/CJS support. Under 50KB, zero config."
+                title="MCP-Native SDK with LRU Cache"
+                description="@settlegrid/mcp wraps any function into a monetized tool. Built-in LRU caching reduces redundant API calls. TypeScript, ESM/CJS, under 50KB."
               />
               <FeatureCard
                 icon={<Icon d={iconStorefront} />}
@@ -364,6 +388,11 @@ export default function HomePage() {
                 title="Pricing Widget"
                 description="Embeddable pricing page for any MCP tool. Drop a script tag on your site and let consumers purchase credits inline."
               />
+              <FeatureCard
+                icon={<Icon d={iconFraud} />}
+                title="Fraud Detection"
+                description="Three-check system catches abuse in real time: rate spike detection, new-key velocity checks, and duplicate call deduplication. Protect your revenue automatically."
+              />
             </div>
 
             {/* -- Developer Tools -- */}
@@ -371,8 +400,8 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               <FeatureCard
                 icon={<Icon d={iconAnalytics} />}
-                title="Advanced Analytics"
-                description="Method breakdown, hourly usage patterns, latency percentiles (p50/p95/p99), error rates, and revenue projections."
+                title="Usage Analytics & Projections"
+                description="Daily usage trends, method breakdown, hourly patterns, latency percentiles (p50/p95/p99), error rates, and 30-day revenue projections."
               />
               <FeatureCard
                 icon={<Icon d={iconRevenue} />}
@@ -381,18 +410,23 @@ export default function HomePage() {
               />
               <FeatureCard
                 icon={<Icon d={iconConversion} />}
-                title="Conversion Analytics"
-                description="Monitor free-to-paid conversion rates, churn signals, and cohort retention. Identify drop-off points and optimize your funnel."
+                title="Conversion Event Tracking"
+                description="Track free-to-paid conversion events, churn signals, and cohort retention. Identify drop-off points and optimize your funnel."
               />
               <FeatureCard
                 icon={<Icon d={iconWebhooks} />}
-                title="Webhooks"
-                description="Real-time event notifications signed with HMAC-SHA256. Delivery tracking, retry logic, and configurable event filters."
+                title="HMAC-SHA256 Webhooks"
+                description="Real-time event notifications signed with HMAC-SHA256. Delivery tracking, automatic retry logic, and configurable event filters."
               />
               <FeatureCard
                 icon={<Icon d={iconUptime} />}
-                title="Uptime Monitoring"
-                description="Automatic health checks with public status pages. Get alerted to outages before your consumers notice them."
+                title="Health Check Monitoring"
+                description="Automated cron-based health checks with public status pages. Tracks database and Redis latency. Get alerted before consumers notice outages."
+              />
+              <FeatureCard
+                icon={<Icon d={iconVersionHistory} />}
+                title="Version History"
+                description="Full version history and changelogs for every tool. Roll back pricing or functionality changes. Consumers always see what changed and when."
               />
               <FeatureCard
                 icon={<Icon d={iconSimulator} />}
@@ -426,8 +460,8 @@ export default function HomePage() {
               />
               <FeatureCard
                 icon={<Icon d={iconIpAllowlist} />}
-                title="IP Allowlisting"
-                description="Restrict API keys to specific IPs or CIDR ranges. Enterprise-grade access control for high-security environments."
+                title="IP Allowlist Enforcement"
+                description="Restrict API keys to specific IPs or CIDR ranges with real-time CIDR matching. Enterprise-grade access control for high-security environments."
               />
             </div>
 
@@ -451,8 +485,8 @@ export default function HomePage() {
               />
               <FeatureCard
                 icon={<Icon d={iconRateLimiting} />}
-                title="Rate Limiting"
-                description="Configurable per-key rate limits with sliding-window enforcement. Automatic 429 responses with Retry-After headers."
+                title="Tiered Rate Limiting"
+                description="Per-plan rate limits (Free/Starter/Pro/Enterprise) with sliding-window enforcement. Automatic 429 responses with Retry-After headers."
               />
             </div>
 
@@ -534,12 +568,14 @@ export default function HomePage() {
                 </p>
                 <ul className="space-y-4">
                   {[
-                    { label: 'Sandbox mode', desc: 'Test integrations without real charges or side effects' },
+                    { label: 'Fraud detection', desc: 'Three-check system: rate spike detection, new-key velocity, duplicate deduplication' },
+                    { label: 'Tiered rate limiting', desc: 'Per-plan sliding-window limits (Free through Enterprise) with automatic 429 responses' },
                     { label: 'IP allowlisting', desc: 'Lock API keys to specific IP ranges and CIDR blocks' },
                     { label: 'HMAC-SHA256 webhooks', desc: 'Cryptographically signed event payloads you can verify' },
                     { label: 'Audit logging', desc: 'Full audit trail with CSV export for SOC 2 evidence collection' },
                     { label: 'SHA-256 key hashing', desc: 'API keys are hashed at rest — we never store plaintext' },
-                    { label: 'Rate limiting', desc: 'Sliding-window enforcement protects against abuse and DDoS' },
+                    { label: 'Budget controls', desc: 'Per-tool spending limits and daily caps with auto-refill via Stripe PaymentIntent' },
+                    { label: 'Sandbox mode', desc: 'Test integrations without real charges or side effects' },
                   ].map((item) => (
                     <li key={item.label} className="flex items-start gap-3">
                       <span className="text-brand-light mt-1 font-bold" aria-hidden="true">&#10003;</span>

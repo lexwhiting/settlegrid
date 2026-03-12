@@ -3,14 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-
-interface DeveloperStats {
-  totalRevenueCents: number
-  totalInvocations: number
-  toolCount: number
-  recentInvocations: { hour: string; count: number; revenueCents?: number }[]
-}
 
 interface FlaggedInvocation {
   id: string
@@ -78,7 +70,6 @@ const FRAUD_RULES = [
 ]
 
 export default function FraudPage() {
-  const [stats, setStats] = useState<DeveloperStats | null>(null)
   const [flagged, setFlagged] = useState<FlaggedInvocation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -91,10 +82,7 @@ export default function FraudPage() {
           fetch('/api/dashboard/developer/stats/analytics'),
         ])
 
-        if (statsRes.ok) {
-          const data = await statsRes.json()
-          setStats(data.data)
-        } else {
+        if (!statsRes.ok) {
           setError('Failed to load fraud dashboard data')
         }
 

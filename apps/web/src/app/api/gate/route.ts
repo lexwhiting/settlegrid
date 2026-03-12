@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { z } from 'zod'
+
+const gateSchema = z.object({
+  password: z.string().min(1).max(256),
+})
 
 export const maxDuration = 15
 
@@ -41,19 +46,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { password } = body as { password?: string }
-
-    if (!password || typeof password !== 'string') {
+    const parsed = gateSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
         { error: 'Password is required' },
         { status: 400 }
       )
     }
-
-    // Guard against oversized input
-    if (password.length > 256) {
-      return NextResponse.json({ error: 'Invalid password' }, { status: 400 })
-    }
+    const { password } = parsed.data
 
     // Timing-safe comparison to prevent timing attacks
     const passwordBuffer = Buffer.from(password)

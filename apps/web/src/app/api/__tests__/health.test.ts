@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
 
 const { mockDbExecute } = vi.hoisted(() => {
   return {
@@ -22,8 +23,20 @@ vi.mock('drizzle-orm', () => ({
   ),
 }))
 
+vi.mock('@/lib/rate-limit', () => ({
+  apiLimiter: {},
+  checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: Date.now() + 60000 }),
+}))
+
 // Mock global fetch for Redis health check
 const originalFetch = global.fetch
+
+function createRequest(): NextRequest {
+  return new NextRequest('http://localhost:3005/api/health', {
+    method: 'GET',
+    headers: { 'x-forwarded-for': '127.0.0.1' },
+  })
+}
 
 import { GET } from '@/app/api/health/route'
 
@@ -39,7 +52,7 @@ describe('Health Check (GET /api/health)', () => {
   it('returns healthy when DB is up', async () => {
     mockDbExecute.mockResolvedValueOnce(undefined)
 
-    const response = await GET()
+    const response = await GET(createRequest())
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -51,7 +64,7 @@ describe('Health Check (GET /api/health)', () => {
   it('returns unhealthy when DB is down', async () => {
     mockDbExecute.mockRejectedValueOnce(new Error('Connection refused'))
 
-    const response = await GET()
+    const response = await GET(createRequest())
     const data = await response.json()
 
     expect(response.status).toBe(503)
@@ -62,7 +75,7 @@ describe('Health Check (GET /api/health)', () => {
   it('reports redis as not_configured when no REDIS_URL', async () => {
     mockDbExecute.mockResolvedValueOnce(undefined)
 
-    const response = await GET()
+    const response = await GET(createRequest())
     const data = await response.json()
 
     expect(data.components.redis.status).toBe('not_configured')
@@ -77,7 +90,7 @@ describe('Health Check (GET /api/health)', () => {
       ok: true,
     })
 
-    const response = await GET()
+    const response = await GET(createRequest())
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -92,7 +105,7 @@ describe('Health Check (GET /api/health)', () => {
 
     global.fetch = vi.fn().mockRejectedValueOnce(new Error('Connection timeout'))
 
-    const response = await GET()
+    const response = await GET(createRequest())
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -103,7 +116,7 @@ describe('Health Check (GET /api/health)', () => {
   it('includes latency measurements', async () => {
     mockDbExecute.mockResolvedValueOnce(undefined)
 
-    const response = await GET()
+    const response = await GET(createRequest())
     const data = await response.json()
 
     expect(data.components.database.latencyMs).toBeGreaterThanOrEqual(0)
