@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { z } from 'zod'
 import { getGatePassword, getGateSecret, getGateAuthTimeoutHours, isProduction } from '@/lib/env'
+import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 const gateSchema = z.object({
@@ -17,10 +18,7 @@ export async function POST(request: NextRequest) {
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     const rl = await checkRateLimit(authLimiter, `gate:${ip}`)
     if (!rl.success) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please try again later.' },
-        { status: 429 }
-      )
+      return errorResponse('Too many attempts. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     let gatePassword: string
@@ -29,24 +27,13 @@ export async function POST(request: NextRequest) {
       gatePassword = getGatePassword()
       gateSecret = getGateSecret()
     } catch {
-      return NextResponse.json(
-        { error: 'Gate not configured' },
-        { status: 503 }
-      )
+      return errorResponse('Gate not configured', 503, 'GATE_NOT_CONFIGURED')
     }
 
-    const body = await request.json()
-    const parsed = gateSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Password is required' },
-        { status: 400 }
-      )
-    }
-    const { password } = parsed.data
+    const body = await parseBody(request, gateSchema)
 
     // Timing-safe comparison to prevent timing attacks
-    const passwordBuffer = Buffer.from(password)
+    const passwordBuffer = Buffer.from(body.password)
     const gatePasswordBuffer = Buffer.from(gatePassword)
 
     const isValid =
@@ -54,7 +41,7 @@ export async function POST(request: NextRequest) {
       crypto.timingSafeEqual(passwordBuffer, gatePasswordBuffer)
 
     if (!isValid) {
-      return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
+      return errorResponse('Invalid password', 401, 'INVALID_PASSWORD')
     }
 
     // Generate HMAC-SHA256 signed token using the separate gate secret
@@ -66,7 +53,7 @@ export async function POST(request: NextRequest) {
     const timeoutHours = getGateAuthTimeoutHours()
     const maxAge = timeoutHours * 60 * 60
 
-    const response = NextResponse.json({ success: true })
+    const response = successResponse({ success: true })
     response.cookies.set('settlegrid_access', token, {
       httpOnly: true,
       secure: isProduction(),
@@ -76,10 +63,7 @@ export async function POST(request: NextRequest) {
     })
 
     return response
-  } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return internalErrorResponse(error)
   }
 }
