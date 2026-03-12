@@ -5,6 +5,7 @@ import {
   payoutNotificationEmail,
   lowBalanceAlertEmail,
   creditPurchaseConfirmationEmail,
+  sanitizeSubject,
 } from '@/lib/email'
 
 describe('welcomeDeveloperEmail', () => {
@@ -114,5 +115,63 @@ describe('creditPurchaseConfirmationEmail', () => {
   it('includes consumer link', () => {
     const result = creditPurchaseConfirmationEmail('user@test.com', 500, 'Tool')
     expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+})
+
+describe('sanitizeSubject', () => {
+  it('strips CR characters to prevent header injection', () => {
+    const result = sanitizeSubject('Hello\rBcc: attacker@evil.com')
+    expect(result).not.toContain('\r')
+    expect(result).toBe('Hello Bcc: attacker@evil.com')
+  })
+
+  it('strips LF characters to prevent header injection', () => {
+    const result = sanitizeSubject('Hello\nBcc: attacker@evil.com')
+    expect(result).not.toContain('\n')
+    expect(result).toBe('Hello Bcc: attacker@evil.com')
+  })
+
+  it('strips CRLF characters', () => {
+    const result = sanitizeSubject('Hello\r\nBcc: attacker@evil.com')
+    expect(result).not.toContain('\r')
+    expect(result).not.toContain('\n')
+  })
+
+  it('strips tab characters', () => {
+    const result = sanitizeSubject('Hello\tWorld')
+    expect(result).not.toContain('\t')
+    expect(result).toBe('Hello World')
+  })
+
+  it('truncates to 200 characters', () => {
+    const long = 'A'.repeat(300)
+    const result = sanitizeSubject(long)
+    expect(result.length).toBe(200)
+  })
+
+  it('trims whitespace', () => {
+    const result = sanitizeSubject('  Hello World  ')
+    expect(result).toBe('Hello World')
+  })
+
+  it('passes through clean strings unchanged', () => {
+    const result = sanitizeSubject('SettleGrid Alert: Low Balance')
+    expect(result).toBe('SettleGrid Alert: Low Balance')
+  })
+})
+
+describe('email subject sanitization', () => {
+  it('lowBalanceAlertEmail strips CRLF from toolName in subject', () => {
+    const result = lowBalanceAlertEmail('user@test.com', 'Tool\r\nBcc: evil@hack.com', 500)
+    expect(result.subject).not.toContain('\r')
+    expect(result.subject).not.toContain('\n')
+    expect(result.subject).toContain('Tool')
+  })
+
+  it('creditPurchaseConfirmationEmail strips CRLF from toolName in subject', () => {
+    const result = creditPurchaseConfirmationEmail('user@test.com', 1000, 'Tool\r\nBcc: evil@hack.com')
+    expect(result.subject).not.toContain('\r')
+    expect(result.subject).not.toContain('\n')
+    expect(result.subject).toContain('Tool')
   })
 })

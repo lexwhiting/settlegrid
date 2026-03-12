@@ -17,7 +17,7 @@ export async function sendAlertEmail(
     usage_spike: 'Usage Spike',
   }
 
-  const subject = `SettleGrid Alert: ${labels[alertType] ?? alertType} — ${toolName}`
+  const subject = sanitizeSubject(`SettleGrid Alert: ${labels[alertType] ?? alertType} — ${toolName}`)
 
   const descriptions: Record<string, string> = {
     low_balance: `Your credit balance for <strong>${escapeHtml(toolName)}</strong> has dropped below <strong>${threshold} cents</strong>.`,
@@ -83,4 +83,12 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * Sanitize a string for use in email subjects.
+ * Strips CR/LF characters to prevent email header injection.
+ */
+function sanitizeSubject(str: string): string {
+  return str.replace(/[\r\n\t]/g, ' ').trim().slice(0, 200)
 }

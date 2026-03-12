@@ -102,4 +102,23 @@ describe('Alert email', () => {
       expect.any(Error)
     )
   })
+
+  it('sanitizes CRLF in toolName to prevent email header injection', async () => {
+    await sendAlertEmail('user@example.com', 'Tool\r\nBcc: evil@hack.com', 'low_balance', 100)
+
+    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const body = JSON.parse(opts.body)
+    expect(body.subject).not.toContain('\r')
+    expect(body.subject).not.toContain('\n')
+    expect(body.subject).toContain('Tool')
+  })
+
+  it('sanitizes CRLF in alertType to prevent email header injection', async () => {
+    await sendAlertEmail('user@example.com', 'Tool', 'custom\r\nBcc: evil@hack.com', 100)
+
+    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const body = JSON.parse(opts.body)
+    expect(body.subject).not.toContain('\r')
+    expect(body.subject).not.toContain('\n')
+  })
 })

@@ -81,7 +81,7 @@ export function payoutNotificationEmail(name: string, amountCents: number): Emai
 export function lowBalanceAlertEmail(email: string, toolName: string, balanceCents: number): EmailTemplate {
   const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(balanceCents / 100)
   return {
-    subject: `Low balance alert: ${toolName} — ${formatted} remaining`,
+    subject: sanitizeSubject(`Low balance alert: ${toolName} — ${formatted} remaining`),
     html: baseTemplate(`
 <h2 style="color:#1A1F3A;margin:0 0 16px">Low Credit Balance</h2>
 <p style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your credit balance for <strong>${escapeHtml(toolName)}</strong> is running low at <strong style="color:#ef4444">${formatted}</strong>.</p>
@@ -97,7 +97,7 @@ export function lowBalanceAlertEmail(email: string, toolName: string, balanceCen
 export function creditPurchaseConfirmationEmail(email: string, amountCents: number, toolName: string): EmailTemplate {
   const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amountCents / 100)
   return {
-    subject: `Credit purchase confirmed: ${formatted} for ${toolName}`,
+    subject: sanitizeSubject(`Credit purchase confirmed: ${formatted} for ${toolName}`),
     html: baseTemplate(`
 <h2 style="color:#1A1F3A;margin:0 0 16px">Purchase Confirmed</h2>
 <p style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your purchase of <strong style="color:#10B981">${formatted}</strong> in credits for <strong>${escapeHtml(toolName)}</strong> has been confirmed.</p>
@@ -116,4 +116,13 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * Sanitize a string for use in email subjects.
+ * Strips CR/LF characters to prevent email header injection,
+ * and truncates to a safe length.
+ */
+export function sanitizeSubject(str: string): string {
+  return str.replace(/[\r\n\t]/g, ' ').trim().slice(0, 200)
 }

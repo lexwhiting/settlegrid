@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getGateSecret, getGatePassword } from '@/lib/env'
 
+/**
+ * Constant-time string comparison for Edge runtime (no Node crypto.timingSafeEqual).
+ * Both strings must be the same length — caller must pre-check length.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let mismatch = 0
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
 async function computeExpectedToken(secret: string): Promise<string> {
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey(
@@ -32,7 +45,7 @@ async function verifyGateAccess(request: NextRequest): Promise<boolean> {
   if (!token || token.length !== 64) return false
 
   const expectedToken = await computeExpectedToken(secret)
-  return token === expectedToken
+  return timingSafeEqual(token, expectedToken)
 }
 
 /** Paths that bypass the password gate entirely */

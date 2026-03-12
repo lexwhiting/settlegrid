@@ -8,6 +8,7 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { isWebhookUrlSafe } from '@/lib/webhooks'
 
 export const maxDuration = 15
 
@@ -72,6 +73,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await parseBody(request, createWebhookSchema)
+
+    // SSRF protection: reject internal/private URLs at registration time
+    if (!isWebhookUrlSafe(body.url)) {
+      return errorResponse('Webhook URL must be a public HTTPS endpoint.', 400, 'INVALID_WEBHOOK_URL')
+    }
 
     // Limit: 5 endpoints per developer
     const existing = await db
