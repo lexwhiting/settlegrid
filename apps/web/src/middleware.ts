@@ -50,13 +50,14 @@ async function verifyGateAccess(request: NextRequest): Promise<boolean> {
 
 /** Paths that bypass the password gate entirely */
 const publicPatterns = [
-  '/api/sdk/',
-  '/api/billing/webhook',
-  '/api/gate',
-  '/api/health',
+  '/api/',
   '/_next/',
   '/favicon',
   '/gate',
+  '/login',
+  '/register',
+  '/tools',
+  '/docs',
 ]
 
 function isPublicPath(pathname: string): boolean {
