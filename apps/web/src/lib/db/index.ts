@@ -8,7 +8,7 @@ let _db: ReturnType<typeof drizzle<typeof schema>> | null = null
 function getDb() {
   if (!_db) {
     const connectionString = getDatabaseUrl()
-    const client = postgres(connectionString, { max: 10 })
+    const client = postgres(connectionString, { max: 10, ssl: 'require' })
     _db = drizzle(client, { schema })
   }
   return _db
