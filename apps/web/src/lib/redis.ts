@@ -1,14 +1,15 @@
 import { Redis } from '@upstash/redis'
-import { getRedisUrl } from './env'
+import { getRedisUrl, getUpstashRedisRestToken } from './env'
 
 let redisInstance: Redis | null = null
 
 export function getRedis(): Redis {
   if (!redisInstance) {
     const url = getRedisUrl()
+    const token = getUpstashRedisRestToken()
     redisInstance = new Redis({
       url,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN ?? '',
+      token,
     })
   }
   return redisInstance

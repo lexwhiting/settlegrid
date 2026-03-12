@@ -66,6 +66,10 @@ export function getAppUrl(): string {
   return requireEnv('NEXT_PUBLIC_APP_URL')
 }
 
+export function getUpstashRedisRestToken(): string {
+  return requireEnv('UPSTASH_REDIS_REST_TOKEN')
+}
+
 // Full env object — validates ALL vars at once, cached after first call
 export function getEnv() {
   if (!cached) {

@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger'
+import { getResendApiKey } from '@/lib/env'
 
 /**
  * Send an alert email to a consumer when an alert condition is triggered.
@@ -47,7 +48,12 @@ export async function sendAlertEmail(
 </html>`
 
   try {
-    const resendApiKey = process.env.RESEND_API_KEY
+    let resendApiKey: string | null = null
+    try {
+      resendApiKey = getResendApiKey()
+    } catch {
+      // Resend not configured — skip email sending
+    }
     if (resendApiKey) {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',

@@ -225,7 +225,7 @@ export default function DeveloperDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" role="table">
+              <table className="w-full text-sm" role="table" aria-label="Method breakdown">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Method</th>
@@ -264,7 +264,7 @@ export default function DeveloperDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" role="table">
+              <table className="w-full text-sm" role="table" aria-label="Top consumers">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">#</th>

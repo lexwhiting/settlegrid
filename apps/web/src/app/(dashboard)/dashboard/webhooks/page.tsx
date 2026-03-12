@@ -257,7 +257,7 @@ export default function WebhooksPage() {
                       <p className="text-sm text-gray-500">No deliveries yet.</p>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm" role="table">
+                        <table className="w-full text-sm" role="table" aria-label="Webhook deliveries">
                           <thead>
                             <tr className="border-b border-gray-200">
                               <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500">Event</th>

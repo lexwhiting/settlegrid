@@ -29,6 +29,7 @@ vi.mock('@upstash/ratelimit', () => {
 
 vi.mock('@/lib/env', () => ({
   getRedisUrl: vi.fn().mockReturnValue('redis://localhost:6379'),
+  getUpstashRedisRestToken: vi.fn().mockReturnValue('test-token'),
 }))
 
 import { createRateLimiter, checkRateLimit, authLimiter, apiLimiter, sdkLimiter } from '@/lib/rate-limit'

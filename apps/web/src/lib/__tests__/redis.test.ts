@@ -13,6 +13,7 @@ vi.mock('@upstash/redis', () => ({
 
 vi.mock('@/lib/env', () => ({
   getRedisUrl: vi.fn().mockReturnValue('https://test.upstash.io'),
+  getUpstashRedisRestToken: vi.fn().mockReturnValue('test-token'),
 }))
 
 describe('Redis client', () => {

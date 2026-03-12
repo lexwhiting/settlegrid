@@ -101,7 +101,7 @@ export default function PayoutsPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" role="table">
+              <table className="w-full text-sm" role="table" aria-label="Payout history">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
