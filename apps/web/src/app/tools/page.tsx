@@ -7,11 +7,33 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export default function MarketplacePage() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (email.trim()) {
+    if (!email.trim()) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), feature: 'marketplace' }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? 'Something went wrong. Please try again.')
+      }
+
       setSubmitted(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -59,23 +81,30 @@ export default function MarketplacePage() {
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
-                <label htmlFor="marketplace-notify-email" className="sr-only">Email address</label>
-                <input
-                  id="marketplace-notify-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="flex-1 h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                />
-                <button
-                  type="submit"
-                  className="h-10 px-5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors shrink-0"
-                >
-                  Notify me
-                </button>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <label htmlFor="marketplace-notify-email" className="sr-only">Email address</label>
+                  <input
+                    id="marketplace-notify-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="flex-1 h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="h-10 px-5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors shrink-0 disabled:opacity-50"
+                  >
+                    {loading ? 'Submitting...' : 'Notify me'}
+                  </button>
+                </div>
+                {error && (
+                  <p className="text-sm text-red-600" role="alert">{error}</p>
+                )}
               </form>
             )}
           </div>

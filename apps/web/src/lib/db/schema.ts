@@ -8,6 +8,7 @@ import {
   timestamp,
   jsonb,
   smallint,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -512,3 +513,17 @@ export const developerReputationRelations = relations(developerReputation, ({ on
     references: [developers.id],
   }),
 }))
+
+// ─── Waitlist Signups ───────────────────────────────────────────────────────
+
+export const waitlistSignups = pgTable(
+  'waitlist_signups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    feature: text('feature').notNull().default('marketplace'),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('waitlist_email_feature_idx').on(table.email, table.feature)]
+)
