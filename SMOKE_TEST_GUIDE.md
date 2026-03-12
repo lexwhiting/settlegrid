@@ -1,6 +1,22 @@
 # SettleGrid — Comprehensive Smoke Test Guide
 
-## Pre-Requisites
+> This guide targets **production** at `https://settlegrid.ai`. All test URLs point to the live `.ai` domain.
+
+## Production Testing
+
+You only need valid test credentials to run these smoke tests against production. No local setup required.
+
+| Field | Value |
+|-------|-------|
+| Email | `lexwhiting@gmail.com` |
+| Password | `You@r3enough!` |
+| Role | Developer (enterprise tier) |
+| Revenue Share | 90% |
+
+---
+
+<details>
+<summary><strong>Local Development Setup</strong> (optional — for running against localhost)</summary>
 
 ### 1. Environment Setup
 ```bash
@@ -37,23 +53,14 @@ SEED_PASSWORD='You@r3enough!' pnpm -F web exec tsx scripts/seed-admin.ts
 pnpm dev --filter web   # → http://localhost:3005
 ```
 
----
-
-## Test Credentials
-
-| Field | Value |
-|-------|-------|
-| Email | `lexwhiting@gmail.com` |
-| Password | `You@r3enough!` |
-| Role | Developer (enterprise tier) |
-| Revenue Share | 90% |
+</details>
 
 ---
 
 ## Phase 1: Authentication & Access Control
 
 ### 1.1 Gate Access
-- [ ] Visit `http://localhost:3005` — gate page or marketing page loads
+- [ ] Visit `https://settlegrid.ai` — gate page or marketing page loads
 - [ ] If gated: enter gate password → marketing page renders
 
 ### 1.2 Developer Registration
@@ -161,7 +168,7 @@ const result = await summarize("Long document text...");
 
 ### 4.4 Validate Key
 ```bash
-curl -s http://localhost:3005/api/sdk/validate-key \
+curl -s https://settlegrid.ai/api/sdk/validate-key \
   -X POST -H "Content-Type: application/json" \
   -d '{"apiKey":"sg_...","toolId":"tool-uuid"}' | jq .
 ```
@@ -170,7 +177,7 @@ curl -s http://localhost:3005/api/sdk/validate-key \
 
 ### 4.5 Meter Usage
 ```bash
-curl -s http://localhost:3005/api/sdk/meter \
+curl -s https://settlegrid.ai/api/sdk/meter \
   -X POST -H "Content-Type: application/json" \
   -d '{"apiKey":"sg_...","toolId":"tool-uuid","method":"summarize"}' | jq .
 ```
@@ -388,32 +395,32 @@ curl -s http://localhost:3005/api/sdk/meter \
 ### 16.1 Developer Auth
 ```bash
 # Login
-TOKEN=$(curl -s http://localhost:3005/api/auth/developer/login \
+TOKEN=$(curl -s https://settlegrid.ai/api/auth/developer/login \
   -X POST -H "Content-Type: application/json" \
   -d '{"email":"lexwhiting@gmail.com","password":"You@r3enough!"}' \
   | jq -r '.data.token')
 
 # Get profile
-curl -s http://localhost:3005/api/auth/developer/me \
+curl -s https://settlegrid.ai/api/auth/developer/me \
   -H "Cookie: sg-token=$TOKEN" | jq .
 ```
 
 ### 16.2 Tool CRUD
 ```bash
 # Create tool
-curl -s http://localhost:3005/api/tools \
+curl -s https://settlegrid.ai/api/tools \
   -X POST -H "Cookie: sg-token=$TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Tool","description":"A test","category":"AI/ML","priceCentsPerCall":1}' | jq .
 
 # List tools
-curl -s http://localhost:3005/api/tools \
+curl -s https://settlegrid.ai/api/tools \
   -H "Cookie: sg-token=$TOKEN" | jq .
 ```
 
 ### 16.3 Health Check
 ```bash
-curl -s http://localhost:3005/api/health | jq .
+curl -s https://settlegrid.ai/api/health | jq .
 # Expected: { "data": { "status": "ok" } }
 ```
 
