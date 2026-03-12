@@ -39,7 +39,7 @@ export async function GET(
     // Check if requester is the tool owner (for detailed stats)
     let isOwner = false
     try {
-      const auth = await requireDeveloper(request)
+      const auth = await requireDeveloper()
       isOwner = auth.id === tool.developerId
     } catch {
       // Not authenticated or not a developer — public view

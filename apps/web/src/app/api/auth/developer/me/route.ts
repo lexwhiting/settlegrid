@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     let auth
     try {
-      auth = await requireDeveloper(request)
+      auth = await requireDeveloper()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')

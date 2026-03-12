@@ -28,7 +28,7 @@ export async function PATCH(
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     let auth
-    try { auth = await requireConsumer(request) } catch (err) {
+    try { auth = await requireConsumer() } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
@@ -90,7 +90,7 @@ export async function DELETE(
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     let auth
-    try { auth = await requireConsumer(request) } catch (err) {
+    try { auth = await requireConsumer() } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 

@@ -19,7 +19,7 @@ function buildEnv() {
     STRIPE_CONNECT_CLIENT_ID: requireEnv('STRIPE_CONNECT_CLIENT_ID'),
     STRIPE_WEBHOOK_SECRET: requireEnv('STRIPE_WEBHOOK_SECRET'),
     RESEND_API_KEY: requireEnv('RESEND_API_KEY'),
-    JWT_SECRET: requireEnv('JWT_SECRET'),
+    CLERK_SECRET_KEY: requireEnv('CLERK_SECRET_KEY'),
     NEXT_PUBLIC_APP_URL: requireEnv('NEXT_PUBLIC_APP_URL'),
   } as const
 }
@@ -58,8 +58,12 @@ export function getResendApiKey(): string {
   return requireEnv('RESEND_API_KEY')
 }
 
-export function getJwtSecret(): string {
-  return requireEnv('JWT_SECRET')
+export function getClerkSecretKey(): string {
+  return requireEnv('CLERK_SECRET_KEY')
+}
+
+export function getClerkWebhookSecret(): string {
+  return requireEnv('CLERK_WEBHOOK_SECRET')
 }
 
 export function getAppUrl(): string {

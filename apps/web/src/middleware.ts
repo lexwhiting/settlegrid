@@ -1,9 +1,9 @@
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getGateSecret, getGatePassword } from '@/lib/env'
 
 /**
  * Constant-time string comparison for Edge runtime (no Node crypto.timingSafeEqual).
- * Both strings must be the same length — caller must pre-check length.
  */
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false
@@ -49,7 +49,7 @@ async function verifyGateAccess(request: NextRequest): Promise<boolean> {
 }
 
 /** Paths that bypass the password gate entirely */
-const publicPatterns = [
+const gatePublicPatterns = [
   '/api/',
   '/_next/',
   '/favicon',
@@ -60,41 +60,62 @@ const publicPatterns = [
   '/docs',
 ]
 
-function isPublicPath(pathname: string): boolean {
-  return publicPatterns.some((pattern) => pathname.startsWith(pattern))
+function isGatePublicPath(pathname: string): boolean {
+  return gatePublicPatterns.some((pattern) => pathname.startsWith(pattern))
 }
 
-export async function middleware(request: NextRequest) {
+/** Routes that do NOT require Clerk authentication */
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/gate',
+  '/login',
+  '/register',
+  '/tools(.*)',
+  '/docs(.*)',
+  '/api/webhooks/(.*)',
+  '/api/cron/(.*)',
+  '/api/sdk/(.*)',
+  '/api/hub/(.*)',
+  '/api/health',
+])
+
+function addSecurityHeaders(response: NextResponse): void {
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: https://img.clerk.com; font-src 'self' data:; connect-src 'self' https: https://*.clerk.accounts.dev; frame-src https://*.clerk.accounts.dev; frame-ancestors 'none'"
+  )
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+}
+
+export default clerkMiddleware(async (clerkAuth, request) => {
   const { pathname } = request.nextUrl
 
-  // Skip gate check for public / API paths
-  if (isPublicPath(pathname)) {
-    return NextResponse.next()
+  // Gate check for non-public paths
+  if (!isGatePublicPath(pathname)) {
+    let gatePassword: string | undefined
+    try {
+      gatePassword = getGatePassword()
+    } catch {
+      gatePassword = undefined
+    }
+    if (gatePassword && !(await verifyGateAccess(request))) {
+      return NextResponse.redirect(new URL('/gate', request.url))
+    }
   }
 
-  // Enforce password gate
-  let gatePassword: string | undefined
-  try {
-    gatePassword = getGatePassword()
-  } catch {
-    gatePassword = undefined
-  }
-  if (gatePassword && !(await verifyGateAccess(request))) {
-    return NextResponse.redirect(new URL('/gate', request.url))
+  // Protect non-public routes with Clerk
+  if (!isPublicRoute(request)) {
+    await clerkAuth.protect()
   }
 
   const response = NextResponse.next()
-  response.headers.set("X-Frame-Options", "DENY")
-  response.headers.set("X-Content-Type-Options", "nosniff")
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-  response.headers.set(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'"
-  )
-  response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+  addSecurityHeaders(response)
   return response
-}
+})
 
 export const config = {
   matcher: ['/((?!_next|_vercel|.*\\..*).*)'],

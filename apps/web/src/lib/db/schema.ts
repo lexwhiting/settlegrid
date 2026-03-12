@@ -19,7 +19,8 @@ export const developers = pgTable('developers', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   name: text('name'),
-  passwordHash: text('password_hash').notNull(),
+  clerkUserId: text('clerk_user_id').unique(),
+  passwordHash: text('password_hash'),
   tier: text('tier').notNull().default('standard'), // 'standard' | 'enterprise'
   revenueSharePct: integer('revenue_share_pct').notNull().default(85), // 85 = developer keeps 85%
   stripeConnectId: text('stripe_connect_id'),
@@ -95,7 +96,8 @@ export const toolsRelations = relations(tools, ({ one, many }) => ({
 export const consumers = pgTable('consumers', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
+  clerkUserId: text('clerk_user_id').unique(),
+  passwordHash: text('password_hash'),
   stripeCustomerId: text('stripe_customer_id'),
   // S5: Auto-Refill default payment method
   defaultPaymentMethodId: text('default_payment_method_id'),

@@ -29,7 +29,7 @@ export async function PATCH(
 
     let auth
     try {
-      auth = await requireConsumer(request)
+      auth = await requireConsumer()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')
@@ -98,7 +98,7 @@ export async function DELETE(
 
     let auth
     try {
-      auth = await requireConsumer(request)
+      auth = await requireConsumer()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')

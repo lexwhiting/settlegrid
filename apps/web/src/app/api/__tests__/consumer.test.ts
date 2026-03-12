@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockCheckRateLimit, mockComparePassword, mockRequireConsumer } = vi.hoisted(() => {
+const { mockDb, mockCheckRateLimit, mockRequireConsumer } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -18,10 +18,13 @@ const { mockDb, mockCheckRateLimit, mockComparePassword, mockRequireConsumer } =
   return {
     mockDb,
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 5, remaining: 4, reset: 0 }),
-    mockComparePassword: vi.fn().mockResolvedValue(true),
     mockRequireConsumer: vi.fn().mockResolvedValue({ id: 'con-123', email: 'consumer@example.com' }),
   }
 })
+
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: vi.fn().mockResolvedValue({ userId: 'clerk_consumer_1' }),
+}))
 
 vi.mock('@/lib/db', () => ({
   db: mockDb,
@@ -73,14 +76,6 @@ vi.mock('@/lib/db/schema', () => ({
   },
 }))
 
-vi.mock('@/lib/auth', () => ({
-  hashPassword: vi.fn().mockResolvedValue('$2a$12$hashed'),
-  comparePassword: mockComparePassword,
-  createToken: vi.fn().mockResolvedValue('mock-consumer-token'),
-  setSessionCookie: vi.fn().mockImplementation((response: unknown) => response),
-  clearSessionCookie: vi.fn().mockImplementation((response: unknown) => response),
-}))
-
 vi.mock('@/lib/middleware/auth', () => ({
   requireConsumer: mockRequireConsumer,
 }))
@@ -106,10 +101,7 @@ vi.mock('drizzle-orm', () => ({
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
 }))
 
-import { POST as consumerRegister } from '@/app/api/auth/consumer/register/route'
-import { POST as consumerLogin } from '@/app/api/auth/consumer/login/route'
 import { GET as consumerMe } from '@/app/api/auth/consumer/me/route'
-import { POST as consumerLogout } from '@/app/api/auth/consumer/logout/route'
 import { GET as listKeys, POST as createKey } from '@/app/api/consumer/keys/route'
 import { DELETE as revokeKey } from '@/app/api/consumer/keys/[id]/route'
 import { GET as getBalance } from '@/app/api/consumer/balance/route'
@@ -123,101 +115,6 @@ function makeRequest(url: string, method: string = 'GET', body?: unknown): NextR
   if (body) init.body = JSON.stringify(body)
   return new NextRequest(`http://localhost:3005${url}`, init)
 }
-
-describe('Consumer Register (POST /api/auth/consumer/register)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockDb.select.mockReturnThis()
-    mockDb.from.mockReturnThis()
-    mockDb.where.mockReturnThis()
-    mockDb.insert.mockReturnThis()
-    mockDb.values.mockReturnThis()
-    mockDb.limit.mockResolvedValue([])
-    mockDb.returning.mockResolvedValue([
-      { id: 'con-new', email: 'new@example.com', createdAt: new Date('2026-01-01') },
-    ])
-    mockCheckRateLimit.mockResolvedValue({ success: true, limit: 5, remaining: 4, reset: 0 })
-  })
-
-  it('registers a new consumer', async () => {
-    const request = makeRequest('/api/auth/consumer/register', 'POST', {
-      email: 'new@example.com',
-      password: 'securepass1',
-    })
-
-    const response = await consumerRegister(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(201)
-    expect(data.consumer).toBeDefined()
-    expect(data.token).toBe('mock-consumer-token')
-  })
-
-  it('returns 409 for duplicate email', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'existing' }])
-
-    const request = makeRequest('/api/auth/consumer/register', 'POST', {
-      email: 'existing@example.com',
-      password: 'securepass1',
-    })
-
-    const response = await consumerRegister(request)
-    expect(response.status).toBe(409)
-  })
-
-  it('returns 422 for short password', async () => {
-    const request = makeRequest('/api/auth/consumer/register', 'POST', {
-      email: 'new@example.com',
-      password: 'short',
-    })
-
-    const response = await consumerRegister(request)
-    expect(response.status).toBe(422)
-  })
-})
-
-describe('Consumer Login (POST /api/auth/consumer/login)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockDb.select.mockReturnThis()
-    mockDb.from.mockReturnThis()
-    mockDb.where.mockReturnThis()
-    mockCheckRateLimit.mockResolvedValue({ success: true, limit: 5, remaining: 4, reset: 0 })
-  })
-
-  it('logs in with valid credentials', async () => {
-    mockDb.limit.mockResolvedValueOnce([
-      { id: 'con-123', email: 'con@example.com', passwordHash: '$2a$12$hash', createdAt: new Date() },
-    ])
-
-    const request = makeRequest('/api/auth/consumer/login', 'POST', {
-      email: 'con@example.com',
-      password: 'correctpass1',
-    })
-
-    const response = await consumerLogin(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.consumer).toBeDefined()
-    expect(data.token).toBeDefined()
-  })
-
-  it('returns 401 for wrong password', async () => {
-    mockDb.limit.mockResolvedValueOnce([
-      { id: 'con-123', email: 'con@example.com', passwordHash: '$2a$12$hash', createdAt: new Date() },
-    ])
-    mockComparePassword.mockResolvedValueOnce(false)
-
-    const request = makeRequest('/api/auth/consumer/login', 'POST', {
-      email: 'con@example.com',
-      password: 'wrongpassword',
-    })
-
-    const response = await consumerLogin(request)
-    expect(response.status).toBe(401)
-  })
-})
 
 describe('Consumer Me (GET /api/auth/consumer/me)', () => {
   beforeEach(() => {
@@ -246,17 +143,6 @@ describe('Consumer Me (GET /api/auth/consumer/me)', () => {
     const request = makeRequest('/api/auth/consumer/me')
     const response = await consumerMe(request)
     expect(response.status).toBe(401)
-  })
-})
-
-describe('Consumer Logout (POST /api/auth/consumer/logout)', () => {
-  it('returns success on logout', async () => {
-    const request = makeRequest('/api/auth/consumer/logout', 'POST')
-    const response = await consumerLogout(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.message).toContain('Logged out')
   })
 })
 

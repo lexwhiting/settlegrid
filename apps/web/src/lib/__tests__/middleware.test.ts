@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 const mockGetGateSecret = vi.fn<() => string>(() => { throw new Error('not set') })
 const mockGetGatePassword = vi.fn<() => string>(() => { throw new Error('not set') })
@@ -9,7 +9,30 @@ vi.mock('@/lib/env', () => ({
   getGatePassword: () => mockGetGatePassword(),
 }))
 
-import { middleware } from '@/middleware'
+// Mock clerkMiddleware to pass through — it wraps our handler and calls it with (clerkAuth, request)
+vi.mock('@clerk/nextjs/server', () => ({
+  clerkMiddleware: (handler: (auth: { protect: () => Promise<void> }, request: NextRequest) => Promise<NextResponse>) => {
+    return async (request: NextRequest) => {
+      const mockClerkAuth = { protect: vi.fn().mockResolvedValue(undefined) }
+      return handler(mockClerkAuth, request)
+    }
+  },
+  createRouteMatcher: (patterns: string[]) => {
+    return (request: NextRequest) => {
+      const { pathname } = request.nextUrl
+      return patterns.some((pattern) => {
+        // Simple pattern matching: convert (.*) to regex
+        const regex = new RegExp('^' + pattern.replace(/\(\.?\*\)/g, '.*') + '$')
+        return regex.test(pathname)
+      })
+    }
+  },
+}))
+
+import middlewareDefault from '@/middleware'
+
+// clerkMiddleware returns a function with (req, event) signature but our mock only needs req
+const middleware = middlewareDefault as unknown as (request: NextRequest) => Promise<NextResponse>
 
 function createRequest(path: string, cookies?: Record<string, string>): NextRequest {
   const req = new NextRequest(`http://localhost:3005${path}`, {
@@ -68,20 +91,16 @@ describe('Middleware security headers', () => {
     expect(pp).toContain('geolocation=()')
   })
 
-  it('skips gate for public paths like /api/health', async () => {
+  it('adds security headers for /api/health (public route)', async () => {
     const response = await middleware(createRequest('/api/health'))
-    // Public paths get NextResponse.next() without security headers
     expect(response.status).toBe(200)
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY')
   })
 
-  it('skips gate for /api/sdk/ paths', async () => {
+  it('adds security headers for /api/sdk/ paths', async () => {
     const response = await middleware(createRequest('/api/sdk/validate-key'))
     expect(response.status).toBe(200)
-  })
-
-  it('skips gate for /_next/ paths', async () => {
-    const response = await middleware(createRequest('/_next/static/chunk.js'))
-    expect(response.status).toBe(200)
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY')
   })
 })
 
@@ -92,31 +111,31 @@ describe('Middleware gate bypass edge cases', () => {
     mockGetGatePassword.mockImplementation(() => { throw new Error('not set') })
   })
 
-  it('skips gate for /api/billing/webhook', async () => {
+  it('allows access when no gate password is configured for /api/billing/webhook', async () => {
     const response = await middleware(createRequest('/api/billing/webhook'))
     expect(response.status).toBe(200)
   })
 
-  it('skips gate for /api/gate', async () => {
+  it('allows access when no gate password is configured for /api/gate', async () => {
     const response = await middleware(createRequest('/api/gate'))
     expect(response.status).toBe(200)
   })
 
-  it('skips gate for /gate page', async () => {
+  it('allows access for /gate page', async () => {
     const response = await middleware(createRequest('/gate'))
     expect(response.status).toBe(200)
   })
 
-  it('skips gate for /favicon paths', async () => {
+  it('allows access for /favicon paths', async () => {
     const response = await middleware(createRequest('/favicon.ico'))
     expect(response.status).toBe(200)
   })
 
-  it('does not skip gate for /api/tools (non-public path)', async () => {
+  it('does not skip gate for /dashboard (non-public path)', async () => {
     mockGetGatePassword.mockReturnValue('secret123')
     mockGetGateSecret.mockReturnValue('gate-secret-key-1234567890abcdef')
 
-    const response = await middleware(createRequest('/api/tools'))
+    const response = await middleware(createRequest('/dashboard'))
     // Should redirect to /gate since no valid cookie
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toContain('/gate')

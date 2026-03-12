@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     let auth
-    try { auth = await requireDeveloper(request) } catch (err) {
+    try { auth = await requireDeveloper() } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     let auth
-    try { auth = await requireDeveloper(request) } catch (err) {
+    try { auth = await requireDeveloper() } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 

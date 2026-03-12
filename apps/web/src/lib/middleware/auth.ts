@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { eq } from 'drizzle-orm'
 import { createHash } from 'crypto'
-import { verifyToken } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { developers, consumers, apiKeys } from '@/lib/db/schema'
 
@@ -22,78 +22,54 @@ export interface AuthenticatedApiKey {
 }
 
 /**
- * Extracts and verifies the JWT from the sg-token cookie.
- * Confirms the developer record exists in the database.
- * Throws an Error with a descriptive message on failure.
+ * Authenticates via Clerk session and confirms a developer record exists.
+ * The request parameter is kept for signature compatibility but Clerk reads
+ * the session from the request context automatically.
  */
 export async function requireDeveloper(
-  request: NextRequest
+  _request?: NextRequest
 ): Promise<AuthenticatedDeveloper> {
-  const token = request.cookies.get('sg-token')?.value
+  const { userId: clerkUserId } = await auth()
 
-  if (!token) {
-    throw new Error('Authentication required. No session token found.')
-  }
-
-  let payload: Awaited<ReturnType<typeof verifyToken>>
-
-  try {
-    payload = await verifyToken(token)
-  } catch {
-    throw new Error('Invalid or expired session token.')
-  }
-
-  if (payload.role !== 'developer') {
-    throw new Error('Access denied. Developer account required.')
+  if (!clerkUserId) {
+    throw new Error('Authentication required. Please sign in.')
   }
 
   const [developer] = await db
     .select({ id: developers.id, email: developers.email })
     .from(developers)
-    .where(eq(developers.id, payload.id))
+    .where(eq(developers.clerkUserId, clerkUserId))
     .limit(1)
 
   if (!developer) {
-    throw new Error('Developer account not found.')
+    throw new Error('Developer account not found. Please complete registration.')
   }
 
   return { id: developer.id, email: developer.email }
 }
 
 /**
- * Extracts and verifies the JWT from the sg-token cookie.
- * Confirms the consumer record exists in the database.
- * Throws an Error with a descriptive message on failure.
+ * Authenticates via Clerk session and confirms a consumer record exists.
+ * The request parameter is kept for signature compatibility but Clerk reads
+ * the session from the request context automatically.
  */
 export async function requireConsumer(
-  request: NextRequest
+  _request?: NextRequest
 ): Promise<AuthenticatedConsumer> {
-  const token = request.cookies.get('sg-token')?.value
+  const { userId: clerkUserId } = await auth()
 
-  if (!token) {
-    throw new Error('Authentication required. No session token found.')
-  }
-
-  let payload: Awaited<ReturnType<typeof verifyToken>>
-
-  try {
-    payload = await verifyToken(token)
-  } catch {
-    throw new Error('Invalid or expired session token.')
-  }
-
-  if (payload.role !== 'consumer') {
-    throw new Error('Access denied. Consumer account required.')
+  if (!clerkUserId) {
+    throw new Error('Authentication required. Please sign in.')
   }
 
   const [consumer] = await db
     .select({ id: consumers.id, email: consumers.email })
     .from(consumers)
-    .where(eq(consumers.id, payload.id))
+    .where(eq(consumers.clerkUserId, clerkUserId))
     .limit(1)
 
   if (!consumer) {
-    throw new Error('Consumer account not found.')
+    throw new Error('Consumer account not found. Please complete registration.')
   }
 
   return { id: consumer.id, email: consumer.email }
@@ -104,6 +80,8 @@ export async function requireConsumer(
  * The raw key is SHA-256 hashed and compared to stored keyHash values.
  * Only active keys are accepted. Updates lastUsedAt on successful auth.
  * Throws an Error with a descriptive message on failure.
+ *
+ * NOTE: This function is UNCHANGED from pre-Clerk — API key auth is independent.
  */
 export async function requireApiKey(
   request: NextRequest

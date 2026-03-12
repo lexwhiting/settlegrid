@@ -15,7 +15,7 @@ describe('env module', () => {
     delete process.env.STRIPE_CONNECT_CLIENT_ID
     delete process.env.STRIPE_WEBHOOK_SECRET
     delete process.env.RESEND_API_KEY
-    delete process.env.JWT_SECRET
+    delete process.env.CLERK_SECRET_KEY
     delete process.env.NEXT_PUBLIC_APP_URL
   })
 
@@ -64,10 +64,10 @@ describe('env module', () => {
     expect(getResendApiKey()).toBe('re_test_123')
   })
 
-  it('getJwtSecret returns value when set', async () => {
-    process.env.JWT_SECRET = 'my-super-secret-jwt-key-32chars'
-    const { getJwtSecret } = await import('@/lib/env')
-    expect(getJwtSecret()).toBe('my-super-secret-jwt-key-32chars')
+  it('getClerkSecretKey returns value when set', async () => {
+    process.env.CLERK_SECRET_KEY = 'sk_test_clerk_secret_key'
+    const { getClerkSecretKey } = await import('@/lib/env')
+    expect(getClerkSecretKey()).toBe('sk_test_clerk_secret_key')
   })
 
   it('getAppUrl returns value when set', async () => {
@@ -83,7 +83,7 @@ describe('env module', () => {
     process.env.STRIPE_CONNECT_CLIENT_ID = 'ca_test'
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
     process.env.RESEND_API_KEY = 're_test'
-    process.env.JWT_SECRET = 'jwt_test'
+    process.env.CLERK_SECRET_KEY = 'sk_test_clerk'
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3005'
 
     const { getEnv } = await import('@/lib/env')
@@ -93,6 +93,6 @@ describe('env module', () => {
     // Same reference means it was cached
     expect(env1).toBe(env2)
     expect(env1.DATABASE_URL).toBe('postgres://localhost/test')
-    expect(env1.JWT_SECRET).toBe('jwt_test')
+    expect(env1.CLERK_SECRET_KEY).toBe('sk_test_clerk')
   })
 })
