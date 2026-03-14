@@ -40,14 +40,14 @@ export const metadata: Metadata = {
       'Monetize your AI tools with per-call billing, automated payouts, and a unified API gateway.',
     type: 'website',
     siteName: 'SettleGrid',
-    images: [{ url: '/brand/og-image.svg', width: 1200, height: 630, alt: 'SettleGrid' }],
+    images: [{ url: '/api/og', width: 1200, height: 630, alt: 'SettleGrid' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'SettleGrid — The Settlement Layer for the AI Economy',
     description:
       'Monetize your AI tools with per-call billing, automated payouts, and a unified API gateway.',
-    images: ['/brand/og-image.svg'],
+    images: ['/api/og'],
   },
 }
 

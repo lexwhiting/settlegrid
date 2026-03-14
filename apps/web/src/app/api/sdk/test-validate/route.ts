@@ -6,8 +6,10 @@ import { apiKeys, tools } from '@/lib/db/schema'
 import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
 export const maxDuration = 60
+export { corsOptions as OPTIONS }
 
 
 const testValidateSchema = z.object({
@@ -16,7 +18,7 @@ const testValidateSchema = z.object({
 })
 
 /** POST /api/sdk/test-validate — validate test API keys (sg_test_ prefix) */
-export async function POST(request: NextRequest) {
+export const POST = withCors(async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
     const rateLimit = await checkRateLimit(sdkLimiter, `sdk-test-validate:${ip}`)
@@ -81,4 +83,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse(error)
   }
-}
+})

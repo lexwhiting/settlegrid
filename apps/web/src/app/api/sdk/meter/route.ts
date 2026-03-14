@@ -8,8 +8,10 @@ import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-lim
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
 import { detectFraud } from '@/lib/fraud'
 import { logger } from '@/lib/logger'
+import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
 export const maxDuration = 60
+export { corsOptions as OPTIONS }
 
 
 const meterSchema = z.object({
@@ -24,7 +26,7 @@ const meterSchema = z.object({
   referralCode: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withCors(async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
 
@@ -313,4 +315,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse(error)
   }
-}
+})

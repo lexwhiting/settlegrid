@@ -52,10 +52,20 @@ describe('env module', () => {
     expect(getStripeConnectClientId()).toBe('ca_test_123')
   })
 
+  it('getStripeConnectClientId returns undefined when not set', async () => {
+    const { getStripeConnectClientId } = await import('@/lib/env')
+    expect(getStripeConnectClientId()).toBeUndefined()
+  })
+
   it('getStripeWebhookSecret returns value when set', async () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_123'
     const { getStripeWebhookSecret } = await import('@/lib/env')
     expect(getStripeWebhookSecret()).toBe('whsec_test_123')
+  })
+
+  it('getStripeWebhookSecret returns undefined when not set', async () => {
+    const { getStripeWebhookSecret } = await import('@/lib/env')
+    expect(getStripeWebhookSecret()).toBeUndefined()
   })
 
   it('getResendApiKey returns value when set', async () => {

@@ -7,8 +7,10 @@ import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
 import { isIpInAllowlist } from '@/lib/ip-validation'
+import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
 export const maxDuration = 60
+export { corsOptions as OPTIONS }
 
 
 const validateKeySchema = z.object({
@@ -16,7 +18,7 @@ const validateKeySchema = z.object({
   toolSlug: z.string().min(1, 'Tool slug is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withCors(async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
 
@@ -140,4 +142,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse(error)
   }
-}
+})

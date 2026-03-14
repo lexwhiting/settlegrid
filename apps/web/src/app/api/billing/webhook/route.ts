@@ -24,6 +24,18 @@ export async function POST(request: NextRequest) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
+    const webhookSecret = getStripeWebhookSecret()
+    if (!webhookSecret) {
+      logger.error('stripe.webhook.not_configured', {
+        message: 'STRIPE_WEBHOOK_SECRET is not set. Configure it in your environment to enable billing webhooks.',
+      })
+      return errorResponse(
+        'Billing webhooks are not configured. Set STRIPE_WEBHOOK_SECRET in your environment.',
+        503,
+        'NOT_CONFIGURED'
+      )
+    }
+
     const body = await request.text()
     const signature = request.headers.get('stripe-signature')
 
@@ -35,7 +47,7 @@ export async function POST(request: NextRequest) {
     let event: Stripe.Event
 
     try {
-      event = stripe.webhooks.constructEvent(body, signature, getStripeWebhookSecret())
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid signature'
       logger.error('stripe.webhook.signature_failed', { reason: message })

@@ -44,12 +44,12 @@ export function getStripeSecretKey(): string {
   return requireEnv('STRIPE_SECRET_KEY')
 }
 
-export function getStripeConnectClientId(): string {
-  return requireEnv('STRIPE_CONNECT_CLIENT_ID')
+export function getStripeConnectClientId(): string | undefined {
+  return process.env.STRIPE_CONNECT_CLIENT_ID
 }
 
-export function getStripeWebhookSecret(): string {
-  return requireEnv('STRIPE_WEBHOOK_SECRET')
+export function getStripeWebhookSecret(): string | undefined {
+  return process.env.STRIPE_WEBHOOK_SECRET
 }
 
 export function getResendApiKey(): string {
