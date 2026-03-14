@@ -6,7 +6,8 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 30
+export const maxDuration = 60
+
 
 /** GET /api/dashboard/developer/stats/funnel — conversion funnel analytics */
 export async function GET(request: NextRequest) {

@@ -7,7 +7,8 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

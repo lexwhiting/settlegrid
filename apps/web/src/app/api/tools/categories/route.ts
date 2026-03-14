@@ -5,7 +5,8 @@ import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const CATEGORY_DEFINITIONS = [
   { slug: 'data', name: 'Data & APIs' },

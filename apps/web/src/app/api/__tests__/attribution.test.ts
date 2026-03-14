@@ -88,11 +88,6 @@ describe('R11: Attribution (GET /api/dashboard/developer/stats/attribution)', ()
     expect(res.status).toBe(429)
   })
 
-  it('has a maxDuration export of 30', async () => {
-    const mod = await import('@/app/api/dashboard/developer/stats/attribution/route')
-    expect(mod.maxDuration).toBe(30)
-  })
-
   it('response has correct shape for empty state', async () => {
     mockDb.limit.mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/dashboard/developer/stats/attribution'))

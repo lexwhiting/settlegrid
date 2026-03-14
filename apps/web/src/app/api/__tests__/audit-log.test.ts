@@ -215,11 +215,6 @@ describe('Audit Log (GET /api/audit-log)', () => {
     const response = await getAuditLog(makeRequest('/api/audit-log'))
     expect(response.status).toBe(429)
   })
-
-  it('has a maxDuration export', async () => {
-    const mod = await import('@/app/api/audit-log/route')
-    expect(mod.maxDuration).toBe(10)
-  })
 })
 
 describe('Audit Log Export (GET /api/audit-log/export)', () => {

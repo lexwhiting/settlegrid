@@ -9,7 +9,8 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 30
+export const maxDuration = 60
+
 
 const PRESET_AMOUNTS = [500, 2000, 5000]
 const MIN_CUSTOM_AMOUNT = 100

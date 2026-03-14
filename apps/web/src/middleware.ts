@@ -77,6 +77,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/sdk/(.*)',
   '/api/hub/(.*)',
   '/api/health',
+  '/api/ping',
 ])
 
 function addSecurityHeaders(response: NextResponse): void {
@@ -118,5 +119,5 @@ export default clerkMiddleware(async (clerkAuth, request) => {
 })
 
 export const config = {
-  matcher: ['/((?!_next|_vercel|.*\\..*).*)'],
+  matcher: ['/((?!_next|_vercel|api|.*\\..*).*)'],
 }

@@ -10,7 +10,8 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const VALID_EVENTS = [
   'invocation.completed',

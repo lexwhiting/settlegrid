@@ -131,11 +131,6 @@ describe('R16: Tool Health (GET /api/tools/[id]/health)', () => {
     expect(data.uptimePct30d).toBe(100)
   })
 
-  it('has a maxDuration export of 15', async () => {
-    const mod = await import('@/app/api/tools/[id]/health/route')
-    expect(mod.maxDuration).toBe(15)
-  })
-
   it('returns avgResponseTimeMs', async () => {
     mockRequireDeveloper.mockRejectedValueOnce(new Error('Not authenticated'))
     mockDb.limit

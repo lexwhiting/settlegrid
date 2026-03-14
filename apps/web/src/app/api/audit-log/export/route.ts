@@ -6,7 +6,8 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 30
+export const maxDuration = 60
+
 
 /** GET /api/audit-log/export — CSV export of audit log entries */
 export async function GET(request: NextRequest) {

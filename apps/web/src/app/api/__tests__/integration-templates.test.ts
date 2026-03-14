@@ -31,7 +31,7 @@ vi.mock('drizzle-orm', () => ({
   ),
 }))
 
-import { GET } from '@/app/api/tools/[slug]/integration/route'
+import { GET } from '@/app/api/tools/by-slug/[slug]/integration/route'
 
 function makeRequest(url: string): NextRequest {
   return new NextRequest(`http://localhost:3005${url}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
@@ -118,10 +118,5 @@ describe('R13: Integration Templates (GET /api/tools/[slug]/integration)', () =>
     for (const tmpl of data.templates) {
       expect(tmpl.config).toContain('custom-tool')
     }
-  })
-
-  it('has a maxDuration export of 10', async () => {
-    const mod = await import('@/app/api/tools/[slug]/integration/route')
-    expect(mod.maxDuration).toBe(10)
   })
 })

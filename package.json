@@ -1,7 +1,11 @@
 {
   "name": "settlegrid",
   "private": true,
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",

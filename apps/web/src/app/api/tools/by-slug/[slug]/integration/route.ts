@@ -5,7 +5,8 @@ import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 10
+export const maxDuration = 60
+
 
 interface IntegrationTemplate {
   client: string

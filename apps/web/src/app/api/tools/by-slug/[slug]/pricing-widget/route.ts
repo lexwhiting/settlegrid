@@ -5,7 +5,8 @@ import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 10
+export const maxDuration = 60
+
 
 /** GET /api/tools/[slug]/pricing-widget — public embeddable pricing widget */
 export async function GET(

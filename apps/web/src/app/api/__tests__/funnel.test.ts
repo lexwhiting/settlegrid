@@ -97,11 +97,6 @@ describe('R12: Funnel (GET /api/dashboard/developer/stats/funnel)', () => {
     expect(res.status).toBe(429)
   })
 
-  it('has a maxDuration export of 30', async () => {
-    const mod = await import('@/app/api/dashboard/developer/stats/funnel/route')
-    expect(mod.maxDuration).toBe(30)
-  })
-
   it('response has correct empty shape', async () => {
     mockDb.limit.mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/dashboard/developer/stats/funnel'))

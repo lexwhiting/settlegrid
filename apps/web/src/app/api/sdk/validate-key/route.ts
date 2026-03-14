@@ -8,7 +8,8 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
 import { isIpInAllowlist } from '@/lib/ip-validation'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const validateKeySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),

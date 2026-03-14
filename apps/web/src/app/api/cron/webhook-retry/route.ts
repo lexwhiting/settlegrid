@@ -10,6 +10,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
+
 /**
  * Vercel Cron handler: retries failed webhook deliveries with exponential backoff.
  * Picks up deliveries WHERE status='failed' AND attempts < maxAttempts AND nextRetryAt <= NOW().

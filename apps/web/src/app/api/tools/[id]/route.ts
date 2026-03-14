@@ -9,7 +9,8 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SEMVER_RE = /^\d+\.\d+\.\d+$/

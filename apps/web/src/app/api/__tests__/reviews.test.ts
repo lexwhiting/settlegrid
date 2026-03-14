@@ -68,7 +68,7 @@ vi.mock('drizzle-orm', () => ({
   ),
 }))
 
-import { GET, POST } from '@/app/api/tools/[slug]/reviews/route'
+import { GET, POST } from '@/app/api/tools/by-slug/[slug]/reviews/route'
 
 function makeRequest(url: string, method: string = 'GET', body?: unknown): NextRequest {
   const init: { method: string; headers: Record<string, string>; body?: string } = {

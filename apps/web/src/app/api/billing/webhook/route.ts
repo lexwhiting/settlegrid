@@ -8,7 +8,8 @@ import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 30
+export const maxDuration = 60
+
 
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })

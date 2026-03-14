@@ -5,11 +5,12 @@ import { getGatePassword, getGateSecret, getGateAuthTimeoutHours, isProduction }
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
+export const maxDuration = 60
+
 const gateSchema = z.object({
   password: z.string().min(1).max(256),
 })
 
-export const maxDuration = 15
 
 export async function POST(request: NextRequest) {
   try {

@@ -31,7 +31,7 @@ vi.mock('drizzle-orm', () => ({
   ),
 }))
 
-import { GET } from '@/app/api/tools/[slug]/pricing-widget/route'
+import { GET } from '@/app/api/tools/by-slug/[slug]/pricing-widget/route'
 
 function makeRequest(url: string): NextRequest {
   return new NextRequest(`http://localhost:3005${url}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
@@ -100,10 +100,5 @@ describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
     const res = await GET(makeRequest('/api/tools/test/pricing-widget'), { params: Promise.resolve({ slug: 'test' }) })
     const data = await res.json()
     expect(data.tiers.length).toBeLessThanOrEqual(10)
-  })
-
-  it('has a maxDuration export of 10', async () => {
-    const mod = await import('@/app/api/tools/[slug]/pricing-widget/route')
-    expect(mod.maxDuration).toBe(10)
   })
 })

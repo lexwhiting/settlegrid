@@ -8,7 +8,8 @@ import { successResponse, errorResponse, internalErrorResponse, parseBody } from
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const ALLOWED_EVENT_TYPES = [
   'signup',

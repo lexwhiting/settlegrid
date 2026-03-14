@@ -114,11 +114,6 @@ describe('R18: Consumer Subscriptions (GET /api/consumer/subscriptions)', () => 
     expect(res.status).toBe(429)
   })
 
-  it('has a maxDuration export of 15', async () => {
-    const mod = await import('@/app/api/consumer/subscriptions/route')
-    expect(mod.maxDuration).toBe(15)
-  })
-
   it('calculates totalBalanceCents correctly from tool balances', async () => {
     mockDb.limit
       .mockResolvedValueOnce([

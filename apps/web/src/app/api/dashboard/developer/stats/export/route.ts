@@ -8,7 +8,8 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { csvEscape } from '@/lib/csv'
 import { getOrCreateRequestId } from '@/lib/request-id'
 
-export const maxDuration = 30
+export const maxDuration = 60
+
 
 /** GET /api/dashboard/developer/stats/export — CSV export of invocation data */
 export async function GET(request: NextRequest) {

@@ -7,7 +7,8 @@ import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const testValidateSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),

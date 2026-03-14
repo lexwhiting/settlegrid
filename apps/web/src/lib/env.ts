@@ -16,8 +16,6 @@ function buildEnv() {
     DATABASE_URL: requireEnv('DATABASE_URL'),
     REDIS_URL: requireEnv('REDIS_URL'),
     STRIPE_SECRET_KEY: requireEnv('STRIPE_SECRET_KEY'),
-    STRIPE_CONNECT_CLIENT_ID: requireEnv('STRIPE_CONNECT_CLIENT_ID'),
-    STRIPE_WEBHOOK_SECRET: requireEnv('STRIPE_WEBHOOK_SECRET'),
     RESEND_API_KEY: requireEnv('RESEND_API_KEY'),
     CLERK_SECRET_KEY: requireEnv('CLERK_SECRET_KEY'),
     NEXT_PUBLIC_APP_URL: requireEnv('NEXT_PUBLIC_APP_URL'),
@@ -85,7 +83,7 @@ export function getHealthRedisUrl(): string | undefined {
 }
 
 export function getHealthRedisToken(): string {
-  return process.env.REDIS_TOKEN ?? ''
+  return process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.REDIS_TOKEN ?? ''
 }
 
 // Gate auth timeout — optional, defaults to 24 hours

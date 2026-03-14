@@ -6,7 +6,8 @@ import { tools, developers, consumerToolBalances, invocations } from '@/lib/db/s
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const meterWithMetadataSchema = z.object({
   toolSlug: z.string().min(1, 'Tool slug is required'),

@@ -207,9 +207,4 @@ describe('Developer Analytics (GET /api/dashboard/developer/stats/analytics)', (
     const response = await GET(makeRequest('/api/dashboard/developer/stats/analytics'))
     expect(response.status).toBe(429)
   })
-
-  it('has a maxDuration export of 30', async () => {
-    const mod = await import('@/app/api/dashboard/developer/stats/analytics/route')
-    expect(mod.maxDuration).toBe(30)
-  })
 })

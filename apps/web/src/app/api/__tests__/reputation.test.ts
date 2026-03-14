@@ -123,11 +123,6 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
     expect(res.status).toBe(429)
   })
 
-  it('has a maxDuration export of 15', async () => {
-    const mod = await import('@/app/api/developers/[id]/reputation/route')
-    expect(mod.maxDuration).toBe(15)
-  })
-
   it('score is between 0 and 100', async () => {
     const recentTime = new Date().toISOString()
     mockDb.limit

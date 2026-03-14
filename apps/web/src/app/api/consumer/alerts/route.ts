@@ -7,7 +7,8 @@ import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 10
+export const maxDuration = 60
+
 
 const createAlertSchema = z.object({
   toolId: z.string().uuid('Invalid tool ID'),

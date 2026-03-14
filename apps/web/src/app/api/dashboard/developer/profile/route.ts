@@ -7,7 +7,8 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const updateProfileSchema = z.object({
   publicProfile: z.boolean().optional(),

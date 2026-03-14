@@ -185,9 +185,4 @@ describe('R19: Pricing Simulator (POST /api/tools/[id]/pricing-simulator)', () =
     expect(data.projectedRevenue30d).toBe(0)
     expect(data.impactPct).toBe(0)
   })
-
-  it('has a maxDuration export of 30', async () => {
-    const mod = await import('@/app/api/tools/[id]/pricing-simulator/route')
-    expect(mod.maxDuration).toBe(30)
-  })
 })

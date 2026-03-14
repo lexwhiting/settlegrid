@@ -10,6 +10,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
+
 const COOLDOWN_MS = 60 * 60 * 1000 // 1 hour cooldown
 
 /**

@@ -5,7 +5,8 @@ import { developers, consumers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getClerkWebhookSecret } from '@/lib/env'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 interface ClerkWebhookEvent {
   type: string

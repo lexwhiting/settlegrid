@@ -9,7 +9,8 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { syncBudgetToRedis } from '@/lib/metering'
 import { writeAuditLog } from '@/lib/audit'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const updateBudgetSchema = z.object({
   toolId: z.string().uuid('Invalid tool ID'),

@@ -5,7 +5,8 @@ import { waitlistSignups } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
 
-export const maxDuration = 10
+export const maxDuration = 60
+
 
 const waitlistSchema = z.object({
   email: z.string().email('Invalid email address').max(320),

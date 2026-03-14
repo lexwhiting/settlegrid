@@ -9,7 +9,8 @@ import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriod
 import { detectFraud } from '@/lib/fraud'
 import { logger } from '@/lib/logger'
 
-export const maxDuration = 15
+export const maxDuration = 60
+
 
 const meterSchema = z.object({
   toolSlug: z.string().min(1, 'Tool slug is required'),
