@@ -82,7 +82,7 @@ describe('postLedgerEntry', () => {
 
   it('throws on missing debit account', async () => {
     // Mock transaction to execute the callback
-    mockTransaction.mockImplementation(async (cb: Function) => {
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
@@ -110,7 +110,7 @@ describe('postLedgerEntry', () => {
 
   it('throws on missing credit account', async () => {
     let callCount = 0
-    mockTransaction.mockImplementation(async (cb: Function) => {
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
@@ -143,11 +143,11 @@ describe('postLedgerEntry', () => {
   })
 
   it('creates balanced entries and updates accounts in transaction', async () => {
-    const insertedEntries: any[] = []
-    const updatedAccounts: any[] = []
+    const insertedEntries: Record<string, unknown>[] = []
+    const updatedAccounts: boolean[] = []
     let selectCallCount = 0
 
-    mockTransaction.mockImplementation(async (cb: Function) => {
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
@@ -205,7 +205,7 @@ describe('postLedgerEntry', () => {
   it('throws on optimistic lock failure (debit)', async () => {
     let selectCallCount = 0
 
-    mockTransaction.mockImplementation(async (cb: Function) => {
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
@@ -248,10 +248,10 @@ describe('postLedgerEntry', () => {
   })
 
   it('stores category and description correctly', async () => {
-    const insertedEntries: any[] = []
+    const insertedEntries: Record<string, unknown>[] = []
     let selectCallCount = 0
 
-    mockTransaction.mockImplementation(async (cb: Function) => {
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
@@ -299,10 +299,10 @@ describe('postLedgerEntry', () => {
   })
 
   it('uses USD as default currency', async () => {
-    const insertedEntries: any[] = []
+    const insertedEntries: Record<string, unknown>[] = []
     let selectCallCount = 0
 
-    mockTransaction.mockImplementation(async (cb: Function) => {
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({

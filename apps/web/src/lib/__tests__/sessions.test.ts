@@ -40,7 +40,7 @@ const mockRedis = {
 
 vi.mock('@/lib/redis', () => ({
   getRedis: () => mockRedis,
-  tryRedis: async (fn: Function) => {
+  tryRedis: async (fn: () => Promise<unknown>) => {
     try { return await fn() } catch { return null }
   },
 }))

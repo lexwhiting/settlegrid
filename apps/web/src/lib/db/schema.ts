@@ -651,6 +651,12 @@ export const waitlistSignups = pgTable(
 )
 
 // ─── Settlement Layer: Accounts & Ledger ────────────────────────────────────
+// NOTE: ledgerEntries.accountId and counterpartyAccountId intentionally lack FK
+// references to accounts.id. This avoids row-level lock contention on the accounts
+// table during high-throughput ledger writes. Referential integrity is enforced in
+// application code (postLedgerEntry validates account existence before inserting).
+// Similarly, workflowSessions.parentSessionId omits a self-referential FK —
+// delegation tree integrity is enforced by createSession().
 
 export const accounts = pgTable(
   'accounts',
