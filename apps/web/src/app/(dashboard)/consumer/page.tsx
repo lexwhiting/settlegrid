@@ -200,7 +200,7 @@ export default function ConsumerDashboardPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-indigo">Consumer Dashboard</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Consumer Dashboard</h1>
         <Card>
           <CardContent className="p-6">
             <Skeleton className="h-4 w-48" />
@@ -212,10 +212,10 @@ export default function ConsumerDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-indigo">Consumer Dashboard</h1>
+      <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Consumer Dashboard</h1>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Credit Balances */}
@@ -225,21 +225,21 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {balances.length === 0 ? (
-            <p className="text-gray-500 text-sm">No credits yet. Browse tools and purchase credits to get started.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No credits yet. Browse tools and purchase credits to get started.</p>
           ) : (
             <div className="space-y-3">
               {balances.map((b) => (
-                <div key={b.toolId} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div key={b.toolId} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836] last:border-0">
                   <div>
-                    <span className="font-medium text-indigo">{b.toolName}</span>
-                    <span className="text-gray-500 text-sm ml-2">/{b.toolSlug}</span>
+                    <span className="font-medium text-indigo dark:text-gray-100">{b.toolName}</span>
+                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {b.autoRefill && <Badge variant="secondary">Auto-refill</Badge>}
                     <span className="font-semibold text-brand-text">{formatCents(b.balanceCents)}</span>
                     <a
                       href={`/tools/${b.toolSlug}`}
-                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 h-9 px-3 transition-colors"
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors"
                     >
                       Add Credits
                     </a>
@@ -259,13 +259,13 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {budgets.length === 0 ? (
-            <p className="text-gray-500 text-sm">No budget limits configured. Purchase credits for a tool to set spending controls.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No budget limits configured. Purchase credits for a tool to set spending controls.</p>
           ) : (
             <div className="space-y-4">
               {budgets.map((budget) => (
-                <div key={budget.toolId} className="border border-gray-100 rounded-lg p-4">
+                <div key={budget.toolId} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-medium text-indigo">{budget.toolName}</span>
+                    <span className="font-medium text-indigo dark:text-gray-100">{budget.toolName}</span>
                     <Button
                       variant="outline"
                       size="sm"
@@ -279,23 +279,23 @@ export default function ConsumerDashboardPage() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label htmlFor={`limit-${budget.toolId}`} className="block text-xs font-medium text-gray-500 mb-1">Spending Limit (cents)</label>
+                          <label htmlFor={`limit-${budget.toolId}`} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Spending Limit (cents)</label>
                           <input
                             id={`limit-${budget.toolId}`}
                             type="number"
                             min="0"
                             value={budgetForm.spendingLimitCents}
                             onChange={(e) => setBudgetForm({ ...budgetForm, spendingLimitCents: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
                           />
                         </div>
                         <div>
-                          <label htmlFor={`period-${budget.toolId}`} className="block text-xs font-medium text-gray-500 mb-1">Period</label>
+                          <label htmlFor={`period-${budget.toolId}`} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Period</label>
                           <select
                             id={`period-${budget.toolId}`}
                             value={budgetForm.period}
                             onChange={(e) => setBudgetForm({ ...budgetForm, period: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
                           >
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
@@ -303,7 +303,7 @@ export default function ConsumerDashboardPage() {
                           </select>
                         </div>
                         <div>
-                          <label htmlFor={`alert-${budget.toolId}`} className="block text-xs font-medium text-gray-500 mb-1">Alert at (%)</label>
+                          <label htmlFor={`alert-${budget.toolId}`} className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Alert at (%)</label>
                           <input
                             id={`alert-${budget.toolId}`}
                             type="number"
@@ -311,7 +311,7 @@ export default function ConsumerDashboardPage() {
                             max="100"
                             value={budgetForm.alertThresholdPercent}
                             onChange={(e) => setBudgetForm({ ...budgetForm, alertThresholdPercent: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
                           />
                         </div>
                       </div>
@@ -322,20 +322,20 @@ export default function ConsumerDashboardPage() {
                   ) : (
                     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                       <div>
-                        <dt className="text-xs text-gray-500">Limit</dt>
-                        <dd className="font-medium text-gray-900">{formatCents(budget.spendingLimitCents)}</dd>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Limit</dt>
+                        <dd className="font-medium text-gray-900 dark:text-gray-100">{formatCents(budget.spendingLimitCents)}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-gray-500">Period</dt>
-                        <dd className="font-medium text-gray-900 capitalize">{budget.period}</dd>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Period</dt>
+                        <dd className="font-medium text-gray-900 dark:text-gray-100 capitalize">{budget.period}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-gray-500">Alert at</dt>
-                        <dd className="font-medium text-gray-900">{budget.alertThresholdPercent}%</dd>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Alert at</dt>
+                        <dd className="font-medium text-gray-900 dark:text-gray-100">{budget.alertThresholdPercent}%</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-gray-500">Current Spend</dt>
-                        <dd className={`font-medium ${budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'text-red-600' : 'text-gray-900'}`}>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Current Spend</dt>
+                        <dd className={`font-medium ${budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                           {formatCents(budget.currentSpendCents)}
                         </dd>
                       </div>
@@ -345,10 +345,10 @@ export default function ConsumerDashboardPage() {
                   {/* Spend progress bar */}
                   {editingBudget !== budget.toolId && budget.spendingLimitCents > 0 && (
                     <div className="mt-3">
-                      <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all ${
-                            budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'bg-red-500' : 'bg-brand'
+                            budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'bg-red-50 dark:bg-red-900/200' : 'bg-brand'
                           }`}
                           style={{ width: `${Math.min(100, (budget.currentSpendCents / budget.spendingLimitCents) * 100)}%` }}
                         />
@@ -369,16 +369,16 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {keys.length === 0 ? (
-            <p className="text-gray-500 text-sm">No API keys yet. Create a key from a tool storefront to start making API calls.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No API keys yet. Create a key from a tool storefront to start making API calls.</p>
           ) : (
             <div className="space-y-4">
               {keys.map((key) => {
                 const restrictions = ipRestrictions[key.id]
                 return (
-                  <div key={key.id} className="border border-gray-100 rounded-lg p-4">
+                  <div key={key.id} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <code className="bg-gray-100 px-2 py-1 rounded text-xs">{key.keyPrefix}...</code>
+                        <code className="bg-gray-100 dark:bg-[#252836] px-2 py-1 rounded text-xs">{key.keyPrefix}...</code>
                         <Badge variant={key.status === 'active' ? 'success' : 'destructive'}>{key.status}</Badge>
                       </div>
                       <div className="flex items-center gap-2">
@@ -389,16 +389,16 @@ export default function ConsumerDashboardPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+                    <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 mb-3">
                       <span>Last used: {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'Never'}</span>
                       <span>Created: {new Date(key.createdAt).toLocaleDateString()}</span>
                     </div>
 
                     {/* IP Restrictions */}
                     {key.status === 'active' && (
-                      <div className="border-t border-gray-100 pt-3">
+                      <div className="border-t border-gray-100 dark:border-[#252836] pt-3">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">IP Allowlist</span>
+                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">IP Allowlist</span>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -416,7 +416,7 @@ export default function ConsumerDashboardPage() {
                               placeholder="e.g. 192.168.1.0/24"
                               value={newIp}
                               onChange={(e) => setNewIp(e.target.value)}
-                              className="flex h-8 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:ring-2 focus:ring-brand"
+                              className="flex h-8 flex-1 rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-2 py-1 text-xs focus:ring-2 focus:ring-brand"
                               aria-label="IP address or CIDR range"
                             />
                             <Button size="sm" className="h-8 text-xs" onClick={() => addIp(key.id)} disabled={savingIp}>
@@ -428,11 +428,11 @@ export default function ConsumerDashboardPage() {
                         {restrictions && restrictions.allowedIps.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
                             {restrictions.allowedIps.map((ip) => (
-                              <span key={ip} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5 text-xs font-mono">
+                              <span key={ip} className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#252836] text-gray-700 dark:text-gray-300 rounded-full px-2.5 py-0.5 text-xs font-mono">
                                 {ip}
                                 <button
                                   onClick={() => removeIp(key.id, ip)}
-                                  className="text-gray-500 hover:text-red-500 ml-0.5"
+                                  className="text-gray-500 dark:text-gray-400 hover:text-red-500 ml-0.5"
                                   aria-label={`Remove IP ${ip}`}
                                 >
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -443,7 +443,7 @@ export default function ConsumerDashboardPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-500">No IP restrictions. All IPs are allowed.</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">No IP restrictions. All IPs are allowed.</p>
                         )}
                       </div>
                     )}

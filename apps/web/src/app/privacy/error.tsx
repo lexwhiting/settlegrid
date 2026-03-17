@@ -18,8 +18,8 @@ export default function PrivacyError({
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center">
-        <h2 className="text-xl font-bold text-indigo mb-2">Privacy Policy Error</h2>
-        <p className="text-gray-600 mb-4" role="alert">
+        <h2 className="text-xl font-bold text-indigo dark:text-gray-100 mb-2">Privacy Policy Error</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-4" role="alert">
           Something went wrong loading the privacy policy. Please try again.
         </p>
         <div className="flex gap-3 justify-center">
@@ -31,7 +31,7 @@ export default function PrivacyError({
           </button>
           <Link
             href="/"
-            className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+            className="border border-gray-300 dark:border-[#2E3148] text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 dark:bg-[#1A1D2E] transition-colors text-sm font-medium"
           >
             Back to home
           </Link>

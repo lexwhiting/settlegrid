@@ -69,7 +69,7 @@ export default function DeveloperDashboardPage() {
     return (
       <div className="space-y-6">
         <Breadcrumbs items={[{ label: 'Dashboard' }]} />
-        <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Dashboard</h1>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
@@ -88,8 +88,8 @@ export default function DeveloperDashboardPage() {
     return (
       <div className="space-y-6">
         <Breadcrumbs items={[{ label: 'Dashboard' }]} />
-        <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-600 text-sm" role="alert">
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Dashboard</h1>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-lg p-4 text-red-600 dark:text-red-400 text-sm" role="alert">
           {error}
         </div>
       </div>
@@ -102,16 +102,16 @@ export default function DeveloperDashboardPage() {
 
       {/* Header with period selector */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Dashboard</h1>
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#252836] rounded-lg p-1">
           {(['7', '30', '90'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 period === p
-                  ? 'bg-white text-indigo shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white dark:bg-[#1A1D2E] text-indigo dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
               {p}d
@@ -194,7 +194,7 @@ export default function DeveloperDashboardPage() {
               }}
             />
           ) : (
-            <p className="text-gray-500 text-sm">No invocations yet. Publish a tool to get started.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No invocations yet. Publish a tool to get started.</p>
           )}
         </CardContent>
       </Card>
@@ -236,23 +236,23 @@ export default function DeveloperDashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Method breakdown">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Method</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Invocations</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Revenue</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Error Rate</th>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Method</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Invocations</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Revenue</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Error Rate</th>
                   </tr>
                 </thead>
                 <tbody>
                   {analytics.methodBreakdown.map((method) => (
-                    <tr key={method.method} className="border-b border-gray-100">
+                    <tr key={method.method} className="border-b border-gray-100 dark:border-[#252836]">
                       <td className="py-3 px-4">
-                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{method.method}</code>
+                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{method.method}</code>
                       </td>
-                      <td className="py-3 px-4 text-right text-gray-700">{method.invocations.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-right font-medium text-indigo">{formatCents(method.revenueCents)}</td>
+                      <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{method.invocations.toLocaleString()}</td>
+                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(method.revenueCents)}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={method.errorRate > 0.05 ? 'text-red-600' : 'text-gray-500'}>
+                        <span className={method.errorRate > 0.05 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
                           {(method.errorRate * 100).toFixed(2)}%
                         </span>
                       </td>
@@ -275,20 +275,20 @@ export default function DeveloperDashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Top consumers">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">#</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Consumer</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Total Spend</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Invocations</th>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">#</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Consumer</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Total Spend</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Invocations</th>
                   </tr>
                 </thead>
                 <tbody>
                   {analytics.topConsumers.slice(0, 5).map((consumer, i) => (
-                    <tr key={consumer.email} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-gray-500 font-medium">{i + 1}</td>
-                      <td className="py-3 px-4 text-gray-700">{consumer.email}</td>
-                      <td className="py-3 px-4 text-right font-medium text-indigo">{formatCents(consumer.totalSpendCents)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500">{consumer.invocations.toLocaleString()}</td>
+                    <tr key={consumer.email} className="border-b border-gray-100 dark:border-[#252836]">
+                      <td className="py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">{i + 1}</td>
+                      <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{consumer.email}</td>
+                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(consumer.totalSpendCents)}</td>
+                      <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{consumer.invocations.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -33,7 +33,7 @@ function getGrade(score: number): { letter: string; color: string; description: 
   if (score >= 80) return { letter: 'B', color: 'text-blue-600', description: 'Very Good' }
   if (score >= 70) return { letter: 'C', color: 'text-yellow-600', description: 'Good' }
   if (score >= 60) return { letter: 'D', color: 'text-orange-600', description: 'Fair' }
-  return { letter: 'F', color: 'text-red-600', description: 'Needs Improvement' }
+  return { letter: 'F', color: 'text-red-600 dark:text-red-400', description: 'Needs Improvement' }
 }
 
 function getImprovementTips(breakdown: ReputationData['breakdown']): Array<{ area: string; tip: string; priority: 'high' | 'medium' | 'low' }> {
@@ -98,13 +98,13 @@ function ScoreBreakdownBar({ label, value, max, unit }: { label: string; value: 
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
-        <span className="text-sm font-medium text-indigo">{value}{unit}</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+        <span className="text-sm font-medium text-indigo dark:text-gray-100">{value}{unit}</span>
       </div>
-      <div className="w-full bg-gray-100 rounded-full h-2.5">
+      <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2.5">
         <div
           className={`h-2.5 rounded-full transition-all ${
-            pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+            pct >= 80 ? 'bg-green-500' : pct >= 60 ? 'bg-yellow-500' : 'bg-red-50 dark:bg-red-900/200'
           }`}
           style={{ width: `${Math.max(pct, 2)}%` }}
         />
@@ -158,8 +158,8 @@ export default function ReputationPage() {
           { label: 'Reputation' },
         ]} />
         <div>
-          <h1 className="text-2xl font-bold text-indigo">Developer Reputation</h1>
-          <p className="text-sm text-gray-500 mt-1">Your public reputation score and breakdown across key performance areas.</p>
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Developer Reputation</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Your public reputation score and breakdown across key performance areas.</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-1">
@@ -198,12 +198,12 @@ export default function ReputationPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-indigo">Developer Reputation</h1>
-        <p className="text-sm text-gray-500 mt-1">Your public reputation score and breakdown across key performance areas.</p>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Developer Reputation</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Your public reputation score and breakdown across key performance areas.</p>
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {reputation && (
@@ -213,15 +213,15 @@ export default function ReputationPage() {
             {/* Score card */}
             <Card className="lg:col-span-1">
               <CardContent className="p-8 text-center">
-                <div className="inline-flex items-center justify-center w-28 h-28 rounded-full border-4 border-gray-100 mb-4">
+                <div className="inline-flex items-center justify-center w-28 h-28 rounded-full border-4 border-gray-100 dark:border-[#252836] mb-4">
                   <div>
                     <div className={`text-5xl font-bold ${grade.color}`}>{reputation.score}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">out of 100</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">out of 100</div>
                   </div>
                 </div>
                 <div className={`text-2xl font-bold ${grade.color}`}>Grade: {grade.letter}</div>
-                <p className="text-sm text-gray-500 mt-1">{grade.description}</p>
-                <p className="text-xs text-gray-500 mt-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{grade.description}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
                   Last calculated: {new Date(reputation.calculatedAt).toLocaleString('en-US', {
                     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                   })}
@@ -283,7 +283,7 @@ export default function ReputationPage() {
             <CardContent>
               <div className="space-y-4">
                 {tips.map((tip) => (
-                  <div key={tip.area} className="flex gap-4 border border-gray-100 rounded-lg p-4">
+                  <div key={tip.area} className="flex gap-4 border border-gray-100 dark:border-[#252836] rounded-lg p-4">
                     <div className="shrink-0 mt-0.5">
                       <Badge variant={
                         tip.priority === 'high' ? 'destructive' :
@@ -293,8 +293,8 @@ export default function ReputationPage() {
                       </Badge>
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-indigo mb-0.5">{tip.area}</h4>
-                      <p className="text-xs text-gray-500">{tip.tip}</p>
+                      <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-0.5">{tip.area}</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{tip.tip}</p>
                     </div>
                   </div>
                 ))}
@@ -309,14 +309,14 @@ export default function ReputationPage() {
               <CardDescription>This is how other developers and consumers see your profile.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border border-gray-200 rounded-xl p-6 bg-gray-50">
+              <div className="border border-gray-200 dark:border-[#2E3148] rounded-xl p-6 bg-gray-50 dark:bg-[#1A1D2E]">
                 <div className="flex items-start gap-4">
                   <div className="w-16 h-16 rounded-full bg-indigo flex items-center justify-center text-white text-xl font-bold shrink-0">
                     {(reputation.name ?? profile?.email ?? '?')[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-lg font-bold text-indigo">
+                      <h3 className="text-lg font-bold text-indigo dark:text-gray-100">
                         {reputation.name ?? profile?.name ?? 'Developer'}
                       </h3>
                       <Badge variant={profile?.publicProfile ? 'success' : 'secondary'}>
@@ -324,34 +324,34 @@ export default function ReputationPage() {
                       </Badge>
                     </div>
                     {profile?.publicBio && (
-                      <p className="text-sm text-gray-600 mb-3">{profile.publicBio}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{profile.publicBio}</p>
                     )}
                     <div className="flex items-center gap-6 text-sm">
                       <div className="flex items-center gap-1.5">
                         <span className={`text-2xl font-bold ${grade.color}`}>{reputation.score}</span>
-                        <span className="text-gray-500">reputation</span>
+                        <span className="text-gray-500 dark:text-gray-400">reputation</span>
                       </div>
-                      <div className="text-gray-500">|</div>
+                      <div className="text-gray-500 dark:text-gray-400">|</div>
                       <div>
-                        <span className="font-medium text-gray-700">{reputation.breakdown.totalTools}</span>
-                        <span className="text-gray-500 ml-1">tools</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{reputation.breakdown.totalTools}</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">tools</span>
                       </div>
-                      <div className="text-gray-500">|</div>
+                      <div className="text-gray-500 dark:text-gray-400">|</div>
                       <div>
-                        <span className="font-medium text-gray-700">{reputation.breakdown.totalConsumers}</span>
-                        <span className="text-gray-500 ml-1">consumers</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{reputation.breakdown.totalConsumers}</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">consumers</span>
                       </div>
-                      <div className="text-gray-500">|</div>
+                      <div className="text-gray-500 dark:text-gray-400">|</div>
                       <div>
-                        <span className="font-medium text-gray-700">{reputation.breakdown.uptimePct}%</span>
-                        <span className="text-gray-500 ml-1">uptime</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{reputation.breakdown.uptimePct}%</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">uptime</span>
                       </div>
                       {reputation.breakdown.reviewAvg > 0 && (
                         <>
-                          <div className="text-gray-500">|</div>
+                          <div className="text-gray-500 dark:text-gray-400">|</div>
                           <div>
-                            <span className="font-medium text-gray-700">{reputation.breakdown.reviewAvg.toFixed(1)}</span>
-                            <span className="text-gray-500 ml-1">avg rating</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{reputation.breakdown.reviewAvg.toFixed(1)}</span>
+                            <span className="text-gray-500 dark:text-gray-400 ml-1">avg rating</span>
                           </div>
                         </>
                       )}
@@ -360,7 +360,7 @@ export default function ReputationPage() {
                 </div>
               </div>
               {!profile?.publicProfile && (
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
                   Your profile is currently private. Enable public profile in Settings to make it visible to consumers.
                 </p>
               )}

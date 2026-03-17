@@ -16,8 +16,8 @@ export default function WebhooksError({
 
   return (
     <div className="text-center py-12">
-      <h2 className="text-xl font-bold text-indigo mb-2">Webhooks Error</h2>
-      <p className="text-gray-600 mb-4" role="alert">Something went wrong loading webhooks.</p>
+      <h2 className="text-xl font-bold text-indigo dark:text-gray-100 mb-2">Webhooks Error</h2>
+      <p className="text-gray-600 dark:text-gray-400 mb-4" role="alert">Something went wrong loading webhooks.</p>
       <button
         onClick={reset}
         className="bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors text-sm font-medium"

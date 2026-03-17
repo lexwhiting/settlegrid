@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-10">
-      <h2 className="text-xl font-bold text-indigo mb-3">{title}</h2>
+      <h2 className="text-xl font-bold text-indigo dark:text-gray-100 mb-3">{title}</h2>
       {children}
     </section>
   )
@@ -20,13 +20,13 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* ---- Header ---- */}
-      <header className="border-b border-gray-200 px-6 py-4">
+      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={32} />
           </Link>
           <div className="flex items-center gap-4">
-            <Link href="/docs" className="text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
+            <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100 transition-colors">
               Docs
             </Link>
             <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
@@ -38,10 +38,10 @@ export default function PrivacyPage() {
 
       <main className="flex-1 px-6 py-16">
         <div className="max-w-3xl mx-auto">
-          <h1 className="text-4xl font-bold text-indigo mb-2">Privacy Policy</h1>
-          <p className="text-sm text-gray-500 mb-10">Last updated: March 11, 2026</p>
+          <h1 className="text-4xl font-bold text-indigo dark:text-gray-100 mb-2">Privacy Policy</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-10">Last updated: March 11, 2026</p>
 
-          <div className="text-gray-600 leading-relaxed space-y-0">
+          <div className="text-gray-600 dark:text-gray-400 leading-relaxed space-y-0">
             <Section title="1. Introduction">
               <p>
                 SettleGrid (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) operates the settlegrid.com
@@ -201,16 +201,16 @@ export default function PrivacyPage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-gray-200 px-6 py-8">
+      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={24} />
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <Link href="/tools" className="hover:text-indigo transition-colors">Marketplace</Link>
-            <Link href="/docs" className="hover:text-indigo transition-colors">Documentation</Link>
-            <Link href="/privacy" className="hover:text-indigo transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-indigo transition-colors">Terms</Link>
+          <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+            <Link href="/tools" className="hover:text-indigo dark:text-gray-100 transition-colors">Marketplace</Link>
+            <Link href="/docs" className="hover:text-indigo dark:text-gray-100 transition-colors">Documentation</Link>
+            <Link href="/privacy" className="hover:text-indigo dark:text-gray-100 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-indigo dark:text-gray-100 transition-colors">Terms</Link>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
           </p>
         </div>

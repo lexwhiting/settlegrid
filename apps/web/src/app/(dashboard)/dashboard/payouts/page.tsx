@@ -79,14 +79,14 @@ export default function PayoutsPage() {
       ]} />
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-indigo">Payouts</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Payouts</h1>
         <Button onClick={triggerPayout} disabled={triggering}>
           {triggering ? 'Processing...' : 'Request Payout'}
         </Button>
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {loading ? (
@@ -121,23 +121,23 @@ export default function PayoutsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Payout history">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Period</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Amount</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Platform Fee</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Date</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Period</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Amount</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Platform Fee</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payouts.map((payout) => (
-                    <tr key={payout.id} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-gray-700">{formatDate(payout.createdAt)}</td>
-                      <td className="py-3 px-4 text-gray-500">
+                    <tr key={payout.id} className="border-b border-gray-100 dark:border-[#252836]">
+                      <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{formatDate(payout.createdAt)}</td>
+                      <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
                         {formatDate(payout.periodStart)} - {formatDate(payout.periodEnd)}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-indigo">{formatCents(payout.amountCents)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500">{formatCents(payout.platformFeeCents)}</td>
+                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(payout.amountCents)}</td>
+                      <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{formatCents(payout.platformFeeCents)}</td>
                       <td className="py-3 px-4">
                         <Badge variant={statusVariant(payout.status)}>{payout.status}</Badge>
                       </td>

@@ -136,25 +136,25 @@ export default function AuditLogPage() {
       ]} />
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-indigo">Audit Log</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Audit Log</h1>
         <Button variant="outline" onClick={exportCsv} disabled={exporting}>
           {exporting ? 'Exporting...' : 'Export CSV'}
         </Button>
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="w-full sm:w-56">
-          <label htmlFor="audit-action-filter" className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+          <label htmlFor="audit-action-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Action</label>
           <select
             id="audit-action-filter"
             value={actionFilter}
             onChange={(e) => handleFilterChange('action', e.target.value)}
-            className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+            className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             {ACTION_TYPES.map((action) => (
               <option key={action} value={action}>{action}</option>
@@ -162,12 +162,12 @@ export default function AuditLogPage() {
           </select>
         </div>
         <div className="w-full sm:w-56">
-          <label htmlFor="audit-resource-filter" className="block text-sm font-medium text-gray-700 mb-1">Resource Type</label>
+          <label htmlFor="audit-resource-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Resource Type</label>
           <select
             id="audit-resource-filter"
             value={resourceFilter}
             onChange={(e) => handleFilterChange('resource', e.target.value)}
-            className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+            className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             {RESOURCE_TYPES.map((resource) => (
               <option key={resource} value={resource}>{resource}</option>
@@ -195,34 +195,34 @@ export default function AuditLogPage() {
               ))}
             </div>
           ) : entries.length === 0 ? (
-            <p className="text-gray-500 text-sm">No audit entries match your filters.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No audit entries match your filters.</p>
           ) : (
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" role="table" aria-label="Audit log entries">
                   <thead>
-                    <tr className="border-b border-gray-200">
-                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Action</th>
-                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Resource</th>
-                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Resource ID</th>
-                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">IP Address</th>
-                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Timestamp</th>
+                    <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Action</th>
+                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Resource</th>
+                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Resource ID</th>
+                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">IP Address</th>
+                      <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Timestamp</th>
                     </tr>
                   </thead>
                   <tbody>
                     {entries.map((entry) => (
-                      <tr key={entry.id} className="border-b border-gray-100">
+                      <tr key={entry.id} className="border-b border-gray-100 dark:border-[#252836]">
                         <td className="py-3 px-4">
                           <Badge variant={actionBadgeVariant(entry.action)}>{entry.action}</Badge>
                         </td>
-                        <td className="py-3 px-4 text-gray-700">{entry.resourceType}</td>
+                        <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{entry.resourceType}</td>
                         <td className="py-3 px-4">
-                          <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs text-gray-600">
+                          <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs text-gray-600 dark:text-gray-400">
                             {entry.resourceId.slice(0, 12)}...
                           </code>
                         </td>
-                        <td className="py-3 px-4 text-gray-500 font-mono text-xs">{entry.ip}</td>
-                        <td className="py-3 px-4 text-gray-500">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-500 dark:text-gray-400 font-mono text-xs">{entry.ip}</td>
+                        <td className="py-3 px-4 text-gray-500 dark:text-gray-400">{new Date(entry.createdAt).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -230,8 +230,8 @@ export default function AuditLogPage() {
               </div>
 
               {/* Pagination */}
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                <p className="text-sm text-gray-500">
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-[#252836]">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Page {page} of {totalPages}
                 </p>
                 <div className="flex items-center gap-2">

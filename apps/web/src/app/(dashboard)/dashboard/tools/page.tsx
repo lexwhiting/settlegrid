@@ -105,14 +105,14 @@ export default function ToolsPage() {
       ]} />
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-indigo">Tools</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Tools</h1>
         <Button onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : 'New Tool'}
         </Button>
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {showCreate && (
@@ -122,25 +122,25 @@ export default function ToolsPage() {
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="tool-name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <label htmlFor="tool-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <input id="tool-name" type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                 </div>
                 <div>
-                  <label htmlFor="tool-slug" className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
+                  <label htmlFor="tool-slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slug</label>
                   <input id="tool-slug" type="text" required pattern="[a-z0-9-]+" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                 </div>
               </div>
               <div>
-                <label htmlFor="tool-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label htmlFor="tool-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea id="tool-desc" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
+                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
               </div>
               <div className="w-48">
-                <label htmlFor="tool-cost" className="block text-sm font-medium text-gray-700 mb-1">Default Cost (cents)</label>
+                <label htmlFor="tool-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Cost (cents)</label>
                 <input id="tool-cost" type="number" min="0" required value={form.defaultCostCents} onChange={(e) => setForm({ ...form, defaultCostCents: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                  className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
               </div>
               <Button type="submit" disabled={creating}>{creating ? 'Creating...' : 'Create Tool'}</Button>
             </form>
@@ -183,14 +183,14 @@ export default function ToolsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-semibold text-lg text-indigo">{tool.name}</h3>
+                      <h3 className="font-semibold text-lg text-indigo dark:text-gray-100">{tool.name}</h3>
                       <Badge variant={tool.status === 'active' ? 'success' : 'secondary'}>
                         {tool.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-gray-500 mb-3">{tool.description}</p>
-                    <div className="flex items-center gap-6 text-sm text-gray-500">
-                      <span>Slug: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{tool.slug}</code></span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{tool.description}</p>
+                    <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+                      <span>Slug: <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{tool.slug}</code></span>
                       <span>{tool.totalInvocations.toLocaleString()} invocations</span>
                       <span>{formatCents(tool.totalRevenueCents)} revenue</span>
                       <span>{formatCents(tool.pricingConfig.defaultCostCents)}/call</span>

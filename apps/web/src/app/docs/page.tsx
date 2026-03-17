@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 function Section({ title, id, children }: { title: string; id: string; children: React.ReactNode }) {
   return (
     <section id={id} className="mb-12">
-      <h2 className="text-2xl font-bold text-indigo mb-4">{title}</h2>
+      <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-4">{title}</h2>
       {children}
     </section>
   )
@@ -30,7 +30,7 @@ function CodeBlock({ children, title }: { children: string; title?: string }) {
 export default function DocsPage() {
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-gray-200 px-6 py-4 sticky top-0 bg-white z-10">
+      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 sticky top-0 bg-white dark:bg-[#1A1D2E] z-10">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -45,7 +45,7 @@ export default function DocsPage() {
 
       <div className="flex-1 flex">
         {/* Sidebar nav */}
-        <aside className="hidden lg:block w-56 border-r border-gray-200 p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2E3148] p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
           <nav className="space-y-1 text-sm">
             {[
               { href: '#quick-start', label: 'Quick Start' },
@@ -57,7 +57,7 @@ export default function DocsPage() {
               <a
                 key={item.href}
                 href={item.href}
-                className="block py-2 px-3 rounded-md text-gray-600 hover:text-indigo hover:bg-gray-100 transition-colors"
+                className="block py-2 px-3 rounded-md text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-[#252836] transition-colors"
               >
                 {item.label}
               </a>
@@ -67,29 +67,29 @@ export default function DocsPage() {
 
         {/* Content */}
         <main className="flex-1 px-6 lg:px-12 py-10 max-w-3xl">
-          <h1 className="text-4xl font-bold text-indigo mb-2">Documentation</h1>
-          <p className="text-lg text-gray-600 mb-10">
+          <h1 className="text-4xl font-bold text-indigo dark:text-gray-100 mb-2">Documentation</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400 mb-10">
             Everything you need to monetize your MCP tools with SettleGrid.
           </p>
 
           <Section title="Quick Start" id="quick-start">
-            <p className="text-gray-600 mb-4">Get your first monetized tool running in under 5 minutes.</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">Get your first monetized tool running in under 5 minutes.</p>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">1. Install the SDK</h3>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">1. Install the SDK</h3>
             <CodeBlock title="Terminal">{`npm install @settlegrid/mcp`}</CodeBlock>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">2. Register as a developer</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">2. Register as a developer</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               <Link href="/register" className="text-brand-text hover:text-brand-dark">Create a developer account</Link>{' '}
               and connect your Stripe account to receive payouts.
             </p>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">3. Create a tool</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">3. Create a tool</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               In your dashboard, create a tool with a unique slug and pricing configuration.
             </p>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">4. Wrap your handler</h3>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">4. Wrap your handler</h3>
             <CodeBlock title="server.ts">{`import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
@@ -115,17 +115,17 @@ const getForecast = sg.wrap(
 // Use in your MCP server
 server.tool('get-forecast', getForecast)`}</CodeBlock>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">5. Share your tool</h3>
-            <p className="text-gray-600">
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">5. Share your tool</h3>
+            <p className="text-gray-600 dark:text-gray-400">
               Your tool gets a public storefront at{' '}
-              <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">settlegrid.ai/tools/your-slug</code>.
+              <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">settlegrid.ai/tools/your-slug</code>.
               Consumers purchase credits and receive API keys to use your tool.
             </p>
           </Section>
 
           <Section title="SDK Reference" id="sdk-reference">
-            <h3 className="text-lg font-semibold text-indigo mb-2"><code>settlegrid.init(options)</code></h3>
-            <p className="text-gray-600 mb-4">Initialize the SDK for your tool.</p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-2"><code>settlegrid.init(options)</code></h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">Initialize the SDK for your tool.</p>
             <CodeBlock>{`interface InitOptions {
   toolSlug: string          // Your tool's unique slug
   apiUrl?: string           // API URL (default: https://settlegrid.ai)
@@ -141,8 +141,8 @@ server.tool('get-forecast', getForecast)`}</CodeBlock>
   timeoutMs?: number        // API timeout (default: 5000ms)
 }`}</CodeBlock>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2"><code>instance.wrap(handler, options?)</code></h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2"><code>instance.wrap(handler, options?)</code></h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Wraps a function with billing middleware. The wrapped function extracts the API key,
               validates credits, executes your handler, and meters the usage.
             </p>
@@ -157,7 +157,7 @@ const result = await wrappedFn(args, {
   // or metadata: { 'settlegrid-api-key': '...' }
 })`}</CodeBlock>
 
-            <h3 className="text-lg font-semibold text-indigo mt-6 mb-2">Error Handling</h3>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">Error Handling</h3>
             <CodeBlock>{`import {
   InvalidKeyError,         // 401 - Invalid API key
   InsufficientCreditsError, // 402 - Not enough credits
@@ -175,9 +175,9 @@ try {
           </Section>
 
           <Section title="API Reference" id="api-reference">
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               The SettleGrid REST API is available at{' '}
-              <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">https://settlegrid.ai/api</code>.
+              <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">https://settlegrid.ai/api</code>.
             </p>
             <div className="space-y-4">
               {[
@@ -196,26 +196,26 @@ try {
                 { method: 'GET', path: '/api/payouts', desc: 'List payout history' },
                 { method: 'POST', path: '/api/payouts/trigger', desc: 'Request manual payout' },
               ].map((route) => (
-                <div key={route.path} className="flex items-center gap-3 py-2 border-b border-gray-100">
+                <div key={route.path} className="flex items-center gap-3 py-2 border-b border-gray-100 dark:border-[#252836]">
                   <span className={`text-xs font-mono px-2 py-1 rounded ${
-                    route.method === 'GET' ? 'bg-blue-100 text-blue-700'
-                    : route.method === 'POST' ? 'bg-green-100 text-green-700'
-                    : 'bg-yellow-100 text-yellow-700'
+                    route.method === 'GET' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : route.method === 'POST' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
                   }`}>
                     {route.method}
                   </span>
-                  <code className="text-sm text-indigo">{route.path}</code>
-                  <span className="text-sm text-gray-500 ml-auto">{route.desc}</span>
+                  <code className="text-sm text-indigo dark:text-gray-100">{route.path}</code>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-auto">{route.desc}</span>
                 </div>
               ))}
             </div>
           </Section>
 
           <Section title="Pricing Model" id="pricing">
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               SettleGrid uses a simple, transparent pricing model:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-600 mb-6">
+            <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-6">
               <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 80% of revenue.</li>
               <li><strong>Consumers:</strong> Prepaid credits. Purchase $5, $20, $50, or custom amounts.</li>
               <li><strong>Platform fee:</strong> 20% of each transaction. No monthly fees, no minimums.</li>
@@ -248,8 +248,8 @@ try {
                 },
               ].map((faq) => (
                 <div key={faq.q}>
-                  <h3 className="font-semibold text-indigo mb-1">{faq.q}</h3>
-                  <p className="text-gray-600">{faq.a}</p>
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-1">{faq.q}</h3>
+                  <p className="text-gray-600 dark:text-gray-400">{faq.a}</p>
                 </div>
               ))}
             </div>
@@ -257,8 +257,8 @@ try {
         </main>
       </div>
 
-      <footer className="border-t border-gray-200 px-6 py-6">
-        <div className="max-w-5xl mx-auto text-center text-sm text-gray-500">
+      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-6">
+        <div className="max-w-5xl mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
           &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
         </div>
       </footer>

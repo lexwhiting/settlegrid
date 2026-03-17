@@ -146,14 +146,14 @@ export default function WebhooksPage() {
       ]} />
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-indigo">Webhooks</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Webhooks</h1>
         <Button onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : 'Add Endpoint'}
         </Button>
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Create form */}
@@ -166,7 +166,7 @@ export default function WebhooksPage() {
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label htmlFor="webhook-url" className="block text-sm font-medium text-gray-700 mb-1">Endpoint URL</label>
+                <label htmlFor="webhook-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endpoint URL</label>
                 <input
                   id="webhook-url"
                   type="url"
@@ -174,11 +174,11 @@ export default function WebhooksPage() {
                   placeholder="https://your-server.com/webhooks/settlegrid"
                   value={form.url}
                   onChange={(e) => setForm({ ...form, url: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                  className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Events</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Events</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {WEBHOOK_EVENTS.map((event) => (
                     <label key={event} className="flex items-center gap-2 cursor-pointer">
@@ -186,9 +186,9 @@ export default function WebhooksPage() {
                         type="checkbox"
                         checked={form.events.includes(event)}
                         onChange={() => toggleEvent(event)}
-                        className="rounded border-gray-300 text-brand focus:ring-brand"
+                        className="rounded border-gray-300 dark:border-[#2E3148] text-brand focus:ring-brand"
                       />
-                      <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{event}</code>
+                      <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded">{event}</code>
                     </label>
                   ))}
                 </div>
@@ -235,7 +235,7 @@ export default function WebhooksPage() {
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3 mb-1">
-                      <code className="text-sm font-medium text-indigo truncate">{ep.url}</code>
+                      <code className="text-sm font-medium text-indigo dark:text-gray-100 truncate">{ep.url}</code>
                       <Badge variant={ep.status === 'active' ? 'success' : 'destructive'}>
                         {ep.status}
                       </Badge>
@@ -245,7 +245,7 @@ export default function WebhooksPage() {
                         <Badge key={event} variant="secondary" className="text-[10px]">{event}</Badge>
                       ))}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Last delivery: {ep.lastDeliveryAt ? new Date(ep.lastDeliveryAt).toLocaleString() : 'Never'}
                       {' | '}
                       Created: {new Date(ep.createdAt).toLocaleDateString()}
@@ -268,34 +268,34 @@ export default function WebhooksPage() {
 
                 {/* Deliveries panel */}
                 {expandedId === ep.id && (
-                  <div className="mt-4 border-t border-gray-100 pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Recent Deliveries</h4>
+                  <div className="mt-4 border-t border-gray-100 dark:border-[#252836] pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Recent Deliveries</h4>
                     {(deliveries[ep.id] ?? []).length === 0 ? (
-                      <p className="text-sm text-gray-500">No deliveries yet.</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No deliveries yet.</p>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm" role="table" aria-label="Webhook deliveries">
                           <thead>
-                            <tr className="border-b border-gray-200">
-                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500">Event</th>
-                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500">Status</th>
-                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500">HTTP Code</th>
-                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500">Time</th>
+                            <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Event</th>
+                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Status</th>
+                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">HTTP Code</th>
+                              <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Time</th>
                             </tr>
                           </thead>
                           <tbody>
                             {(deliveries[ep.id] ?? []).map((del) => (
-                              <tr key={del.id} className="border-b border-gray-100">
+                              <tr key={del.id} className="border-b border-gray-100 dark:border-[#252836]">
                                 <td className="py-2 px-3">
-                                  <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{del.event}</code>
+                                  <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{del.event}</code>
                                 </td>
                                 <td className="py-2 px-3">
                                   <Badge variant={del.success ? 'success' : 'destructive'}>
                                     {del.success ? 'Success' : 'Failed'}
                                   </Badge>
                                 </td>
-                                <td className="py-2 px-3 text-gray-500">{del.statusCode ?? '—'}</td>
-                                <td className="py-2 px-3 text-gray-500">{new Date(del.attemptedAt).toLocaleString()}</td>
+                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{del.statusCode ?? '—'}</td>
+                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{new Date(del.attemptedAt).toLocaleString()}</td>
                               </tr>
                             ))}
                           </tbody>

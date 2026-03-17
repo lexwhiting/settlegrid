@@ -16,8 +16,8 @@ export default function HealthError({
 
   return (
     <div className="text-center py-12">
-      <h2 className="text-xl font-bold text-indigo mb-2">Health Monitoring Error</h2>
-      <p className="text-gray-600 mb-4" role="alert">
+      <h2 className="text-xl font-bold text-indigo dark:text-gray-100 mb-2">Health Monitoring Error</h2>
+      <p className="text-gray-600 dark:text-gray-400 mb-4" role="alert">
         Something went wrong loading health data. Please try again.
       </p>
       <button

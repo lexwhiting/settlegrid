@@ -25,12 +25,12 @@ function formatCents(cents: number): string {
 
 function RiskScoreBadge({ score }: { score: number }) {
   const color = score >= 80
-    ? 'text-red-700 bg-red-100'
+    ? 'text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/30'
     : score >= 50
-      ? 'text-yellow-700 bg-yellow-100'
+      ? 'text-yellow-700 bg-yellow-100 dark:text-yellow-300 dark:bg-yellow-900/30'
       : score >= 25
-        ? 'text-orange-700 bg-orange-100'
-        : 'text-green-700 bg-green-100'
+        ? 'text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900/30'
+        : 'text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/30'
 
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>
@@ -127,8 +127,8 @@ export default function FraudPage() {
           { label: 'Fraud Detection' },
         ]} />
         <div>
-          <h1 className="text-2xl font-bold text-indigo">Fraud Detection & Security</h1>
-          <p className="text-sm text-gray-500 mt-1">Monitor flagged invocations and security alerts across your tools.</p>
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Fraud Detection & Security</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor flagged invocations and security alerts across your tools.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
@@ -153,12 +153,12 @@ export default function FraudPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-indigo">Fraud Detection & Security</h1>
-        <p className="text-sm text-gray-500 mt-1">Monitor flagged invocations and security alerts across your tools.</p>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Fraud Detection & Security</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor flagged invocations and security alerts across your tools.</p>
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Risk Overview Cards */}
@@ -193,10 +193,10 @@ export default function FraudPage() {
           <Card key={rule.name}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-sm text-indigo">{rule.name}</h3>
+                <h3 className="font-semibold text-sm text-indigo dark:text-gray-100">{rule.name}</h3>
                 <Badge variant="success">{rule.status}</Badge>
               </div>
-              <p className="text-xs text-gray-500">{rule.description}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{rule.description}</p>
             </CardContent>
           </Card>
         ))}
@@ -211,49 +211,49 @@ export default function FraudPage() {
         <CardContent>
           {flagged.length === 0 ? (
             <div className="text-center py-8">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
-                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 mb-3">
+                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                 </svg>
               </div>
-              <p className="text-gray-500 text-sm">No flagged invocations detected. Your tools are operating normally.</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">No flagged invocations detected. Your tools are operating normally.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Flagged invocations">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Timestamp</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Consumer</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Method</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Cost</th>
-                    <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">Risk Score</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Reasons</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Action</th>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Timestamp</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Consumer</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Method</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Cost</th>
+                    <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Risk Score</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Reasons</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {flagged.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-gray-500">
+                    <tr key={item.id} className="border-b border-gray-100 dark:border-[#252836]">
+                      <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
                         {new Date(item.createdAt).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                         })}
                       </td>
                       <td className="py-3 px-4">
-                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{item.consumerId}</code>
+                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{item.consumerId}</code>
                       </td>
                       <td className="py-3 px-4">
-                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{item.method}</code>
+                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{item.method}</code>
                       </td>
-                      <td className="py-3 px-4 text-right text-gray-700">{formatCents(item.costCents)}</td>
+                      <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{formatCents(item.costCents)}</td>
                       <td className="py-3 px-4 text-center">
                         <RiskScoreBadge score={item.riskScore} />
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1">
                           {item.reasons.map((reason, i) => (
-                            <span key={i} className="text-xs text-gray-500">{reason}{i < item.reasons.length - 1 ? ',' : ''}</span>
+                            <span key={i} className="text-xs text-gray-500 dark:text-gray-400">{reason}{i < item.reasons.length - 1 ? ',' : ''}</span>
                           ))}
                         </div>
                       </td>
@@ -281,27 +281,27 @@ export default function FraudPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border border-gray-100 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo mb-1">IP Allowlisting</h4>
-              <p className="text-xs text-gray-500">
+            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">IP Allowlisting</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Restrict API key access to specific IP addresses or CIDR ranges. Configure per-key restrictions from the Consumer Dashboard.
               </p>
             </div>
-            <div className="border border-gray-100 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo mb-1">Rate Limiting</h4>
-              <p className="text-xs text-gray-500">
+            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">Rate Limiting</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 All API routes are rate-limited automatically. Configure custom rate limits per tool to prevent abuse and control costs.
               </p>
             </div>
-            <div className="border border-gray-100 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo mb-1">Webhook Monitoring</h4>
-              <p className="text-xs text-gray-500">
+            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">Webhook Monitoring</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Set up webhooks to receive real-time notifications for suspicious activity, including flagged invocations and unusual patterns.
               </p>
             </div>
-            <div className="border border-gray-100 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo mb-1">Audit Log Review</h4>
-              <p className="text-xs text-gray-500">
+            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">Audit Log Review</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Regularly review the audit log for unauthorized access attempts, key revocations, and suspicious tool status changes.
               </p>
             </div>

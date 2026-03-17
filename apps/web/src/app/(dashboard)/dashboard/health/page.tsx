@@ -141,8 +141,8 @@ export default function HealthPage() {
           { label: 'Health' },
         ]} />
         <div>
-          <h1 className="text-2xl font-bold text-indigo">Tool Health Monitoring</h1>
-          <p className="text-sm text-gray-500 mt-1">Monitor the uptime and performance of your registered tools.</p>
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Tool Health Monitoring</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor the uptime and performance of your registered tools.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
@@ -168,8 +168,8 @@ export default function HealthPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-indigo">Tool Health Monitoring</h1>
-          <p className="text-sm text-gray-500 mt-1">Monitor the uptime and performance of your registered tools.</p>
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Tool Health Monitoring</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor the uptime and performance of your registered tools.</p>
         </div>
         <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
           {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -177,7 +177,7 @@ export default function HealthPage() {
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Overall Stats */}
@@ -208,8 +208,8 @@ export default function HealthPage() {
       {monitoredTools.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <p className="text-gray-500 mb-2">No tools with health endpoints configured.</p>
-            <p className="text-gray-500 text-sm">Add a health endpoint URL to your tools to enable monitoring.</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-2">No tools with health endpoints configured.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Add a health endpoint URL to your tools to enable monitoring.</p>
           </CardContent>
         </Card>
       ) : (
@@ -220,35 +220,35 @@ export default function HealthPage() {
               <Card key={tool.id}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-indigo">{tool.name}</h3>
+                    <h3 className="font-semibold text-indigo dark:text-gray-100">{tool.name}</h3>
                     <StatusBadge status={health?.currentStatus ?? 'unknown'} />
                   </div>
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <dt className="text-xs text-gray-500">Response Time</dt>
-                      <dd className="font-medium text-gray-900">
+                      <dt className="text-xs text-gray-500 dark:text-gray-400">Response Time</dt>
+                      <dd className="font-medium text-gray-900 dark:text-gray-100">
                         {health ? `${health.avgResponseTimeMs}ms` : '-'}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-gray-500">Uptime (30d)</dt>
+                      <dt className="text-xs text-gray-500 dark:text-gray-400">Uptime (30d)</dt>
                       <dd className={`font-medium ${
-                        health && health.uptimePct30d < 99 ? 'text-red-600' : 'text-gray-900'
+                        health && health.uptimePct30d < 99 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
                       }`}>
                         {health ? `${health.uptimePct30d}%` : '-'}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-gray-500">Last Checked</dt>
-                      <dd className="font-medium text-gray-900">
+                      <dt className="text-xs text-gray-500 dark:text-gray-400">Last Checked</dt>
+                      <dd className="font-medium text-gray-900 dark:text-gray-100">
                         {health?.lastCheckedAt
                           ? new Date(health.lastCheckedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                           : '-'}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-gray-500">Total Checks</dt>
-                      <dd className="font-medium text-gray-900">
+                      <dt className="text-xs text-gray-500 dark:text-gray-400">Total Checks</dt>
+                      <dd className="font-medium text-gray-900 dark:text-gray-100">
                         {health?.totalChecks30d?.toLocaleString() ?? '-'}
                       </dd>
                     </div>
@@ -256,11 +256,11 @@ export default function HealthPage() {
                   {/* Uptime bar */}
                   {health && (
                     <div className="mt-4">
-                      <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all ${
                             health.uptimePct30d >= 99.5 ? 'bg-green-500' :
-                            health.uptimePct30d >= 95 ? 'bg-yellow-500' : 'bg-red-500'
+                            health.uptimePct30d >= 95 ? 'bg-yellow-500' : 'bg-red-50 dark:bg-red-900/200'
                           }`}
                           style={{ width: `${Math.min(100, health.uptimePct30d)}%` }}
                         />
@@ -285,24 +285,24 @@ export default function HealthPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Recent health incidents">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Timestamp</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Tool</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Response Time</th>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Timestamp</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Tool</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Status</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Response Time</th>
                   </tr>
                 </thead>
                 <tbody>
                   {allIncidents.map((inc, i) => (
-                    <tr key={`${inc.toolId}-${i}`} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-gray-500">
+                    <tr key={`${inc.toolId}-${i}`} className="border-b border-gray-100 dark:border-[#252836]">
+                      <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
                         {new Date(inc.checkedAt).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
                         })}
                       </td>
-                      <td className="py-3 px-4 font-medium text-indigo">{inc.toolName}</td>
+                      <td className="py-3 px-4 font-medium text-indigo dark:text-gray-100">{inc.toolName}</td>
                       <td className="py-3 px-4"><StatusBadge status={inc.status} /></td>
-                      <td className="py-3 px-4 text-right text-gray-700">
+                      <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">
                         {inc.responseTimeMs ? `${inc.responseTimeMs}ms` : '-'}
                       </td>
                     </tr>

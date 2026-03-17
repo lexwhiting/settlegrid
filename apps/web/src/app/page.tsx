@@ -25,7 +25,7 @@ function FeatureCard({
   description: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200 dark:border-[#2E3148] dark:bg-[#1A1D2E] dark:hover:border-brand/50">
+    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] hover:border-brand/40 hover:shadow-md transition-all duration-200 dark:hover:border-brand/50">
       <div className="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center mb-4 group-hover:bg-brand/20 transition-colors">
         {icon}
       </div>
@@ -45,7 +45,7 @@ function HeroFeatureCard({
   description: string
 }) {
   return (
-    <div className="md:col-span-2 p-8 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200 dark:border-[#2E3148] dark:bg-[#1A1D2E] dark:hover:border-brand/50">
+    <div className="md:col-span-2 p-8 rounded-xl border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] hover:border-brand/40 hover:shadow-md transition-all duration-200 dark:hover:border-brand/50">
       <div className="flex items-start gap-6">
         <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center shrink-0">
           {icon}
@@ -125,10 +125,10 @@ function ComparisonTable() {
           {features.map((f) => (
             <tr key={f.name} className="border-b border-gray-100 dark:border-[#2E3148]/50">
               <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{f.name}</td>
-              <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand-text font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
-              <td className="text-center py-3 px-4">{f.mcpize ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
-              <td className="text-center py-3 px-4">{f.apify ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
-              <td className="text-center py-3 px-4">{f.moesif ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand-text font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-500 dark:text-gray-400" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.mcpize ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500 dark:text-gray-400" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.apify ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500 dark:text-gray-400" aria-label="No">&#8212;</span>}</td>
+              <td className="text-center py-3 px-4">{f.moesif ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500 dark:text-gray-400" aria-label="No">&#8212;</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -242,7 +242,7 @@ function PricingSection() {
               className={`block w-full text-center py-2 rounded-lg text-sm font-semibold transition-colors mb-4 ${
                 tier.highlighted
                   ? 'bg-brand text-white hover:bg-brand-dark'
-                  : 'bg-gray-100 text-indigo hover:bg-gray-200 dark:bg-[#252836] dark:text-gray-100 dark:hover:bg-[#2E3148]'
+                  : 'bg-gray-100 dark:bg-[#252836] text-indigo dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-[#2E3148]'
               }`}
             >
               {tier.cta}
@@ -339,18 +339,18 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* ---- Header ---- */}
-      <header className="border-b border-gray-200 px-6 py-4 dark:border-[#2E3148] dark:bg-[#0F1117]">
+      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#0F1117]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <SettleGridLogo variant="horizontal" size={32} />
           <div className="flex items-center gap-4">
-            <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors dark:text-gray-400 dark:hover:text-white">
+            <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Marketplace
             </Link>
-            <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors dark:text-gray-400 dark:hover:text-white">
+            <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Docs
             </Link>
             <ThemeToggle />
-            <Link href="/login" className="hidden sm:inline text-sm font-medium text-indigo hover:text-brand-dark transition-colors dark:text-gray-300 dark:hover:text-brand-light">
+            <Link href="/login" className="hidden sm:inline text-sm font-medium text-indigo dark:text-gray-300 hover:text-brand-dark dark:hover:text-brand-light transition-colors">
               Log in
             </Link>
             <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
@@ -378,7 +378,7 @@ export default function HomePage() {
           />
           <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 bg-white/10 text-brand-light border border-white/20 text-xs font-semibold px-3 py-1 rounded-full mb-6">
+              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#1A1D2E]/10 text-brand-light border border-white/20 text-xs font-semibold px-3 py-1 rounded-full mb-6">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
@@ -398,7 +398,7 @@ export default function HomePage() {
                 <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
                   Start Building
                 </Link>
-                <Link href="/docs" className="inline-flex items-center justify-center border-2 border-white/30 text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-white/10 transition-colors">
+                <Link href="/docs" className="inline-flex items-center justify-center border-2 border-white/30 text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-white dark:bg-[#1A1D2E]/10 transition-colors">
                   Read Docs
                 </Link>
               </div>
@@ -707,7 +707,7 @@ export default function HomePage() {
                     ].map((badge) => (
                       <span
                         key={badge}
-                        className="inline-flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-full px-3 py-1.5 text-xs font-medium text-white/80"
+                        className="inline-flex items-center gap-1.5 bg-white dark:bg-[#1A1D2E]/10 border border-white/20 rounded-full px-3 py-1.5 text-xs font-medium text-white/80"
                       >
                         <svg className="w-3.5 h-3.5 text-brand-light" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -785,7 +785,7 @@ export default function HomePage() {
                 <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
                   Get Started Free
                 </Link>
-                <Link href="/tools" className="inline-flex items-center justify-center border-2 border-gray-300 text-gray-700 font-semibold px-8 py-3 rounded-lg text-lg hover:border-indigo hover:text-indigo transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-400 dark:hover:text-white">
+                <Link href="/tools" className="inline-flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold px-8 py-3 rounded-lg text-lg hover:border-indigo hover:text-indigo dark:hover:border-gray-400 dark:hover:text-white transition-colors">
                   Browse Marketplace
                 </Link>
               </div>
@@ -795,7 +795,7 @@ export default function HomePage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-gray-200 px-6 py-8 dark:border-[#2E3148]">
+      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-8 dark:border-[#2E3148]">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={24} />
           <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">

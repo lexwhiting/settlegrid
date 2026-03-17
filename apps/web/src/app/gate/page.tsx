@@ -135,7 +135,7 @@ export default function GatePage() {
           </button>
         </form>
 
-        <p className="mt-10 text-center text-xs text-gray-500 opacity-60">
+        <p className="mt-10 text-center text-xs text-gray-500 dark:text-gray-400 opacity-60">
           Private beta access only
         </p>
       </div>

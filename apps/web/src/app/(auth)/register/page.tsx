@@ -7,7 +7,7 @@ export default function RegisterPage() {
         appearance={{
           elements: {
             rootBox: 'mx-auto',
-            card: 'shadow-lg border border-gray-200',
+            card: 'shadow-lg border border-gray-200 dark:border-[#2E3148]',
           },
         }}
       />

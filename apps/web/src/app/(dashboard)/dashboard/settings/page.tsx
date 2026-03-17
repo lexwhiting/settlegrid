@@ -66,7 +66,7 @@ export default function SettingsPage() {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Settings' },
         ]} />
-        <h1 className="text-2xl font-bold text-indigo">Settings</h1>
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Settings</h1>
         <Card>
           <CardContent className="p-6">
             <Skeleton className="h-4 w-48" />
@@ -82,10 +82,10 @@ export default function SettingsPage() {
         { label: 'Dashboard', href: '/dashboard' },
         { label: 'Settings' },
       ]} />
-      <h1 className="text-2xl font-bold text-indigo">Settings</h1>
+      <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Settings</h1>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Profile */}
@@ -97,28 +97,28 @@ export default function SettingsPage() {
         <CardContent>
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <dt className="text-sm font-medium text-gray-500">Name</dt>
-              <dd className="text-sm text-gray-900">{profile?.name}</dd>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Name</dt>
+              <dd className="text-sm text-gray-900 dark:text-gray-100">{profile?.name}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Email</dt>
-              <dd className="text-sm text-gray-900">{profile?.email}</dd>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</dt>
+              <dd className="text-sm text-gray-900 dark:text-gray-100">{profile?.email}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Balance</dt>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Balance</dt>
               <dd className="text-sm font-semibold text-brand-text">{formatCents(profile?.balanceCents ?? 0)}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Payout Schedule</dt>
-              <dd className="text-sm text-gray-900 capitalize">{profile?.payoutSchedule}</dd>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Payout Schedule</dt>
+              <dd className="text-sm text-gray-900 dark:text-gray-100 capitalize">{profile?.payoutSchedule}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Payout Minimum</dt>
-              <dd className="text-sm text-gray-900">{formatCents(profile?.payoutMinimumCents ?? 2500)}</dd>
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Payout Minimum</dt>
+              <dd className="text-sm text-gray-900 dark:text-gray-100">{formatCents(profile?.payoutMinimumCents ?? 2500)}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-gray-500">Member Since</dt>
-              <dd className="text-sm text-gray-900">
+              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since</dt>
+              <dd className="text-sm text-gray-900 dark:text-gray-100">
                 {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '—'}
               </dd>
             </div>

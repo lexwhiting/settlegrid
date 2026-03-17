@@ -129,8 +129,8 @@ export default function ReferralsPage() {
           { label: 'Referrals' },
         ]} />
         <div>
-          <h1 className="text-2xl font-bold text-indigo">Referral Program</h1>
-          <p className="text-sm text-gray-500 mt-1">Earn commissions by referring consumers to tools on SettleGrid.</p>
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Referral Program</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Earn commissions by referring consumers to tools on SettleGrid.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
@@ -156,8 +156,8 @@ export default function ReferralsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-indigo">Referral Program</h1>
-          <p className="text-sm text-gray-500 mt-1">Earn commissions by referring consumers to tools on SettleGrid.</p>
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Referral Program</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Earn commissions by referring consumers to tools on SettleGrid.</p>
         </div>
         <Button onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : 'New Referral'}
@@ -165,7 +165,7 @@ export default function ReferralsPage() {
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
       {/* Stats Cards */}
@@ -187,13 +187,13 @@ export default function ReferralsPage() {
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="referral-tool" className="block text-sm font-medium text-gray-700 mb-1">Tool</label>
+                  <label htmlFor="referral-tool" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tool</label>
                   <select
                     id="referral-tool"
                     required
                     value={form.toolId}
                     onChange={(e) => setForm({ ...form, toolId: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                   >
                     <option value="">Select a tool...</option>
                     {tools.map((tool) => (
@@ -202,7 +202,7 @@ export default function ReferralsPage() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="referral-commission" className="block text-sm font-medium text-gray-700 mb-1">Commission (%)</label>
+                  <label htmlFor="referral-commission" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Commission (%)</label>
                   <input
                     id="referral-commission"
                     type="number"
@@ -211,7 +211,7 @@ export default function ReferralsPage() {
                     required
                     value={form.commissionPct}
                     onChange={(e) => setForm({ ...form, commissionPct: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                   />
                 </div>
               </div>
@@ -230,37 +230,37 @@ export default function ReferralsPage() {
         </CardHeader>
         <CardContent>
           {referrals.length === 0 ? (
-            <p className="text-gray-500 text-sm">No referrals yet. Create your first referral link to start earning commissions.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No referrals yet. Create your first referral link to start earning commissions.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Referrals list">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Referral Code</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Tool</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Commission</th>
-                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500">Total Earned</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Created</th>
-                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Actions</th>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Referral Code</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Tool</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Commission</th>
+                    <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Total Earned</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Status</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Created</th>
+                    <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {referrals.map((ref) => (
-                    <tr key={ref.id} className="border-b border-gray-100">
+                    <tr key={ref.id} className="border-b border-gray-100 dark:border-[#252836]">
                       <td className="py-3 px-4">
-                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{ref.referralCode}</code>
+                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{ref.referralCode}</code>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-medium text-indigo">{ref.toolName}</span>
-                        <span className="text-gray-500 text-xs ml-1">/{ref.toolSlug}</span>
+                        <span className="font-medium text-indigo dark:text-gray-100">{ref.toolName}</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-xs ml-1">/{ref.toolSlug}</span>
                       </td>
-                      <td className="py-3 px-4 text-right text-gray-700">{ref.commissionPct}%</td>
-                      <td className="py-3 px-4 text-right font-medium text-indigo">{formatCents(ref.totalEarnedCents)}</td>
+                      <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{ref.commissionPct}%</td>
+                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(ref.totalEarnedCents)}</td>
                       <td className="py-3 px-4">
                         <Badge variant={ref.status === 'active' ? 'success' : 'destructive'}>{ref.status}</Badge>
                       </td>
-                      <td className="py-3 px-4 text-gray-500">
+                      <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
                         {new Date(ref.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
                       <td className="py-3 px-4">
@@ -299,13 +299,13 @@ export default function ReferralsPage() {
                   return (
                     <div key={ref.id}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                           {ref.toolName}
-                          <span className="text-gray-500 text-xs ml-1">({ref.commissionPct}%)</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-xs ml-1">({ref.commissionPct}%)</span>
                         </span>
-                        <span className="text-sm font-medium text-indigo">{formatCents(ref.totalEarnedCents)}</span>
+                        <span className="text-sm font-medium text-indigo dark:text-gray-100">{formatCents(ref.totalEarnedCents)}</span>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2">
                         <div
                           className="h-2 rounded-full bg-brand transition-all"
                           style={{ width: `${Math.max(width, 2)}%` }}

@@ -38,7 +38,7 @@ export default function ReputationLoading() {
           <Skeleton className="h-5 w-56 mb-4" />
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="flex gap-4 border border-gray-100 rounded-lg p-4">
+              <div key={i} className="flex gap-4 border border-gray-100 dark:border-[#252836] rounded-lg p-4">
                 <Skeleton className="h-5 w-14 rounded-full" />
                 <div className="flex-1">
                   <Skeleton className="h-4 w-24 mb-2" />
