@@ -37,7 +37,7 @@ export async function sendAlertEmail(
 <h2 style="color:#1A1F3A;margin:0 0 16px">${labels[alertType] ?? 'Alert'}</h2>
 <p style="color:#4b5563;line-height:1.6;margin:0 0 16px">${descriptions[alertType] ?? 'An alert condition has been triggered.'}</p>
 <div style="text-align:center;margin:24px 0">
-<a href="https://settlegrid.ai/consumer" style="display:inline-block;background:#10B981;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">View Dashboard</a>
+<a href="https://settlegrid.ai/consumer" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">View Dashboard</a>
 </div>
 </div>
 <div style="text-align:center;margin-top:24px;color:#9ca3af;font-size:12px">

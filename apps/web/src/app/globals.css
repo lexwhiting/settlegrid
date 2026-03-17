@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  /* ---- Brand ---- */
-  --color-brand: #10B981;
-  --color-brand-dark: #059669;
+  /* ---- Brand (WCAG AA: >=4.5:1 with white text on buttons) ---- */
+  --color-brand: #059669;
+  --color-brand-dark: #047857;
   --color-brand-light: #34D399;
   --color-brand-text: #047857;
+  --color-brand-accent: #10B981;
   --color-emerald-light: #D1FAE5;
 
   /* ---- Neutrals ---- */
@@ -28,7 +29,7 @@
   --color-border-hover: rgba(16, 185, 129, 0.4);
   --color-text-primary: #1A1F3A;
   --color-text-secondary: #6B7280;
-  --color-text-muted: #9CA3AF;
+  --color-text-muted: #6B7280;
 
   /* ---- Typography ---- */
   --font-sans: 'Outfit', system-ui, sans-serif;

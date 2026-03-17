@@ -42,7 +42,7 @@ export function welcomeDeveloperEmail(name: string): EmailTemplate {
 <li>Wrap your handler and go live</li>
 </ol>
 <div style="text-align:center;margin:24px 0">
-<a href="https://settlegrid.ai/dashboard" style="display:inline-block;background:#10B981;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Go to Dashboard</a>
+<a href="https://settlegrid.ai/dashboard" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Go to Dashboard</a>
 </div>
 `),
   }
@@ -72,7 +72,7 @@ export function payoutNotificationEmail(name: string, amountCents: number): Emai
 <p style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, a payout of <strong style="color:#10B981">${formatted}</strong> has been initiated to your connected Stripe account.</p>
 <p style="color:#4b5563;line-height:1.6">Funds typically arrive within 2-7 business days depending on your bank.</p>
 <div style="text-align:center;margin:24px 0">
-<a href="https://settlegrid.ai/dashboard/payouts" style="display:inline-block;background:#10B981;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">View Payouts</a>
+<a href="https://settlegrid.ai/dashboard/payouts" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">View Payouts</a>
 </div>
 `),
   }
@@ -87,7 +87,7 @@ export function lowBalanceAlertEmail(email: string, toolName: string, balanceCen
 <p style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your credit balance for <strong>${escapeHtml(toolName)}</strong> is running low at <strong style="color:#ef4444">${formatted}</strong>.</p>
 <p style="color:#4b5563;line-height:1.6">Add credits to avoid service interruption.</p>
 <div style="text-align:center;margin:24px 0">
-<a href="https://settlegrid.ai/consumer" style="display:inline-block;background:#10B981;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Add Credits</a>
+<a href="https://settlegrid.ai/consumer" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Add Credits</a>
 </div>
 <p style="color:#9ca3af;font-size:12px">Tip: Enable auto-refill to automatically top up when your balance gets low.</p>
 `),
@@ -103,7 +103,7 @@ export function creditPurchaseConfirmationEmail(email: string, amountCents: numb
 <p style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your purchase of <strong style="color:#10B981">${formatted}</strong> in credits for <strong>${escapeHtml(toolName)}</strong> has been confirmed.</p>
 <p style="color:#4b5563;line-height:1.6">Credits have been added to your balance and are available immediately.</p>
 <div style="text-align:center;margin:24px 0">
-<a href="https://settlegrid.ai/consumer" style="display:inline-block;background:#10B981;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">View Balance</a>
+<a href="https://settlegrid.ai/consumer" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">View Balance</a>
 </div>
 `),
   }
