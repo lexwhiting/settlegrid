@@ -728,3 +728,30 @@ export const workflowSessions = pgTable(
     index('workflow_sessions_expires_at_idx').on(table.expiresAt),
   ]
 )
+
+// ─── Agent Identities (KYA) ─────────────────────────────────────────────────
+
+export const agentIdentities = pgTable(
+  'agent_identities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    providerId: text('provider_id'),
+    agentName: text('agent_name').notNull(),
+    identityType: text('identity_type').notNull(), // 'api-key' | 'did:key' | 'jwt' | 'x509' | 'tap-token'
+    publicKey: text('public_key'),
+    fingerprint: text('fingerprint').unique(),
+    verificationLevel: text('verification_level').notNull().default('none'), // 'none' | 'basic' | 'business' | 'individual'
+    capabilities: jsonb('capabilities'), // { tools, methods, pricing, protocols }
+    spendingLimitCents: integer('spending_limit_cents'),
+    status: text('status').notNull().default('active'), // 'active' | 'suspended' | 'revoked'
+    metadata: jsonb('metadata'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('agent_identities_provider_id_idx').on(table.providerId),
+    uniqueIndex('agent_identities_fingerprint_idx').on(table.fingerprint),
+    index('agent_identities_identity_type_idx').on(table.identityType),
+    index('agent_identities_status_idx').on(table.status),
+  ]
+)
