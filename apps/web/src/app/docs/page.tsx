@@ -16,12 +16,41 @@ function Section({ title, id, children }: { title: string; id: string; children:
   )
 }
 
+function highlightCode(code: string): React.ReactNode[] {
+  // Tokenize with regex — order matters: comments first, then strings, then keywords
+  const tokenPattern = /\/\/[^\n]*|'[^']*'|"[^"]*"|`[^`]*`|\b(import|from|export|const|let|var|function|async|await|return|if|else|try|catch|throw|new|interface|type|extends|class|default|number|string|boolean|void|true|false|null|undefined)\b/g
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = tokenPattern.exec(code)) !== null) {
+    // Push text before match
+    if (match.index > lastIndex) {
+      parts.push(code.slice(lastIndex, match.index))
+    }
+    const token = match[0]
+    if (token.startsWith('//')) {
+      parts.push(<span key={match.index} className="text-gray-500 italic">{token}</span>)
+    } else if (token.startsWith("'") || token.startsWith('"') || token.startsWith('`')) {
+      parts.push(<span key={match.index} className="text-amber-300">{token}</span>)
+    } else {
+      parts.push(<span key={match.index} className="text-emerald-400">{token}</span>)
+    }
+    lastIndex = match.index + token.length
+  }
+  // Push remaining text
+  if (lastIndex < code.length) {
+    parts.push(code.slice(lastIndex))
+  }
+  return parts
+}
+
 function CodeBlock({ children, title }: { children: string; title?: string }) {
   return (
     <div className="my-4">
       {title && <div className="bg-gray-700 text-gray-300 text-xs px-4 py-2 rounded-t-lg font-mono">{title}</div>}
       <div className={`bg-indigo text-gray-300 text-sm font-mono p-4 overflow-x-auto ${title ? 'rounded-b-lg' : 'rounded-lg'}`}>
-        <pre><code>{children}</code></pre>
+        <pre><code>{highlightCode(children)}</code></pre>
       </div>
     </div>
   )
@@ -29,7 +58,7 @@ function CodeBlock({ children, title }: { children: string; title?: string }) {
 
 export default function DocsPage() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0F1117]">
       <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 sticky top-0 bg-white dark:bg-[#1A1D2E] z-10">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const RAW_CODE = `import { settlegrid } from '@settlegrid/mcp'
 
@@ -24,8 +24,60 @@ const getForecast = sg.wrap(
   { method: 'get-forecast' }
 )`
 
+function highlightCode(code: string): React.ReactNode[] {
+  const tokenPattern = /\/\/[^\n]*|'[^']*'|"[^"]*"|`[^`]*`|\b(import|from|export|const|let|var|function|async|await|return|if|else|try|catch|throw|new|interface|type)\b/g
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = tokenPattern.exec(code)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(code.slice(lastIndex, match.index))
+    }
+    const token = match[0]
+    if (token.startsWith('//')) {
+      parts.push(<span key={match.index} className="text-gray-500 italic">{token}</span>)
+    } else if (token.startsWith("'") || token.startsWith('"') || token.startsWith('`')) {
+      parts.push(<span key={match.index} className="text-amber-300">{token}</span>)
+    } else {
+      parts.push(<span key={match.index} className="text-emerald-400">{token}</span>)
+    }
+    lastIndex = match.index + token.length
+  }
+  if (lastIndex < code.length) {
+    parts.push(code.slice(lastIndex))
+  }
+  return parts
+}
+
 export function CodeSnippet() {
   const [copied, setCopied] = useState(false)
+  const [displayedChars, setDisplayedChars] = useState(0)
+  const [isTyping, setIsTyping] = useState(true)
+  const hasStarted = useRef(false)
+
+  useEffect(() => {
+    // Only run the typewriter once on mount
+    if (hasStarted.current) return
+    hasStarted.current = true
+
+    if (!isTyping) return
+    if (displayedChars >= RAW_CODE.length) {
+      setIsTyping(false)
+      return
+    }
+    const interval = setInterval(() => {
+      setDisplayedChars((prev) => {
+        const next = Math.min(prev + 3, RAW_CODE.length)
+        if (next >= RAW_CODE.length) {
+          clearInterval(interval)
+          setIsTyping(false)
+        }
+        return next
+      })
+    }, 12)
+    return () => clearInterval(interval)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleCopy() {
     navigator.clipboard.writeText(RAW_CODE).then(() => {
@@ -33,6 +85,8 @@ export function CodeSnippet() {
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  const visibleCode = isTyping ? RAW_CODE.slice(0, displayedChars) : RAW_CODE
 
   return (
     <div className="bg-[#0D1117] rounded-xl p-6 text-sm font-mono text-left overflow-x-auto shadow-2xl border border-white/10">
@@ -66,7 +120,8 @@ export function CodeSnippet() {
         </button>
       </div>
       <pre className="text-gray-300 leading-relaxed">
-        <code>{RAW_CODE}</code>
+        <code>{isTyping ? visibleCode : highlightCode(RAW_CODE)}</code>
+        {isTyping && <span className="inline-block w-2 h-4 bg-brand animate-pulse ml-0.5 align-middle" />}
       </pre>
     </div>
   )

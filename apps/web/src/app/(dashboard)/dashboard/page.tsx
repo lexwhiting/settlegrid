@@ -7,6 +7,7 @@ import { StatCard } from '@/components/dashboard/stat-card'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { BarChart } from '@/components/charts/bar-chart'
 import { AreaChart } from '@/components/charts/area-chart'
+import { LiveIndicator } from '@/components/ui/live-indicator'
 
 interface DeveloperStats {
   totalRevenueCents: number
@@ -102,7 +103,10 @@ export default function DeveloperDashboardPage() {
 
       {/* Header with period selector */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Dashboard</h1>
+          <LiveIndicator connected={!!stats} />
+        </div>
         <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#252836] rounded-lg p-1">
           {(['7', '30', '90'] as const).map((p) => (
             <button

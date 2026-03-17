@@ -18,15 +18,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0F1117]">
       {/* ---- Header ---- */}
-      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4">
+      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#1A1D2E]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={32} />
           </Link>
           <div className="flex items-center gap-4">
-            <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100 transition-colors">
+            <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Docs
             </Link>
             <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
