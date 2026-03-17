@@ -28,8 +28,9 @@ vi.mock('@/lib/logger', () => ({
 
 // Mock rate limiter
 vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: vi.fn().mockResolvedValue({ success: true }),
+  checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
   sdkLimiter: {},
+  apiLimiter: {},
 }))
 
 import { GET } from '@/app/api/stream/route'

@@ -1,16 +1,29 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+  apiLimiter: {},
+}))
+
 import { GET } from '@/app/api/openapi.json/route'
+import { NextRequest } from 'next/server'
+
+function makeRequest(): NextRequest {
+  return new NextRequest('http://localhost:3005/api/openapi.json', {
+    headers: { 'x-forwarded-for': '127.0.0.1' },
+  })
+}
 
 describe('GET /api/openapi.json', () => {
   it('returns 200 with JSON content type', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('application/json')
   })
 
   it('returns valid OpenAPI 3.1 spec', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     expect(spec.openapi).toBe('3.1.0')
@@ -19,13 +32,13 @@ describe('GET /api/openapi.json', () => {
   })
 
   it('has Cache-Control header set to 1 hour', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
 
     expect(response.headers.get('Cache-Control')).toBe('public, max-age=3600')
   })
 
   it('includes paths for all major API groups', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     // SDK routes
@@ -55,7 +68,7 @@ describe('GET /api/openapi.json', () => {
   })
 
   it('includes security schemes', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     expect(spec.components.securitySchemes.apiKey).toBeDefined()
@@ -65,7 +78,7 @@ describe('GET /api/openapi.json', () => {
   })
 
   it('includes component schemas', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     expect(spec.components.schemas.Error).toBeDefined()
@@ -75,7 +88,7 @@ describe('GET /api/openapi.json', () => {
   })
 
   it('includes tags for all groups', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     const tagNames = spec.tags.map((t: { name: string }) => t.name)
@@ -90,7 +103,7 @@ describe('GET /api/openapi.json', () => {
   })
 
   it('outcome POST path has correct request schema', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     const outcomePost = spec.paths['/api/outcomes'].post
@@ -104,7 +117,7 @@ describe('GET /api/openapi.json', () => {
   })
 
   it('stream GET path documents SSE response', async () => {
-    const response = await GET()
+    const response = await GET(makeRequest())
     const spec = await response.json()
 
     const streamGet = spec.paths['/api/stream'].get

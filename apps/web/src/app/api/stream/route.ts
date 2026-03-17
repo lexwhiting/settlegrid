@@ -14,11 +14,22 @@
 import { NextRequest } from 'next/server'
 import { getRedis, tryRedis } from '@/lib/redis'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, apiLimiter } from '@/lib/rate-limit'
 
 export const maxDuration = 300 // 5 minutes max for streaming
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest): Promise<Response> {
+  // Rate limit SSE connections per IP
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  const rl = await checkRateLimit(apiLimiter, `stream:${ip}`)
+  if (!rl.success) {
+    return new Response(
+      JSON.stringify({ error: 'Too many requests', code: 'RATE_LIMIT_EXCEEDED' }),
+      { status: 429, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
   // Auth via API key
   const apiKey =
     req.nextUrl.searchParams.get('apiKey') ??

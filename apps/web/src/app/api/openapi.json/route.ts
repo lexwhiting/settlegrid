@@ -5,11 +5,19 @@
  * Cached for 1 hour via Cache-Control.
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit, apiLimiter } from '@/lib/rate-limit'
+import { errorResponse } from '@/lib/api'
 
 export const maxDuration = 5
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const rl = await checkRateLimit(apiLimiter, `openapi:${ip}`)
+  if (!rl.success) {
+    return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+  }
+
   const spec = {
     openapi: '3.1.0',
     info: {

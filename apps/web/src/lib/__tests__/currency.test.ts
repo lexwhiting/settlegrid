@@ -34,7 +34,6 @@ import {
   FALLBACK_RATES,
   isSupportedCurrency,
 } from '@/lib/settlement/currency'
-import type { SupportedCurrency } from '@/lib/settlement/currency'
 
 // ─── SUPPORTED_CURRENCIES ───────────────────────────────────────────────────
 

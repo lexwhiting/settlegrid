@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { developers, consumers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getClerkWebhookSecret } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -108,8 +109,7 @@ export async function POST(request: NextRequest) {
 
     return new Response('OK', { status: 200 })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('[Clerk Webhook]', message)
+    logger.error('clerk.webhook_failed', {}, error)
     return new Response('Webhook verification failed', { status: 400 })
   }
 }
