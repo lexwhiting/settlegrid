@@ -2,30 +2,31 @@
 
 import { useState, useEffect, useRef } from 'react'
 
-const RAW_CODE = `import { settlegrid } from '@settlegrid/mcp'
+const RAW_CODE = `// MCP Tool — one-line monetization
+import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
   toolSlug: 'weather-api',
-  pricing: {
-    defaultCostCents: 1,
-    methods: {
-      'get-forecast': { costCents: 2 },
-      'get-historical': { costCents: 5 },
-    },
-  },
+  pricing: { defaultCostCents: 1 },
 })
 
-// Wrap any function as a monetized tool
-const getForecast = sg.wrap(
+const handler = sg.wrap(
   async (args: { city: string }) => {
-    const data = await fetchWeather(args.city)
-    return { forecast: data }
+    return await fetchWeather(args.city)
   },
-  { method: 'get-forecast' }
-)`
+  { method: 'get-forecast', costCents: 2 }
+)
+
+// REST API — middleware pattern
+app.use('/api/v1',
+  settlegridMiddleware({ toolSlug: 'my-api' })
+)
+
+// x402 — verify payment header
+POST /api/x402/verify { paymentHeader }`
 
 function highlightCode(code: string): React.ReactNode[] {
-  const tokenPattern = /\/\/[^\n]*|'[^']*'|"[^"]*"|`[^`]*`|\b(import|from|export|const|let|var|function|async|await|return|if|else|try|catch|throw|new|interface|type)\b/g
+  const tokenPattern = /\/\/[^\n]*|'[^']*'|"[^"]*"|`[^`]*`|\b(import|from|export|const|let|var|function|async|await|return|if|else|try|catch|throw|new|interface|type|POST|app)\b/g
   const parts: React.ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
