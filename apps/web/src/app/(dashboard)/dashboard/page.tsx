@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from '@/components/dashboard/stat-card'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { BarChart } from '@/components/charts/bar-chart'
 import { AreaChart } from '@/components/charts/area-chart'
 
@@ -67,6 +68,7 @@ export default function DeveloperDashboardPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[{ label: 'Dashboard' }]} />
         <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
@@ -85,6 +87,7 @@ export default function DeveloperDashboardPage() {
   if (error) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[{ label: 'Dashboard' }]} />
         <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-600 text-sm" role="alert">
           {error}
@@ -95,6 +98,8 @@ export default function DeveloperDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[{ label: 'Dashboard' }]} />
+
       {/* Header with period selector */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
@@ -182,6 +187,7 @@ export default function DeveloperDashboardPage() {
               xKey="hour"
               yKey="count"
               height={200}
+              ariaLabel="Invocations per hour over the last 24 hours"
               formatXAxis={(v) => {
                 const h = parseInt(v, 10)
                 return isNaN(h) ? v : `${h}:00`
@@ -208,6 +214,7 @@ export default function DeveloperDashboardPage() {
               xKey="date"
               yKey="revenue"
               height={220}
+              ariaLabel="Revenue trend over the last 30 days"
               formatValue={(v) =>
                 new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v / 100)
               }

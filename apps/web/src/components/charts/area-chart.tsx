@@ -20,6 +20,8 @@ interface AreaChartProps {
   color?: string
   formatValue?: (value: number) => string
   formatXAxis?: (value: string) => string
+  /** Accessible label for screen readers */
+  ariaLabel?: string
 }
 
 export function AreaChart({
@@ -31,6 +33,7 @@ export function AreaChart({
   color = '#10B981',
   formatValue = (v) => String(v),
   formatXAxis = (v) => v,
+  ariaLabel,
 }: AreaChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -41,6 +44,7 @@ export function AreaChart({
   }
 
   return (
+    <div role="img" aria-label={ariaLabel ?? `Area chart of ${yKey}`}>
     <ResponsiveContainer width="100%" height={height}>
       <RechartsAreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
         <defs>
@@ -97,5 +101,6 @@ export function AreaChart({
         />
       </RechartsAreaChart>
     </ResponsiveContainer>
+    </div>
   )
 }

@@ -18,6 +18,8 @@ interface BarChartProps {
   color?: string
   formatValue?: (value: number) => string
   formatXAxis?: (value: string) => string
+  /** Accessible label for screen readers */
+  ariaLabel?: string
 }
 
 export function BarChart({
@@ -28,6 +30,7 @@ export function BarChart({
   color = '#10B981',
   formatValue = (v) => String(v),
   formatXAxis = (v) => v,
+  ariaLabel,
 }: BarChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -38,6 +41,7 @@ export function BarChart({
   }
 
   return (
+    <div role="img" aria-label={ariaLabel ?? `Bar chart of ${yKey}`}>
     <ResponsiveContainer width="100%" height={height}>
       <RechartsBarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
@@ -74,5 +78,6 @@ export function BarChart({
         />
       </RechartsBarChart>
     </ResponsiveContainer>
+    </div>
   )
 }

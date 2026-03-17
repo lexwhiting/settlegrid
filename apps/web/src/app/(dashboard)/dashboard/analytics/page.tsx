@@ -207,6 +207,7 @@ export default function AnalyticsPage() {
                   xKey="date"
                   yKey="invocations"
                   height={160}
+                  ariaLabel="Daily API invocations over the selected period"
                   formatXAxis={(v) =>
                     new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                   }
@@ -220,6 +221,7 @@ export default function AnalyticsPage() {
                   yKey="costCents"
                   height={160}
                   color="#3B82F6"
+                  ariaLabel="Daily API cost over the selected period"
                   formatValue={(v) => formatCents(v)}
                   formatXAxis={(v) =>
                     new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
