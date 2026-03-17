@@ -43,3 +43,18 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 }
+
+/* Dark mode overrides */
+.dark {
+  --color-surface: #0F1117;
+  --color-surface-secondary: #1A1D2E;
+  --color-border: #2E3148;
+  --color-border-hover: rgba(16, 185, 129, 0.5);
+  --color-text-primary: #E5E7EB;
+  --color-text-secondary: #9CA3AF;
+  --color-text-muted: #6B7280;
+  --color-cloud: #0F1117;
+
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 1px 2px -1px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.15);
+}

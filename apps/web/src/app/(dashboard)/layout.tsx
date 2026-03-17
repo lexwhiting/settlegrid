@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { UserButton } from '@clerk/nextjs'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
 const devNavItems = [
@@ -71,8 +72,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )
           })}
         </nav>
-        <div className="absolute bottom-4 left-0 right-0 px-3 flex items-center gap-3 px-3 py-2.5">
+        <div className="absolute bottom-4 left-0 right-0 px-3 flex items-center gap-3 py-2.5">
           <UserButton afterSignOutUrl="/login" />
+          <ThemeToggle />
         </div>
       </aside>
 
@@ -86,11 +88,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-6 py-4 lg:hidden">
+        <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-6 py-4 lg:hidden dark:bg-[#0F1117] dark:border-[#2E3148]">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-500 hover:text-indigo"
+            className="text-gray-500 hover:text-indigo dark:text-gray-400 dark:hover:text-gray-100"
             aria-label="Open sidebar"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

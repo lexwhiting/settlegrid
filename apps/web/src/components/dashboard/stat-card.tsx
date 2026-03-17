@@ -17,13 +17,13 @@ export function StatCard({ title, value, subtitle, trend, variant }: StatCardPro
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex items-baseline gap-2">
           <span className={cn(
             'text-3xl font-bold tabular-nums',
-            variant === 'danger' ? 'text-red-600' : 'text-indigo'
+            variant === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-indigo dark:text-gray-100'
           )}>
             {value}
           </span>
@@ -45,7 +45,7 @@ export function StatCard({ title, value, subtitle, trend, variant }: StatCardPro
             </span>
           )}
         </div>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>}
       </CardContent>
     </Card>
   )

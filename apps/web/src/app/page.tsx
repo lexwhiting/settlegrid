@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { CodeSnippet } from '@/components/marketing/code-snippet'
 import { RevealSection } from '@/components/marketing/home-sections'
 
@@ -24,12 +25,12 @@ function FeatureCard({
   description: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200">
+    <div className="group p-6 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200 dark:border-[#2E3148] dark:bg-[#1A1D2E] dark:hover:border-brand/50">
       <div className="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center mb-4 group-hover:bg-brand/20 transition-colors">
         {icon}
       </div>
-      <h3 className="font-semibold text-indigo mb-2">{title}</h3>
-      <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+      <h3 className="font-semibold text-indigo dark:text-gray-100 mb-2">{title}</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
     </div>
   )
 }
@@ -44,14 +45,14 @@ function HeroFeatureCard({
   description: string
 }) {
   return (
-    <div className="md:col-span-2 p-8 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200">
+    <div className="md:col-span-2 p-8 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200 dark:border-[#2E3148] dark:bg-[#1A1D2E] dark:hover:border-brand/50">
       <div className="flex items-start gap-6">
         <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center shrink-0">
           {icon}
         </div>
         <div>
-          <h3 className="font-semibold text-lg text-indigo mb-2">{title}</h3>
-          <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+          <h3 className="font-semibold text-lg text-indigo dark:text-gray-100 mb-2">{title}</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
         </div>
       </div>
     </div>
@@ -72,8 +73,8 @@ function StepCard({
       <div className="w-12 h-12 rounded-full bg-brand text-white font-bold text-lg flex items-center justify-center mx-auto mb-4">
         {step}
       </div>
-      <h3 className="font-semibold text-indigo text-lg mb-2">{title}</h3>
-      <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+      <h3 className="font-semibold text-indigo dark:text-gray-100 text-lg mb-2">{title}</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
     </div>
   )
 }
@@ -112,18 +113,18 @@ function ComparisonTable() {
     <div className="overflow-x-auto">
       <table className="w-full text-sm" role="table" aria-label="Feature comparison">
         <thead>
-          <tr className="border-b border-gray-200">
-            <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500">Feature</th>
+          <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+            <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Feature</th>
             <th scope="col" className="text-center py-3 px-4 font-semibold text-brand-text">SettleGrid</th>
-            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">MCPize</th>
-            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">Apify</th>
-            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500">Moesif</th>
+            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">MCPize</th>
+            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Apify</th>
+            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Moesif</th>
           </tr>
         </thead>
         <tbody>
           {features.map((f) => (
-            <tr key={f.name} className="border-b border-gray-100">
-              <td className="py-3 px-4 text-gray-700">{f.name}</td>
+            <tr key={f.name} className="border-b border-gray-100 dark:border-[#2E3148]/50">
+              <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{f.name}</td>
               <td className="text-center py-3 px-4">{f.settlegrid ? <span className="text-brand-text font-bold" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
               <td className="text-center py-3 px-4">{f.mcpize ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
               <td className="text-center py-3 px-4">{f.apify ? <span className="text-green-500" aria-label="Yes">&#10003;</span> : <span className="text-gray-500" aria-label="No">&#8212;</span>}</td>
@@ -211,8 +212,8 @@ function PricingSection() {
 
   return (
     <div className="text-center">
-      <h2 className="text-3xl font-bold text-indigo mb-4">Simple, Transparent Pricing</h2>
-      <p className="text-gray-600 mb-10 max-w-xl mx-auto">
+      <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 mb-4">Simple, Transparent Pricing</h2>
+      <p className="text-gray-600 dark:text-gray-400 mb-10 max-w-xl mx-auto">
         Start free. Scale as you grow. You always keep the majority of your revenue.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
@@ -222,7 +223,7 @@ function PricingSection() {
             className={`p-6 rounded-xl border-2 text-left relative ${
               tier.highlighted
                 ? 'border-brand shadow-lg shadow-brand/10'
-                : 'border-gray-200'
+                : 'border-gray-200 dark:border-[#2E3148]'
             }`}
           >
             {tier.highlighted && (
@@ -230,25 +231,25 @@ function PricingSection() {
                 Most Popular
               </div>
             )}
-            <h3 className="font-semibold text-lg text-indigo">{tier.name}</h3>
+            <h3 className="font-semibold text-lg text-indigo dark:text-gray-100">{tier.name}</h3>
             <div className="mt-2 mb-1">
-              <span className="text-3xl font-bold text-indigo">{tier.price}</span>
-              <span className="text-sm text-gray-500">{tier.period}</span>
+              <span className="text-3xl font-bold text-indigo dark:text-gray-100">{tier.price}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{tier.period}</span>
             </div>
-            <p className="text-xs text-gray-500 mb-4">{tier.description}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">{tier.description}</p>
             <Link
               href={tier.href}
               className={`block w-full text-center py-2 rounded-lg text-sm font-semibold transition-colors mb-4 ${
                 tier.highlighted
                   ? 'bg-brand text-white hover:bg-brand-dark'
-                  : 'bg-gray-100 text-indigo hover:bg-gray-200'
+                  : 'bg-gray-100 text-indigo hover:bg-gray-200 dark:bg-[#252836] dark:text-gray-100 dark:hover:bg-[#2E3148]'
               }`}
             >
               {tier.cta}
             </Link>
             <ul className="space-y-2">
               {tier.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <span className="text-brand-text mt-0.5 shrink-0">&#10003;</span>
                   {f}
                 </li>
@@ -338,17 +339,18 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* ---- Header ---- */}
-      <header className="border-b border-gray-200 px-6 py-4">
+      <header className="border-b border-gray-200 px-6 py-4 dark:border-[#2E3148] dark:bg-[#0F1117]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <SettleGridLogo variant="horizontal" size={32} />
           <div className="flex items-center gap-4">
-            <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
+            <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors dark:text-gray-400 dark:hover:text-white">
               Marketplace
             </Link>
-            <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
+            <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors dark:text-gray-400 dark:hover:text-white">
               Docs
             </Link>
-            <Link href="/login" className="hidden sm:inline text-sm font-medium text-indigo hover:text-brand-dark transition-colors">
+            <ThemeToggle />
+            <Link href="/login" className="hidden sm:inline text-sm font-medium text-indigo hover:text-brand-dark transition-colors dark:text-gray-300 dark:hover:text-brand-light">
               Log in
             </Link>
             <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
@@ -415,10 +417,10 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  2. Integration logo bar                                         */}
         {/* ================================================================ */}
-        <section className="px-6 py-12 border-b border-gray-200">
+        <section className="px-6 py-12 border-b border-gray-200 dark:border-[#2E3148]">
           <RevealSection>
             <div className="max-w-4xl mx-auto">
-              <p className="text-center text-sm text-gray-500 mb-8">Integrates with tools you already use</p>
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-8">Integrates with tools you already use</p>
               <div className="flex items-center justify-center gap-12 flex-wrap">
                 {[
                   { name: 'Stripe', width: 60 },
@@ -429,7 +431,7 @@ export default function HomePage() {
                 ].map((logo) => (
                   <span
                     key={logo.name}
-                    className="text-gray-400 hover:text-gray-600 transition-colors font-semibold text-lg select-none"
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors font-semibold text-lg select-none"
                     style={{ width: logo.width, textAlign: 'center' }}
                   >
                     {logo.name}
@@ -446,10 +448,10 @@ export default function HomePage() {
         <section className="px-6 py-24">
           <RevealSection>
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl font-bold text-indigo text-center mb-4">
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 text-center mb-4">
                 Ship a monetized tool in 5 minutes
               </h2>
-              <p className="text-gray-600 text-center mb-16 max-w-xl mx-auto">
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-16 max-w-xl mx-auto">
                 Three steps to go from open-source function to paid API product.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
@@ -476,13 +478,13 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  4. Features — Bento grid with 3 hero + 27 standard cards        */}
         {/* ================================================================ */}
-        <section className="px-6 py-24 bg-cloud">
+        <section className="px-6 py-24 bg-cloud dark:bg-[#0F1117]">
           <RevealSection>
             <div className="max-w-6xl mx-auto">
-              <h2 className="text-3xl font-bold text-indigo text-center mb-4">
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 text-center mb-4">
                 Everything you need to monetize AI tools
               </h2>
-              <p className="text-gray-600 text-center mb-16 max-w-2xl mx-auto">
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-16 max-w-2xl mx-auto">
                 From one-line SDK integration to a full marketplace with analytics, security, and
                 consumer-facing features — SettleGrid handles the entire commerce layer.
               </p>
@@ -744,10 +746,10 @@ export default function HomePage() {
         <section className="px-6 py-24">
           <RevealSection>
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl font-bold text-indigo text-center mb-4">
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 text-center mb-4">
                 How SettleGrid Compares
               </h2>
-              <p className="text-gray-600 text-center mb-10 max-w-xl mx-auto">
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-10 max-w-xl mx-auto">
                 Purpose-built for MCP tool monetization. No compromises.
               </p>
               <ComparisonTable />
@@ -758,7 +760,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  7. Pricing                                                      */}
         {/* ================================================================ */}
-        <section className="px-6 py-24 bg-cloud">
+        <section className="px-6 py-24 bg-cloud dark:bg-[#0F1117]">
           <RevealSection>
             <div className="max-w-6xl mx-auto">
               <PricingSection />
@@ -772,10 +774,10 @@ export default function HomePage() {
         <section className="px-6 py-24">
           <RevealSection>
             <div className="max-w-3xl mx-auto text-center">
-              <h2 className="text-3xl font-bold text-indigo mb-4">
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 mb-4">
                 Ready to monetize your AI tools?
               </h2>
-              <p className="text-xl text-gray-600 mb-8">
+              <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
                 Join developers earning revenue from every tool call. Free to start,
                 pay only when you earn.
               </p>
@@ -783,7 +785,7 @@ export default function HomePage() {
                 <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
                   Get Started Free
                 </Link>
-                <Link href="/tools" className="inline-flex items-center justify-center border-2 border-gray-300 text-gray-700 font-semibold px-8 py-3 rounded-lg text-lg hover:border-indigo hover:text-indigo transition-colors">
+                <Link href="/tools" className="inline-flex items-center justify-center border-2 border-gray-300 text-gray-700 font-semibold px-8 py-3 rounded-lg text-lg hover:border-indigo hover:text-indigo transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-400 dark:hover:text-white">
                   Browse Marketplace
                 </Link>
               </div>
@@ -793,16 +795,16 @@ export default function HomePage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-gray-200 px-6 py-8">
+      <footer className="border-t border-gray-200 px-6 py-8 dark:border-[#2E3148]">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={24} />
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <Link href="/tools" className="hover:text-indigo transition-colors">Marketplace</Link>
-            <Link href="/docs" className="hover:text-indigo transition-colors">Documentation</Link>
-            <Link href="/privacy" className="hover:text-indigo transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-indigo transition-colors">Terms</Link>
+          <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+            <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Marketplace</Link>
+            <Link href="/docs" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Documentation</Link>
+            <Link href="/privacy" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Terms</Link>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
           </p>
         </div>
