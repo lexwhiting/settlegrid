@@ -159,3 +159,28 @@ export const settlegrid = {
 }
 
 export default settlegrid
+
+// ─── Phase 2: REST middleware, Payment capability, Server card ───────────────
+
+export { settlegridMiddleware } from './rest'
+export type { RestMiddlewareOptions } from './rest'
+
+export {
+  createPaymentCapability,
+  PAYMENT_ERROR_CODES,
+} from './payment-capability'
+export type {
+  PaymentCapability,
+  PaymentMeta,
+  PaymentResultMeta,
+} from './payment-capability'
+
+export {
+  generateServerCardBilling,
+  generateServerCard,
+} from './server-card'
+export type {
+  ServerCardBilling,
+  ServerCardPricingMethod,
+  MCPServerCard,
+} from './server-card'
