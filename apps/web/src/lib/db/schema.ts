@@ -888,3 +888,35 @@ export const complianceExports = pgTable(
     index('compliance_exports_entity_idx').on(table.entityId, table.entityType),
   ]
 )
+
+// ─── Outcome Verifications (Phase 8) ────────────────────────────────────────
+
+export const outcomeVerifications = pgTable(
+  'outcome_verifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invocationId: text('invocation_id').notNull(),
+    toolId: text('tool_id').notNull(),
+    consumerId: text('consumer_id').notNull(),
+    outcomeType: text('outcome_type').notNull(), // 'boolean' | 'score' | 'custom'
+    successCriteria: jsonb('success_criteria').notNull(),
+    fullPriceCents: integer('full_price_cents').notNull(),
+    failurePriceCents: integer('failure_price_cents').notNull().default(0),
+    actualOutcome: jsonb('actual_outcome'),
+    outcomeScore: integer('outcome_score'), // 0-100 for score-based
+    passed: boolean('passed'),
+    settledPriceCents: integer('settled_price_cents'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    disputeStatus: text('dispute_status'), // null | 'opened' | 'under_review' | 'resolved_for_consumer' | 'resolved_for_provider'
+    disputeReason: text('dispute_reason'),
+    disputeResolvedAt: timestamp('dispute_resolved_at', { withTimezone: true }),
+    disputeDeadline: timestamp('dispute_deadline', { withTimezone: true }), // 24h from verification
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('outcome_verifications_invocation_id_idx').on(table.invocationId),
+    index('outcome_verifications_tool_id_idx').on(table.toolId),
+    index('outcome_verifications_consumer_id_idx').on(table.consumerId),
+    index('outcome_verifications_dispute_status_idx').on(table.disputeStatus),
+  ]
+)
