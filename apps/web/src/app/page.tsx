@@ -236,7 +236,7 @@ function PricingSection() {
               <span className="text-sm text-gray-500">{tier.period}</span>
             </div>
             <p className="text-xs text-gray-500 mb-4">{tier.description}</p>
-            <a
+            <Link
               href={tier.href}
               className={`block w-full text-center py-2 rounded-lg text-sm font-semibold transition-colors mb-4 ${
                 tier.highlighted
@@ -245,7 +245,7 @@ function PricingSection() {
               }`}
             >
               {tier.cta}
-            </a>
+            </Link>
             <ul className="space-y-2">
               {tier.features.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
@@ -342,13 +342,13 @@ export default function HomePage() {
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <SettleGridLogo variant="horizontal" size={32} />
           <div className="flex items-center gap-4">
-            <Link href="/tools" className="text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
+            <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
               Marketplace
             </Link>
-            <Link href="/docs" className="text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
+            <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 hover:text-indigo transition-colors">
               Docs
             </Link>
-            <Link href="/login" className="text-sm font-medium text-indigo hover:text-brand-dark transition-colors">
+            <Link href="/login" className="hidden sm:inline text-sm font-medium text-indigo hover:text-brand-dark transition-colors">
               Log in
             </Link>
             <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
@@ -474,7 +474,7 @@ export default function HomePage() {
         </section>
 
         {/* ================================================================ */}
-        {/*  4. Features — Bento grid with 3 hero + 23 standard cards        */}
+        {/*  4. Features — Bento grid with 3 hero + 27 standard cards        */}
         {/* ================================================================ */}
         <section className="px-6 py-24 bg-cloud">
           <RevealSection>
@@ -717,7 +717,7 @@ export default function HomePage() {
                 </div>
                 <div className="bg-indigo-light rounded-xl p-8 border border-white/10">
                   <div className="text-sm font-mono text-gray-300 space-y-3">
-                    <p className="text-gray-500"># Verify webhook signature</p>
+                    <p className="text-gray-400"># Verify webhook signature</p>
                     <p>
                       <span className="text-brand-light">import</span> hmac, hashlib
                     </p>

@@ -41,11 +41,11 @@ export function CodeSnippet() {
           <div className="w-3 h-3 rounded-full bg-red-400/80" />
           <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
           <div className="w-3 h-3 rounded-full bg-green-400/80" />
-          <span className="text-xs text-gray-500 ml-2">index.ts</span>
+          <span className="text-xs text-gray-400 ml-2">index.ts</span>
         </div>
         <button
           onClick={handleCopy}
-          className="text-xs text-gray-500 hover:text-white transition-colors flex items-center gap-1"
+          className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
           aria-label="Copy code"
         >
           {copied ? (
