@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { CodeSnippet } from '@/components/marketing/code-snippet'
+import { RevealSection } from '@/components/marketing/home-sections'
 
 export const metadata: Metadata = {
   title: 'SettleGrid — The Settlement Layer for the AI Economy',
@@ -22,12 +24,36 @@ function FeatureCard({
   description: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 hover:border-brand/40 hover:shadow-md transition-all duration-200">
+    <div className="group p-6 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200">
       <div className="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center mb-4 group-hover:bg-brand/20 transition-colors">
         {icon}
       </div>
       <h3 className="font-semibold text-indigo mb-2">{title}</h3>
       <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+    </div>
+  )
+}
+
+function HeroFeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <div className="md:col-span-2 p-8 rounded-xl border border-gray-200 bg-white hover:border-brand/40 hover:shadow-md transition-all duration-200">
+      <div className="flex items-start gap-6">
+        <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+        <div>
+          <h3 className="font-semibold text-lg text-indigo mb-2">{title}</h3>
+          <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -110,90 +136,126 @@ function ComparisonTable() {
   )
 }
 
-function CodeSnippet() {
-  return (
-    <div className="bg-indigo rounded-lg p-6 text-sm font-mono text-left overflow-x-auto shadow-2xl">
-      <div className="flex items-center gap-1.5 mb-4">
-        <div className="w-3 h-3 rounded-full bg-red-400" />
-        <div className="w-3 h-3 rounded-full bg-yellow-400" />
-        <div className="w-3 h-3 rounded-full bg-green-400" />
-        <span className="text-xs text-gray-500 ml-2">index.ts</span>
-      </div>
-      <pre className="text-gray-300">
-        <code>{`import { settlegrid } from '@settlegrid/mcp'
-
-const sg = settlegrid.init({
-  toolSlug: 'weather-api',
-  pricing: {
-    defaultCostCents: 1,
-    methods: {
-      'get-forecast': { costCents: 2 },
-      'get-historical': { costCents: 5 },
-    },
-  },
-})
-
-// Wrap any function as a monetized tool
-const getForecast = sg.wrap(
-  async (args: { city: string }) => {
-    const data = await fetchWeather(args.city)
-    return { forecast: data }
-  },
-  { method: 'get-forecast' }
-)`}</code>
-      </pre>
-    </div>
-  )
-}
-
 function PricingSection() {
+  const tiers = [
+    {
+      name: 'Free',
+      price: '$0',
+      period: 'forever',
+      description: 'For experimenting and prototyping',
+      features: [
+        '1 tool',
+        '1,000 calls/month',
+        'Per-call billing',
+        'Basic dashboard',
+        '85% revenue share',
+      ],
+      cta: 'Start Free',
+      href: '/register',
+      highlighted: false,
+    },
+    {
+      name: 'Builder',
+      price: '$29',
+      period: '/month',
+      description: 'For solo developers shipping tools',
+      features: [
+        '5 tools',
+        '50,000 calls/month',
+        'Full analytics',
+        'Webhook events',
+        'Sandbox mode',
+        '85% revenue share',
+      ],
+      cta: 'Start Building',
+      href: '/register',
+      highlighted: false,
+    },
+    {
+      name: 'Scale',
+      price: '$99',
+      period: '/month',
+      description: 'For teams with growing usage',
+      features: [
+        'Unlimited tools',
+        '500,000 calls/month',
+        'Priority webhooks',
+        'IP allowlisting',
+        'CSV export',
+        'Referral system',
+        '87% revenue share',
+      ],
+      cta: 'Get Started',
+      href: '/register',
+      highlighted: true,
+    },
+    {
+      name: 'Platform',
+      price: '$299',
+      period: '/month',
+      description: 'For enterprises and platforms',
+      features: [
+        'Unlimited everything',
+        'Dedicated support',
+        '99.9% SLA',
+        'Fraud detection',
+        'Audit logging',
+        'Custom integrations',
+        '90% revenue share',
+      ],
+      cta: 'Contact Sales',
+      href: '/register',
+      highlighted: false,
+    },
+  ]
+
   return (
     <div className="text-center">
-      <h2 className="text-3xl font-bold text-indigo mb-4">Simple, Fair Pricing</h2>
+      <h2 className="text-3xl font-bold text-indigo mb-4">Simple, Transparent Pricing</h2>
       <p className="text-gray-600 mb-10 max-w-xl mx-auto">
-        No monthly fees. No setup costs. We take 15% of each transaction — you keep 85%.
+        Start free. Scale as you grow. You always keep the majority of your revenue.
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-        <div className="p-8 rounded-xl border-2 border-gray-200 text-center">
-          <h3 className="font-semibold text-lg text-indigo mb-2">Developers</h3>
-          <div className="text-4xl font-bold text-brand-text mb-2">$0</div>
-          <p className="text-sm text-gray-500 mb-6">to get started</p>
-          <ul className="text-sm text-gray-600 space-y-2 text-left">
-            <li>&#10003; Unlimited tools</li>
-            <li>&#10003; Per-call billing</li>
-            <li>&#10003; Stripe Connect payouts</li>
-            <li>&#10003; Dashboard analytics</li>
-            <li>&#10003; 85% revenue share</li>
-          </ul>
-        </div>
-        <div className="p-8 rounded-xl border-2 border-brand text-center relative">
-          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-brand text-white text-xs font-semibold px-3 py-1 rounded-full">
-            Most Popular
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+        {tiers.map((tier) => (
+          <div
+            key={tier.name}
+            className={`p-6 rounded-xl border-2 text-left relative ${
+              tier.highlighted
+                ? 'border-brand shadow-lg shadow-brand/10'
+                : 'border-gray-200'
+            }`}
+          >
+            {tier.highlighted && (
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-brand text-white text-xs font-semibold px-3 py-1 rounded-full">
+                Most Popular
+              </div>
+            )}
+            <h3 className="font-semibold text-lg text-indigo">{tier.name}</h3>
+            <div className="mt-2 mb-1">
+              <span className="text-3xl font-bold text-indigo">{tier.price}</span>
+              <span className="text-sm text-gray-500">{tier.period}</span>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">{tier.description}</p>
+            <a
+              href={tier.href}
+              className={`block w-full text-center py-2 rounded-lg text-sm font-semibold transition-colors mb-4 ${
+                tier.highlighted
+                  ? 'bg-brand text-white hover:bg-brand-dark'
+                  : 'bg-gray-100 text-indigo hover:bg-gray-200'
+              }`}
+            >
+              {tier.cta}
+            </a>
+            <ul className="space-y-2">
+              {tier.features.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                  <span className="text-brand-text mt-0.5 shrink-0">&#10003;</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
           </div>
-          <h3 className="font-semibold text-lg text-indigo mb-2">Consumers</h3>
-          <div className="text-4xl font-bold text-brand-text mb-2">Pay-as-you-go</div>
-          <p className="text-sm text-gray-500 mb-6">prepaid credits</p>
-          <ul className="text-sm text-gray-600 space-y-2 text-left">
-            <li>&#10003; $5 / $20 / $50 credit packs</li>
-            <li>&#10003; Custom amounts</li>
-            <li>&#10003; Auto-refill option</li>
-            <li>&#10003; Per-tool API keys</li>
-            <li>&#10003; Usage dashboard</li>
-          </ul>
-        </div>
-        <div className="p-8 rounded-xl border-2 border-gray-200 text-center">
-          <h3 className="font-semibold text-lg text-indigo mb-2">Enterprise</h3>
-          <div className="text-4xl font-bold text-brand-text mb-2">90/10</div>
-          <p className="text-sm text-gray-500 mb-6">revenue split</p>
-          <ul className="text-sm text-gray-600 space-y-2 text-left">
-            <li>&#10003; 90% revenue share</li>
-            <li>&#10003; Priority webhook delivery</li>
-            <li>&#10003; Advanced analytics &amp; exports</li>
-            <li>&#10003; 99.9% uptime SLA</li>
-            <li>&#10003; Dedicated Slack support</li>
-          </ul>
-          <p className="text-xs text-gray-500 mt-4">$199/mo per tool, self-serve</p>
-        </div>
+        ))}
       </div>
     </div>
   )
@@ -298,23 +360,34 @@ export default function HomePage() {
 
       <main className="flex-1">
         {/* ================================================================ */}
-        {/*  1. Hero                                                         */}
+        {/*  1. Hero — Dark with gradient mesh                               */}
         {/* ================================================================ */}
-        <section className="px-6 py-24">
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <section className="relative px-6 py-24 bg-indigo overflow-hidden">
+          {/* CSS-only gradient mesh background */}
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              background: `
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(16, 185, 129, 0.3), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 50%, rgba(14, 165, 233, 0.15), transparent),
+                radial-gradient(ellipse 50% 60% at 10% 80%, rgba(139, 92, 246, 0.1), transparent)
+              `,
+            }}
+          />
+          <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 bg-emerald-light text-brand-text text-xs font-semibold px-3 py-1 rounded-full mb-6">
+              <div className="inline-flex items-center gap-2 bg-white/10 text-brand-light border border-white/20 text-xs font-semibold px-3 py-1 rounded-full mb-6">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
                 </span>
                 Now in Public Beta
               </div>
-              <h1 className="text-5xl font-bold tracking-tight text-indigo mb-6 leading-[1.1]">
+              <h1 className="text-5xl font-bold tracking-tight text-white mb-6 leading-[1.1]">
                 The Settlement Layer for the{' '}
-                <span className="text-brand-text">AI Tool Economy</span>
+                <span className="text-brand-light">AI Tool Economy</span>
               </h1>
-              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+              <p className="text-xl text-gray-300 mb-8 leading-relaxed">
                 Monetize your MCP tools with per-call billing. One SDK wrapper,
                 automated Stripe payouts, consumer storefronts, and a public marketplace
                 with reviews and ratings.
@@ -323,11 +396,11 @@ export default function HomePage() {
                 <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
                   Start Building
                 </Link>
-                <Link href="/docs" className="inline-flex items-center justify-center border-2 border-indigo text-indigo font-semibold px-8 py-3 rounded-lg text-lg hover:bg-indigo hover:text-white transition-colors">
+                <Link href="/docs" className="inline-flex items-center justify-center border-2 border-white/30 text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-white/10 transition-colors">
                   Read Docs
                 </Link>
               </div>
-              <div className="flex items-center gap-6 mt-8 text-sm text-gray-500">
+              <div className="flex items-center gap-6 mt-8 text-sm text-gray-400">
                 <span>&#10003; Free to start</span>
                 <span>&#10003; No monthly fees</span>
                 <span>&#10003; &lt;50ms overhead</span>
@@ -340,327 +413,382 @@ export default function HomePage() {
         </section>
 
         {/* ================================================================ */}
-        {/*  2. Features grid — 26 cards across 5 logical groups              */}
+        {/*  2. Integration logo bar                                         */}
         {/* ================================================================ */}
-        <section className="px-6 py-24 bg-cloud">
-          <div className="max-w-6xl mx-auto">
-            <h2 className="text-3xl font-bold text-indigo text-center mb-4">
-              Everything you need to monetize AI tools
-            </h2>
-            <p className="text-gray-600 text-center mb-16 max-w-2xl mx-auto">
-              From one-line SDK integration to a full marketplace with analytics, security, and
-              consumer-facing features — SettleGrid handles the entire commerce layer.
-            </p>
-
-            {/* -- Core Platform -- */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Core Platform</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              <FeatureCard
-                icon={<Icon d={iconRedisMetering} />}
-                title="Sub-50ms Redis Metering"
-                description="Every tool call is metered through Redis with sub-50ms overhead. Balance checks, deductions, and usage recording in a single atomic pipeline."
-              />
-              <FeatureCard
-                icon={<Icon d={iconBilling} />}
-                title="Per-Call Billing"
-                description="Charge consumers per API call with configurable per-method pricing. Prepaid credit balances keep revenue flowing predictably."
-              />
-              <FeatureCard
-                icon={<Icon d={iconAutoRefill} />}
-                title="Auto-Refill Credits"
-                description="Consumers set a threshold and refill amount. When credits drop below the limit, a Stripe PaymentIntent fires automatically — zero interruption."
-              />
-              <FeatureCard
-                icon={<Icon d={iconPayouts} />}
-                title="Automated Payouts"
-                description="Stripe Connect Express handles KYC, tax forms, and fraud. Weekly or monthly payouts with configurable minimums."
-              />
-              <FeatureCard
-                icon={<Icon d={iconSdk} />}
-                title="MCP-Native SDK with LRU Cache"
-                description="@settlegrid/mcp wraps any function into a monetized tool. Built-in LRU caching reduces redundant API calls. TypeScript, ESM/CJS, under 50KB."
-              />
-              <FeatureCard
-                icon={<Icon d={iconStorefront} />}
-                title="Tool Storefronts"
-                description="Auto-generated public pages for every tool. SEO-optimized with pricing, docs, and one-click credit purchase."
-              />
-              <FeatureCard
-                icon={<Icon d={iconTemplates} />}
-                title="Integration Templates"
-                description="Copy-paste configs for Claude, Cursor, Windsurf, VS Code, and Continue. Get consumers connected in under a minute."
-              />
-              <FeatureCard
-                icon={<Icon d={iconPricingWidget} />}
-                title="Pricing Widget"
-                description="Embeddable pricing page for any MCP tool. Drop a script tag on your site and let consumers purchase credits inline."
-              />
-              <FeatureCard
-                icon={<Icon d={iconFraud} />}
-                title="Fraud Detection"
-                description="Three-check system catches abuse in real time: rate spike detection, new-key velocity checks, and duplicate call deduplication. Protect your revenue automatically."
-              />
+        <section className="px-6 py-12 border-b border-gray-200">
+          <RevealSection>
+            <div className="max-w-4xl mx-auto">
+              <p className="text-center text-sm text-gray-500 mb-8">Integrates with tools you already use</p>
+              <div className="flex items-center justify-center gap-12 flex-wrap">
+                {[
+                  { name: 'Stripe', width: 60 },
+                  { name: 'Claude', width: 60 },
+                  { name: 'Cursor', width: 60 },
+                  { name: 'VS Code', width: 60 },
+                  { name: 'Windsurf', width: 60 },
+                ].map((logo) => (
+                  <span
+                    key={logo.name}
+                    className="text-gray-400 hover:text-gray-600 transition-colors font-semibold text-lg select-none"
+                    style={{ width: logo.width, textAlign: 'center' }}
+                  >
+                    {logo.name}
+                  </span>
+                ))}
+              </div>
             </div>
-
-            {/* -- Developer Tools -- */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Developer Tools</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              <FeatureCard
-                icon={<Icon d={iconAnalytics} />}
-                title="Usage Analytics & Projections"
-                description="Daily usage trends, method breakdown, hourly patterns, latency percentiles (p50/p95/p99), error rates, and 30-day revenue projections."
-              />
-              <FeatureCard
-                icon={<Icon d={iconRevenue} />}
-                title="Revenue Attribution"
-                description="Track revenue by referral source and session patterns. See which channels, tools, and campaigns drive the most earnings."
-              />
-              <FeatureCard
-                icon={<Icon d={iconConversion} />}
-                title="Conversion Event Tracking"
-                description="Track free-to-paid conversion events, churn signals, and cohort retention. Identify drop-off points and optimize your funnel."
-              />
-              <FeatureCard
-                icon={<Icon d={iconWebhooks} />}
-                title="HMAC-SHA256 Webhooks"
-                description="Real-time event notifications signed with HMAC-SHA256. Delivery tracking, automatic retry logic, and configurable event filters."
-              />
-              <FeatureCard
-                icon={<Icon d={iconUptime} />}
-                title="Health Check Monitoring"
-                description="Automated cron-based health checks with public status pages. Tracks database and Redis latency. Get alerted before consumers notice outages."
-              />
-              <FeatureCard
-                icon={<Icon d={iconVersionHistory} />}
-                title="Version History"
-                description="Full version history and changelogs for every tool. Roll back pricing or functionality changes. Consumers always see what changed and when."
-              />
-              <FeatureCard
-                icon={<Icon d={iconSimulator} />}
-                title="Pricing Simulator"
-                description="Model pricing changes against historical usage data. Preview revenue impact before adjusting rates on live tools."
-              />
-            </div>
-
-            {/* -- Consumer Features -- */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Consumer Features</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              <FeatureCard
-                icon={<Icon d={iconBudget} />}
-                title="Budget Controls"
-                description="Per-tool spending limits and daily caps. Consumers stay in control of their credit spend at all times."
-              />
-              <FeatureCard
-                icon={<Icon d={iconUsageAlerts} />}
-                title="Usage Alerts"
-                description="Low balance, budget exceeded, and usage spike notifications. Stay informed via email or webhook before credits run out."
-              />
-              <FeatureCard
-                icon={<Icon d={iconSubscriptionHub} />}
-                title="Subscription Hub"
-                description="Unified view of all active tools, credit balances, and spending history. Manage every subscription from one dashboard."
-              />
-              <FeatureCard
-                icon={<Icon d={iconReviews} />}
-                title="Reviews & Ratings"
-                description="Consumer reviews drive trust and discovery. Star ratings, written feedback, and developer response threads."
-              />
-              <FeatureCard
-                icon={<Icon d={iconIpAllowlist} />}
-                title="IP Allowlist Enforcement"
-                description="Restrict API keys to specific IPs or CIDR ranges with real-time CIDR matching. Enterprise-grade access control for high-security environments."
-              />
-            </div>
-
-            {/* -- Security & Compliance -- */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Security & Compliance</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              <FeatureCard
-                icon={<Icon d={iconSandbox} />}
-                title="Sandbox Mode"
-                description="Test your entire integration risk-free with test API keys. Simulated billing, webhooks, and analytics — zero real charges."
-              />
-              <FeatureCard
-                icon={<Icon d={iconAudit} />}
-                title="Audit Logging"
-                description="Complete audit trail for every action. Filterable by date, actor, and resource type. One-click CSV export for compliance."
-              />
-              <FeatureCard
-                icon={<Icon d={iconSecurity} />}
-                title="Enterprise Security"
-                description="API key hashing (SHA-256), Stripe webhook signature verification, CSRF protection, and role-based access controls."
-              />
-              <FeatureCard
-                icon={<Icon d={iconRateLimiting} />}
-                title="Tiered Rate Limiting"
-                description="Per-plan rate limits (Free/Starter/Pro/Enterprise) with sliding-window enforcement. Automatic 429 responses with Retry-After headers."
-              />
-            </div>
-
-            {/* -- Marketplace -- */}
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Marketplace</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <FeatureCard
-                icon={<Icon d={iconDirectory} />}
-                title="Tool Directory"
-                description="Public searchable marketplace of all published tools. Category browsing, search filters, and curated collections."
-              />
-              <FeatureCard
-                icon={<Icon d={iconStorefront} />}
-                title="One-Click Purchase"
-                description="Consumers buy credits and start calling tools in seconds. Stripe Checkout, Apple Pay, and Google Pay supported."
-              />
-              <FeatureCard
-                icon={<Icon d={iconReferral} />}
-                title="Referral System"
-                description="Revenue sharing for cross-promotion between tool builders. Earn a cut when you refer consumers to other tools."
-              />
-              <FeatureCard
-                icon={<Icon d={iconReputation} />}
-                title="Reputation Scores"
-                description="Public developer reputation based on uptime, reviews, and response time. Higher scores rank higher in search."
-              />
-              <FeatureCard
-                icon={<Icon d={iconReviews} />}
-                title="Ratings & Discovery"
-                description="Algorithmic ranking by usage, rating, and recency. Featured tools, trending lists, and category leaderboards."
-              />
-            </div>
-          </div>
+          </RevealSection>
         </section>
 
         {/* ================================================================ */}
         {/*  3. How it works — 3-step developer flow                         */}
         {/* ================================================================ */}
         <section className="px-6 py-24">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-indigo text-center mb-4">
-              Ship a monetized tool in 5 minutes
-            </h2>
-            <p className="text-gray-600 text-center mb-16 max-w-xl mx-auto">
-              Three steps to go from open-source function to paid API product.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-              <StepCard
-                step="1"
-                title="Wrap your function"
-                description="Install @settlegrid/mcp, configure pricing per method, and wrap your handler. One import, five lines of code."
-              />
-              <StepCard
-                step="2"
-                title="Connect Stripe"
-                description="One-click Stripe Connect onboarding. We handle KYC, tax forms, and payouts. You get an 85% revenue share."
-              />
-              <StepCard
-                step="3"
-                title="Publish & earn"
-                description="Your tool appears in the marketplace with a storefront, analytics dashboard, and consumer API key management."
-              />
+          <RevealSection>
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold text-indigo text-center mb-4">
+                Ship a monetized tool in 5 minutes
+              </h2>
+              <p className="text-gray-600 text-center mb-16 max-w-xl mx-auto">
+                Three steps to go from open-source function to paid API product.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+                <StepCard
+                  step="1"
+                  title="Wrap your function"
+                  description="Install @settlegrid/mcp, configure pricing per method, and wrap your handler. One import, five lines of code."
+                />
+                <StepCard
+                  step="2"
+                  title="Connect Stripe"
+                  description="One-click Stripe Connect onboarding. We handle KYC, tax forms, and payouts. You get an 85% revenue share."
+                />
+                <StepCard
+                  step="3"
+                  title="Publish & earn"
+                  description="Your tool appears in the marketplace with a storefront, analytics dashboard, and consumer API key management."
+                />
+              </div>
             </div>
-          </div>
+          </RevealSection>
         </section>
 
         {/* ================================================================ */}
-        {/*  4. Enterprise section                                           */}
+        {/*  4. Features — Bento grid with 3 hero + 23 standard cards        */}
+        {/* ================================================================ */}
+        <section className="px-6 py-24 bg-cloud">
+          <RevealSection>
+            <div className="max-w-6xl mx-auto">
+              <h2 className="text-3xl font-bold text-indigo text-center mb-4">
+                Everything you need to monetize AI tools
+              </h2>
+              <p className="text-gray-600 text-center mb-16 max-w-2xl mx-auto">
+                From one-line SDK integration to a full marketplace with analytics, security, and
+                consumer-facing features — SettleGrid handles the entire commerce layer.
+              </p>
+
+              {/* Bento grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Hero card 1 — Sub-50ms Redis Metering */}
+                <HeroFeatureCard
+                  icon={<Icon d={iconRedisMetering} />}
+                  title="Sub-50ms Redis Metering"
+                  description="Every tool call is metered through Redis with sub-50ms overhead. Balance checks, deductions, and usage recording in a single atomic pipeline. The fastest metering layer in the MCP ecosystem."
+                />
+
+                {/* Standard cards — Core Platform */}
+                <FeatureCard
+                  icon={<Icon d={iconBilling} />}
+                  title="Per-Call Billing"
+                  description="Charge consumers per API call with configurable per-method pricing. Prepaid credit balances keep revenue flowing predictably."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconAutoRefill} />}
+                  title="Auto-Refill Credits"
+                  description="Consumers set a threshold and refill amount. When credits drop below the limit, a Stripe PaymentIntent fires automatically — zero interruption."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconPayouts} />}
+                  title="Automated Payouts"
+                  description="Stripe Connect Express handles KYC, tax forms, and fraud. Weekly or monthly payouts with configurable minimums."
+                />
+
+                {/* Hero card 2 — MCP-Native SDK */}
+                <HeroFeatureCard
+                  icon={<Icon d={iconSdk} />}
+                  title="MCP-Native SDK with LRU Cache"
+                  description="@settlegrid/mcp wraps any function into a monetized tool. Built-in LRU caching reduces redundant API calls. TypeScript, ESM/CJS, under 50KB. One import, five lines — you're live."
+                />
+
+                <FeatureCard
+                  icon={<Icon d={iconStorefront} />}
+                  title="Tool Storefronts"
+                  description="Auto-generated public pages for every tool. SEO-optimized with pricing, docs, and one-click credit purchase."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconTemplates} />}
+                  title="Integration Templates"
+                  description="Copy-paste configs for Claude, Cursor, Windsurf, VS Code, and Continue. Get consumers connected in under a minute."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconPricingWidget} />}
+                  title="Pricing Widget"
+                  description="Embeddable pricing page for any MCP tool. Drop a script tag on your site and let consumers purchase credits inline."
+                />
+
+                {/* Hero card 3 — Fraud Detection */}
+                <HeroFeatureCard
+                  icon={<Icon d={iconFraud} />}
+                  title="Fraud Detection"
+                  description="Three-check system catches abuse in real time: rate spike detection, new-key velocity checks, and duplicate call deduplication. Protect your revenue automatically."
+                />
+
+                {/* Developer Tools */}
+                <FeatureCard
+                  icon={<Icon d={iconAnalytics} />}
+                  title="Usage Analytics & Projections"
+                  description="Daily usage trends, method breakdown, hourly patterns, latency percentiles (p50/p95/p99), error rates, and 30-day revenue projections."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconRevenue} />}
+                  title="Revenue Attribution"
+                  description="Track revenue by referral source and session patterns. See which channels, tools, and campaigns drive the most earnings."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconConversion} />}
+                  title="Conversion Event Tracking"
+                  description="Track free-to-paid conversion events, churn signals, and cohort retention. Identify drop-off points and optimize your funnel."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconWebhooks} />}
+                  title="HMAC-SHA256 Webhooks"
+                  description="Real-time event notifications signed with HMAC-SHA256. Delivery tracking, automatic retry logic, and configurable event filters."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconUptime} />}
+                  title="Health Check Monitoring"
+                  description="Automated cron-based health checks with public status pages. Tracks database and Redis latency. Get alerted before consumers notice outages."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconVersionHistory} />}
+                  title="Version History"
+                  description="Full version history and changelogs for every tool. Roll back pricing or functionality changes. Consumers always see what changed and when."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconSimulator} />}
+                  title="Pricing Simulator"
+                  description="Model pricing changes against historical usage data. Preview revenue impact before adjusting rates on live tools."
+                />
+
+                {/* Consumer Features */}
+                <FeatureCard
+                  icon={<Icon d={iconBudget} />}
+                  title="Budget Controls"
+                  description="Per-tool spending limits and daily caps. Consumers stay in control of their credit spend at all times."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconUsageAlerts} />}
+                  title="Usage Alerts"
+                  description="Low balance, budget exceeded, and usage spike notifications. Stay informed via email or webhook before credits run out."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconSubscriptionHub} />}
+                  title="Subscription Hub"
+                  description="Unified view of all active tools, credit balances, and spending history. Manage every subscription from one dashboard."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconReviews} />}
+                  title="Reviews & Ratings"
+                  description="Consumer reviews drive trust and discovery. Star ratings, written feedback, and developer response threads."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconIpAllowlist} />}
+                  title="IP Allowlist Enforcement"
+                  description="Restrict API keys to specific IPs or CIDR ranges with real-time CIDR matching. Enterprise-grade access control for high-security environments."
+                />
+
+                {/* Security & Compliance */}
+                <FeatureCard
+                  icon={<Icon d={iconSandbox} />}
+                  title="Sandbox Mode"
+                  description="Test your entire integration risk-free with test API keys. Simulated billing, webhooks, and analytics — zero real charges."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconAudit} />}
+                  title="Audit Logging"
+                  description="Complete audit trail for every action. Filterable by date, actor, and resource type. One-click CSV export for compliance."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconSecurity} />}
+                  title="Enterprise Security"
+                  description="API key hashing (SHA-256), Stripe webhook signature verification, CSRF protection, and role-based access controls."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconRateLimiting} />}
+                  title="Tiered Rate Limiting"
+                  description="Per-plan rate limits (Free/Starter/Pro/Enterprise) with sliding-window enforcement. Automatic 429 responses with Retry-After headers."
+                />
+
+                {/* Marketplace */}
+                <FeatureCard
+                  icon={<Icon d={iconDirectory} />}
+                  title="Tool Directory"
+                  description="Public searchable marketplace of all published tools. Category browsing, search filters, and curated collections."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconStorefront} />}
+                  title="One-Click Purchase"
+                  description="Consumers buy credits and start calling tools in seconds. Stripe Checkout, Apple Pay, and Google Pay supported."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconReferral} />}
+                  title="Referral System"
+                  description="Revenue sharing for cross-promotion between tool builders. Earn a cut when you refer consumers to other tools."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconReputation} />}
+                  title="Reputation Scores"
+                  description="Public developer reputation based on uptime, reviews, and response time. Higher scores rank higher in search."
+                />
+                <FeatureCard
+                  icon={<Icon d={iconReviews} />}
+                  title="Ratings & Discovery"
+                  description="Algorithmic ranking by usage, rating, and recency. Featured tools, trending lists, and category leaderboards."
+                />
+              </div>
+            </div>
+          </RevealSection>
+        </section>
+
+        {/* ================================================================ */}
+        {/*  5. Enterprise section                                           */}
         {/* ================================================================ */}
         <section className="px-6 py-24 bg-indigo text-white">
-          <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              <div>
-                <h2 className="text-3xl font-bold mb-4">Built for Enterprise</h2>
-                <p className="text-gray-300 text-lg mb-8 leading-relaxed">
-                  SettleGrid meets the security and compliance requirements of the most
-                  demanding organizations. Every feature is designed with zero-trust
-                  principles from day one.
-                </p>
-                <ul className="space-y-4">
-                  {[
-                    { label: 'Fraud detection', desc: 'Three-check system: rate spike detection, new-key velocity, duplicate deduplication' },
-                    { label: 'Tiered rate limiting', desc: 'Per-plan sliding-window limits (Free through Enterprise) with automatic 429 responses' },
-                    { label: 'IP allowlisting', desc: 'Lock API keys to specific IP ranges and CIDR blocks' },
-                    { label: 'HMAC-SHA256 webhooks', desc: 'Cryptographically signed event payloads you can verify' },
-                    { label: 'Audit logging', desc: 'Full audit trail with CSV export for SOC 2 evidence collection' },
-                    { label: 'SHA-256 key hashing', desc: 'API keys are hashed at rest — we never store plaintext' },
-                    { label: 'Budget controls', desc: 'Per-tool spending limits and daily caps with auto-refill via Stripe PaymentIntent' },
-                    { label: 'Sandbox mode', desc: 'Test integrations without real charges or side effects' },
-                  ].map((item) => (
-                    <li key={item.label} className="flex items-start gap-3">
-                      <span className="text-brand-light mt-1 font-bold" aria-hidden="true">&#10003;</span>
-                      <div>
-                        <span className="font-semibold">{item.label}</span>
-                        <span className="text-gray-400"> — {item.desc}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="bg-indigo-light rounded-xl p-8 border border-white/10">
-                <div className="text-sm font-mono text-gray-300 space-y-3">
-                  <p className="text-gray-500"># Verify webhook signature</p>
-                  <p>
-                    <span className="text-brand-light">import</span> hmac, hashlib
+          <RevealSection>
+            <div className="max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div>
+                  <h2 className="text-3xl font-bold mb-4">Built for Enterprise</h2>
+                  <p className="text-gray-300 text-lg mb-8 leading-relaxed">
+                    SettleGrid meets the security and compliance requirements of the most
+                    demanding organizations. Every feature is designed with zero-trust
+                    principles from day one.
                   </p>
-                  <p className="mt-2">signature = hmac.new(</p>
-                  <p className="pl-4">webhook_secret.encode(),</p>
-                  <p className="pl-4">request.body,</p>
-                  <p className="pl-4">hashlib.sha256</p>
-                  <p>).hexdigest()</p>
-                  <p className="mt-2">
-                    <span className="text-brand-light">assert</span> signature == request.headers[
-                  </p>
-                  <p className="pl-4">&apos;X-SettleGrid-Signature&apos;</p>
-                  <p>]</p>
+                  <ul className="space-y-4">
+                    {[
+                      { label: 'Fraud detection', desc: 'Three-check system: rate spike detection, new-key velocity, duplicate deduplication' },
+                      { label: 'Tiered rate limiting', desc: 'Per-plan sliding-window limits (Free through Enterprise) with automatic 429 responses' },
+                      { label: 'IP allowlisting', desc: 'Lock API keys to specific IP ranges and CIDR blocks' },
+                      { label: 'HMAC-SHA256 webhooks', desc: 'Cryptographically signed event payloads you can verify' },
+                      { label: 'Audit logging', desc: 'Full audit trail with CSV export for SOC 2 evidence collection' },
+                      { label: 'SHA-256 key hashing', desc: 'API keys are hashed at rest — we never store plaintext' },
+                      { label: 'Budget controls', desc: 'Per-tool spending limits and daily caps with auto-refill via Stripe PaymentIntent' },
+                      { label: 'Sandbox mode', desc: 'Test integrations without real charges or side effects' },
+                    ].map((item) => (
+                      <li key={item.label} className="flex items-start gap-3">
+                        <span className="text-brand-light mt-1 font-bold" aria-hidden="true">&#10003;</span>
+                        <div>
+                          <span className="font-semibold">{item.label}</span>
+                          <span className="text-gray-400"> — {item.desc}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Security/Trust badges */}
+                  <div className="flex flex-wrap items-center gap-4 mt-8">
+                    {[
+                      'SOC 2 Ready',
+                      'HMAC-SHA256',
+                      'SHA-256 at Rest',
+                      '99.9% SLA',
+                    ].map((badge) => (
+                      <span
+                        key={badge}
+                        className="inline-flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-full px-3 py-1.5 text-xs font-medium text-white/80"
+                      >
+                        <svg className="w-3.5 h-3.5 text-brand-light" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-indigo-light rounded-xl p-8 border border-white/10">
+                  <div className="text-sm font-mono text-gray-300 space-y-3">
+                    <p className="text-gray-500"># Verify webhook signature</p>
+                    <p>
+                      <span className="text-brand-light">import</span> hmac, hashlib
+                    </p>
+                    <p className="mt-2">signature = hmac.new(</p>
+                    <p className="pl-4">webhook_secret.encode(),</p>
+                    <p className="pl-4">request.body,</p>
+                    <p className="pl-4">hashlib.sha256</p>
+                    <p>).hexdigest()</p>
+                    <p className="mt-2">
+                      <span className="text-brand-light">assert</span> signature == request.headers[
+                    </p>
+                    <p className="pl-4">&apos;X-SettleGrid-Signature&apos;</p>
+                    <p>]</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </RevealSection>
         </section>
 
         {/* ================================================================ */}
-        {/*  5. Comparison table                                             */}
+        {/*  6. Comparison table                                             */}
         {/* ================================================================ */}
         <section className="px-6 py-24">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-indigo text-center mb-4">
-              How SettleGrid Compares
-            </h2>
-            <p className="text-gray-600 text-center mb-10 max-w-xl mx-auto">
-              Purpose-built for MCP tool monetization. No compromises.
-            </p>
-            <ComparisonTable />
-          </div>
+          <RevealSection>
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold text-indigo text-center mb-4">
+                How SettleGrid Compares
+              </h2>
+              <p className="text-gray-600 text-center mb-10 max-w-xl mx-auto">
+                Purpose-built for MCP tool monetization. No compromises.
+              </p>
+              <ComparisonTable />
+            </div>
+          </RevealSection>
         </section>
 
         {/* ================================================================ */}
-        {/*  6. Pricing                                                      */}
+        {/*  7. Pricing                                                      */}
         {/* ================================================================ */}
         <section className="px-6 py-24 bg-cloud">
-          <div className="max-w-6xl mx-auto">
-            <PricingSection />
-          </div>
+          <RevealSection>
+            <div className="max-w-6xl mx-auto">
+              <PricingSection />
+            </div>
+          </RevealSection>
         </section>
 
         {/* ================================================================ */}
-        {/*  7. CTA                                                          */}
+        {/*  8. CTA                                                          */}
         {/* ================================================================ */}
         <section className="px-6 py-24">
-          <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-3xl font-bold text-indigo mb-4">
-              Ready to monetize your AI tools?
-            </h2>
-            <p className="text-xl text-gray-600 mb-8">
-              Join developers earning revenue from every tool call. Free to start,
-              pay only when you earn.
-            </p>
-            <div className="flex flex-wrap justify-center items-center gap-4">
-              <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
-                Get Started Free
-              </Link>
-              <Link href="/tools" className="inline-flex items-center justify-center border-2 border-gray-300 text-gray-700 font-semibold px-8 py-3 rounded-lg text-lg hover:border-indigo hover:text-indigo transition-colors">
-                Browse Marketplace
-              </Link>
+          <RevealSection>
+            <div className="max-w-3xl mx-auto text-center">
+              <h2 className="text-3xl font-bold text-indigo mb-4">
+                Ready to monetize your AI tools?
+              </h2>
+              <p className="text-xl text-gray-600 mb-8">
+                Join developers earning revenue from every tool call. Free to start,
+                pay only when you earn.
+              </p>
+              <div className="flex flex-wrap justify-center items-center gap-4">
+                <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
+                  Get Started Free
+                </Link>
+                <Link href="/tools" className="inline-flex items-center justify-center border-2 border-gray-300 text-gray-700 font-semibold px-8 py-3 rounded-lg text-lg hover:border-indigo hover:text-indigo transition-colors">
+                  Browse Marketplace
+                </Link>
+              </div>
             </div>
-          </div>
+          </RevealSection>
         </section>
       </main>
 
