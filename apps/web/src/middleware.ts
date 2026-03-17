@@ -1,4 +1,4 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { getGateSecret, getGatePassword } from '@/lib/env'
 
@@ -64,21 +64,26 @@ function isGatePublicPath(pathname: string): boolean {
   return gatePublicPatterns.some((pattern) => pathname.startsWith(pattern))
 }
 
-/** Routes that do NOT require Clerk authentication */
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/gate',
-  '/login',
-  '/register',
-  '/tools(.*)',
-  '/docs(.*)',
-  '/api/webhooks/(.*)',
-  '/api/cron/(.*)',
-  '/api/sdk/(.*)',
-  '/api/hub/(.*)',
-  '/api/health',
-  '/api/ping',
-])
+/** Routes that do NOT require authentication */
+const publicRoutePatterns = [
+  /^\/$/,
+  /^\/gate$/,
+  /^\/login$/,
+  /^\/register$/,
+  /^\/tools(\/.*)?$/,
+  /^\/docs(\/.*)?$/,
+  /^\/auth\/callback$/,
+  /^\/api\/webhooks(\/.*)?$/,
+  /^\/api\/cron(\/.*)?$/,
+  /^\/api\/sdk(\/.*)?$/,
+  /^\/api\/hub(\/.*)?$/,
+  /^\/api\/health$/,
+  /^\/api\/ping$/,
+]
+
+function isPublicRoute(pathname: string): boolean {
+  return publicRoutePatterns.some((pattern) => pattern.test(pathname))
+}
 
 function addSecurityHeaders(response: NextResponse): void {
   response.headers.set('X-Frame-Options', 'DENY')
@@ -87,12 +92,12 @@ function addSecurityHeaders(response: NextResponse): void {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   response.headers.set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: https://img.clerk.com https://*.clerk.com; font-src 'self' data: https://*.clerk.com; connect-src 'self' https: https://*.clerk.accounts.dev https://*.clerk.com; frame-src https://*.clerk.accounts.dev https://*.clerk.com; frame-ancestors 'none'"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: https://dljdthtrsuxglybhmqox.supabase.co; frame-src https://dljdthtrsuxglybhmqox.supabase.co; frame-ancestors 'none'"
   )
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 }
 
-export default clerkMiddleware(async (clerkAuth, request) => {
+export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Gate check for non-public paths
@@ -108,15 +113,46 @@ export default clerkMiddleware(async (clerkAuth, request) => {
     }
   }
 
-  // Protect non-public routes with Clerk
-  if (!isPublicRoute(request)) {
-    await clerkAuth.protect()
+  // Refresh Supabase session via middleware helper
+  let supabaseResponse = NextResponse.next({ request })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  // Protect non-public routes: redirect unauthenticated users to /login
+  if (!isPublicRoute(pathname) && !user) {
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('redirect', pathname)
+    return NextResponse.redirect(loginUrl)
   }
 
-  const response = NextResponse.next()
-  addSecurityHeaders(response)
-  return response
-})
+  // If user is logged in and visits /login or /register, redirect to /dashboard
+  if (user && (pathname === '/login' || pathname === '/register')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  addSecurityHeaders(supabaseResponse)
+  return supabaseResponse
+}
 
 export const config = {
   matcher: ['/((?!_next|_vercel|api|.*\\..*).*)'],

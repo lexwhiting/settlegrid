@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { CommandPalette } from '@/components/command-palette'
@@ -32,6 +32,73 @@ function getSidebarState(): boolean {
 
 function setSidebarCookie(collapsed: boolean) {
   document.cookie = `sidebar_collapsed=${collapsed}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+}
+
+function UserMenu({ collapsed }: { collapsed: boolean }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setEmail(user?.email ?? null)
+    })
+  }, [])
+
+  const handleSignOut = useCallback(async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }, [router])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return
+    function handleClick() { setOpen(false) }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [open])
+
+  const initial = email ? email.charAt(0).toUpperCase() : '?'
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/30"
+        aria-label="User menu"
+      >
+        <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white text-sm font-semibold">
+          {initial}
+        </div>
+        {!collapsed && email && (
+          <span className="hidden lg:inline text-sm text-white/70 truncate max-w-[140px]">
+            {email}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-white dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] shadow-lg py-1 z-50">
+          {email && (
+            <div className="px-4 py-2 border-b border-gray-100 dark:border-[#2E3148]">
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{email}</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -136,12 +203,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
 
-        {/* User button */}
+        {/* User menu */}
         <div className={cn(
           'absolute bottom-4 left-0 right-0 flex items-center gap-3',
           collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'
         )}>
-          <UserButton afterSignOutUrl="/login" />
+          <UserMenu collapsed={collapsed} />
           {/* Show ThemeToggle in sidebar only on mobile (moved to top bar on desktop) */}
           <span className="lg:hidden">
             <ThemeToggle />

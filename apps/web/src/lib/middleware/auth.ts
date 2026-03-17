@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { eq } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { developers, consumers, apiKeys } from '@/lib/db/schema'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export interface AuthenticatedDeveloper {
   id: string
@@ -22,23 +22,24 @@ export interface AuthenticatedApiKey {
 }
 
 /**
- * Authenticates via Clerk session and confirms a developer record exists.
- * The request parameter is kept for signature compatibility but Clerk reads
- * the session from the request context automatically.
+ * Authenticates via Supabase session and confirms a developer record exists.
+ * The request parameter is kept for signature compatibility but Supabase reads
+ * the session from cookies automatically.
  */
 export async function requireDeveloper(
   _request?: NextRequest
 ): Promise<AuthenticatedDeveloper> {
-  const { userId: clerkUserId } = await auth()
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!clerkUserId) {
+  if (!user) {
     throw new Error('Authentication required. Please sign in.')
   }
 
   const [developer] = await db
     .select({ id: developers.id, email: developers.email })
     .from(developers)
-    .where(eq(developers.clerkUserId, clerkUserId))
+    .where(eq(developers.supabaseUserId, user.id))
     .limit(1)
 
   if (!developer) {
@@ -49,23 +50,24 @@ export async function requireDeveloper(
 }
 
 /**
- * Authenticates via Clerk session and confirms a consumer record exists.
- * The request parameter is kept for signature compatibility but Clerk reads
- * the session from the request context automatically.
+ * Authenticates via Supabase session and confirms a consumer record exists.
+ * The request parameter is kept for signature compatibility but Supabase reads
+ * the session from cookies automatically.
  */
 export async function requireConsumer(
   _request?: NextRequest
 ): Promise<AuthenticatedConsumer> {
-  const { userId: clerkUserId } = await auth()
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!clerkUserId) {
+  if (!user) {
     throw new Error('Authentication required. Please sign in.')
   }
 
   const [consumer] = await db
     .select({ id: consumers.id, email: consumers.email })
     .from(consumers)
-    .where(eq(consumers.clerkUserId, clerkUserId))
+    .where(eq(consumers.supabaseUserId, user.id))
     .limit(1)
 
   if (!consumer) {
@@ -81,7 +83,7 @@ export async function requireConsumer(
  * Only active keys are accepted. Updates lastUsedAt on successful auth.
  * Throws an Error with a descriptive message on failure.
  *
- * NOTE: This function is UNCHANGED from pre-Clerk — API key auth is independent.
+ * NOTE: This function is UNCHANGED — API key auth is independent of session auth.
  */
 export async function requireApiKey(
   request: NextRequest

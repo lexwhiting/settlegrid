@@ -15,7 +15,8 @@ describe('env module', () => {
     delete process.env.STRIPE_CONNECT_CLIENT_ID
     delete process.env.STRIPE_WEBHOOK_SECRET
     delete process.env.RESEND_API_KEY
-    delete process.env.CLERK_SECRET_KEY
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     delete process.env.NEXT_PUBLIC_APP_URL
   })
 
@@ -74,10 +75,21 @@ describe('env module', () => {
     expect(getResendApiKey()).toBe('re_test_123')
   })
 
-  it('getClerkSecretKey returns value when set', async () => {
-    process.env.CLERK_SECRET_KEY = 'sk_test_clerk_secret_key'
-    const { getClerkSecretKey } = await import('@/lib/env')
-    expect(getClerkSecretKey()).toBe('sk_test_clerk_secret_key')
+  it('getSupabaseUrl returns value when set', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://dljdthtrsuxglybhmqox.supabase.co'
+    const { getSupabaseUrl } = await import('@/lib/env')
+    expect(getSupabaseUrl()).toBe('https://dljdthtrsuxglybhmqox.supabase.co')
+  })
+
+  it('getSupabaseAnonKey returns value when set', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test'
+    const { getSupabaseAnonKey } = await import('@/lib/env')
+    expect(getSupabaseAnonKey()).toBe('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test')
+  })
+
+  it('getSupabaseServiceRoleKey returns undefined when not set', async () => {
+    const { getSupabaseServiceRoleKey } = await import('@/lib/env')
+    expect(getSupabaseServiceRoleKey()).toBeUndefined()
   })
 
   it('getAppUrl returns value when set', async () => {
@@ -93,7 +105,8 @@ describe('env module', () => {
     process.env.STRIPE_CONNECT_CLIENT_ID = 'ca_test'
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
     process.env.RESEND_API_KEY = 're_test'
-    process.env.CLERK_SECRET_KEY = 'sk_test_clerk'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://dljdthtrsuxglybhmqox.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key-test'
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3005'
 
     const { getEnv } = await import('@/lib/env')
@@ -103,6 +116,6 @@ describe('env module', () => {
     // Same reference means it was cached
     expect(env1).toBe(env2)
     expect(env1.DATABASE_URL).toBe('postgres://localhost/test')
-    expect(env1.CLERK_SECRET_KEY).toBe('sk_test_clerk')
+    expect(env1.NEXT_PUBLIC_SUPABASE_URL).toBe('https://dljdthtrsuxglybhmqox.supabase.co')
   })
 })

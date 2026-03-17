@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { ClerkProvider } from '@clerk/nextjs'
 import { Outfit } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { SonnerToaster } from '@/components/sonner-toaster'
@@ -59,15 +58,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider>
-      <html lang="en" className={outfit.variable} suppressHydrationWarning>
-        <body className="font-sans antialiased bg-white text-indigo dark:bg-[#0F1117] dark:text-gray-100">
-          <ThemeProvider>
-            {children}
-            <SonnerToaster />
-          </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" className={outfit.variable} suppressHydrationWarning>
+      <body className="font-sans antialiased bg-white text-indigo dark:bg-[#0F1117] dark:text-gray-100">
+        <ThemeProvider>
+          {children}
+          <SonnerToaster />
+        </ThemeProvider>
+      </body>
+    </html>
   )
 }

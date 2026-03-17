@@ -1,5 +1,5 @@
 // Auth module — RBAC and user type definitions only.
-// JWT/password functions removed (Clerk handles authentication).
+// Authentication handled by Supabase Auth.
 
 export type UserType = 'developer' | 'consumer'
 

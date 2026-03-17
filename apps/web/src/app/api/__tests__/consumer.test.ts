@@ -22,8 +22,13 @@ const { mockDb, mockCheckRateLimit, mockRequireConsumer } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@clerk/nextjs/server', () => ({
-  auth: vi.fn().mockResolvedValue({ userId: 'clerk_consumer_1' }),
+// Mock Supabase server client (used by requireConsumer internally)
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: vi.fn().mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'supabase_consumer_1', email: 'consumer@example.com' } } }),
+    },
+  }),
 }))
 
 vi.mock('@/lib/db', () => ({

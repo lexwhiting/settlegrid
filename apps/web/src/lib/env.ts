@@ -17,7 +17,8 @@ function buildEnv() {
     REDIS_URL: requireEnv('REDIS_URL'),
     STRIPE_SECRET_KEY: requireEnv('STRIPE_SECRET_KEY'),
     RESEND_API_KEY: requireEnv('RESEND_API_KEY'),
-    CLERK_SECRET_KEY: requireEnv('CLERK_SECRET_KEY'),
+    NEXT_PUBLIC_SUPABASE_URL: requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     NEXT_PUBLIC_APP_URL: requireEnv('NEXT_PUBLIC_APP_URL'),
   } as const
 }
@@ -56,12 +57,16 @@ export function getResendApiKey(): string {
   return requireEnv('RESEND_API_KEY')
 }
 
-export function getClerkSecretKey(): string {
-  return requireEnv('CLERK_SECRET_KEY')
+export function getSupabaseUrl(): string {
+  return requireEnv('NEXT_PUBLIC_SUPABASE_URL')
 }
 
-export function getClerkWebhookSecret(): string {
-  return requireEnv('CLERK_WEBHOOK_SECRET')
+export function getSupabaseAnonKey(): string {
+  return requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+}
+
+export function getSupabaseServiceRoleKey(): string | undefined {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY
 }
 
 export function getAppUrl(): string {

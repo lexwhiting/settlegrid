@@ -9,30 +9,16 @@ vi.mock('@/lib/env', () => ({
   getGatePassword: () => mockGetGatePassword(),
 }))
 
-// Mock clerkMiddleware to pass through — it wraps our handler and calls it with (clerkAuth, request)
-vi.mock('@clerk/nextjs/server', () => ({
-  clerkMiddleware: (handler: (auth: { protect: () => Promise<void> }, request: NextRequest) => Promise<NextResponse>) => {
-    return async (request: NextRequest) => {
-      const mockClerkAuth = { protect: vi.fn().mockResolvedValue(undefined) }
-      return handler(mockClerkAuth, request)
-    }
-  },
-  createRouteMatcher: (patterns: string[]) => {
-    return (request: NextRequest) => {
-      const { pathname } = request.nextUrl
-      return patterns.some((pattern) => {
-        // Simple pattern matching: convert (.*) to regex
-        const regex = new RegExp('^' + pattern.replace(/\(\.?\*\)/g, '.*') + '$')
-        return regex.test(pathname)
-      })
-    }
-  },
+// Mock @supabase/ssr — the middleware creates a Supabase client inline
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: () => ({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123', email: 'test@example.com' } } }),
+    },
+  }),
 }))
 
-import middlewareDefault from '@/middleware'
-
-// clerkMiddleware returns a function with (req, event) signature but our mock only needs req
-const middleware = middlewareDefault as unknown as (request: NextRequest) => Promise<NextResponse>
+import middleware from '@/middleware'
 
 function createRequest(path: string, cookies?: Record<string, string>): NextRequest {
   const req = new NextRequest(`http://localhost:3005${path}`, {

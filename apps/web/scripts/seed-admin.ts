@@ -1,11 +1,11 @@
 /**
- * Seed Script: Create enterprise developer account for SettleGrid (Clerk auth)
+ * Seed Script: Create enterprise developer account for SettleGrid (Supabase auth)
  *
  * Usage:
- *   CLERK_USER_ID='user_xxx' pnpm -F web exec tsx scripts/seed-admin.ts
+ *   SUPABASE_USER_ID='uuid-xxx' pnpm -F web exec tsx scripts/seed-admin.ts
  *
  * Requires DATABASE_URL in .env.local or environment.
- * Creates developer with enterprise tier linked to the given Clerk user.
+ * Creates developer with enterprise tier linked to the given Supabase user.
  */
 
 import { db } from "../src/lib/db";
@@ -14,11 +14,11 @@ import { eq } from "drizzle-orm";
 
 async function main() {
   const email = "lexwhiting@gmail.com";
-  const clerkUserId = process.env.CLERK_USER_ID;
+  const supabaseUserId = process.env.SUPABASE_USER_ID;
 
-  if (!clerkUserId) {
-    console.error("Error: CLERK_USER_ID environment variable is required.");
-    console.error("Usage: CLERK_USER_ID='user_xxx' pnpm -F web exec tsx scripts/seed-admin.ts");
+  if (!supabaseUserId) {
+    console.error("Error: SUPABASE_USER_ID environment variable is required.");
+    console.error("Usage: SUPABASE_USER_ID='uuid-xxx' pnpm -F web exec tsx scripts/seed-admin.ts");
     process.exit(1);
   }
 
@@ -30,12 +30,12 @@ async function main() {
     .limit(1);
 
   if (existing.length > 0) {
-    console.log(`Developer ${email} already exists (id: ${existing[0].id}). Updating clerkUserId.`);
+    console.log(`Developer ${email} already exists (id: ${existing[0].id}). Updating supabaseUserId.`);
     await db
       .update(developers)
-      .set({ clerkUserId })
+      .set({ supabaseUserId })
       .where(eq(developers.email, email));
-    console.log("clerkUserId updated.");
+    console.log("supabaseUserId updated.");
     process.exit(0);
   }
 
@@ -45,7 +45,7 @@ async function main() {
     .values({
       email,
       name: "Lex Whiting",
-      clerkUserId,
+      supabaseUserId,
       tier: "enterprise",
       revenueSharePct: 90,
       publicProfile: true,
@@ -58,7 +58,7 @@ async function main() {
     });
 
   console.log(`Created developer: ${dev.email} (id: ${dev.id}, tier: ${dev.tier})`);
-  console.log("\nEnterprise developer account ready. Sign in via Clerk at /login");
+  console.log("\nEnterprise developer account ready. Sign in via Supabase at /login");
 
   process.exit(0);
 }
