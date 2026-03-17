@@ -38,7 +38,7 @@ export const GET = withCors(async function GET(request: NextRequest) {
         assetSymbol: 'USDC',
         assetDecimals: 6,
       })),
-      extensions: ['offer-and-receipt'],
+      extensions: ['offer-and-receipt', 'payment-identifier'],
     }
 
     return successResponse(info)

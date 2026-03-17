@@ -3,12 +3,17 @@ import { NextRequest } from 'next/server'
 
 // ─── Hoisted mock values ────────────────────────────────────────────────────
 
-const { mockReadContract, mockVerifyExact, mockVerifyUpto, mockSettleExact } = vi.hoisted(() => {
+const { mockReadContract, mockVerifyExact, mockVerifyUpto, mockSettleExact, mockGetGasPrice, mockEstimateGas, mockRedisGet, mockRedisSet, mockVerifyMessage } = vi.hoisted(() => {
   return {
     mockReadContract: vi.fn(),
     mockVerifyExact: vi.fn(),
     mockVerifyUpto: vi.fn(),
     mockSettleExact: vi.fn(),
+    mockGetGasPrice: vi.fn(),
+    mockEstimateGas: vi.fn(),
+    mockRedisGet: vi.fn(),
+    mockRedisSet: vi.fn(),
+    mockVerifyMessage: vi.fn(),
   }
 })
 
@@ -17,14 +22,29 @@ const { mockReadContract, mockVerifyExact, mockVerifyUpto, mockSettleExact } = v
 vi.mock('viem', () => ({
   createPublicClient: vi.fn(() => ({
     readContract: mockReadContract,
+    getGasPrice: mockGetGasPrice,
+    estimateGas: mockEstimateGas,
+  })),
+  createWalletClient: vi.fn(() => ({
+    writeContract: vi.fn().mockResolvedValue('0xmocktxhash'),
   })),
   http: vi.fn(),
+  formatGwei: vi.fn((v: bigint) => (Number(v) / 1e9).toString()),
+  formatEther: vi.fn((v: bigint) => (Number(v) / 1e18).toString()),
+  verifyMessage: mockVerifyMessage,
 }))
 
 vi.mock('viem/chains', () => ({
   base: { id: 8453 },
   baseSepolia: { id: 84532 },
   mainnet: { id: 1 },
+}))
+
+vi.mock('viem/accounts', () => ({
+  privateKeyToAccount: vi.fn(() => ({
+    address: '0xFacilitator1234567890abcdef12345678901234',
+    signMessage: vi.fn().mockResolvedValue('0xfacilitatorsig'),
+  })),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -46,6 +66,16 @@ vi.mock('@/lib/middleware/cors', () => ({
   OPTIONS: vi.fn(),
 }))
 
+vi.mock('@/lib/redis', () => ({
+  getRedis: vi.fn(() => ({
+    get: mockRedisGet,
+    set: mockRedisSet,
+  })),
+  tryRedis: vi.fn(async (fn: () => Promise<unknown>) => {
+    try { return await fn() } catch { return null }
+  }),
+}))
+
 // ─── Imports (after mocks) ──────────────────────────────────────────────────
 
 import {
@@ -54,8 +84,13 @@ import {
   type X402Scheme,
   type X402ExactPayload,
   type X402UptoPayload,
+  type X402Extension,
+  type X402VerifyErrorCode,
+  type X402SettleErrorCode,
+  type X402Receipt,
 } from '@/lib/settlement/x402/types'
-import { verifyExactPayment, verifyUptoPayment } from '@/lib/settlement/x402/verify'
+import { verifyExactPayment, verifyUptoPayment, EIP3009_ABI } from '@/lib/settlement/x402/verify'
+import { buildReceiptMessage, computePayloadHash, validateReceipt } from '@/lib/settlement/x402/settle'
 import { X402Adapter } from '@/lib/settlement/adapters/x402'
 import type { SettlementResult } from '@/lib/settlement/types'
 
@@ -96,6 +131,120 @@ describe('x402 Types', () => {
     expect(schemes).toContain('upto')
     expect(schemes).toHaveLength(2)
   })
+
+  it('X402Extension type includes expected values', () => {
+    const exts: X402Extension[] = ['offer-and-receipt', 'payment-identifier']
+    expect(exts).toContain('offer-and-receipt')
+    expect(exts).toContain('payment-identifier')
+  })
+
+  it('X402VerifyErrorCode includes structured error codes', () => {
+    const codes: X402VerifyErrorCode[] = [
+      'UNSUPPORTED_NETWORK',
+      'AUTHORIZATION_NOT_YET_VALID',
+      'AUTHORIZATION_EXPIRED',
+      'NONCE_ALREADY_USED',
+      'INSUFFICIENT_BALANCE',
+      'PERMIT_DEADLINE_EXPIRED',
+      'WITNESS_EXCEEDS_PERMITTED',
+      'ALLOWANCE_TOO_LOW',
+      'SIGNATURE_INVALID',
+      'VERIFICATION_RPC_ERROR',
+    ]
+    expect(codes).toHaveLength(10)
+  })
+
+  it('X402SettleErrorCode includes structured error codes', () => {
+    const codes: X402SettleErrorCode[] = [
+      'UNSUPPORTED_NETWORK',
+      'SETTLEMENT_TX_REVERTED',
+      'SETTLEMENT_TX_TIMEOUT',
+      'GAS_WALLET_INSUFFICIENT',
+      'SETTLEMENT_RPC_ERROR',
+    ]
+    expect(codes).toHaveLength(5)
+  })
+})
+
+// ─── EIP-3009 ABI completeness ────────────────────────────────────────────────
+
+describe('EIP-3009 ABI', () => {
+  it('includes authorizationState for nonce checking', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'authorizationState')
+    expect(fn).toBeDefined()
+    expect(fn!.stateMutability).toBe('view')
+    expect(fn!.inputs).toHaveLength(2)
+    expect(fn!.inputs[0].type).toBe('address')
+    expect(fn!.inputs[1].type).toBe('bytes32')
+  })
+
+  it('includes balanceOf for balance checking', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'balanceOf')
+    expect(fn).toBeDefined()
+    expect(fn!.outputs[0].type).toBe('uint256')
+  })
+
+  it('includes allowance for approval checking', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'allowance')
+    expect(fn).toBeDefined()
+    expect(fn!.inputs).toHaveLength(2)
+    expect(fn!.inputs[0].name).toBe('owner')
+    expect(fn!.inputs[1].name).toBe('spender')
+    expect(fn!.outputs[0].type).toBe('uint256')
+  })
+
+  it('includes transferWithAuthorization with full signature', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'transferWithAuthorization')
+    expect(fn).toBeDefined()
+    expect(fn!.inputs).toHaveLength(9)
+    const inputNames = fn!.inputs.map((i) => i.name)
+    expect(inputNames).toEqual(['from', 'to', 'value', 'validAfter', 'validBefore', 'nonce', 'v', 'r', 's'])
+  })
+
+  it('includes receiveWithAuthorization', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'receiveWithAuthorization')
+    expect(fn).toBeDefined()
+    expect(fn!.inputs).toHaveLength(9)
+  })
+
+  it('includes cancelAuthorization', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'cancelAuthorization')
+    expect(fn).toBeDefined()
+    expect(fn!.inputs).toHaveLength(5)
+    expect(fn!.inputs[0].name).toBe('authorizer')
+  })
+
+  it('includes DOMAIN_SEPARATOR for EIP-712', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'DOMAIN_SEPARATOR')
+    expect(fn).toBeDefined()
+    expect(fn!.inputs).toHaveLength(0)
+    expect(fn!.outputs[0].type).toBe('bytes32')
+  })
+
+  it('includes nonces for EIP-2612', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'nonces')
+    expect(fn).toBeDefined()
+    expect(fn!.inputs[0].type).toBe('address')
+  })
+
+  it('includes name and version for token metadata', () => {
+    const nameFn = EIP3009_ABI.find((f) => f.name === 'name')
+    const versionFn = EIP3009_ABI.find((f) => f.name === 'version')
+    expect(nameFn).toBeDefined()
+    expect(versionFn).toBeDefined()
+    expect(nameFn!.outputs[0].type).toBe('string')
+    expect(versionFn!.outputs[0].type).toBe('string')
+  })
+
+  it('includes decimals', () => {
+    const fn = EIP3009_ABI.find((f) => f.name === 'decimals')
+    expect(fn).toBeDefined()
+    expect(fn!.outputs[0].type).toBe('uint8')
+  })
+
+  it('has 11 total ABI entries', () => {
+    expect(EIP3009_ABI).toHaveLength(11)
+  })
 })
 
 // ─── verifyExactPayment ─────────────────────────────────────────────────────
@@ -103,14 +252,14 @@ describe('x402 Types', () => {
 describe('verifyExactPayment', () => {
   const now = Math.floor(Date.now() / 1000)
 
-  function makeExactPayload(overrides?: Partial<X402ExactPayload['payload']['authorization']> & { network?: string }): X402ExactPayload {
-    const { network, ...authOverrides } = overrides ?? {}
+  function makeExactPayload(overrides?: Partial<X402ExactPayload['payload']['authorization']> & { network?: string; signature?: string }): X402ExactPayload {
+    const { network, signature, ...authOverrides } = overrides ?? {}
     return {
       x402Version: 2,
       scheme: 'exact',
       network: (network ?? 'eip155:8453') as X402ExactPayload['network'],
       payload: {
-        signature: '0x' + 'ab'.repeat(65) as `0x${string}`,
+        signature: (signature ?? '0x' + 'ab'.repeat(65)) as `0x${string}`,
         authorization: {
           from: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
           to: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd' as `0x${string}`,
@@ -126,6 +275,9 @@ describe('verifyExactPayment', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default gas estimation setup
+    mockGetGasPrice.mockResolvedValue(BigInt(1000000000)) // 1 gwei
+    mockEstimateGas.mockResolvedValue(BigInt(75000))
   })
 
   it('returns invalid for unsupported network', async () => {
@@ -133,6 +285,7 @@ describe('verifyExactPayment', () => {
     const result = await verifyExactPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('Unsupported network')
+    expect(result.errorCode).toBe('UNSUPPORTED_NETWORK')
   })
 
   it('returns invalid when authorization not yet valid (validAfter in future)', async () => {
@@ -140,6 +293,7 @@ describe('verifyExactPayment', () => {
     const result = await verifyExactPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('not yet valid')
+    expect(result.errorCode).toBe('AUTHORIZATION_NOT_YET_VALID')
   })
 
   it('returns invalid when authorization expired (validBefore in past)', async () => {
@@ -147,6 +301,7 @@ describe('verifyExactPayment', () => {
     const result = await verifyExactPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('expired')
+    expect(result.errorCode).toBe('AUTHORIZATION_EXPIRED')
   })
 
   it('returns invalid when nonce already used', async () => {
@@ -155,7 +310,9 @@ describe('verifyExactPayment', () => {
     const payload = makeExactPayload()
     const result = await verifyExactPayment(payload)
     expect(result.isValid).toBe(false)
-    expect(result.invalidReason).toContain('nonce already used')
+    expect(result.invalidReason).toContain('nonce')
+    expect(result.invalidReason).toContain('already been used')
+    expect(result.errorCode).toBe('NONCE_ALREADY_USED')
   })
 
   it('returns invalid when insufficient balance', async () => {
@@ -167,6 +324,8 @@ describe('verifyExactPayment', () => {
     const result = await verifyExactPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('Insufficient USDC balance')
+    expect(result.invalidReason).toContain('Short by')
+    expect(result.errorCode).toBe('INSUFFICIENT_BALANCE')
   })
 
   it('returns valid when all checks pass', async () => {
@@ -200,7 +359,8 @@ describe('verifyExactPayment', () => {
     const payload = makeExactPayload()
     const result = await verifyExactPayment(payload)
     expect(result.isValid).toBe(false)
-    expect(result.invalidReason).toContain('Verification error')
+    expect(result.invalidReason).toContain('Verification failed')
+    expect(result.errorCode).toBe('VERIFICATION_RPC_ERROR')
   })
 
   it('returns payer and network even on time-related failures', async () => {
@@ -209,6 +369,69 @@ describe('verifyExactPayment', () => {
     expect(result.isValid).toBe(false)
     expect(result.payer).toBe('0x1234567890abcdef1234567890abcdef12345678')
     expect(result.network).toBe('eip155:8453')
+  })
+
+  it('returns SIGNATURE_INVALID for malformed signature', async () => {
+    const payload = makeExactPayload({ signature: '0xshort' })
+    const result = await verifyExactPayment(payload)
+    expect(result.isValid).toBe(false)
+    expect(result.errorCode).toBe('SIGNATURE_INVALID')
+    expect(result.invalidReason).toContain('Invalid signature format')
+  })
+
+  it('includes gas estimate on successful verification', async () => {
+    mockReadContract.mockResolvedValueOnce(false)
+    mockReadContract.mockResolvedValueOnce(BigInt(10000000))
+    const payload = makeExactPayload()
+    const result = await verifyExactPayment(payload)
+    expect(result.isValid).toBe(true)
+    expect(result.gasEstimate).toBeDefined()
+    expect(result.gasEstimate!.estimatedGasUnits).toBeDefined()
+    expect(result.gasEstimate!.gasPriceGwei).toBeDefined()
+    expect(result.gasEstimate!.estimatedCostWei).toBeDefined()
+    expect(result.gasEstimate!.estimatedCostUsd).toBeDefined()
+  })
+
+  it('returns valid even when gas estimation fails', async () => {
+    mockReadContract.mockResolvedValueOnce(false)
+    mockReadContract.mockResolvedValueOnce(BigInt(10000000))
+    mockGetGasPrice.mockRejectedValueOnce(new Error('Gas price fetch failed'))
+    const payload = makeExactPayload()
+    const result = await verifyExactPayment(payload)
+    expect(result.isValid).toBe(true)
+    // gasEstimate may be undefined if estimation failed — that is fine
+  })
+
+  it('error messages include detailed context for expired authorizations', async () => {
+    const expiredBefore = now - 300
+    const payload = makeExactPayload({ validBefore: String(expiredBefore) })
+    const result = await verifyExactPayment(payload)
+    expect(result.invalidReason).toContain('300s ago')
+    expect(result.invalidReason).toContain(`validBefore=${expiredBefore}`)
+  })
+
+  it('error messages include detailed context for not-yet-valid authorizations', async () => {
+    const futureAfter = now + 500
+    const payload = makeExactPayload({ validAfter: String(futureAfter) })
+    const result = await verifyExactPayment(payload)
+    expect(result.invalidReason).toContain('500s')
+    expect(result.invalidReason).toContain(`validAfter=${futureAfter}`)
+  })
+
+  it('error messages include human-readable USDC amounts', async () => {
+    mockReadContract.mockResolvedValueOnce(false)
+    mockReadContract.mockResolvedValueOnce(BigInt(500000)) // 0.5 USDC
+    const payload = makeExactPayload({ value: '2000000' }) // 2 USDC
+    const result = await verifyExactPayment(payload)
+    expect(result.invalidReason).toContain('0.500000 USDC')
+    expect(result.invalidReason).toContain('2.000000 USDC')
+  })
+
+  it('lists supported networks in unsupported network error', async () => {
+    const payload = makeExactPayload({ network: 'eip155:42161' })
+    const result = await verifyExactPayment(payload)
+    expect(result.invalidReason).toContain('eip155:8453')
+    expect(result.invalidReason).toContain('Base')
   })
 })
 
@@ -222,6 +445,7 @@ describe('verifyUptoPayment', () => {
     deadline?: string
     permittedAmount?: string
     witnessAmount?: string
+    permitToken?: string
   }): X402UptoPayload {
     return {
       x402Version: 2,
@@ -231,7 +455,7 @@ describe('verifyUptoPayment', () => {
         signature: '0x' + 'cd'.repeat(65) as `0x${string}`,
         permit: {
           permitted: {
-            token: USDC_ADDRESSES['eip155:8453'],
+            token: (overrides?.permitToken ?? USDC_ADDRESSES['eip155:8453']) as `0x${string}`,
             amount: overrides?.permittedAmount ?? '5000000',
           },
           nonce: '1',
@@ -258,6 +482,7 @@ describe('verifyUptoPayment', () => {
     const result = await verifyUptoPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('Unsupported network')
+    expect(result.errorCode).toBe('UNSUPPORTED_NETWORK')
   })
 
   it('returns invalid when deadline expired', async () => {
@@ -265,6 +490,7 @@ describe('verifyUptoPayment', () => {
     const result = await verifyUptoPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('deadline expired')
+    expect(result.errorCode).toBe('PERMIT_DEADLINE_EXPIRED')
   })
 
   it('returns invalid when witness amount exceeds permitted', async () => {
@@ -275,6 +501,7 @@ describe('verifyUptoPayment', () => {
     const result = await verifyUptoPayment(payload)
     expect(result.isValid).toBe(false)
     expect(result.invalidReason).toContain('exceeds permitted')
+    expect(result.errorCode).toBe('WITNESS_EXCEEDS_PERMITTED')
   })
 
   it('returns valid when checks pass', async () => {
@@ -320,7 +547,178 @@ describe('verifyUptoPayment', () => {
     }
     const result = await verifyUptoPayment(payload)
     expect(result.isValid).toBe(false)
-    expect(result.invalidReason).toContain('Verification error')
+    expect(result.invalidReason).toContain('Verification failed')
+    expect(result.errorCode).toBe('VERIFICATION_RPC_ERROR')
+  })
+
+  it('returns invalid when permit token does not match USDC', async () => {
+    const payload = makeUptoPayload({
+      permitToken: '0x0000000000000000000000000000000000000001',
+    })
+    const result = await verifyUptoPayment(payload)
+    expect(result.isValid).toBe(false)
+    expect(result.invalidReason).toContain('does not match USDC')
+  })
+
+  it('includes excess USDC amount in witness-exceeds error', async () => {
+    const payload = makeUptoPayload({
+      permittedAmount: '1000000',
+      witnessAmount: '3000000',
+    })
+    const result = await verifyUptoPayment(payload)
+    expect(result.invalidReason).toContain('2.000000 USDC')
+  })
+
+  it('includes seconds-ago in deadline-expired error', async () => {
+    const expired = now - 200
+    const payload = makeUptoPayload({ deadline: String(expired) })
+    const result = await verifyUptoPayment(payload)
+    expect(result.invalidReason).toContain('200s ago')
+    expect(result.invalidReason).toContain(`deadline=${expired}`)
+  })
+})
+
+// ─── Idempotency & Payload Hash ─────────────────────────────────────────────
+
+describe('computePayloadHash', () => {
+  const now = Math.floor(Date.now() / 1000)
+
+  function makeExactPayload(): X402ExactPayload {
+    return {
+      x402Version: 2,
+      scheme: 'exact',
+      network: 'eip155:8453',
+      payload: {
+        signature: '0x' + 'ab'.repeat(65) as `0x${string}`,
+        authorization: {
+          from: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
+          to: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd' as `0x${string}`,
+          value: '1000000',
+          validAfter: String(now - 600),
+          validBefore: String(now + 600),
+          nonce: '0x' + '00'.repeat(32) as `0x${string}`,
+        },
+      },
+    }
+  }
+
+  it('returns a hex string of 64 characters (SHA-256)', async () => {
+    const hash = await computePayloadHash(makeExactPayload())
+    expect(hash).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('returns the same hash for identical payloads', async () => {
+    const p = makeExactPayload()
+    const hash1 = await computePayloadHash(p)
+    const hash2 = await computePayloadHash(p)
+    expect(hash1).toBe(hash2)
+  })
+
+  it('returns different hashes for different payloads', async () => {
+    const p1 = makeExactPayload()
+    const p2 = makeExactPayload()
+    p2.payload.authorization.value = '2000000'
+    const hash1 = await computePayloadHash(p1)
+    const hash2 = await computePayloadHash(p2)
+    expect(hash1).not.toBe(hash2)
+  })
+
+  it('returns different hashes when nonce differs', async () => {
+    const p1 = makeExactPayload()
+    const p2 = makeExactPayload()
+    p2.payload.authorization.nonce = '0x' + 'ff'.repeat(32) as `0x${string}`
+    const hash1 = await computePayloadHash(p1)
+    const hash2 = await computePayloadHash(p2)
+    expect(hash1).not.toBe(hash2)
+  })
+
+  it('returns different hashes when network differs', async () => {
+    const p1 = makeExactPayload()
+    const p2 = { ...makeExactPayload(), network: 'eip155:84532' as const }
+    const hash1 = await computePayloadHash(p1)
+    const hash2 = await computePayloadHash(p2)
+    expect(hash1).not.toBe(hash2)
+  })
+})
+
+// ─── Receipt Validation ──────────────────────────────────────────────────────
+
+describe('buildReceiptMessage', () => {
+  it('builds canonical colon-separated receipt string', () => {
+    const msg = buildReceiptMessage(
+      '0xdeadbeef',
+      'eip155:8453',
+      '0xpayer',
+      '0xpayee',
+      '1000000',
+      1700000000
+    )
+    expect(msg).toBe('0xdeadbeef:eip155:8453:0xpayer:0xpayee:1000000:1700000000')
+  })
+
+  it('is deterministic (same inputs produce same output)', () => {
+    const args = ['0xabc', 'eip155:1', '0xfrom', '0xto', '500', 123] as const
+    const msg1 = buildReceiptMessage(...args)
+    const msg2 = buildReceiptMessage(...args)
+    expect(msg1).toBe(msg2)
+  })
+})
+
+describe('validateReceipt', () => {
+  const receipt: X402Receipt = {
+    txHash: '0xdeadbeef1234567890' as `0x${string}`,
+    network: 'eip155:8453',
+    payer: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
+    payee: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd' as `0x${string}`,
+    amount: '1000000',
+    timestamp: 1700000000,
+    facilitatorSignature: '0xfacilitatorsig' as `0x${string}`,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.SETTLEGRID_GAS_WALLET_KEY = '0x' + 'ab'.repeat(32)
+  })
+
+  it('returns valid when verifyMessage returns true', async () => {
+    mockVerifyMessage.mockResolvedValueOnce(true)
+    const result = await validateReceipt(receipt)
+    expect(result.isValid).toBe(true)
+    expect(result.recoveredAddress).toBeDefined()
+    expect(result.receipt).toBe(receipt)
+  })
+
+  it('returns invalid when verifyMessage returns false', async () => {
+    mockVerifyMessage.mockResolvedValueOnce(false)
+    const result = await validateReceipt(receipt)
+    expect(result.isValid).toBe(false)
+    expect(result.invalidReason).toContain('does not match facilitator')
+    expect(result.receipt).toBe(receipt)
+  })
+
+  it('returns invalid on verification error', async () => {
+    mockVerifyMessage.mockRejectedValueOnce(new Error('Signature decoding failed'))
+    const result = await validateReceipt(receipt)
+    expect(result.isValid).toBe(false)
+    expect(result.invalidReason).toContain('Receipt validation error')
+  })
+
+  it('passes correct message to verifyMessage', async () => {
+    mockVerifyMessage.mockResolvedValueOnce(true)
+    await validateReceipt(receipt)
+    expect(mockVerifyMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: buildReceiptMessage(
+          receipt.txHash,
+          receipt.network,
+          receipt.payer,
+          receipt.payee,
+          receipt.amount,
+          receipt.timestamp
+        ),
+        signature: receipt.facilitatorSignature,
+      })
+    )
   })
 })
 
@@ -546,6 +944,13 @@ describe('GET /api/x402/supported', () => {
       expect(net.asset).toMatch(/^0x[0-9a-fA-F]{40}$/)
     }
   })
+
+  it('returns payment-identifier extension', async () => {
+    const res = await GET(createRequest())
+    const data = await res.json()
+    expect(data.extensions).toContain('payment-identifier')
+    expect(data.extensions).toContain('offer-and-receipt')
+  })
 })
 
 // ─── API routes: POST /api/x402/verify and /api/x402/settle ─────────────────
@@ -714,6 +1119,27 @@ describe('POST /api/x402/settle', () => {
     expect(res.status).toBe(200)
     expect(data.success).toBe(true)
     expect(data.txHash).toBe('0xdeadbeef1234567890')
+  })
+
+  it('accepts optional paymentIdentifier in request body', async () => {
+    mockVerifyExact.mockResolvedValueOnce({ isValid: true })
+    mockSettleExact.mockResolvedValueOnce({
+      success: true,
+      txHash: '0xdeadbeef1234567890',
+      network: 'eip155:8453',
+    })
+
+    const req = createSettleRequest({
+      paymentPayload: {
+        scheme: 'exact',
+        network: 'eip155:8453',
+        payload: { signature: '0xabc', authorization: {} },
+      },
+      paymentIdentifier: 'my-idempotency-key-123',
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
   })
 })
 

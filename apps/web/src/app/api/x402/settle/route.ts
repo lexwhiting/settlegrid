@@ -3,7 +3,12 @@ import { z } from 'zod'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
-import { verifyExactPayment, settleExactPayment } from '@/lib/settlement/x402'
+import {
+  verifyExactPayment,
+  settleExactPayment,
+  computePayloadHash,
+  checkIdempotency,
+} from '@/lib/settlement/x402'
 import type { X402ExactPayload } from '@/lib/settlement/x402'
 import { logger } from '@/lib/logger'
 
@@ -16,6 +21,8 @@ const settleSchema = z.object({
     network: z.string().min(1),
     payload: z.record(z.unknown()),
   }),
+  /** x402 v2 payment-identifier extension: client-supplied idempotency key */
+  paymentIdentifier: z.string().optional(),
 })
 
 export const POST = withCors(async function POST(request: NextRequest) {
@@ -28,11 +35,12 @@ export const POST = withCors(async function POST(request: NextRequest) {
     }
 
     const body = await parseBody(request, settleSchema)
-    const { paymentPayload } = body
+    const { paymentPayload, paymentIdentifier } = body
 
     logger.info('x402.settle_request', {
       scheme: paymentPayload.scheme,
       network: paymentPayload.network,
+      hasPaymentIdentifier: !!paymentIdentifier,
     })
 
     // Only exact scheme settlement is supported for now
@@ -61,7 +69,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       )
     }
 
-    // Then settle
+    // Then settle (idempotency is handled inside settleExactPayment)
     const settleResult = await settleExactPayment(exactPayload)
 
     if (!settleResult.success) {
@@ -81,6 +89,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       success: true,
       txHash: settleResult.txHash,
       network: settleResult.network,
+      gasEstimate: settleResult.gasEstimate ?? null,
     })
   } catch (error) {
     return internalErrorResponse(error)
