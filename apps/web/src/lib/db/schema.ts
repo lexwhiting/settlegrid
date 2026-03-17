@@ -714,18 +714,53 @@ export const workflowSessions = pgTable(
     budgetCents: integer('budget_cents').notNull(),
     spentCents: integer('spent_cents').notNull().default(0),
     reservedCents: integer('reserved_cents').notNull().default(0),
-    status: text('status').notNull().default('active'), // 'active' | 'completed' | 'expired' | 'cancelled'
+    status: text('status').notNull().default('active'),
+    // 'active' | 'finalizing' | 'settled' | 'completed' | 'failed' | 'expired' | 'cancelled'
+    settlementMode: text('settlement_mode').notNull().default('immediate'),
+    // 'immediate' | 'deferred' | 'atomic'
     protocol: text('protocol'), // 'mcp' | 'x402' | 'ap2' | 'visa-tap' | null
+    hops: jsonb('hops').notNull().default('[]'),
+    // Array<SessionHop> — each service call recorded as a hop
+    atomicSettlementId: uuid('atomic_settlement_id'),
+    // references settlementBatches.id — no FK to avoid circular
     metadata: jsonb('metadata'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('workflow_sessions_customer_id_idx').on(table.customerId),
     index('workflow_sessions_parent_session_id_idx').on(table.parentSessionId),
     index('workflow_sessions_status_idx').on(table.status),
     index('workflow_sessions_expires_at_idx').on(table.expiresAt),
+    index('workflow_sessions_atomic_settlement_idx').on(table.atomicSettlementId),
+  ]
+)
+
+// ─── Settlement Batches ──────────────────────────────────────────────────────
+
+export const settlementBatches = pgTable(
+  'settlement_batches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull(),
+    // references workflowSessions.id but no FK to avoid circular
+    totalAmountCents: integer('total_amount_cents').notNull(),
+    platformFeeCents: integer('platform_fee_cents').notNull(),
+    status: text('status').notNull().default('pending'),
+    // 'pending' | 'processing' | 'completed' | 'failed' | 'rolled_back'
+    disbursements: jsonb('disbursements').notNull().default('[]'),
+    // Array<SessionDisbursement>
+    rollbackReason: text('rollback_reason'),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('settlement_batches_session_id_idx').on(table.sessionId),
+    index('settlement_batches_status_idx').on(table.status),
   ]
 )
 
