@@ -49,7 +49,7 @@ export class TAPAdapter implements ProtocolAdapter {
     }
   }
 
-  formatResponse(_result: SettlementResult, _request: Request): Response {
+  formatResponse(_result: SettlementResult, request: Request): Response {
     return new Response(
       JSON.stringify({
         error: {
@@ -57,6 +57,14 @@ export class TAPAdapter implements ProtocolAdapter {
           message:
             'Visa TAP integration is not yet available. Visa sandbox access is required. ' +
             'Please use SettleGrid balance or AP2 credentials instead.',
+          protocol: 'visa-tap' as const,
+          timestamp: new Date().toISOString(),
+          requestId: request.headers.get('x-request-id') ?? null,
+          sandboxInfo: {
+            status: 'pending',
+            alternative: ['mcp', 'ap2'],
+            documentation: 'https://developer.visa.com/capabilities/visa-token-service',
+          },
         },
       }),
       {
@@ -66,12 +74,15 @@ export class TAPAdapter implements ProtocolAdapter {
     )
   }
 
-  formatError(error: Error, _request: Request): Response {
+  formatError(error: Error, request: Request): Response {
     return new Response(
       JSON.stringify({
         error: {
           code: 'VISA_TAP_NOT_AVAILABLE',
           message: error.message || 'Visa TAP integration is not yet available.',
+          protocol: 'visa-tap' as const,
+          timestamp: new Date().toISOString(),
+          requestId: request.headers.get('x-request-id') ?? null,
         },
       }),
       {

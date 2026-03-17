@@ -111,7 +111,7 @@ export class AP2Adapter implements ProtocolAdapter {
     )
   }
 
-  formatError(error: Error, _request: Request): Response {
+  formatError(error: Error, request: Request): Response {
     const isPaymentError =
       error.message.includes('mandate') ||
       error.message.includes('credential') ||
@@ -128,6 +128,9 @@ export class AP2Adapter implements ProtocolAdapter {
         error: {
           code,
           message: error.message,
+          protocol: 'ap2' as const,
+          timestamp: new Date().toISOString(),
+          requestId: request.headers.get('x-request-id') ?? null,
         },
       }),
       {

@@ -90,14 +90,15 @@ describe('ProtocolRegistry', () => {
     expect(registry.detect(req)).toBe(x402Adapter)
   })
 
-  it('detect() returns first matching adapter', () => {
+  it('detect() returns highest-priority matching adapter (x402 > mcp)', () => {
     const adapter1 = createMockAdapter('mcp', () => true)
     const adapter2 = createMockAdapter('x402', () => true)
     registry.register(adapter1)
     registry.register(adapter2)
 
     const req = new Request('http://localhost')
-    expect(registry.detect(req)).toBe(adapter1)
+    // x402 has higher priority than mcp, so x402 wins even if mcp was registered first
+    expect(registry.detect(req)).toBe(adapter2)
   })
 
   it('detect() returns undefined when none match', () => {

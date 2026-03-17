@@ -108,7 +108,7 @@ export class X402Adapter implements ProtocolAdapter {
     )
   }
 
-  formatError(error: Error, _request: Request): Response {
+  formatError(error: Error, request: Request): Response {
     const isPaymentError =
       error.message.includes('PAYMENT') ||
       error.message.includes('payment') ||
@@ -125,6 +125,9 @@ export class X402Adapter implements ProtocolAdapter {
         error: {
           code,
           message: error.message,
+          protocol: 'x402' as const,
+          timestamp: new Date().toISOString(),
+          requestId: request.headers.get('x-request-id') ?? null,
         },
       }),
       {

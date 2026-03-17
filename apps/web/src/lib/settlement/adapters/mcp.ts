@@ -112,7 +112,7 @@ export class MCPAdapter implements ProtocolAdapter {
     )
   }
 
-  formatError(error: Error, _request: Request): Response {
+  formatError(error: Error, request: Request): Response {
     const isInsufficientCredits = error.message.includes('INSUFFICIENT_CREDITS') ||
       error.message.includes('insufficient') ||
       error.message.includes('balance')
@@ -125,6 +125,9 @@ export class MCPAdapter implements ProtocolAdapter {
         error: {
           code,
           message: error.message,
+          protocol: 'mcp' as const,
+          timestamp: new Date().toISOString(),
+          requestId: request.headers.get('x-request-id') ?? null,
         },
       }),
       {
