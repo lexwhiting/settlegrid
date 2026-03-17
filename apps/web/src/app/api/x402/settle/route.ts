@@ -6,8 +6,6 @@ import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import {
   verifyExactPayment,
   settleExactPayment,
-  computePayloadHash,
-  checkIdempotency,
 } from '@/lib/settlement/x402'
 import type { X402ExactPayload } from '@/lib/settlement/x402'
 import { logger } from '@/lib/logger'

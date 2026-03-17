@@ -10,7 +10,7 @@
 
 import { db } from '@/lib/db'
 import { outcomeVerifications } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ─── Types ──────────────────────────────────────────────────────────────────

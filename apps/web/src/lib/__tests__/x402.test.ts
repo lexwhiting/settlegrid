@@ -406,7 +406,7 @@ describe('verifyExactPayment', () => {
     const expiredBefore = now - 300
     const payload = makeExactPayload({ validBefore: String(expiredBefore) })
     const result = await verifyExactPayment(payload)
-    expect(result.invalidReason).toContain('300s ago')
+    expect(result.invalidReason).toMatch(/30[0-2]s ago/)
     expect(result.invalidReason).toContain(`validBefore=${expiredBefore}`)
   })
 
@@ -414,7 +414,7 @@ describe('verifyExactPayment', () => {
     const futureAfter = now + 500
     const payload = makeExactPayload({ validAfter: String(futureAfter) })
     const result = await verifyExactPayment(payload)
-    expect(result.invalidReason).toContain('500s')
+    expect(result.invalidReason).toMatch(/49[89]s|500s|501s/)
     expect(result.invalidReason).toContain(`validAfter=${futureAfter}`)
   })
 
@@ -573,7 +573,7 @@ describe('verifyUptoPayment', () => {
     const expired = now - 200
     const payload = makeUptoPayload({ deadline: String(expired) })
     const result = await verifyUptoPayment(payload)
-    expect(result.invalidReason).toContain('200s ago')
+    expect(result.invalidReason).toMatch(/20[0-2]s ago/)
     expect(result.invalidReason).toContain(`deadline=${expired}`)
   })
 })

@@ -5,6 +5,7 @@ import { developers, consumers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getClerkWebhookSecret } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -23,6 +24,12 @@ interface ClerkWebhookEvent {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const rateLimit = await checkRateLimit(apiLimiter, `clerk-webhook:${ip}`)
+    if (!rateLimit.success) {
+      return new Response('Too many requests', { status: 429 })
+    }
+
     const body = await request.text()
     const svixId = request.headers.get('svix-id') ?? ''
     const svixTimestamp = request.headers.get('svix-timestamp') ?? ''

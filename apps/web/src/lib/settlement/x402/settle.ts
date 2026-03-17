@@ -11,7 +11,7 @@
  *   - Receipt validation (signature recovery)
  */
 
-import { createPublicClient, createWalletClient, http, type Address, verifyMessage } from 'viem'
+import { createWalletClient, http, type Address, verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { base, baseSepolia } from 'viem/chains'
 import type {
@@ -73,18 +73,6 @@ function getWalletClient(network: X402Network) {
       return createWalletClient({ account, chain: baseSepolia, transport: http() })
     default:
       throw new Error(`Settlement not supported on network: ${network}. Only Base mainnet (eip155:8453) and Base Sepolia (eip155:84532) are supported.`)
-  }
-}
-
-/** Get a public client for receipt validation */
-function getPublicClient(network: X402Network) {
-  switch (network) {
-    case 'eip155:8453':
-      return createPublicClient({ chain: base, transport: http() })
-    case 'eip155:84532':
-      return createPublicClient({ chain: baseSepolia, transport: http() })
-    default:
-      throw new Error(`Unsupported network for validation: ${network}`)
   }
 }
 
