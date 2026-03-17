@@ -8,9 +8,10 @@ import { createSession } from '@/lib/settlement/sessions'
 import { db } from '@/lib/db'
 import { workflowSessions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { addCorsHeaders } from '@/lib/middleware/cors'
+import { addCorsHeaders, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
 export const maxDuration = 30
+export { corsOptions as OPTIONS }
 
 const delegateSchema = z.object({
   budgetCents: z.number().int().min(1),

@@ -57,6 +57,12 @@ export const POST = withCors(async function POST(request: NextRequest) {
 
 export const GET = withCors(async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const rl = await checkRateLimit(sdkLimiter, `agents-list:${ip}`)
+    if (!rl.success) {
+      return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const providerId = request.headers.get('x-provider-id')
     if (!providerId) {
       return errorResponse('Provider authentication required.', 401)

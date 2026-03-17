@@ -28,7 +28,7 @@ vi.mock('@/lib/rate-limit', () => ({
 }))
 
 vi.mock('@/lib/middleware/cors', () => ({
-  withCors: (handler: Function) => handler,
+  withCors: (handler: (req: NextRequest) => Promise<Response>) => handler,
   OPTIONS: vi.fn(),
   addCorsHeaders: (res: unknown) => res,
 }))
@@ -158,6 +158,7 @@ describe('POST /api/sessions', () => {
 describe('GET /api/sessions/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
   })
 
   it('returns session state', async () => {
@@ -183,6 +184,17 @@ describe('GET /api/sessions/[id]', () => {
     })
 
     expect(response.status).toBe(404)
+  })
+
+  it('returns 429 when rate limited', async () => {
+    mockCheckRateLimit.mockResolvedValue({ success: false, limit: 1000, remaining: 0, reset: 60 })
+
+    const request = makeRequest('/api/sessions/sess-001')
+    const response = await getSessionRoute(request, {
+      params: Promise.resolve({ id: 'sess-001' }),
+    })
+
+    expect(response.status).toBe(429)
   })
 })
 

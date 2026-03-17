@@ -4,9 +4,10 @@ import { NextRequest } from 'next/server'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { checkRateLimit, sdkLimiter } from '@/lib/rate-limit'
 import { completeSession } from '@/lib/settlement/sessions'
-import { addCorsHeaders } from '@/lib/middleware/cors'
+import { addCorsHeaders, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
 export const maxDuration = 30
+export { corsOptions as OPTIONS }
 
 export async function POST(
   request: NextRequest,

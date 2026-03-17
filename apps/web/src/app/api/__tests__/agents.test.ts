@@ -22,7 +22,7 @@ vi.mock('@/lib/rate-limit', () => ({
 }))
 
 vi.mock('@/lib/middleware/cors', () => ({
-  withCors: (handler: Function) => handler,
+  withCors: (handler: (req: NextRequest) => Promise<Response>) => handler,
   OPTIONS: vi.fn(),
   addCorsHeaders: (res: unknown) => res,
 }))
@@ -192,6 +192,7 @@ describe('POST /api/agents', () => {
 describe('GET /api/agents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
   })
 
   it('returns agent list for a provider', async () => {
@@ -229,6 +230,17 @@ describe('GET /api/agents', () => {
     expect(response.status).toBe(200)
     expect(data.agents).toEqual([])
   })
+
+  it('returns 429 when rate limited', async () => {
+    mockCheckRateLimit.mockResolvedValue({ success: false, limit: 1000, remaining: 0, reset: 60 })
+
+    const request = makeRequest('/api/agents', 'GET', undefined, {
+      'x-provider-id': 'provider-1',
+    })
+
+    const response = await GET(request)
+    expect(response.status).toBe(429)
+  })
 })
 
 // ─── GET /api/agents/[id]/facts Tests ────────────────────────────────────────
@@ -236,6 +248,7 @@ describe('GET /api/agents', () => {
 describe('GET /api/agents/[id]/facts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
   })
 
   it('returns AgentFacts profile', async () => {
@@ -267,6 +280,17 @@ describe('GET /api/agents/[id]/facts', () => {
     })
 
     expect(response.status).toBe(404)
+  })
+
+  it('returns 429 when rate limited', async () => {
+    mockCheckRateLimit.mockResolvedValue({ success: false, limit: 1000, remaining: 0, reset: 60 })
+
+    const request = makeRequest('/api/agents/agent-001/facts')
+    const response = await getAgentFacts(request, {
+      params: Promise.resolve({ id: 'agent-001' }),
+    })
+
+    expect(response.status).toBe(429)
   })
 
   it('includes all 4 AgentFacts categories', async () => {
