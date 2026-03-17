@@ -96,6 +96,28 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
+// AP2 (Google Agentic Payments Protocol)
+export function getAp2SigningSecret(): string {
+  return process.env.AP2_SIGNING_SECRET ?? 'ap2-dev-secret'
+}
+
+export function getAp2VerificationKey(): string | undefined {
+  return process.env.AP2_VERIFICATION_KEY
+}
+
+// Visa TAP (Trusted Agent Protocol)
+export function getVisaApiUrl(): string {
+  return process.env.VISA_API_URL ?? 'https://sandbox.api.visa.com'
+}
+
+export function getVisaApiKey(): string | undefined {
+  return process.env.VISA_API_KEY
+}
+
+export function getVisaSharedSecret(): string | undefined {
+  return process.env.VISA_SHARED_SECRET
+}
+
 // Full env object — validates ALL vars at once, cached after first call
 export function getEnv() {
   if (!cached) {
