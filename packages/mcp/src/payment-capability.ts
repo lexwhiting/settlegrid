@@ -80,6 +80,25 @@ export function createPaymentCapability(options: {
   pricingUrl?: string
   acceptedPaymentMethods?: Array<'credit-balance' | 'x402'>
 }): PaymentCapability {
+  if (!options.toolSlug || typeof options.toolSlug !== 'string') {
+    throw new Error(
+      'createPaymentCapability: toolSlug is required and must be a non-empty string. ' +
+      'This should match the slug you registered on https://settlegrid.ai/tools.'
+    )
+  }
+  if (!options.pricing || typeof options.pricing !== 'object') {
+    throw new Error(
+      'createPaymentCapability: pricing is required. Provide a GeneralizedPricingConfig object, e.g. ' +
+      '{ model: "per-invocation", defaultCostCents: 5 }'
+    )
+  }
+  if (options.pricing.defaultCostCents == null || options.pricing.defaultCostCents < 0) {
+    throw new Error(
+      'createPaymentCapability: pricing.defaultCostCents must be a non-negative integer. ' +
+      `Received: ${options.pricing.defaultCostCents}`
+    )
+  }
+
   return {
     provider: 'settlegrid',
     version: '1.0',

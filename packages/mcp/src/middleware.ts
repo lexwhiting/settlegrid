@@ -1,6 +1,10 @@
 /**
  * @settlegrid/mcp - Core middleware
+ *
  * Key extraction, validation, credit check, and metering for MCP tool calls.
+ * This module implements the full billing pipeline: validate key -> check credits -> execute -> meter.
+ *
+ * @packageDocumentation
  */
 
 import { LRUCache } from './cache'
@@ -20,7 +24,28 @@ import type {
 } from './types'
 import type { NormalizedConfig } from './config'
 
-/** Extract API key from various sources (MCP metadata, headers, query params) */
+/**
+ * Extract an API key from various sources in priority order:
+ * 1. MCP metadata (`settlegrid-api-key` or `x-api-key`)
+ * 2. `Authorization: Bearer <key>` header
+ * 3. `x-api-key` / `X-Api-Key` header
+ *
+ * @param headers - HTTP request headers (optional)
+ * @param metadata - MCP call metadata (optional, takes priority over headers)
+ * @returns The extracted API key string, or `null` if no key was found
+ *
+ * @example
+ * ```typescript
+ * // From MCP metadata (preferred for MCP servers)
+ * const key1 = extractApiKey(undefined, { 'settlegrid-api-key': 'sg_live_abc' })
+ *
+ * // From HTTP headers (for REST APIs)
+ * const key2 = extractApiKey({ 'x-api-key': 'sg_live_abc' })
+ *
+ * // From Bearer token
+ * const key3 = extractApiKey({ authorization: 'Bearer sg_live_abc' })
+ * ```
+ */
 export function extractApiKey(
   headers?: Record<string, string | string[] | undefined>,
   metadata?: Record<string, unknown>

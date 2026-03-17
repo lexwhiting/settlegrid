@@ -1,6 +1,10 @@
 /**
  * @settlegrid/mcp - LRU Cache for key validation
- * In-memory cache with TTL to reduce API calls for key validation.
+ *
+ * In-memory Least-Recently-Used cache with TTL-based expiration.
+ * Reduces API calls for repeated key validation within the TTL window.
+ *
+ * @packageDocumentation
  */
 
 import type { KeyValidationResult } from './types'
@@ -10,11 +14,30 @@ interface CacheEntry {
   expiresAt: number
 }
 
+/**
+ * LRU (Least-Recently-Used) cache with TTL expiration for key validation results.
+ *
+ * Used internally by the SDK to avoid redundant API calls when the same key
+ * is validated multiple times within the TTL window.
+ *
+ * @example
+ * ```typescript
+ * const cache = new LRUCache(1000, 300000) // 1000 entries, 5 min TTL
+ * cache.set('sg_live_abc', validationResult)
+ * const cached = cache.get('sg_live_abc') // returns result or undefined
+ * ```
+ */
 export class LRUCache {
   private readonly maxSize: number
   private readonly ttlMs: number
   private readonly cache: Map<string, CacheEntry>
 
+  /**
+   * Create a new LRU cache.
+   *
+   * @param maxSize - Maximum number of entries before LRU eviction (default: 1000)
+   * @param ttlMs - Time-to-live in milliseconds for cache entries (default: 300000 / 5 minutes)
+   */
   constructor(maxSize: number = 1000, ttlMs: number = 5 * 60 * 1000) {
     this.maxSize = maxSize
     this.ttlMs = ttlMs

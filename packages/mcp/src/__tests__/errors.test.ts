@@ -35,7 +35,8 @@ describe('SettleGridError', () => {
 describe('InvalidKeyError', () => {
   it('uses default message', () => {
     const error = new InvalidKeyError()
-    expect(error.message).toBe('Invalid or revoked API key')
+    expect(error.message).toContain('Invalid or revoked API key')
+    expect(error.message).toContain('settlegrid.ai/keys')
     expect(error.code).toBe('INVALID_KEY')
     expect(error.statusCode).toBe(401)
     expect(error.name).toBe('InvalidKeyError')
@@ -89,7 +90,8 @@ describe('RateLimitedError', () => {
 describe('SettleGridUnavailableError', () => {
   it('uses default message', () => {
     const error = new SettleGridUnavailableError()
-    expect(error.message).toBe('SettleGrid API is temporarily unavailable')
+    expect(error.message).toContain('SettleGrid API is temporarily unavailable')
+    expect(error.message).toContain('status.settlegrid.ai')
     expect(error.statusCode).toBe(503)
   })
 })

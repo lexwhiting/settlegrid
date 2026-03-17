@@ -1,5 +1,10 @@
 /**
  * @settlegrid/mcp - Configuration validation
+ *
+ * Handles validation and normalization of SDK configuration using Zod schemas.
+ * All public functions throw descriptive errors when given invalid input.
+ *
+ * @packageDocumentation
  */
 
 import { z } from 'zod'
@@ -15,7 +20,10 @@ const methodPricingSchema = z.object({
   displayName: z.string().optional(),
 })
 
-/** Zod schema for pricing config */
+/**
+ * Zod schema for pricing config validation.
+ * Exported for advanced users who want to pre-validate pricing config.
+ */
 export const pricingConfigSchema = z.object({
   defaultCostCents: z.number().int().min(0),
   methods: z.record(z.string(), methodPricingSchema).optional(),
@@ -30,16 +38,41 @@ const sdkConfigSchema = z.object({
   timeoutMs: z.number().int().min(100).max(30000).optional(),
 })
 
-/** Validated and normalized SDK configuration */
+/**
+ * Validated and normalized SDK configuration with all defaults applied.
+ * Produced by {@link normalizeConfig}.
+ */
 export interface NormalizedConfig {
+  /** SettleGrid API base URL (trailing slash stripped) */
   apiUrl: string
+  /** Tool slug identifier */
   toolSlug: string
+  /** Whether debug mode is enabled */
   debug: boolean
+  /** Cache TTL in milliseconds */
   cacheTtlMs: number
+  /** Request timeout in milliseconds */
   timeoutMs: number
 }
 
-/** Validate and normalize SDK config */
+/**
+ * Validate and normalize SDK configuration, applying defaults for optional fields.
+ *
+ * @param config - Raw SDK configuration from the developer
+ * @returns Fully resolved configuration with all defaults applied
+ * @throws {z.ZodError} If config is invalid (empty toolSlug, invalid URL, timeout out of range, etc.)
+ *
+ * @example
+ * ```typescript
+ * const normalized = normalizeConfig({
+ *   toolSlug: 'my-tool',
+ *   timeoutMs: 10000,
+ * })
+ * // normalized.apiUrl === 'https://settlegrid.ai'
+ * // normalized.debug === false
+ * // normalized.cacheTtlMs === 300000
+ * ```
+ */
 export function normalizeConfig(config: SettleGridConfig): NormalizedConfig {
   const parsed = sdkConfigSchema.parse(config)
   return {
@@ -51,12 +84,39 @@ export function normalizeConfig(config: SettleGridConfig): NormalizedConfig {
   }
 }
 
-/** Validate pricing config */
+/**
+ * Validate a pricing configuration object using the Zod schema.
+ *
+ * @param config - Pricing config to validate (usually from developer input)
+ * @returns Validated pricing config
+ * @throws {z.ZodError} If pricing is invalid (negative costs, non-integer costs, etc.)
+ *
+ * @example
+ * ```typescript
+ * const pricing = validatePricingConfig({
+ *   defaultCostCents: 1,
+ *   methods: { search: { costCents: 5 } },
+ * })
+ * ```
+ */
 export function validatePricingConfig(config: unknown): PricingConfig {
   return pricingConfigSchema.parse(config)
 }
 
-/** Get cost for a specific method from pricing config */
+/**
+ * Get the cost in cents for a specific method from a pricing configuration.
+ * Falls back to `defaultCostCents` if the method has no explicit pricing.
+ *
+ * @param pricing - Pricing configuration to look up
+ * @param method - Method name to get pricing for
+ * @returns Cost in cents for invoking the given method
+ *
+ * @example
+ * ```typescript
+ * const cost = getMethodCost(pricing, 'search')
+ * // Returns method-specific cost, or defaultCostCents if 'search' is not configured
+ * ```
+ */
 export function getMethodCost(pricing: PricingConfig, method: string): number {
   if (pricing.methods && method in pricing.methods) {
     return pricing.methods[method].costCents

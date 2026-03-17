@@ -88,6 +88,19 @@ export function generateServerCardBilling(options: {
   providerUrl?: string
   freeTier?: { invocationsPerMonth: number; description?: string }
 }): ServerCardBilling {
+  if (!options.toolSlug || typeof options.toolSlug !== 'string') {
+    throw new Error(
+      'generateServerCardBilling: toolSlug is required and must be a non-empty string. ' +
+      'This should match the slug you registered on https://settlegrid.ai/tools.'
+    )
+  }
+  if (!options.pricing || typeof options.pricing !== 'object') {
+    throw new Error(
+      'generateServerCardBilling: pricing is required. Provide a GeneralizedPricingConfig object, e.g. ' +
+      '{ model: "per-invocation", defaultCostCents: 5 }'
+    )
+  }
+
   return {
     provider: 'settlegrid',
     providerUrl: options.providerUrl ?? 'https://settlegrid.ai',
@@ -139,6 +152,23 @@ export function generateServerCard(options: {
   providerUrl?: string
   freeTier?: { invocationsPerMonth: number; description?: string }
 }): MCPServerCard {
+  if (!options.name || typeof options.name !== 'string') {
+    throw new Error(
+      'generateServerCard: name is required and must be a non-empty string.'
+    )
+  }
+  if (!options.version || typeof options.version !== 'string') {
+    throw new Error(
+      'generateServerCard: version is required and must be a non-empty string (e.g. "1.0.0").'
+    )
+  }
+  if (!Array.isArray(options.tools)) {
+    throw new Error(
+      'generateServerCard: tools must be an array of tool definitions, e.g. ' +
+      '[{ name: "search", description: "Search the web", inputSchema: {} }]'
+    )
+  }
+
   return {
     name: options.name,
     description: options.description,
