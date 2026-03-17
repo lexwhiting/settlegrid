@@ -2,6 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { StatCard } from '@/components/dashboard/stat-card'
+import { BarChart } from '@/components/charts/bar-chart'
+import { AreaChart } from '@/components/charts/area-chart'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 type TimeRange = '7' | '30' | '90'
 
@@ -33,24 +38,6 @@ interface UsageData {
 
 function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function StatCard({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-indigo">{value}</div>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-      </CardContent>
-    </Card>
-  )
 }
 
 export default function AnalyticsPage() {
@@ -124,6 +111,10 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Analytics' },
+        ]} />
         <div>
           <h1 className="text-2xl font-bold text-indigo">Usage Analytics</h1>
           <p className="text-sm text-gray-500 mt-1">Track your API consumption and spending across all tools.</p>
@@ -132,8 +123,8 @@ export default function AnalyticsPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-20" />
-                <div className="h-8 bg-gray-200 rounded animate-pulse w-32" />
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-32" />
               </CardContent>
             </Card>
           ))}
@@ -144,6 +135,11 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Analytics' },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -203,48 +199,32 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           {dailyData.length > 0 ? (
-            <div className="space-y-4">
-              {/* Invocation bars */}
+            <div className="space-y-6">
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">Invocations</p>
-                <div className="flex items-end gap-1 h-32">
-                  {dailyData.map((day) => {
-                    const max = Math.max(...dailyData.map((d) => d.invocations), 1)
-                    const height = (day.invocations / max) * 100
-                    return (
-                      <div
-                        key={day.date}
-                        className="flex-1 bg-brand/20 hover:bg-brand/40 rounded-t transition-colors relative group"
-                        style={{ height: `${Math.max(height, 2)}%` }}
-                      >
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-indigo text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                          {day.invocations} calls - {formatDate(day.date)}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <BarChart
+                  data={dailyData}
+                  xKey="date"
+                  yKey="invocations"
+                  height={160}
+                  formatXAxis={(v) =>
+                    new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  }
+                />
               </div>
-              {/* Cost bars */}
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">Cost</p>
-                <div className="flex items-end gap-1 h-32">
-                  {dailyData.map((day) => {
-                    const max = Math.max(...dailyData.map((d) => d.costCents), 1)
-                    const height = (day.costCents / max) * 100
-                    return (
-                      <div
-                        key={day.date}
-                        className="flex-1 bg-brand/30 hover:bg-brand/50 rounded-t transition-colors relative group"
-                        style={{ height: `${Math.max(height, 2)}%` }}
-                      >
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-indigo text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                          {formatCents(day.costCents)} - {formatDate(day.date)}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <AreaChart
+                  data={dailyData}
+                  xKey="date"
+                  yKey="costCents"
+                  height={160}
+                  color="#3B82F6"
+                  formatValue={(v) => formatCents(v)}
+                  formatXAxis={(v) =>
+                    new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  }
+                />
               </div>
             </div>
           ) : (

@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
+import { EmptyState } from '@/components/dashboard/empty-state'
 
 interface Tool {
   id: string
@@ -96,6 +99,11 @@ export default function ToolsPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Tools' },
+      ]} />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-indigo">Tools</h1>
         <Button onClick={() => setShowCreate(!showCreate)}>
@@ -145,17 +153,26 @@ export default function ToolsPage() {
           {[1, 2].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-6 bg-gray-200 rounded animate-pulse w-48 mb-2" />
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-64" />
+                <Skeleton className="h-6 w-48 mb-2" />
+                <Skeleton className="h-4 w-64" />
               </CardContent>
             </Card>
           ))}
         </div>
       ) : tools.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <p className="text-gray-500 mb-4">No tools yet. Create your first tool to start earning.</p>
-            <Button onClick={() => setShowCreate(true)}>Create Tool</Button>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.384 3.181c-.348.205-.757-.113-.635-.511l1.384-4.522L2.23 10.29c-.31-.264-.147-.755.255-.786l4.629-.351 1.803-4.347c.16-.386.703-.386.862 0l1.803 4.347 4.63.351c.401.03.564.522.255.786l-3.556 3.028 1.383 4.522c.123.398-.287.716-.635.511L11.42 15.17z" />
+                </svg>
+              }
+              title="No tools yet"
+              description="Create your first tool to start monetizing your MCP endpoints and earning revenue."
+              onAction={() => setShowCreate(true)}
+              actionLabel="Create Tool"
+            />
           </CardContent>
         </Card>
       ) : (

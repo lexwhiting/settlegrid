@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 interface ReputationData {
   developerId: string
@@ -151,6 +153,10 @@ export default function ReputationPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Reputation' },
+        ]} />
         <div>
           <h1 className="text-2xl font-bold text-indigo">Developer Reputation</h1>
           <p className="text-sm text-gray-500 mt-1">Your public reputation score and breakdown across key performance areas.</p>
@@ -158,9 +164,9 @@ export default function ReputationPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-1">
             <CardContent className="p-8 text-center">
-              <div className="h-24 w-24 bg-gray-200 rounded-full animate-pulse mx-auto mb-4" />
-              <div className="h-6 bg-gray-200 rounded animate-pulse w-16 mx-auto mb-2" />
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-24 mx-auto" />
+              <Skeleton className="h-24 w-24 rounded-full mx-auto mb-4" />
+              <Skeleton className="h-6 w-16 mx-auto mb-2" />
+              <Skeleton className="h-4 w-24 mx-auto" />
             </CardContent>
           </Card>
           <Card className="lg:col-span-2">
@@ -168,8 +174,8 @@ export default function ReputationPage() {
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div key={i}>
-                    <div className="h-4 bg-gray-200 rounded animate-pulse w-32 mb-2" />
-                    <div className="h-2.5 bg-gray-200 rounded-full animate-pulse w-full" />
+                    <Skeleton className="h-4 w-32 mb-2" />
+                    <Skeleton className="h-2.5 w-full rounded-full" />
                   </div>
                 ))}
               </div>
@@ -185,6 +191,11 @@ export default function ReputationPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Reputation' },
+      ]} />
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-indigo">Developer Reputation</h1>

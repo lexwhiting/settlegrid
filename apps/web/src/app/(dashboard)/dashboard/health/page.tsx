@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { StatCard } from '@/components/dashboard/stat-card'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 interface Tool {
   id: string
@@ -37,20 +40,6 @@ function StatusBadge({ status }: { status: string }) {
         : 'secondary' as const
 
   return <Badge variant={variant}>{status}</Badge>
-}
-
-function StatCard({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-indigo">{value}</div>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-      </CardContent>
-    </Card>
-  )
 }
 
 export default function HealthPage() {
@@ -147,6 +136,10 @@ export default function HealthPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Health' },
+        ]} />
         <div>
           <h1 className="text-2xl font-bold text-indigo">Tool Health Monitoring</h1>
           <p className="text-sm text-gray-500 mt-1">Monitor the uptime and performance of your registered tools.</p>
@@ -155,8 +148,8 @@ export default function HealthPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-20" />
-                <div className="h-8 bg-gray-200 rounded animate-pulse w-24" />
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-24" />
               </CardContent>
             </Card>
           ))}
@@ -167,6 +160,11 @@ export default function HealthPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Health' },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

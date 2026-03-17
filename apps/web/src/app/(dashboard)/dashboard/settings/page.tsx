@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 interface DeveloperProfile {
   id: string
@@ -60,10 +62,14 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Settings' },
+        ]} />
         <h1 className="text-2xl font-bold text-indigo">Settings</h1>
         <Card>
           <CardContent className="p-6">
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-48" />
+            <Skeleton className="h-4 w-48" />
           </CardContent>
         </Card>
       </div>
@@ -72,6 +78,10 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Settings' },
+      ]} />
       <h1 className="text-2xl font-bold text-indigo">Settings</h1>
 
       {error && (

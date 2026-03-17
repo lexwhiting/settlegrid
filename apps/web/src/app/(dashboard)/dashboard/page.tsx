@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { StatCard } from '@/components/dashboard/stat-card'
+import { BarChart } from '@/components/charts/bar-chart'
+import { AreaChart } from '@/components/charts/area-chart'
 
 interface DeveloperStats {
   totalRevenueCents: number
@@ -25,25 +29,14 @@ function formatCents(cents: number): string {
   }).format(cents / 100)
 }
 
-function StatCard({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-indigo">{value}</div>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-      </CardContent>
-    </Card>
-  )
-}
+type Period = '7' | '30' | '90'
 
 export default function DeveloperDashboardPage() {
   const [stats, setStats] = useState<DeveloperStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [period, setPeriod] = useState<Period>('30')
 
   useEffect(() => {
     async function fetchData() {
@@ -79,8 +72,8 @@ export default function DeveloperDashboardPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-20" />
-                <div className="h-8 bg-gray-200 rounded animate-pulse w-32" />
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-32" />
               </CardContent>
             </Card>
           ))}
@@ -100,13 +93,27 @@ export default function DeveloperDashboardPage() {
     )
   }
 
-  const maxRevenue = analytics?.revenueTrend?.length
-    ? Math.max(...analytics.revenueTrend.map((d) => d.revenueCents), 1)
-    : 1
-
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
+      {/* Header with period selector */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-indigo">Dashboard</h1>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          {(['7', '30', '90'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                period === p
+                  ? 'bg-white text-indigo shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {p}d
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -167,23 +174,19 @@ export default function DeveloperDashboardPage() {
         </CardHeader>
         <CardContent>
           {stats?.recentInvocations && stats.recentInvocations.length > 0 ? (
-            <div className="flex items-end gap-1 h-40">
-              {stats.recentInvocations.map((point, i) => {
-                const max = Math.max(...stats.recentInvocations.map((p) => p.count), 1)
-                const height = (point.count / max) * 100
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 bg-brand/20 hover:bg-brand/40 rounded-t transition-colors relative group"
-                    style={{ height: `${Math.max(height, 2)}%` }}
-                  >
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 hidden group-hover:block bg-indigo text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                      {point.count} calls
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <BarChart
+              data={stats.recentInvocations.map((point, i) => ({
+                hour: point.hour || String(i),
+                count: point.count,
+              }))}
+              xKey="hour"
+              yKey="count"
+              height={200}
+              formatXAxis={(v) => {
+                const h = parseInt(v, 10)
+                return isNaN(h) ? v : `${h}:00`
+              }}
+            />
           ) : (
             <p className="text-gray-500 text-sm">No invocations yet. Publish a tool to get started.</p>
           )}
@@ -197,22 +200,21 @@ export default function DeveloperDashboardPage() {
             <CardTitle className="text-lg">Revenue Trend (Last 30 Days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end gap-1 h-40">
-              {analytics.revenueTrend.map((day, i) => {
-                const height = (day.revenueCents / maxRevenue) * 100
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 bg-brand/30 hover:bg-brand/50 rounded-t transition-colors relative group"
-                    style={{ height: `${Math.max(height, 2)}%` }}
-                  >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-indigo text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                      {formatCents(day.revenueCents)} — {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <AreaChart
+              data={analytics.revenueTrend.map((day) => ({
+                date: day.date,
+                revenue: day.revenueCents,
+              }))}
+              xKey="date"
+              yKey="revenue"
+              height={220}
+              formatValue={(v) =>
+                new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v / 100)
+              }
+              formatXAxis={(v) =>
+                new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              }
+            />
           </CardContent>
         </Card>
       )}

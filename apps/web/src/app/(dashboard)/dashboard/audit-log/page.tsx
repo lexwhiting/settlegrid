@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 interface AuditEntry {
   id: string
@@ -128,6 +130,11 @@ export default function AuditLogPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Audit Log' },
+      ]} />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-indigo">Audit Log</h1>
         <Button variant="outline" onClick={exportCsv} disabled={exporting}>
@@ -181,9 +188,9 @@ export default function AuditLogPage() {
             <div className="space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="h-5 bg-gray-200 rounded-full animate-pulse w-24" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse flex-1" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-32" />
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                  <Skeleton className="h-4 flex-1" />
+                  <Skeleton className="h-4 w-32" />
                 </div>
               ))}
             </div>

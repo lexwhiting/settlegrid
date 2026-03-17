@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
+import { EmptyState } from '@/components/dashboard/empty-state'
 
 interface WebhookEndpoint {
   id: string
@@ -137,6 +140,11 @@ export default function WebhooksPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Webhooks' },
+      ]} />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-indigo">Webhooks</h1>
         <Button onClick={() => setShowCreate(!showCreate)}>
@@ -197,17 +205,26 @@ export default function WebhooksPage() {
           {[1, 2].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-5 bg-gray-200 rounded animate-pulse w-64 mb-2" />
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-48" />
+                <Skeleton className="h-5 w-64 mb-2" />
+                <Skeleton className="h-4 w-48" />
               </CardContent>
             </Card>
           ))}
         </div>
       ) : endpoints.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <p className="text-gray-500 mb-4">No webhook endpoints configured. Add one to receive real-time event notifications.</p>
-            <Button onClick={() => setShowCreate(true)}>Add Endpoint</Button>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+              }
+              title="No webhook endpoints"
+              description="Add a webhook endpoint to receive real-time event notifications via HMAC-SHA256 signed HTTP POST requests."
+              onAction={() => setShowCreate(true)}
+              actionLabel="Add Endpoint"
+            />
           </CardContent>
         </Card>
       ) : (

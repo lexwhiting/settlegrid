@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { StatCard } from '@/components/dashboard/stat-card'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 interface Referral {
   id: string
@@ -26,20 +29,6 @@ interface Tool {
 
 function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
-}
-
-function StatCard({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-indigo">{value}</div>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-      </CardContent>
-    </Card>
-  )
 }
 
 export default function ReferralsPage() {
@@ -135,6 +124,10 @@ export default function ReferralsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Referrals' },
+        ]} />
         <div>
           <h1 className="text-2xl font-bold text-indigo">Referral Program</h1>
           <p className="text-sm text-gray-500 mt-1">Earn commissions by referring consumers to tools on SettleGrid.</p>
@@ -143,8 +136,8 @@ export default function ReferralsPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-20" />
-                <div className="h-8 bg-gray-200 rounded animate-pulse w-24" />
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-24" />
               </CardContent>
             </Card>
           ))}
@@ -155,6 +148,11 @@ export default function ReferralsPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Referrals' },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
