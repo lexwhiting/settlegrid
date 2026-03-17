@@ -594,38 +594,73 @@ export async function processSettlementBatch(batchId: string): Promise<void> {
 
   const disbursements = batch.disbursements as SessionDisbursement[]
 
-  // Process each disbursement: credit developer balances
-  for (const d of disbursements) {
+  // Atomic transaction: credit ALL developers or rollback ALL on failure.
+  // If any single credit fails, the entire transaction is rolled back by
+  // Postgres, so no developer receives a partial payment.
+  try {
+    await db.transaction(async (tx) => {
+      // Credit each developer balance inside the transaction
+      for (const d of disbursements) {
+        await tx
+          .update(developers)
+          .set({
+            balanceCents: sql`${developers.balanceCents} + ${d.amountCents}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(developers.id, d.developerId))
+      }
+
+      // Mark all disbursements as completed and batch as completed
+      await tx
+        .update(settlementBatches)
+        .set({
+          status: 'completed',
+          processedAt: new Date(),
+          disbursements: disbursements.map(d => ({ ...d, status: 'completed' as const })),
+        })
+        .where(eq(settlementBatches.id, batchId))
+
+      // Mark the session as settled
+      await tx
+        .update(workflowSessions)
+        .set({
+          status: 'settled',
+          settledAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(workflowSessions.atomicSettlementId, batchId))
+    })
+  } catch (error) {
+    // Transaction rolled back by Postgres -- mark batch and all disbursements as failed
+    const reason = error instanceof Error ? error.message : 'Unknown transaction error'
     await db
-      .update(developers)
+      .update(settlementBatches)
       .set({
-        balanceCents: sql`${developers.balanceCents} + ${d.amountCents}`,
+        status: 'failed',
+        rollbackReason: reason,
+        processedAt: new Date(),
+        disbursements: disbursements.map(d => ({ ...d, status: 'failed' as const })),
+      })
+      .where(eq(settlementBatches.id, batchId))
+
+    await db
+      .update(workflowSessions)
+      .set({
+        status: 'failed',
         updatedAt: new Date(),
       })
-      .where(eq(developers.id, d.developerId))
+      .where(eq(workflowSessions.atomicSettlementId, batchId))
+
+    logger.error('settlement.batch_failed', {
+      batchId,
+      reason,
+      disbursementCount: disbursements.length,
+    })
+
+    throw error
   }
 
-  // Mark all disbursements as completed and batch as completed
-  await db
-    .update(settlementBatches)
-    .set({
-      status: 'completed',
-      processedAt: new Date(),
-      disbursements: disbursements.map(d => ({ ...d, status: 'completed' as const })),
-    })
-    .where(eq(settlementBatches.id, batchId))
-
-  // Mark the session as settled
-  await db
-    .update(workflowSessions)
-    .set({
-      status: 'settled',
-      settledAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(workflowSessions.atomicSettlementId, batchId))
-
-  // Clean up Redis for the session
+  // Clean up Redis for the session (post-commit, best-effort)
   const [session] = await db
     .select({ id: workflowSessions.id })
     .from(workflowSessions)
