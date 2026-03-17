@@ -19,7 +19,9 @@
         "RESEND_API_KEY",
         "GATE_PASSWORD",
         "GATE_SECRET",
-        "CRON_SECRET"
+        "CRON_SECRET",
+        "JWT_SECRET",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
       ]
     },
     "dev": {
