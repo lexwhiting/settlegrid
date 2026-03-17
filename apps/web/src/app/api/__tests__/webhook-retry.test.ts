@@ -66,6 +66,10 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
+vi.mock('@/lib/env', () => ({
+  getCronSecret: () => process.env.CRON_SECRET,
+}))
+
 vi.mock('@/lib/rate-limit', () => ({
   apiLimiter: {},
   checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
@@ -97,17 +101,19 @@ function resetMockDb() {
   }
 }
 
+const TEST_CRON_SECRET = 'test-cron-secret'
+
 describe('Webhook Retry Cron (GET /api/cron/webhook-retry)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetMockDb()
-    delete process.env.CRON_SECRET
+    process.env.CRON_SECRET = TEST_CRON_SECRET
   })
 
   it('returns 0 retried when no failed deliveries found', async () => {
     mockDb.limit.mockResolvedValueOnce([]) // no failed deliveries
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -137,7 +143,7 @@ describe('Webhook Retry Cron (GET /api/cron/webhook-retry)', () => {
 
     mockAttemptWebhookDelivery.mockResolvedValueOnce({ httpStatus: 200, status: 'delivered' })
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -166,7 +172,7 @@ describe('Webhook Retry Cron (GET /api/cron/webhook-retry)', () => {
 
     mockAttemptWebhookDelivery.mockResolvedValueOnce({ httpStatus: 500, status: 'failed' })
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -192,7 +198,7 @@ describe('Webhook Retry Cron (GET /api/cron/webhook-retry)', () => {
         status: 'disabled',
       }])
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -219,7 +225,7 @@ describe('Webhook Retry Cron (GET /api/cron/webhook-retry)', () => {
 
     mockAttemptWebhookDelivery.mockResolvedValueOnce({ httpStatus: 503, status: 'failed' })
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)

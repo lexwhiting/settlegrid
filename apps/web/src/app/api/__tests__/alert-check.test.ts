@@ -70,6 +70,10 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
+vi.mock('@/lib/env', () => ({
+  getCronSecret: () => process.env.CRON_SECRET,
+}))
+
 vi.mock('@/lib/rate-limit', () => ({
   apiLimiter: {},
   checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
@@ -98,17 +102,19 @@ function resetMockDb() {
   }
 }
 
+const TEST_CRON_SECRET = 'test-cron-secret'
+
 describe('Alert Check Cron (GET /api/cron/alert-check)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetMockDb()
-    delete process.env.CRON_SECRET
+    process.env.CRON_SECRET = TEST_CRON_SECRET
   })
 
   it('returns 0 fired when no active alerts found', async () => {
     mockDb.limit.mockResolvedValueOnce([])
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -133,7 +139,7 @@ describe('Alert Check Cron (GET /api/cron/alert-check)', () => {
       // Balance check
       .mockResolvedValueOnce([{ balanceCents: 200 }])
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -161,7 +167,7 @@ describe('Alert Check Cron (GET /api/cron/alert-check)', () => {
       }])
       .mockResolvedValueOnce([{ balanceCents: 1000 }])
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -187,7 +193,7 @@ describe('Alert Check Cron (GET /api/cron/alert-check)', () => {
         spendingLimitCents: 5000,
       }])
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -219,7 +225,7 @@ describe('Alert Check Cron (GET /api/cron/alert-check)', () => {
       }])
       .mockResolvedValueOnce([{ balanceCents: 100 }])
 
-    const response = await GET(makeRequest())
+    const response = await GET(makeRequest(TEST_CRON_SECRET))
     const data = await response.json()
 
     expect(response.status).toBe(200)

@@ -10,7 +10,7 @@
 
 import { db } from '@/lib/db'
 import { outcomeVerifications } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -309,4 +309,73 @@ export async function getOutcomeVerification(
     .limit(1)
 
   return (verification as OutcomeVerification) ?? null
+}
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
+export interface OutcomesByToolResult {
+  toolId: string
+  totalCount: number
+  passedCount: number
+  failedCount: number
+  pendingCount: number
+  disputedCount: number
+  passRate: number        // 0-100
+  avgScore: number | null // 0-100 or null if no scores
+  totalSettledCents: number
+  outcomes: OutcomeVerification[]
+}
+
+/**
+ * Get all outcome verifications for a specific tool with analytics.
+ * Providers need this to see pass/fail rates and revenue by tool.
+ */
+export async function getOutcomesByTool(
+  toolId: string,
+  limit = 100
+): Promise<OutcomesByToolResult> {
+  const rows = await db
+    .select()
+    .from(outcomeVerifications)
+    .where(eq(outcomeVerifications.toolId, toolId))
+    .limit(limit)
+
+  const outcomes = rows as OutcomeVerification[]
+
+  const verified = outcomes.filter(o => o.verifiedAt !== null)
+  const passedCount = verified.filter(o => o.passed === true).length
+  const failedCount = verified.filter(o => o.passed === false).length
+  const pendingCount = outcomes.filter(o => o.verifiedAt === null).length
+  const disputedCount = outcomes.filter(o => o.disputeStatus !== null).length
+
+  const totalSettledCents = verified.reduce(
+    (sum, o) => sum + (o.settledPriceCents ?? 0),
+    0
+  )
+
+  const scores = verified
+    .filter(o => o.outcomeScore !== null)
+    .map(o => o.outcomeScore!)
+  const avgScore =
+    scores.length > 0
+      ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+      : null
+
+  const passRate =
+    verified.length > 0
+      ? Math.round((passedCount / verified.length) * 100)
+      : 0
+
+  return {
+    toolId,
+    totalCount: outcomes.length,
+    passedCount,
+    failedCount,
+    pendingCount,
+    disputedCount,
+    passRate,
+    avgScore,
+    totalSettledCents,
+    outcomes,
+  }
 }

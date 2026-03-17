@@ -506,50 +506,59 @@ describe('generateAgentFactsProfile', () => {
 // ─── computeTrustScore Tests ─────────────────────────────────────────────────
 
 describe('computeTrustScore', () => {
-  it('gives 10 base for unverified agent', () => {
+  // New scoring (v2):
+  // Base: 5, Verification: up to 25, Age: up to 15, Activity: up to 10
+  // Transactions: up to 25, Disputes: up to 20
+
+  it('gives 5 base + 5 neutral dispute for unverified agent with no tx', () => {
     const score = computeTrustScore({
       verificationLevel: 'none',
       createdAt: new Date(),
       lastSeenAt: null,
     })
+    // 5 base + 0 verification + 0 age + 0 activity + 0 tx + 5 neutral disputes = 10
     expect(score).toBe(10)
   })
 
-  it('adds 40 for individual verification', () => {
+  it('adds 25 for individual verification', () => {
     const score = computeTrustScore({
       verificationLevel: 'individual',
-      createdAt: new Date(), // 0 age bonus
+      createdAt: new Date(),
       lastSeenAt: null,
     })
-    expect(score).toBe(50) // 10 base + 40 individual
+    // 5 base + 25 individual + 0 age + 0 activity + 0 tx + 5 neutral = 35
+    expect(score).toBe(35)
   })
 
-  it('adds 30 for business verification', () => {
+  it('adds 20 for business verification', () => {
     const score = computeTrustScore({
       verificationLevel: 'business',
       createdAt: new Date(),
       lastSeenAt: null,
     })
-    expect(score).toBe(40) // 10 base + 30 business
+    // 5 base + 20 business + 0 age + 0 activity + 0 tx + 5 neutral = 30
+    expect(score).toBe(30)
   })
 
-  it('adds 15 for basic verification', () => {
+  it('adds 10 for basic verification', () => {
     const score = computeTrustScore({
       verificationLevel: 'basic',
       createdAt: new Date(),
       lastSeenAt: null,
     })
-    expect(score).toBe(25) // 10 base + 15 basic
+    // 5 base + 10 basic + 5 neutral = 20
+    expect(score).toBe(20)
   })
 
-  it('adds age bonus up to 30 points (90+ days)', () => {
+  it('adds age bonus up to 15 points (90+ days)', () => {
     const ninetyDaysAgo = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000)
     const score = computeTrustScore({
       verificationLevel: 'none',
       createdAt: ninetyDaysAgo,
       lastSeenAt: null,
     })
-    expect(score).toBe(40) // 10 base + 30 age
+    // 5 base + min(15, floor(91/6)=15) + 5 neutral = 25
+    expect(score).toBe(25)
   })
 
   it('scales age bonus proportionally', () => {
@@ -559,53 +568,59 @@ describe('computeTrustScore', () => {
       createdAt: thirtyDaysAgo,
       lastSeenAt: null,
     })
-    // 10 base + floor(30/3) = 10 + 10 = 20
-    expect(score).toBe(20)
+    // 5 base + floor(30/6)=5 age + 5 neutral = 15
+    expect(score).toBe(15)
   })
 
-  it('adds 20 for activity within last day', () => {
+  it('adds 10 for activity within last day', () => {
     const score = computeTrustScore({
       verificationLevel: 'none',
       createdAt: new Date(),
       lastSeenAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
     })
-    expect(score).toBe(30) // 10 base + 20 activity
+    // 5 base + 10 activity + 5 neutral = 20
+    expect(score).toBe(20)
   })
 
-  it('adds 15 for activity within last week', () => {
+  it('adds 7 for activity within last week', () => {
     const score = computeTrustScore({
       verificationLevel: 'none',
       createdAt: new Date(),
       lastSeenAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
     })
-    expect(score).toBe(25) // 10 base + 15 activity
+    // 5 base + 7 activity + 5 neutral = 17
+    expect(score).toBe(17)
   })
 
-  it('adds 10 for activity within last month', () => {
+  it('adds 4 for activity within last month', () => {
     const score = computeTrustScore({
       verificationLevel: 'none',
       createdAt: new Date(),
       lastSeenAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
     })
-    expect(score).toBe(20) // 10 base + 10 activity
+    // 5 base + 4 activity + 5 neutral = 14
+    expect(score).toBe(14)
   })
 
-  it('adds 5 for activity older than 30 days', () => {
+  it('adds 1 for activity older than 30 days', () => {
     const score = computeTrustScore({
       verificationLevel: 'none',
       createdAt: new Date(),
       lastSeenAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 60 days ago
     })
-    expect(score).toBe(15) // 10 base + 5 activity
+    // 5 base + 1 activity + 5 neutral = 11
+    expect(score).toBe(11)
   })
 
   it('caps at 100', () => {
-    // individual (40) + max age (30) + max activity (20) + base (10) = 100
     const longAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
     const score = computeTrustScore({
       verificationLevel: 'individual',
       createdAt: longAgo,
-      lastSeenAt: new Date(), // just now
+      lastSeenAt: new Date(),
+      successfulTransactions: 1000,
+      failedTransactions: 0,
+      totalDisputes: 0,
     })
     expect(score).toBe(100)
   })
@@ -616,6 +631,9 @@ describe('computeTrustScore', () => {
       verificationLevel: 'individual',
       createdAt: longAgo,
       lastSeenAt: new Date(),
+      successfulTransactions: 10000,
+      failedTransactions: 0,
+      totalDisputes: 0,
     })
     expect(score).toBeLessThanOrEqual(100)
   })
@@ -626,7 +644,6 @@ describe('computeTrustScore', () => {
       createdAt: new Date(),
       lastSeenAt: null,
     })
-    // 10 base + 0 age + 0 activity = 10
-    expect(score).toBe(10)
+    expect(score).toBe(10) // 5 base + 5 neutral
   })
 })

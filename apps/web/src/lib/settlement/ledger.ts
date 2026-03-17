@@ -199,3 +199,50 @@ export async function reconcileAccount(accountId: string): Promise<{
     discrepancy: account.balanceCents - ledgerBalance,
   }
 }
+
+// ─── Ledger Integrity Verification ──────────────────────────────────────────
+
+export interface LedgerIntegrityResult {
+  balanced: boolean
+  totalDebits: number
+  totalCredits: number
+  discrepancy: number
+  entryCount: number
+}
+
+/**
+ * Verify global ledger integrity: total debits MUST equal total credits
+ * across all accounts. Any discrepancy indicates a bug in the posting logic
+ * or data corruption. This is the gold-standard financial audit check.
+ */
+export async function verifyLedgerIntegrity(): Promise<LedgerIntegrityResult> {
+  const result = await db
+    .select({
+      totalDebits: sql<number>`COALESCE(SUM(CASE WHEN ${ledgerEntries.entryType} = 'debit' THEN ${ledgerEntries.amountCents} ELSE 0 END), 0)`,
+      totalCredits: sql<number>`COALESCE(SUM(CASE WHEN ${ledgerEntries.entryType} = 'credit' THEN ${ledgerEntries.amountCents} ELSE 0 END), 0)`,
+      entryCount: sql<number>`COUNT(*)`,
+    })
+    .from(ledgerEntries)
+
+  const totalDebits = Number(result[0].totalDebits)
+  const totalCredits = Number(result[0].totalCredits)
+  const entryCount = Number(result[0].entryCount)
+  const discrepancy = totalDebits - totalCredits
+
+  if (discrepancy !== 0) {
+    logger.error('ledger.integrity_failure', {
+      totalDebits,
+      totalCredits,
+      discrepancy,
+      entryCount,
+    })
+  }
+
+  return {
+    balanced: discrepancy === 0,
+    totalDebits,
+    totalCredits,
+    discrepancy,
+    entryCount,
+  }
+}

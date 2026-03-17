@@ -260,6 +260,11 @@ vi.mock('@/lib/db/schema', () => ({
     revenueSharePct: 'revenue_share_pct',
     updatedAt: 'updated_at',
   },
+  organizations: {
+    id: 'id',
+    monthlyBudgetCents: 'monthly_budget_cents',
+    currentMonthSpendCents: 'current_month_spend_cents',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -471,8 +476,35 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
   // ─── recordHop ────────────────────────────────────────────────────────
 
   describe('recordHop', () => {
+    // Helper to seed an active session for recordHop's expiry gate check
+    function seedActiveSession(id: string, budgetCents = 10000) {
+      sessions.push({
+        id,
+        customerId: 'cust-test',
+        parentSessionId: null,
+        budgetCents,
+        spentCents: 0,
+        reservedCents: 0,
+        status: 'active',
+        settlementMode: 'immediate',
+        protocol: null,
+        hops: [],
+        atomicSettlementId: null,
+        metadata: null,
+        expiresAt: new Date(Date.now() + 3600000),
+        completedAt: null,
+        finalizedAt: null,
+        settledAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    }
+
     it('records a hop and returns hopId', async () => {
       const { recordHop } = await getModules()
+
+      // Seed active session for expiry gate check
+      seedActiveSession('sess-1')
 
       // Seed Redis with session budget
       redisStore['session:budget:sess-1'] = 10000
@@ -494,6 +526,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('increments spentCents in Redis', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-2')
       redisStore['session:budget:sess-2'] = 10000
       redisStore['session:spent:sess-2'] = 0
       redisStore['session:reserved:sess-2'] = 0
@@ -511,6 +544,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('returns remaining budget after hop', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-3', 5000)
       redisStore['session:budget:sess-3'] = 5000
       redisStore['session:spent:sess-3'] = 0
       redisStore['session:reserved:sess-3'] = 0
@@ -528,6 +562,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('throws on insufficient budget', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-4', 100)
       redisStore['session:budget:sess-4'] = 100
       redisStore['session:spent:sess-4'] = 0
       redisStore['session:reserved:sess-4'] = 0
@@ -543,6 +578,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('rolls back Redis spent on budget exceeded', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-5', 100)
       redisStore['session:budget:sess-5'] = 100
       redisStore['session:spent:sess-5'] = 50
       redisStore['session:reserved:sess-5'] = 0
@@ -565,6 +601,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('tracks multiple hops incrementally', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-6')
       redisStore['session:budget:sess-6'] = 10000
       redisStore['session:spent:sess-6'] = 0
       redisStore['session:reserved:sess-6'] = 0
@@ -596,6 +633,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('respects reserved budget when calculating available', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-7', 1000)
       redisStore['session:budget:sess-7'] = 1000
       redisStore['session:spent:sess-7'] = 0
       redisStore['session:reserved:sess-7'] = 800
@@ -611,6 +649,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('allows zero-cost hops', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-8', 1000)
       redisStore['session:budget:sess-8'] = 1000
       redisStore['session:spent:sess-8'] = 0
       redisStore['session:reserved:sess-8'] = 0
@@ -629,6 +668,7 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('includes optional metadata in hop', async () => {
       const { recordHop } = await getModules()
 
+      seedActiveSession('sess-9', 5000)
       redisStore['session:budget:sess-9'] = 5000
       redisStore['session:spent:sess-9'] = 0
       redisStore['session:reserved:sess-9'] = 0
@@ -885,6 +925,13 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('tracks cumulative spend across multiple hops', async () => {
       const { recordHop } = await getModules()
 
+      sessions.push({
+        id: 'multi-hop', customerId: 'cust-test', parentSessionId: null, budgetCents: 10000,
+        spentCents: 0, reservedCents: 0, status: 'active', settlementMode: 'immediate',
+        protocol: null, hops: [], atomicSettlementId: null, metadata: null,
+        expiresAt: new Date(Date.now() + 3600000), completedAt: null, finalizedAt: null,
+        settledAt: null, createdAt: new Date(), updatedAt: new Date(),
+      })
       redisStore['session:budget:multi-hop'] = 10000
       redisStore['session:spent:multi-hop'] = 0
       redisStore['session:reserved:multi-hop'] = 0
@@ -909,6 +956,13 @@ describe('Multi-Hop Settlement (Phase 4)', () => {
     it('correctly calculates available with reserved budget', async () => {
       const { recordHop } = await getModules()
 
+      sessions.push({
+        id: 'reserved-test', customerId: 'cust-test', parentSessionId: null, budgetCents: 10000,
+        spentCents: 2000, reservedCents: 5000, status: 'active', settlementMode: 'immediate',
+        protocol: null, hops: [], atomicSettlementId: null, metadata: null,
+        expiresAt: new Date(Date.now() + 3600000), completedAt: null, finalizedAt: null,
+        settledAt: null, createdAt: new Date(), updatedAt: new Date(),
+      })
       redisStore['session:budget:reserved-test'] = 10000
       redisStore['session:spent:reserved-test'] = 2000
       redisStore['session:reserved:reserved-test'] = 5000

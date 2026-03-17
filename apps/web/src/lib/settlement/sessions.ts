@@ -9,7 +9,7 @@
  */
 
 import { db } from '@/lib/db'
-import { workflowSessions, settlementBatches, tools, developers } from '@/lib/db/schema'
+import { workflowSessions, settlementBatches, tools, developers, organizations } from '@/lib/db/schema'
 import { eq, and, sql, lt } from 'drizzle-orm'
 import { getRedis, tryRedis } from '@/lib/redis'
 import { logger } from '@/lib/logger'
@@ -48,11 +48,38 @@ export async function createSession(params: SessionCreateParams): Promise<Sessio
     expiresIn = 3600,
     parentSessionId,
     protocol,
+    orgId,
     metadata,
   } = params
 
   if (budgetCents <= 0) {
     throw new Error('Session budget must be positive')
+  }
+
+  // ── Organization budget enforcement ──
+  if (orgId) {
+    const [org] = await db
+      .select({
+        monthlyBudgetCents: organizations.monthlyBudgetCents,
+        currentMonthSpendCents: organizations.currentMonthSpendCents,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1)
+
+    if (!org) {
+      throw new Error(`Organization not found: ${orgId}`)
+    }
+
+    // null budget = unlimited
+    if (org.monthlyBudgetCents !== null) {
+      const remaining = org.monthlyBudgetCents - org.currentMonthSpendCents
+      if (budgetCents > remaining) {
+        throw new Error(
+          `Organization monthly budget exceeded: need ${budgetCents}, remaining ${remaining}`
+        )
+      }
+    }
   }
 
   const expiresAt = new Date(Date.now() + expiresIn * 1000)
@@ -330,6 +357,31 @@ export async function recordHop(
   sessionId: string,
   input: RecordHopInput
 ): Promise<{ hopId: string; remainingBudgetCents: number }> {
+  // ── Expiry gate: check session status and expiration BEFORE spending ──
+  const [sessionCheck] = await db
+    .select({
+      status: workflowSessions.status,
+      expiresAt: workflowSessions.expiresAt,
+    })
+    .from(workflowSessions)
+    .where(eq(workflowSessions.id, sessionId))
+    .limit(1)
+
+  if (!sessionCheck) {
+    throw new Error('Session not found or not active')
+  }
+  if (sessionCheck.status !== 'active') {
+    throw new Error(`Session is ${sessionCheck.status}, cannot record hop`)
+  }
+  if (sessionCheck.expiresAt && new Date(sessionCheck.expiresAt) < new Date()) {
+    // Mark as expired and reject
+    await db
+      .update(workflowSessions)
+      .set({ status: 'expired', updatedAt: new Date() })
+      .where(eq(workflowSessions.id, sessionId))
+    throw new Error('Session has expired, cannot record hop')
+  }
+
   const redis = getRedis()
 
   // Atomic budget check via Redis: INCRBY spent, check against budget

@@ -134,6 +134,7 @@ export interface SessionCreateParams {
   expiresIn?: number        // seconds; default 3600 (1 hour)
   parentSessionId?: string  // for delegation
   protocol?: ProtocolName   // restrict to specific protocol
+  orgId?: string            // organization ID for budget enforcement
   metadata?: Record<string, unknown>
 }
 
