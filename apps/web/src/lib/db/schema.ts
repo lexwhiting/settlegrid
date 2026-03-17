@@ -790,3 +790,101 @@ export const agentIdentities = pgTable(
     index('agent_identities_status_idx').on(table.status),
   ]
 )
+
+// ─── Organizations (Phase 5: Enterprise) ────────────────────────────────────
+
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    plan: text('plan').notNull().default('free'),
+      // 'free' | 'builder' | 'scale' | 'platform' | 'enterprise'
+    billingEmail: text('billing_email').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    settings: jsonb('settings').notNull().default('{}'),
+      // { defaultBudgetCents?: number; requireApproval?: boolean;
+      //   allowedIps?: string[]; ssoEnabled?: boolean; ssoProvider?: string }
+    monthlyBudgetCents: integer('monthly_budget_cents'), // null = unlimited
+    currentMonthSpendCents: integer('current_month_spend_cents').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organizations_slug_idx').on(table.slug),
+    index('organizations_plan_idx').on(table.plan),
+  ]
+)
+
+// ─── Organization Members ───────────────────────────────────────────────────
+
+export const organizationMembers = pgTable(
+  'organization_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    role: text('role').notNull().default('member'),
+      // 'owner' | 'admin' | 'member' | 'viewer'
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('org_members_org_id_idx').on(table.orgId),
+    index('org_members_user_id_idx').on(table.userId),
+    uniqueIndex('org_members_org_user_idx').on(table.orgId, table.userId),
+  ]
+)
+
+export const organizationMembersRelations = relations(organizationMembers, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationMembers.orgId],
+    references: [organizations.id],
+  }),
+}))
+
+// ─── Cost Allocations ───────────────────────────────────────────────────────
+
+export const costAllocations = pgTable(
+  'cost_allocations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    departmentTag: text('department_tag').notNull(),
+    serviceId: text('service_id'), // tool slug or null for unattributed
+    periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+    periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+    totalCents: integer('total_cents').notNull().default(0),
+    operationCount: integer('operation_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('cost_allocations_org_period_idx').on(table.orgId, table.periodStart),
+    index('cost_allocations_dept_idx').on(table.departmentTag),
+  ]
+)
+
+// ─── Compliance Exports ─────────────────────────────────────────────────────
+
+export const complianceExports = pgTable(
+  'compliance_exports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestType: text('request_type').notNull(), // 'data-export' | 'data-deletion'
+    entityType: text('entity_type').notNull(), // 'customer' | 'provider'
+    entityId: text('entity_id').notNull(),
+    status: text('status').notNull().default('pending'),
+      // 'pending' | 'processing' | 'completed' | 'failed'
+    resultUrl: text('result_url'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('compliance_exports_entity_idx').on(table.entityId, table.entityType),
+  ]
+)
