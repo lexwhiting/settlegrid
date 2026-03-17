@@ -14,10 +14,13 @@ export async function GET(request: NextRequest) {
     const rl = await checkRateLimit(apiLimiter, `cron-expire-sessions:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
-    // Verify CRON_SECRET header
+    // Verify CRON_SECRET header (fail-closed: reject if secret is not configured)
     const authHeader = request.headers.get('authorization')
     const cronSecret = getCronSecret()
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret) {
+      return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 

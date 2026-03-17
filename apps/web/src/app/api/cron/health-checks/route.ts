@@ -21,10 +21,14 @@ export async function GET(request: NextRequest) {
     const rl = await checkRateLimit(apiLimiter, `cron-health-checks:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
-    // Verify CRON_SECRET header (Vercel sends this for cron jobs)
+    // Verify CRON_SECRET header (fail-closed: reject if secret is not configured)
     const authHeader = request.headers.get('authorization')
     const cronSecret = getCronSecret()
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret) {
+      logger.error('cron.health_checks.no_secret', { msg: 'CRON_SECRET not configured' })
+      return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
