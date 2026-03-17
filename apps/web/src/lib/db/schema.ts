@@ -649,3 +649,76 @@ export const waitlistSignups = pgTable(
   },
   (table) => [uniqueIndex('waitlist_email_feature_idx').on(table.email, table.feature)]
 )
+
+// ─── Settlement Layer: Accounts & Ledger ────────────────────────────────────
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: text('type').notNull(), // 'provider' | 'customer' | 'platform' | 'escrow'
+    entityId: text('entity_id').notNull(), // developer/consumer/system ID
+    label: text('label'), // human-readable label
+    balanceCents: integer('balance_cents').notNull().default(0),
+    pendingDebitCents: integer('pending_debit_cents').notNull().default(0),
+    pendingCreditCents: integer('pending_credit_cents').notNull().default(0),
+    currencyCode: varchar('currency_code', { length: 3 }).notNull().default('USD'),
+    version: integer('version').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('accounts_type_idx').on(table.type),
+    index('accounts_entity_id_idx').on(table.entityId),
+  ]
+)
+
+export const ledgerEntries = pgTable(
+  'ledger_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id').notNull(),
+    entryType: text('entry_type').notNull(), // 'debit' | 'credit'
+    amountCents: integer('amount_cents').notNull(),
+    currencyCode: varchar('currency_code', { length: 3 }).notNull().default('USD'),
+    category: text('category').notNull(), // 'metering' | 'purchase' | 'payout' | 'refund' | 'fee' | 'netting' | 'delegation'
+    operationId: text('operation_id'), // links to invocation/purchase/payout
+    batchId: text('batch_id'), // for netting batches
+    counterpartyAccountId: uuid('counterparty_account_id'),
+    description: text('description').notNull(),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('ledger_entries_account_id_idx').on(table.accountId),
+    index('ledger_entries_category_idx').on(table.category),
+    index('ledger_entries_operation_id_idx').on(table.operationId),
+    index('ledger_entries_created_at_idx').on(table.createdAt),
+  ]
+)
+
+// ─── Settlement Layer: Workflow Sessions ─────────────────────────────────────
+
+export const workflowSessions = pgTable(
+  'workflow_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    customerId: text('customer_id').notNull(),
+    parentSessionId: uuid('parent_session_id'),
+    budgetCents: integer('budget_cents').notNull(),
+    spentCents: integer('spent_cents').notNull().default(0),
+    reservedCents: integer('reserved_cents').notNull().default(0),
+    status: text('status').notNull().default('active'), // 'active' | 'completed' | 'expired' | 'cancelled'
+    protocol: text('protocol'), // 'mcp' | 'x402' | 'ap2' | 'visa-tap' | null
+    metadata: jsonb('metadata'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('workflow_sessions_customer_id_idx').on(table.customerId),
+    index('workflow_sessions_parent_session_id_idx').on(table.parentSessionId),
+    index('workflow_sessions_status_idx').on(table.status),
+    index('workflow_sessions_expires_at_idx').on(table.expiresAt),
+  ]
+)
