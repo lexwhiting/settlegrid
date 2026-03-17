@@ -212,11 +212,8 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
       await meter(context)
     } else {
       // Fire and forget — don't block the response
-      meter(context).catch((err) => {
-        if (config.debug) {
-          console.error('[SettleGrid] Metering error:', err)
-        }
-      })
+      // Errors are silently swallowed; debug mode (above) awaits for diagnostics
+      meter(context).catch(() => {})
     }
 
     return result
