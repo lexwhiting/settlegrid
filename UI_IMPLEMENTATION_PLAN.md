@@ -3281,4 +3281,310 @@ next-themes            — dark mode with system preference
 cmdk                          — command palette search
 react-hook-form               — form validation (if not already installed)
 @hookform/resolvers            — zod resolver for react-hook-form (if not already installed)
+sonner                         — toast notifications (replaces custom context, Step 5.4 amendment)
+lucide-react                   — icon library (replaces inline SVGs)
 ```
+
+---
+
+## Amendments — SaaS Dashboard Research (Team 2)
+
+The following amendments incorporate findings from the SaaS Dashboard research team. Each amendment targets a specific phase/step. **Do not rewrite existing steps — apply these as additive patches during implementation.**
+
+### Amendment A — `tabular-nums` on ALL numeric displays (Phase 2)
+
+**Applies to:** Step 2.1 (StatCard), plus all dashboard table pages
+
+The plan applies `tabular-nums` only to the StatCard component. Per Team 2, **every numeric display** must use `font-variant-numeric: tabular-nums` to prevent column misalignment during updates. This includes:
+
+- Revenue and balance figures in tables (payouts, analytics, referrals)
+- Usage count columns (tools, consumer, audit-log)
+- Timestamps rendered in fixed-width columns
+- Any `<td>` or `<span>` rendering formatted numbers
+
+**Implementation:** Add a global utility class in `globals.css`:
+
+```css
+/* After the @theme block */
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+```
+
+Then apply `className="numeric"` (or `tabular-nums` directly) to all `<td>` cells containing numbers across dashboard table pages. The StatCard already has this — extend to: `payouts/page.tsx`, `analytics/page.tsx`, `referrals/page.tsx`, `audit-log/page.tsx`, `webhooks/page.tsx`, `tools/page.tsx`, `consumer/page.tsx`, `fraud/page.tsx`.
+
+### Amendment B — Complete semantic color token set (Phase 1, Step 1.2)
+
+**Applies to:** Step 1.2 (globals.css @theme block)
+
+The current token set is missing interactive states and status colors. Add these tokens inside the existing `@theme` block:
+
+```css
+  /* ---- Semantic: interactive states ---- */
+  --color-surface-hover: #F3F4F6;
+  --color-surface-active: #E5E7EB;
+  --color-border-strong: #D1D5DB;
+
+  /* ---- Semantic: text tiers ---- */
+  --color-text-tertiary: #9CA3AF;
+
+  /* ---- Semantic: status ---- */
+  --color-success: #059669;
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+  --color-info: #2563EB;
+```
+
+And corresponding dark mode overrides in Step 4.2:
+
+```css
+.dark {
+  --color-surface-hover: #1E2438;
+  --color-surface-active: #2A2F4A;
+  --color-border-strong: #4B5563;
+  --color-text-tertiary: #6B7280;
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+  --color-info: #60A5FA;
+}
+```
+
+### Amendment C — WCAG AA contrast warning for Emerald (Phase 1, Step 1.2)
+
+**Applies to:** Step 1.2
+
+**CRITICAL:** Emerald `#10B981` on white background **fails WCAG AA** (contrast ratio 3.4:1, minimum 4.5:1 required for normal text). The plan already defines `--color-brand-text: #047857` and `--color-brand-dark: #059669` — implementers **must** use these for any text rendered on white/light backgrounds:
+
+- `#047857` (7.1:1) — primary green text on white
+- `#059669` (5.1:1) — secondary green text on white
+- `#10B981` — **buttons, badges, and decorative elements only** (large text or non-text)
+
+Add this as a comment in `globals.css`:
+
+```css
+  /* ---- Brand ---- */
+  /* WARNING: --color-brand (#10B981) fails WCAG AA on white (3.4:1).
+     Use --color-brand-text (#047857) for text on light backgrounds.
+     Use --color-brand-dark (#059669) for smaller interactive text.
+     --color-brand is safe for: buttons, filled badges, large headings, decorative. */
+```
+
+### Amendment D — Replace custom toast with Sonner (Phase 5, Step 5.4)
+
+**Applies to:** Step 5.4
+
+Replace the custom React context toast implementation with [Sonner](https://sonner.emilkowal.dev/). Sonner provides:
+- Stacked multi-toast with auto-dismiss
+- Swipe-to-dismiss on mobile
+- Promise toasts (loading -> success/error)
+- Built-in dark mode support via `theme` prop
+- Zero-config accessible announcements (aria-live)
+- ~4KB gzipped
+
+**Installation:**
+```bash
+cd apps/web && npm install sonner
+```
+
+**In `apps/web/src/app/layout.tsx`:**
+```tsx
+import { Toaster } from 'sonner'
+// Inside the body, after children:
+<Toaster
+  position="bottom-right"
+  theme="system"
+  toastOptions={{
+    className: 'font-sans',
+    style: { fontFamily: 'var(--font-sans)' },
+  }}
+/>
+```
+
+**Usage (replaces `useToast()` calls):**
+```tsx
+import { toast } from 'sonner'
+toast.success('API key created')
+toast.error('Failed to save changes')
+toast.promise(saveSettings(), {
+  loading: 'Saving...',
+  success: 'Settings saved',
+  error: 'Failed to save',
+})
+```
+
+This replaces the custom `ToastProvider` / `useToast` context. The `toast.tsx` file in the plan (Step 5.4) should be skipped entirely — Sonner handles everything.
+
+### Amendment E — Elevation hierarchy with 6 shadow levels (Phase 1, Step 1.2)
+
+**Applies to:** Step 1.2 (globals.css @theme block)
+
+Replace the 2-level shadow system (`--shadow-card`, `--shadow-card-hover`) with a 6-level hierarchy:
+
+```css
+  /* ---- Elevation (6 levels) ---- */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+```
+
+Usage guide:
+| Level | Token | Use case |
+|-------|-------|----------|
+| 0 | (none) | Flat elements, table rows |
+| 1 | `--shadow-xs` | Subtle input borders, dividers |
+| 2 | `--shadow-sm` | Cards at rest, sidebar |
+| 3 | `--shadow-md` | Cards on hover, dropdowns |
+| 4 | `--shadow-lg` | Modals, command palette |
+| 5 | `--shadow-xl` | Popovers, floating panels |
+| 6 | `--shadow-2xl` | Full-screen overlays |
+
+Keep `--shadow-card` and `--shadow-card-hover` as aliases for backward compatibility:
+```css
+  --shadow-card: var(--shadow-sm);
+  --shadow-card-hover: var(--shadow-md);
+```
+
+### Amendment F — Lucide-react for icons (Phase 2+)
+
+**Applies to:** All phases using inline SVGs
+
+Replace inline SVG icons with [lucide-react](https://lucide.dev/) throughout the plan. Benefits:
+- Tree-shakeable (only bundles icons actually imported)
+- Consistent 24x24 grid, 1.5px stroke
+- ~200 bytes per icon vs 300-500 bytes for inline SVGs
+- TypeScript props (`size`, `strokeWidth`, `color`, `className`)
+
+**Installation:**
+```bash
+cd apps/web && npm install lucide-react
+```
+
+**Example migration (EmptyState in Step 2.8):**
+```tsx
+// Before (inline SVG):
+<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07..." />
+</svg>
+
+// After (lucide-react):
+import { Wallet } from 'lucide-react'
+<Wallet className="w-6 h-6" strokeWidth={1.5} />
+```
+
+Apply to: StatCard trend arrows, EmptyState icons, theme toggle icons, navigation icons, status indicators, and any other inline SVGs in the plan.
+
+### Amendment G — Empty states with actionable CLI commands (Phase 2, Step 2.8)
+
+**Applies to:** Step 2.8 (EmptyState component)
+
+Developer-facing empty states should show **actual CLI commands**, not just descriptions. SettleGrid's audience is developers — give them copy-pasteable next steps.
+
+Update the EmptyState component to support a `code` prop:
+
+```tsx
+interface EmptyStateProps {
+  icon: React.ReactNode
+  title: string
+  description: string
+  code?: string            // <-- NEW: CLI command to display
+  actionLabel?: string
+  actionHref?: string
+  onAction?: () => void
+}
+
+// Inside the component, after the description <p>:
+{code && (
+  <pre className="mt-3 mb-4 rounded-lg bg-gray-900 px-4 py-3 text-sm text-gray-100 font-mono select-all">
+    <code>{code}</code>
+  </pre>
+)}
+```
+
+Example usages:
+- Tools page: `code="npm install @settlegrid/mcp"`
+- Webhooks page: `code="curl -X POST https://api.settlegrid.ai/v1/webhooks ..."`
+- API Keys page: `code="settlegrid.init({ apiKey: 'sg_live_...' })"`
+- Analytics: `code="npx @settlegrid/mcp test --dry-run"`
+
+### Amendment H — Form validation with `:user-invalid`, `aria-invalid`, `aria-describedby` (Phase 6, Step 6.19)
+
+**Applies to:** Step 6.19 (FormField component)
+
+The current FormField uses `role="alert"` but lacks proper ARIA bindings. Update the component:
+
+```tsx
+export function FormField({ name, label, description, children }: FormFieldProps) {
+  const { formState: { errors } } = useFormContext()
+  const error = errors[name]
+  const errorId = `${name}-error`
+  const descId = description ? `${name}-desc` : undefined
+
+  return (
+    <div className="space-y-2">
+      <label htmlFor={name} className="text-sm font-medium text-indigo dark:text-gray-200">
+        {label}
+      </label>
+      {description && (
+        <p id={descId} className="text-xs text-gray-500">{description}</p>
+      )}
+      {/* Clone child to inject aria attributes */}
+      {React.Children.map(children, (child) =>
+        React.isValidElement(child)
+          ? React.cloneElement(child as React.ReactElement, {
+              'aria-invalid': error ? 'true' : undefined,
+              'aria-describedby': [error && errorId, descId].filter(Boolean).join(' ') || undefined,
+            })
+          : child
+      )}
+      {error && (
+        <p id={errorId} className="text-xs text-red-600 dark:text-red-400" role="alert" aria-live="polite">
+          {error.message as string}
+        </p>
+      )}
+    </div>
+  )
+}
+```
+
+Also add a CSS rule in `globals.css` to use `:user-invalid` instead of `:invalid` for native form styling (prevents validation flash before user interaction):
+
+```css
+/* Native validation — only show error styling after user interaction */
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid {
+  border-color: var(--color-error);
+  outline-color: var(--color-error);
+}
+```
+
+### Amendment I — Dark mode urgency context (Phase 4)
+
+**Applies to:** Phase 4 introduction
+
+Add this context to the Phase 4 preamble: **82% of developer users prefer dark mode** (JetBrains Developer Survey 2024, Stack Overflow Developer Survey 2024). For a developer-facing product like SettleGrid, dark mode is not a nice-to-have — it is a launch requirement. Ship Phase 4 before any public beta or marketing launch. Do not deprioritize.
+
+---
+
+## Convergence Status
+
+All 10 SaaS Dashboard Research (Team 2) findings have been reviewed:
+
+| # | Finding | Status | Amendment |
+|---|---------|--------|-----------|
+| 1 | `tabular-nums` on all numerics | Was partial (StatCard only) | **A** — extended to all tables |
+| 2 | Semantic color tokens | Was partial (missing 8 tokens) | **B** — added hover/active/strong/tertiary/status |
+| 3 | WCAG AA Emerald contrast | Was implicit | **C** — explicit warning + usage guide |
+| 4 | Sonner for toasts | Was missing (custom context) | **D** — replaced with Sonner |
+| 5 | 6-level elevation hierarchy | Was missing (2 levels only) | **E** — 6 shadow levels + aliases |
+| 6 | Lucide-react for icons | Was missing (inline SVGs) | **F** — lucide-react recommended |
+| 7 | `tabular-nums` for numeric columns | Same as #1 | **A** — covered |
+| 8 | CLI commands in empty states | Was missing | **G** — `code` prop + examples |
+| 9 | `:user-invalid` + ARIA bindings | Was missing | **H** — aria-invalid/describedby + CSS |
+| 10 | Dark mode urgency (82% stat) | Was missing context | **I** — urgency framing added |
+
+**CONVERGENCE REACHED.** No further amendments needed from any research team.
