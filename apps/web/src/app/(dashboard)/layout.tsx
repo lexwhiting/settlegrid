@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { UserButton } from '@clerk/nextjs'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { CommandPalette } from '@/components/command-palette'
+import { ToastProvider } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 const devNavItems = [
@@ -22,23 +24,62 @@ const devNavItems = [
   { href: '/dashboard/settings', label: 'Settings', icon: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z' },
 ]
 
+function getSidebarState(): boolean {
+  if (typeof document === 'undefined') return false
+  const match = document.cookie.match(/sidebar_collapsed=(\w+)/)
+  return match?.[1] === 'true'
+}
+
+function setSidebarCookie(collapsed: boolean) {
+  document.cookie = `sidebar_collapsed=${collapsed}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false) // mobile
+  const [collapsed, setCollapsed] = useState(false) // desktop
+
+  useEffect(() => {
+    setCollapsed(getSidebarState())
+  }, [])
+
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    setSidebarCookie(next)
+  }
+
+  function openCommandPalette() {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))
+  }
 
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-indigo text-white transform transition-transform duration-200 lg:translate-x-0 lg:static lg:inset-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed inset-y-0 left-0 z-50 bg-indigo text-white transform transition-all duration-200 lg:translate-x-0 lg:static lg:inset-0',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          collapsed ? 'lg:w-16 w-64' : 'w-64'
         )}
       >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+        {/* Logo area */}
+        <div className={cn(
+          'flex items-center justify-between py-5 border-b border-white/10',
+          collapsed ? 'px-3' : 'px-6'
+        )}>
           <Link href="/dashboard">
-            <SettleGridLogo variant="horizontal" size={28} theme="dark" />
+            {collapsed ? (
+              <span className="hidden lg:block">
+                <SettleGridLogo variant="mark" size={28} theme="dark" />
+              </span>
+            ) : null}
+            {/* Always show full logo on mobile, or when expanded on desktop */}
+            <span className={collapsed ? 'lg:hidden' : ''}>
+              <SettleGridLogo variant="horizontal" size={28} theme="dark" />
+            </span>
           </Link>
+          {/* Mobile close button */}
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
@@ -50,15 +91,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </svg>
           </button>
         </div>
-        <nav className="px-3 py-4 space-y-1">
+
+        {/* Nav items */}
+        <nav className="px-2 py-4 space-y-1">
           {devNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                title={collapsed ? item.label : undefined}
+                onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
+                  collapsed ? 'lg:justify-center lg:px-2 px-3 py-2.5' : 'px-3 py-2.5',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -67,14 +113,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>
-                {item.label}
+                {/* Hide labels on desktop when collapsed, always show on mobile */}
+                <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
               </Link>
             )
           })}
         </nav>
-        <div className="absolute bottom-4 left-0 right-0 px-3 flex items-center gap-3 py-2.5">
+
+        {/* Collapse toggle (desktop only) */}
+        <div className="absolute bottom-14 left-0 right-0 px-2 hidden lg:block">
+          <button
+            onClick={toggleCollapsed}
+            className="flex items-center justify-center w-full py-2 text-white/40 hover:text-white/80 transition-colors"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg
+              className={cn('w-4 h-4 transition-transform', collapsed && 'rotate-180')}
+              fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+        </div>
+
+        {/* User button */}
+        <div className={cn(
+          'absolute bottom-4 left-0 right-0 flex items-center gap-3',
+          collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'
+        )}>
           <UserButton afterSignOutUrl="/login" />
-          <ThemeToggle />
+          {/* Show ThemeToggle in sidebar only on mobile (moved to top bar on desktop) */}
+          <span className="lg:hidden">
+            <ThemeToggle />
+          </span>
         </div>
       </aside>
 
@@ -88,6 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0F1117]">
+        {/* Mobile header */}
         <header className="sticky top-0 z-30 bg-white dark:bg-[#0F1117] border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 lg:hidden">
           <button
             type="button"
@@ -100,8 +172,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </svg>
           </button>
         </header>
-        <main className="flex-1 p-6 lg:p-8">{children}</main>
+
+        {/* Desktop top bar with search hint and theme toggle */}
+        <div className="hidden lg:flex items-center justify-end gap-4 px-8 py-3 border-b border-gray-200 dark:border-[#2E3148]">
+          <button
+            onClick={openCommandPalette}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <span>Search...</span>
+            <kbd className="rounded border border-gray-300 dark:border-gray-700 px-1.5 py-0.5 font-mono text-[10px]">&#8984;K</kbd>
+          </button>
+          <ThemeToggle />
+        </div>
+
+        <main className="flex-1 p-6 lg:p-8">
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </main>
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette />
     </div>
   )
 }

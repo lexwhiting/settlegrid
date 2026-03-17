@@ -126,16 +126,19 @@ export default function DeveloperDashboardPage() {
           title="Total Revenue"
           value={formatCents(stats?.totalRevenueCents ?? 0)}
           subtitle="80% of consumer spend"
+          animate
         />
         <StatCard
           title="Total Invocations"
           value={(stats?.totalInvocations ?? 0).toLocaleString()}
           subtitle="All-time tool calls"
+          animate
         />
         <StatCard
           title="Active Tools"
           value={String(stats?.toolCount ?? 0)}
           subtitle="Published tools"
+          animate
         />
         <StatCard
           title="Revenue (24h)"
@@ -143,6 +146,7 @@ export default function DeveloperDashboardPage() {
             (stats?.recentInvocations ?? []).reduce((sum, r) => sum + (r.revenueCents ?? 0), 0)
           )}
           subtitle="Last 24 hours"
+          animate
         />
       </div>
 

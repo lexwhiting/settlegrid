@@ -1,4 +1,7 @@
+'use client'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useCountUp } from '@/hooks/use-count-up'
 import { cn } from '@/lib/utils'
 
 interface StatCardProps {
@@ -9,10 +12,22 @@ interface StatCardProps {
   trend?: number
   /** 'danger' makes the value red regardless of trend */
   variant?: 'default' | 'danger'
+  /** If true, the numeric portion of value will count up from 0 on mount */
+  animate?: boolean
 }
 
-export function StatCard({ title, value, subtitle, trend, variant }: StatCardProps) {
+export function StatCard({ title, value, subtitle, trend, variant, animate = false }: StatCardProps) {
+  // Extract numeric value for animation
+  const numericMatch = value.match(/[\d,.]+/)
+  const numericValue = numericMatch ? parseFloat(numericMatch[0].replace(/,/g, '')) : 0
+  const animatedNum = useCountUp(numericValue, 800, animate)
+
   const showTrend = trend !== undefined && trend !== 0
+
+  // Reconstruct the displayed value with animated number
+  const displayValue = animate && numericMatch
+    ? value.replace(numericMatch[0], animatedNum.toLocaleString())
+    : value
 
   return (
     <Card>
@@ -25,7 +40,7 @@ export function StatCard({ title, value, subtitle, trend, variant }: StatCardPro
             'text-3xl font-bold tabular-nums',
             variant === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-indigo dark:text-gray-100'
           )}>
-            {value}
+            {displayValue}
           </span>
           {showTrend && (
             <span className={cn(
