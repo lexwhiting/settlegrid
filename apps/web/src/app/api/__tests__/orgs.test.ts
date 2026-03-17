@@ -12,6 +12,8 @@ const {
   mockListMembers,
   mockGetCostAllocations,
   mockCheckRateLimit,
+  mockRequireDeveloper,
+  mockCheckPermission,
 } = vi.hoisted(() => ({
   mockCreateOrganization: vi.fn(),
   mockGetOrganization: vi.fn(),
@@ -21,6 +23,8 @@ const {
   mockListMembers: vi.fn(),
   mockGetCostAllocations: vi.fn(),
   mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+  mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
+  mockCheckPermission: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('@/lib/settlement/organizations', () => ({
@@ -48,6 +52,14 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/lib/request-id', () => ({
   getOrCreateRequestId: vi.fn().mockReturnValue('req-test-123'),
+}))
+
+vi.mock('@/lib/middleware/auth', () => ({
+  requireDeveloper: mockRequireDeveloper,
+}))
+
+vi.mock('@/lib/settlement/rbac', () => ({
+  checkPermission: mockCheckPermission,
 }))
 
 // ---- Imports ----------------------------------------------------------------
@@ -99,6 +111,8 @@ describe('POST /api/orgs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('creates an organization with valid input', async () => {
@@ -109,7 +123,6 @@ describe('POST /api/orgs', () => {
       name: 'Acme Corp',
       slug: 'acme-corp',
       billingEmail: 'billing@acme.com',
-      ownerId: 'user-456',
     })
 
     const res = await createOrg(req)
@@ -123,7 +136,8 @@ describe('POST /api/orgs', () => {
         slug: 'acme-corp',
       })
     )
-    expect(mockAddMember).toHaveBeenCalledWith('org-123', 'user-456', 'owner')
+    // Auto-adds authenticated developer as owner
+    expect(mockAddMember).toHaveBeenCalledWith('org-123', 'dev-123', 'owner')
   })
 
   it('returns 422 for invalid input', async () => {
@@ -131,7 +145,6 @@ describe('POST /api/orgs', () => {
       name: '',
       slug: '',
       billingEmail: 'not-an-email',
-      ownerId: '',
     })
 
     const res = await createOrg(req)
@@ -146,12 +159,25 @@ describe('POST /api/orgs', () => {
       name: 'Rate Limited Corp',
       slug: 'rate-limited',
       billingEmail: 'billing@ratelimited.com',
-      ownerId: 'user-123',
     })
 
     const res = await createOrg(req)
 
     expect(res.status).toBe(429)
+  })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs', 'POST', {
+      name: 'Unauth Corp',
+      slug: 'unauth-corp',
+      billingEmail: 'billing@unauth.com',
+    })
+
+    const res = await createOrg(req)
+
+    expect(res.status).toBe(401)
   })
 })
 
@@ -159,6 +185,8 @@ describe('GET /api/orgs/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('returns an organization when found', async () => {
@@ -180,12 +208,33 @@ describe('GET /api/orgs/[id]', () => {
 
     expect(res.status).toBe(404)
   })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123', 'GET')
+    const res = await getOrg(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when RBAC denies access', async () => {
+    mockGetOrganization.mockResolvedValueOnce(mockOrg)
+    mockCheckPermission.mockResolvedValueOnce(false)
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123', 'GET')
+    const res = await getOrg(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('PATCH /api/orgs/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('updates org settings', async () => {
@@ -215,12 +264,37 @@ describe('PATCH /api/orgs/[id]', () => {
 
     expect(res.status).toBe(404)
   })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123', 'PATCH', {
+      settings: {},
+    })
+    const res = await patchOrg(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when RBAC denies access', async () => {
+    mockGetOrganization.mockResolvedValueOnce(mockOrg)
+    mockCheckPermission.mockResolvedValueOnce(false)
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123', 'PATCH', {
+      settings: {},
+    })
+    const res = await patchOrg(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('GET /api/orgs/[id]/members', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('returns members for an org', async () => {
@@ -235,12 +309,33 @@ describe('GET /api/orgs/[id]/members', () => {
     expect(body).toHaveLength(1)
     expect(body[0].userId).toBe('user-456')
   })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/members', 'GET')
+    const res = await getMembers(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when RBAC denies access', async () => {
+    mockGetOrganization.mockResolvedValueOnce(mockOrg)
+    mockCheckPermission.mockResolvedValueOnce(false)
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/members', 'GET')
+    const res = await getMembers(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('POST /api/orgs/[id]/members', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('adds a member to an org', async () => {
@@ -268,12 +363,37 @@ describe('POST /api/orgs/[id]/members', () => {
 
     expect(res.status).toBe(404)
   })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/members', 'POST', {
+      userId: 'user-456',
+    })
+    const res = await addMemberRoute(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when RBAC denies access', async () => {
+    mockGetOrganization.mockResolvedValueOnce(mockOrg)
+    mockCheckPermission.mockResolvedValueOnce(false)
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/members', 'POST', {
+      userId: 'user-456',
+    })
+    const res = await addMemberRoute(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('DELETE /api/orgs/[id]/members/[userId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('removes a member from an org', async () => {
@@ -301,12 +421,37 @@ describe('DELETE /api/orgs/[id]/members/[userId]', () => {
 
     expect(res.status).toBe(404)
   })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/members/user-456', 'DELETE')
+    const res = await deleteMember(req, {
+      params: Promise.resolve({ id: 'org-123', userId: 'user-456' }),
+    })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when RBAC denies access', async () => {
+    mockGetOrganization.mockResolvedValueOnce(mockOrg)
+    mockCheckPermission.mockResolvedValueOnce(false)
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/members/user-456', 'DELETE')
+    const res = await deleteMember(req, {
+      params: Promise.resolve({ id: 'org-123', userId: 'user-456' }),
+    })
+
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('GET /api/orgs/[id]/allocations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    mockRequireDeveloper.mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' })
+    mockCheckPermission.mockResolvedValue(true)
   })
 
   it('returns cost allocations for a period', async () => {
@@ -350,5 +495,24 @@ describe('GET /api/orgs/[id]/allocations', () => {
     const res = await getAllocations(req, { params: Promise.resolve({ id: 'nonexistent' }) })
 
     expect(res.status).toBe(404)
+  })
+
+  it('returns 401 when not authenticated', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/allocations', 'GET')
+    const res = await getAllocations(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when RBAC denies access', async () => {
+    mockGetOrganization.mockResolvedValueOnce(mockOrg)
+    mockCheckPermission.mockResolvedValueOnce(false)
+
+    const req = makeRequest('http://localhost:3005/api/orgs/org-123/allocations', 'GET')
+    const res = await getAllocations(req, { params: Promise.resolve({ id: 'org-123' }) })
+
+    expect(res.status).toBe(403)
   })
 })

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { createOrganization, addMember } from '@/lib/settlement/organizations'
+import { requireDeveloper } from '@/lib/middleware/auth'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 
@@ -20,12 +21,14 @@ const createOrgSchema = z.object({
     ),
   billingEmail: z.string().email('Invalid billing email'),
   plan: z.enum(['free', 'builder', 'scale', 'platform', 'enterprise']).optional(),
-  ownerId: z.string().min(1, 'Owner ID is required'),
 })
 
 export async function POST(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
+    // Require authenticated developer
+    const developer = await requireDeveloper(request)
+
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
     const rl = await checkRateLimit(apiLimiter, `orgs:create:${ip}`)
     if (!rl.success) {
@@ -41,13 +44,16 @@ export async function POST(request: NextRequest) {
       plan: body.plan,
     })
 
-    // Auto-add the creator as owner
-    await addMember(org.id, body.ownerId, 'owner')
+    // Auto-add the authenticated developer as owner
+    await addMember(org.id, developer.id, 'owner')
 
-    logger.info('api.org.created', { orgId: org.id, slug: org.slug })
+    logger.info('api.org.created', { orgId: org.id, slug: org.slug, developerId: developer.id })
 
     return successResponse(org, 201, requestId)
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Authentication required')) {
+      return errorResponse('Authentication required', 401, 'UNAUTHORIZED', requestId)
+    }
     if (error instanceof Error && error.message.includes('unique')) {
       return errorResponse('Organization slug already exists', 409, 'SLUG_CONFLICT', requestId)
     }
