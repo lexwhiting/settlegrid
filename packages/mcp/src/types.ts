@@ -98,3 +98,35 @@ export interface MeterResponse {
   error?: string
   code?: SettleGridErrorCode
 }
+
+// ─── Generalized Pricing (protocol-agnostic extension) ──────────────────────
+
+/** Pricing model types beyond the original per-invocation model */
+export type PricingModel =
+  | 'per-invocation'    // fixed cost per call (current/default model)
+  | 'per-token'         // cost per token (LLM proxies)
+  | 'per-byte'          // cost per byte transferred (data services)
+  | 'per-second'        // cost per second of compute (long-running tasks)
+  | 'tiered'            // volume-based tiers
+  | 'outcome'           // pay only on successful outcome
+
+/** Generalized pricing config — superset of PricingConfig for backward compatibility */
+export interface GeneralizedPricingConfig {
+  model: PricingModel
+  defaultCostCents: number
+  currencyCode?: string  // 'USD' default
+  methods?: Record<string, {
+    costCents: number
+    unitType?: string   // override unit type per method
+    displayName?: string
+  }>
+  tiers?: Array<{
+    upTo: number        // number of units in this tier
+    costCents: number   // cost per unit in this tier
+  }>
+  outcomeConfig?: {
+    successCostCents: number
+    failureCostCents: number  // usually 0
+    successCondition: string  // JSONPath or simple field check
+  }
+}
