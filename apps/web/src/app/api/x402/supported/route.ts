@@ -1,12 +1,14 @@
 import { NextRequest } from 'next/server'
 import { successResponse, internalErrorResponse, errorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { USDC_ADDRESSES } from '@/lib/settlement/x402/types'
 import type { X402SupportedInfo } from '@/lib/settlement/x402/types'
 
 export const maxDuration = 30
+export { corsOptions as OPTIONS }
 
-export async function GET(request: NextRequest) {
+export const GET = withCors(async function GET(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
@@ -43,4 +45,4 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse(error)
   }
-}
+})
