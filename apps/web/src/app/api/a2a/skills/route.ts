@@ -13,6 +13,16 @@ import { logger } from '@/lib/logger'
 
 export const maxDuration = 15
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-settlegrid-protocol, x-ap2-mandate, x-ap2-consumer-id, x-request-id',
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS })
+}
+
 const skillRequestSchema = z.object({
   skill: z.enum([
     'get_eligible_payment_methods',
@@ -29,7 +39,7 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = await checkRateLimit(apiLimiter, `a2a:skills:${ip}`)
   if (!rl.success) {
-    return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
+    return NextResponse.json({ error: 'Rate limited' }, { status: 429, headers: CORS_HEADERS })
   }
 
   try {
@@ -38,7 +48,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json(
         { success: false, error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       )
     }
 
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
         const balanceCents = typeof params.balanceCents === 'number' ? params.balanceCents : 0
         const hasStripeCard = typeof params.hasStripeCard === 'boolean' ? params.hasStripeCard : false
         const methods = getEligiblePaymentMethods(consumerId, balanceCents, hasStripeCard)
-        return NextResponse.json({ success: true, data: { methods } })
+        return NextResponse.json({ success: true, data: { methods } }, { headers: CORS_HEADERS })
       }
 
       case 'provision_credentials': {
@@ -69,36 +79,36 @@ export async function POST(req: NextRequest) {
           currency,
           merchantId
         )
-        return NextResponse.json({ success: true, data: result })
+        return NextResponse.json({ success: true, data: result }, { headers: CORS_HEADERS })
       }
 
       case 'verify_intent_mandate': {
         const mandate = params.mandate as IntentMandate
         const result = verifyIntentMandate(mandate)
-        return NextResponse.json({ success: true, data: result })
+        return NextResponse.json({ success: true, data: result }, { headers: CORS_HEADERS })
       }
 
       case 'verify_cart_mandate': {
         const mandate = params.mandate as CartMandate
         const result = verifyCartMandate(mandate)
-        return NextResponse.json({ success: true, data: result })
+        return NextResponse.json({ success: true, data: result }, { headers: CORS_HEADERS })
       }
 
       case 'process_payment': {
         const consumerId = z.string().uuid().parse(params.consumerId)
         const mandate = params.mandate as PaymentMandate
         const result = processPayment(consumerId, mandate)
-        return NextResponse.json({ success: true, data: result })
+        return NextResponse.json({ success: true, data: result }, { headers: CORS_HEADERS })
       }
 
       default:
-        return NextResponse.json({ success: false, error: 'Unknown skill' }, { status: 400 })
+        return NextResponse.json({ success: false, error: 'Unknown skill' }, { status: 400, headers: CORS_HEADERS })
     }
   } catch (err) {
     logger.error('a2a.skill_execution_failed', {}, err)
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     )
   }
 }

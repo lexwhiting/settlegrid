@@ -23,7 +23,6 @@ import type {
   IntentMandate,
   CartMandate,
   PaymentMandate,
-  PaymentCredential,
   AP2SkillRequest,
   AP2SkillResponse,
   VDCClaims,
@@ -366,6 +365,52 @@ describe('verifyIntentMandate', () => {
     expect(result.valid).toBe(false)
     expect(result.reason).toContain('Invalid mandate type')
   })
+
+  it('rejects missing mandateId', () => {
+    const result = verifyIntentMandate(
+      makeIntentMandate({ mandateId: '' })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('Missing mandateId or issuedAt')
+  })
+
+  it('rejects missing issuedAt', () => {
+    const result = verifyIntentMandate(
+      makeIntentMandate({ issuedAt: '' })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('Missing mandateId or issuedAt')
+  })
+
+  it('rejects zero maxBudgetCents', () => {
+    const result = verifyIntentMandate(
+      makeIntentMandate({
+        shoppingIntent: {
+          category: 'mcp-tools',
+          maxBudgetCents: 0,
+          currency: 'USD',
+          description: 'Test',
+        },
+      })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('maxBudgetCents must be positive')
+  })
+
+  it('rejects negative maxBudgetCents', () => {
+    const result = verifyIntentMandate(
+      makeIntentMandate({
+        shoppingIntent: {
+          category: 'mcp-tools',
+          maxBudgetCents: -100,
+          currency: 'USD',
+          description: 'Test',
+        },
+      })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('maxBudgetCents must be positive')
+  })
 })
 
 // ─── verifyCartMandate ──────────────────────────────────────────────────────
@@ -424,6 +469,30 @@ describe('verifyCartMandate', () => {
     expect(result.valid).toBe(false)
     expect(result.reason).toContain('Invalid mandate type')
   })
+
+  it('rejects missing mandateId', () => {
+    const result = verifyCartMandate(
+      makeCartMandate({ mandateId: '' })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('Missing mandateId or issuedAt')
+  })
+
+  it('rejects missing issuedAt', () => {
+    const result = verifyCartMandate(
+      makeCartMandate({ issuedAt: '' })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('Missing mandateId or issuedAt')
+  })
+
+  it('rejects empty lineItems', () => {
+    const result = verifyCartMandate(
+      makeCartMandate({ lineItems: [], totalAmountCents: 0 })
+    )
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('Cart has no line items')
+  })
 })
 
 // ─── processPayment ─────────────────────────────────────────────────────────
@@ -474,6 +543,15 @@ describe('processPayment', () => {
     const result = processPayment(
       TEST_CONSUMER_ID,
       makePaymentMandate({ amountCents: 0 })
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Invalid payment amount')
+  })
+
+  it('fails with negative amount', () => {
+    const result = processPayment(
+      TEST_CONSUMER_ID,
+      makePaymentMandate({ amountCents: -500 })
     )
     expect(result.success).toBe(false)
     expect(result.error).toContain('Invalid payment amount')
@@ -748,8 +826,8 @@ describe('POST /api/a2a/skills', () => {
     POST = mod.POST
   })
 
-  function createSkillRequest(body: Record<string, unknown>): import('next/server').NextRequest {
-    const { NextRequest } = require('next/server')
+  async function createSkillRequest(body: Record<string, unknown>) {
+    const { NextRequest } = await import('next/server')
     return new NextRequest('http://localhost:3005/api/a2a/skills', {
       method: 'POST',
       headers: {
@@ -761,7 +839,7 @@ describe('POST /api/a2a/skills', () => {
   }
 
   it('dispatches get_eligible_payment_methods', async () => {
-    const req = createSkillRequest({
+    const req = await createSkillRequest({
       skill: 'get_eligible_payment_methods',
       params: { consumerId: TEST_CONSUMER_ID, balanceCents: 5000 },
     })
@@ -774,7 +852,7 @@ describe('POST /api/a2a/skills', () => {
   })
 
   it('dispatches provision_credentials', async () => {
-    const req = createSkillRequest({
+    const req = await createSkillRequest({
       skill: 'provision_credentials',
       params: {
         consumerId: TEST_CONSUMER_ID,
@@ -793,7 +871,7 @@ describe('POST /api/a2a/skills', () => {
   })
 
   it('dispatches verify_intent_mandate', async () => {
-    const req = createSkillRequest({
+    const req = await createSkillRequest({
       skill: 'verify_intent_mandate',
       params: { mandate: makeIntentMandate() },
     })
@@ -805,7 +883,7 @@ describe('POST /api/a2a/skills', () => {
   })
 
   it('dispatches verify_cart_mandate', async () => {
-    const req = createSkillRequest({
+    const req = await createSkillRequest({
       skill: 'verify_cart_mandate',
       params: { mandate: makeCartMandate() },
     })
@@ -817,7 +895,7 @@ describe('POST /api/a2a/skills', () => {
   })
 
   it('dispatches process_payment', async () => {
-    const req = createSkillRequest({
+    const req = await createSkillRequest({
       skill: 'process_payment',
       params: {
         consumerId: TEST_CONSUMER_ID,
@@ -833,7 +911,7 @@ describe('POST /api/a2a/skills', () => {
   })
 
   it('returns 400 for invalid skill', async () => {
-    const req = createSkillRequest({
+    const req = await createSkillRequest({
       skill: 'nonexistent_skill',
       params: {},
     })
@@ -842,7 +920,7 @@ describe('POST /api/a2a/skills', () => {
   })
 
   it('returns 400 for missing body', async () => {
-    const req = createSkillRequest({})
+    const req = await createSkillRequest({})
     const res = await POST(req)
     expect(res.status).toBe(400)
   })
@@ -850,5 +928,38 @@ describe('POST /api/a2a/skills', () => {
   it('has maxDuration export', async () => {
     const mod = await import('@/app/api/a2a/skills/route')
     expect(mod.maxDuration).toBe(15)
+  })
+
+  it('includes CORS headers on success response', async () => {
+    const req = await createSkillRequest({
+      skill: 'get_eligible_payment_methods',
+      params: { consumerId: TEST_CONSUMER_ID, balanceCents: 5000 },
+    })
+    const res = await POST(req)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('includes CORS headers on error response', async () => {
+    const req = await createSkillRequest({
+      skill: 'nonexistent_skill',
+      params: {},
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+})
+
+// ─── OPTIONS /api/a2a/skills (CORS Preflight) ──────────────────────────────
+
+describe('OPTIONS /api/a2a/skills (CORS preflight)', () => {
+  it('returns 204 with CORS headers', async () => {
+    const mod = await import('@/app/api/a2a/skills/route')
+    const res = mod.OPTIONS()
+    expect(res.status).toBe(204)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST')
+    expect(res.headers.get('Access-Control-Allow-Headers')).toContain('x-settlegrid-protocol')
+    expect(res.headers.get('Access-Control-Allow-Headers')).toContain('x-request-id')
   })
 })

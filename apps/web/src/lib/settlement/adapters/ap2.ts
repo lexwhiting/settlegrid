@@ -31,7 +31,7 @@ export class AP2Adapter implements ProtocolAdapter {
     let mandateType = 'unknown'
     let consumerId = ''
     let method = 'default'
-    let service = 'ap2-credentials-provider'
+    const service = 'ap2-credentials-provider'
     let proof: string | undefined
 
     try {

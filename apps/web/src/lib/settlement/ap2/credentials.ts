@@ -163,9 +163,19 @@ export function verifyIntentMandate(mandate: IntentMandate): {
     return { valid: false, reason: 'Missing required fields' }
   }
 
+  // mandateId and issuedAt are required per AP2 spec
+  if (!mandate.mandateId || !mandate.issuedAt) {
+    return { valid: false, reason: 'Missing mandateId or issuedAt' }
+  }
+
   // Validate shopping intent
   if (!mandate.shoppingIntent || typeof mandate.shoppingIntent.maxBudgetCents !== 'number') {
     return { valid: false, reason: 'Invalid shopping intent' }
+  }
+
+  // Budget must be positive
+  if (mandate.shoppingIntent.maxBudgetCents <= 0) {
+    return { valid: false, reason: 'maxBudgetCents must be positive' }
   }
 
   return { valid: true }
@@ -192,6 +202,21 @@ export function verifyCartMandate(mandate: CartMandate): {
     return { valid: false, reason: `Unsupported mandate version: ${mandate.version}` }
   }
 
+  // Check required fields
+  if (!mandate.merchantSignature || !mandate.merchantId) {
+    return { valid: false, reason: 'Missing required fields' }
+  }
+
+  // mandateId and issuedAt are required per AP2 spec
+  if (!mandate.mandateId || !mandate.issuedAt) {
+    return { valid: false, reason: 'Missing mandateId or issuedAt' }
+  }
+
+  // Check line items are non-empty (before computing total)
+  if (!mandate.lineItems || mandate.lineItems.length === 0) {
+    return { valid: false, reason: 'Cart has no line items' }
+  }
+
   // Verify line item totals
   const computedTotal = mandate.lineItems.reduce(
     (sum, item) => sum + item.amountCents * item.quantity,
@@ -199,16 +224,6 @@ export function verifyCartMandate(mandate: CartMandate): {
   )
   if (computedTotal !== mandate.totalAmountCents) {
     return { valid: false, reason: 'Line item total mismatch' }
-  }
-
-  // Check required fields
-  if (!mandate.merchantSignature || !mandate.merchantId) {
-    return { valid: false, reason: 'Missing required fields' }
-  }
-
-  // Check line items are non-empty
-  if (!mandate.lineItems || mandate.lineItems.length === 0) {
-    return { valid: false, reason: 'Cart has no line items' }
   }
 
   return { valid: true }
