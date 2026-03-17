@@ -17,7 +17,7 @@ export function useCountUp(target: number, duration: number = 800, enabled: bool
   const animationRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!enabled || target === 0) {
+    if (!enabled || target <= 0) {
       setCurrent(target)
       return
     }

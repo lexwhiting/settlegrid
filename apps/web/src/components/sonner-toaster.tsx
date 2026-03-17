@@ -1,11 +1,15 @@
 'use client'
 
 import { Toaster } from 'sonner'
+import { useTheme } from 'next-themes'
 
 export function SonnerToaster() {
+  const { resolvedTheme } = useTheme()
+
   return (
     <Toaster
       position="bottom-right"
+      theme={(resolvedTheme as 'light' | 'dark') ?? 'light'}
       toastOptions={{
         classNames: {
           toast: 'font-sans',

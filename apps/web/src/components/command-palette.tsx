@@ -35,6 +35,9 @@ export function CommandPalette() {
         e.preventDefault()
         setOpen((prev) => !prev)
       }
+      if (e.key === 'Escape') {
+        setOpen(false)
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
@@ -51,8 +54,8 @@ export function CommandPalette() {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100]">
-      <div className="fixed inset-0 bg-black/50" onClick={() => setOpen(false)} />
+    <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div className="fixed inset-0 bg-black/50" onClick={() => setOpen(false)} aria-hidden="true" />
       <div className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg">
         <Command
           className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
