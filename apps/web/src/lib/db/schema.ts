@@ -10,8 +10,9 @@ import {
   smallint,
   uniqueIndex,
   index,
+  check,
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 
 // ─── Developers ────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,7 @@ export const consumerToolBalances = pgTable(
     currentPeriodSpendCents: integer('current_period_spend_cents').notNull().default(0),
     periodResetAt: timestamp('period_reset_at', { withTimezone: true }),
     alertAtPct: integer('alert_at_pct'), // e.g. 80 = alert at 80% of limit
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ctb_consumer_id_idx').on(table.consumerId),
@@ -532,6 +534,7 @@ export const consumerAlerts = pgTable(
   },
   (table) => [
     index('consumer_alerts_consumer_id_idx').on(table.consumerId),
+    index('consumer_alerts_tool_id_idx').on(table.toolId),
     index('consumer_alerts_status_idx').on(table.status),
   ]
 )
@@ -676,6 +679,7 @@ export const accounts = pgTable(
   (table) => [
     index('accounts_type_idx').on(table.type),
     index('accounts_entity_id_idx').on(table.entityId),
+    check('accounts_type_check', sql`${table.type} IN ('provider', 'customer', 'platform', 'escrow')`),
   ]
 )
 
@@ -700,6 +704,8 @@ export const ledgerEntries = pgTable(
     index('ledger_entries_category_idx').on(table.category),
     index('ledger_entries_operation_id_idx').on(table.operationId),
     index('ledger_entries_created_at_idx').on(table.createdAt),
+    check('ledger_entries_amount_positive', sql`${table.amountCents} > 0`),
+    check('ledger_entries_entry_type_check', sql`${table.entryType} IN ('debit', 'credit')`),
   ]
 )
 
@@ -737,6 +743,9 @@ export const workflowSessions = pgTable(
     index('workflow_sessions_status_idx').on(table.status),
     index('workflow_sessions_expires_at_idx').on(table.expiresAt),
     index('workflow_sessions_atomic_settlement_idx').on(table.atomicSettlementId),
+    index('workflow_sessions_customer_status_idx').on(table.customerId, table.status),
+    check('workflow_sessions_budget_positive', sql`${table.budgetCents} > 0`),
+    check('workflow_sessions_status_check', sql`${table.status} IN ('active', 'finalizing', 'settled', 'completed', 'failed', 'expired', 'cancelled')`),
   ]
 )
 
@@ -815,6 +824,7 @@ export const organizations = pgTable(
   (table) => [
     uniqueIndex('organizations_slug_idx').on(table.slug),
     index('organizations_plan_idx').on(table.plan),
+    check('organizations_plan_check', sql`${table.plan} IN ('free', 'builder', 'scale', 'platform', 'enterprise')`),
   ]
 )
 
@@ -866,6 +876,7 @@ export const costAllocations = pgTable(
   (table) => [
     index('cost_allocations_org_period_idx').on(table.orgId, table.periodStart),
     index('cost_allocations_dept_idx').on(table.departmentTag),
+    index('cost_allocations_org_dept_idx').on(table.orgId, table.departmentTag),
   ]
 )
 

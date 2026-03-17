@@ -779,9 +779,592 @@ describe('developerReputation table schema', () => {
   })
 })
 
+// ─── Waitlist Signups ────────────────────────────────────────────────────────
+
+describe('waitlistSignups table schema', () => {
+  it('exports waitlistSignups table', () => {
+    expect(schema.waitlistSignups).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.waitlistSignups.id).toBeDefined()
+  })
+
+  it('has email column', () => {
+    expect(schema.waitlistSignups.email).toBeDefined()
+  })
+
+  it('has feature column', () => {
+    expect(schema.waitlistSignups.feature).toBeDefined()
+  })
+
+  it('has metadata column', () => {
+    expect(schema.waitlistSignups.metadata).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.waitlistSignups.createdAt).toBeDefined()
+  })
+})
+
+// ─── Settlement Layer: Accounts ──────────────────────────────────────────────
+
+describe('accounts table schema', () => {
+  it('exports accounts table', () => {
+    expect(schema.accounts).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.accounts.id).toBeDefined()
+  })
+
+  it('has type column', () => {
+    expect(schema.accounts.type).toBeDefined()
+  })
+
+  it('has entityId column', () => {
+    expect(schema.accounts.entityId).toBeDefined()
+  })
+
+  it('has label column', () => {
+    expect(schema.accounts.label).toBeDefined()
+  })
+
+  it('has balanceCents column', () => {
+    expect(schema.accounts.balanceCents).toBeDefined()
+  })
+
+  it('has pendingDebitCents column', () => {
+    expect(schema.accounts.pendingDebitCents).toBeDefined()
+  })
+
+  it('has pendingCreditCents column', () => {
+    expect(schema.accounts.pendingCreditCents).toBeDefined()
+  })
+
+  it('has currencyCode column', () => {
+    expect(schema.accounts.currencyCode).toBeDefined()
+  })
+
+  it('has version column', () => {
+    expect(schema.accounts.version).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.accounts.createdAt).toBeDefined()
+  })
+
+  it('has updatedAt column', () => {
+    expect(schema.accounts.updatedAt).toBeDefined()
+  })
+})
+
+// ─── Settlement Layer: Ledger Entries ────────────────────────────────────────
+
+describe('ledgerEntries table schema', () => {
+  it('exports ledgerEntries table', () => {
+    expect(schema.ledgerEntries).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.ledgerEntries.id).toBeDefined()
+  })
+
+  it('has accountId column', () => {
+    expect(schema.ledgerEntries.accountId).toBeDefined()
+  })
+
+  it('has entryType column', () => {
+    expect(schema.ledgerEntries.entryType).toBeDefined()
+  })
+
+  it('has amountCents column', () => {
+    expect(schema.ledgerEntries.amountCents).toBeDefined()
+  })
+
+  it('has currencyCode column', () => {
+    expect(schema.ledgerEntries.currencyCode).toBeDefined()
+  })
+
+  it('has category column', () => {
+    expect(schema.ledgerEntries.category).toBeDefined()
+  })
+
+  it('has operationId column', () => {
+    expect(schema.ledgerEntries.operationId).toBeDefined()
+  })
+
+  it('has batchId column', () => {
+    expect(schema.ledgerEntries.batchId).toBeDefined()
+  })
+
+  it('has counterpartyAccountId column', () => {
+    expect(schema.ledgerEntries.counterpartyAccountId).toBeDefined()
+  })
+
+  it('has description column', () => {
+    expect(schema.ledgerEntries.description).toBeDefined()
+  })
+
+  it('has metadata column', () => {
+    expect(schema.ledgerEntries.metadata).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.ledgerEntries.createdAt).toBeDefined()
+  })
+})
+
+// ─── Settlement Layer: Workflow Sessions ─────────────────────────────────────
+
+describe('workflowSessions table schema', () => {
+  it('exports workflowSessions table', () => {
+    expect(schema.workflowSessions).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.workflowSessions.id).toBeDefined()
+  })
+
+  it('has customerId column', () => {
+    expect(schema.workflowSessions.customerId).toBeDefined()
+  })
+
+  it('has parentSessionId column', () => {
+    expect(schema.workflowSessions.parentSessionId).toBeDefined()
+  })
+
+  it('has budgetCents column', () => {
+    expect(schema.workflowSessions.budgetCents).toBeDefined()
+  })
+
+  it('has spentCents column', () => {
+    expect(schema.workflowSessions.spentCents).toBeDefined()
+  })
+
+  it('has reservedCents column', () => {
+    expect(schema.workflowSessions.reservedCents).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.workflowSessions.status).toBeDefined()
+  })
+
+  it('has settlementMode column', () => {
+    expect(schema.workflowSessions.settlementMode).toBeDefined()
+  })
+
+  it('has protocol column', () => {
+    expect(schema.workflowSessions.protocol).toBeDefined()
+  })
+
+  it('has hops column', () => {
+    expect(schema.workflowSessions.hops).toBeDefined()
+  })
+
+  it('has atomicSettlementId column', () => {
+    expect(schema.workflowSessions.atomicSettlementId).toBeDefined()
+  })
+
+  it('has metadata column', () => {
+    expect(schema.workflowSessions.metadata).toBeDefined()
+  })
+
+  it('has expiresAt column', () => {
+    expect(schema.workflowSessions.expiresAt).toBeDefined()
+  })
+
+  it('has completedAt column', () => {
+    expect(schema.workflowSessions.completedAt).toBeDefined()
+  })
+
+  it('has finalizedAt column', () => {
+    expect(schema.workflowSessions.finalizedAt).toBeDefined()
+  })
+
+  it('has settledAt column', () => {
+    expect(schema.workflowSessions.settledAt).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.workflowSessions.createdAt).toBeDefined()
+  })
+
+  it('has updatedAt column', () => {
+    expect(schema.workflowSessions.updatedAt).toBeDefined()
+  })
+})
+
+// ─── Settlement Batches ──────────────────────────────────────────────────────
+
+describe('settlementBatches table schema', () => {
+  it('exports settlementBatches table', () => {
+    expect(schema.settlementBatches).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.settlementBatches.id).toBeDefined()
+  })
+
+  it('has sessionId column', () => {
+    expect(schema.settlementBatches.sessionId).toBeDefined()
+  })
+
+  it('has totalAmountCents column', () => {
+    expect(schema.settlementBatches.totalAmountCents).toBeDefined()
+  })
+
+  it('has platformFeeCents column', () => {
+    expect(schema.settlementBatches.platformFeeCents).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.settlementBatches.status).toBeDefined()
+  })
+
+  it('has disbursements column', () => {
+    expect(schema.settlementBatches.disbursements).toBeDefined()
+  })
+
+  it('has rollbackReason column', () => {
+    expect(schema.settlementBatches.rollbackReason).toBeDefined()
+  })
+
+  it('has processedAt column', () => {
+    expect(schema.settlementBatches.processedAt).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.settlementBatches.createdAt).toBeDefined()
+  })
+})
+
+// ─── Agent Identities ────────────────────────────────────────────────────────
+
+describe('agentIdentities table schema', () => {
+  it('exports agentIdentities table', () => {
+    expect(schema.agentIdentities).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.agentIdentities.id).toBeDefined()
+  })
+
+  it('has providerId column', () => {
+    expect(schema.agentIdentities.providerId).toBeDefined()
+  })
+
+  it('has agentName column', () => {
+    expect(schema.agentIdentities.agentName).toBeDefined()
+  })
+
+  it('has identityType column', () => {
+    expect(schema.agentIdentities.identityType).toBeDefined()
+  })
+
+  it('has publicKey column', () => {
+    expect(schema.agentIdentities.publicKey).toBeDefined()
+  })
+
+  it('has fingerprint column', () => {
+    expect(schema.agentIdentities.fingerprint).toBeDefined()
+  })
+
+  it('has verificationLevel column', () => {
+    expect(schema.agentIdentities.verificationLevel).toBeDefined()
+  })
+
+  it('has capabilities column', () => {
+    expect(schema.agentIdentities.capabilities).toBeDefined()
+  })
+
+  it('has spendingLimitCents column', () => {
+    expect(schema.agentIdentities.spendingLimitCents).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.agentIdentities.status).toBeDefined()
+  })
+
+  it('has metadata column', () => {
+    expect(schema.agentIdentities.metadata).toBeDefined()
+  })
+
+  it('has lastSeenAt column', () => {
+    expect(schema.agentIdentities.lastSeenAt).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.agentIdentities.createdAt).toBeDefined()
+  })
+})
+
+// ─── Organizations ───────────────────────────────────────────────────────────
+
+describe('organizations table schema', () => {
+  it('exports organizations table', () => {
+    expect(schema.organizations).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.organizations.id).toBeDefined()
+  })
+
+  it('has name column', () => {
+    expect(schema.organizations.name).toBeDefined()
+  })
+
+  it('has slug column', () => {
+    expect(schema.organizations.slug).toBeDefined()
+  })
+
+  it('has plan column', () => {
+    expect(schema.organizations.plan).toBeDefined()
+  })
+
+  it('has billingEmail column', () => {
+    expect(schema.organizations.billingEmail).toBeDefined()
+  })
+
+  it('has stripeCustomerId column', () => {
+    expect(schema.organizations.stripeCustomerId).toBeDefined()
+  })
+
+  it('has stripeSubscriptionId column', () => {
+    expect(schema.organizations.stripeSubscriptionId).toBeDefined()
+  })
+
+  it('has settings column', () => {
+    expect(schema.organizations.settings).toBeDefined()
+  })
+
+  it('has monthlyBudgetCents column', () => {
+    expect(schema.organizations.monthlyBudgetCents).toBeDefined()
+  })
+
+  it('has currentMonthSpendCents column', () => {
+    expect(schema.organizations.currentMonthSpendCents).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.organizations.createdAt).toBeDefined()
+  })
+
+  it('has updatedAt column', () => {
+    expect(schema.organizations.updatedAt).toBeDefined()
+  })
+})
+
+// ─── Organization Members ───────────────────────────────────────────────────
+
+describe('organizationMembers table schema', () => {
+  it('exports organizationMembers table', () => {
+    expect(schema.organizationMembers).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.organizationMembers.id).toBeDefined()
+  })
+
+  it('has orgId column', () => {
+    expect(schema.organizationMembers.orgId).toBeDefined()
+  })
+
+  it('has userId column', () => {
+    expect(schema.organizationMembers.userId).toBeDefined()
+  })
+
+  it('has role column', () => {
+    expect(schema.organizationMembers.role).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.organizationMembers.createdAt).toBeDefined()
+  })
+
+  it('has organizationMembersRelations defined', () => {
+    expect(schema.organizationMembersRelations).toBeDefined()
+  })
+})
+
+// ─── Cost Allocations ───────────────────────────────────────────────────────
+
+describe('costAllocations table schema', () => {
+  it('exports costAllocations table', () => {
+    expect(schema.costAllocations).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.costAllocations.id).toBeDefined()
+  })
+
+  it('has orgId column', () => {
+    expect(schema.costAllocations.orgId).toBeDefined()
+  })
+
+  it('has departmentTag column', () => {
+    expect(schema.costAllocations.departmentTag).toBeDefined()
+  })
+
+  it('has serviceId column', () => {
+    expect(schema.costAllocations.serviceId).toBeDefined()
+  })
+
+  it('has periodStart column', () => {
+    expect(schema.costAllocations.periodStart).toBeDefined()
+  })
+
+  it('has periodEnd column', () => {
+    expect(schema.costAllocations.periodEnd).toBeDefined()
+  })
+
+  it('has totalCents column', () => {
+    expect(schema.costAllocations.totalCents).toBeDefined()
+  })
+
+  it('has operationCount column', () => {
+    expect(schema.costAllocations.operationCount).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.costAllocations.createdAt).toBeDefined()
+  })
+})
+
+// ─── Compliance Exports ─────────────────────────────────────────────────────
+
+describe('complianceExports table schema', () => {
+  it('exports complianceExports table', () => {
+    expect(schema.complianceExports).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.complianceExports.id).toBeDefined()
+  })
+
+  it('has requestType column', () => {
+    expect(schema.complianceExports.requestType).toBeDefined()
+  })
+
+  it('has entityType column', () => {
+    expect(schema.complianceExports.entityType).toBeDefined()
+  })
+
+  it('has entityId column', () => {
+    expect(schema.complianceExports.entityId).toBeDefined()
+  })
+
+  it('has status column', () => {
+    expect(schema.complianceExports.status).toBeDefined()
+  })
+
+  it('has resultUrl column', () => {
+    expect(schema.complianceExports.resultUrl).toBeDefined()
+  })
+
+  it('has completedAt column', () => {
+    expect(schema.complianceExports.completedAt).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.complianceExports.createdAt).toBeDefined()
+  })
+})
+
+// ─── Outcome Verifications ──────────────────────────────────────────────────
+
+describe('outcomeVerifications table schema', () => {
+  it('exports outcomeVerifications table', () => {
+    expect(schema.outcomeVerifications).toBeDefined()
+  })
+
+  it('has id column', () => {
+    expect(schema.outcomeVerifications.id).toBeDefined()
+  })
+
+  it('has invocationId column', () => {
+    expect(schema.outcomeVerifications.invocationId).toBeDefined()
+  })
+
+  it('has toolId column', () => {
+    expect(schema.outcomeVerifications.toolId).toBeDefined()
+  })
+
+  it('has consumerId column', () => {
+    expect(schema.outcomeVerifications.consumerId).toBeDefined()
+  })
+
+  it('has outcomeType column', () => {
+    expect(schema.outcomeVerifications.outcomeType).toBeDefined()
+  })
+
+  it('has successCriteria column', () => {
+    expect(schema.outcomeVerifications.successCriteria).toBeDefined()
+  })
+
+  it('has fullPriceCents column', () => {
+    expect(schema.outcomeVerifications.fullPriceCents).toBeDefined()
+  })
+
+  it('has failurePriceCents column', () => {
+    expect(schema.outcomeVerifications.failurePriceCents).toBeDefined()
+  })
+
+  it('has actualOutcome column', () => {
+    expect(schema.outcomeVerifications.actualOutcome).toBeDefined()
+  })
+
+  it('has outcomeScore column', () => {
+    expect(schema.outcomeVerifications.outcomeScore).toBeDefined()
+  })
+
+  it('has passed column', () => {
+    expect(schema.outcomeVerifications.passed).toBeDefined()
+  })
+
+  it('has settledPriceCents column', () => {
+    expect(schema.outcomeVerifications.settledPriceCents).toBeDefined()
+  })
+
+  it('has verifiedAt column', () => {
+    expect(schema.outcomeVerifications.verifiedAt).toBeDefined()
+  })
+
+  it('has disputeStatus column', () => {
+    expect(schema.outcomeVerifications.disputeStatus).toBeDefined()
+  })
+
+  it('has disputeReason column', () => {
+    expect(schema.outcomeVerifications.disputeReason).toBeDefined()
+  })
+
+  it('has disputeResolvedAt column', () => {
+    expect(schema.outcomeVerifications.disputeResolvedAt).toBeDefined()
+  })
+
+  it('has disputeDeadline column', () => {
+    expect(schema.outcomeVerifications.disputeDeadline).toBeDefined()
+  })
+
+  it('has createdAt column', () => {
+    expect(schema.outcomeVerifications.createdAt).toBeDefined()
+  })
+})
+
+// ─── Consumer Tool Balances: createdAt ──────────────────────────────────────
+
+describe('consumerToolBalances createdAt column', () => {
+  it('has createdAt column', () => {
+    expect(schema.consumerToolBalances.createdAt).toBeDefined()
+  })
+})
+
+// ─── Schema Table Count (All 24 Tables) ─────────────────────────────────────
+
 describe('schema table count', () => {
-  it('exports 18 tables total', () => {
+  it('exports all 24 tables', () => {
     const tables = [
+      // Core marketplace (18 original)
       schema.developers,
       schema.tools,
       schema.consumers,
@@ -800,8 +1383,20 @@ describe('schema table count', () => {
       schema.toolHealthChecks,
       schema.referrals,
       schema.developerReputation,
+      // Settlement layer + Enterprise (6 additional)
+      schema.waitlistSignups,
+      schema.accounts,
+      schema.ledgerEntries,
+      schema.workflowSessions,
+      schema.settlementBatches,
+      schema.agentIdentities,
+      schema.organizations,
+      schema.organizationMembers,
+      schema.costAllocations,
+      schema.complianceExports,
+      schema.outcomeVerifications,
     ]
-    expect(tables).toHaveLength(18)
+    expect(tables).toHaveLength(29)
     tables.forEach(t => expect(t).toBeDefined())
   })
 })
