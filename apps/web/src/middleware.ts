@@ -87,7 +87,7 @@ function addSecurityHeaders(response: NextResponse): void {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   response.headers.set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: https://img.clerk.com; font-src 'self' data:; connect-src 'self' https: https://*.clerk.accounts.dev; frame-src https://*.clerk.accounts.dev; frame-ancestors 'none'"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: https://img.clerk.com https://*.clerk.com; font-src 'self' data: https://*.clerk.com; connect-src 'self' https: https://*.clerk.accounts.dev https://*.clerk.com; frame-src https://*.clerk.accounts.dev https://*.clerk.com; frame-ancestors 'none'"
   )
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 }
