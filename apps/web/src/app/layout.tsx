@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Outfit } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { SonnerToaster } from '@/components/sonner-toaster'
+import { HelpChatWidget } from '@/components/help-chat/help-chat-widget'
 import './globals.css'
 
 const outfit = Outfit({
@@ -63,6 +64,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <SonnerToaster />
+          <HelpChatWidget />
         </ThemeProvider>
       </body>
     </html>
