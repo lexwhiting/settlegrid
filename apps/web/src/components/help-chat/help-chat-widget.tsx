@@ -59,6 +59,16 @@ export function HelpChatWidget() {
     }
   }, [open, showContactForm])
 
+  // Dismiss on ESC key
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open])
+
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
     const text = inputValue.trim()

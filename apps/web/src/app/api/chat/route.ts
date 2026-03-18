@@ -1,11 +1,31 @@
 import { streamText } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { errorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 30
+
+const ALLOWED_PAGES = new Set([
+  '/dashboard',
+  '/dashboard/tools',
+  '/dashboard/analytics',
+  '/dashboard/webhooks',
+  '/dashboard/payouts',
+  '/dashboard/settings',
+  '/',
+  '/pricing',
+  '/docs',
+])
+
+const chatBodySchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+  }).passthrough()).min(1).max(50),
+  pageContext: z.string().max(200).optional(),
+})
 
 const SYSTEM_PROMPT = `You are the SettleGrid Help Assistant — a friendly, concise AI that helps developers integrate and use SettleGrid, the settlement layer for the AI economy.
 
@@ -43,15 +63,23 @@ export async function POST(req: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    const body = await req.json()
-    const { messages, pageContext } = body
+    const raw = await req.json()
+    const parsed = chatBodySchema.safeParse(raw)
+    if (!parsed.success) {
+      return errorResponse('Invalid request body', 400, 'VALIDATION_ERROR')
+    }
 
-    const contextNote = pageContext ? `\n\nThe user is currently on the ${pageContext} page.` : ''
+    const { pageContext } = parsed.data
+
+    // Only include page context if it's an allowed page to prevent prompt injection
+    const safePage = pageContext && ALLOWED_PAGES.has(pageContext) ? pageContext : null
+    const contextNote = safePage ? `\n\nThe user is currently on the ${safePage} page.` : ''
 
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system: SYSTEM_PROMPT + contextNote,
-      messages,
+      // Pass the validated raw messages — the AI SDK handles UIMessage format internally
+      messages: raw.messages,
       maxOutputTokens: 500,
     })
 

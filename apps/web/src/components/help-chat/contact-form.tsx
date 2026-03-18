@@ -51,7 +51,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
         </div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Message sent!</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          We'll respond within 24 hours.
+          We&apos;ll respond within 24 hours.
         </p>
         <button
           type="button"
