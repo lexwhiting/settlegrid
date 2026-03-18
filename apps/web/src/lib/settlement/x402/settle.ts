@@ -58,8 +58,10 @@ function idempotencyKey(hash: string): string {
 
 /** Get gas wallet account from env */
 function getGasWallet() {
-  const privateKey = process.env.SETTLEGRID_GAS_WALLET_KEY
-  if (!privateKey) throw new Error('SETTLEGRID_GAS_WALLET_KEY not configured')
+  const rawKey = process.env.SETTLEGRID_GAS_WALLET_KEY
+  if (!rawKey) throw new Error('SETTLEGRID_GAS_WALLET_KEY not configured')
+  // Trim whitespace/quotes that env var injection may add
+  const privateKey = rawKey.trim().replace(/^["']|["']$/g, '')
   return privateKeyToAccount(privateKey as `0x${string}`)
 }
 
