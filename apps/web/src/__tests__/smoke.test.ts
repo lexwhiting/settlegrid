@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1137,7 +1137,6 @@ describe('Currency Module Functional', () => {
 
 describe('Package.json Integrity', () => {
   function readPkg(path: string): Record<string, unknown> {
-    const { readFileSync } = require('fs')
     return JSON.parse(readFileSync(resolve(path), 'utf8'))
   }
 

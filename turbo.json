@@ -21,7 +21,10 @@
         "GATE_SECRET",
         "CRON_SECRET",
         "JWT_SECRET",
-        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "SETTLEGRID_GAS_WALLET_KEY",
+        "AP2_SIGNING_SECRET",
+        "OPEN_EXCHANGE_RATES_API_KEY"
       ]
     },
     "dev": {
