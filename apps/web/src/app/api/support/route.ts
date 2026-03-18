@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           from: 'SettleGrid Support <support@settlegrid.ai>',
-          to: ['support@alerterra.com'],
+          to: ['support@settlegrid.ai'],
           subject: sanitizeSubject(`[Support] ${body.subject}`),
           html: `<!DOCTYPE html>
 <html>

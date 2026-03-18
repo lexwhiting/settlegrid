@@ -50,7 +50,7 @@ Pricing tiers: Free ($0, 10K ops/mo) / Builder ($29, 50K ops) / Scale ($99, 500K
 Rules:
 - Be concise — 2-3 sentences max for simple questions
 - Use code examples when relevant
-- If you don't know the answer or it's about billing/account issues, say: "I'd recommend reaching out to our team for help with that. You can email support@alerterra.com and we'll get back to you within 24 hours."
+- If you don't know the answer or it's about billing/account issues, say: "I'd recommend reaching out to our team for help with that. You can email support@settlegrid.ai and we'll get back to you within 24 hours."
 - Never make up features that don't exist
 - Never share internal implementation details (database schema, env vars, etc.)
 `
