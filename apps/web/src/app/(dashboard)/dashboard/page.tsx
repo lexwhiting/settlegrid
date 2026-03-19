@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
@@ -123,6 +125,28 @@ export default function DeveloperDashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Onboarding prompt — shown when developer has no tools */}
+      {stats && stats.toolCount === 0 && (
+        <div className="rounded-xl border-2 border-dashed border-brand/30 bg-brand/5 dark:bg-brand/10 p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-brand/10 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-indigo dark:text-gray-100 mb-2">
+            Welcome! Create your first tool to start earning.
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+            Wrap any MCP tool, REST API, or AI service with SettleGrid to meter usage, collect payments, and track revenue automatically.
+          </p>
+          <Link href="/dashboard/tools">
+            <Button size="lg" className="px-8">
+              Create Tool
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
