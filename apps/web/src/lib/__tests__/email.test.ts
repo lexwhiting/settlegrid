@@ -28,6 +28,7 @@ import {
   apiKeyCreatedEmail,
   apiKeyRevokedEmail,
   webhookFailureEmail,
+  abandonedCheckoutEmail,
   baseEmailTemplate,
   ctaButton,
   sanitizeSubject,
@@ -717,5 +718,70 @@ describe('email subject sanitization in templates', () => {
     expect(result.subject).not.toContain('\r')
     expect(result.subject).not.toContain('\n')
     expect(result.subject).toContain('Tool')
+  })
+})
+
+// ── Abandoned Checkout Email ──────────────────────────────────────────────
+
+describe('abandonedCheckoutEmail', () => {
+  it('generates correct subject line', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 2000, 'AnalyzeTool', 'https://checkout.stripe.com/test')
+    expect(result.subject).toBe('You left credits in your cart \u2014 complete your purchase')
+  })
+
+  it('includes preheader with amount and tool name', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 2000, 'AnalyzeTool', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain('$20.00')
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('is waiting')
+  })
+
+  it('includes formatted amount in body', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 5000, 'MyTool', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain('$50.00')
+  })
+
+  it('includes tool name in info box', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'SearchAPI', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain('SearchAPI')
+  })
+
+  it('includes Complete Purchase CTA button', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'Tool', 'https://checkout.stripe.com/session_123')
+    expect(result.html).toContain('Complete Purchase')
+    expect(result.html).toContain('https://checkout.stripe.com/session_123')
+  })
+
+  it('includes safe-to-ignore fine print', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'Tool', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain('safely ignore this email')
+  })
+
+  it('includes friendly non-pushy tone', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'Tool', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain("didn't finish adding credits")
+  })
+
+  it('includes base template wrapper', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'Tool', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in tool name', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, '<script>x</script>', 'https://checkout.stripe.com/test')
+    expect(result.html).not.toContain('<script>x</script>')
+    expect(result.html).toContain('&lt;script&gt;')
+  })
+
+  it('escapes HTML in checkout URL', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'Tool', 'https://evil.com?a=1&b=2')
+    expect(result.html).toContain('https://evil.com?a=1&amp;b=2')
+  })
+
+  it('includes green info box styling', () => {
+    const result = abandonedCheckoutEmail('user@test.com', 1000, 'Tool', 'https://checkout.stripe.com/test')
+    expect(result.html).toContain('#f0fdf4')
+    expect(result.html).toContain('#166534')
   })
 })

@@ -266,6 +266,7 @@ export const purchases = pgTable(
     stripeSessionId: text('stripe_session_id'),
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     status: text('status').notNull().default('pending'),
+    reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

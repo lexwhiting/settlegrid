@@ -459,6 +459,33 @@ ${ctaButton('Check Webhooks', 'https://settlegrid.ai/dashboard/developer/webhook
   }
 }
 
+export function abandonedCheckoutEmail(
+  email: string,
+  amountCents: number,
+  toolName: string,
+  checkoutUrl: string
+): EmailTemplate {
+  const formatted = formatCurrency(amountCents)
+  return {
+    subject: sanitizeSubject('You left credits in your cart \u2014 complete your purchase'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Complete Your Purchase</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We noticed you didn't finish adding credits to your account. No worries \u2014 your purchase is still waiting for you.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#166534;margin:0 0 4px;font-size:14px"><strong>Amount:</strong> ${formatted}</p>
+<p class="sg-text" style="color:#166534;margin:0;font-size:14px"><strong>Tool:</strong> ${escapeHtml(toolName)}</p>
+</td></tr>
+</table>
+${ctaButton('Complete Purchase', checkoutUrl)}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">If you didn't intend to make this purchase, you can safely ignore this email.</p>
+`,
+      { preheader: `Your ${formatted} credit purchase for ${escapeHtml(toolName)} is waiting` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {
