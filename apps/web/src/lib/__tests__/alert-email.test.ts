@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock dependencies
 vi.mock('@/lib/logger', () => ({
@@ -9,13 +9,14 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
-const mockGetResendApiKey = vi.fn()
-vi.mock('@/lib/env', () => ({
-  getResendApiKey: () => mockGetResendApiKey(),
-}))
-
-// Mock global fetch
-const originalFetch = global.fetch
+const mockSendEmail = vi.fn().mockResolvedValue(true)
+vi.mock('@/lib/email', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/email')>()
+  return {
+    ...actual,
+    sendEmail: (...args: Parameters<typeof mockSendEmail>) => mockSendEmail(...args),
+  }
+})
 
 import { sendAlertEmail } from '@/lib/alert-email'
 import { logger } from '@/lib/logger'
@@ -23,76 +24,75 @@ import { logger } from '@/lib/logger'
 describe('Alert email', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    global.fetch = vi.fn().mockResolvedValue({ ok: true })
-    mockGetResendApiKey.mockReturnValue('re_test_key')
+    mockSendEmail.mockResolvedValue(true)
   })
 
-  afterAll(() => {
-    global.fetch = originalFetch
-  })
-
-  it('sends email via Resend when API key is configured', async () => {
+  it('sends email via sendEmail helper', async () => {
     await sendAlertEmail('user@example.com', 'Test Tool', 'low_balance', 500)
 
-    expect(global.fetch).toHaveBeenCalledOnce()
-    const [url, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(url).toBe('https://api.resend.com/emails')
-    expect(opts.method).toBe('POST')
-    expect(opts.headers['Authorization']).toBe('Bearer re_test_key')
-
-    const body = JSON.parse(opts.body)
-    expect(body.to).toEqual(['user@example.com'])
-    expect(body.subject).toContain('Low Balance')
-    expect(body.subject).toContain('Test Tool')
-    expect(body.html).toContain('Test Tool')
+    expect(mockSendEmail).toHaveBeenCalledOnce()
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.to).toBe('user@example.com')
+    expect(call.subject).toContain('Low Balance')
+    expect(call.subject).toContain('Test Tool')
+    expect(call.html).toContain('Test Tool')
+    expect(call.from).toBe('SettleGrid <alerts@settlegrid.ai>')
   })
 
-  it('skips email when Resend API key is not configured', async () => {
-    mockGetResendApiKey.mockImplementation(() => { throw new Error('not set') })
-
+  it('uses shared base template', async () => {
     await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
 
-    expect(global.fetch).not.toHaveBeenCalled()
-    expect(logger.info).toHaveBeenCalledWith('alert.email_sent', expect.any(Object))
+    const call = mockSendEmail.mock.calls[0][0]
+    // baseEmailTemplate produces dark mode support
+    expect(call.html).toContain('prefers-color-scheme: dark')
+    // baseEmailTemplate includes enhanced footer
+    expect(call.html).toContain('https://settlegrid.ai/docs')
+    expect(call.html).toContain('support@settlegrid.ai')
   })
 
   it('handles budget_exceeded alert type', async () => {
     await sendAlertEmail('user@example.com', 'My API', 'budget_exceeded', 1000)
 
-    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(opts.body)
-    expect(body.subject).toContain('Budget Exceeded')
-    expect(body.html).toContain('spending budget')
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.subject).toContain('Budget Exceeded')
+    expect(call.html).toContain('spending budget')
   })
 
   it('handles usage_spike alert type', async () => {
     await sendAlertEmail('user@example.com', 'My API', 'usage_spike', 50)
 
-    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(opts.body)
-    expect(body.subject).toContain('Usage Spike')
-    expect(body.html).toContain('usage spike')
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.subject).toContain('Usage Spike')
+    expect(call.html).toContain('usage spike')
   })
 
   it('handles unknown alert type gracefully', async () => {
     await sendAlertEmail('user@example.com', 'Tool', 'custom_alert', 100)
 
-    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(opts.body)
-    expect(body.subject).toContain('custom_alert')
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.subject).toContain('custom_alert')
   })
 
   it('escapes HTML in tool name to prevent XSS', async () => {
     await sendAlertEmail('user@example.com', '<script>alert(1)</script>', 'low_balance', 100)
 
-    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(opts.body)
-    expect(body.html).not.toContain('<script>')
-    expect(body.html).toContain('&lt;script&gt;')
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.html).not.toContain('<script>')
+    expect(call.html).toContain('&lt;script&gt;')
   })
 
-  it('logs error when fetch fails', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'))
+  it('logs success after sending', async () => {
+    await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
+
+    expect(logger.info).toHaveBeenCalledWith('alert.email_sent', expect.objectContaining({
+      email: 'user@example.com',
+      alertType: 'low_balance',
+      toolName: 'Tool',
+    }))
+  })
+
+  it('logs error when sendEmail throws', async () => {
+    mockSendEmail.mockRejectedValueOnce(new Error('network error'))
 
     await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
 
@@ -106,19 +106,35 @@ describe('Alert email', () => {
   it('sanitizes CRLF in toolName to prevent email header injection', async () => {
     await sendAlertEmail('user@example.com', 'Tool\r\nBcc: evil@hack.com', 'low_balance', 100)
 
-    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(opts.body)
-    expect(body.subject).not.toContain('\r')
-    expect(body.subject).not.toContain('\n')
-    expect(body.subject).toContain('Tool')
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.subject).not.toContain('\r')
+    expect(call.subject).not.toContain('\n')
+    expect(call.subject).toContain('Tool')
   })
 
   it('sanitizes CRLF in alertType to prevent email header injection', async () => {
     await sendAlertEmail('user@example.com', 'Tool', 'custom\r\nBcc: evil@hack.com', 100)
 
-    const [, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(opts.body)
-    expect(body.subject).not.toContain('\r')
-    expect(body.subject).not.toContain('\n')
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.subject).not.toContain('\r')
+    expect(call.subject).not.toContain('\n')
+  })
+
+  it('includes preheader text', async () => {
+    await sendAlertEmail('user@example.com', 'MyTool', 'low_balance', 500)
+
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.html).toContain('Alert:')
+    expect(call.html).toContain('Low Balance')
+    expect(call.html).toContain('MyTool')
+  })
+
+  it('includes bulletproof CTA button', async () => {
+    await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
+
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.html).toContain('View Dashboard')
+    expect(call.html).toContain('https://settlegrid.ai/consumer')
+    expect(call.html).toContain('v:roundrect')
   })
 })

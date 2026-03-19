@@ -2,17 +2,53 @@ import { NextRequest } from 'next/server'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { purchases, consumerToolBalances } from '@/lib/db/schema'
+import { purchases, consumerToolBalances, consumers, tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import {
+  creditPurchaseConfirmationEmail,
+  autoRefillConfirmationEmail,
+  paymentFailedEmail,
+  sendEmail,
+} from '@/lib/email'
 
 export const maxDuration = 60
 
 
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
+}
+
+/**
+ * Look up consumer email and tool name for sending transactional emails.
+ * Returns null if the records can't be found (non-blocking).
+ */
+async function lookupConsumerAndTool(
+  consumerId: string,
+  toolId: string
+): Promise<{ email: string; toolName: string } | null> {
+  try {
+    const [consumer] = await db
+      .select({ email: consumers.email })
+      .from(consumers)
+      .where(eq(consumers.id, consumerId))
+      .limit(1)
+
+    const [tool] = await db
+      .select({ name: tools.name })
+      .from(tools)
+      .where(eq(tools.id, toolId))
+      .limit(1)
+
+    if (consumer && tool) {
+      return { email: consumer.email, toolName: tool.name }
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -116,6 +152,17 @@ export async function POST(request: NextRequest) {
           toolId,
           amountCents,
         })
+
+        // Fire-and-forget credit purchase confirmation email
+        lookupConsumerAndTool(consumerId, toolId).then((info) => {
+          if (info) {
+            const template = creditPurchaseConfirmationEmail(info.email, amountCents, info.toolName)
+            sendEmail({ to: info.email, subject: template.subject, html: template.html }).catch(
+              (err) => logger.error('stripe.webhook.email_failed', { consumerId, type: 'credit_purchase' }, err)
+            )
+          }
+        })
+
         break
       }
 
@@ -131,7 +178,7 @@ export async function POST(request: NextRequest) {
           if (consumerId && toolId && amountCents > 0) {
             // Credit the balance
             const [existingBalance] = await db
-              .select({ id: consumerToolBalances.id })
+              .select({ id: consumerToolBalances.id, balanceCents: consumerToolBalances.balanceCents })
               .from(consumerToolBalances)
               .where(
                 and(
@@ -141,6 +188,8 @@ export async function POST(request: NextRequest) {
               )
               .limit(1)
 
+            let newBalanceCents = amountCents
+
             if (existingBalance) {
               await db
                 .update(consumerToolBalances)
@@ -148,6 +197,8 @@ export async function POST(request: NextRequest) {
                   balanceCents: sql`${consumerToolBalances.balanceCents} + ${amountCents}`,
                 })
                 .where(eq(consumerToolBalances.id, existingBalance.id))
+
+              newBalanceCents = existingBalance.balanceCents + amountCents
             }
 
             // Update purchase status
@@ -177,6 +228,16 @@ export async function POST(request: NextRequest) {
               toolId,
               amountCents,
               paymentIntentId: succeededIntent.id,
+            })
+
+            // Fire-and-forget auto-refill confirmation email
+            lookupConsumerAndTool(consumerId, toolId).then((info) => {
+              if (info) {
+                const template = autoRefillConfirmationEmail(info.email, amountCents, info.toolName, newBalanceCents)
+                sendEmail({ to: info.email, subject: template.subject, html: template.html }).catch(
+                  (err) => logger.error('stripe.webhook.email_failed', { consumerId, type: 'auto_refill' }, err)
+                )
+              }
             })
           }
         }
@@ -208,6 +269,25 @@ export async function POST(request: NextRequest) {
             paymentIntentId: paymentIntent.id,
           })
         }
+
+        // Fire-and-forget payment failed email
+        const consumerId = paymentIntent.metadata?.consumerId
+        const toolId = paymentIntent.metadata?.toolId
+        const failedAmountCents = paymentIntent.amount ?? 0
+        const failureReason =
+          paymentIntent.last_payment_error?.message ?? 'Payment could not be processed'
+
+        if (consumerId && toolId) {
+          lookupConsumerAndTool(consumerId, toolId).then((info) => {
+            if (info) {
+              const template = paymentFailedEmail(info.email, failedAmountCents, failureReason, info.toolName)
+              sendEmail({ to: info.email, subject: template.subject, html: template.html }).catch(
+                (err) => logger.error('stripe.webhook.email_failed', { consumerId, type: 'payment_failed' }, err)
+              )
+            }
+          })
+        }
+
         break
       }
 

@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { welcomeDeveloperEmail, sendEmail } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
@@ -71,6 +73,13 @@ export async function GET(request: NextRequest) {
         email,
         name,
         supabaseUserId: user.id,
+      })
+
+      // Fire-and-forget welcome email
+      const displayName = name ?? email
+      const template = welcomeDeveloperEmail(displayName)
+      sendEmail({ to: email, subject: template.subject, html: template.html }).catch((err) => {
+        logger.error('auth.welcome_email_failed', { email }, err)
       })
     }
   }

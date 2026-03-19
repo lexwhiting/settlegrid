@@ -6,6 +6,7 @@ import { developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { stripeConnectCompleteEmail, sendEmail } from '@/lib/email'
 
 export const maxDuration = 60
 
@@ -54,6 +55,24 @@ export async function GET(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(developers.stripeConnectId, accountId))
+
+    // Send Stripe Connect completion email when account becomes active
+    if (connectStatus === 'active') {
+      // Look up the developer to get their email and name
+      const [developer] = await db
+        .select({ email: developers.email, name: developers.name })
+        .from(developers)
+        .where(eq(developers.stripeConnectId, accountId))
+        .limit(1)
+
+      if (developer) {
+        const displayName = developer.name ?? developer.email
+        const template = stripeConnectCompleteEmail(displayName)
+        sendEmail({ to: developer.email, subject: template.subject, html: template.html }).catch(
+          (err) => logger.error('stripe.connect.email_failed', { accountId }, err)
+        )
+      }
+    }
 
     return NextResponse.redirect(
       `${appUrl}/dashboard/developer/settings?stripe=${connectStatus}`

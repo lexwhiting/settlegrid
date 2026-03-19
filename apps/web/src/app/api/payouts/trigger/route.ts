@@ -9,6 +9,7 @@ import { getStripeSecretKey } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
+import { payoutNotificationEmail, sendEmail } from '@/lib/email'
 
 export const maxDuration = 60
 
@@ -37,6 +38,8 @@ export async function POST(request: NextRequest) {
     const [developer] = await db
       .select({
         id: developers.id,
+        email: developers.email,
+        name: developers.name,
         balanceCents: developers.balanceCents,
         revenueSharePct: developers.revenueSharePct,
         stripeConnectId: developers.stripeConnectId,
@@ -169,6 +172,15 @@ export async function POST(request: NextRequest) {
       details: { amountCents: payoutAmountCents, stripeTransferId: transfer.id },
       ipAddress: ip,
     }).catch(() => {})
+
+    // Fire-and-forget payout notification email
+    if (developer.email) {
+      const displayName = developer.name ?? developer.email
+      const template = payoutNotificationEmail(displayName, payoutAmountCents)
+      sendEmail({ to: developer.email, subject: template.subject, html: template.html }).catch(
+        (err) => logger.error('payout.email_failed', { developerId: developer.id }, err)
+      )
+    }
 
     return successResponse({
       payout: {
