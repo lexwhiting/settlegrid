@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { db } from '@/lib/db'
-import { developers } from '@/lib/db/schema'
+import { developers, consumers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { welcomeDeveloperEmail, sendEmail } from '@/lib/email'
+import { welcomeDeveloperEmail, welcomeConsumerEmail, sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
@@ -80,6 +80,41 @@ export async function GET(request: NextRequest) {
       const template = welcomeDeveloperEmail(displayName)
       sendEmail({ to: email, subject: template.subject, html: template.html }).catch((err) => {
         logger.error('auth.welcome_email_failed', { email }, err)
+      })
+    }
+  }
+
+  // Ensure a consumer record exists for this user (auto-create on first sign-in)
+  const [existingConsumer] = await db
+    .select({ id: consumers.id })
+    .from(consumers)
+    .where(eq(consumers.supabaseUserId, user.id))
+    .limit(1)
+
+  if (!existingConsumer) {
+    const [byConsumerEmail] = await db
+      .select({ id: consumers.id })
+      .from(consumers)
+      .where(eq(consumers.email, email))
+      .limit(1)
+
+    if (byConsumerEmail) {
+      // Link existing consumer to Supabase user
+      await db
+        .update(consumers)
+        .set({ supabaseUserId: user.id })
+        .where(eq(consumers.email, email))
+    } else {
+      // Create new consumer record
+      await db.insert(consumers).values({
+        email,
+        supabaseUserId: user.id,
+      })
+
+      // Fire-and-forget welcome consumer email
+      const consumerTemplate = welcomeConsumerEmail(email)
+      sendEmail({ to: email, subject: consumerTemplate.subject, html: consumerTemplate.html }).catch((err) => {
+        logger.error('auth.welcome_consumer_email_failed', { email }, err)
       })
     }
   }

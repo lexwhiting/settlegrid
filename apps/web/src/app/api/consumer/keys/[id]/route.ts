@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { apiKeys } from '@/lib/db/schema'
+import { apiKeys, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { apiKeyRevokedEmail, sendEmail } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -38,7 +40,7 @@ export async function DELETE(
 
     // Verify key exists and belongs to consumer
     const [key] = await db
-      .select({ id: apiKeys.id, status: apiKeys.status })
+      .select({ id: apiKeys.id, status: apiKeys.status, keyPrefix: apiKeys.keyPrefix, toolId: apiKeys.toolId })
       .from(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.consumerId, auth.id)))
       .limit(1)
@@ -64,6 +66,22 @@ export async function DELETE(
       resourceId: id,
       ipAddress: ip,
     }).catch(() => {})
+
+    // Fire-and-forget API key revocation notification email
+    db.select({ name: tools.name })
+      .from(tools)
+      .where(eq(tools.id, key.toolId))
+      .limit(1)
+      .then(([tool]) => {
+        if (tool) {
+          const toolName = tool.name ?? 'Unknown Tool'
+          const template = apiKeyRevokedEmail(auth.email, key.keyPrefix, toolName)
+          sendEmail({ to: auth.email, subject: template.subject, html: template.html }).catch((err) => {
+            logger.error('keys.revoked_email_failed', { consumerId: auth.id }, err)
+          })
+        }
+      })
+      .catch(() => {})
 
     return successResponse({ message: 'API key revoked successfully.' })
   } catch (error) {

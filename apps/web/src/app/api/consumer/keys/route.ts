@@ -8,6 +8,8 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { generateApiKey } from '@/lib/crypto'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { apiKeyCreatedEmail, sendEmail } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Verify tool exists and is active
     const [tool] = await db
-      .select({ id: tools.id, status: tools.status })
+      .select({ id: tools.id, name: tools.name, status: tools.status })
       .from(tools)
       .where(eq(tools.id, body.toolId))
       .limit(1)
@@ -132,6 +134,17 @@ export async function POST(request: NextRequest) {
       details: { toolId: body.toolId, keyPrefix: prefix },
       ipAddress: ip,
     }).catch(() => {})
+
+    // Fire-and-forget API key creation notification email
+    try {
+      const toolName = tool.name ?? 'Unknown Tool'
+      const template = apiKeyCreatedEmail(auth.email, prefix, toolName)
+      sendEmail({ to: auth.email, subject: template.subject, html: template.html }).catch((err) => {
+        logger.error('keys.created_email_failed', { consumerId: auth.id }, err)
+      })
+    } catch {
+      // Never let email generation crash the response
+    }
 
     return successResponse(
       {

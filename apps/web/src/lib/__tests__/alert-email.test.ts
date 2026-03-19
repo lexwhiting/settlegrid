@@ -27,13 +27,13 @@ describe('Alert email', () => {
     mockSendEmail.mockResolvedValue(true)
   })
 
-  it('sends email via sendEmail helper', async () => {
+  it('sends low_balance email via lowBalanceAlertEmail template', async () => {
     await sendAlertEmail('user@example.com', 'Test Tool', 'low_balance', 500)
 
     expect(mockSendEmail).toHaveBeenCalledOnce()
     const call = mockSendEmail.mock.calls[0][0]
     expect(call.to).toBe('user@example.com')
-    expect(call.subject).toContain('Low Balance')
+    expect(call.subject).toContain('Low balance alert')
     expect(call.subject).toContain('Test Tool')
     expect(call.html).toContain('Test Tool')
     expect(call.from).toBe('SettleGrid <alerts@settlegrid.ai>')
@@ -120,12 +120,20 @@ describe('Alert email', () => {
     expect(call.subject).not.toContain('\n')
   })
 
-  it('includes preheader text', async () => {
+  it('includes preheader text for low_balance via lowBalanceAlertEmail', async () => {
     await sendAlertEmail('user@example.com', 'MyTool', 'low_balance', 500)
 
     const call = mockSendEmail.mock.calls[0][0]
+    expect(call.html).toContain('MyTool')
+    expect(call.html).toContain('low')
+  })
+
+  it('includes preheader text for non-low_balance alert types', async () => {
+    await sendAlertEmail('user@example.com', 'MyTool', 'budget_exceeded', 500)
+
+    const call = mockSendEmail.mock.calls[0][0]
     expect(call.html).toContain('Alert:')
-    expect(call.html).toContain('Low Balance')
+    expect(call.html).toContain('Budget Exceeded')
     expect(call.html).toContain('MyTool')
   })
 
@@ -133,8 +141,15 @@ describe('Alert email', () => {
     await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
 
     const call = mockSendEmail.mock.calls[0][0]
-    expect(call.html).toContain('View Dashboard')
+    expect(call.html).toContain('Add Credits')
     expect(call.html).toContain('https://settlegrid.ai/consumer')
     expect(call.html).toContain('v:roundrect')
+  })
+
+  it('includes auto-refill tip for low_balance', async () => {
+    await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
+
+    const call = mockSendEmail.mock.calls[0][0]
+    expect(call.html).toContain('auto-refill')
   })
 })

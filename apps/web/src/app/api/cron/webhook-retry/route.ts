@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 import { eq, and, lte, lt, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { webhookDeliveries, webhookEndpoints } from '@/lib/db/schema'
+import { webhookDeliveries, webhookEndpoints, developers } from '@/lib/db/schema'
 import { attemptWebhookDelivery, computeNextRetryAt } from '@/lib/webhooks'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { webhookFailureEmail, sendEmail } from '@/lib/email'
 
 export const maxDuration = 60
 
@@ -68,6 +69,7 @@ export async function GET(request: NextRequest) {
         url: webhookEndpoints.url,
         secret: webhookEndpoints.secret,
         status: webhookEndpoints.status,
+        developerId: webhookEndpoints.developerId,
       })
       .from(webhookEndpoints)
       .where(sql`${webhookEndpoints.id} IN (${sql.join(endpointIds.map((id) => sql`${id}`), sql`, `)})`)
@@ -128,6 +130,29 @@ export async function GET(request: NextRequest) {
           })
           .where(eq(webhookDeliveries.id, delivery.id))
         deadLettered++
+
+        // Fire-and-forget webhook failure notification to developer
+        if (endpoint.developerId) {
+          const devId = endpoint.developerId
+          const epUrl = endpoint.url
+          const epId = endpoint.id
+          const httpStatus = result.httpStatus ?? 0
+          Promise.resolve().then(async () => {
+            try {
+              const [dev] = await db
+                .select({ email: developers.email })
+                .from(developers)
+                .where(eq(developers.id, devId))
+                .limit(1)
+              if (dev?.email) {
+                const template = webhookFailureEmail(dev.email, epUrl, newAttempts, httpStatus)
+                await sendEmail({ to: dev.email, subject: template.subject, html: template.html })
+              }
+            } catch {
+              logger.error('webhook.failure_email_failed', { endpointId: epId })
+            }
+          })
+        }
       } else {
         // Still has retries left — schedule next retry
         await db
