@@ -152,7 +152,8 @@ ${content}
 <a href="mailto:support@settlegrid.ai" style="color:#10B981;text-decoration:none;font-size:13px;margin:0 8px">Support</a>
 </td></tr>
 <tr><td align="center">
-<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:0">&copy; ${year} SettleGrid. All rights reserved.</p>
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:0">&copy; ${year} Alerterra, LLC. All rights reserved.</p>
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0">2810 N Church St, Wilmington, DE 19802, PMB #481712</p>
 </td></tr>
 </table>
 </td></tr>
