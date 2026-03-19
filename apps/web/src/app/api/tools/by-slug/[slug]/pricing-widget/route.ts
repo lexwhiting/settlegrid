@@ -35,7 +35,7 @@ export async function GET(
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    const baseUrl = 'https://settlegrid.com'
+    const baseUrl = 'https://settlegrid.ai'
     const checkoutUrl = `${baseUrl}/tools/${tool.slug}#pricing`
 
     // Parse pricing config to extract tiers

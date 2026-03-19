@@ -231,8 +231,8 @@ export default function TermsPage() {
             <Section title="14. Contact Us">
               <p>
                 If you have questions about these Terms, contact us at{' '}
-                <a href="mailto:legal@settlegrid.com" className="text-brand hover:underline">
-                  legal@settlegrid.com
+                <a href="mailto:legal@settlegrid.ai" className="text-brand hover:underline">
+                  legal@settlegrid.ai
                 </a>.
               </p>
             </Section>

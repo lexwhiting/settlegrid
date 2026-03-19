@@ -90,7 +90,7 @@ describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
     mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test', pricingConfig: null }])
     const res = await GET(makeRequest('/api/tools/test/pricing-widget'), { params: Promise.resolve({ slug: 'test' }) })
     const data = await res.json()
-    expect(data.checkoutUrl).toContain('settlegrid.com')
+    expect(data.checkoutUrl).toContain('settlegrid.ai')
     expect(data.checkoutUrl).toContain('#pricing')
   })
 

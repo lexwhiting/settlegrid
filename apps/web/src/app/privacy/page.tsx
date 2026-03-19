@@ -44,7 +44,7 @@ export default function PrivacyPage() {
           <div className="text-gray-600 dark:text-gray-400 leading-relaxed space-y-0">
             <Section title="1. Introduction">
               <p>
-                SettleGrid (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) operates the settlegrid.com
+                SettleGrid (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) operates the settlegrid.ai
                 platform and related services. This Privacy Policy explains how we collect, use,
                 disclose, and safeguard your information when you use our platform, SDK, API, and
                 marketplace (collectively, the &quot;Service&quot;). By using the Service you agree to
@@ -156,8 +156,8 @@ export default function PrivacyPage() {
               </ul>
               <p className="mt-3">
                 To exercise any of these rights, contact us at{' '}
-                <a href="mailto:privacy@settlegrid.com" className="text-brand hover:underline">
-                  privacy@settlegrid.com
+                <a href="mailto:privacy@settlegrid.ai" className="text-brand hover:underline">
+                  privacy@settlegrid.ai
                 </a>.
               </p>
             </Section>
@@ -191,8 +191,8 @@ export default function PrivacyPage() {
             <Section title="12. Contact Us">
               <p>
                 If you have questions about this Privacy Policy, contact us at{' '}
-                <a href="mailto:privacy@settlegrid.com" className="text-brand hover:underline">
-                  privacy@settlegrid.com
+                <a href="mailto:privacy@settlegrid.ai" className="text-brand hover:underline">
+                  privacy@settlegrid.ai
                 </a>.
               </p>
             </Section>

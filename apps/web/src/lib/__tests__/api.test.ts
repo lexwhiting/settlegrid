@@ -92,14 +92,14 @@ describe('parseBody', () => {
 
   it('parses valid body against schema', async () => {
     const request = makeRequest({
-      email: 'dev@settlegrid.com',
+      email: 'dev@settlegrid.ai',
       password: 'securepassword123',
     })
 
     const result = await parseBody(request, schema)
 
     expect(result).toEqual({
-      email: 'dev@settlegrid.com',
+      email: 'dev@settlegrid.ai',
       password: 'securepassword123',
     })
   })
@@ -141,7 +141,7 @@ describe('parseBody', () => {
   })
 
   it('throws ParseBodyError for missing required fields', async () => {
-    const request = makeRequest({ email: 'dev@settlegrid.com' })
+    const request = makeRequest({ email: 'dev@settlegrid.ai' })
 
     await expect(parseBody(request, schema)).rejects.toThrow(ParseBodyError)
   })
