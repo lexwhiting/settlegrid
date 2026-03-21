@@ -56,6 +56,7 @@ const gatePublicPatterns = [
   '/gate',
   '/login',
   '/register',
+  '/auth/',
   '/tools',
   '/docs',
 ]
