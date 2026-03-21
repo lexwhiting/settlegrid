@@ -302,7 +302,7 @@ export default function HomePage() {
       {/* ---- Header ---- */}
       <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#0F1117]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <SettleGridLogo variant="horizontal" size={32} />
+          <Link href="/" className="flex items-center"><SettleGridLogo variant="horizontal" size={32} /></Link>
           <div className="flex items-center gap-4">
             <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Marketplace
@@ -368,7 +368,7 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-4 mt-4">
                 <a
-                  href="https://github.com/settlegrid/mcp"
+                  href="https://github.com/lexwhiting/settlegrid"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors border border-white/15 rounded-full px-3 py-1.5"
@@ -379,7 +379,7 @@ export default function HomePage() {
                   Open Source SDK
                 </a>
                 <a
-                  href="https://www.npmjs.com/package/@settlegrid/mcp"
+                  href="/docs"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors border border-white/15 rounded-full px-3 py-1.5"
