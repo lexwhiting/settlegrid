@@ -84,7 +84,7 @@ function Wordmark({
         color: settleColor,
       }}
     >
-      Settle<span style={{ color: '#10B981', fontWeight: 400 }}>Grid</span>
+      Settle<span style={{ color: theme === 'dark' ? '#34D399' : '#059669', fontWeight: 400 }}>Grid</span>
     </span>
   )
 }
@@ -107,7 +107,7 @@ export function SettleGridLogo({
   className,
   size = 32,
 }: SettleGridLogoProps) {
-  const iconColor = '#10B981'
+  const iconColor = theme === 'dark' ? '#34D399' : '#059669'
 
   if (variant === 'mark') {
     return <FlowGrid size={size} color={iconColor} className={className} />
