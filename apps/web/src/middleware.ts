@@ -140,7 +140,8 @@ export default async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protect non-public routes: redirect unauthenticated users to /login
-  if (!isPublicRoute(pathname) && !user) {
+  // Skip redirect for API routes — they handle auth themselves and return 401
+  if (!isPublicRoute(pathname) && !pathname.startsWith('/api/') && !user) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)
@@ -156,5 +157,5 @@ export default async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next|_vercel|api|.*\\..*).*)'],
+  matcher: ['/((?!_next|_vercel|.*\\..*).*)'],
 }
