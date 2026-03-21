@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { CodeSnippet } from '@/components/marketing/code-snippet'
 import { RevealSection } from '@/components/marketing/home-sections'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
@@ -311,7 +310,6 @@ export default function HomePage() {
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Docs
             </Link>
-            <ThemeToggle />
             <Link href="/login" className="hidden sm:inline text-sm font-medium text-indigo dark:text-gray-300 hover:text-brand-dark dark:hover:text-brand-light transition-colors">
               Log in
             </Link>
