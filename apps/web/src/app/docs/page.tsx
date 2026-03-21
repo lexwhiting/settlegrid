@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
+import { ApiEndpointRow } from '@/components/ui/api-endpoint-row'
 
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
@@ -168,7 +169,7 @@ try {
           <Section title="API Reference" id="api-reference">
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               The SettleGrid REST API is available at{' '}
-              <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">https://settlegrid.ai/api</code>.
+              <a href="https://settlegrid.ai/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#252836] px-2 py-0.5 rounded text-xs font-mono text-brand hover:text-brand-dark dark:text-brand-light dark:hover:text-brand transition-colors">https://settlegrid.ai/api<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>.
             </p>
             <div className="space-y-4">
               {[
@@ -187,17 +188,7 @@ try {
                 { method: 'GET', path: '/api/payouts', desc: 'List payout history' },
                 { method: 'POST', path: '/api/payouts/trigger', desc: 'Request manual payout' },
               ].map((route) => (
-                <div key={route.path} className="flex items-center gap-3 py-2 border-b border-gray-100 dark:border-[#252836]">
-                  <span className={`text-xs font-mono px-2 py-1 rounded ${
-                    route.method === 'GET' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : route.method === 'POST' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                  }`}>
-                    {route.method}
-                  </span>
-                  <code className="text-sm text-indigo dark:text-gray-100">{route.path}</code>
-                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-auto">{route.desc}</span>
-                </div>
+                <ApiEndpointRow key={route.path} method={route.method} path={route.path} desc={route.desc} />
               ))}
             </div>
           </Section>
