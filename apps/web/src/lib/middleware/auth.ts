@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { eq } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { developers, consumers, apiKeys } from '@/lib/db/schema'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { headers, cookies } from 'next/headers'
 
 export interface AuthenticatedDeveloper {
   id: string
@@ -22,15 +23,37 @@ export interface AuthenticatedApiKey {
 }
 
 /**
+ * Create a Supabase client that reads cookies from the current request.
+ * This works reliably in both middleware-processed and direct Route Handler contexts.
+ */
+async function getSupabaseUser() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            try { cookieStore.set(name, value, options) } catch {}
+          })
+        },
+      },
+    }
+  )
+  return supabase.auth.getUser()
+}
+
+/**
  * Authenticates via Supabase session and confirms a developer record exists.
- * The request parameter is kept for signature compatibility but Supabase reads
- * the session from cookies automatically.
  */
 export async function requireDeveloper(
   _request?: NextRequest
 ): Promise<AuthenticatedDeveloper> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error } = await getSupabaseUser()
 
   if (!user) {
     throw new Error('Authentication required. Please sign in.')
@@ -51,14 +74,11 @@ export async function requireDeveloper(
 
 /**
  * Authenticates via Supabase session and confirms a consumer record exists.
- * The request parameter is kept for signature compatibility but Supabase reads
- * the session from cookies automatically.
  */
 export async function requireConsumer(
   _request?: NextRequest
 ): Promise<AuthenticatedConsumer> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error } = await getSupabaseUser()
 
   if (!user) {
     throw new Error('Authentication required. Please sign in.')
@@ -81,9 +101,6 @@ export async function requireConsumer(
  * Validates the x-api-key header against the apiKeys table.
  * The raw key is SHA-256 hashed and compared to stored keyHash values.
  * Only active keys are accepted. Updates lastUsedAt on successful auth.
- * Throws an Error with a descriptive message on failure.
- *
- * NOTE: This function is UNCHANGED — API key auth is independent of session auth.
  */
 export async function requireApiKey(
   request: NextRequest
