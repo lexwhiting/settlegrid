@@ -826,6 +826,621 @@ ${ctaButton('Learn More', 'https://settlegrid.ai/docs')}
   }
 }
 
+// ── Nice-to-have templates ────────────────────────────────────────────────────
+
+export function cardExpiringEmail(
+  email: string,
+  last4: string,
+  expiryMonth: number,
+  expiryYear: number
+): EmailTemplate {
+  const safeLast4 = escapeHtml(last4)
+  const monthStr = String(expiryMonth).padStart(2, '0')
+  return {
+    subject: sanitizeSubject(`Your card ending in ${last4} expires soon`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Card Expiring Soon</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">The payment card on file for your SettleGrid account is expiring soon. Please update it to avoid service interruption.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#92400e;margin:0 0 4px;font-size:14px"><strong>Card:</strong> **** ${safeLast4}</p>
+<p class="sg-text" style="color:#92400e;margin:0;font-size:14px"><strong>Expires:</strong> ${monthStr}/${expiryYear}</p>
+</td></tr>
+</table>
+${alertBanner('warning', 'Action needed', 'Update your payment method before the card expires to prevent failed charges and service disruption.')}
+${ctaButton('Update Payment Method', 'https://settlegrid.ai/consumer')}
+`,
+      { preheader: `Your card ending in ${last4} expires ${monthStr}/${expiryYear}. Update it now.` }
+    ),
+  }
+}
+
+export function dunningEmail(
+  email: string,
+  dayNumber: number,
+  failedAmountCents: number,
+  toolName: string
+): EmailTemplate {
+  const formatted = formatCurrency(failedAmountCents)
+  const safeTool = escapeHtml(toolName)
+
+  const subjectMap: Record<number, string> = {
+    0: `Action required: payment failed for ${toolName}`,
+    3: `Reminder: payment still failing for ${toolName}`,
+    7: `Urgent: service may be interrupted for ${toolName}`,
+    14: `Final notice: account at risk for ${toolName}`,
+  }
+  const subject = sanitizeSubject(
+    subjectMap[dayNumber] ?? `Action required: payment failed for ${toolName}`
+  )
+
+  const urgencyMap: Record<number, { heading: string; body: string; bannerType: 'warning' | 'error'; ctaColor: string }> = {
+    0: {
+      heading: 'Payment Failed',
+      body: `We were unable to process your payment of <strong style="color:#ef4444">${formatted}</strong> for <strong>${safeTool}</strong>. Please update your payment method to continue using the service.`,
+      bannerType: 'warning',
+      ctaColor: '#059669',
+    },
+    3: {
+      heading: 'Payment Still Failing',
+      body: `Your payment of <strong style="color:#ef4444">${formatted}</strong> for <strong>${safeTool}</strong> has been failing for 3 days. Please update your payment method as soon as possible.`,
+      bannerType: 'warning',
+      ctaColor: '#d97706',
+    },
+    7: {
+      heading: 'Service Interruption Warning',
+      body: `Your payment of <strong style="color:#ef4444">${formatted}</strong> for <strong>${safeTool}</strong> has been failing for 7 days. Your service may be suspended if payment is not resolved soon.`,
+      bannerType: 'error',
+      ctaColor: '#d97706',
+    },
+    14: {
+      heading: 'Final Notice',
+      body: `Your payment of <strong style="color:#ef4444">${formatted}</strong> for <strong>${safeTool}</strong> has been failing for 14 days. Your account is at risk of suspension and your API keys may be disabled.`,
+      bannerType: 'error',
+      ctaColor: '#ef4444',
+    },
+  }
+
+  const config = urgencyMap[dayNumber] ?? urgencyMap[0]
+
+  const bannerMessages: Record<number, { title: string; body: string }> = {
+    0: { title: 'What happens next', body: 'We will retry the charge in 3 days. Update your payment method to avoid further issues.' },
+    3: { title: 'Important', body: 'We will make one more attempt in 4 days. After that, your service may be interrupted.' },
+    7: { title: 'Urgent', body: 'Your service will be suspended in 7 days if payment is not resolved.' },
+    14: { title: 'Final warning', body: 'Your API keys will be disabled and service suspended if payment is not resolved immediately.' },
+  }
+
+  const banner = bannerMessages[dayNumber] ?? bannerMessages[0]
+
+  return {
+    subject,
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">${config.heading}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">${config.body}</p>
+${alertBanner(config.bannerType, banner.title, banner.body)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Failed amount', formatted)}
+${dataRow('Tool', toolName)}
+${dataRow('Days overdue', String(dayNumber))}
+</table>
+${ctaButton('Update Payment', 'https://settlegrid.ai/consumer', config.ctaColor)}
+`,
+      { preheader: `Payment of ${formatted} for ${toolName} failed. Update your payment method.` }
+    ),
+  }
+}
+
+export function firstToolPublishedEmail(
+  name: string,
+  toolName: string,
+  toolSlug: string
+): EmailTemplate {
+  const safeSlug = encodeURIComponent(toolSlug)
+  return {
+    subject: sanitizeSubject('Your first tool is live on SettleGrid!'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Congratulations, ${escapeHtml(name)}!</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your first tool, <strong>${escapeHtml(toolName)}</strong>, is now live on SettleGrid and ready to earn revenue.</p>
+${alertBanner('success', 'Tool published', 'Your tool is visible in the marketplace and ready to receive API calls.')}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Next steps:</h3>
+<ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Embed the SettleGrid widget on your site</li>
+<li>Set per-call pricing for your tool</li>
+<li>Share your tool link with potential users</li>
+</ol>
+${ctaButton('View Your Tool', `https://settlegrid.ai/tools/${safeSlug}`)}
+`,
+      { preheader: `${escapeHtml(toolName)} is now live! Start earning with every API call.` }
+    ),
+  }
+}
+
+export function toolStatusChangedEmail(
+  name: string,
+  toolName: string,
+  fromStatus: string,
+  toStatus: string
+): EmailTemplate {
+  const verb = toStatus === 'active' ? 'activated' : 'deactivated'
+  const fromBadge = statusBadge(
+    fromStatus === 'active' ? 'active' : 'failed',
+    fromStatus
+  )
+  const toBadge = statusBadge(
+    toStatus === 'active' ? 'active' : 'failed',
+    toStatus
+  )
+  const implication =
+    toStatus === 'active'
+      ? 'Your tool is now accepting API calls and generating revenue.'
+      : 'Your tool is no longer accepting API calls. Existing consumers will receive errors.'
+
+  return {
+    subject: sanitizeSubject(`Your tool ${toolName} has been ${verb}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Tool Status Changed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, the status of <strong>${escapeHtml(toolName)}</strong> has been updated.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>Status:</strong> ${fromBadge} &rarr; ${toBadge}</p>
+</td></tr>
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">${escapeHtml(implication)}</p>
+${ctaButton('View Tool', 'https://settlegrid.ai/dashboard/tools')}
+`,
+      { preheader: `Your tool ${escapeHtml(toolName)} has been ${verb}.` }
+    ),
+  }
+}
+
+export function revenueMilestoneEmail(
+  name: string,
+  toolName: string,
+  milestoneAmount: number
+): EmailTemplate {
+  const formatted = formatCurrency(milestoneAmount)
+  return {
+    subject: sanitizeSubject(`You just earned ${formatted} on SettleGrid!`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Revenue Milestone Reached!</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Congratulations, ${escapeHtml(name)}! Your tool <strong>${escapeHtml(toolName)}</strong> has earned a total of <strong style="color:#10B981">${formatted}</strong> on SettleGrid.</p>
+${alertBanner('success', 'Milestone unlocked', `You have reached ${formatted} in total earnings. Keep building great tools!`)}
+${ctaButton('View Earnings', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `${escapeHtml(toolName)} just hit ${formatted} in earnings!` }
+    ),
+  }
+}
+
+export interface ToolBreakdownItem {
+  toolName: string
+  amountCents: number
+  invocations?: number
+}
+
+const UNSUBSCRIBE_FOOTER = `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:24px 0 0;text-align:center">You are receiving this because you have a SettleGrid account. <a href="https://settlegrid.ai/dashboard/settings" style="color:#059669;text-decoration:underline">Manage email preferences</a> or <a href="https://settlegrid.ai/unsubscribe" style="color:#059669;text-decoration:underline">unsubscribe</a>.</p>`
+
+export function monthlyEarningsSummaryEmail(
+  name: string,
+  monthName: string,
+  totalEarnedCents: number,
+  toolBreakdown: ToolBreakdownItem[]
+): EmailTemplate {
+  const formatted = formatCurrency(totalEarnedCents)
+  const breakdownRows = toolBreakdown
+    .map((t) => dataRow(t.toolName, formatCurrency(t.amountCents)))
+    .join('')
+
+  return {
+    subject: sanitizeSubject(`Your ${monthName} earnings summary — ${formatted}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your ${escapeHtml(monthName)} Earnings Summary</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, here is a summary of your earnings for ${escapeHtml(monthName)}.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${breakdownRows}
+${dataRow('Total Earned', formatted, true)}
+</table>
+${dividerLine()}
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Payouts are processed based on your schedule and sent to your connected Stripe account.</p>
+${ctaButton('View Dashboard', 'https://settlegrid.ai/dashboard')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `You earned ${formatted} in ${escapeHtml(monthName)}. View your breakdown.` }
+    ),
+  }
+}
+
+export function monthlyUsageSummaryEmail(
+  email: string,
+  monthName: string,
+  totalSpentCents: number,
+  totalInvocations: number,
+  toolBreakdown: ToolBreakdownItem[]
+): EmailTemplate {
+  const formatted = formatCurrency(totalSpentCents)
+  const breakdownRows = toolBreakdown
+    .map((t) =>
+      dataRow(
+        t.toolName,
+        `${formatCurrency(t.amountCents)}${t.invocations != null ? ` (${t.invocations.toLocaleString()} calls)` : ''}`
+      )
+    )
+    .join('')
+
+  return {
+    subject: sanitizeSubject(`Your ${monthName} usage summary`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your ${escapeHtml(monthName)} Usage Summary</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Here is your usage summary for ${escapeHtml(monthName)}.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#1e40af;margin:0 0 4px;font-size:14px"><strong>Total spent:</strong> ${formatted}</p>
+<p class="sg-text" style="color:#1e40af;margin:0;font-size:14px"><strong>Total invocations:</strong> ${totalInvocations.toLocaleString()}</p>
+</td></tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${breakdownRows}
+${dataRow('Total', formatted, true)}
+</table>
+${ctaButton('View Usage', 'https://settlegrid.ai/consumer')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `You spent ${formatted} across ${totalInvocations.toLocaleString()} invocations in ${escapeHtml(monthName)}.` }
+    ),
+  }
+}
+
+export function ipAllowlistChangedEmail(
+  email: string,
+  keyPrefix: string,
+  toolName: string,
+  action: string,
+  ipValue: string
+): EmailTemplate {
+  const safePrefix = escapeHtml(keyPrefix)
+  return {
+    subject: sanitizeSubject(`IP allowlist updated for API key ${keyPrefix}...`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">IP Allowlist Updated</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">The IP allowlist for your API key has been modified.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#374151;margin:0 0 4px;font-size:14px"><strong>API key:</strong> <code class="sg-code" style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${safePrefix}...</code></p>
+<p class="sg-text" style="color:#374151;margin:0 0 4px;font-size:14px"><strong>Tool:</strong> ${escapeHtml(toolName)}</p>
+<p class="sg-text" style="color:#374151;margin:0 0 4px;font-size:14px"><strong>Action:</strong> ${escapeHtml(action)}</p>
+<p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>IP:</strong> <code class="sg-code" style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(ipValue)}</code></p>
+</td></tr>
+</table>
+${alertBanner('info', 'Security notice', 'If you did not make this change, review your API keys immediately.')}
+${ctaButton('Manage API Keys', 'https://settlegrid.ai/consumer')}
+`,
+      { preheader: `IP allowlist ${escapeHtml(action)} for API key ${safePrefix}...` }
+    ),
+  }
+}
+
+export function orgRoleChangedEmail(
+  email: string,
+  orgName: string,
+  oldRole: string,
+  newRole: string
+): EmailTemplate {
+  const oldBadge = statusBadge('pending', oldRole)
+  const newBadge = statusBadge('active', newRole)
+  return {
+    subject: sanitizeSubject(`Your role in ${orgName} was changed to ${newRole}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Organization Role Changed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your role in <strong>${escapeHtml(orgName)}</strong> has been updated.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>Role:</strong> ${oldBadge} &rarr; ${newBadge}</p>
+</td></tr>
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Your permissions within the organization have been updated to match your new role. Review your access in the organization dashboard.</p>
+${ctaButton('View Organization', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `Your role in ${escapeHtml(orgName)} changed from ${escapeHtml(oldRole)} to ${escapeHtml(newRole)}.` }
+    ),
+  }
+}
+
+export function orgBudgetWarningEmail(
+  billingEmail: string,
+  orgName: string,
+  spentCents: number,
+  budgetCents: number,
+  percentage: number
+): EmailTemplate {
+  const spentFormatted = formatCurrency(spentCents)
+  const budgetFormatted = formatCurrency(budgetCents)
+  return {
+    subject: sanitizeSubject(`Budget alert: ${orgName} at ${percentage}% of monthly limit`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Budget Alert</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong>${escapeHtml(orgName)}</strong> has reached <strong style="color:#ef4444">${percentage}%</strong> of its monthly budget.</p>
+${alertBanner(percentage >= 90 ? 'error' : 'warning', `${percentage}% of budget used`, `Your organization has spent ${spentFormatted} of the ${budgetFormatted} monthly limit.`)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Amount spent', spentFormatted)}
+${dataRow('Monthly budget', budgetFormatted)}
+${dataRow('Usage', `${percentage}%`)}
+</table>
+${ctaButton('View Budget', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `${escapeHtml(orgName)} has used ${percentage}% of its monthly budget (${spentFormatted} / ${budgetFormatted}).` }
+    ),
+  }
+}
+
+export function gasWalletLowEmail(
+  adminEmail: string,
+  balanceEth: string,
+  network: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Gas wallet balance low on ${network}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Gas Wallet Balance Low</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">The gas wallet on <strong>${escapeHtml(network)}</strong> is running low and may not be able to process settlements.</p>
+${alertBanner('error', 'Low balance', `Current balance: ${escapeHtml(balanceEth)} ETH on ${escapeHtml(network)}. Top up immediately to avoid settlement failures.`)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Network', network)}
+${dataRow('Current balance', `${balanceEth} ETH`)}
+</table>
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">This is an admin-only notification. Transfer funds to the gas wallet to resume normal operations.</p>
+`,
+      { preheader: `Gas wallet on ${escapeHtml(network)} is low at ${escapeHtml(balanceEth)} ETH. Refill urgently.` }
+    ),
+  }
+}
+
+export function disputeOpenedEmail(
+  email: string,
+  verificationId: string,
+  reason: string,
+  role: string
+): EmailTemplate {
+  const safeId = escapeHtml(verificationId)
+  return {
+    subject: sanitizeSubject(`Dispute opened on outcome #${verificationId}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Dispute Opened</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A dispute has been opened on verification outcome <strong>#${safeId}</strong>.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#991b1b;margin:0 0 4px;font-size:14px"><strong>Verification ID:</strong> #${safeId}</p>
+<p class="sg-text" style="color:#991b1b;margin:0 0 4px;font-size:14px"><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+<p class="sg-text" style="color:#991b1b;margin:0;font-size:14px"><strong>Your role:</strong> ${escapeHtml(role)}</p>
+</td></tr>
+</table>
+${alertBanner('warning', '24-hour deadline', 'Both parties have been notified. You have 24 hours to respond to this dispute before it is auto-resolved.')}
+${ctaButton('View Dispute', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `A dispute was opened on outcome #${safeId}. Respond within 24 hours.` }
+    ),
+  }
+}
+
+export function disputeResolvedEmail(
+  email: string,
+  verificationId: string,
+  resolution: string,
+  settledPriceCents: number
+): EmailTemplate {
+  const safeId = escapeHtml(verificationId)
+  const formatted = formatCurrency(settledPriceCents)
+  return {
+    subject: sanitizeSubject(`Dispute resolved: #${verificationId}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Dispute Resolved</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">The dispute on verification outcome <strong>#${safeId}</strong> has been resolved.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#166534;margin:0 0 4px;font-size:14px"><strong>Resolution:</strong> ${escapeHtml(resolution)}</p>
+<p class="sg-text" style="color:#166534;margin:0;font-size:14px"><strong>Final price:</strong> ${formatted}</p>
+</td></tr>
+</table>
+${ctaButton('View Outcome', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `Dispute #${safeId} has been resolved. Final price: ${formatted}.` }
+    ),
+  }
+}
+
+export function toolHealthDownEmail(
+  email: string,
+  toolName: string,
+  downSince: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Your tool ${toolName} is down`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Tool Health Alert</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your tool <strong>${escapeHtml(toolName)}</strong> has been detected as unhealthy and is not responding to health checks.</p>
+${alertBanner('error', 'Tool is down', `${escapeHtml(toolName)} has been unreachable since ${escapeHtml(downSince)}. Consumers will receive errors until the tool is restored.`)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Tool', toolName)}
+${dataRow('Down since', downSince)}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Please check your health endpoint and ensure your tool is reachable.</p>
+${ctaButton('Check Health', 'https://settlegrid.ai/dashboard/health')}
+`,
+      { preheader: `${escapeHtml(toolName)} is down since ${escapeHtml(downSince)}. Check your health endpoint.` }
+    ),
+  }
+}
+
+export function toolHealthRecoveredEmail(
+  email: string,
+  toolName: string,
+  downtimeDuration: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Your tool ${toolName} is back up`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Tool Recovered</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your tool <strong>${escapeHtml(toolName)}</strong> is back online and responding to health checks.</p>
+${alertBanner('success', 'All clear', `${escapeHtml(toolName)} is healthy again. Total downtime: ${escapeHtml(downtimeDuration)}.`)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Tool', toolName)}
+${dataRow('Downtime', downtimeDuration)}
+</table>
+${ctaButton('View Health', 'https://settlegrid.ai/dashboard/health')}
+`,
+      { preheader: `${escapeHtml(toolName)} is back up. Downtime was ${escapeHtml(downtimeDuration)}.` }
+    ),
+  }
+}
+
+export function featureAnnouncementEmail(
+  email: string,
+  featureTitle: string,
+  featureDescription: string,
+  ctaUrl: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`New on SettleGrid: ${featureTitle}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">New Feature: ${escapeHtml(featureTitle)}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">${escapeHtml(featureDescription)}</p>
+${alertBanner('info', 'Getting started', 'This feature is available now for all SettleGrid users. Try it out today.')}
+${ctaButton('Try It Now', ctaUrl)}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `Introducing ${escapeHtml(featureTitle)} on SettleGrid.` }
+    ),
+  }
+}
+
+// ── Future templates ──────────────────────────────────────────────────────────
+
+export function approachingRateLimitEmail(
+  email: string,
+  toolName: string,
+  currentRate: number,
+  limitRate: number
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Approaching rate limit for ${toolName}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Rate Limit Warning</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your usage of <strong>${escapeHtml(toolName)}</strong> is approaching its rate limit.</p>
+${alertBanner('warning', 'Approaching limit', `You are currently at ${currentRate} requests/min out of a ${limitRate} requests/min limit.`)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Current rate', `${currentRate} req/min`)}
+${dataRow('Rate limit', `${limitRate} req/min`)}
+${dataRow('Usage', `${Math.round((currentRate / limitRate) * 100)}%`)}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Consider upgrading your plan or contacting the tool provider for higher limits.</p>
+${ctaButton('View Usage', 'https://settlegrid.ai/consumer')}
+`,
+      { preheader: `${escapeHtml(toolName)} usage at ${currentRate}/${limitRate} req/min.` }
+    ),
+  }
+}
+
+export function settlementCompletedEmail(
+  email: string,
+  txHash: string,
+  network: string,
+  amountUsdc: string
+): EmailTemplate {
+  const explorerUrls: Record<string, string> = {
+    ethereum: 'https://etherscan.io/tx/',
+    base: 'https://basescan.org/tx/',
+    polygon: 'https://polygonscan.com/tx/',
+    arbitrum: 'https://arbiscan.io/tx/',
+  }
+  const baseUrl = explorerUrls[network.toLowerCase()] ?? 'https://etherscan.io/tx/'
+  const txUrl = `${baseUrl}${txHash}`
+
+  return {
+    subject: sanitizeSubject(`Settlement confirmed on ${network}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Settlement Confirmed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your settlement has been confirmed on-chain.</p>
+${alertBanner('success', 'Transaction confirmed', `${escapeHtml(amountUsdc)} USDC has been settled on ${escapeHtml(network)}.`)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Amount', `${amountUsdc} USDC`)}
+${dataRow('Network', network)}
+${dataRow('Transaction', txHash.slice(0, 10) + '...' + txHash.slice(-6))}
+</table>
+${ctaButton('View Transaction', txUrl)}
+`,
+      { preheader: `${escapeHtml(amountUsdc)} USDC settled on ${escapeHtml(network)}. Tx: ${txHash.slice(0, 10)}...` }
+    ),
+  }
+}
+
+export function settlementFailedEmail(
+  email: string,
+  reason: string,
+  network: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Settlement failed on ${network}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Settlement Failed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A settlement attempt on <strong>${escapeHtml(network)}</strong> has failed.</p>
+${alertBanner('error', 'Settlement error', escapeHtml(reason))}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Network', network)}
+${dataRow('Error', reason)}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Please review the error and try again. If the issue persists, contact support.</p>
+${ctaButton('Try Again', 'https://settlegrid.ai/consumer', '#ef4444')}
+`,
+      { preheader: `Settlement failed on ${escapeHtml(network)}: ${escapeHtml(reason)}` }
+    ),
+  }
+}
+
+export function newLoginEmail(
+  email: string,
+  ip: string,
+  userAgent: string,
+  timestamp: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject('New sign-in to your SettleGrid account'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">New Sign-In Detected</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A new sign-in to your SettleGrid account was detected.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#374151;margin:0 0 4px;font-size:14px"><strong>IP address:</strong> <code class="sg-code" style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(ip)}</code></p>
+<p class="sg-text" style="color:#374151;margin:0 0 4px;font-size:14px"><strong>Browser/Device:</strong> ${escapeHtml(userAgent.slice(0, 120))}</p>
+<p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>Time:</strong> ${escapeHtml(timestamp)}</p>
+</td></tr>
+</table>
+${alertBanner('warning', 'Not you?', 'If you did not sign in, secure your account immediately by changing your password and revoking API keys.')}
+${ctaButton('Secure Account', 'https://settlegrid.ai/dashboard/settings', '#d97706')}
+`,
+      { preheader: `New sign-in from ${escapeHtml(ip)} at ${escapeHtml(timestamp)}.` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {

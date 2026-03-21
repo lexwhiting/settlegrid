@@ -39,6 +39,26 @@ import {
   orgMemberInvitedEmail,
   orgMemberRemovedEmail,
   waitlistConfirmationEmail,
+  cardExpiringEmail,
+  dunningEmail,
+  firstToolPublishedEmail,
+  toolStatusChangedEmail,
+  revenueMilestoneEmail,
+  monthlyEarningsSummaryEmail,
+  monthlyUsageSummaryEmail,
+  ipAllowlistChangedEmail,
+  orgRoleChangedEmail,
+  orgBudgetWarningEmail,
+  gasWalletLowEmail,
+  disputeOpenedEmail,
+  disputeResolvedEmail,
+  toolHealthDownEmail,
+  toolHealthRecoveredEmail,
+  featureAnnouncementEmail,
+  approachingRateLimitEmail,
+  settlementCompletedEmail,
+  settlementFailedEmail,
+  newLoginEmail,
   baseEmailTemplate,
   ctaButton,
   statusBadge,
@@ -1512,5 +1532,969 @@ describe('waitlistConfirmationEmail', () => {
   it('escapes HTML in feature name', () => {
     const result = waitlistConfirmationEmail('user@test.com', '<script>x</script>')
     expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+})
+
+// ── Nice-to-have template tests ─────────────────────────────────────────────
+
+describe('cardExpiringEmail', () => {
+  it('generates correct subject line with last4', () => {
+    const result = cardExpiringEmail('user@test.com', '4242', 12, 2026)
+    expect(result.subject).toContain('4242')
+    expect(result.subject).toContain('expires soon')
+  })
+
+  it('includes card details in body', () => {
+    const result = cardExpiringEmail('user@test.com', '4242', 3, 2027)
+    expect(result.html).toContain('**** 4242')
+    expect(result.html).toContain('03/2027')
+  })
+
+  it('has preheader text', () => {
+    const result = cardExpiringEmail('user@test.com', '4242', 12, 2026)
+    expect(result.html).toContain('expires')
+    expect(result.html).toContain('4242')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = cardExpiringEmail('user@test.com', '4242', 12, 2026)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('includes Update Payment Method CTA', () => {
+    const result = cardExpiringEmail('user@test.com', '4242', 12, 2026)
+    expect(result.html).toContain('Update Payment Method')
+    expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+
+  it('escapes HTML in last4', () => {
+    const result = cardExpiringEmail('user@test.com', '<b>42</b>', 12, 2026)
+    expect(result.html).toContain('&lt;b&gt;42&lt;/b&gt;')
+  })
+
+  it('pads single-digit months with zero', () => {
+    const result = cardExpiringEmail('user@test.com', '4242', 3, 2027)
+    expect(result.html).toContain('03/2027')
+  })
+})
+
+describe('dunningEmail', () => {
+  it('generates day 0 subject', () => {
+    const result = dunningEmail('user@test.com', 0, 2000, 'MyTool')
+    expect(result.subject).toContain('Action required')
+    expect(result.subject).toContain('MyTool')
+  })
+
+  it('generates day 3 subject', () => {
+    const result = dunningEmail('user@test.com', 3, 2000, 'MyTool')
+    expect(result.subject).toContain('Reminder')
+    expect(result.subject).toContain('still failing')
+  })
+
+  it('generates day 7 subject', () => {
+    const result = dunningEmail('user@test.com', 7, 2000, 'MyTool')
+    expect(result.subject).toContain('Urgent')
+    expect(result.subject).toContain('interrupted')
+  })
+
+  it('generates day 14 subject', () => {
+    const result = dunningEmail('user@test.com', 14, 2000, 'MyTool')
+    expect(result.subject).toContain('Final notice')
+    expect(result.subject).toContain('at risk')
+  })
+
+  it('includes failed amount in body', () => {
+    const result = dunningEmail('user@test.com', 0, 5000, 'Tool')
+    expect(result.html).toContain('$50.00')
+  })
+
+  it('has preheader text', () => {
+    const result = dunningEmail('user@test.com', 0, 2000, 'MyTool')
+    expect(result.html).toContain('$20.00')
+    expect(result.html).toContain('MyTool')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = dunningEmail('user@test.com', 0, 1000, 'Tool')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('includes Update Payment CTA', () => {
+    const result = dunningEmail('user@test.com', 0, 1000, 'Tool')
+    expect(result.html).toContain('Update Payment')
+    expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+
+  it('escalates CTA color — day 0 green', () => {
+    const result = dunningEmail('user@test.com', 0, 1000, 'Tool')
+    expect(result.html).toContain('#059669')
+  })
+
+  it('escalates CTA color — day 14 red', () => {
+    const result = dunningEmail('user@test.com', 14, 1000, 'Tool')
+    expect(result.html).toContain('#ef4444')
+  })
+
+  it('includes days overdue in data rows', () => {
+    const result = dunningEmail('user@test.com', 7, 1000, 'Tool')
+    expect(result.html).toContain('Days overdue')
+    expect(result.html).toContain('7')
+  })
+
+  it('escapes tool name in body', () => {
+    const result = dunningEmail('user@test.com', 0, 1000, '<script>x</script>')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+
+  it('falls back to day 0 for unknown day numbers', () => {
+    const result = dunningEmail('user@test.com', 99, 1000, 'Tool')
+    expect(result.subject).toContain('Action required')
+    expect(result.html).toContain('Payment Failed')
+  })
+})
+
+describe('firstToolPublishedEmail', () => {
+  it('generates correct subject line', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.subject).toContain('first tool is live')
+    expect(result.subject).toContain('SettleGrid')
+  })
+
+  it('includes developer name', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.html).toContain('Alice')
+  })
+
+  it('includes tool name', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.html).toContain('AnalyzeTool')
+  })
+
+  it('includes View Your Tool CTA with slug', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.html).toContain('View Your Tool')
+    expect(result.html).toContain('https://settlegrid.ai/tools/analyze-tool')
+  })
+
+  it('has preheader text', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('live')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('includes next steps', () => {
+    const result = firstToolPublishedEmail('Alice', 'AnalyzeTool', 'analyze-tool')
+    expect(result.html).toContain('widget')
+    expect(result.html).toContain('pricing')
+    expect(result.html).toContain('Share')
+  })
+
+  it('escapes HTML in name and tool name', () => {
+    const result = firstToolPublishedEmail('<b>Evil</b>', '<script>x</script>', 'slug')
+    expect(result.html).toContain('&lt;b&gt;Evil&lt;/b&gt;')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+})
+
+describe('toolStatusChangedEmail', () => {
+  it('generates subject with activated verb', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'inactive', 'active')
+    expect(result.subject).toContain('MyTool')
+    expect(result.subject).toContain('activated')
+  })
+
+  it('generates subject with deactivated verb', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'active', 'inactive')
+    expect(result.subject).toContain('deactivated')
+  })
+
+  it('includes status badges with arrow', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'inactive', 'active')
+    expect(result.html).toContain('&rarr;')
+  })
+
+  it('includes implications for activation', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'inactive', 'active')
+    expect(result.html).toContain('accepting API calls')
+  })
+
+  it('includes implications for deactivation', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'active', 'inactive')
+    expect(result.html).toContain('no longer accepting')
+  })
+
+  it('includes View Tool CTA', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'inactive', 'active')
+    expect(result.html).toContain('View Tool')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard/tools')
+  })
+
+  it('has preheader text', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'inactive', 'active')
+    expect(result.html).toContain('MyTool')
+    expect(result.html).toContain('activated')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = toolStatusChangedEmail('Alice', 'MyTool', 'inactive', 'active')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in name and tool name', () => {
+    const result = toolStatusChangedEmail('<b>X</b>', '<script>x</script>', 'a', 'active')
+    expect(result.html).toContain('&lt;b&gt;X&lt;/b&gt;')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+})
+
+describe('revenueMilestoneEmail', () => {
+  it('generates correct subject line with amount', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.subject).toContain('$1,000.00')
+    expect(result.subject).toContain('SettleGrid')
+  })
+
+  it('includes developer name', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.html).toContain('Alice')
+  })
+
+  it('includes tool name and milestone amount', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.html).toContain('MyTool')
+    expect(result.html).toContain('$1,000.00')
+  })
+
+  it('includes View Earnings CTA', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.html).toContain('View Earnings')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard')
+  })
+
+  it('has preheader text', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.html).toContain('MyTool')
+    expect(result.html).toContain('$1,000.00')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('includes success banner', () => {
+    const result = revenueMilestoneEmail('Alice', 'MyTool', 100000)
+    expect(result.html).toContain('Milestone unlocked')
+  })
+
+  it('escapes HTML in name and tool name', () => {
+    const result = revenueMilestoneEmail('<b>X</b>', '<script>y</script>', 100000)
+    expect(result.html).toContain('&lt;b&gt;X&lt;/b&gt;')
+    expect(result.html).toContain('&lt;script&gt;y&lt;/script&gt;')
+  })
+})
+
+describe('monthlyEarningsSummaryEmail', () => {
+  const breakdown = [
+    { toolName: 'AnalyzeTool', amountCents: 5000 },
+    { toolName: 'SearchAPI', amountCents: 3000 },
+  ]
+
+  it('generates correct subject with month and total', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.subject).toContain('March')
+    expect(result.subject).toContain('$80.00')
+  })
+
+  it('includes per-tool breakdown rows', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('$50.00')
+    expect(result.html).toContain('SearchAPI')
+    expect(result.html).toContain('$30.00')
+  })
+
+  it('includes total row', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.html).toContain('Total Earned')
+    expect(result.html).toContain('$80.00')
+  })
+
+  it('has preheader text', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.html).toContain('$80.00')
+    expect(result.html).toContain('March')
+  })
+
+  it('includes unsubscribe footer', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.html).toContain('unsubscribe')
+    expect(result.html).toContain('email preferences')
+  })
+
+  it('includes View Dashboard CTA', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.html).toContain('View Dashboard')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = monthlyEarningsSummaryEmail('Alice', 'March', 8000, breakdown)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+})
+
+describe('monthlyUsageSummaryEmail', () => {
+  const breakdown = [
+    { toolName: 'AnalyzeTool', amountCents: 2000, invocations: 150 },
+    { toolName: 'SearchAPI', amountCents: 1000, invocations: 80 },
+  ]
+
+  it('generates correct subject with month name', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.subject).toContain('February')
+    expect(result.subject).toContain('usage summary')
+  })
+
+  it('includes total spent and invocations', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.html).toContain('$30.00')
+    expect(result.html).toContain('230')
+  })
+
+  it('includes per-tool breakdown with invocation counts', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('150')
+    expect(result.html).toContain('SearchAPI')
+    expect(result.html).toContain('80')
+  })
+
+  it('has preheader text', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.html).toContain('$30.00')
+    expect(result.html).toContain('230')
+  })
+
+  it('includes unsubscribe footer', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.html).toContain('unsubscribe')
+    expect(result.html).toContain('email preferences')
+  })
+
+  it('includes View Usage CTA', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.html).toContain('View Usage')
+    expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = monthlyUsageSummaryEmail('user@test.com', 'February', 3000, 230, breakdown)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+})
+
+describe('ipAllowlistChangedEmail', () => {
+  it('generates correct subject with key prefix', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', 'sk_live_abc', 'MyTool', 'added', '192.168.1.0/24')
+    expect(result.subject).toContain('sk_live_abc')
+    expect(result.subject).toContain('IP allowlist')
+  })
+
+  it('includes key prefix, tool name, action, and IP', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', 'sk_live_abc', 'MyTool', 'added', '10.0.0.1')
+    expect(result.html).toContain('sk_live_abc...')
+    expect(result.html).toContain('MyTool')
+    expect(result.html).toContain('added')
+    expect(result.html).toContain('10.0.0.1')
+  })
+
+  it('has preheader text', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', 'sk_test', 'Tool', 'removed', '10.0.0.1')
+    expect(result.html).toContain('sk_test')
+    expect(result.html).toContain('removed')
+  })
+
+  it('includes security notice banner', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', 'sk_test', 'Tool', 'added', '10.0.0.1')
+    expect(result.html).toContain('Security notice')
+  })
+
+  it('includes Manage API Keys CTA', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', 'sk_test', 'Tool', 'added', '10.0.0.1')
+    expect(result.html).toContain('Manage API Keys')
+    expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', 'sk_test', 'Tool', 'added', '10.0.0.1')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in all fields', () => {
+    const result = ipAllowlistChangedEmail('user@test.com', '<b>key</b>', '<script>t</script>', '<i>add</i>', '<b>ip</b>')
+    expect(result.html).toContain('&lt;b&gt;key&lt;/b&gt;')
+    expect(result.html).toContain('&lt;script&gt;t&lt;/script&gt;')
+    expect(result.html).toContain('&lt;i&gt;add&lt;/i&gt;')
+    expect(result.html).toContain('&lt;b&gt;ip&lt;/b&gt;')
+  })
+})
+
+describe('orgRoleChangedEmail', () => {
+  it('generates correct subject with org name and new role', () => {
+    const result = orgRoleChangedEmail('user@test.com', 'Acme Corp', 'member', 'admin')
+    expect(result.subject).toContain('Acme Corp')
+    expect(result.subject).toContain('admin')
+  })
+
+  it('includes old and new role badges with arrow', () => {
+    const result = orgRoleChangedEmail('user@test.com', 'Acme Corp', 'member', 'admin')
+    expect(result.html).toContain('member')
+    expect(result.html).toContain('admin')
+    expect(result.html).toContain('&rarr;')
+  })
+
+  it('has preheader text', () => {
+    const result = orgRoleChangedEmail('user@test.com', 'Acme Corp', 'member', 'admin')
+    expect(result.html).toContain('Acme Corp')
+    expect(result.html).toContain('member')
+    expect(result.html).toContain('admin')
+  })
+
+  it('includes permissions implications', () => {
+    const result = orgRoleChangedEmail('user@test.com', 'Acme Corp', 'member', 'admin')
+    expect(result.html).toContain('permissions')
+  })
+
+  it('includes View Organization CTA', () => {
+    const result = orgRoleChangedEmail('user@test.com', 'Acme Corp', 'member', 'admin')
+    expect(result.html).toContain('View Organization')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = orgRoleChangedEmail('user@test.com', 'Acme Corp', 'member', 'admin')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in org name', () => {
+    const result = orgRoleChangedEmail('user@test.com', '<script>x</script>', 'a', 'b')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+})
+
+describe('orgBudgetWarningEmail', () => {
+  it('generates correct subject with org name and percentage', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 8500, 10000, 85)
+    expect(result.subject).toContain('Acme Corp')
+    expect(result.subject).toContain('85%')
+  })
+
+  it('includes spent vs budget amounts', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 8500, 10000, 85)
+    expect(result.html).toContain('$85.00')
+    expect(result.html).toContain('$100.00')
+  })
+
+  it('includes percentage in body', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 8500, 10000, 85)
+    expect(result.html).toContain('85%')
+  })
+
+  it('has preheader text', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 8500, 10000, 85)
+    expect(result.html).toContain('Acme Corp')
+    expect(result.html).toContain('85%')
+  })
+
+  it('uses error banner at 90%+', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 9500, 10000, 95)
+    expect(result.html).toContain('#ef4444')
+  })
+
+  it('uses warning banner below 90%', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 7500, 10000, 75)
+    expect(result.html).toContain('#f59e0b')
+  })
+
+  it('includes View Budget CTA', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 8500, 10000, 85)
+    expect(result.html).toContain('View Budget')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', 'Acme Corp', 8500, 10000, 85)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in org name', () => {
+    const result = orgBudgetWarningEmail('billing@test.com', '<script>x</script>', 8500, 10000, 85)
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+})
+
+describe('gasWalletLowEmail', () => {
+  it('generates correct subject with network', () => {
+    const result = gasWalletLowEmail('admin@test.com', '0.015', 'Base')
+    expect(result.subject).toContain('Base')
+    expect(result.subject).toContain('Gas wallet')
+  })
+
+  it('includes balance and network in body', () => {
+    const result = gasWalletLowEmail('admin@test.com', '0.015', 'Base')
+    expect(result.html).toContain('0.015')
+    expect(result.html).toContain('ETH')
+    expect(result.html).toContain('Base')
+  })
+
+  it('has preheader text', () => {
+    const result = gasWalletLowEmail('admin@test.com', '0.015', 'Base')
+    expect(result.html).toContain('Base')
+    expect(result.html).toContain('0.015')
+  })
+
+  it('includes admin-only notice', () => {
+    const result = gasWalletLowEmail('admin@test.com', '0.015', 'Base')
+    expect(result.html).toContain('admin-only')
+  })
+
+  it('does not include a CTA button', () => {
+    const result = gasWalletLowEmail('admin@test.com', '0.015', 'Base')
+    // No ctaButton is called, so there should be no "v:roundrect" for a CTA
+    // But it uses baseEmailTemplate which has footer links. Check that no
+    // explicit button text like "View" appears outside the footer.
+    expect(result.html).not.toContain('View Budget')
+    expect(result.html).not.toContain('View Usage')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = gasWalletLowEmail('admin@test.com', '0.015', 'Base')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in network and balance', () => {
+    const result = gasWalletLowEmail('admin@test.com', '<b>0.1</b>', '<script>net</script>')
+    expect(result.html).toContain('&lt;b&gt;0.1&lt;/b&gt;')
+    expect(result.html).toContain('&lt;script&gt;net&lt;/script&gt;')
+  })
+})
+
+describe('disputeOpenedEmail', () => {
+  it('generates correct subject with verification ID', () => {
+    const result = disputeOpenedEmail('user@test.com', 'ver_abc123', 'Incorrect result', 'consumer')
+    expect(result.subject).toContain('ver_abc123')
+    expect(result.subject).toContain('Dispute opened')
+  })
+
+  it('includes verification ID, reason, and role', () => {
+    const result = disputeOpenedEmail('user@test.com', 'ver_abc123', 'Incorrect result', 'consumer')
+    expect(result.html).toContain('#ver_abc123')
+    expect(result.html).toContain('Incorrect result')
+    expect(result.html).toContain('consumer')
+  })
+
+  it('includes 24-hour deadline warning', () => {
+    const result = disputeOpenedEmail('user@test.com', 'ver_abc123', 'Bad output', 'provider')
+    expect(result.html).toContain('24 hours')
+    expect(result.html).toContain('Both parties')
+  })
+
+  it('has preheader text', () => {
+    const result = disputeOpenedEmail('user@test.com', 'ver_abc123', 'Bad output', 'consumer')
+    expect(result.html).toContain('ver_abc123')
+    expect(result.html).toContain('24 hours')
+  })
+
+  it('includes View Dispute CTA', () => {
+    const result = disputeOpenedEmail('user@test.com', 'ver_abc123', 'Bad output', 'consumer')
+    expect(result.html).toContain('View Dispute')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = disputeOpenedEmail('user@test.com', 'ver_abc123', 'Bad output', 'consumer')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in reason and verification ID', () => {
+    const result = disputeOpenedEmail('user@test.com', '<script>x</script>', '<b>reason</b>', 'consumer')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;reason&lt;/b&gt;')
+  })
+})
+
+describe('disputeResolvedEmail', () => {
+  it('generates correct subject with verification ID', () => {
+    const result = disputeResolvedEmail('user@test.com', 'ver_abc123', 'for consumer', 500)
+    expect(result.subject).toContain('ver_abc123')
+    expect(result.subject).toContain('Dispute resolved')
+  })
+
+  it('includes resolution and settled price', () => {
+    const result = disputeResolvedEmail('user@test.com', 'ver_abc123', 'for consumer', 500)
+    expect(result.html).toContain('for consumer')
+    expect(result.html).toContain('$5.00')
+  })
+
+  it('has preheader text', () => {
+    const result = disputeResolvedEmail('user@test.com', 'ver_abc123', 'for provider', 1000)
+    expect(result.html).toContain('ver_abc123')
+    expect(result.html).toContain('$10.00')
+  })
+
+  it('includes View Outcome CTA', () => {
+    const result = disputeResolvedEmail('user@test.com', 'ver_abc123', 'for consumer', 500)
+    expect(result.html).toContain('View Outcome')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = disputeResolvedEmail('user@test.com', 'ver_abc123', 'for consumer', 500)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in resolution and verification ID', () => {
+    const result = disputeResolvedEmail('user@test.com', '<script>x</script>', '<b>res</b>', 500)
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;res&lt;/b&gt;')
+  })
+})
+
+describe('toolHealthDownEmail', () => {
+  it('generates correct subject with tool name', () => {
+    const result = toolHealthDownEmail('user@test.com', 'AnalyzeTool', '2026-03-20T12:00:00Z')
+    expect(result.subject).toContain('AnalyzeTool')
+    expect(result.subject).toContain('is down')
+  })
+
+  it('includes tool name and down since timestamp', () => {
+    const result = toolHealthDownEmail('user@test.com', 'AnalyzeTool', '2026-03-20T12:00:00Z')
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('2026-03-20T12:00:00Z')
+  })
+
+  it('includes error banner', () => {
+    const result = toolHealthDownEmail('user@test.com', 'AnalyzeTool', '2026-03-20T12:00:00Z')
+    expect(result.html).toContain('Tool is down')
+    expect(result.html).toContain('#ef4444')
+  })
+
+  it('has preheader text', () => {
+    const result = toolHealthDownEmail('user@test.com', 'AnalyzeTool', '2026-03-20T12:00:00Z')
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('down')
+  })
+
+  it('includes Check Health CTA', () => {
+    const result = toolHealthDownEmail('user@test.com', 'AnalyzeTool', '2026-03-20T12:00:00Z')
+    expect(result.html).toContain('Check Health')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard/health')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = toolHealthDownEmail('user@test.com', 'AnalyzeTool', '2026-03-20T12:00:00Z')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in tool name and timestamp', () => {
+    const result = toolHealthDownEmail('user@test.com', '<script>x</script>', '<b>now</b>')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;now&lt;/b&gt;')
+  })
+})
+
+describe('toolHealthRecoveredEmail', () => {
+  it('generates correct subject with tool name', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', 'AnalyzeTool', '15 minutes')
+    expect(result.subject).toContain('AnalyzeTool')
+    expect(result.subject).toContain('back up')
+  })
+
+  it('includes tool name and downtime duration', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', 'AnalyzeTool', '15 minutes')
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('15 minutes')
+  })
+
+  it('includes success banner', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', 'AnalyzeTool', '15 minutes')
+    expect(result.html).toContain('All clear')
+    expect(result.html).toContain('#22c55e')
+  })
+
+  it('has preheader text', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', 'AnalyzeTool', '15 minutes')
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('back up')
+  })
+
+  it('includes View Health CTA', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', 'AnalyzeTool', '15 minutes')
+    expect(result.html).toContain('View Health')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard/health')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', 'AnalyzeTool', '15 minutes')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in tool name and duration', () => {
+    const result = toolHealthRecoveredEmail('user@test.com', '<script>x</script>', '<b>5m</b>')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;5m&lt;/b&gt;')
+  })
+})
+
+describe('featureAnnouncementEmail', () => {
+  it('generates correct subject with feature title', () => {
+    const result = featureAnnouncementEmail('user@test.com', 'Batch Processing', 'Run multiple tool calls at once.', 'https://settlegrid.ai/docs/batch')
+    expect(result.subject).toContain('Batch Processing')
+    expect(result.subject).toContain('New on SettleGrid')
+  })
+
+  it('includes feature description', () => {
+    const result = featureAnnouncementEmail('user@test.com', 'Batch Processing', 'Run multiple tool calls at once.', 'https://settlegrid.ai/docs/batch')
+    expect(result.html).toContain('Run multiple tool calls at once.')
+  })
+
+  it('includes Try It Now CTA with custom URL', () => {
+    const result = featureAnnouncementEmail('user@test.com', 'Batch Processing', 'Desc', 'https://settlegrid.ai/docs/batch')
+    expect(result.html).toContain('Try It Now')
+    expect(result.html).toContain('https://settlegrid.ai/docs/batch')
+  })
+
+  it('has preheader text', () => {
+    const result = featureAnnouncementEmail('user@test.com', 'Batch Processing', 'Desc', 'https://settlegrid.ai/docs/batch')
+    expect(result.html).toContain('Batch Processing')
+  })
+
+  it('includes unsubscribe footer', () => {
+    const result = featureAnnouncementEmail('user@test.com', 'Batch Processing', 'Desc', 'https://settlegrid.ai/docs/batch')
+    expect(result.html).toContain('unsubscribe')
+    expect(result.html).toContain('email preferences')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = featureAnnouncementEmail('user@test.com', 'Batch Processing', 'Desc', 'https://settlegrid.ai/docs/batch')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in title and description', () => {
+    const result = featureAnnouncementEmail('user@test.com', '<script>x</script>', '<b>desc</b>', 'https://settlegrid.ai/docs')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;desc&lt;/b&gt;')
+  })
+})
+
+// ── Future template tests ───────────────────────────────────────────────────
+
+describe('approachingRateLimitEmail', () => {
+  it('generates correct subject with tool name', () => {
+    const result = approachingRateLimitEmail('user@test.com', 'AnalyzeTool', 85, 100)
+    expect(result.subject).toContain('AnalyzeTool')
+    expect(result.subject).toContain('rate limit')
+  })
+
+  it('includes current rate and limit', () => {
+    const result = approachingRateLimitEmail('user@test.com', 'AnalyzeTool', 85, 100)
+    expect(result.html).toContain('85')
+    expect(result.html).toContain('100')
+    expect(result.html).toContain('req/min')
+  })
+
+  it('includes usage percentage', () => {
+    const result = approachingRateLimitEmail('user@test.com', 'AnalyzeTool', 85, 100)
+    expect(result.html).toContain('85%')
+  })
+
+  it('has preheader text', () => {
+    const result = approachingRateLimitEmail('user@test.com', 'AnalyzeTool', 85, 100)
+    expect(result.html).toContain('AnalyzeTool')
+    expect(result.html).toContain('85')
+  })
+
+  it('includes View Usage CTA', () => {
+    const result = approachingRateLimitEmail('user@test.com', 'AnalyzeTool', 85, 100)
+    expect(result.html).toContain('View Usage')
+    expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = approachingRateLimitEmail('user@test.com', 'AnalyzeTool', 85, 100)
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in tool name', () => {
+    const result = approachingRateLimitEmail('user@test.com', '<script>x</script>', 85, 100)
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+  })
+})
+
+describe('settlementCompletedEmail', () => {
+  it('generates correct subject with network', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc123def456', 'Base', '25.00')
+    expect(result.subject).toContain('Base')
+    expect(result.subject).toContain('Settlement confirmed')
+  })
+
+  it('includes amount and network', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc123def456', 'Base', '25.00')
+    expect(result.html).toContain('25.00')
+    expect(result.html).toContain('USDC')
+    expect(result.html).toContain('Base')
+  })
+
+  it('includes truncated tx hash', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc123def4567890abcdef', 'Base', '25.00')
+    expect(result.html).toContain('0xabc123de')
+    expect(result.html).toContain('abcdef')
+  })
+
+  it('includes View Transaction CTA with block explorer URL', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc', 'Base', '25.00')
+    expect(result.html).toContain('View Transaction')
+    expect(result.html).toContain('basescan.org')
+  })
+
+  it('uses etherscan for ethereum network', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc', 'Ethereum', '25.00')
+    expect(result.html).toContain('etherscan.io')
+  })
+
+  it('has preheader text', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc123def456', 'Base', '25.00')
+    expect(result.html).toContain('25.00')
+    expect(result.html).toContain('Base')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = settlementCompletedEmail('user@test.com', '0xabc', 'Base', '25.00')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+})
+
+describe('settlementFailedEmail', () => {
+  it('generates correct subject with network', () => {
+    const result = settlementFailedEmail('user@test.com', 'Insufficient gas', 'Base')
+    expect(result.subject).toContain('Base')
+    expect(result.subject).toContain('Settlement failed')
+  })
+
+  it('includes error reason', () => {
+    const result = settlementFailedEmail('user@test.com', 'Insufficient gas', 'Base')
+    expect(result.html).toContain('Insufficient gas')
+  })
+
+  it('includes network in body', () => {
+    const result = settlementFailedEmail('user@test.com', 'Insufficient gas', 'Polygon')
+    expect(result.html).toContain('Polygon')
+  })
+
+  it('includes Try Again CTA with red color', () => {
+    const result = settlementFailedEmail('user@test.com', 'Error', 'Base')
+    expect(result.html).toContain('Try Again')
+    expect(result.html).toContain('#ef4444')
+    expect(result.html).toContain('https://settlegrid.ai/consumer')
+  })
+
+  it('has preheader text', () => {
+    const result = settlementFailedEmail('user@test.com', 'Insufficient gas', 'Base')
+    expect(result.html).toContain('Base')
+    expect(result.html).toContain('Insufficient gas')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = settlementFailedEmail('user@test.com', 'Error', 'Base')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('escapes HTML in reason and network', () => {
+    const result = settlementFailedEmail('user@test.com', '<script>x</script>', '<b>net</b>')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;net&lt;/b&gt;')
+  })
+})
+
+describe('newLoginEmail', () => {
+  it('generates correct subject line', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Mozilla/5.0 Chrome', '2026-03-20T14:30:00Z')
+    expect(result.subject).toContain('New sign-in')
+    expect(result.subject).toContain('SettleGrid')
+  })
+
+  it('includes IP address', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Mozilla/5.0 Chrome', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('192.168.1.1')
+  })
+
+  it('includes user agent', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Mozilla/5.0 Chrome', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('Mozilla/5.0 Chrome')
+  })
+
+  it('includes timestamp', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Mozilla/5.0', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('2026-03-20T14:30:00Z')
+  })
+
+  it('includes Not you? warning', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Chrome', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('Not you?')
+    expect(result.html).toContain('secure your account')
+  })
+
+  it('includes Secure Account CTA', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Chrome', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('Secure Account')
+    expect(result.html).toContain('https://settlegrid.ai/dashboard/settings')
+  })
+
+  it('has preheader text', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Chrome', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('192.168.1.1')
+  })
+
+  it('uses baseEmailTemplate wrapper', () => {
+    const result = newLoginEmail('user@test.com', '192.168.1.1', 'Chrome', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('<!DOCTYPE html>')
+    expect(result.html).toContain('SettleGrid')
+  })
+
+  it('truncates long user agents to 120 chars', () => {
+    const longUA = 'A'.repeat(200)
+    const result = newLoginEmail('user@test.com', '192.168.1.1', longUA, '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('A'.repeat(120))
+  })
+
+  it('escapes HTML in IP and user agent', () => {
+    const result = newLoginEmail('user@test.com', '<script>x</script>', '<b>agent</b>', '2026-03-20T14:30:00Z')
+    expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(result.html).toContain('&lt;b&gt;agent&lt;/b&gt;')
   })
 })
