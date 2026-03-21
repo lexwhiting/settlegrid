@@ -22,6 +22,11 @@ export interface EmailTemplate {
   html: string
 }
 
+export interface InvoiceItem {
+  description: string
+  amountCents: number
+}
+
 // ── Send helper ──────────────────────────────────────────────────────────────
 
 /**
@@ -35,6 +40,7 @@ export async function sendEmail(params: {
   html: string
   from?: string
   replyTo?: string
+  headers?: Record<string, string>
 }): Promise<boolean> {
   let resendApiKey: string | null = null
   try {
@@ -61,6 +67,7 @@ export async function sendEmail(params: {
         subject: params.subject,
         html: params.html,
         ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+        ...(params.headers ? { headers: params.headers } : {}),
       }),
     })
 
@@ -80,6 +87,76 @@ export async function sendEmail(params: {
     logger.error('email.send_error', { to: params.to }, err)
     return false
   }
+}
+
+// ── Design system components ─────────────────────────────────────────────────
+
+/**
+ * Inline pill badge for status display in emails.
+ * Supports settled/active/pending/failed statuses.
+ */
+export function statusBadge(
+  status: 'settled' | 'active' | 'pending' | 'failed',
+  label?: string
+): string {
+  const styles: Record<string, { bg: string; text: string }> = {
+    settled: { bg: '#f0fdf4', text: '#166534' },
+    active: { bg: '#eff6ff', text: '#1e40af' },
+    pending: { bg: '#fffbeb', text: '#92400e' },
+    failed: { bg: '#fef2f2', text: '#991b1b' },
+  }
+  const s = styles[status]
+  const displayLabel = escapeHtml(label ?? status.charAt(0).toUpperCase() + status.slice(1))
+  return `<span style="display:inline-block;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:600;background-color:${s.bg};color:${s.text};font-family:${FONT_STACK}">${displayLabel}</span>`
+}
+
+/**
+ * Receipt line item row — label left, value right, optional border-bottom.
+ * Bold styling when isTotal is true.
+ */
+export function dataRow(label: string, value: string, isTotal = false): string {
+  const fontWeight = isTotal ? '700' : '400'
+  const borderStyle = isTotal
+    ? 'border-top:2px solid #1A1F3A;border-bottom:none'
+    : 'border-bottom:1px solid #e5e7eb'
+  return `<tr><td style="padding:8px 0;${borderStyle};font-weight:${fontWeight};color:#374151;font-size:14px;font-family:${FONT_STACK}">${escapeHtml(label)}</td><td align="right" style="padding:8px 0;${borderStyle};font-weight:${fontWeight};color:#374151;font-size:14px;font-family:${FONT_STACK}">${escapeHtml(value)}</td></tr>`
+}
+
+/**
+ * Banner with left border accent for info/success/warning/error messages.
+ */
+export function alertBanner(
+  type: 'info' | 'success' | 'warning' | 'error',
+  title: string,
+  body: string
+): string {
+  const styles: Record<string, { bg: string; border: string; text: string }> = {
+    info: { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
+    success: { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
+    warning: { bg: '#fffbeb', border: '#f59e0b', text: '#92400e' },
+    error: { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
+  }
+  const s = styles[type]
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0"><tr><td style="background-color:${s.bg};border-left:4px solid ${s.border};border-radius:0 8px 8px 0;padding:12px 16px">
+<p style="color:${s.text};margin:0 0 4px;font-size:14px;font-weight:700;font-family:${FONT_STACK}">${escapeHtml(title)}</p>
+<p style="color:${s.text};margin:0;font-size:14px;line-height:1.5;font-family:${FONT_STACK}">${escapeHtml(body)}</p>
+</td></tr></table>`
+}
+
+/**
+ * Horizontal separator between email sections.
+ */
+export function dividerLine(): string {
+  return `<table role="presentation" class="sg-divider" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>`
+}
+
+/**
+ * Dark indigo background code snippet block.
+ */
+export function codeBlock(code: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0"><tr><td style="background-color:#1A1F3A;border-radius:8px;padding:16px;overflow-x:auto">
+<pre style="margin:0;color:#f9fafb;font-size:13px;line-height:1.5;font-family:${CODE_FONT};white-space:pre-wrap;word-break:break-all">${escapeHtml(code)}</pre>
+</td></tr></table>`
 }
 
 // ── Base template ────────────────────────────────────────────────────────────
@@ -145,11 +222,11 @@ ${content}
 <tr><td style="padding-top:24px;text-align:center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td align="center" style="padding-bottom:12px">
-<a href="https://settlegrid.ai" style="color:#10B981;text-decoration:none;font-size:13px;margin:0 8px">Website</a>
+<a href="https://settlegrid.ai" style="color:#059669;text-decoration:none;font-size:13px;margin:0 8px">Website</a>
 <span class="sg-muted" style="color:#d1d5db">&middot;</span>
-<a href="https://settlegrid.ai/docs" style="color:#10B981;text-decoration:none;font-size:13px;margin:0 8px">Docs</a>
+<a href="https://settlegrid.ai/docs" style="color:#059669;text-decoration:none;font-size:13px;margin:0 8px">Docs</a>
 <span class="sg-muted" style="color:#d1d5db">&middot;</span>
-<a href="mailto:support@settlegrid.ai" style="color:#10B981;text-decoration:none;font-size:13px;margin:0 8px">Support</a>
+<a href="mailto:support@settlegrid.ai" style="color:#059669;text-decoration:none;font-size:13px;margin:0 8px">Support</a>
 </td></tr>
 <tr><td align="center">
 <p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:0">&copy; ${year} Alerterra, LLC. All rights reserved.</p>
@@ -233,8 +310,9 @@ ${ctaButton('Explore Tools', 'https://settlegrid.ai/consumer')}
 
 export function stripeConnectCompleteEmail(
   name: string,
-  options?: { preheader?: string }
+  options?: { preheader?: string; revenueSharePct?: number }
 ): EmailTemplate {
+  const pct = options?.revenueSharePct ?? 80
   return {
     subject: 'Stripe Connect is active — You can now receive payouts',
     html: baseEmailTemplate(
@@ -242,7 +320,7 @@ export function stripeConnectCompleteEmail(
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Stripe Connect Active</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Great news, ${escapeHtml(name)}! Your Stripe Connect account is now active. You'll receive payouts automatically based on your payout schedule.</p>
 <ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
-<li>Revenue split: You keep 80%</li>
+<li>Revenue split: You keep ${pct}%</li>
 <li>Minimum payout: $25.00</li>
 <li>Schedule: Based on your settings (weekly or monthly)</li>
 </ul>
@@ -376,8 +454,16 @@ export function apiKeyCreatedEmail(
   email: string,
   keyPrefix: string,
   toolName: string,
-  options?: { preheader?: string }
+  options?: { preheader?: string; ip?: string; userAgent?: string }
 ): EmailTemplate {
+  const securityContext =
+    options?.ip || options?.userAgent
+      ? `${dividerLine()}
+<p class="sg-text" style="color:#6b7280;font-size:13px;margin:0 0 4px"><strong>Security context:</strong></p>
+${options.ip ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:0 0 2px">IP address: <code class="sg-code" style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px;font-family:${CODE_FONT}">${escapeHtml(options.ip)}</code></p>` : ''}
+${options.userAgent ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:0">User agent: ${escapeHtml(options.userAgent.slice(0, 120))}</p>` : ''}`
+      : ''
+
   return {
     subject: sanitizeSubject(`New API key created for ${toolName}`),
     html: baseEmailTemplate(
@@ -389,6 +475,7 @@ export function apiKeyCreatedEmail(
 <p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>Key prefix:</strong> <code class="sg-code" style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(keyPrefix)}...</code></p>
 </td></tr>
 </table>
+${securityContext}
 <p class="sg-text" style="color:#4b5563;line-height:1.6">If you didn't create this key, revoke it immediately from your dashboard.</p>
 ${ctaButton('Manage API Keys', 'https://settlegrid.ai/consumer')}
 `,
@@ -486,6 +573,259 @@ ${ctaButton('Complete Purchase', checkoutUrl)}
   }
 }
 
+// ── New templates ────────────────────────────────────────────────────────────
+
+export function accountEmailChangedEmail(
+  oldEmail: string,
+  newEmail: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Your SettleGrid email address was changed'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Email Address Changed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">The email address on your SettleGrid account has been updated.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#374151;margin:0 0 4px;font-size:14px"><strong>Previous email:</strong> ${escapeHtml(oldEmail)}</p>
+<p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>New email:</strong> ${escapeHtml(newEmail)}</p>
+</td></tr>
+</table>
+${alertBanner('warning', 'Not you?', 'If you did not make this change, your account may be compromised. Contact support immediately.')}
+${ctaButton('Contact Support', 'mailto:support@settlegrid.ai', '#d97706')}
+`,
+      { preheader: 'Your SettleGrid email address was recently changed.' }
+    ),
+  }
+}
+
+export function accountDeletedEmail(
+  email: string,
+  exportUrl?: string
+): EmailTemplate {
+  const exportSection = exportUrl
+    ? `
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You can download a copy of your data using the link below. This link will expire in 30 days.</p>
+${ctaButton('Download Data Export', exportUrl)}
+`
+    : ''
+
+  return {
+    subject: sanitizeSubject('Your SettleGrid account has been deleted'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Account Deleted</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your SettleGrid account associated with <strong>${escapeHtml(email)}</strong> has been permanently deleted.</p>
+${alertBanner('info', 'Data retention', 'Some data may be retained for up to 30 days for legal and compliance purposes before being permanently removed.')}
+${exportSection}
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px">If you believe this was a mistake, contact <a href="mailto:support@settlegrid.ai" style="color:#059669">support@settlegrid.ai</a> within 30 days.</p>
+`,
+      { preheader: 'Your SettleGrid account has been permanently deleted.' }
+    ),
+  }
+}
+
+export function dataExportReadyEmail(
+  email: string,
+  exportUrl: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Your data export is ready'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Data Export Ready</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your requested data export is ready for download.</p>
+${alertBanner('info', 'Link expires in 7 days', 'Please download your data before the link expires. After 7 days, you will need to request a new export.')}
+${ctaButton('Download Data', exportUrl)}
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">If you did not request this export, you can safely ignore this email.</p>
+`,
+      { preheader: 'Your SettleGrid data export is ready to download.' }
+    ),
+  }
+}
+
+export function invoiceReceiptEmail(
+  email: string,
+  items: InvoiceItem[],
+  totalCents: number,
+  invoiceNumber: string,
+  paymentMethodLast4: string,
+  date: string
+): EmailTemplate {
+  const safeInvoiceNumber = escapeHtml(invoiceNumber)
+  const itemRows = items
+    .map((item) => dataRow(item.description, formatCurrency(item.amountCents)))
+    .join('')
+
+  return {
+    subject: sanitizeSubject(`Invoice #INV-${invoiceNumber} from SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Invoice #INV-${safeInvoiceNumber}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Thank you for your payment. Here is your receipt.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${itemRows}
+${dataRow('Total', formatCurrency(totalCents), true)}
+</table>
+${dividerLine()}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:4px 0;color:#6b7280;font-size:13px;font-family:${FONT_STACK}"><strong>Payment method:</strong> **** ${escapeHtml(paymentMethodLast4)}</td></tr>
+<tr><td style="padding:4px 0;color:#6b7280;font-size:13px;font-family:${FONT_STACK}"><strong>Date:</strong> ${escapeHtml(date)}</td></tr>
+<tr><td style="padding:4px 0;color:#6b7280;font-size:13px;font-family:${FONT_STACK}"><strong>Invoice:</strong> INV-${safeInvoiceNumber}</td></tr>
+</table>
+${ctaButton('View in Dashboard', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `Receipt for Invoice #INV-${invoiceNumber} - ${formatCurrency(totalCents)}` }
+    ),
+  }
+}
+
+export function payoutCompletedEmail(
+  name: string,
+  amountCents: number,
+  transferId: string
+): EmailTemplate {
+  const formatted = formatCurrency(amountCents)
+  return {
+    subject: sanitizeSubject(`Payout of ${formatted} has arrived`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Payout Completed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your payout of <strong style="color:#10B981">${formatted}</strong> has been deposited to your bank account.</p>
+${alertBanner('success', 'Deposit confirmed', 'Funds have been transferred to your connected bank account.')}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Amount', formatted)}
+${dataRow('Transfer reference', transferId)}
+</table>
+${ctaButton('View Payouts', 'https://settlegrid.ai/dashboard/payouts')}
+`,
+      { preheader: `Your payout of ${formatted} has been deposited.` }
+    ),
+  }
+}
+
+export function payoutFailedEmail(
+  name: string,
+  amountCents: number,
+  reason: string
+): EmailTemplate {
+  const formatted = formatCurrency(amountCents)
+  return {
+    subject: sanitizeSubject(`Payout of ${formatted} failed`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Payout Failed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your payout of <strong style="color:#ef4444">${formatted}</strong> could not be completed.</p>
+${alertBanner('error', 'Failure reason', reason)}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Resolution steps:</h3>
+<ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Verify your bank account details are correct</li>
+<li>Ensure your Stripe Connect account is in good standing</li>
+<li>Contact support if the issue persists</li>
+</ol>
+${ctaButton('View Payout Settings', 'https://settlegrid.ai/dashboard/developer/settings', '#ef4444')}
+`,
+      { preheader: `Your payout of ${formatted} failed. Please review your settings.` }
+    ),
+  }
+}
+
+export function suspiciousActivityEmail(
+  email: string,
+  reasons: string[],
+  riskScore: number
+): EmailTemplate {
+  const reasonsList = reasons
+    .map((r) => `<li style="margin:0 0 4px">${escapeHtml(r)}</li>`)
+    .join('')
+
+  return {
+    subject: sanitizeSubject('Suspicious activity detected on your SettleGrid account'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Suspicious Activity Detected</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We detected unusual activity on the account associated with <strong>${escapeHtml(email)}</strong>.</p>
+${alertBanner('warning', `Risk score: ${riskScore}/100`, 'The following signals were detected on your account. Please review immediately.')}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:16px 0 8px;font-family:${FONT_STACK}">Signals detected:</h3>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+${reasonsList}
+</ul>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">If this activity was not you, we recommend revoking your API keys and reviewing your account settings.</p>
+${ctaButton('Review Account', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `Suspicious activity detected on your SettleGrid account (risk score: ${riskScore}).` }
+    ),
+  }
+}
+
+export function orgMemberInvitedEmail(
+  email: string,
+  orgName: string,
+  role: string,
+  inviterName: string
+): EmailTemplate {
+  const roleBadge = statusBadge('active', role)
+  return {
+    subject: sanitizeSubject(`You've been added to ${orgName} on SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">You've Been Added to an Organization</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong>${escapeHtml(inviterName)}</strong> has added you to <strong>${escapeHtml(orgName)}</strong> on SettleGrid.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#1e40af;margin:0 0 4px;font-size:14px"><strong>Organization:</strong> ${escapeHtml(orgName)}</p>
+<p class="sg-text" style="color:#1e40af;margin:0;font-size:14px"><strong>Role:</strong> ${roleBadge}</p>
+</td></tr>
+</table>
+<h3 class="sg-heading" style="color:#1A1F3A;margin:16px 0 8px;font-family:${FONT_STACK}">Next steps:</h3>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Visit the organization dashboard to explore tools and settings</li>
+<li>Review your permissions and role within the organization</li>
+</ul>
+${ctaButton('View Organization', 'https://settlegrid.ai/dashboard')}
+`,
+      { preheader: `${escapeHtml(inviterName)} added you to ${escapeHtml(orgName)} on SettleGrid.` }
+    ),
+  }
+}
+
+export function orgMemberRemovedEmail(
+  email: string,
+  orgName: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`You've been removed from ${orgName} on SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Organization Access Revoked</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your access to <strong>${escapeHtml(orgName)}</strong> on SettleGrid has been revoked.</p>
+${alertBanner('info', 'Access revoked', 'You no longer have access to tools, API keys, or settings associated with this organization.')}
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">If you believe this was a mistake, contact the organization administrator or reach out to <a href="mailto:support@settlegrid.ai" style="color:#059669">support@settlegrid.ai</a>.</p>
+`,
+      { preheader: `Your access to ${escapeHtml(orgName)} on SettleGrid has been revoked.` }
+    ),
+  }
+}
+
+export function waitlistConfirmationEmail(
+  email: string,
+  feature: string
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject("You're on the SettleGrid waitlist"),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">You're on the Waitlist!</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Thanks for your interest in <strong>${escapeHtml(feature)}</strong>. We've added you to our waitlist and will notify you as soon as access is available.</p>
+${alertBanner('success', 'What to expect', 'We will email you when your spot is ready. Early waitlist members often receive priority access and special offers.')}
+${ctaButton('Learn More', 'https://settlegrid.ai/docs')}
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">In the meantime, explore our documentation to learn more about SettleGrid.</p>
+`,
+      { preheader: `You're on the waitlist for ${escapeHtml(feature)} on SettleGrid.` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {
@@ -506,7 +846,7 @@ export function sanitizeSubject(str: string): string {
   return str.replace(/[\r\n\t]/g, ' ').trim().slice(0, 200)
 }
 
-function formatCurrency(cents: number): string {
+export function formatCurrency(cents: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',

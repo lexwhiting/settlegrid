@@ -14,18 +14,35 @@ const {
   mockCheckRateLimit,
   mockRequireDeveloper,
   mockCheckPermission,
-} = vi.hoisted(() => ({
-  mockCreateOrganization: vi.fn(),
-  mockGetOrganization: vi.fn(),
-  mockUpdateOrgSettings: vi.fn(),
-  mockAddMember: vi.fn(),
-  mockRemoveMember: vi.fn(),
-  mockListMembers: vi.fn(),
-  mockGetCostAllocations: vi.fn(),
-  mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
-  mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
-  mockCheckPermission: vi.fn().mockResolvedValue(true),
-}))
+  mockSendEmail,
+  mockOrgMemberInvitedEmail,
+  mockOrgMemberRemovedEmail,
+  mockDbSelect,
+} = vi.hoisted(() => {
+  const selectChain = {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue([]),
+      }),
+    }),
+  }
+  return {
+    mockCreateOrganization: vi.fn(),
+    mockGetOrganization: vi.fn(),
+    mockUpdateOrgSettings: vi.fn(),
+    mockAddMember: vi.fn(),
+    mockRemoveMember: vi.fn(),
+    mockListMembers: vi.fn(),
+    mockGetCostAllocations: vi.fn(),
+    mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+    mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
+    mockCheckPermission: vi.fn().mockResolvedValue(true),
+    mockSendEmail: vi.fn().mockResolvedValue(true),
+    mockOrgMemberInvitedEmail: vi.fn().mockReturnValue({ subject: 'Test', html: '<p>test</p>' }),
+    mockOrgMemberRemovedEmail: vi.fn().mockReturnValue({ subject: 'Test', html: '<p>test</p>' }),
+    mockDbSelect: vi.fn().mockReturnValue(selectChain),
+  }
+})
 
 vi.mock('@/lib/settlement/organizations', () => ({
   createOrganization: mockCreateOrganization,
@@ -60,6 +77,25 @@ vi.mock('@/lib/middleware/auth', () => ({
 
 vi.mock('@/lib/settlement/rbac', () => ({
   checkPermission: mockCheckPermission,
+}))
+
+// Mock db for email notification lookups in members routes
+vi.mock('@/lib/db', () => ({
+  db: { select: mockDbSelect },
+}))
+
+vi.mock('@/lib/db/schema', () => ({
+  developers: { id: 'id', email: 'email', name: 'name' },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn(),
+}))
+
+vi.mock('@/lib/email', () => ({
+  sendEmail: mockSendEmail,
+  orgMemberInvitedEmail: mockOrgMemberInvitedEmail,
+  orgMemberRemovedEmail: mockOrgMemberRemovedEmail,
 }))
 
 // ---- Imports ----------------------------------------------------------------

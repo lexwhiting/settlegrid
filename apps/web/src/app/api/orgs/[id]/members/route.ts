@@ -6,6 +6,10 @@ import { getOrganization, addMember, listMembers } from '@/lib/settlement/organi
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { checkPermission } from '@/lib/settlement/rbac'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { sendEmail, orgMemberInvitedEmail } from '@/lib/email'
+import { db } from '@/lib/db'
+import { developers } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export const maxDuration = 10
 
@@ -76,6 +80,27 @@ export async function POST(
 
     const body = await parseBody(request, addMemberSchema)
     const member = await addMember(id, body.userId, body.role)
+
+    // Fire-and-forget: send invite notification email
+    const [invitedUser] = await db
+      .select({ email: developers.email, name: developers.name })
+      .from(developers)
+      .where(eq(developers.id, body.userId))
+      .limit(1)
+    if (invitedUser?.email) {
+      const [inviter] = await db
+        .select({ name: developers.name })
+        .from(developers)
+        .where(eq(developers.id, developer.id))
+        .limit(1)
+      const tmpl = orgMemberInvitedEmail(
+        invitedUser.email,
+        org.name,
+        body.role ?? 'member',
+        inviter?.name ?? 'A team member'
+      )
+      sendEmail({ to: invitedUser.email, subject: tmpl.subject, html: tmpl.html }).catch(() => {})
+    }
 
     return successResponse(member, 201, requestId)
   } catch (error) {

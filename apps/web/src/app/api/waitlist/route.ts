@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { waitlistSignups } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { sendEmail, waitlistConfirmationEmail } from '@/lib/email'
 
 export const maxDuration = 60
 
@@ -32,6 +33,10 @@ export async function POST(request: NextRequest) {
       .onConflictDoNothing({
         target: [waitlistSignups.email, waitlistSignups.feature],
       })
+
+    // Fire-and-forget: send waitlist confirmation email
+    const tmpl = waitlistConfirmationEmail(body.email, body.feature ?? 'marketplace')
+    sendEmail({ to: body.email, subject: tmpl.subject, html: tmpl.html }).catch(() => {})
 
     return successResponse({ success: true })
   } catch (error) {

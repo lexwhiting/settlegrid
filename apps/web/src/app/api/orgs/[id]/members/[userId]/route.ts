@@ -5,6 +5,10 @@ import { getOrganization, removeMember } from '@/lib/settlement/organizations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { checkPermission } from '@/lib/settlement/rbac'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { sendEmail, orgMemberRemovedEmail } from '@/lib/email'
+import { db } from '@/lib/db'
+import { developers } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export const maxDuration = 10
 
@@ -33,9 +37,22 @@ export async function DELETE(
       return errorResponse('Forbidden', 403, 'FORBIDDEN', requestId)
     }
 
+    // Look up email before removal
+    const [removedUser] = await db
+      .select({ email: developers.email })
+      .from(developers)
+      .where(eq(developers.id, userId))
+      .limit(1)
+
     const removed = await removeMember(id, userId)
     if (!removed) {
       return errorResponse('Member not found', 404, 'MEMBER_NOT_FOUND', requestId)
+    }
+
+    // Fire-and-forget: send removal notification email
+    if (removedUser?.email) {
+      const tmpl = orgMemberRemovedEmail(removedUser.email, org.name)
+      sendEmail({ to: removedUser.email, subject: tmpl.subject, html: tmpl.html }).catch(() => {})
     }
 
     return successResponse({ success: true }, 200, requestId)

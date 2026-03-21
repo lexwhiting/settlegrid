@@ -2,13 +2,14 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, developers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
+import { tools, developers, consumers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
 import { detectFraud } from '@/lib/fraud'
 import { logger } from '@/lib/logger'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
+import { sendEmail, suspiciousActivityEmail } from '@/lib/email'
 
 export const maxDuration = 60
 export { corsOptions as OPTIONS }
@@ -173,7 +174,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       return errorResponse('Request blocked due to suspicious activity.', 429, 'FRAUD_DETECTED')
     }
 
-    // If risk score > 80, log warning but allow
+    // If risk score > 80, log warning but allow + notify consumer
     if (fraudResult.riskScore > 80) {
       logger.warn('fraud.flagged', {
         consumerId: body.consumerId,
@@ -183,6 +184,19 @@ export const POST = withCors(async function POST(request: NextRequest) {
         riskScore: fraudResult.riskScore,
         reasons: fraudResult.reasons,
       })
+
+      // Fire-and-forget: notify the consumer about suspicious activity
+      db.select({ email: consumers.email })
+        .from(consumers)
+        .where(eq(consumers.id, body.consumerId))
+        .limit(1)
+        .then(([consumer]) => {
+          if (consumer?.email) {
+            const tmpl = suspiciousActivityEmail(consumer.email, fraudResult.reasons, fraudResult.riskScore)
+            sendEmail({ to: consumer.email, subject: tmpl.subject, html: tmpl.html }).catch(() => {})
+          }
+        })
+        .catch(() => {})
     }
 
     // ── Budget check ──────────────────────────────────────────────────────────
