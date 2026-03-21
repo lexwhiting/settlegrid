@@ -346,7 +346,7 @@ export default function HomePage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
                 </span>
-                Now in Public Beta
+                Early Access
               </div>
               <h1 className="text-5xl font-bold tracking-tight text-white mb-6 leading-[1.1]">
                 The Settlement Layer for the{' '}
