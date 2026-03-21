@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
@@ -16,45 +17,6 @@ function Section({ title, id, children }: { title: string; id: string; children:
   )
 }
 
-function highlightCode(code: string): React.ReactNode[] {
-  // Tokenize with regex — order matters: comments first, then strings, then keywords
-  const tokenPattern = /\/\/[^\n]*|'[^']*'|"[^"]*"|`[^`]*`|\b(import|from|export|const|let|var|function|async|await|return|if|else|try|catch|throw|new|interface|type|extends|class|default|number|string|boolean|void|true|false|null|undefined)\b/g
-  const parts: React.ReactNode[] = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
-  while ((match = tokenPattern.exec(code)) !== null) {
-    // Push text before match
-    if (match.index > lastIndex) {
-      parts.push(code.slice(lastIndex, match.index))
-    }
-    const token = match[0]
-    if (token.startsWith('//')) {
-      parts.push(<span key={match.index} className="text-gray-500 italic">{token}</span>)
-    } else if (token.startsWith("'") || token.startsWith('"') || token.startsWith('`')) {
-      parts.push(<span key={match.index} className="text-amber-300">{token}</span>)
-    } else {
-      parts.push(<span key={match.index} className="text-emerald-400">{token}</span>)
-    }
-    lastIndex = match.index + token.length
-  }
-  // Push remaining text
-  if (lastIndex < code.length) {
-    parts.push(code.slice(lastIndex))
-  }
-  return parts
-}
-
-function CodeBlock({ children, title }: { children: string; title?: string }) {
-  return (
-    <div className="my-4">
-      {title && <div className="bg-gray-700 text-gray-300 text-xs px-4 py-2 rounded-t-lg font-mono">{title}</div>}
-      <div className={`bg-indigo text-gray-300 text-sm font-mono p-4 overflow-x-auto ${title ? 'rounded-b-lg' : 'rounded-lg'}`}>
-        <pre><code>{highlightCode(children)}</code></pre>
-      </div>
-    </div>
-  )
-}
 
 export default function DocsPage() {
   return (
@@ -105,7 +67,7 @@ export default function DocsPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-4">Get your first monetized tool running in under 5 minutes.</p>
 
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">1. Install the SDK</h3>
-            <CodeBlock title="Terminal">{`npm install @settlegrid/mcp`}</CodeBlock>
+            <CopyableCodeBlock title="Terminal" code={`npm install @settlegrid/mcp`} />
 
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">2. Register as a developer</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
@@ -119,7 +81,7 @@ export default function DocsPage() {
             </p>
 
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">4. Wrap your handler</h3>
-            <CodeBlock title="server.ts">{`import { settlegrid } from '@settlegrid/mcp'
+            <CopyableCodeBlock title="server.ts" code={`import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
   toolSlug: 'weather-api',
@@ -142,7 +104,7 @@ const getForecast = sg.wrap(
 )
 
 // Use in your MCP server
-server.tool('get-forecast', getForecast)`}</CodeBlock>
+server.tool('get-forecast', getForecast)`} />
 
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">5. Share your tool</h3>
             <p className="text-gray-600 dark:text-gray-400">
@@ -155,7 +117,7 @@ server.tool('get-forecast', getForecast)`}</CodeBlock>
           <Section title="SDK Reference" id="sdk-reference">
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-2"><code>settlegrid.init(options)</code></h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">Initialize the SDK for your tool.</p>
-            <CodeBlock>{`interface InitOptions {
+            <CopyableCodeBlock code={`interface InitOptions {
   toolSlug: string          // Your tool's unique slug
   apiUrl?: string           // API URL (default: https://settlegrid.ai)
   pricing: {
@@ -168,14 +130,14 @@ server.tool('get-forecast', getForecast)`}</CodeBlock>
   debug?: boolean           // Enable debug logging
   cacheTtlMs?: number       // Key validation cache TTL (default: 5min)
   timeoutMs?: number        // API timeout (default: 5000ms)
-}`}</CodeBlock>
+}`} />
 
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2"><code>instance.wrap(handler, options?)</code></h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Wraps a function with billing middleware. The wrapped function extracts the API key,
               validates credits, executes your handler, and meters the usage.
             </p>
-            <CodeBlock>{`const wrappedFn = sg.wrap(
+            <CopyableCodeBlock code={`const wrappedFn = sg.wrap(
   async (args: MyArgs) => { /* your logic */ },
   { method: 'my-method' }  // Optional: defaults to 'default'
 )
@@ -184,10 +146,10 @@ server.tool('get-forecast', getForecast)`}</CodeBlock>
 const result = await wrappedFn(args, {
   headers: { 'x-api-key': 'sg_live_...' },
   // or metadata: { 'settlegrid-api-key': '...' }
-})`}</CodeBlock>
+})`} />
 
             <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mt-6 mb-2">Error Handling</h3>
-            <CodeBlock>{`import {
+            <CopyableCodeBlock code={`import {
   InvalidKeyError,         // 401 - Invalid API key
   InsufficientCreditsError, // 402 - Not enough credits
   ToolNotFoundError,        // 404 - Tool not found
@@ -200,7 +162,7 @@ try {
   if (err instanceof InsufficientCreditsError) {
     console.log(\`Need \${err.requiredCents}¢, have \${err.availableCents}¢\`)
   }
-}`}</CodeBlock>
+}`} />
           </Section>
 
           <Section title="API Reference" id="api-reference">

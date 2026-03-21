@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 
 interface ToolData {
   id: string
@@ -191,18 +192,17 @@ export default async function ToolStorefrontPage({
               {/* Quick Start */}
               <div className="mt-8 bg-white dark:bg-[#1A1D2E] rounded-xl border border-gray-200 dark:border-[#2E3148] p-6">
                 <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Quick Start</h2>
-                <div className="bg-indigo rounded-lg p-4 text-sm font-mono overflow-x-auto">
-                  <pre className="text-gray-300">
-                    <code>{`# 1. Purchase credits and get an API key
+                <CopyableCodeBlock
+                  className="!my-0"
+                  code={`# 1. Purchase credits and get an API key
 # Visit this page while logged in as a consumer
 
 # 2. Use your API key with the tool
 curl -X POST https://settlegrid.ai/api/sdk/meter \\
   -H "x-api-key: sg_live_your_key_here" \\
   -H "Content-Type: application/json" \\
-  -d '{"method": "default"}'`}</code>
-                  </pre>
-                </div>
+  -d '{"method": "default"}'`}
+                />
               </div>
             </div>
 

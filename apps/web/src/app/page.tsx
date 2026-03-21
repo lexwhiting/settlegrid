@@ -4,6 +4,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { CodeSnippet } from '@/components/marketing/code-snippet'
 import { RevealSection } from '@/components/marketing/home-sections'
+import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 
 export const metadata: Metadata = {
   title: 'SettleGrid — The Settlement Layer for the AI Economy',
@@ -68,9 +69,7 @@ function HighlightBlock({
     <div className="p-6 rounded-xl border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E]">
       <h3 className="font-semibold text-lg text-indigo dark:text-gray-100 mb-2">{title}</h3>
       <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">{description}</p>
-      <div className="bg-[#0D1117] rounded-lg p-4 text-xs font-mono text-gray-300 overflow-x-auto">
-        <pre className="whitespace-pre leading-relaxed">{code}</pre>
-      </div>
+      <CopyableCodeBlock code={code} className="!my-0" />
     </div>
   )
 }
@@ -627,24 +626,22 @@ export default function HomePage() {
                     ))}
                   </div>
                 </div>
-                <div className="bg-indigo-light rounded-xl p-8 border border-white/10">
-                  <div className="text-sm font-mono text-gray-300 space-y-3">
-                    <p className="text-gray-400"># Verify webhook signature</p>
-                    <p>
-                      <span className="text-brand-light">import</span> hmac, hashlib
-                    </p>
-                    <p className="mt-2">signature = hmac.new(</p>
-                    <p className="pl-4">webhook_secret.encode(),</p>
-                    <p className="pl-4">request.body,</p>
-                    <p className="pl-4">hashlib.sha256</p>
-                    <p>).hexdigest()</p>
-                    <p className="mt-2">
-                      <span className="text-brand-light">assert</span> signature == request.headers[
-                    </p>
-                    <p className="pl-4">&apos;X-SettleGrid-Signature&apos;</p>
-                    <p>]</p>
-                  </div>
-                </div>
+                <CopyableCodeBlock
+                  className="!my-0"
+                  language="Python"
+                  code={`# Verify webhook signature
+import hmac, hashlib
+
+signature = hmac.new(
+    webhook_secret.encode(),
+    request.body,
+    hashlib.sha256
+).hexdigest()
+
+assert signature == request.headers[
+    'X-SettleGrid-Signature'
+]`}
+                />
               </div>
             </div>
           </RevealSection>
