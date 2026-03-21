@@ -12,5 +12,10 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true
-  }
+  },
+  "files": [],
+  "references": [
+    { "path": "apps/web" },
+    { "path": "packages/mcp" }
+  ]
 }
