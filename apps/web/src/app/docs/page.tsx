@@ -43,14 +43,6 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       q: 'What protocols does SettleGrid support?',
       a: 'SettleGrid is protocol-agnostic. It natively supports MCP (Model Context Protocol), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), Stripe Connect, and any standard REST API. One SDK covers every protocol.',
     },
-    {
-      q: 'What is the password gate?',
-      a: 'SettleGrid is currently in private beta. The password gate at settlegrid.ai/gate protects the site during early access. Once you have the access password, you can browse the homepage, docs, and marketplace freely.',
-    },
-    {
-      q: 'Can I join the waitlist?',
-      a: 'Yes. If you do not yet have beta access, you can submit your email via the waitlist endpoint. You will receive a confirmation email and be notified when your spot is ready. Early waitlist members often receive priority access.',
-    },
   ],
 },
 {
