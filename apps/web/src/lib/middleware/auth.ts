@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { developers, consumers, apiKeys } from '@/lib/db/schema'
-import { headers, cookies } from 'next/headers'
+import { cookies } from 'next/headers'
 
 export interface AuthenticatedDeveloper {
   id: string
@@ -53,7 +53,7 @@ async function getSupabaseUser() {
 export async function requireDeveloper(
   _request?: NextRequest
 ): Promise<AuthenticatedDeveloper> {
-  const { data: { user }, error } = await getSupabaseUser()
+  const { data: { user } } = await getSupabaseUser()
 
   if (!user) {
     throw new Error('Authentication required. Please sign in.')
@@ -78,7 +78,7 @@ export async function requireDeveloper(
 export async function requireConsumer(
   _request?: NextRequest
 ): Promise<AuthenticatedConsumer> {
-  const { data: { user }, error } = await getSupabaseUser()
+  const { data: { user } } = await getSupabaseUser()
 
   if (!user) {
     throw new Error('Authentication required. Please sign in.')
