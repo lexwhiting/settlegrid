@@ -7,6 +7,7 @@ import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
 import { isIpInAllowlist } from '@/lib/ip-validation'
+import { isIpBlocked, trackFailedAuth } from '@/lib/fraud'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
 export const maxDuration = 60
@@ -21,6 +22,12 @@ const validateKeySchema = z.object({
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+
+    // Check if IP is blocked due to excessive failed auth attempts
+    const blocked = await isIpBlocked(ip)
+    if (blocked) {
+      return errorResponse('Too many failed attempts. Try again later.', 429, 'IP_BLOCKED')
+    }
 
     // Fast global rate limit guard
     const rateLimit = await checkRateLimit(sdkLimiter, `sdk-validate:${ip}`)
@@ -51,20 +58,25 @@ export const POST = withCors(async function POST(request: NextRequest) {
       .limit(1)
 
     if (results.length === 0) {
+      // Track failed auth attempt for IP-based blocking
+      trackFailedAuth(ip).catch(() => {})
       return successResponse({ valid: false, reason: 'Invalid API key.' })
     }
 
     const row = results[0]
 
     if (row.keyStatus !== 'active') {
+      trackFailedAuth(ip).catch(() => {})
       return successResponse({ valid: false, reason: 'API key has been revoked.' })
     }
 
     if (row.toolSlug !== body.toolSlug) {
+      trackFailedAuth(ip).catch(() => {})
       return successResponse({ valid: false, reason: 'API key does not match the specified tool.' })
     }
 
     if (row.toolStatus !== 'active') {
+      trackFailedAuth(ip).catch(() => {})
       return successResponse({ valid: false, reason: 'Tool is not active.' })
     }
 

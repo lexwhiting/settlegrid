@@ -38,7 +38,7 @@ const { mockDb, mockCheckRateLimit, mockCheckTieredRateLimit, mockHashApiKey, mo
     mockDeductCreditsRedis: vi.fn().mockResolvedValue(null),
     mockRecordInvocationAsync: vi.fn(),
     mockIncrementPeriodSpend: vi.fn(),
-    mockDetectFraud: vi.fn().mockResolvedValue({ flagged: false, reasons: [], riskScore: 0 }),
+    mockDetectFraud: vi.fn().mockResolvedValue({ flagged: false, reasons: [], signals: [], riskScore: 0 }),
   }
 })
 
@@ -121,6 +121,8 @@ vi.mock('@/lib/metering', () => ({
 
 vi.mock('@/lib/fraud', () => ({
   detectFraud: mockDetectFraud,
+  isIpBlocked: vi.fn().mockResolvedValue(false),
+  trackFailedAuth: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -234,7 +236,7 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
     resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
     mockCheckTieredRateLimit.mockResolvedValue({ success: true, limit: 2000, remaining: 1999, reset: 0 })
-    mockDetectFraud.mockResolvedValue({ flagged: false, reasons: [], riskScore: 0 })
+    mockDetectFraud.mockResolvedValue({ flagged: false, reasons: [], signals: [], riskScore: 0 })
   })
 
   it('skips billing for test keys and returns billed=false', async () => {

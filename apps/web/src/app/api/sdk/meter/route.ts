@@ -146,20 +146,23 @@ export const POST = withCors(async function POST(request: NextRequest) {
     }
 
     // ── Fraud detection ──────────────────────────────────────────────────────
-    // Look up key creation date for new-key check
+    // Look up key creation date and last-used date for fraud signals
     const [keyInfo] = await db
-      .select({ createdAt: apiKeys.createdAt })
+      .select({ createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt })
       .from(apiKeys)
       .where(eq(apiKeys.id, body.keyId))
       .limit(1)
 
-    const fraudResult = await detectFraud(
-      body.consumerId,
-      body.toolId,
-      body.costCents,
+    const fraudResult = await detectFraud({
+      consumerId: body.consumerId,
+      toolId: body.toolId,
+      costCents: body.costCents,
       ip,
-      keyInfo?.createdAt ? new Date(keyInfo.createdAt) : undefined
-    )
+      keyId: body.keyId,
+      keyCreatedAt: keyInfo?.createdAt ? new Date(keyInfo.createdAt) : undefined,
+      keyLastUsedAt: keyInfo?.lastUsedAt ? new Date(keyInfo.lastUsedAt) : null,
+      method: body.method,
+    })
 
     // If risk score > 95, reject the request entirely
     if (fraudResult.riskScore > 95) {

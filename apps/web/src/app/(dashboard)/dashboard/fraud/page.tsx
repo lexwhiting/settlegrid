@@ -39,22 +39,181 @@ function RiskScoreBadge({ score }: { score: number }) {
   )
 }
 
-// Simulated fraud detection rules - these represent the existing backend fraud detection
-const FRAUD_RULES = [
+const FRAUD_SIGNALS = [
   {
     name: 'Rate Spike Detection',
-    description: 'Flags invocations exceeding 10x normal hourly rate',
+    signal: 'rate_spike',
+    description: 'Flags consumers exceeding 50 invocations within a 60-second window. Risk +50.',
+    threshold: '>50 req/60s',
     status: 'active' as const,
   },
   {
-    name: 'New Key Monitoring',
-    description: 'Enhanced scrutiny for API keys created in the last 24 hours',
+    name: 'New Key High Value',
+    signal: 'new_key_high_value',
+    description: 'Enhanced scrutiny for API keys less than 24 hours old making high-value calls (>$10). Risk +40.',
+    threshold: '<24h key + >1000 cents',
     status: 'active' as const,
   },
   {
-    name: 'Duplicate Detection',
-    description: 'Identifies repeated identical requests within short time windows',
+    name: 'Rapid Duplicate Detection',
+    signal: 'rapid_duplicate',
+    description: 'Identifies identical consumer+tool+cost requests repeated within 2 seconds. Risk +30.',
+    threshold: 'Same call within 2s',
     status: 'active' as const,
+  },
+  {
+    name: 'Hourly Velocity',
+    signal: 'hourly_velocity',
+    description: 'Flags consumers exceeding 500 invocations in a rolling 1-hour window. Risk +35.',
+    threshold: '>500 req/hour',
+    status: 'active' as const,
+  },
+  {
+    name: 'IP Velocity',
+    signal: 'ip_velocity',
+    description: 'Detects a single IP address making more than 100 requests per minute across all consumers. Risk +40.',
+    threshold: '>100 req/min per IP',
+    status: 'active' as const,
+  },
+  {
+    name: 'Spending Velocity',
+    signal: 'spending_velocity',
+    description: 'Monitors accumulated spending per consumer and flags when hourly spend exceeds $50. Risk +35.',
+    threshold: '>$50/hour',
+    status: 'active' as const,
+  },
+  {
+    name: 'Failed Auth Tracking',
+    signal: 'failed_auth',
+    description: 'Tracks failed API key validation attempts per IP. Blocks the IP for 15 minutes after 5 failures in 60 seconds.',
+    threshold: '>5 failures/60s = 15min block',
+    status: 'active' as const,
+  },
+  {
+    name: 'Multi-IP Key Usage',
+    signal: 'multi_ip_key',
+    description: 'Detects a single API key being used from multiple IP addresses within a 5-minute window. Risk +25 (>5 IPs) or +40 (>10 IPs).',
+    threshold: '>5 unique IPs/5min',
+    status: 'active' as const,
+  },
+  {
+    name: 'Dormant Key Reactivation',
+    signal: 'dormant_key',
+    description: 'Flags API keys that have been inactive for 30+ days making high-value calls, or 90+ days making any call. Risk +25/+30.',
+    threshold: '>30d idle + >$5, or >90d idle',
+    status: 'active' as const,
+  },
+  {
+    name: 'Unusual Amount Pattern',
+    signal: 'unusual_amount',
+    description: 'Compares each invocation cost against the median of the last 20 calls. Flags amounts exceeding 5x the median. Risk +15.',
+    threshold: '>5x median cost',
+    status: 'active' as const,
+  },
+  {
+    name: 'Chargeback History',
+    signal: 'chargeback_history',
+    description: 'Permanently flags consumers with any previous chargeback on record. Adds persistent risk to all future invocations. Risk +30.',
+    threshold: 'Any prior chargeback',
+    status: 'active' as const,
+  },
+  {
+    name: 'Session Nesting Depth',
+    signal: 'session_nesting',
+    description: 'Monitors recursive or nested session depths. Rejects calls exceeding depth 5 and adds risk at depth >3. Risk +15 or reject.',
+    threshold: '>3 levels (warn), >5 (reject)',
+    status: 'active' as const,
+  },
+]
+
+const SECURITY_GUIDES = [
+  {
+    title: 'IP Allowlisting',
+    content: [
+      '1. Navigate to the Consumer Dashboard and select the API key you want to restrict.',
+      '2. Click "Edit IP Allowlist" and add one or more CIDR ranges (e.g., 203.0.113.0/24) or single IPs (e.g., 198.51.100.42).',
+      '3. Save changes. Only requests originating from the listed addresses will be accepted; all others receive a 403 error.',
+      '4. Use this when your consumers have fixed server IPs, CI/CD pipelines, or known office egress addresses.',
+      '5. Example: A consumer running from AWS us-east-1 might allowlist their NAT Gateway IP range.',
+      '6. To remove restrictions, clear all entries from the allowlist. The key will then accept requests from any IP.',
+    ],
+  },
+  {
+    title: 'Rate Limiting',
+    content: [
+      '1. All SDK routes are automatically rate-limited per IP and per consumer.',
+      '2. Rate limit tiers are determined by your developer plan: Free (100 req/min), Standard (500 req/min), Enterprise (2000 req/min).',
+      '3. SDK endpoints enforce both global per-IP limits and per-consumer tiered limits.',
+      '4. When a limit is hit, the API returns a 429 status code with a RATE_LIMIT_EXCEEDED error.',
+      '5. Consumers should implement exponential backoff when receiving 429 responses.',
+      '6. To increase your rate limits, upgrade your developer plan from the Billing page.',
+    ],
+  },
+  {
+    title: 'Webhook Monitoring',
+    content: [
+      '1. Go to Settings > Webhooks and click "Add Endpoint". Enter your HTTPS URL.',
+      '2. Select the events you want to receive (e.g., invocation.flagged, key.revoked, payout.completed).',
+      '3. Copy the signing secret provided. Use it to verify HMAC-SHA256 signatures on incoming webhooks.',
+      '4. Verify signatures by computing HMAC-SHA256 of the raw request body using your secret and comparing to the X-SettleGrid-Signature header.',
+      '5. Return a 2xx status within 30 seconds. Failed deliveries are retried up to 3 times with exponential backoff.',
+      '6. Monitor the webhook delivery log for failed attempts and update your endpoint URL if your server moves.',
+    ],
+  },
+  {
+    title: 'API Key Rotation',
+    content: [
+      '1. Rotate keys proactively every 90 days, or immediately if you suspect compromise.',
+      '2. Create a new API key for the same consumer+tool pair from the Consumer Dashboard.',
+      '3. Deploy the new key to your consumer\'s application or configuration.',
+      '4. Verify the new key is working by checking the invocation logs for successful calls.',
+      '5. Revoke the old key only after confirming the new key is active in all environments.',
+      '6. Never embed API keys in client-side code, version control, or log files.',
+    ],
+  },
+  {
+    title: 'Budget Controls',
+    content: [
+      '1. Set per-tool spending limits from the Consumer Dashboard under "Budget Settings".',
+      '2. Choose a billing period (daily, weekly, or monthly) and set a maximum spend in cents.',
+      '3. When the limit is reached, further invocations are rejected with a 402 BUDGET_EXCEEDED error.',
+      '4. Enable auto-refill cautiously: set a sensible cap to prevent runaway costs from compromised keys.',
+      '5. Configure alert thresholds at 50%, 75%, and 90% of budget to receive email notifications before hitting the limit.',
+      '6. Review budget utilization on the Analytics page to right-size your limits over time.',
+    ],
+  },
+  {
+    title: 'Audit Logging',
+    content: [
+      '1. Every significant action (key creation, revocation, payout request, tool status change) is recorded in the audit log.',
+      '2. Navigate to Dashboard > Audit Log to view recent events with timestamps, actors, and details.',
+      '3. Look for unexpected patterns: key creations at odd hours, multiple revocations, or status changes you did not initiate.',
+      '4. Use the date filter and event type dropdown to narrow down investigations.',
+      '5. Export audit logs as CSV for compliance reporting or to share with your security team.',
+      '6. Audit logs are retained for 12 months and cannot be modified or deleted.',
+    ],
+  },
+  {
+    title: 'Two-Factor Authentication',
+    content: [
+      '1. SettleGrid accounts are secured through Supabase Auth. Enable 2FA on your Supabase account for an extra layer of protection.',
+      '2. Go to your account settings and enable TOTP-based 2FA using an authenticator app (Google Authenticator, Authy, 1Password).',
+      '3. Save the recovery codes in a secure location (password manager, encrypted file).',
+      '4. 2FA protects against password compromise: even if your password is leaked, attackers cannot access your account without the second factor.',
+      '5. Require all team members with dashboard access to enable 2FA on their accounts.',
+      '6. If you lose access to your authenticator, use a recovery code and immediately set up a new 2FA device.',
+    ],
+  },
+  {
+    title: 'Session Management',
+    content: [
+      '1. Sessions are managed via secure, HTTP-only cookies with a default timeout of 24 hours.',
+      '2. Inactive sessions expire automatically. Re-authentication is required after expiry.',
+      '3. To sign out from all devices, go to Account Settings > Security > "Sign Out All Sessions".',
+      '4. If you suspect unauthorized access, sign out all sessions immediately and rotate your password.',
+      '5. Session tokens are bound to the originating IP. IP changes may trigger re-authentication.',
+      '6. The fraud detection system monitors session nesting depth: excessive nesting (>5 levels) is rejected to prevent recursion attacks.',
+    ],
   },
 ]
 
@@ -154,7 +313,7 @@ export default function FraudPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Fraud Detection & Security</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor flagged invocations and security alerts across your tools.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">12 real-time fraud signals protect your tools and consumers around the clock.</p>
       </div>
 
       {error && (
@@ -187,20 +346,30 @@ export default function FraudPage() {
         />
       </div>
 
-      {/* Fraud Rule Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {FRAUD_RULES.map((rule) => (
-          <Card key={rule.name}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-sm text-indigo dark:text-gray-100">{rule.name}</h3>
-                <Badge variant="success">{rule.status}</Badge>
+      {/* Active Fraud Signals */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Active Fraud Signals (12)</CardTitle>
+          <CardDescription>All real-time detection signals evaluated on every metered invocation.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FRAUD_SIGNALS.map((signal) => (
+              <div key={signal.signal} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-sm text-indigo dark:text-gray-100">{signal.name}</h3>
+                  <Badge variant="success">{signal.status}</Badge>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{signal.description}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-gray-400 dark:text-gray-500">Threshold:</span>
+                  <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded">{signal.threshold}</code>
+                </div>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{rule.description}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Flagged Invocations */}
       <Card>
@@ -274,37 +443,26 @@ export default function FraudPage() {
         </CardContent>
       </Card>
 
-      {/* Security Tips */}
+      {/* Security Configuration Guides */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Security Configuration Tips</CardTitle>
+          <CardTitle className="text-lg">Security Configuration Guides</CardTitle>
+          <CardDescription>Step-by-step instructions to harden your SettleGrid deployment.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">IP Allowlisting</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Restrict API key access to specific IP addresses or CIDR ranges. Configure per-key restrictions from the Consumer Dashboard.
-              </p>
-            </div>
-            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">Rate Limiting</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                All API routes are rate-limited automatically. Configure custom rate limits per tool to prevent abuse and control costs.
-              </p>
-            </div>
-            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">Webhook Monitoring</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Set up webhooks to receive real-time notifications for suspicious activity, including flagged invocations and unusual patterns.
-              </p>
-            </div>
-            <div className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-1">Audit Log Review</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Regularly review the audit log for unauthorized access attempts, key revocations, and suspicious tool status changes.
-              </p>
-            </div>
+          <div className="space-y-6">
+            {SECURITY_GUIDES.map((guide) => (
+              <div key={guide.title} className="border border-gray-100 dark:border-[#252836] rounded-lg p-5">
+                <h4 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-3">{guide.title}</h4>
+                <ol className="space-y-1.5">
+                  {guide.content.map((step, i) => (
+                    <li key={i} className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed pl-1">
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

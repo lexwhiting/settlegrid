@@ -26,7 +26,7 @@ const { mockDb, mockCheckRateLimit, mockCheckTieredRateLimit, mockDetectFraud } 
     mockDb,
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 }),
     mockCheckTieredRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 2000, remaining: 1999, reset: 0 }),
-    mockDetectFraud: vi.fn().mockResolvedValue({ flagged: false, reasons: [], riskScore: 0 }),
+    mockDetectFraud: vi.fn().mockResolvedValue({ flagged: false, reasons: [], signals: [], riskScore: 0 }),
   }
 })
 
@@ -120,6 +120,8 @@ vi.mock('@/lib/ip-validation', () => ({
 
 vi.mock('@/lib/fraud', () => ({
   detectFraud: mockDetectFraud,
+  isIpBlocked: vi.fn().mockResolvedValue(false),
+  trackFailedAuth: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -329,7 +331,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
     resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
     mockCheckTieredRateLimit.mockResolvedValue({ success: true, limit: 2000, remaining: 1999, reset: 0 })
-    mockDetectFraud.mockResolvedValue({ flagged: false, reasons: [], riskScore: 0 })
+    mockDetectFraud.mockResolvedValue({ flagged: false, reasons: [], signals: [], riskScore: 0 })
   })
 
   it('meters a successful invocation and deducts credits', async () => {
