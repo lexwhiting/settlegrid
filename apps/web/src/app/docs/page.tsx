@@ -37,7 +37,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Is there a free tier?',
-      a: 'Yes. The Free plan is $0 forever and includes unlimited tools, 25,000 operations per month, per-call billing, a basic dashboard, and a 0% take rate — you keep 100% of revenue. No credit card is required to start.',
+      a: 'Yes. The Free plan is $0 forever with no catch — unlimited tools, 25,000 operations per month, per-call billing, a full dashboard, and a 0% take rate. You keep 100% of revenue. No credit card required. Most developers will never need to upgrade. The free tier is generous enough to run real production tools, not just prototypes.',
     },
     {
       q: 'What protocols does SettleGrid support?',
@@ -233,7 +233,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How does rate limiting work?',
-      a: 'SettleGrid enforces tiered sliding-window rate limits on all API routes based on your plan (Free through Platform). When limits are exceeded, requests receive a 429 response with a Retry-After header. Rate limits apply to both developer dashboard calls and consumer SDK calls.',
+      a: 'SettleGrid enforces tiered sliding-window rate limits on all API routes based on your plan (Free through Enterprise). When limits are exceeded, requests receive a 429 response with a Retry-After header. Rate limits apply to both developer dashboard calls and consumer SDK calls.',
     },
     {
       q: 'Do I get notified when an API key is created or revoked?',

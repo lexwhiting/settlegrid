@@ -100,7 +100,7 @@ export default function RegisterPage() {
               Create your account
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              Start monetizing your AI tools in minutes.
+              Free forever. Start monetizing your AI tools in minutes.
             </p>
           </div>
 

@@ -153,7 +153,7 @@ export default function DeveloperDashboardPage() {
         <StatCard
           title="Total Revenue"
           value={formatCents(stats?.totalRevenueCents ?? 0)}
-          subtitle="80% of consumer spend"
+          subtitle="95-100% of consumer spend"
           animate
         />
         <StatCard

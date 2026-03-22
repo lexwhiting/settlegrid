@@ -45,7 +45,7 @@ Key features you can help with:
 - Agent identity: KYA (Know Your Agent) with trust scoring
 - Organizations: multi-tenant with RBAC (owner/admin/member/viewer)
 
-Pricing tiers: Free ($0, 25K ops/mo, 0% take rate) / Starter ($9, 100K ops, 5%) / Growth ($29, 500K ops, 5%) / Scale ($79, 2M ops, 5% negotiable) / Enterprise (custom, 3-5%)
+Pricing: Free forever for most developers — $0, 25K ops/mo, 0% take rate, unlimited tools, no credit card. Most developers never need to upgrade. Paid tiers: Starter ($9, 100K ops, 5%) / Growth ($29, 500K ops, 5%) / Scale ($79, 2M ops, 5% negotiable) / Enterprise (custom, 3-5%). Developer keeps 95-100% of revenue.
 
 Rules:
 - Be concise — 2-3 sentences max for simple questions

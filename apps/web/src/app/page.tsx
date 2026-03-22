@@ -8,7 +8,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 export const metadata: Metadata = {
   title: 'SettleGrid — The Settlement Layer for the AI Economy',
   description:
-    'Meter, settle, and split revenue across any AI service — MCP, x402, AP2, MPP, Visa TAP, and more. One SDK. Ten protocols. Zero vendor lock-in. Developer keeps 95%.',
+    'Monetize any AI service — free forever for most developers. 25K ops/month at 0% fees. One SDK. Ten protocols. Zero vendor lock-in. At scale, developer keeps 95%.',
 }
 
 /* -------------------------------------------------------------------------- */
@@ -30,7 +30,7 @@ const jsonLdSoftwareApplication = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
-      description: '25,000 operations/month, 0% take rate',
+      description: 'Free forever — 25,000 operations/month, 0% take rate, unlimited tools. Most developers never need to upgrade.',
     },
     {
       '@type': 'Offer',
@@ -258,13 +258,13 @@ function PricingSection() {
       name: 'Free',
       price: '$0',
       period: 'forever',
-      description: 'For experimenting and prototyping',
+      description: 'Free forever — enough for most developers',
       features: [
         'Unlimited tools',
         '25,000 operations/month',
-        'Per-call billing',
-        'Basic dashboard',
+        'Per-call billing & full dashboard',
         '0% take rate — you keep 100%',
+        'No credit card required',
       ],
       cta: 'Start Free',
       href: '/register',
@@ -343,9 +343,10 @@ function PricingSection() {
 
   return (
     <div className="text-center">
-      <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 mb-4">Simple, Transparent Pricing</h2>
+      <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 mb-4">Free Forever for Most Developers</h2>
       <p className="text-gray-600 dark:text-gray-400 mb-10 max-w-xl mx-auto">
-        Start free. Scale as you grow. Developer keeps 95% — or 100% on Free.
+        25,000 ops/month at zero cost, zero fees, zero take rate. No credit card required.
+        At scale, you still keep 95%.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 max-w-6xl mx-auto">
         {tiers.map((tier) => (
@@ -507,14 +508,14 @@ export default function HomePage() {
                 <span className="text-brand-light">AI Economy</span>
               </h1>
               <p className="text-xl text-gray-300 mb-4 leading-relaxed">
-                Meter, settle, and split revenue across any AI service — MCP tools,
-                REST APIs, AI agents, model endpoints.
+                Monetize any AI service — MCP tools, REST APIs, AI agents, model endpoints.
+                Most developers will never pay a dime.
               </p>
               <p className="text-lg font-semibold mb-8">
+                <span className="text-white">Free forever.</span>
+                <span className="text-gray-400"> 25K ops/month. Zero fees. Zero take rate.</span>
+                <br />
                 <span className="text-brand-light">One SDK. Ten protocols. Zero vendor lock-in.</span>
-                <span className="text-gray-400 mx-2">|</span>
-                <span className="text-white">Developer keeps 95%</span>
-                <span className="text-gray-400"> — free tier keeps 100%.</span>
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
@@ -525,9 +526,9 @@ export default function HomePage() {
                 </Link>
               </div>
               <div className="flex items-center gap-6 mt-8 text-sm text-gray-400">
-                <span>&#10003; Free tier — 0% fees</span>
+                <span>&#10003; Free forever — no catch</span>
                 <span>&#10003; No credit card</span>
-                <span>&#10003; Developer keeps 95%+</span>
+                <span>&#10003; 0% fees up to 25K ops</span>
               </div>
               <div className="flex items-center gap-4 mt-4">
                 <a

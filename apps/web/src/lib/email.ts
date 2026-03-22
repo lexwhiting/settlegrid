@@ -269,7 +269,7 @@ export function welcomeDeveloperEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Welcome, ${escapeHtml(name)}!</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You're all set to start monetizing your MCP tools with per-call billing.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You're all set to start monetizing your AI tools — <strong>free forever</strong>. Your Free plan includes 25,000 ops/month, unlimited tools, and a 0% take rate. You keep 100% of revenue. No credit card required.</p>
 <h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Next steps:</h3>
 <ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
 <li>Connect your Stripe account to receive payouts</li>

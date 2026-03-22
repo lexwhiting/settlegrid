@@ -173,8 +173,8 @@ function invokeToolCall(consumer: MockConsumer, tool: MockTool, method: string, 
   // Deduct credits
   balance.balanceCents -= costCents
 
-  // 80/20 split: developer gets 80%
-  const devShare = Math.floor(costCents * 0.8)
+  // 95/5 split: developer gets 95%
+  const devShare = Math.floor(costCents * 0.95)
   const dev = mockDevelopers.find(d => d.id === tool.developerId)
   if (dev) dev.balanceCents += devShare
 
@@ -329,7 +329,7 @@ describe('Tool Invocation Flow', () => {
     expect(balance!.balanceCents).toBe(995)
   })
 
-  it('credits developer with 80% share', () => {
+  it('credits developer with 95% share', () => {
     const dev = registerDeveloper('dev@example.com', 'Dev')
     const tool = createTool(dev.id, 'Tool', 'tool', 10)
     activateTool(tool)
@@ -339,7 +339,7 @@ describe('Tool Invocation Flow', () => {
 
     invokeToolCall(consumer, tool, 'analyze', 10)
 
-    expect(dev.balanceCents).toBe(8) // 80% of 10 cents
+    expect(dev.balanceCents).toBe(9) // 95% of 10 cents
   })
 
   it('fails with insufficient credits', () => {
@@ -492,8 +492,8 @@ describe('Full Lifecycle Scenario', () => {
     const balance = mockBalances.find(b => b.consumerId === consumer.id && b.toolId === tool.id)
     expect(balance!.balanceCents).toBe(4500) // 5000 - (100 * 5)
 
-    // Developer got 80% of each invocation
-    expect(dev.balanceCents).toBe(400) // 100 * 5 * 0.8
+    // Developer got 95% of each invocation: floor(5 * 0.95) = 4 per call
+    expect(dev.balanceCents).toBe(400) // 100 * floor(5 * 0.95)
 
     // 5. Not enough for payout yet (400 < 2500)
     const failedPayout = triggerPayout(dev)
@@ -504,7 +504,7 @@ describe('Full Lifecycle Scenario', () => {
       invokeToolCall(consumer, tool, 'classify', 5)
     }
 
-    // 700 total invocations: dev earned 700 * 5 * 0.8 = 2800 cents
+    // 700 total invocations: dev earned 700 * floor(5 * 0.95) = 2800 cents
     expect(dev.balanceCents).toBe(2800)
 
     // 7. Trigger payout
@@ -557,8 +557,8 @@ describe('Full Lifecycle Scenario', () => {
     expect(tool1.totalRevenueCents).toBe(3)
     expect(tool2.totalRevenueCents).toBe(7)
 
-    // Developer balance = 3*0.8 + 7*0.8 = 2.4 + 5.6 = 8 cents
-    expect(dev.balanceCents).toBe(Math.floor(3 * 0.8) + Math.floor(7 * 0.8))
+    // Developer balance = 3*0.95 + 7*0.95 = 2.85 + 6.65 = 9 cents (after floor)
+    expect(dev.balanceCents).toBe(Math.floor(3 * 0.95) + Math.floor(7 * 0.95))
   })
 
   it('zero-cost invocations do not deduct credits', () => {

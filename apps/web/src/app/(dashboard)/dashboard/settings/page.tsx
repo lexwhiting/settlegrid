@@ -75,7 +75,7 @@ const PLANS: Record<string, PlanInfo> = {
   free: {
     name: 'Free',
     price: '$0/mo',
-    features: ['Unlimited tools', '25,000 ops/mo', '0% take rate', 'Basic analytics'],
+    features: ['Unlimited tools', '25,000 ops/mo', '0% take rate — keep 100%', 'Free forever — no catch'],
   },
   starter: {
     name: 'Starter',
