@@ -112,9 +112,15 @@ export async function GET(request: Request) {
   })
 }
 
-// Express
-app.get('/api/data', withBilling, (req, res) => {
-  res.json({ data: 'hello' })
+// Express-style (wrap handler, not middleware chain)
+app.get('/api/data', async (req, res) => {
+  const request = new Request(`http://localhost${req.url}`, {
+    headers: req.headers as Record<string, string>,
+  })
+  const response = await withBilling(request, async () => {
+    return Response.json({ data: 'hello' })
+  })
+  res.status(response.status).json(await response.json())
 })
 ```
 
