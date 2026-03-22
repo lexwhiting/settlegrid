@@ -1,0 +1,22 @@
+{
+  "name": "SettleGrid",
+  "description": "Settlement layer for AI agent payments. Per-call billing, usage metering, and budget enforcement for MCP servers.",
+  "url": "https://settlegrid.ai",
+  "sdk": "@settlegrid/mcp",
+  "npm": "https://www.npmjs.com/package/@settlegrid/mcp",
+  "github": "https://github.com/lexwhiting/settlegrid",
+  "documentation": "https://settlegrid.ai/docs",
+  "pricing": "https://settlegrid.ai/pricing",
+  "protocols": ["MCP", "x402", "AP2", "Visa TAP", "REST"],
+  "features": [
+    "per-call-billing",
+    "real-time-metering",
+    "budget-enforcement",
+    "multi-hop-settlement",
+    "agent-identity",
+    "outcome-based-billing",
+    "fraud-detection",
+    "stripe-connect-payouts"
+  ],
+  "license": "MIT"
+}

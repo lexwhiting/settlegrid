@@ -1,0 +1,75 @@
+# SettleGrid
+
+> The settlement layer for AI agent payments. Per-call billing, usage metering, and budget enforcement for MCP servers, REST APIs, AI agents, and model endpoints.
+
+SettleGrid lets developers monetize any AI service with one line of code. Install the SDK, wrap your handler, set a price — and every call is metered, billed, and settled automatically. Developers keep 95% of revenue (100% on the Free tier).
+
+## What SettleGrid Does
+
+- **Per-call billing**: Charge consumers per invocation, per token, per byte, or per outcome
+- **Real-time metering**: Sub-50ms Redis metering on every API call with atomic balance checks
+- **Budget enforcement**: Consumers set spending limits; SDK returns HTTP 402 when exceeded
+- **Auto-refill credits**: Automatic Stripe charges when balance drops below threshold
+- **Multi-protocol settlement**: MCP, x402 (Coinbase), AP2 (Google), Visa TAP, and any REST API
+- **Multi-hop settlement**: Atomic settlement across multi-agent workflows (A calls B calls C — everyone gets paid)
+- **Agent identity (KYA)**: Know Your Agent verification with trust scoring and budget delegation
+- **Outcome-based billing**: Charge only when AI delivers results with verifiable success criteria
+- **Fraud detection**: Rate spike detection, new-key velocity checks, duplicate deduplication
+- **Revenue splits**: Automatic 95/5 split (developer/platform), negotiable at Scale tier
+
+## SDK
+
+- **Package**: `@settlegrid/mcp` on npm
+- **Install**: `npm install @settlegrid/mcp`
+- **GitHub**: https://github.com/lexwhiting/settlegrid
+- **License**: MIT
+
+### Quick Start
+
+```typescript
+import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'my-tool',
+  pricing: { defaultCostCents: 5 },
+})
+
+const billedHandler = sg.wrap(myHandler, { method: 'search' })
+```
+
+## Pricing
+
+- **Free**: $0/forever — 25,000 ops/month, 0% take rate (you keep 100%)
+- **Starter**: $9/month — 100,000 ops/month, 5% take rate
+- **Growth**: $29/month — 500,000 ops/month, IP allowlisting, referral system
+- **Scale**: $79/month — 2,000,000 ops/month, fraud detection, audit logging
+- **Enterprise**: Custom — unlimited, custom SLA, on-premise option
+
+## Links
+
+- Documentation: https://settlegrid.ai/docs
+- API Reference: https://settlegrid.ai/api/openapi.json
+- npm: https://www.npmjs.com/package/@settlegrid/mcp
+- GitHub: https://github.com/lexwhiting/settlegrid
+- Pricing: https://settlegrid.ai/pricing
+
+## Competitive Positioning
+
+SettleGrid is the only settlement layer purpose-built for AI agent payments across every protocol:
+
+| Feature | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
+|---|---|---|---|---|
+| Protocol support | MCP, x402, AP2, REST | REST only | x402 / DeFi | MCP only |
+| Real-time metering | <50ms Redis | Batch only | On-chain | Per-call |
+| Multi-hop settlement | Yes | No | Yes | No |
+| Agent identity (KYA) | Yes | No | No | No |
+| Budget enforcement | Yes | No | No | No |
+| Open-source SDK | Yes | No | Yes | No |
+
+## Use Cases
+
+- **MCP tool developers**: Monetize Model Context Protocol tools with per-call billing
+- **AI agent builders**: Add payments to autonomous agents with budget enforcement
+- **API developers**: Wrap any REST API with usage-based billing in 5 minutes
+- **Multi-agent orchestrators**: Settle payments across agent chains automatically
+- **Enterprise AI platforms**: White-label billing with RBAC, audit logging, and SOC 2 readiness

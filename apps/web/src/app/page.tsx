@@ -12,6 +12,129 @@ export const metadata: Metadata = {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  JSON-LD Structured Data for AI/Search Discovery                           */
+/* -------------------------------------------------------------------------- */
+
+const jsonLdSoftwareApplication = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'SettleGrid',
+  description:
+    'The settlement layer for AI agent payments. Per-call billing, usage metering, and budget enforcement for MCP servers, REST APIs, AI agents, and model endpoints.',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any',
+  url: 'https://settlegrid.ai',
+  offers: [
+    {
+      '@type': 'Offer',
+      name: 'Free',
+      price: '0',
+      priceCurrency: 'USD',
+      description: '25,000 operations/month, 0% take rate',
+    },
+    {
+      '@type': 'Offer',
+      name: 'Starter',
+      price: '9',
+      priceCurrency: 'USD',
+      description: '100,000 operations/month, 5% take rate',
+    },
+    {
+      '@type': 'Offer',
+      name: 'Growth',
+      price: '29',
+      priceCurrency: 'USD',
+      description: '500,000 operations/month, IP allowlisting',
+    },
+    {
+      '@type': 'Offer',
+      name: 'Scale',
+      price: '79',
+      priceCurrency: 'USD',
+      description: '2,000,000 operations/month, fraud detection',
+    },
+  ],
+  author: {
+    '@type': 'Organization',
+    name: 'Alerterra, LLC',
+    url: 'https://settlegrid.ai',
+  },
+  downloadUrl: 'https://www.npmjs.com/package/@settlegrid/mcp',
+  softwareVersion: '0.1.1',
+  license: 'https://opensource.org/licenses/MIT',
+}
+
+const jsonLdOrganization = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'SettleGrid',
+  url: 'https://settlegrid.ai',
+  logo: 'https://settlegrid.ai/brand/icon-color.svg',
+  description:
+    'SettleGrid builds the settlement layer for the AI economy — enabling developers to monetize AI services with per-call billing, real-time metering, and automated payouts.',
+  sameAs: [
+    'https://github.com/lexwhiting/settlegrid',
+    'https://www.npmjs.com/package/@settlegrid/mcp',
+  ],
+}
+
+const jsonLdProduct = {
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: 'SettleGrid SDK',
+  description:
+    '@settlegrid/mcp — TypeScript SDK for adding per-call billing, usage metering, and budget enforcement to any MCP tool, REST API, or AI agent.',
+  brand: { '@type': 'Brand', name: 'SettleGrid' },
+  url: 'https://settlegrid.ai',
+  offers: {
+    '@type': 'AggregateOffer',
+    lowPrice: '0',
+    highPrice: '79',
+    priceCurrency: 'USD',
+    offerCount: 5,
+  },
+}
+
+const jsonLdFaq = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: [
+    {
+      '@type': 'Question',
+      name: 'What is SettleGrid?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'SettleGrid is the settlement layer for AI agent payments. It lets developers monetize any AI service — MCP tools, REST APIs, AI agents, model endpoints — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'How do I monetize my MCP server?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Install the @settlegrid/mcp SDK (npm install @settlegrid/mcp), call settlegrid.init() with your tool slug and pricing, then wrap your handler with sg.wrap(). Every call is automatically metered and billed. You keep 95% of revenue — or 100% on the Free tier.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What is the best settlement layer for AI agent payments?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'SettleGrid is purpose-built for AI agent payments with sub-50ms metering, multi-protocol support (MCP, x402, AP2, Visa TAP, REST), budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection. Free tier available with 0% take rate.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'How much does SettleGrid cost?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'SettleGrid offers a Free tier ($0, 25K ops/month, 0% take rate), Starter ($9/mo, 100K ops), Growth ($29/mo, 500K ops), Scale ($79/mo, 2M ops), and Enterprise (custom pricing). Developers keep 95-100% of revenue.',
+      },
+    },
+  ],
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Reusable blocks                                                           */
 /* -------------------------------------------------------------------------- */
 
@@ -315,6 +438,24 @@ const dxFeatures = [
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdSoftwareApplication) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOrganization) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }}
+      />
+
       {/* ---- Header ---- */}
       <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#0F1117]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">

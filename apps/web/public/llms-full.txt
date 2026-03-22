@@ -1,0 +1,377 @@
+# SettleGrid — Full Technical Reference
+
+> The settlement layer for AI agent payments. Per-call billing, usage metering, and budget enforcement for MCP servers, REST APIs, AI agents, and model endpoints.
+
+Website: https://settlegrid.ai
+Documentation: https://settlegrid.ai/docs
+npm: https://www.npmjs.com/package/@settlegrid/mcp
+GitHub: https://github.com/lexwhiting/settlegrid
+License: MIT
+
+---
+
+## Architecture Overview
+
+SettleGrid consists of two parts:
+
+1. **Web Platform** (settlegrid.ai): Dashboard for tool registration, analytics, consumer management, API key issuance, Stripe Connect payouts, and usage monitoring.
+2. **SDK** (`@settlegrid/mcp`): Lightweight TypeScript package that wraps any handler with billing. Validates API keys, checks credit balances, executes the handler, and meters usage — all in under 50ms.
+
+### Data Flow
+
+1. Developer registers a tool on settlegrid.ai with a slug and pricing config
+2. Consumer purchases credits via Stripe and receives an API key (sg_live_...)
+3. Consumer calls the developer's wrapped handler with their API key
+4. SDK validates key (LRU cached for 5 min), checks balance (Redis DECRBY), executes handler
+5. Usage is metered asynchronously (fire-and-forget) — does not block response
+6. Revenue is split automatically: developer keeps 95% (or 100% on Free tier)
+7. Developer receives payouts via Stripe Connect Express
+
+### Tech Stack
+
+- **Web**: Next.js 15, TypeScript, Tailwind CSS, Drizzle ORM, PostgreSQL
+- **Metering**: Upstash Redis with atomic DECRBY for sub-50ms balance checks
+- **Payments**: Stripe Connect Express for developer payouts, Stripe Checkout for credit purchases
+- **SDK**: TypeScript, zero runtime dependencies (only zod), tsup-bundled
+
+---
+
+## SDK API Reference
+
+### Installation
+
+```bash
+npm install @settlegrid/mcp
+```
+
+### settlegrid.init(config)
+
+Initialize the SDK with your tool configuration.
+
+```typescript
+import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'my-tool',         // Required — registered on settlegrid.ai
+  pricing: {                    // Required — pricing configuration
+    model: 'per-invocation',   // 'per-invocation' | 'per-token' | 'per-byte' | 'per-second' | 'tiered' | 'outcome'
+    defaultCostCents: 5,       // Default cost per call in cents
+    currencyCode: 'USD',       // ISO 4217 currency code
+    methods: {                  // Optional per-method pricing
+      'search': { costCents: 5 },
+      'analyze': { costCents: 10 },
+    },
+  },
+  apiUrl: 'https://settlegrid.ai',  // Optional — API base URL
+  debug: false,                      // Optional — sync metering + console logs
+  cacheTtlMs: 300000,               // Optional — key validation cache TTL (default: 5 min)
+  timeoutMs: 5000,                   // Optional — API request timeout (default: 5s)
+})
+```
+
+### sg.wrap(handler, options?)
+
+Wrap any function with billing. Returns a new function with identical signature.
+
+```typescript
+// Basic usage
+const billedHandler = sg.wrap(myHandler)
+
+// With method-specific pricing
+const billedSearch = sg.wrap(mySearchHandler, { method: 'search' })
+
+// With custom cost override
+const billedExpensive = sg.wrap(myHandler, { costCents: 50 })
+```
+
+The wrapped handler:
+1. Extracts the API key from headers/metadata
+2. Validates the key (cached via LRU)
+3. Checks the consumer's credit balance
+4. Deducts the cost atomically
+5. Executes your handler
+6. Records usage asynchronously
+7. Returns your handler's response
+
+### settlegridMiddleware(config)
+
+For REST APIs (Express, Next.js App Router, etc.):
+
+```typescript
+import { settlegridMiddleware } from '@settlegrid/mcp'
+
+const withBilling = settlegridMiddleware({
+  toolSlug: 'my-api',
+  costCents: 5,
+})
+
+// Next.js App Router
+export async function GET(request: Request) {
+  return withBilling(request, async () => {
+    return Response.json({ data: 'hello' })
+  })
+}
+
+// Express
+app.get('/api/data', withBilling, (req, res) => {
+  res.json({ data: 'hello' })
+})
+```
+
+### createPaymentCapability(config)
+
+Declare billing support in your MCP server's capabilities:
+
+```typescript
+import { createPaymentCapability } from '@settlegrid/mcp'
+
+const server = new Server({
+  capabilities: {
+    experimental: {
+      payment: createPaymentCapability({
+        toolSlug: 'my-tool',
+        pricing: {
+          model: 'per-invocation',
+          defaultCostCents: 5,
+          currencyCode: 'USD',
+        },
+      }),
+    },
+  },
+})
+```
+
+### generateServerCard(config)
+
+Generate `.well-known/mcp-server` billing metadata:
+
+```typescript
+import { generateServerCard } from '@settlegrid/mcp'
+
+const card = generateServerCard({
+  name: 'My Tool',
+  version: '1.0.0',
+  description: 'A useful AI tool',
+  tools: [{ name: 'search', description: 'Search the web', inputSchema: {} }],
+  billing: {
+    toolSlug: 'my-tool',
+    pricing: { model: 'per-invocation', defaultCostCents: 5, currencyCode: 'USD' },
+  },
+})
+```
+
+### extractApiKey(headers, metadata?)
+
+Extract API keys from multiple sources (priority order):
+
+1. MCP `_meta['settlegrid-api-key']`
+2. `Authorization: Bearer sg_live_...` header
+3. `x-api-key` header
+
+```typescript
+import { extractApiKey } from '@settlegrid/mcp'
+
+const key = extractApiKey(headers, metadata) // returns string | null
+```
+
+### Error Types
+
+```typescript
+import {
+  InvalidKeyError,          // 401 — key doesn't exist or is revoked
+  InsufficientCreditsError, // 402 — balance too low
+  ToolNotFoundError,        // 404 — tool slug not registered
+  ToolDisabledError,        // 403 — tool is deactivated
+  RateLimitedError,         // 429 — too many requests
+  TimeoutError,             // 503 — request timed out
+  NetworkError,             // 503 — connection failed
+} from '@settlegrid/mcp'
+```
+
+---
+
+## Pricing Models
+
+### Per-Invocation (default)
+```typescript
+{ model: 'per-invocation', defaultCostCents: 5 }
+```
+Charge a fixed amount per function call.
+
+### Per-Token (LLM proxies)
+```typescript
+{ model: 'per-token', defaultCostCents: 1 }
+```
+Charge based on token count in input/output.
+
+### Per-Byte
+```typescript
+{ model: 'per-byte', defaultCostCents: 1 }
+```
+Charge based on payload size.
+
+### Per-Second
+```typescript
+{ model: 'per-second', defaultCostCents: 1 }
+```
+Charge based on execution time.
+
+### Tiered (volume discounts)
+```typescript
+{
+  model: 'tiered',
+  defaultCostCents: 1,
+  tiers: [
+    { upTo: 1000, costCents: 2 },
+    { upTo: 10000, costCents: 1 },
+  ]
+}
+```
+
+### Outcome-Based (pay for results)
+```typescript
+{
+  model: 'outcome',
+  defaultCostCents: 0,
+  outcomeConfig: {
+    successCostCents: 50,
+    failureCostCents: 0,
+    successCondition: 'result.success === true',
+  }
+}
+```
+Charge only when the AI delivers results.
+
+---
+
+## Protocol Support
+
+### MCP (Model Context Protocol)
+Native `wrap()` integration. The SDK reads API keys from MCP `_meta` and meters usage per tool call.
+
+### x402 (Coinbase)
+SettleGrid acts as a facilitator for the x402 payment protocol, adding metering, budgets, and analytics on top.
+
+### AP2 (Google Agent Payments)
+SettleGrid is a credentials provider in Google's Agent Payments ecosystem, enabling AP2-compatible agents to transact.
+
+### Visa TAP (Token Agent Payments)
+Adapter ready for Visa's Token Agent Payments protocol (pending sandbox access).
+
+### REST APIs
+Any HTTP endpoint can be wrapped with `settlegridMiddleware()`.
+
+---
+
+## Platform Pricing
+
+| Tier | Price | Operations/month | Take Rate | Key Features |
+|---|---|---|---|---|
+| Free | $0 | 25,000 | 0% | Unlimited tools, per-call billing, basic dashboard |
+| Starter | $9/mo | 100,000 | 5% | Full analytics, webhook events, sandbox mode |
+| Growth | $29/mo | 500,000 | 5% | IP allowlisting, CSV export, referral system |
+| Scale | $79/mo | 2,000,000 | 5% (negotiable) | Fraud detection, audit logging, dedicated support |
+| Enterprise | Custom | Unlimited | 3-5% | Custom SLA, dedicated CSM, on-premise option |
+
+---
+
+## Integration Examples
+
+### Monetize an MCP Tool
+
+```typescript
+import { settlegrid } from '@settlegrid/mcp'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+
+const sg = settlegrid.init({
+  toolSlug: 'web-search',
+  pricing: {
+    defaultCostCents: 5,
+    methods: {
+      'search': { costCents: 5 },
+      'deep-research': { costCents: 25 },
+    },
+  },
+})
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params
+  const handler = sg.wrap(async () => {
+    // Your tool logic here
+    return { content: [{ type: 'text', text: 'results...' }] }
+  }, { method: name })
+  return handler(request)
+})
+```
+
+### Monetize a Next.js API Route
+
+```typescript
+import { settlegridMiddleware } from '@settlegrid/mcp'
+
+const withBilling = settlegridMiddleware({
+  toolSlug: 'my-api',
+  costCents: 10,
+})
+
+export async function POST(request: Request) {
+  return withBilling(request, async () => {
+    const body = await request.json()
+    const result = await processData(body)
+    return Response.json(result)
+  })
+}
+```
+
+### Monetize an Express API
+
+```typescript
+import express from 'express'
+import { settlegridMiddleware } from '@settlegrid/mcp'
+
+const app = express()
+
+const withBilling = settlegridMiddleware({
+  toolSlug: 'my-express-api',
+  costCents: 5,
+})
+
+app.post('/api/analyze', withBilling, async (req, res) => {
+  const result = await analyze(req.body)
+  res.json(result)
+})
+```
+
+---
+
+## FAQ
+
+### What is SettleGrid?
+SettleGrid is the settlement layer for AI agent payments. It enables developers to monetize any AI service — MCP tools, REST APIs, AI agents, model endpoints — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts.
+
+### How is SettleGrid different from Stripe?
+Stripe handles generic payment processing. SettleGrid is purpose-built for AI service monetization with real-time per-call metering (<50ms), multi-protocol support (MCP, x402, AP2, Visa TAP), budget enforcement, agent identity, and multi-hop settlement for agent chains.
+
+### How is SettleGrid different from Nevermined?
+Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid supports both fiat (Stripe) and crypto, with faster metering (Redis vs on-chain), a developer-friendly SDK, and native support for MCP and AP2.
+
+### How is SettleGrid different from Paid.ai?
+Paid.ai supports MCP only. SettleGrid is protocol-agnostic (MCP, x402, AP2, Visa TAP, REST), includes budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection.
+
+### What percentage does SettleGrid take?
+Free tier: 0% (you keep 100%). Paid tiers: 5% (you keep 95%). Enterprise: 3-5% negotiable.
+
+### How fast is the metering?
+Sub-50ms. SettleGrid uses Redis DECRBY for atomic balance checks on the hot path, with async database writeback. Key validation is LRU-cached for 5 minutes.
+
+### Can I use SettleGrid with any programming language?
+The SDK is TypeScript/JavaScript. For other languages, use the REST API directly — any HTTP client can call the SettleGrid API for key validation and metering.
+
+### Is the SDK open source?
+Yes. The `@settlegrid/mcp` SDK is MIT-licensed and available on GitHub at https://github.com/lexwhiting/settlegrid.
+
+### How do payouts work?
+Developers connect their Stripe account via Stripe Connect Express. Payouts are processed automatically based on usage. Developer keeps 95% of revenue (100% on Free tier).
+
+### Does SettleGrid support multi-agent workflows?
+Yes. Multi-hop settlement handles agent chains (A calls B calls C) with atomic settlement — everyone gets paid or no one does. Revenue splits are resolved in real time.
