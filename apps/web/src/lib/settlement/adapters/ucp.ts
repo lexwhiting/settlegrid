@@ -107,7 +107,7 @@ export class UCPAdapter implements ProtocolAdapter {
     let code: string
 
     if (isSessionError) {
-      status = 400
+      status = 401
       code = 'UCP_SESSION_ERROR'
     } else if (isPaymentError) {
       status = 402

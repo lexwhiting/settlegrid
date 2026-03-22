@@ -283,8 +283,8 @@ describe('Settlement Type System', () => {
   })
 
   it('all ProtocolName values are valid', () => {
-    const names: ProtocolName[] = ['mcp', 'x402', 'ap2', 'visa-tap']
-    expect(names).toHaveLength(4)
+    const names: ProtocolName[] = ['mcp', 'x402', 'ap2', 'visa-tap', 'mpp', 'ucp', 'acp', 'mastercard-vi', 'circle-nano']
+    expect(names).toHaveLength(9)
   })
 
   it('all PaymentType values are valid', () => {
@@ -294,8 +294,13 @@ describe('Settlement Type System', () => {
       'permit2',
       'card-token',
       'vdc',
+      'spt',
+      'crypto',
+      'payment-handler',
+      'agentic-token',
+      'nanopayment',
     ]
-    expect(types).toHaveLength(5)
+    expect(types).toHaveLength(10)
   })
 
   it('all SettlementStatus values are valid', () => {

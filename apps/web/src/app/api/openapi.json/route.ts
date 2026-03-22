@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
                     customerId: { type: 'string', description: 'Customer identifier' },
                     budgetCents: { type: 'integer', minimum: 1 },
                     expiresIn: { type: 'integer', minimum: 1, maximum: 86400, description: 'TTL in seconds (max 24h)' },
-                    protocol: { type: 'string', enum: ['mcp', 'x402', 'ap2', 'visa-tap'] },
+                    protocol: { type: 'string', enum: ['mcp', 'x402', 'ap2', 'visa-tap', 'mpp', 'ucp', 'acp', 'mastercard-vi', 'circle-nano'] },
                     metadata: { type: 'object', additionalProperties: true },
                   },
                 },

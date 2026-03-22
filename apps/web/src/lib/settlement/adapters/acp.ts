@@ -104,7 +104,7 @@ export class ACPAdapter implements ProtocolAdapter {
     let code: string
 
     if (isCheckoutError) {
-      status = 400
+      status = 401
       code = 'ACP_CHECKOUT_ERROR'
     } else if (isPaymentError) {
       status = 402

@@ -15,7 +15,7 @@ const createSessionSchema = z.object({
   customerId: z.string().min(1),
   budgetCents: z.number().int().min(1),
   expiresIn: z.number().int().min(1).max(86400).optional(), // max 24h
-  protocol: z.enum(['mcp', 'x402', 'ap2', 'visa-tap']).optional(),
+  protocol: z.enum(['mcp', 'x402', 'ap2', 'visa-tap', 'mpp', 'ucp', 'acp', 'mastercard-vi', 'circle-nano']).optional(),
   metadata: z.record(z.unknown()).optional(),
 })
 
