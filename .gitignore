@@ -10,3 +10,13 @@ coverage/
 .env*.local
 .env.smoke
 .vercel.bak/
+
+# Sensitive/internal docs (moved to settlegrid-private/)
+STRATEGIC_BLUEPRINT.md
+ANTHROPIC_PARTNER_APPLICATION.md
+UI_IMPLEMENTATION_PLAN.md
+SMOKE_TEST_GUIDE.md
+MANUAL_SMOKE_TEST.md
+SMOKE_TEST_TRACKER.xlsx
+smoke-results.json
+VERCEL_DEBUG_HANDOFF.md
