@@ -26,7 +26,8 @@ export const developers = pgTable('developers', {
   revenueSharePct: integer('revenue_share_pct').notNull().default(85), // 85 = developer keeps 85%
   stripeConnectId: text('stripe_connect_id'),
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),
-  stripeSubscriptionId: text('stripe_subscription_id'), // Enterprise tier subscription
+  stripeCustomerId: text('stripe_customer_id'), // Stripe Customer for subscription billing
+  stripeSubscriptionId: text('stripe_subscription_id'), // Plan subscription
   apiKeyHash: text('api_key_hash'),
   balanceCents: integer('balance_cents').notNull().default(0),
   payoutSchedule: text('payout_schedule').notNull().default('monthly'),

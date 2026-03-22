@@ -1,6 +1,15 @@
 import { db } from '@/lib/db'
-import { complianceExports } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import {
+  complianceExports,
+  developers,
+  tools,
+  invocations,
+  payouts,
+  webhookEndpoints,
+  referrals,
+  auditLogs,
+} from '@/lib/db/schema'
+import { eq, and, gte, desc } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ---- Types ------------------------------------------------------------------
@@ -93,13 +102,98 @@ export async function getExportStatus(
   }
 }
 
+// ---- Collect Developer Data (GDPR Article 20) --------------------------------
+
+/**
+ * Query all developer data from the database for a GDPR data export.
+ * Returns a structured JSON object with profile, tools, invocations (last 90 days),
+ * payouts, webhooks, referrals, and audit logs.
+ */
+export async function collectDeveloperData(developerId: string): Promise<Record<string, unknown>> {
+  const ninetyDaysAgo = new Date()
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+  // Query all related data in parallel
+  const [profileRows, toolRows, invocationRows, payoutRows, webhookRows, referralRows, auditLogRows] =
+    await Promise.all([
+      // Developer profile
+      db.select().from(developers).where(eq(developers.id, developerId)).limit(1),
+
+      // Developer tools
+      db.select().from(tools).where(eq(tools.developerId, developerId)).orderBy(desc(tools.createdAt)),
+
+      // Invocations for developer's tools (last 90 days)
+      db
+        .select({
+          id: invocations.id,
+          toolId: invocations.toolId,
+          consumerId: invocations.consumerId,
+          method: invocations.method,
+          costCents: invocations.costCents,
+          latencyMs: invocations.latencyMs,
+          status: invocations.status,
+          isTest: invocations.isTest,
+          createdAt: invocations.createdAt,
+        })
+        .from(invocations)
+        .innerJoin(tools, eq(invocations.toolId, tools.id))
+        .where(and(eq(tools.developerId, developerId), gte(invocations.createdAt, ninetyDaysAgo)))
+        .orderBy(desc(invocations.createdAt))
+        .limit(10000),
+
+      // Payouts
+      db.select().from(payouts).where(eq(payouts.developerId, developerId)).orderBy(desc(payouts.createdAt)),
+
+      // Webhook endpoints
+      db
+        .select()
+        .from(webhookEndpoints)
+        .where(eq(webhookEndpoints.developerId, developerId))
+        .orderBy(desc(webhookEndpoints.createdAt)),
+
+      // Referrals
+      db.select().from(referrals).where(eq(referrals.referrerId, developerId)).orderBy(desc(referrals.createdAt)),
+
+      // Audit logs (last 90 days)
+      db
+        .select()
+        .from(auditLogs)
+        .where(and(eq(auditLogs.developerId, developerId), gte(auditLogs.createdAt, ninetyDaysAgo)))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(5000),
+    ])
+
+  // Redact sensitive fields from the profile
+  const profile = profileRows[0]
+    ? {
+        ...profileRows[0],
+        passwordHash: undefined,
+        apiKeyHash: undefined,
+      }
+    : null
+
+  return {
+    exportedAt: new Date().toISOString(),
+    exportVersion: '1.0',
+    profile,
+    tools: toolRows,
+    invocations: invocationRows,
+    payouts: payoutRows,
+    webhookEndpoints: webhookRows.map((w) => ({
+      ...w,
+      secret: '[REDACTED]', // Do not expose webhook secrets in export
+    })),
+    referrals: referralRows,
+    auditLogs: auditLogRows,
+  }
+}
+
 // ---- Process Data Export (GDPR Article 20) ----------------------------------
 
 /**
  * Process a pending data export request.
- * Collects data for the entity and produces a downloadable URL.
- * In production this would query all relevant tables; for now it
- * marks the record as completed with a placeholder result URL.
+ * Queries all developer data from the database, encodes it as a base64 data URL,
+ * and stores the result in the compliance_exports record.
  */
 export async function processDataExport(
   exportId: string
@@ -129,10 +223,13 @@ export async function processDataExport(
     .where(eq(complianceExports.id, exportId))
 
   try {
-    // In production: query ledger_entries, invocations, workflow_sessions,
-    // outcome_verifications etc. for this entity, package as JSON/ZIP,
-    // upload to secure storage and set resultUrl.
-    const resultUrl = `https://exports.settlegrid.ai/${exportId}/data.json`
+    // Collect all developer data
+    const exportData = await collectDeveloperData(record.entityId)
+
+    // Encode the JSON as a base64 data URL for storage in the DB
+    const jsonString = JSON.stringify(exportData, null, 2)
+    const base64 = Buffer.from(jsonString, 'utf-8').toString('base64')
+    const resultUrl = `data:application/json;base64,${base64}`
 
     await db
       .update(complianceExports)
@@ -147,6 +244,7 @@ export async function processDataExport(
       exportId,
       entityType: record.entityType,
       entityId: record.entityId,
+      dataSizeBytes: jsonString.length,
     })
 
     return { status: 'completed', resultUrl }

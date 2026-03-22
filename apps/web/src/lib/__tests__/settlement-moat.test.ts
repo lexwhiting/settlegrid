@@ -74,6 +74,14 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'id', requestType: 'request_type', entityType: 'entity_type', entityId: 'entity_id',
     status: 'status', resultUrl: 'result_url', completedAt: 'completed_at', createdAt: 'created_at',
   },
+  invocations: {
+    id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', method: 'method',
+    costCents: 'cost_cents', latencyMs: 'latency_ms', status: 'status', isTest: 'is_test', createdAt: 'created_at',
+  },
+  payouts: { id: 'id', developerId: 'developer_id', createdAt: 'created_at' },
+  webhookEndpoints: { id: 'id', developerId: 'developer_id', secret: 'secret', createdAt: 'created_at' },
+  referrals: { id: 'id', referrerId: 'referrer_id', createdAt: 'created_at' },
+  auditLogs: { id: 'id', developerId: 'developer_id', createdAt: 'created_at' },
   agentIdentities: {
     id: 'id', providerId: 'provider_id', agentName: 'agent_name', identityType: 'identity_type',
     publicKey: 'public_key', fingerprint: 'fingerprint', verificationLevel: 'verification_level',
@@ -103,6 +111,7 @@ vi.mock('drizzle-orm', () => ({
   lt: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ lt: [a, b] })),
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
   lte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ lte: [a, b] })),
+  desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
 }))
 
 // ─── Imports ────────────────────────────────────────────────────────────────
@@ -128,6 +137,8 @@ function setupSelectChain(result: unknown[]) {
   const chain = {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue(result),
   }
   mockDbSelect.mockReturnValue(chain)
@@ -556,20 +567,39 @@ describe('processDataExport', () => {
   })
 
   it('processes a pending export and returns completed with URL', async () => {
-    setupSelectChain([{
+    // First call returns the export record; subsequent calls (collectDeveloperData) return empty arrays.
+    // Drizzle query builders are thenable, so the chain must support: .from().where().orderBy() as well
+    // as .from().where().orderBy().limit() and .from().where().limit() — all resolve correctly.
+    let selectCallCount = 0
+    const exportRecord = {
       id: 'exp-1',
       requestType: 'data-export',
       entityType: 'customer',
       entityId: 'cust-1',
       status: 'pending',
-    }])
+    }
+    mockDbSelect.mockImplementation(() => {
+      selectCallCount++
+      const result = selectCallCount === 1 ? [exportRecord] : []
+      // Build a thenable chain: every method returns the chain, and await resolves to result
+      const chain: Record<string, unknown> = {}
+      const returnSelf = vi.fn(() => chain)
+      chain.from = returnSelf
+      chain.where = returnSelf
+      chain.innerJoin = returnSelf
+      chain.orderBy = returnSelf
+      chain.limit = returnSelf
+      // Thenable: allows `await db.select()...` to resolve
+      chain.then = (resolve: (v: unknown) => void, reject?: (v: unknown) => void) =>
+        Promise.resolve(result).then(resolve, reject)
+      return chain
+    })
     setupUpdateChain()
 
     const result = await processDataExport('exp-1')
 
     expect(result.status).toBe('completed')
-    expect(result.resultUrl).toContain('exp-1')
-    expect(result.resultUrl).toContain('data.json')
+    expect(result.resultUrl).toContain('data:application/json;base64,')
   })
 
   it('throws when export not found', async () => {

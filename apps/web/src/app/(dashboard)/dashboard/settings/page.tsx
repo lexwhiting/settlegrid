@@ -19,6 +19,7 @@ interface DeveloperProfile {
   tier: string
   revenueSharePct: number
   stripeConnectStatus: string
+  stripeSubscriptionId: string | null
   balanceCents: number
   payoutSchedule: string
   payoutMinimumCents: number
@@ -275,6 +276,10 @@ export default function SettingsPage() {
   const [exportingData, setExportingData] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+
+  // Plan & Billing state
+  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null)
+  const [managingSubscription, setManagingSubscription] = useState(false)
 
   // ─── Fetch Profile ──────────────────────────────────────────────────────────
 
@@ -563,12 +568,63 @@ export default function SettingsPage() {
     }, 500)
   }
 
-  function handleExportData() {
+  async function handleExportData() {
     setExportingData(true)
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/dashboard/developer/data-export', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Failed to export data', 'error')
+        return
+      }
+      toast('Export ready! Check your email for the download link.', 'success')
+    } catch {
+      toast('Network error', 'error')
+    } finally {
       setExportingData(false)
-      toast('Data export request submitted. You will receive an email when ready.', 'success')
-    }, 1000)
+    }
+  }
+
+  async function handleUpgradePlan(plan: string) {
+    setUpgradingPlan(plan)
+    try {
+      const res = await fetch('/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Failed to start upgrade', 'error')
+        return
+      }
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+      }
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setUpgradingPlan(null)
+    }
+  }
+
+  async function handleManageSubscription() {
+    setManagingSubscription(true)
+    try {
+      const res = await fetch('/api/billing/manage', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Failed to open billing portal', 'error')
+        return
+      }
+      if (data.portalUrl) {
+        window.location.href = data.portalUrl
+      }
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setManagingSubscription(false)
+    }
   }
 
   function handleDeleteAccount() {
@@ -1097,6 +1153,18 @@ export default function SettingsPage() {
                   </Badge>
                 </div>
 
+                {/* Manage Subscription (shown when developer has active subscription) */}
+                {profile?.stripeSubscriptionId && (
+                  <div className="flex items-center gap-3">
+                    <Button onClick={handleManageSubscription} disabled={managingSubscription} variant="outline">
+                      {managingSubscription ? 'Opening...' : 'Manage Subscription'}
+                    </Button>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Upgrade, downgrade, cancel, or update payment method
+                    </span>
+                  </div>
+                )}
+
                 {/* Plan Comparison */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {PLAN_ORDER.map((planKey, planIndex) => {
@@ -1128,14 +1196,28 @@ export default function SettingsPage() {
                           <Badge variant="outline" className="w-full justify-center">Current Plan</Badge>
                         ) : isUpgrade ? (
                           planKey === 'enterprise' ? (
-                            <a href="mailto:sales@settlegrid.ai" className="block">
+                            <a href="mailto:support@settlegrid.ai" className="block">
                               <Button size="sm" variant="outline" className="w-full">
                                 Contact Sales
                               </Button>
                             </a>
+                          ) : profile?.stripeSubscriptionId ? (
+                            <Button
+                              size="sm"
+                              className="w-full"
+                              onClick={handleManageSubscription}
+                              disabled={managingSubscription}
+                            >
+                              {managingSubscription ? 'Opening...' : `Upgrade to ${plan.name}`}
+                            </Button>
                           ) : (
-                            <Button size="sm" className="w-full">
-                              Upgrade to {plan.name}
+                            <Button
+                              size="sm"
+                              className="w-full"
+                              onClick={() => handleUpgradePlan(planKey)}
+                              disabled={upgradingPlan === planKey}
+                            >
+                              {upgradingPlan === planKey ? 'Redirecting...' : `Upgrade to ${plan.name}`}
                             </Button>
                           )
                         ) : (

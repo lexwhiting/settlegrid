@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         tier: developers.tier,
         revenueSharePct: developers.revenueSharePct,
         stripeConnectStatus: developers.stripeConnectStatus,
+        stripeSubscriptionId: developers.stripeSubscriptionId,
         balanceCents: developers.balanceCents,
         payoutSchedule: developers.payoutSchedule,
         payoutMinimumCents: developers.payoutMinimumCents,
