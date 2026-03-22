@@ -611,15 +611,15 @@ describe('stripeConnectCompleteEmail', () => {
     expect(result.html).toContain('Stripe Connect account is live')
   })
 
-  it('defaults to 80% revenue share', () => {
+  it('defaults to 95% revenue share', () => {
     const result = stripeConnectCompleteEmail('Dev')
-    expect(result.html).toContain('You keep 80%')
+    expect(result.html).toContain('You keep 95%')
   })
 
   it('accepts custom revenueSharePct', () => {
-    const result = stripeConnectCompleteEmail('Dev', { revenueSharePct: 85 })
-    expect(result.html).toContain('You keep 85%')
-    expect(result.html).not.toContain('You keep 80%')
+    const result = stripeConnectCompleteEmail('Dev', { revenueSharePct: 97 })
+    expect(result.html).toContain('You keep 97%')
+    expect(result.html).not.toContain('You keep 95%')
   })
 })
 

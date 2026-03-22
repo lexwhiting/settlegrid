@@ -244,7 +244,7 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
 
     // 1st limit: tool+dev lookup (moved to top of route)
     mockDb.limit
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       // 2nd limit: verify key is test key
       .mockResolvedValueOnce([{ isTestKey: true }])
     // Insert invocation
@@ -274,7 +274,7 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
 
     // 1st limit: tool+dev lookup
     mockDb.limit
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       // 2nd limit: key is NOT actually a test key in DB
       .mockResolvedValueOnce([{ isTestKey: false }])
       // 3rd limit: apiKeys createdAt for fraud check

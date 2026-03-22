@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
 // ---- Types ------------------------------------------------------------------
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer'
-export type OrgPlan = 'free' | 'builder' | 'scale' | 'platform' | 'enterprise'
+export type OrgPlan = 'free' | 'starter' | 'growth' | 'scale' | 'enterprise'
 
 export interface CreateOrgInput {
   name: string

@@ -85,7 +85,7 @@ describe('GET /api/auth/developer/me — extended fields', () => {
       email: 'dev@example.com',
       name: 'Jane',
       tier: 'standard',
-      revenueSharePct: 85,
+      revenueSharePct: 95,
       stripeConnectStatus: 'active',
       balanceCents: 5000,
       payoutSchedule: 'monthly',
@@ -101,7 +101,7 @@ describe('GET /api/auth/developer/me — extended fields', () => {
 
     expect(response.status).toBe(200)
     expect(data.developer.tier).toBe('standard')
-    expect(data.developer.revenueSharePct).toBe(85)
+    expect(data.developer.revenueSharePct).toBe(95)
     expect(data.developer.publicProfile).toBe(true)
     expect(data.developer.publicBio).toBe('Hi there')
   })

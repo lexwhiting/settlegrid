@@ -78,10 +78,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // The balanceCents already represents the developer's share (e.g. 85% or 90% of revenue)
+    // The balanceCents already represents the developer's share (e.g. 95% or 100% of revenue)
     const payoutAmountCents = developer.balanceCents
     // Platform fee already retained — calculate for record keeping
-    const sharePct = developer.revenueSharePct ?? 85
+    const sharePct = developer.revenueSharePct ?? 95
     const platformPct = 100 - sharePct
     const platformFeeCents = Math.floor(payoutAmountCents * (platformPct / sharePct))
 

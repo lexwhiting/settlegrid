@@ -37,7 +37,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Is there a free tier?',
-      a: 'Yes. The Free plan is $0 forever and includes 1 service, 1,000 operations per month, per-call billing, a basic dashboard, and an 85% revenue share. No credit card is required to start.',
+      a: 'Yes. The Free plan is $0 forever and includes unlimited tools, 25,000 operations per month, per-call billing, a basic dashboard, and a 0% take rate — you keep 100% of revenue. No credit card is required to start.',
     },
     {
       q: 'What protocols does SettleGrid support?',
@@ -70,7 +70,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I test my integration before going live?',
-      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics. Available on Builder tier and above.',
+      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics. Available on Starter tier and above.',
     },
     {
       q: 'Can I attach custom metadata to invocations?',
@@ -172,7 +172,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What is the revenue split?',
-      a: 'Developers keep at least 85% of every transaction on the Free and Builder plans. The Scale plan increases your share to 87%, and the Platform plan gives you 90%. The remaining percentage is the SettleGrid platform fee.',
+      a: 'The Free plan has a 0% take rate — developers keep 100% of revenue. On Starter, Growth, and Scale plans, the take rate is 5% — developers keep 95%. Enterprise plans offer a negotiable 3-5% take rate.',
     },
     {
       q: 'What is the minimum payout?',
@@ -502,7 +502,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What plans are available?',
-      a: 'Four plans: Free ($0 forever, 1 service, 1K ops/month, 85% revenue share), Builder ($29/month, 5 services, 50K ops/month, sandbox mode), Scale ($99/month, unlimited services, 500K ops/month, IP allowlisting, 87% share), and Platform ($299/month, unlimited everything, fraud detection, audit logging, 90% share, 99.9% SLA).',
+      a: 'Five plans: Free ($0 forever, unlimited tools, 25K ops/month, 0% take rate), Starter ($9/month, 100K ops/month, 5% take rate, sandbox mode), Growth ($29/month, 500K ops/month, 5% take rate, IP allowlisting), Scale ($79/month, 2M ops/month, 5% negotiable, fraud detection, dedicated support), and Enterprise (custom pricing, unlimited everything, 3-5% negotiable take rate).',
     },
     {
       q: 'Are there overage charges?',
@@ -514,7 +514,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Which features require a paid plan?',
-      a: 'Sandbox mode requires Builder ($29/mo) or above. IP allowlisting, CSV export, and referral system require Scale ($99/mo). Fraud detection, audit logging, and the 99.9% SLA require Platform ($299/mo). All other features including per-method pricing, webhooks, and the marketplace are available on all plans.',
+      a: 'Sandbox mode requires Starter ($9/mo) or above. IP allowlisting, CSV export, and referral system require Growth ($29/mo). Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the marketplace are available on all plans.',
     },
   ],
 },
@@ -581,7 +581,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: 'Paid.ai supports MCP per-call billing only. SettleGrid adds multi-protocol support (MCP, x402, AP2, Visa TAP, REST), multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and an 85%+ revenue share.',
+      a: 'Paid.ai supports MCP per-call billing only. SettleGrid adds multi-protocol support (MCP, x402, AP2, Visa TAP, REST), multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and a 95%+ revenue share (100% on Free tier).',
     },
   ],
 },

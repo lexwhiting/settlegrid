@@ -23,7 +23,7 @@ export const developers = pgTable('developers', {
   supabaseUserId: text('supabase_user_id').unique(),
   passwordHash: text('password_hash'),
   tier: text('tier').notNull().default('standard'), // 'standard' | 'enterprise'
-  revenueSharePct: integer('revenue_share_pct').notNull().default(85), // 85 = developer keeps 85%
+  revenueSharePct: integer('revenue_share_pct').notNull().default(95), // 95 = developer keeps 95% (5% platform fee)
   stripeConnectId: text('stripe_connect_id'),
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),
   stripeCustomerId: text('stripe_customer_id'), // Stripe Customer for subscription billing
@@ -813,7 +813,7 @@ export const organizations = pgTable(
     name: text('name').notNull(),
     slug: text('slug').notNull().unique(),
     plan: text('plan').notNull().default('free'),
-      // 'free' | 'builder' | 'scale' | 'platform' | 'enterprise'
+      // 'free' | 'starter' | 'growth' | 'scale' | 'enterprise'
     billingEmail: text('billing_email').notNull(),
     stripeCustomerId: text('stripe_customer_id'),
     stripeSubscriptionId: text('stripe_subscription_id'),
@@ -828,7 +828,7 @@ export const organizations = pgTable(
   (table) => [
     uniqueIndex('organizations_slug_idx').on(table.slug),
     index('organizations_plan_idx').on(table.plan),
-    check('organizations_plan_check', sql`${table.plan} IN ('free', 'builder', 'scale', 'platform', 'enterprise')`),
+    check('organizations_plan_check', sql`${table.plan} IN ('free', 'starter', 'growth', 'scale', 'enterprise')`),
   ]
 )
 

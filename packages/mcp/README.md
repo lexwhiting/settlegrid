@@ -38,7 +38,7 @@ That's it. Every call to `billedHandler` validates the consumer's API key, check
 1. **Developer** registers a tool on [settlegrid.ai](https://settlegrid.ai) and sets per-method pricing
 2. **Consumer** purchases credits via Stripe and receives an API key (`sg_live_...`)
 3. **SDK** wraps your tool handler — validates key, checks balance, executes, meters
-4. **SettleGrid** splits revenue automatically (85% to developer, 15% platform fee)
+4. **SettleGrid** splits revenue automatically (developer keeps 95%; 0% fee on Free tier)
 
 ## Features
 

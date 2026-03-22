@@ -1,0 +1,47 @@
+# SettleGrid — The Settlement Layer for the AI Economy
+# https://settlegrid.ai
+
+# Allow AI search/assistant crawlers
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Disallow training-only bots (we allow search, not bulk training)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+# Default: allow everything for unrecognized agents
+User-agent: *
+Allow: /
+
+# Explicitly allow key pages for all permitted agents
+Allow: /docs
+Allow: /api/docs
+Allow: /pricing
+Allow: /tools
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+# Sitemap & LLMs
+Sitemap: https://settlegrid.ai/sitemap.xml
+# LLMs.txt: https://settlegrid.ai/llms.txt

@@ -47,7 +47,7 @@ async function main() {
       name: "Lex Whiting",
       supabaseUserId,
       tier: "enterprise",
-      revenueSharePct: 90,
+      revenueSharePct: 97,
       publicProfile: true,
       publicBio: "Founder, Alerterra",
     })

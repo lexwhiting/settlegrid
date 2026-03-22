@@ -89,7 +89,7 @@ function ComparisonTable() {
     { name: 'Sandbox mode', settlegrid: true, stripe: true, nevermined: false, paid: true },
     { name: 'Open-source SDK', settlegrid: true, stripe: false, nevermined: true, paid: false },
     { name: 'Budget enforcement', settlegrid: true, stripe: false, nevermined: false, paid: false },
-    { name: 'Revenue split (85%+)', settlegrid: true, stripe: false, nevermined: false, paid: false },
+    { name: 'Revenue split (95%+)', settlegrid: true, stripe: false, nevermined: false, paid: false },
   ]
 
   function renderCell(val: boolean | string) {
@@ -137,67 +137,83 @@ function PricingSection() {
       period: 'forever',
       description: 'For experimenting and prototyping',
       features: [
-        '1 service',
-        '1,000 operations/month',
+        'Unlimited tools',
+        '25,000 operations/month',
         'Per-call billing',
         'Basic dashboard',
-        '85% revenue share',
+        '0% take rate — you keep 100%',
       ],
       cta: 'Start Free',
       href: '/register',
       highlighted: false,
     },
     {
-      name: 'Builder',
-      price: '$29',
+      name: 'Starter',
+      price: '$9',
       period: '/month',
       description: 'For solo developers shipping services',
       features: [
-        '5 services',
-        '50,000 operations/month',
+        'Unlimited tools',
+        '100,000 operations/month',
         'Full analytics',
         'Webhook events',
         'Sandbox mode',
-        '85% revenue share',
+        '5% take rate — you keep 95%',
       ],
       cta: 'Start Building',
       href: '/register',
       highlighted: false,
     },
     {
-      name: 'Scale',
-      price: '$99',
+      name: 'Growth',
+      price: '$29',
       period: '/month',
       description: 'For teams with growing usage',
       features: [
-        'Unlimited services',
+        'Unlimited tools',
         '500,000 operations/month',
         'Priority webhooks',
         'IP allowlisting',
         'CSV export',
         'Referral system',
-        '87% revenue share',
+        '5% take rate — you keep 95%',
       ],
       cta: 'Get Started',
       href: '/register',
       highlighted: true,
     },
     {
-      name: 'Platform',
-      price: '$299',
+      name: 'Scale',
+      price: '$79',
       period: '/month',
+      description: 'For high-volume services',
+      features: [
+        'Unlimited tools',
+        '2,000,000 operations/month',
+        'Fraud detection',
+        'Audit logging',
+        'Dedicated support',
+        '5% take rate (negotiable)',
+      ],
+      cta: 'Get Started',
+      href: '/register',
+      highlighted: false,
+    },
+    {
+      name: 'Enterprise',
+      price: 'Custom',
+      period: '',
       description: 'For enterprises and platforms',
       features: [
         'Unlimited everything',
-        'Dedicated support',
-        '99.9% SLA',
-        'Fraud detection',
-        'Audit logging',
+        'Custom SLA',
+        'Dedicated CSM',
         'Custom integrations',
-        '90% revenue share',
+        'On-premise option',
+        '3-5% take rate (negotiable)',
       ],
       cta: 'Contact Sales',
-      href: '/register',
+      href: 'mailto:support@settlegrid.ai',
       highlighted: false,
     },
   ]
@@ -206,9 +222,9 @@ function PricingSection() {
     <div className="text-center">
       <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 mb-4">Simple, Transparent Pricing</h2>
       <p className="text-gray-600 dark:text-gray-400 mb-10 max-w-xl mx-auto">
-        Start free. Scale as you grow. You always keep the majority of your revenue.
+        Start free. Scale as you grow. Developer keeps 95% — or 100% on Free.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 max-w-6xl mx-auto">
         {tiers.map((tier) => (
           <div
             key={tier.name}
@@ -447,7 +463,7 @@ export default function HomePage() {
                 <StepCard
                   step="2"
                   title="Consumers Buy Credits"
-                  description="Fiat via Stripe or crypto via x402/USDC. Consumers pre-fund credit balances with auto-refill. You get an 85% revenue share."
+                  description="Fiat via Stripe or crypto via x402/USDC. Consumers pre-fund credit balances with auto-refill. Developer keeps 95% — or 100% on Free."
                 />
                 <StepCard
                   step="3"

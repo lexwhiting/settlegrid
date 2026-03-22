@@ -339,7 +339,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
     // 2nd limit = apiKeys createdAt for fraud check
     // 3rd limit = balance check
     mockDb.limit
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }]) // key createdAt
       .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 5000 }]) // balance check
 
@@ -368,7 +368,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
 
   it('returns 402 for insufficient credits', async () => {
     mockDb.limit
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }])
       .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 2 }])
 
@@ -390,7 +390,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
 
   it('returns 402 when no balance record exists', async () => {
     mockDb.limit
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }])
       .mockResolvedValueOnce([]) // no balance
 
@@ -410,7 +410,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
   it('handles zero-cost invocations', async () => {
     // Tool+dev lookup is the first query even for zero-cost
     mockDb.limit
-      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 85, developerTier: 'starter' }])
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
 
     // Make mockDb thenable for await db.update().set().where()
     mockDb.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {

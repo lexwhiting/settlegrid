@@ -70,7 +70,7 @@ export const sdkLimiter = lazyLimiter(1000, '1 m')
 
 // ─── Tiered Rate Limiting ────────────────────────────────────────────────────
 
-export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise'
+export type PlanTier = 'free' | 'starter' | 'growth' | 'scale' | 'enterprise'
 
 export interface TierLimits {
   api: number // requests per minute
@@ -78,10 +78,11 @@ export interface TierLimits {
 }
 
 const TIER_LIMITS: Record<PlanTier, TierLimits> = {
-  free: { api: 30, sdk: 100 },
-  starter: { api: 60, sdk: 500 },
-  pro: { api: 200, sdk: 2000 },
-  enterprise: { api: 1000, sdk: 10000 },
+  free: { api: 30, sdk: 200 },
+  starter: { api: 60, sdk: 800 },
+  growth: { api: 200, sdk: 4000 },
+  scale: { api: 500, sdk: 16000 },
+  enterprise: { api: 1000, sdk: 50000 },
 }
 
 /**

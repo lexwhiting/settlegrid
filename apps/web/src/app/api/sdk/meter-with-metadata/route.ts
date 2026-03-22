@@ -118,7 +118,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    // Dynamic revenue split based on developer tier (85% standard, 90% enterprise)
+    // Dynamic revenue split based on developer tier (95% standard, 97% enterprise)
     const developerShareCents = Math.floor(body.costCents * (toolDev.revenueSharePct / 100))
 
     // 1. Deduct from consumer balance (atomic)

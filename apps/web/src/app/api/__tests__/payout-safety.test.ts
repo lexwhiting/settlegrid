@@ -117,7 +117,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-123',
       balanceCents: 5000,
-      revenueSharePct: 85,
+      revenueSharePct: 95,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
       payoutMinimumCents: 2500,
@@ -127,7 +127,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.returning.mockResolvedValueOnce([{
       id: 'payout-1',
       amountCents: 5000,
-      platformFeeCents: 882,
+      platformFeeCents: 263,
       status: 'processing',
       createdAt: new Date().toISOString(),
     }])
@@ -151,7 +151,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-123',
       balanceCents: 5000,
-      revenueSharePct: 85,
+      revenueSharePct: 95,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
       payoutMinimumCents: 2500,
@@ -161,7 +161,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.returning.mockResolvedValueOnce([{
       id: 'payout-1',
       amountCents: 5000,
-      platformFeeCents: 882,
+      platformFeeCents: 263,
       status: 'processing',
       createdAt: new Date().toISOString(),
     }])
@@ -190,7 +190,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-123',
       balanceCents: 5000,
-      revenueSharePct: 85,
+      revenueSharePct: 95,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
       payoutMinimumCents: 2500,
@@ -199,7 +199,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.returning.mockResolvedValueOnce([{
       id: 'payout-1',
       amountCents: 5000,
-      platformFeeCents: 882,
+      platformFeeCents: 263,
       status: 'processing',
       createdAt: new Date().toISOString(),
     }])
@@ -221,7 +221,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-123',
       balanceCents: 3000,
-      revenueSharePct: 85,
+      revenueSharePct: 95,
       stripeConnectId: 'acct_test_456',
       stripeConnectStatus: 'active',
       payoutMinimumCents: 2500,
@@ -230,7 +230,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.returning.mockResolvedValueOnce([{
       id: 'payout-99',
       amountCents: 3000,
-      platformFeeCents: 529,
+      platformFeeCents: 157,
       status: 'processing',
       createdAt: new Date().toISOString(),
     }])

@@ -75,31 +75,31 @@ const PLANS: Record<string, PlanInfo> = {
   free: {
     name: 'Free',
     price: '$0/mo',
-    features: ['1 tool', '1,000 invocations/mo', 'Community support', 'Basic analytics'],
+    features: ['Unlimited tools', '25,000 ops/mo', '0% take rate', 'Basic analytics'],
   },
-  builder: {
-    name: 'Builder',
+  starter: {
+    name: 'Starter',
+    price: '$9/mo',
+    features: ['Unlimited tools', '100,000 ops/mo', '5% take rate', 'Full analytics', 'Sandbox mode'],
+  },
+  growth: {
+    name: 'Growth',
     price: '$29/mo',
-    features: ['5 tools', '25,000 invocations/mo', 'Email support', 'Advanced analytics', 'Custom pricing'],
+    features: ['Unlimited tools', '500,000 ops/mo', '5% take rate', 'Priority webhooks', 'IP allowlisting'],
   },
   scale: {
     name: 'Scale',
-    price: '$99/mo',
-    features: ['25 tools', '250,000 invocations/mo', 'Priority support', 'Webhooks', 'Team members'],
-  },
-  platform: {
-    name: 'Platform',
-    price: '$299/mo',
-    features: ['Unlimited tools', '2M invocations/mo', 'Dedicated support', 'SSO', 'White-label', 'SLA'],
+    price: '$79/mo',
+    features: ['Unlimited tools', '2,000,000 ops/mo', '5% take rate (negotiable)', 'Fraud detection', 'Dedicated support'],
   },
   enterprise: {
     name: 'Enterprise',
     price: 'Custom',
-    features: ['Unlimited everything', 'Custom SLA', 'Dedicated CSM', 'On-premise option', 'Custom integrations'],
+    features: ['Unlimited everything', 'Custom SLA', '3-5% take rate', 'Dedicated CSM', 'Custom integrations'],
   },
 }
 
-const PLAN_ORDER = ['free', 'builder', 'scale', 'platform', 'enterprise']
+const PLAN_ORDER = ['free', 'starter', 'growth', 'scale', 'enterprise']
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -805,7 +805,7 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue Share</dt>
-                    <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">{profile?.revenueSharePct ?? 85}%</dd>
+                    <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">{profile?.revenueSharePct ?? 95}%</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since</dt>

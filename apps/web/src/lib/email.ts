@@ -312,7 +312,7 @@ export function stripeConnectCompleteEmail(
   name: string,
   options?: { preheader?: string; revenueSharePct?: number }
 ): EmailTemplate {
-  const pct = options?.revenueSharePct ?? 80
+  const pct = options?.revenueSharePct ?? 95
   return {
     subject: 'Stripe Connect is active — You can now receive payouts',
     html: baseEmailTemplate(
