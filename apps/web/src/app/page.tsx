@@ -564,31 +564,36 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  2. Protocol logo bar                                            */}
         {/* ================================================================ */}
-        <section className="px-6 py-12 border-b border-gray-200 dark:border-[#2E3148]">
+        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148]">
           <RevealSection>
-            <div className="max-w-4xl mx-auto">
-              <p className="text-center text-sm font-semibold text-brand dark:text-brand-light mb-2">One SDK. Ten Protocols. Zero Vendor Lock-in.</p>
-              <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-8">The only settlement layer that supports every AI payment protocol</p>
-              <div className="flex items-center justify-center gap-6 sm:gap-8 flex-wrap">
+            <div className="max-w-5xl mx-auto">
+              <div className="text-center mb-10">
+                <h2 className="text-2xl sm:text-3xl font-bold text-indigo dark:text-gray-100 mb-3">One SDK. Ten Protocols. Zero Vendor Lock-in.</h2>
+                <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto">The only settlement layer that supports every AI payment protocol. Wrap once, settle everywhere.</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
-                  { name: 'MCP', label: 'Model Context Protocol (Anthropic)' },
-                  { name: 'MPP', label: 'Machine Payments Protocol (Stripe + Tempo)' },
-                  { name: 'x402', label: 'HTTP 402 Micropayments (Coinbase)' },
-                  { name: 'AP2', label: 'Agent Payments Protocol (Google)' },
-                  { name: 'Visa TAP', label: 'Trusted Agent Protocol (Visa)' },
-                  { name: 'UCP', label: 'Universal Commerce Protocol (Google + Shopify)' },
-                  { name: 'ACP', label: 'Agentic Commerce Protocol (OpenAI)' },
-                  { name: 'MC Agent Pay', label: 'Mastercard Agent Pay + Verifiable Intent' },
-                  { name: 'Nanopayments', label: 'Circle Nanopayments (USDC)' },
-                  { name: 'REST', label: 'Any REST API' },
+                  { name: 'MCP', backer: 'Anthropic', href: 'https://modelcontextprotocol.io', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/30' },
+                  { name: 'MPP', backer: 'Stripe + Tempo', href: 'https://docs.stripe.com/payments/machine/mpp', color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-800/30' },
+                  { name: 'x402', backer: 'Coinbase', href: 'https://www.x402.org', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/30' },
+                  { name: 'AP2', backer: 'Google', href: 'https://ap2-protocol.org', color: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800/30' },
+                  { name: 'Visa TAP', backer: 'Visa', href: 'https://developer.visa.com/capabilities/trusted-agent-protocol', color: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/30' },
+                  { name: 'UCP', backer: 'Google + Shopify', href: 'https://ucp.dev', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30' },
+                  { name: 'ACP', backer: 'OpenAI + Stripe', href: 'https://www.agenticcommerce.dev', color: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800/30' },
+                  { name: 'MC Agent Pay', backer: 'Mastercard', href: 'https://www.mastercard.com/us/en/business/artificial-intelligence/mastercard-agent-pay.html', color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/30' },
+                  { name: 'Nanopayments', backer: 'Circle (USDC)', href: 'https://www.circle.com/nanopayments', color: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/30' },
+                  { name: 'REST', backer: 'Any HTTP API', href: '/docs', color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700/50' },
                 ].map((proto) => (
-                  <span
+                  <a
                     key={proto.name}
-                    title={proto.label}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors font-semibold text-xs sm:text-sm select-none"
+                    href={proto.href}
+                    target={proto.href.startsWith('/') ? undefined : '_blank'}
+                    rel={proto.href.startsWith('/') ? undefined : 'noopener noreferrer'}
+                    className={`group flex flex-col items-center gap-1.5 rounded-lg border px-3 py-4 transition-all hover:shadow-md hover:scale-[1.03] ${proto.color}`}
                   >
-                    {proto.name}
-                  </span>
+                    <span className="text-sm sm:text-base font-bold tracking-tight">{proto.name}</span>
+                    <span className="text-[10px] sm:text-xs opacity-70 font-medium text-center leading-tight">{proto.backer}</span>
+                  </a>
                 ))}
               </div>
             </div>
