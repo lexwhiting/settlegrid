@@ -41,7 +41,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What protocols does SettleGrid support?',
-      a: 'SettleGrid is protocol-agnostic. It natively supports MCP (Model Context Protocol), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), Stripe Connect, and any standard REST API. One SDK covers every protocol.',
+      a: 'SettleGrid is protocol-agnostic. It natively supports 10 protocols: MCP (Model Context Protocol), MPP (Machine Payments Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Agent Pay (Verifiable Intent), Circle Nanopayments (USDC), and any standard REST API. One SDK covers every protocol.',
     },
   ],
 },

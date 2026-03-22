@@ -3,6 +3,11 @@ import { MCPAdapter } from '@/lib/settlement/adapters/mcp'
 import { X402Adapter } from '@/lib/settlement/adapters/x402'
 import { AP2Adapter } from '@/lib/settlement/adapters/ap2'
 import { TAPAdapter } from '@/lib/settlement/adapters/tap'
+import { MPPAdapter } from '@/lib/settlement/adapters/mpp'
+import { CircleNanoAdapter } from '@/lib/settlement/adapters/circle-nano'
+import { MastercardVIAdapter } from '@/lib/settlement/adapters/mastercard-vi'
+import { ACPAdapter } from '@/lib/settlement/adapters/acp'
+import { UCPAdapter } from '@/lib/settlement/adapters/ucp'
 import {
   ProtocolRegistry,
   DETECTION_PRIORITY,
@@ -30,15 +35,20 @@ function makeResult(protocol: ProtocolName): SettlementResult {
 // ─── 1. Auto-registration ────────────────────────────────────────────────────
 
 describe('Auto-registration', () => {
-  it('protocolRegistry has all 4 adapters registered on import', () => {
+  it('protocolRegistry has all 9 adapters registered on import', () => {
     expect(protocolRegistry.has('mcp')).toBe(true)
     expect(protocolRegistry.has('x402')).toBe(true)
     expect(protocolRegistry.has('ap2')).toBe(true)
     expect(protocolRegistry.has('visa-tap')).toBe(true)
+    expect(protocolRegistry.has('mpp')).toBe(true)
+    expect(protocolRegistry.has('ucp')).toBe(true)
+    expect(protocolRegistry.has('acp')).toBe(true)
+    expect(protocolRegistry.has('mastercard-vi')).toBe(true)
+    expect(protocolRegistry.has('circle-nano')).toBe(true)
   })
 
-  it('protocolRegistry lists exactly 4 adapters', () => {
-    expect(protocolRegistry.list()).toHaveLength(4)
+  it('protocolRegistry lists exactly 9 adapters', () => {
+    expect(protocolRegistry.list()).toHaveLength(9)
   })
 
   it('MCP adapter is correct class instance', () => {
@@ -65,10 +75,40 @@ describe('Auto-registration', () => {
     expect(adapter?.displayName).toContain('Visa TAP')
   })
 
+  it('MPP adapter is correct class instance', () => {
+    const adapter = protocolRegistry.get('mpp')
+    expect(adapter).toBeInstanceOf(MPPAdapter)
+    expect(adapter?.displayName).toContain('Machine Payments Protocol')
+  })
+
+  it('Circle Nano adapter is correct class instance', () => {
+    const adapter = protocolRegistry.get('circle-nano')
+    expect(adapter).toBeInstanceOf(CircleNanoAdapter)
+    expect(adapter?.displayName).toContain('Circle Nanopayments')
+  })
+
+  it('UCP adapter is correct class instance', () => {
+    const adapter = protocolRegistry.get('ucp')
+    expect(adapter).toBeInstanceOf(UCPAdapter)
+    expect(adapter?.displayName).toContain('Universal Commerce Protocol')
+  })
+
+  it('ACP adapter is correct class instance', () => {
+    const adapter = protocolRegistry.get('acp')
+    expect(adapter).toBeInstanceOf(ACPAdapter)
+    expect(adapter?.displayName).toContain('Agentic Commerce Protocol')
+  })
+
+  it('Mastercard VI adapter is correct class instance', () => {
+    const adapter = protocolRegistry.get('mastercard-vi')
+    expect(adapter).toBeInstanceOf(MastercardVIAdapter)
+    expect(adapter?.displayName).toContain('Mastercard Agent Pay')
+  })
+
   it('importing settlement/adapters does not throw', async () => {
     const mod = await import('@/lib/settlement/adapters')
     expect(mod.protocolRegistry).toBeDefined()
-    expect(mod.protocolRegistry.list().length).toBeGreaterThanOrEqual(4)
+    expect(mod.protocolRegistry.list().length).toBeGreaterThanOrEqual(9)
   })
 })
 
@@ -80,6 +120,11 @@ describe('Error format standardization', () => {
     { name: 'x402' as const, Adapter: X402Adapter },
     { name: 'ap2' as const, Adapter: AP2Adapter },
     { name: 'visa-tap' as const, Adapter: TAPAdapter },
+    { name: 'mpp' as const, Adapter: MPPAdapter },
+    { name: 'circle-nano' as const, Adapter: CircleNanoAdapter },
+    { name: 'ucp' as const, Adapter: UCPAdapter },
+    { name: 'acp' as const, Adapter: ACPAdapter },
+    { name: 'mastercard-vi' as const, Adapter: MastercardVIAdapter },
   ]
 
   for (const { name, Adapter } of adapters) {
@@ -174,13 +219,13 @@ describe('Error format standardization', () => {
 // ─── 3. Protocol detection priority ──────────────────────────────────────────
 
 describe('Protocol detection priority', () => {
-  it('DETECTION_PRIORITY is x402 > ap2 > visa-tap > mcp', () => {
-    expect(DETECTION_PRIORITY).toEqual(['x402', 'ap2', 'visa-tap', 'mcp'])
+  it('DETECTION_PRIORITY is mpp > circle-nano > x402 > mastercard-vi > ap2 > acp > ucp > visa-tap > mcp', () => {
+    expect(DETECTION_PRIORITY).toEqual(['mpp', 'circle-nano', 'x402', 'mastercard-vi', 'ap2', 'acp', 'ucp', 'visa-tap', 'mcp'])
   })
 
   it('registry exposes detectionPriority', () => {
     const registry = new ProtocolRegistry()
-    expect(registry.detectionPriority).toEqual(['x402', 'ap2', 'visa-tap', 'mcp'])
+    expect(registry.detectionPriority).toEqual(['mpp', 'circle-nano', 'x402', 'mastercard-vi', 'ap2', 'acp', 'ucp', 'visa-tap', 'mcp'])
   })
 
   describe('conflicting headers', () => {
@@ -188,8 +233,13 @@ describe('Protocol detection priority', () => {
 
     beforeEach(() => {
       registry = new ProtocolRegistry()
+      registry.register(new MPPAdapter())
+      registry.register(new CircleNanoAdapter())
       registry.register(new X402Adapter())
+      registry.register(new MastercardVIAdapter())
       registry.register(new AP2Adapter())
+      registry.register(new ACPAdapter())
+      registry.register(new UCPAdapter())
       registry.register(new TAPAdapter())
       registry.register(new MCPAdapter())
     })
@@ -268,7 +318,7 @@ describe('Protocol detection priority', () => {
       expect(adapter?.name).toBe('mcp')
     })
 
-    it('all four headers: x402 still wins', () => {
+    it('all original four headers: x402 still wins (mpp/nano not present)', () => {
       const req = new Request('http://localhost/api/settle', {
         headers: {
           'x-api-key': 'sg_live_abc123',
@@ -279,6 +329,50 @@ describe('Protocol detection priority', () => {
       })
       const adapter = registry.detect(req)
       expect(adapter?.name).toBe('x402')
+    })
+
+    it('mpp wins over x402 when both x-mpp-credential and payment-signature present', () => {
+      const req = new Request('http://localhost/api/settle', {
+        headers: {
+          'x-mpp-credential': 'mpp_cred_abc123',
+          'payment-signature': Buffer.from(JSON.stringify({ scheme: 'exact' })).toString('base64'),
+        },
+      })
+      const adapter = registry.detect(req)
+      expect(adapter?.name).toBe('mpp')
+    })
+
+    it('circle-nano wins over x402 when both x-circle-nano-auth and payment-signature present', () => {
+      const req = new Request('http://localhost/api/settle', {
+        headers: {
+          'x-circle-nano-auth': 'nano-auth-abc123',
+          'payment-signature': Buffer.from(JSON.stringify({ scheme: 'exact' })).toString('base64'),
+        },
+      })
+      const adapter = registry.detect(req)
+      expect(adapter?.name).toBe('circle-nano')
+    })
+
+    it('mastercard-vi wins over ap2 when both x-mc-verifiable-intent and x-ap2-mandate present', () => {
+      const req = new Request('http://localhost/api/settle', {
+        headers: {
+          'x-mc-verifiable-intent': 'sd-jwt-credential',
+          'x-ap2-mandate': 'mandate-ref-001',
+        },
+      })
+      const adapter = registry.detect(req)
+      expect(adapter?.name).toBe('mastercard-vi')
+    })
+
+    it('acp wins over ucp when both x-acp-token and x-ucp-session present', () => {
+      const req = new Request('http://localhost/api/settle', {
+        headers: {
+          'x-acp-token': 'acp-token-abc',
+          'x-ucp-session': 'ucp-session-abc',
+        },
+      })
+      const adapter = registry.detect(req)
+      expect(adapter?.name).toBe('acp')
     })
 
     it('explicit x-settlegrid-protocol: x402 forces x402', () => {
@@ -360,13 +454,18 @@ describe('Adapter metrics', () => {
     expect(m.lastErrorAt! >= before).toBe(true)
   })
 
-  it('getAllMetrics returns all 4 protocols', () => {
+  it('getAllMetrics returns all 9 protocols', () => {
     const all = adapterMetrics.getAllMetrics()
-    expect(Object.keys(all)).toHaveLength(4)
+    expect(Object.keys(all)).toHaveLength(9)
     expect(all.mcp).toBeDefined()
     expect(all.x402).toBeDefined()
     expect(all.ap2).toBeDefined()
     expect(all['visa-tap']).toBeDefined()
+    expect(all.mpp).toBeDefined()
+    expect(all.ucp).toBeDefined()
+    expect(all.acp).toBeDefined()
+    expect(all['mastercard-vi']).toBeDefined()
+    expect(all['circle-nano']).toBeDefined()
   })
 
   it('getAllMetrics reflects recorded data', () => {

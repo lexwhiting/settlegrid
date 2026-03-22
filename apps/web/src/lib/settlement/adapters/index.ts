@@ -3,6 +3,11 @@ import { MCPAdapter } from './mcp'
 import { X402Adapter } from './x402'
 import { AP2Adapter } from './ap2'
 import { TAPAdapter } from './tap'
+import { MPPAdapter } from './mpp'
+import { CircleNanoAdapter } from './circle-nano'
+import { MastercardVIAdapter } from './mastercard-vi'
+import { ACPAdapter } from './acp'
+import { UCPAdapter } from './ucp'
 
 // ─── Adapter Metrics ──────────────────────────────────────────────────────────
 
@@ -52,6 +57,11 @@ class AdapterMetricsTracker implements MetricsTracker {
       x402: this.getMetrics('x402'),
       ap2: this.getMetrics('ap2'),
       'visa-tap': this.getMetrics('visa-tap'),
+      mpp: this.getMetrics('mpp'),
+      ucp: this.getMetrics('ucp'),
+      acp: this.getMetrics('acp'),
+      'mastercard-vi': this.getMetrics('mastercard-vi'),
+      'circle-nano': this.getMetrics('circle-nano'),
     }
   }
 
@@ -65,13 +75,28 @@ class AdapterMetricsTracker implements MetricsTracker {
 // When a request has headers matching multiple adapters (e.g. both x-api-key
 // and payment-signature), the most-specific protocol wins:
 //
-//   1. x402      (has payment-signature or explicit x-settlegrid-protocol: x402)
-//   2. ap2       (has x-ap2-mandate or explicit x-settlegrid-protocol: ap2)
-//   3. visa-tap  (has x-visa-agent-token or explicit x-settlegrid-protocol: visa-tap)
-//   4. mcp       (fallback — any x-api-key or Bearer sg_ token)
+//   1. mpp          (x-mpp-credential or Bearer mpp_* — HTTP 402 challenge-response)
+//   2. circle-nano  (x-circle-nano-auth — x402-compatible, check before x402)
+//   3. x402         (payment-signature or explicit x-settlegrid-protocol: x402)
+//   4. mastercard-vi(x-mc-verifiable-intent — SD-JWT credential chain)
+//   5. ap2          (x-ap2-mandate or explicit x-settlegrid-protocol: ap2)
+//   6. acp          (x-acp-token — Stripe SPT via OpenAI)
+//   7. ucp          (x-ucp-session — session-based checkout)
+//   8. visa-tap     (x-visa-agent-token or explicit x-settlegrid-protocol: visa-tap)
+//   9. mcp          (fallback — any x-api-key or Bearer sg_ token)
 //
 
-const DETECTION_PRIORITY: ProtocolName[] = ['x402', 'ap2', 'visa-tap', 'mcp']
+const DETECTION_PRIORITY: ProtocolName[] = [
+  'mpp',
+  'circle-nano',
+  'x402',
+  'mastercard-vi',
+  'ap2',
+  'acp',
+  'ucp',
+  'visa-tap',
+  'mcp',
+]
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
@@ -91,7 +116,7 @@ class ProtocolRegistry {
 
   /**
    * Detect the correct adapter for a request using priority order.
-   * Priority: x402 > ap2 > visa-tap > mcp (most specific first).
+   * Priority: mpp > circle-nano > x402 > mastercard-vi > ap2 > acp > ucp > visa-tap > mcp.
    * This ensures that a request with both an API key (MCP) and a
    * payment-signature (x402) routes to x402, not MCP.
    */
@@ -129,11 +154,16 @@ export const protocolRegistry = new ProtocolRegistry()
 export const adapterMetrics = new AdapterMetricsTracker()
 
 // ─── Auto-registration ───────────────────────────────────────────────────────
-// All four adapters are registered when the settlement module loads.
-// Import order follows detection priority (x402 > ap2 > visa-tap > mcp).
+// All nine adapters are registered when the settlement module loads.
+// Import order follows detection priority (most specific first).
 
+protocolRegistry.register(new MPPAdapter())
+protocolRegistry.register(new CircleNanoAdapter())
 protocolRegistry.register(new X402Adapter())
+protocolRegistry.register(new MastercardVIAdapter())
 protocolRegistry.register(new AP2Adapter())
+protocolRegistry.register(new ACPAdapter())
+protocolRegistry.register(new UCPAdapter())
 protocolRegistry.register(new TAPAdapter())
 protocolRegistry.register(new MCPAdapter())
 

@@ -5,9 +5,9 @@
 
 // ─── Payment Context (normalized from any protocol) ──────────────────────────
 
-export type ProtocolName = 'mcp' | 'x402' | 'ap2' | 'visa-tap'
+export type ProtocolName = 'mcp' | 'x402' | 'ap2' | 'visa-tap' | 'mpp' | 'ucp' | 'acp' | 'mastercard-vi' | 'circle-nano'
 
-export type IdentityType = 'api-key' | 'did:key' | 'jwt' | 'x509' | 'tap-token'
+export type IdentityType = 'api-key' | 'did:key' | 'jwt' | 'x509' | 'tap-token' | 'mpp-session' | 'ucp-session' | 'spt' | 'sd-jwt' | 'eip3009'
 
 export type PaymentType =
   | 'credit-balance'    // Pre-funded SettleGrid credits (existing model)
@@ -15,6 +15,11 @@ export type PaymentType =
   | 'permit2'           // x402 upto scheme (Permit2 permitWitnessTransferFrom)
   | 'card-token'        // AP2/Visa TAP tokenized card
   | 'vdc'               // AP2 Verifiable Digital Credential
+  | 'spt'               // Shared Payment Token (Stripe — MPP/ACP)
+  | 'crypto'            // Tempo blockchain (MPP)
+  | 'payment-handler'   // UCP merchant-selected handler (Google Pay, Shop Pay, Stripe, etc.)
+  | 'agentic-token'     // Mastercard Agentic Tokens (SD-JWT delegation chain)
+  | 'nanopayment'       // Circle Nanopayments (off-chain aggregation, on-chain batch)
 
 export interface PaymentContext {
   protocol: ProtocolName

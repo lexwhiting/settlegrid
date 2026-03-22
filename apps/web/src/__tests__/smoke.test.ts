@@ -115,26 +115,36 @@ describe('Settlement Module', () => {
     expect(settlement).toHaveProperty('ProtocolRegistry')
     expect(settlement).toHaveProperty('adapterMetrics')
     expect(settlement).toHaveProperty('DETECTION_PRIORITY')
-    expect(settlement.DETECTION_PRIORITY).toEqual(['x402', 'ap2', 'visa-tap', 'mcp'])
+    expect(settlement.DETECTION_PRIORITY).toEqual(['mpp', 'circle-nano', 'x402', 'mastercard-vi', 'ap2', 'acp', 'ucp', 'visa-tap', 'mcp'])
   })
 
-  it('exports all 4 protocol adapters', async () => {
+  it('exports all 9 protocol adapters', async () => {
     const settlement = await import('@/lib/settlement')
 
     expect(settlement).toHaveProperty('MCPAdapter')
     expect(settlement).toHaveProperty('X402Adapter')
     expect(settlement).toHaveProperty('AP2Adapter')
     expect(settlement).toHaveProperty('TAPAdapter')
+    expect(settlement).toHaveProperty('MPPAdapter')
+    expect(settlement).toHaveProperty('CircleNanoAdapter')
+    expect(settlement).toHaveProperty('UCPAdapter')
+    expect(settlement).toHaveProperty('ACPAdapter')
+    expect(settlement).toHaveProperty('MastercardVIAdapter')
   })
 
-  it('registers 4 adapters in the protocol registry', async () => {
+  it('registers 9 adapters in the protocol registry', async () => {
     const { protocolRegistry } = await import('@/lib/settlement')
 
     expect(protocolRegistry.has('mcp')).toBe(true)
     expect(protocolRegistry.has('x402')).toBe(true)
     expect(protocolRegistry.has('ap2')).toBe(true)
     expect(protocolRegistry.has('visa-tap')).toBe(true)
-    expect(protocolRegistry.list()).toHaveLength(4)
+    expect(protocolRegistry.has('mpp')).toBe(true)
+    expect(protocolRegistry.has('ucp')).toBe(true)
+    expect(protocolRegistry.has('acp')).toBe(true)
+    expect(protocolRegistry.has('mastercard-vi')).toBe(true)
+    expect(protocolRegistry.has('circle-nano')).toBe(true)
+    expect(protocolRegistry.list()).toHaveLength(9)
   })
 
   it('exports ledger functions', async () => {

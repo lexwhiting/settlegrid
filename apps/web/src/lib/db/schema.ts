@@ -728,7 +728,7 @@ export const workflowSessions = pgTable(
     // 'active' | 'finalizing' | 'settled' | 'completed' | 'failed' | 'expired' | 'cancelled'
     settlementMode: text('settlement_mode').notNull().default('immediate'),
     // 'immediate' | 'deferred' | 'atomic'
-    protocol: text('protocol'), // 'mcp' | 'x402' | 'ap2' | 'visa-tap' | null
+    protocol: text('protocol'), // 'mcp' | 'x402' | 'ap2' | 'visa-tap' | 'mpp' | 'ucp' | 'acp' | 'mastercard-vi' | 'circle-nano' | null
     hops: jsonb('hops').notNull().default('[]'),
     // Array<SessionHop> — each service call recorded as a hop
     atomicSettlementId: uuid('atomic_settlement_id'),
