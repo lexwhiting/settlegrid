@@ -1,5 +1,6 @@
 import { getRedis, tryRedis } from './redis'
 import { logger } from './logger'
+import { accountLockedEmail, sendEmail } from './email'
 
 export enum FraudSignal {
   RATE_SPIKE = 'rate_spike',
@@ -293,8 +294,9 @@ export async function detectFraud(params: {
 /**
  * Track a failed authentication attempt from an IP.
  * After 5 failures within 60s, the IP is blocked for 15 minutes.
+ * If a consumer email is known, sends an account-locked notification.
  */
-export async function trackFailedAuth(ip: string): Promise<void> {
+export async function trackFailedAuth(ip: string, consumerEmail?: string): Promise<void> {
   try {
     const redis = getRedis()
     const failKey = `fraud:auth-fail:${ip}`
@@ -313,6 +315,17 @@ export async function trackFailedAuth(ip: string): Promise<void> {
         await redis.set(blockKey, '1', { ex: 900 }) // 15 min block
       })
       logger.warn('fraud.ip_blocked', { ip, failedAttempts: count })
+
+      // Send account-locked email if the consumer is identifiable
+      if (consumerEmail) {
+        const template = accountLockedEmail(
+          consumerEmail,
+          ip,
+          `${count} failed authentication attempts in 60 seconds`
+        )
+        sendEmail({ to: consumerEmail, subject: template.subject, html: template.html })
+          .catch(() => { /* fire-and-forget — logged inside sendEmail */ })
+      }
     }
   } catch {
     logger.warn('fraud.track_failed_auth_error', { ip })

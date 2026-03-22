@@ -260,6 +260,17 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingSecurity, setSavingSecurity] = useState(false)
 
+  // MFA state
+  const [mfaEnrolled, setMfaEnrolled] = useState(false)
+  const [mfaLoading, setMfaLoading] = useState(true)
+  const [mfaEnrolling, setMfaEnrolling] = useState(false)
+  const [mfaFactorId, setMfaFactorId] = useState('')
+  const [mfaQrCode, setMfaQrCode] = useState('')
+  const [mfaSecret, setMfaSecret] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaVerifying, setMfaVerifying] = useState(false)
+  const [mfaDisabling, setMfaDisabling] = useState(false)
+
   // Data & Privacy state
   const [exportingData, setExportingData] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -280,6 +291,22 @@ export default function SettingsPage() {
         setPublicProfile(dev.publicProfile)
         setPayoutSchedule(dev.payoutSchedule)
         setPayoutMinimumDollars(String(dev.payoutMinimumCents / 100))
+
+        // Load saved notification preferences
+        try {
+          const prefsRes = await fetch('/api/dashboard/developer/notification-preferences')
+          if (prefsRes.ok) {
+            const prefsData = await prefsRes.json()
+            const saved = prefsData.preferences as Record<string, boolean>
+            if (saved && Object.keys(saved).length > 0) {
+              setNotifications((prev) =>
+                prev.map((n) => saved[n.key] !== undefined ? { ...n, emailEnabled: saved[n.key] } : n)
+              )
+            }
+          }
+        } catch {
+          // Non-critical — use defaults
+        }
       } catch {
         setError('Network error')
       } finally {
@@ -390,17 +417,126 @@ export default function SettingsPage() {
 
   function saveNotifications() {
     setSavingNotifications(true)
-    // Notification preferences are stored client-side for now
-    setTimeout(() => {
-      setSavingNotifications(false)
-      toast('Notification preferences saved', 'success')
-    }, 500)
+    const prefs: Record<string, boolean> = {}
+    for (const n of notifications) {
+      prefs[n.key] = n.emailEnabled
+    }
+    fetch('/api/dashboard/developer/notification-preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prefs),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          toast(data.error || 'Failed to save notification preferences', 'error')
+        } else {
+          toast('Notification preferences saved', 'success')
+        }
+      })
+      .catch(() => toast('Network error', 'error'))
+      .finally(() => setSavingNotifications(false))
   }
 
   function toggleNotification(key: string) {
     setNotifications((prev) =>
       prev.map((n) => n.key === key && !n.critical ? { ...n, emailEnabled: !n.emailEnabled } : n)
     )
+  }
+
+  // ─── MFA: Fetch status on mount ─────────────────────────────────────────────
+
+  useEffect(() => {
+    async function fetchMfaStatus() {
+      try {
+        const res = await fetch('/api/auth/mfa')
+        if (res.ok) {
+          const data = await res.json()
+          setMfaEnrolled(data.enrolled)
+          if (data.factors?.length > 0) {
+            setMfaFactorId(data.factors[0].id)
+          }
+        }
+      } catch {
+        // Non-critical — MFA status defaults to not enrolled
+      } finally {
+        setMfaLoading(false)
+      }
+    }
+    fetchMfaStatus()
+  }, [])
+
+  async function handleEnableMfa() {
+    setMfaEnrolling(true)
+    try {
+      const res = await fetch('/api/auth/mfa', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Failed to start MFA enrollment', 'error')
+        return
+      }
+      setMfaFactorId(data.factorId)
+      setMfaQrCode(data.qrCode)
+      setMfaSecret(data.secret)
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setMfaEnrolling(false)
+    }
+  }
+
+  async function handleVerifyMfa() {
+    if (!mfaCode || mfaCode.length !== 6 || !/^\d{6}$/.test(mfaCode)) {
+      toast('Please enter a valid 6-digit code', 'error')
+      return
+    }
+    setMfaVerifying(true)
+    try {
+      const res = await fetch('/api/auth/mfa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ factorId: mfaFactorId, code: mfaCode }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Invalid verification code', 'error')
+        return
+      }
+      setMfaEnrolled(true)
+      setMfaQrCode('')
+      setMfaSecret('')
+      setMfaCode('')
+      toast('Two-factor authentication enabled successfully', 'success')
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setMfaVerifying(false)
+    }
+  }
+
+  async function handleDisableMfa() {
+    if (!mfaFactorId) {
+      toast('No MFA factor found to disable', 'error')
+      return
+    }
+    setMfaDisabling(true)
+    try {
+      const res = await fetch(`/api/auth/mfa?factorId=${encodeURIComponent(mfaFactorId)}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Failed to disable MFA', 'error')
+        return
+      }
+      setMfaEnrolled(false)
+      setMfaFactorId('')
+      toast('Two-factor authentication disabled', 'success')
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setMfaDisabling(false)
+    }
   }
 
   function handleChangePassword() {
@@ -847,16 +983,81 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 2FA */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Two-Factor Authentication</h4>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Add an extra layer of security to your account</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Coming Soon</Badge>
+                      {mfaLoading ? (
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      ) : mfaEnrolled ? (
+                        <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white">Enabled</Badge>
+                      ) : null}
                     </div>
                   </div>
+
+                  {!mfaLoading && !mfaEnrolled && !mfaQrCode && (
+                    <Button onClick={handleEnableMfa} disabled={mfaEnrolling} variant="outline" size="sm">
+                      {mfaEnrolling ? 'Starting...' : 'Enable 2FA'}
+                    </Button>
+                  )}
+
+                  {mfaQrCode && !mfaEnrolled && (
+                    <div className="space-y-4 p-4 border border-gray-200 dark:border-[#2E3148] rounded-lg bg-gray-50 dark:bg-[#1A1F3A]/50">
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Scan this QR code with your authenticator app (e.g. Google Authenticator, Authy):
+                      </p>
+                      <div className="flex justify-center">
+                        {/* QR code rendered as a URI the user can scan. We use an img tag with a QR API. */}
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaQrCode)}`}
+                          alt="TOTP QR Code"
+                          width={200}
+                          height={200}
+                          className="rounded-md"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Or enter this secret manually:</p>
+                        <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2 py-1 rounded font-mono text-gray-700 dark:text-gray-300 block break-all">
+                          {mfaSecret}
+                        </code>
+                      </div>
+                      <div className="max-w-xs space-y-2">
+                        <label htmlFor="mfa-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Enter 6-digit code
+                        </label>
+                        <Input
+                          id="mfa-code"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="\d{6}"
+                          maxLength={6}
+                          value={mfaCode}
+                          onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          placeholder="000000"
+                          autoComplete="one-time-code"
+                        />
+                        <Button onClick={handleVerifyMfa} disabled={mfaVerifying || mfaCode.length !== 6} size="sm">
+                          {mfaVerifying ? 'Verifying...' : 'Verify & Activate'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Save your secret key in a secure location. You will need it if you lose access to your authenticator app.
+                      </p>
+                    </div>
+                  )}
+
+                  {!mfaLoading && mfaEnrolled && (
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-green-600 dark:text-green-400 font-medium">Two-factor authentication is active.</p>
+                      <Button onClick={handleDisableMfa} disabled={mfaDisabling} variant="destructive" size="sm">
+                        {mfaDisabling ? 'Disabling...' : 'Disable 2FA'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Active Sessions */}

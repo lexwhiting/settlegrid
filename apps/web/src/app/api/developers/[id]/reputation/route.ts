@@ -61,26 +61,22 @@ export async function GET(
     }
 
     // Compute fresh — use simple queries that won't fail on empty tables
-    let totalTools = 0
-    let reviewAvg = 0
-    let totalConsumers = 0
+    const totalTools = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tools)
+      .where(sql`${tools.developerId} = ${id} AND ${tools.status} = 'active'`)
+      .then(r => r[0]?.count ?? 0)
+      .catch(() => 0)
 
-    try {
-      const [ts] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(tools)
-        .where(sql`${tools.developerId} = ${id} AND ${tools.status} = 'active'`)
-      totalTools = ts?.count ?? 0
-    } catch { /* empty */ }
+    const reviewAvg = await db
+      .select({ avg: sql<number>`coalesce(avg(${toolReviews.rating}), 0)` })
+      .from(toolReviews)
+      .innerJoin(tools, eq(toolReviews.toolId, tools.id))
+      .where(eq(tools.developerId, id))
+      .then(r => Number(r[0]?.avg ?? 0))
+      .catch(() => 0)
 
-    try {
-      const [rs] = await db
-        .select({ avg: sql<number>`coalesce(avg(${toolReviews.rating}), 0)` })
-        .from(toolReviews)
-        .innerJoin(tools, eq(toolReviews.toolId, tools.id))
-        .where(eq(tools.developerId, id))
-      reviewAvg = Number(rs?.avg ?? 0)
-    } catch { /* empty */ }
+    const totalConsumers = 0
 
     // Simplified scoring: tools (25%), reviews (25%), base (50%)
     const score = Math.min(100, Math.max(0, Math.round(

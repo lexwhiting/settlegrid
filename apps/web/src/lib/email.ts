@@ -1441,6 +1441,53 @@ ${ctaButton('Secure Account', 'https://settlegrid.ai/dashboard/settings', '#d977
   }
 }
 
+// ── Security alert templates ─────────────────────────────────────────────────
+
+export function passwordChangedEmail(
+  email: string,
+  options?: { preheader?: string }
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Your SettleGrid password was changed'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Password Changed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your SettleGrid account password was successfully changed.</p>
+${alertBanner('warning', 'Not you?', 'If you did not make this change, contact support immediately at support@settlegrid.ai. Your account may be compromised.')}
+${ctaButton('Secure My Account', 'https://settlegrid.ai/dashboard/settings#security', '#d97706')}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">If you made this change, you can safely ignore this email.</p>
+`,
+      { preheader: options?.preheader ?? 'Your SettleGrid password was changed. If this was not you, contact support immediately.' }
+    ),
+  }
+}
+
+export function accountLockedEmail(
+  email: string,
+  ip: string,
+  reason: string,
+  options?: { preheader?: string }
+): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Your SettleGrid account was temporarily locked'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Account Temporarily Locked</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your SettleGrid account was temporarily locked due to suspicious activity.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#991b1b;margin:0 0 4px;font-size:14px"><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+<p class="sg-text" style="color:#991b1b;margin:0;font-size:14px"><strong>IP address:</strong> <code class="sg-code" style="background:#fecaca;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(ip)}</code></p>
+</td></tr>
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">The lock will automatically expire after 15 minutes. If you believe this was a mistake, contact support.</p>
+${ctaButton('Contact Support', 'mailto:support@settlegrid.ai', '#ef4444')}
+`,
+      { preheader: options?.preheader ?? `Your account was temporarily locked due to ${reason} from IP ${ip}.` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {

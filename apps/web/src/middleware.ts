@@ -91,9 +91,16 @@ function addSecurityHeaders(response: NextResponse): void {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+  // In production, omit 'unsafe-eval' from script-src. Next.js needs it in dev for
+  // fast-refresh / eval-based source maps, but it is unnecessary in production builds.
+  const scriptSrc = process.env.NODE_ENV === 'production'
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+
   response.headers.set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-src https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-ancestors 'none'"
+    `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-src https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-ancestors 'none'`
   )
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 }

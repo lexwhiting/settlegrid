@@ -31,6 +31,8 @@ export const developers = pgTable('developers', {
   balanceCents: integer('balance_cents').notNull().default(0),
   payoutSchedule: text('payout_schedule').notNull().default('monthly'),
   payoutMinimumCents: integer('payout_minimum_cents').notNull().default(2500),
+  // Notification preferences — { eventType: boolean } pairs
+  notificationPreferences: jsonb('notification_preferences').notNull().default('{}'),
   // R9: Developer Public Profiles
   publicProfile: boolean('public_profile').notNull().default(false),
   publicBio: text('public_bio'),

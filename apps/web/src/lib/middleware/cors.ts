@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+/**
+ * CORS headers use `Access-Control-Allow-Origin: *` because the primary consumers
+ * of CORS-enabled routes are SDK-facing endpoints (`/api/sdk/*`, `/api/x402/*`,
+ * `/api/a2a/*`) which are called from arbitrary third-party servers.
+ *
+ * Dashboard API routes (`/api/dashboard/*`, `/api/auth/*`, etc.) are called from
+ * the same origin (settlegrid.ai), so CORS does not apply to them — the browser
+ * never sends a preflight for same-origin requests. Their protection comes from
+ * the auth layer (requireDeveloper/requireConsumer session checks), not CORS.
+ *
+ * If SettleGrid ever hosts a separate dashboard on a different subdomain, restrict
+ * the origin here to `*.settlegrid.ai` for non-SDK routes.
+ */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',

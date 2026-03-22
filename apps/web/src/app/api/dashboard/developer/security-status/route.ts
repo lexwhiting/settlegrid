@@ -148,15 +148,15 @@ export async function GET(request: NextRequest) {
         id: '2fa',
         title: 'Two-Factor Authentication',
         priority: 'critical',
-        completed: false,
-        statusDetail: 'Coming soon',
+        completed: false, // Actual status checked client-side via /api/auth/mfa
+        statusDetail: 'Check Settings > Security',
         href: '/dashboard/settings#security',
         steps: [
-          'Two-factor authentication via Supabase MFA is coming soon.',
-          'You will be able to enable TOTP-based 2FA using an authenticator app.',
-          'Once available, go to Settings > Security to enable it.',
+          'Go to Settings > Security.',
+          'Click "Enable 2FA" to start TOTP enrollment.',
+          'Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.).',
+          'Enter the 6-digit code to verify and activate two-factor authentication.',
         ],
-        comingSoon: true,
       },
       {
         id: 'ip-allowlist',
