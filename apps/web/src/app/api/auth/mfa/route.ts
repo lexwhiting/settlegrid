@@ -135,7 +135,7 @@ export async function PUT(request: NextRequest) {
     return successResponse({
       verified: true,
       factorId: body.factorId,
-      session: verifyData.session ? { aal: verifyData.session.aal } : null,
+      session: (verifyData as Record<string, unknown>).session ?? null,
     })
   } catch (error) {
     return internalErrorResponse(error)
