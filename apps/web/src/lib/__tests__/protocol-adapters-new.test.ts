@@ -505,9 +505,9 @@ describe('UCPAdapter', () => {
   })
 
   describe('formatError', () => {
-    it('returns 400 for session errors', async () => {
+    it('returns 401 for session errors', async () => {
       const res = adapter.formatError(new Error('session expired'), new Request('http://localhost'))
-      expect(res.status).toBe(400)
+      expect(res.status).toBe(401)
       const body = await res.json()
       expect(body.error.code).toBe('UCP_SESSION_ERROR')
     })
@@ -622,9 +622,9 @@ describe('ACPAdapter', () => {
   })
 
   describe('formatError', () => {
-    it('returns 400 for checkout errors', async () => {
+    it('returns 401 for checkout errors', async () => {
       const res = adapter.formatError(new Error('checkout expired'), new Request('http://localhost'))
-      expect(res.status).toBe(400)
+      expect(res.status).toBe(401)
       const body = await res.json()
       expect(body.error.code).toBe('ACP_CHECKOUT_ERROR')
     })
