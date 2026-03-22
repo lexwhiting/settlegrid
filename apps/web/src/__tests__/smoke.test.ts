@@ -253,10 +253,10 @@ describe('SDK (@settlegrid/mcp)', () => {
     const sdk = await import('../../../../packages/mcp/src/index')
 
     expect(sdk).toHaveProperty('settlegrid')
-    expect(sdk.settlegrid.version).toBe('0.1.0')
+    expect(sdk.settlegrid.version).toBe('0.1.1')
     expect(typeof sdk.settlegrid.init).toBe('function')
     expect(typeof sdk.settlegrid.extractApiKey).toBe('function')
-    expect(sdk).toHaveProperty('SDK_VERSION', '0.1.0')
+    expect(sdk).toHaveProperty('SDK_VERSION', '0.1.1')
   })
 
   it('exports all error classes', async () => {
@@ -1170,7 +1170,7 @@ describe('Package.json Integrity', () => {
   it('SDK package has correct name and version', () => {
     const pkg = readPkg(SDK_PKG_PATH)
     expect(pkg.name).toBe('@settlegrid/mcp')
-    expect(pkg.version).toBe('0.1.0')
+    expect(pkg.version).toBe('0.1.1')
   })
 
   it('SDK package has proper exports config', () => {

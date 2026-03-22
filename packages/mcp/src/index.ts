@@ -38,7 +38,7 @@ import type { PricingConfig, SettleGridConfig, WrapOptions } from './types'
  * console.log(`SettleGrid SDK v${SDK_VERSION}`)
  * ```
  */
-export const SDK_VERSION = '0.1.0' as const
+export const SDK_VERSION = '0.1.1' as const
 
 // ─── Error re-exports ────────────────────────────────────────────────────────
 
