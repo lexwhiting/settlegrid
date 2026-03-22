@@ -78,8 +78,9 @@ export default function TermsPage() {
                   tools through the marketplace.
                 </li>
                 <li>
-                  SettleGrid retains a 15% platform fee on each transaction (or as otherwise agreed
-                  for Enterprise plans). Payout schedules and minimums are detailed in your dashboard.
+                  SettleGrid retains a 0-5% platform fee on each transaction depending on your plan
+                  (0% on Free tier, 5% on Starter/Growth/Scale, negotiable for Enterprise).
+                  Payout schedules and minimums are detailed in your dashboard.
                 </li>
                 <li>
                   You are solely responsible for the accuracy, legality, and quality of your tools and
