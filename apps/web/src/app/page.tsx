@@ -379,7 +379,7 @@ export default function HomePage() {
                   Open Source SDK
                 </a>
                 <a
-                  href="/docs"
+                  href="https://www.npmjs.com/package/@settlegrid/mcp"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors border border-white/15 rounded-full px-3 py-1.5"

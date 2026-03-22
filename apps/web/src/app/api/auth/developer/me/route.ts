@@ -30,10 +30,14 @@ export async function GET(request: NextRequest) {
         id: developers.id,
         email: developers.email,
         name: developers.name,
+        tier: developers.tier,
+        revenueSharePct: developers.revenueSharePct,
         stripeConnectStatus: developers.stripeConnectStatus,
         balanceCents: developers.balanceCents,
         payoutSchedule: developers.payoutSchedule,
         payoutMinimumCents: developers.payoutMinimumCents,
+        publicProfile: developers.publicProfile,
+        publicBio: developers.publicBio,
         createdAt: developers.createdAt,
       })
       .from(developers)

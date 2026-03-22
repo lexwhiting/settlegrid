@@ -9,19 +9,16 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
-
-const updateProfileSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  publicProfile: z.boolean().optional(),
-  publicBio: z.string().max(500).optional(),
-  avatarUrl: z.string().url().optional(),
+const updatePayoutSettingsSchema = z.object({
+  payoutSchedule: z.enum(['daily', 'weekly', 'monthly']).optional(),
+  payoutMinimumCents: z.number().int().min(1000).max(50000).optional(),
 })
 
-/** PATCH /api/dashboard/developer/profile — update developer profile settings */
+/** PATCH /api/dashboard/developer/payout-settings — update payout schedule and minimum */
 export async function PATCH(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-    const rl = await checkRateLimit(apiLimiter, `dev-profile-update:${ip}`)
+    const rl = await checkRateLimit(apiLimiter, `dev-payout-settings:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
@@ -31,22 +28,15 @@ export async function PATCH(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
-    const body = await parseBody(request, updateProfileSchema)
+    const body = await parseBody(request, updatePayoutSettingsSchema)
 
-    // Build update fields (only include provided fields)
     const updates: Record<string, unknown> = { updatedAt: new Date() }
 
-    if (body.name !== undefined) {
-      updates.name = body.name
+    if (body.payoutSchedule !== undefined) {
+      updates.payoutSchedule = body.payoutSchedule
     }
-    if (body.publicProfile !== undefined) {
-      updates.publicProfile = body.publicProfile
-    }
-    if (body.publicBio !== undefined) {
-      updates.publicBio = body.publicBio
-    }
-    if (body.avatarUrl !== undefined) {
-      updates.avatarUrl = body.avatarUrl
+    if (body.payoutMinimumCents !== undefined) {
+      updates.payoutMinimumCents = body.payoutMinimumCents
     }
 
     const [updated] = await db
@@ -54,10 +44,8 @@ export async function PATCH(request: NextRequest) {
       .set(updates)
       .where(eq(developers.id, auth.id))
       .returning({
-        name: developers.name,
-        publicProfile: developers.publicProfile,
-        publicBio: developers.publicBio,
-        avatarUrl: developers.avatarUrl,
+        payoutSchedule: developers.payoutSchedule,
+        payoutMinimumCents: developers.payoutMinimumCents,
         updatedAt: developers.updatedAt,
       })
 
@@ -65,7 +53,7 @@ export async function PATCH(request: NextRequest) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
     }
 
-    return successResponse({ profile: updated })
+    return successResponse({ payoutSettings: updated })
   } catch (error) {
     return internalErrorResponse(error)
   }
