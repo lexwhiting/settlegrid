@@ -1,6 +1,49 @@
 {
   "name": "@settlegrid/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "description": "The Settlement Layer for the AI Economy — monetize any MCP tool, REST API, or AI agent with per-call billing, real-time metering, and automated Stripe payouts.",
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "billing",
+    "settlement",
+    "payments",
+    "metering",
+    "monetization",
+    "sdk",
+    "api-billing",
+    "usage-based-billing",
+    "x402",
+    "agent-payments",
+    "stripe-connect",
+    "ai-agents",
+    "llm",
+    "ai-tools",
+    "micropayments",
+    "revenue-sharing"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/lexwhiting/settlegrid/issues",
+    "email": "support@settlegrid.ai"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "sideEffects": false,
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -11,13 +54,18 @@
       "require": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "zod": "^3.23.0"

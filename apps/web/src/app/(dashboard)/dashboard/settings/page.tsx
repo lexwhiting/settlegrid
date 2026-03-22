@@ -927,9 +927,11 @@ export default function SettingsPage() {
                           <Badge variant="outline" className="w-full justify-center">Current Plan</Badge>
                         ) : isUpgrade ? (
                           planKey === 'enterprise' ? (
-                            <Button size="sm" variant="outline" className="w-full" asChild>
-                              <a href="mailto:sales@settlegrid.ai">Contact Sales</a>
-                            </Button>
+                            <a href="mailto:sales@settlegrid.ai" className="block">
+                              <Button size="sm" variant="outline" className="w-full">
+                                Contact Sales
+                              </Button>
+                            </a>
                           ) : (
                             <Button size="sm" className="w-full">
                               Upgrade to {plan.name}
