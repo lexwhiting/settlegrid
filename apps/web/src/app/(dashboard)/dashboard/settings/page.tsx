@@ -90,16 +90,11 @@ const PLANS: Record<string, PlanInfo> = {
   scale: {
     name: 'Scale',
     price: '$79/mo',
-    features: ['Unlimited tools', '2,000,000 ops/mo', '5% take rate (negotiable)', 'Fraud detection', 'Dedicated support'],
-  },
-  enterprise: {
-    name: 'Enterprise',
-    price: 'Custom',
-    features: ['Unlimited everything', 'Custom SLA', '3-5% take rate', 'Dedicated CSM', 'Custom integrations'],
+    features: ['Unlimited tools', '2,000,000 ops/mo', '5% take rate (negotiable)', 'Fraud detection', 'Priority support'],
   },
 }
 
-const PLAN_ORDER = ['free', 'starter', 'growth', 'scale', 'enterprise']
+const PLAN_ORDER = ['free', 'starter', 'growth', 'scale']
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -1195,13 +1190,7 @@ export default function SettingsPage() {
                         {isCurrent ? (
                           <Badge variant="outline" className="w-full justify-center">Current Plan</Badge>
                         ) : isUpgrade ? (
-                          planKey === 'enterprise' ? (
-                            <a href="mailto:support@settlegrid.ai" className="block">
-                              <Button size="sm" variant="outline" className="w-full">
-                                Contact Sales
-                              </Button>
-                            </a>
-                          ) : profile?.stripeSubscriptionId ? (
+                          profile?.stripeSubscriptionId ? (
                             <Button
                               size="sm"
                               className="w-full"
@@ -1229,6 +1218,13 @@ export default function SettingsPage() {
                     )
                   })}
                 </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-4">
+                  Need higher limits or a custom arrangement?{' '}
+                  <a href="mailto:support@settlegrid.ai" className="text-brand hover:text-brand-dark font-medium">
+                    Let&apos;s talk
+                  </a>
+                </p>
               </CardContent>
             </Card>
           </section>

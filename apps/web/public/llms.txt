@@ -55,7 +55,7 @@ const billedHandler = sg.wrap(myHandler, { method: 'search' })
 - **Starter**: $9/month — 100,000 ops/month, 5% take rate
 - **Growth**: $29/month — 500,000 ops/month, IP allowlisting
 - **Scale**: $79/month — 2,000,000 ops/month, fraud detection, audit logging
-- **Enterprise**: Custom — unlimited, custom SLA, 3-5% negotiable take rate
+- Need higher limits? Email support@settlegrid.ai
 
 ## Links
 

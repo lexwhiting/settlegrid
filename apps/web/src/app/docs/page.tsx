@@ -172,7 +172,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What is the revenue split?',
-      a: 'The Free plan has a 0% take rate — developers keep 100% of revenue. On Starter, Growth, and Scale plans, the take rate is 5% — developers keep 95%. Enterprise plans offer a negotiable 3-5% take rate.',
+      a: 'The Free plan has a 0% take rate — developers keep 100% of revenue. On Starter, Growth, and Scale plans, the take rate is 5% — developers keep 95%. Need higher limits or a custom arrangement? Email support@settlegrid.ai.',
     },
     {
       q: 'What is the minimum payout?',
@@ -233,7 +233,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How does rate limiting work?',
-      a: 'SettleGrid enforces tiered sliding-window rate limits on all API routes based on your plan (Free through Enterprise). When limits are exceeded, requests receive a 429 response with a Retry-After header. Rate limits apply to both developer dashboard calls and consumer SDK calls.',
+      a: 'SettleGrid enforces tiered sliding-window rate limits on all API routes based on your plan (Free through Scale). When limits are exceeded, requests receive a 429 response with a Retry-After header. Rate limits apply to both developer dashboard calls and consumer SDK calls.',
     },
     {
       q: 'Do I get notified when an API key is created or revoked?',
@@ -502,7 +502,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What plans are available?',
-      a: 'Five plans: Free ($0 forever, unlimited tools, 25K ops/month, 0% take rate), Starter ($9/month, 100K ops/month, 5% take rate, sandbox mode), Growth ($29/month, 500K ops/month, 5% take rate, IP allowlisting), Scale ($79/month, 2M ops/month, 5% negotiable, fraud detection, dedicated support), and Enterprise (custom pricing, unlimited everything, 3-5% negotiable take rate).',
+      a: 'Four plans: Free ($0 forever, unlimited tools, 25K ops/month, 0% take rate), Starter ($9/month, 100K ops/month, 5% take rate, sandbox mode), Growth ($29/month, 500K ops/month, 5% take rate, IP allowlisting), and Scale ($79/month, 2M ops/month, 5% negotiable, fraud detection, priority support). Need higher limits? Email support@settlegrid.ai.',
     },
     {
       q: 'Are there overage charges?',
@@ -798,7 +798,7 @@ try {
             <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-6">
               <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 95-100% of revenue.</li>
               <li><strong>Consumers:</strong> Prepaid credits. Purchase $5, $20, $50, or custom amounts.</li>
-              <li><strong>Platform fee:</strong> 0-5% per transaction (0% on Free, 5% on paid plans, negotiable for Enterprise). No minimums.</li>
+              <li><strong>Platform fee:</strong> 0-5% per transaction (0% on Free, 5% on paid plans). No minimums.</li>
               <li><strong>Payouts:</strong> Weekly or monthly via Stripe Connect. $25 minimum.</li>
             </ul>
           </Section>

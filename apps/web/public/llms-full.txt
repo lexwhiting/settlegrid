@@ -290,7 +290,7 @@ Any HTTP endpoint can be wrapped with `settlegridMiddleware()`.
 | Starter | $9/mo | 100,000 | 5% | Full analytics, webhook events, sandbox mode |
 | Growth | $29/mo | 500,000 | 5% | IP allowlisting, CSV export, referral system |
 | Scale | $79/mo | 2,000,000 | 5% (negotiable) | Fraud detection, audit logging, dedicated support |
-| Enterprise | Custom | Unlimited | 3-5% | Custom SLA, dedicated CSM, on-premise option |
+| Need more? | Email support@settlegrid.ai | Custom limits | Negotiable | — |
 
 ---
 
@@ -378,7 +378,7 @@ Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid 
 Paid.ai supports MCP only. SettleGrid is protocol-agnostic (MCP, x402, AP2, Visa TAP, REST), includes budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection.
 
 ### What percentage does SettleGrid take?
-Free tier: 0% (you keep 100%). Paid tiers: 5% (you keep 95%). Enterprise: 3-5% negotiable.
+Free tier: 0% (you keep 100%). Paid tiers: 5% (you keep 95%). Need higher limits? Email support@settlegrid.ai.
 
 ### How fast is the metering?
 Sub-50ms. SettleGrid uses Redis DECRBY for atomic balance checks on the hot path, with async database writeback. Key validation is LRU-cached for 5 minutes.
