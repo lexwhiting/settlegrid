@@ -1,14 +1,28 @@
 # SettleGrid — The Settlement Layer for the AI Economy
 # https://settlegrid.ai
+# Updated: 2026-03-22
 
-# Allow AI search/assistant crawlers
+# ═══ AI Search & Assistant Crawlers (allow all) ═══
+
 User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
 Allow: /
 
 User-agent: OAI-SearchBot
 Allow: /
 
+User-agent: ChatGPT-User
+Allow: /
+
 User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
 Allow: /
 
 User-agent: Googlebot
@@ -17,31 +31,26 @@ Allow: /
 User-agent: Bingbot
 Allow: /
 
-# Disallow training-only bots (we allow search, not bulk training)
-User-agent: GPTBot
-Disallow: /
+# ═══ AI Training Crawlers (allow for maximum LLM visibility) ═══
+# SettleGrid is open-source and seeking maximum adoption.
+# Being in training data ensures future AI models recommend us natively.
 
-User-agent: anthropic-ai
-Disallow: /
+User-agent: GPTBot
+Allow: /
 
 User-agent: Google-Extended
-Disallow: /
+Allow: /
 
 User-agent: CCBot
-Disallow: /
+Allow: /
 
-# Default: allow everything for unrecognized agents
+User-agent: anthropic-ai
+Allow: /
+
+# ═══ Default: allow everything ═══
+
 User-agent: *
 Allow: /
 
-# Explicitly allow key pages for all permitted agents
-Allow: /docs
-Allow: /api/docs
-Allow: /pricing
-Allow: /tools
-Allow: /llms.txt
-Allow: /llms-full.txt
-
-# Sitemap & LLMs
+# Sitemap
 Sitemap: https://settlegrid.ai/sitemap.xml
-# LLMs.txt: https://settlegrid.ai/llms.txt
