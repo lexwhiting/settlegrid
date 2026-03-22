@@ -8,7 +8,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 export const metadata: Metadata = {
   title: 'SettleGrid — The Settlement Layer for the AI Economy',
   description:
-    'Meter, settle, and split revenue across any AI service — MCP tools, REST APIs, AI agents, model endpoints. One SDK. Every protocol.',
+    'Meter, settle, and split revenue across any AI service — MCP, x402, AP2, MPP, Visa TAP, and more. One SDK. Ten protocols. Zero vendor lock-in. Developer keeps 95%.',
 }
 
 /* -------------------------------------------------------------------------- */
@@ -20,7 +20,7 @@ const jsonLdSoftwareApplication = {
   '@type': 'SoftwareApplication',
   name: 'SettleGrid',
   description:
-    'The settlement layer for AI agent payments. Per-call billing, usage metering, and budget enforcement for MCP servers, REST APIs, AI agents, and model endpoints.',
+    'The settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts across 10 protocols — MCP, x402, AP2, MPP, Visa TAP, UCP, and more. Developer keeps 95%. Free tier keeps 100%.',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any',
   url: 'https://settlegrid.ai',
@@ -71,7 +71,7 @@ const jsonLdOrganization = {
   url: 'https://settlegrid.ai',
   logo: 'https://settlegrid.ai/brand/icon-color.svg',
   description:
-    'SettleGrid builds the settlement layer for the AI economy — enabling developers to monetize AI services with per-call billing, real-time metering, and automated payouts.',
+    'SettleGrid is the protocol-agnostic settlement layer for the AI economy. One SDK. Ten protocols. Developer keeps 95%. Supports MCP, x402, AP2, MPP, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST.',
   sameAs: [
     'https://github.com/lexwhiting/settlegrid',
     'https://www.npmjs.com/package/@settlegrid/mcp',
@@ -198,7 +198,7 @@ function HighlightBlock({
 
 function ComparisonTable() {
   const features = [
-    { name: 'Protocol support', settlegrid: 'MCP, x402, AP2, REST', stripe: 'REST only', nevermined: 'x402 / DeFi', paid: 'MCP only' },
+    { name: 'Protocol support', settlegrid: '10 protocols (MCP, MPP, x402, AP2, TAP, UCP, ACP, MC, Nano, REST)', stripe: 'MPP + REST', nevermined: 'x402 / DeFi', paid: 'MCP only' },
     { name: 'Real-time metering', settlegrid: '<50ms Redis', stripe: 'Batch only', nevermined: 'On-chain', paid: 'Per-call' },
     { name: 'Multi-hop settlement', settlegrid: true, stripe: false, nevermined: true, paid: false },
     { name: 'Agent identity (KYA)', settlegrid: true, stripe: false, nevermined: false, paid: false },
@@ -506,9 +506,15 @@ export default function HomePage() {
                 The Settlement Layer for the{' '}
                 <span className="text-brand-light">AI Economy</span>
               </h1>
-              <p className="text-xl text-gray-300 mb-8 leading-relaxed">
+              <p className="text-xl text-gray-300 mb-4 leading-relaxed">
                 Meter, settle, and split revenue across any AI service — MCP tools,
-                REST APIs, AI agents, model endpoints. One SDK. Every protocol.
+                REST APIs, AI agents, model endpoints.
+              </p>
+              <p className="text-lg font-semibold mb-8">
+                <span className="text-brand-light">One SDK. Ten protocols. Zero vendor lock-in.</span>
+                <span className="text-gray-400 mx-2">|</span>
+                <span className="text-white">Developer keeps 95%</span>
+                <span className="text-gray-400"> — free tier keeps 100%.</span>
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <Link href="/register" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3 rounded-lg text-lg hover:bg-brand-dark transition-colors">
@@ -519,9 +525,9 @@ export default function HomePage() {
                 </Link>
               </div>
               <div className="flex items-center gap-6 mt-8 text-sm text-gray-400">
-                <span>&#10003; Free tier</span>
+                <span>&#10003; Free tier — 0% fees</span>
                 <span>&#10003; No credit card</span>
-                <span>&#10003; Any AI protocol</span>
+                <span>&#10003; Developer keeps 95%+</span>
               </div>
               <div className="flex items-center gap-4 mt-4">
                 <a
@@ -560,20 +566,25 @@ export default function HomePage() {
         <section className="px-6 py-12 border-b border-gray-200 dark:border-[#2E3148]">
           <RevealSection>
             <div className="max-w-4xl mx-auto">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-8">One SDK. Every protocol.</p>
-              <div className="flex items-center justify-center gap-8 sm:gap-12 flex-wrap">
+              <p className="text-center text-sm font-semibold text-brand dark:text-brand-light mb-2">One SDK. Ten Protocols. Zero Vendor Lock-in.</p>
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-8">The only settlement layer that supports every AI payment protocol</p>
+              <div className="flex items-center justify-center gap-6 sm:gap-8 flex-wrap">
                 {[
-                  { name: 'MCP', label: 'Model Context Protocol' },
-                  { name: 'x402', label: 'Coinbase x402' },
-                  { name: 'AP2', label: 'Google Agent Payments' },
-                  { name: 'Visa TAP', label: 'Visa Token Agent Payments' },
-                  { name: 'Stripe', label: 'Stripe Connect' },
+                  { name: 'MCP', label: 'Model Context Protocol (Anthropic)' },
+                  { name: 'MPP', label: 'Machine Payments Protocol (Stripe + Tempo)' },
+                  { name: 'x402', label: 'HTTP 402 Micropayments (Coinbase)' },
+                  { name: 'AP2', label: 'Agent Payments Protocol (Google)' },
+                  { name: 'Visa TAP', label: 'Trusted Agent Protocol (Visa)' },
+                  { name: 'UCP', label: 'Universal Commerce Protocol (Google + Shopify)' },
+                  { name: 'ACP', label: 'Agentic Commerce Protocol (OpenAI)' },
+                  { name: 'MC Agent Pay', label: 'Mastercard Agent Pay + Verifiable Intent' },
+                  { name: 'Nanopayments', label: 'Circle Nanopayments (USDC)' },
                   { name: 'REST', label: 'Any REST API' },
                 ].map((proto) => (
                   <span
                     key={proto.name}
                     title={proto.label}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors font-semibold text-base sm:text-lg select-none"
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors font-semibold text-xs sm:text-sm select-none"
                   >
                     {proto.name}
                   </span>
@@ -637,7 +648,7 @@ export default function HomePage() {
                 <CoreCard
                   icon={<Icon d={iconProtocol} />}
                   title="Protocol-Agnostic"
-                  description="Native support for MCP, x402 (Coinbase), AP2 (Google), Visa TAP, and any REST API. One SDK, every protocol. No vendor lock-in."
+                  description="Native support for 10 protocols: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. One SDK. Zero vendor lock-in."
                 />
                 <CoreCard
                   icon={<Icon d={iconMultiHop} />}

@@ -581,7 +581,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: 'Paid.ai supports MCP per-call billing only. SettleGrid adds multi-protocol support (MCP, x402, AP2, Visa TAP, REST), multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and a 95%+ revenue share (100% on Free tier).',
+      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is the only protocol-agnostic settlement layer — supporting 10 protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and a 95%+ revenue share (100% on Free tier). One SDK. Zero vendor lock-in.',
     },
   ],
 },
@@ -796,9 +796,9 @@ try {
               SettleGrid uses a simple, transparent pricing model:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-6">
-              <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 80% of revenue.</li>
+              <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 95-100% of revenue.</li>
               <li><strong>Consumers:</strong> Prepaid credits. Purchase $5, $20, $50, or custom amounts.</li>
-              <li><strong>Platform fee:</strong> 20% of each transaction. No monthly fees, no minimums.</li>
+              <li><strong>Platform fee:</strong> 0-5% per transaction (0% on Free, 5% on paid plans, negotiable for Enterprise). No minimums.</li>
               <li><strong>Payouts:</strong> Weekly or monthly via Stripe Connect. $25 minimum.</li>
             </ul>
           </Section>
