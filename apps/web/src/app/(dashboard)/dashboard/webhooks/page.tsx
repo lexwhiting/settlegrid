@@ -52,9 +52,9 @@ export default function WebhooksPage() {
 
   async function fetchEndpoints() {
     try {
-      const res = await fetch('/api/dashboard/developer/webhooks')
-      if (!res.ok) { setError('Failed to load webhooks'); return }
+      const res = await fetch('/api/developer/webhooks')
       const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to load webhooks'); return }
       setEndpoints(data.endpoints ?? [])
     } catch {
       setError('Network error')
@@ -74,7 +74,7 @@ export default function WebhooksPage() {
     setCreating(true)
     setError('')
     try {
-      const res = await fetch('/api/dashboard/developer/webhooks', {
+      const res = await fetch('/api/developer/webhooks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: form.url, events: form.events }),
@@ -97,7 +97,7 @@ export default function WebhooksPage() {
   async function deleteEndpoint(id: string) {
     setError('')
     try {
-      const res = await fetch(`/api/dashboard/developer/webhooks/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/developer/webhooks/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json()
         setError(data.error || 'Failed to delete webhook')
@@ -116,7 +116,7 @@ export default function WebhooksPage() {
     }
     setLoadingDeliveries(endpointId)
     try {
-      const res = await fetch(`/api/dashboard/developer/webhooks/${endpointId}/deliveries`)
+      const res = await fetch(`/api/developer/webhooks/${endpointId}/deliveries`)
       if (res.ok) {
         const data = await res.json()
         setDeliveries((prev) => ({ ...prev, [endpointId]: data.deliveries ?? [] }))

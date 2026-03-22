@@ -12,8 +12,8 @@ interface AuditEntry {
   action: string
   resourceType: string
   resourceId: string
-  ip: string
-  metadata: Record<string, unknown> | null
+  ipAddress: string | null
+  details: Record<string, unknown> | null
   createdAt: string
 }
 
@@ -60,13 +60,13 @@ export default function AuditLogPage() {
     setError('')
     try {
       const params = new URLSearchParams({
-        page: String(page),
+        offset: String((page - 1) * PAGE_SIZE),
         limit: String(PAGE_SIZE),
       })
       if (actionFilter !== 'All') params.set('action', actionFilter)
       if (resourceFilter !== 'All') params.set('resourceType', resourceFilter)
 
-      const res = await fetch(`/api/dashboard/developer/audit-log?${params}`)
+      const res = await fetch(`/api/audit-log?${params}`)
       if (!res.ok) {
         setError('Failed to load audit log')
         return
@@ -98,7 +98,7 @@ export default function AuditLogPage() {
       if (resourceFilter !== 'All') params.set('resourceType', resourceFilter)
       params.set('format', 'csv')
 
-      const res = await fetch(`/api/dashboard/developer/audit-log?${params}`)
+      const res = await fetch(`/api/audit-log?${params}`)
       if (!res.ok) {
         setError('Failed to export audit log')
         return
@@ -221,7 +221,7 @@ export default function AuditLogPage() {
                             {entry.resourceId.slice(0, 12)}...
                           </code>
                         </td>
-                        <td className="py-3 px-4 text-gray-500 dark:text-gray-400 font-mono text-xs">{entry.ip}</td>
+                        <td className="py-3 px-4 text-gray-500 dark:text-gray-400 font-mono text-xs">{entry.ipAddress ?? '—'}</td>
                         <td className="py-3 px-4 text-gray-500 dark:text-gray-400">{new Date(entry.createdAt).toLocaleString()}</td>
                       </tr>
                     ))}

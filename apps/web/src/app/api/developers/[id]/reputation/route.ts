@@ -144,7 +144,7 @@ export async function GET(
       (Math.min(totalConsumers / 100, 1) * 100 * 0.15)
     )))
 
-    // Store computed score
+    // Store computed score (upsert — uniqueIndex on developerId)
     await db
       .insert(developerReputation)
       .values({
@@ -155,6 +155,18 @@ export async function GET(
         reviewAvg: Math.round(reviewAvg * 100),
         totalTools,
         totalConsumers,
+      })
+      .onConflictDoUpdate({
+        target: developerReputation.developerId,
+        set: {
+          score,
+          responseTimePct,
+          uptimePct,
+          reviewAvg: Math.round(reviewAvg * 100),
+          totalTools,
+          totalConsumers,
+          calculatedAt: new Date(),
+        },
       })
 
     return successResponse({

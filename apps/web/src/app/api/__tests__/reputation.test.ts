@@ -11,6 +11,7 @@ const { mockDb, mockCheckRateLimit } = vi.hoisted(() => {
     orderBy: vi.fn(),
     insert: vi.fn(),
     values: vi.fn(),
+    onConflictDoUpdate: vi.fn(),
   }
   for (const key of Object.keys(mockDb)) {
     (mockDb as Record<string, ReturnType<typeof vi.fn>>)[key].mockReturnValue(mockDb)
@@ -95,8 +96,8 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
       return mockDb
     })
 
-    // insert call (store computed score)
-    mockDb.values.mockResolvedValueOnce(undefined)
+    // insert call (store computed score) — values().onConflictDoUpdate() chain
+    mockDb.onConflictDoUpdate.mockResolvedValueOnce(undefined)
 
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
     const data = await res.json()
