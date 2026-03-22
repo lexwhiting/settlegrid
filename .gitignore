@@ -11,12 +11,29 @@ coverage/
 .env.smoke
 .vercel.bak/
 
-# Sensitive/internal docs (moved to settlegrid-private/)
+# Sensitive/internal docs — NEVER commit these
+# Specific files
 STRATEGIC_BLUEPRINT.md
 ANTHROPIC_PARTNER_APPLICATION.md
 UI_IMPLEMENTATION_PLAN.md
 SMOKE_TEST_GUIDE.md
 MANUAL_SMOKE_TEST.md
-SMOKE_TEST_TRACKER.xlsx
-smoke-results.json
+SMOKE_TEST_TRACKER*
 VERCEL_DEBUG_HANDOFF.md
+smoke-results*
+
+# Pattern-based protection for sensitive doc types
+*BLUEPRINT*.md
+*ROADMAP*.md
+*STRATEGY*.md
+*PARTNER_APPLICATION*
+*IMPLEMENTATION_PLAN*
+*SMOKE_TEST*
+*DEBUG_HANDOFF*
+*COMPETITIVE_*
+*GTM_*
+
+# Private directories
+private/
+internal/
+*-private/
