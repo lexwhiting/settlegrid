@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* ---- Brand (WCAG AA: >=4.5:1 with white text on buttons) ---- */
   --color-brand: #059669;

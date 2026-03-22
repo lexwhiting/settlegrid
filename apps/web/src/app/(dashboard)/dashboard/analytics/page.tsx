@@ -160,7 +160,7 @@ export default function AnalyticsPage() {
         <CardContent>
           {(analytics?.revenueTrend ?? []).length > 0 ? (
             <AreaChart
-              data={analytics!.revenueTrend}
+              data={analytics!.revenueTrend as unknown as Record<string, string | number>[]}
               xKey="date"
               yKey="revenueCents"
               height={200}
