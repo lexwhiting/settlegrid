@@ -38,7 +38,7 @@ export default function ToolsPage() {
       const res = await fetch('/api/tools')
       if (!res.ok) { setError('Failed to load tools'); return }
       const data = await res.json()
-      setTools(data.data)
+      setTools(data.tools ?? [])
     } catch {
       setError('Network error')
     } finally {

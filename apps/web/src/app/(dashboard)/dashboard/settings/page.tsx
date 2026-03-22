@@ -34,7 +34,7 @@ export default function SettingsPage() {
         const res = await fetch('/api/auth/developer/me')
         if (!res.ok) { setError('Failed to load profile'); return }
         const data = await res.json()
-        setProfile(data.data)
+        setProfile(data.developer)
       } catch {
         setError('Network error')
       } finally {
@@ -51,7 +51,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/stripe/connect', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to start Stripe Connect'); return }
-      window.location.href = data.data.url
+      window.location.href = data.url
     } catch {
       setError('Network error')
     } finally {

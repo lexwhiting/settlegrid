@@ -22,7 +22,7 @@ export async function GET(
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     let auth
-    try { auth = await requireDeveloper() } catch (err) {
+    try { auth = await requireDeveloper(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 

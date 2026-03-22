@@ -60,7 +60,7 @@ export default function HealthPage() {
         return
       }
       const toolsJson = await toolsRes.json()
-      const toolList: Tool[] = toolsJson.data ?? []
+      const toolList: Tool[] = toolsJson.tools ?? []
       setTools(toolList)
 
       // Fetch health data for each tool that has a health endpoint
@@ -71,7 +71,7 @@ export default function HealthPage() {
             const res = await fetch(`/api/tools/${t.id}/health`)
             if (res.ok) {
               const json = await res.json()
-              return json.data as HealthData
+              return json as HealthData
             }
           } catch {
             // Silently skip failed health fetches

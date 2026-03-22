@@ -27,7 +27,7 @@ export async function DELETE(
 
     let auth
     try {
-      auth = await requireConsumer()
+      auth = await requireConsumer(request)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')

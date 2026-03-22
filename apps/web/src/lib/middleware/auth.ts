@@ -1,10 +1,9 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { eq } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { developers, consumers, apiKeys } from '@/lib/db/schema'
-import { cookies } from 'next/headers'
 
 export interface AuthenticatedDeveloper {
   id: string
@@ -23,37 +22,64 @@ export interface AuthenticatedApiKey {
 }
 
 /**
- * Create a Supabase client that reads cookies from the current request.
- * This works reliably in both middleware-processed and direct Route Handler contexts.
+ * Create a Supabase client from the request cookies.
+ * Uses request.cookies.getAll() directly — proven to work in the debug endpoint.
  */
-async function getSupabaseUser() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
+function createSupabaseFromRequest(request: NextRequest) {
+  const response = NextResponse.next()
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            try { cookieStore.set(name, value, options) } catch {}
+            try { response.cookies.set(name, value, options) } catch {}
           })
         },
       },
     }
   )
-  return supabase.auth.getUser()
 }
 
 /**
  * Authenticates via Supabase session and confirms a developer record exists.
+ * Pass the NextRequest from the route handler.
  */
 export async function requireDeveloper(
-  _request?: NextRequest
+  request?: NextRequest
 ): Promise<AuthenticatedDeveloper> {
-  const { data: { user } } = await getSupabaseUser()
+  let user = null
+
+  if (request) {
+    // Use request.cookies directly (reliable in all contexts)
+    const supabase = createSupabaseFromRequest(request)
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } else {
+    // Fallback: use cookies() from next/headers
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try { cookieStore.set(name, value, options) } catch {}
+            })
+          },
+        },
+      }
+    )
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  }
 
   if (!user) {
     throw new Error('Authentication required. Please sign in.')
@@ -74,11 +100,37 @@ export async function requireDeveloper(
 
 /**
  * Authenticates via Supabase session and confirms a consumer record exists.
+ * Pass the NextRequest from the route handler.
  */
 export async function requireConsumer(
-  _request?: NextRequest
+  request?: NextRequest
 ): Promise<AuthenticatedConsumer> {
-  const { data: { user } } = await getSupabaseUser()
+  let user = null
+
+  if (request) {
+    const supabase = createSupabaseFromRequest(request)
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } else {
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try { cookieStore.set(name, value, options) } catch {}
+            })
+          },
+        },
+      }
+    )
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  }
 
   if (!user) {
     throw new Error('Authentication required. Please sign in.')
@@ -99,8 +151,6 @@ export async function requireConsumer(
 
 /**
  * Validates the x-api-key header against the apiKeys table.
- * The raw key is SHA-256 hashed and compared to stored keyHash values.
- * Only active keys are accepted. Updates lastUsedAt on successful auth.
  */
 export async function requireApiKey(
   request: NextRequest
@@ -136,7 +186,6 @@ export async function requireApiKey(
     throw new Error('API key has been revoked.')
   }
 
-  // Update lastUsedAt in the background (non-blocking)
   db.update(apiKeys)
     .set({ lastUsedAt: new Date() })
     .where(eq(apiKeys.id, key.id))

@@ -28,7 +28,7 @@ export async function DELETE(
     }
 
     let auth
-    try { auth = await requireDeveloper() } catch (err) {
+    try { auth = await requireDeveloper(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 

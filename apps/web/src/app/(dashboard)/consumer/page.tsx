@@ -70,20 +70,20 @@ export default function ConsumerDashboardPage() {
         ])
         if (balRes.ok) {
           const balData = await balRes.json()
-          setBalances(balData.data ?? [])
+          setBalances(balData.balances ?? [])
         }
         if (keyRes.ok) {
           const keyData = await keyRes.json()
-          setKeys(keyData.data ?? [])
+          setKeys(keyData.keys ?? [])
         }
         if (budgetRes.ok) {
           const budgetData = await budgetRes.json()
-          setBudgets(budgetData.data ?? [])
+          setBudgets(budgetData.budgets ?? [])
         }
         if (ipRes.ok) {
           const ipData = await ipRes.json()
           const map: Record<string, IpRestriction> = {}
-          for (const restriction of ipData.data ?? []) {
+          for (const restriction of ipData.restrictions ?? []) {
             map[restriction.keyId] = restriction
           }
           setIpRestrictions(map)
@@ -136,7 +136,7 @@ export default function ConsumerDashboardPage() {
         return
       }
       const data = await res.json()
-      setBudgets(budgets.map((b) => b.toolId === toolId ? { ...b, ...data.data } : b))
+      setBudgets(budgets.map((b) => b.toolId === toolId ? { ...b, ...data.budget } : b))
       setEditingBudget(null)
     } catch {
       setError('Network error')

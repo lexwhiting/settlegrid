@@ -23,7 +23,7 @@ interface AnalyticsData {
   revenueTrend: { date: string; revenueCents: number }[]
   topConsumers: { email: string; totalSpendCents: number; invocations: number }[]
   errorRate: number
-  latency: { p50: number; p95: number; p99: number }
+  latencyPercentiles: { p50: number; p95: number; p99: number }
 }
 
 function formatCents(cents: number): string {
@@ -51,13 +51,13 @@ export default function DeveloperDashboardPage() {
         ])
         if (statsRes.ok) {
           const data = await statsRes.json()
-          setStats(data.data)
+          setStats(data)
         } else {
           setError('Failed to load dashboard data')
         }
         if (analyticsRes.ok) {
           const data = await analyticsRes.json()
-          setAnalytics(data.data)
+          setAnalytics(data)
         }
       } catch {
         setError('Network error loading dashboard')
@@ -188,17 +188,17 @@ export default function DeveloperDashboardPage() {
           />
           <StatCard
             title="Latency (p50)"
-            value={`${analytics.latency.p50}ms`}
+            value={`${analytics.latencyPercentiles.p50}ms`}
             subtitle="Median response time"
           />
           <StatCard
             title="Latency (p95)"
-            value={`${analytics.latency.p95}ms`}
+            value={`${analytics.latencyPercentiles.p95}ms`}
             subtitle="95th percentile"
           />
           <StatCard
             title="Latency (p99)"
-            value={`${analytics.latency.p99}ms`}
+            value={`${analytics.latencyPercentiles.p99}ms`}
             subtitle="99th percentile"
           />
         </div>

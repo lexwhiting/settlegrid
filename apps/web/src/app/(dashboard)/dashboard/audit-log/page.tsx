@@ -72,7 +72,7 @@ export default function AuditLogPage() {
         return
       }
       const data = await res.json()
-      setEntries(data.data ?? [])
+      setEntries(data.entries ?? [])
       setTotalCount(data.total ?? 0)
     } catch {
       setError('Network error')

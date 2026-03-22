@@ -130,14 +130,14 @@ export default function ReputationPage() {
           return
         }
         const meData = await meRes.json()
-        const dev = meData.data
+        const dev = meData.developer
         setProfile(dev)
 
         // Then fetch reputation for this developer
         const repRes = await fetch(`/api/developers/${dev.id}/reputation`)
         if (repRes.ok) {
           const repData = await repRes.json()
-          setReputation(repData.data)
+          setReputation(repData)
         } else {
           setError('Failed to load reputation data')
         }

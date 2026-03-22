@@ -37,7 +37,7 @@ export default function PayoutsPage() {
       const res = await fetch('/api/payouts')
       if (!res.ok) { setError('Failed to load payouts'); return }
       const data = await res.json()
-      setPayouts(data.data)
+      setPayouts(data.payouts ?? [])
     } catch {
       setError('Network error')
     } finally {

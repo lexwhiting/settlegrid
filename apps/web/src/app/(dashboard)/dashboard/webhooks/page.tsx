@@ -55,7 +55,7 @@ export default function WebhooksPage() {
       const res = await fetch('/api/dashboard/developer/webhooks')
       if (!res.ok) { setError('Failed to load webhooks'); return }
       const data = await res.json()
-      setEndpoints(data.data ?? [])
+      setEndpoints(data.endpoints ?? [])
     } catch {
       setError('Network error')
     } finally {
@@ -119,7 +119,7 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/developer/webhooks/${endpointId}/deliveries`)
       if (res.ok) {
         const data = await res.json()
-        setDeliveries((prev) => ({ ...prev, [endpointId]: data.data ?? [] }))
+        setDeliveries((prev) => ({ ...prev, [endpointId]: data.deliveries ?? [] }))
       }
     } catch {
       setError('Failed to load deliveries')

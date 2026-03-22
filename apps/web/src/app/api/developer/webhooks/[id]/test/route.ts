@@ -29,7 +29,7 @@ export async function POST(
 
     let auth
     try {
-      auth = await requireDeveloper()
+      auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(
         err instanceof Error ? err.message : 'Authentication required',

@@ -49,7 +49,7 @@ export default function ReferralsPage() {
         return
       }
       const json = await res.json()
-      setReferrals(json.data?.referrals ?? [])
+      setReferrals(json.referrals ?? [])
     } catch {
       setError('Network error loading referrals')
     }
@@ -60,7 +60,7 @@ export default function ReferralsPage() {
       const res = await fetch('/api/tools')
       if (res.ok) {
         const json = await res.json()
-        setTools((json.data ?? []).filter((t: Tool) => t.status === 'active'))
+        setTools((json.tools ?? []).filter((t: Tool) => t.status === 'active'))
       }
     } catch {
       // Silently handle

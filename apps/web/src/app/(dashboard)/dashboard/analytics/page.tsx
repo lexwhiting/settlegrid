@@ -56,7 +56,7 @@ export default function AnalyticsPage() {
         return
       }
       const json = await res.json()
-      setData(json.data)
+      setData(json)
     } catch {
       setError('Network error loading analytics')
     } finally {
