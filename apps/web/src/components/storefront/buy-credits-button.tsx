@@ -24,8 +24,11 @@ export function BuyCreditsButton({ toolId, amountCents, label }: BuyCreditsButto
         alert(data.error || 'Failed to start checkout. Please log in first.')
         return
       }
-      if (data.url) {
-        window.location.href = data.url
+      const checkoutUrl = data.checkoutUrl ?? data.url
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl
+      } else {
+        alert('No checkout URL returned. Please try again.')
       }
     } catch {
       alert('Network error. Please try again.')
