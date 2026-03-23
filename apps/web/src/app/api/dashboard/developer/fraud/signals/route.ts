@@ -225,8 +225,6 @@ export async function GET(request: NextRequest) {
     // Get scanned today count (all invocations today)
     const todayStartDate = new Date()
     todayStartDate.setHours(0, 0, 0, 0)
-    const todayStart = todayStartDate.toISOString()
-
     let scannedTodayTotal = 0
     let flaggedThisWeekTotal = 0
     let lastFlaggedAt: Date | null = null
@@ -240,7 +238,7 @@ export async function GET(request: NextRequest) {
         .from(invocations)
         .where(
           and(
-            gte(invocations.createdAt, todayStart),
+            gte(invocations.createdAt, sql`${todayStartDate.toISOString()}::timestamptz`),
             inArray(invocations.toolId, toolIds)
           )
         )
@@ -249,8 +247,6 @@ export async function GET(request: NextRequest) {
       // Count flagged invocations this week
       const weekAgoDate = new Date()
       weekAgoDate.setDate(weekAgoDate.getDate() - 7)
-      const weekAgo = weekAgoDate.toISOString()
-
       const [flaggedRow] = await db
         .select({
           count: sql<number>`count(*)::int`,
@@ -258,7 +254,7 @@ export async function GET(request: NextRequest) {
         .from(invocations)
         .where(
           and(
-            gte(invocations.createdAt, weekAgo),
+            gte(invocations.createdAt, sql`${weekAgoDate.toISOString()}::timestamptz`),
             eq(invocations.isFlagged, true),
             inArray(invocations.toolId, toolIds)
           )

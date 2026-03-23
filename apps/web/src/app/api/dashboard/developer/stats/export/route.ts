@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, gte, and, desc, inArray } from 'drizzle-orm'
+import { eq, sql, gte, and, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -31,8 +31,6 @@ export async function GET(request: NextRequest) {
 
     const sinceDate = new Date()
     sinceDate.setDate(sinceDate.getDate() - days)
-    const since = sinceDate.toISOString()
-
     // Get developer's tool IDs
     const developerTools = await db
       .select({ id: tools.id, name: tools.name })
@@ -68,7 +66,7 @@ export async function GET(request: NextRequest) {
       .from(invocations)
       .where(
         and(
-          gte(invocations.createdAt, since),
+          gte(invocations.createdAt, sql`${sinceDate.toISOString()}::timestamptz`),
           inArray(invocations.toolId, toolIds)
         )
       )

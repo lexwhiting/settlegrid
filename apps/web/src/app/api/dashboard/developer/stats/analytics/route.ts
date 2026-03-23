@@ -77,8 +77,6 @@ export async function GET(request: NextRequest) {
     // ── Hourly Distribution (last 7 days) ───────────────────────────────────────
     const sevenDaysAgoDate = new Date()
     sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7)
-    const sevenDaysAgo = sevenDaysAgoDate.toISOString()
-
     const hourlyDistribution = await db
       .select({
         hour: sql<number>`extract(hour from ${invocations.createdAt})::int`,
@@ -88,7 +86,7 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           toolFilter,
-          gte(invocations.createdAt, sevenDaysAgo)
+          gte(invocations.createdAt, sql`${sevenDaysAgoDate.toISOString()}::timestamptz`)
         )
       )
       .groupBy(sql`extract(hour from ${invocations.createdAt})`)
@@ -123,8 +121,6 @@ export async function GET(request: NextRequest) {
     // ── Revenue Trend (last 30 days) ────────────────────────────────────────────
     const thirtyDaysAgoDate = new Date()
     thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30)
-    const thirtyDaysAgo = thirtyDaysAgoDate.toISOString()
-
     const revenueTrend = await db
       .select({
         date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
@@ -134,7 +130,7 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           toolFilter,
-          gte(invocations.createdAt, thirtyDaysAgo)
+          gte(invocations.createdAt, sql`${thirtyDaysAgoDate.toISOString()}::timestamptz`)
         )
       )
       .groupBy(sql`${invocations.createdAt}::date`)

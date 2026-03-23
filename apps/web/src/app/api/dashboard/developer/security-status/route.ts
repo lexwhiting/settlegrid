@@ -113,8 +113,6 @@ export async function GET(request: NextRequest) {
     if (toolIds.length > 0) {
       const ninetyDaysAgoDate = new Date()
       ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90)
-      const ninetyDaysAgo = ninetyDaysAgoDate.toISOString()
-
       const [staleRow] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(apiKeys)
@@ -122,7 +120,7 @@ export async function GET(request: NextRequest) {
           and(
             inArray(apiKeys.toolId, toolIds),
             eq(apiKeys.status, 'active'),
-            lt(apiKeys.createdAt, ninetyDaysAgo)
+            lt(apiKeys.createdAt, sql`${ninetyDaysAgoDate.toISOString()}::timestamptz`)
           )
         )
       staleKeyCount = staleRow?.count ?? 0

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const totalRevenueCents = developerTools.reduce((sum, t) => sum + t.totalRevenueCents, 0)
 
     // Get invocations from the last 24 hours, grouped by hour
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const toolIds = developerTools.map((t) => t.id)
 
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         .from(invocations)
         .where(
           and(
-            gte(invocations.createdAt, twentyFourHoursAgo),
+            gte(invocations.createdAt, sql`${twentyFourHoursAgo.toISOString()}::timestamptz`),
             inArray(invocations.toolId, toolIds)
           )
         )
