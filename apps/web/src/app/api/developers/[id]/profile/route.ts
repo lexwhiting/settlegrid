@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, sql, count } from 'drizzle-orm'
+import { eq, and, desc, sql, count, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, tools, toolReviews, invocations } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -78,7 +78,7 @@ export async function GET(
           avgResponseTimeMs: sql<number>`coalesce(avg(${invocations.latencyMs})::numeric(5,1), 0)`,
         })
         .from(invocations)
-        .where(sql`${invocations.toolId} = ANY(${toolIds})`)
+        .where(inArray(invocations.toolId, toolIds))
         .limit(1)
 
       if (stats) {

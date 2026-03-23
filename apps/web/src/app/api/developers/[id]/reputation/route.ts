@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, developerReputation, tools, toolReviews } from '@/lib/db/schema'
+import { developers, developerReputation, tools, toolReviews, toolHealthChecks, invocations } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -76,17 +76,65 @@ export async function GET(
       .then(r => Number(r[0]?.avg ?? 0))
       .catch(() => 0)
 
-    const totalConsumers = 0
+    // Gather tool IDs for aggregate queries
+    const toolRows = await db
+      .select({ id: tools.id })
+      .from(tools)
+      .where(sql`${tools.developerId} = ${id} AND ${tools.status} = 'active'`)
+      .catch(() => [] as { id: string }[])
+    const toolIds = toolRows.map(t => t.id)
 
-    // Simplified scoring: tools (25%), reviews (25%), base (50%)
+    // totalConsumers: count unique consumers across all tools
+    let totalConsumers = 0
+    if (toolIds.length > 0) {
+      totalConsumers = await db
+        .select({ count: sql<number>`count(distinct ${invocations.consumerId})::int` })
+        .from(invocations)
+        .where(inArray(invocations.toolId, toolIds))
+        .then(r => r[0]?.count ?? 0)
+        .catch(() => 0)
+    }
+
+    // uptimePct: compute from toolHealthChecks in the last 30 days
+    let uptimePct = 100
+    if (toolIds.length > 0) {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      uptimePct = await db
+        .select({
+          pct: sql<number>`round(100.0 * count(*) filter (where ${toolHealthChecks.status} = 'up') / greatest(count(*), 1))::int`,
+        })
+        .from(toolHealthChecks)
+        .where(sql`${inArray(toolHealthChecks.toolId, toolIds)} AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
+        .then(r => r[0]?.pct ?? 100)
+        .catch(() => 100)
+    }
+
+    // responseTimePct: compute median latency and convert to a score
+    let responseTimePct = 100
+    if (toolIds.length > 0) {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      const medianLatency = await db
+        .select({
+          median: sql<number>`coalesce(percentile_cont(0.50) within group (order by ${invocations.latencyMs}), 0)::int`,
+        })
+        .from(invocations)
+        .where(sql`${inArray(invocations.toolId, toolIds)} AND ${invocations.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
+        .then(r => r[0]?.median ?? 0)
+        .catch(() => 0)
+
+      responseTimePct = medianLatency > 0
+        ? Math.max(0, Math.min(100, Math.round(100 - (medianLatency / 5))))
+        : 100
+    }
+
+    // Weighted scoring: uptime 30%, reviews 25%, response time 20%, consumers 15%, tools 10%
     const score = Math.min(100, Math.max(0, Math.round(
-      50 +
-      (Math.min(totalTools / 5, 1) * 25) +
-      (Math.min(reviewAvg / 5, 1) * 25)
+      (uptimePct * 0.30) +
+      (Math.min(reviewAvg / 5, 1) * 100 * 0.25) +
+      (responseTimePct * 0.20) +
+      (Math.min(totalConsumers / 20, 1) * 100 * 0.15) +
+      (Math.min(totalTools / 5, 1) * 100 * 0.10)
     )))
-
-    const uptimePct = 100
-    const responseTimePct = 100
 
     // Upsert reputation
     try {
