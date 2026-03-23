@@ -1055,11 +1055,11 @@ try {
             </p>
             <div className="space-y-3 mb-6">
               {[
-                { name: 'Web Search Tool', file: 'mcp-web-search.ts', price: '3\u00a2/query', desc: 'Brave Search API wrapper with web and news methods' },
-                { name: 'Document Analyzer', file: 'mcp-document-analyzer.ts', price: '4-10\u00a2/call', desc: 'Claude-powered analysis, summaries, and field extraction' },
-                { name: 'Database Query Tool', file: 'mcp-database-query.ts', price: '5\u00a2/query', desc: 'Natural language to SQL with safety validation' },
-                { name: 'Image Generator', file: 'mcp-image-generator.ts', price: '8-15\u00a2/image', desc: 'DALL-E 3 wrapper with standard, HD, and variation modes' },
-                { name: 'Code Reviewer', file: 'mcp-code-reviewer.ts', price: '8-15\u00a2/review', desc: 'AI code review, security scanning, and suggestions' },
+                { name: 'Web Search Tool', file: 'mcp-web-search.txt', price: '3\u00a2/query', desc: 'Brave Search API wrapper with web and news methods' },
+                { name: 'Document Analyzer', file: 'mcp-document-analyzer.txt', price: '4-10\u00a2/call', desc: 'Claude-powered analysis, summaries, and field extraction' },
+                { name: 'Database Query Tool', file: 'mcp-database-query.txt', price: '5\u00a2/query', desc: 'Natural language to SQL with safety validation' },
+                { name: 'Image Generator', file: 'mcp-image-generator.txt', price: '8-15\u00a2/image', desc: 'DALL-E 3 wrapper with standard, HD, and variation modes' },
+                { name: 'Code Reviewer', file: 'mcp-code-reviewer.txt', price: '8-15\u00a2/review', desc: 'AI code review, security scanning, and suggestions' },
               ].map((t) => (
                 <a
                   key={t.file}
