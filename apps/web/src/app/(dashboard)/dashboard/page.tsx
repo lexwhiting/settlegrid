@@ -18,6 +18,18 @@ interface DeveloperStats {
   recentInvocations: { hour: string; count: number; revenueCents?: number }[]
 }
 
+interface DeveloperProfile {
+  stripeConnectStatus: string
+}
+
+interface ToolSummary {
+  id: string
+  status: string
+}
+
+const CHECKLIST_DISMISSED_KEY = 'settlegrid_checklist_dismissed'
+const SDK_STEP_DISMISSED_KEY = 'settlegrid_sdk_step_dismissed'
+
 interface AnalyticsData {
   methodBreakdown: { method: string; invocations: number; revenueCents: number; errorRate: number }[]
   revenueTrend: { date: string; revenueCents: number }[]
@@ -38,16 +50,27 @@ type Period = '7' | '30' | '90'
 export default function DeveloperDashboardPage() {
   const [stats, setStats] = useState<DeveloperStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [profile, setProfile] = useState<DeveloperProfile | null>(null)
+  const [toolList, setToolList] = useState<ToolSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [period, setPeriod] = useState<Period>('30')
+  const [checklistDismissed, setChecklistDismissed] = useState(false)
+  const [sdkStepDismissed, setSdkStepDismissed] = useState(false)
+
+  useEffect(() => {
+    setChecklistDismissed(localStorage.getItem(CHECKLIST_DISMISSED_KEY) === 'true')
+    setSdkStepDismissed(localStorage.getItem(SDK_STEP_DISMISSED_KEY) === 'true')
+  }, [])
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, analyticsRes] = await Promise.all([
+        const [statsRes, analyticsRes, profileRes, toolsRes] = await Promise.all([
           fetch('/api/dashboard/developer/stats'),
           fetch('/api/dashboard/developer/stats/analytics'),
+          fetch('/api/auth/developer/me'),
+          fetch('/api/tools'),
         ])
         if (statsRes.ok) {
           const data = await statsRes.json()
@@ -59,6 +82,14 @@ export default function DeveloperDashboardPage() {
           const data = await analyticsRes.json()
           setAnalytics(data)
         }
+        if (profileRes.ok) {
+          const data = await profileRes.json()
+          setProfile(data.developer as DeveloperProfile)
+        }
+        if (toolsRes.ok) {
+          const data = await toolsRes.json()
+          setToolList((data.tools ?? []).map((t: { id: string; status: string }) => ({ id: t.id, status: t.status })))
+        }
       } catch {
         setError('Network error loading dashboard')
       } finally {
@@ -67,6 +98,35 @@ export default function DeveloperDashboardPage() {
     }
     fetchData()
   }, [])
+
+  function dismissChecklist() {
+    localStorage.setItem(CHECKLIST_DISMISSED_KEY, 'true')
+    setChecklistDismissed(true)
+  }
+
+  function dismissSdkStep() {
+    localStorage.setItem(SDK_STEP_DISMISSED_KEY, 'true')
+    setSdkStepDismissed(true)
+  }
+
+  // Checklist step completion
+  const hasTools = (stats?.toolCount ?? 0) > 0
+  const stripeConnected = profile?.stripeConnectStatus === 'active'
+  const hasInvocations = (stats?.totalInvocations ?? 0) > 0
+  const hasActiveTool = toolList.some((t) => t.status === 'active')
+  const sdkInstalled = sdkStepDismissed
+
+  const checklistSteps = [
+    { key: 'create-tool', label: 'Create your first tool', description: 'Register an MCP tool to start metering usage and collecting payments.', done: hasTools, href: '/dashboard/tools', cta: 'Create Tool' },
+    { key: 'connect-stripe', label: 'Connect Stripe for payouts', description: 'Link your Stripe account to receive earnings directly.', done: stripeConnected, href: '/dashboard/settings#payouts', cta: 'Connect Stripe' },
+    { key: 'install-sdk', label: 'Install the SDK', description: 'Add the SettleGrid SDK to your project.', done: sdkInstalled, href: null, cta: null },
+    { key: 'test-invocation', label: 'Make a test invocation', description: 'Send a test call to verify metering is working.', done: hasInvocations, href: '/docs', cta: 'View Docs' },
+    { key: 'go-live', label: 'Go live', description: 'Activate a tool to start accepting production traffic.', done: hasActiveTool, href: '/dashboard/tools', cta: 'Manage Tools' },
+  ]
+
+  const completedCount = checklistSteps.filter((s) => s.done).length
+  const allComplete = completedCount === checklistSteps.length
+  const showChecklist = !checklistDismissed && !allComplete && !loading
 
   if (loading) {
     return (
@@ -126,26 +186,83 @@ export default function DeveloperDashboardPage() {
         </div>
       </div>
 
-      {/* Onboarding prompt — shown when developer has no tools */}
-      {stats && stats.toolCount === 0 && (
-        <div className="rounded-xl border-2 border-dashed border-brand/30 bg-brand/5 dark:bg-brand/10 p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-brand/10 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-7 h-7 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-bold text-indigo dark:text-gray-100 mb-2">
-            Welcome! Create your first tool to start earning.
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-            Wrap any MCP tool, REST API, or AI service with SettleGrid to meter usage, collect payments, and track revenue automatically.
-          </p>
-          <Link href="/dashboard/tools">
-            <Button size="lg" className="px-8">
-              Create Tool
-            </Button>
-          </Link>
-        </div>
+      {/* Getting Started Checklist */}
+      {showChecklist && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Getting Started</CardTitle>
+              <button
+                onClick={dismissChecklist}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label="Dismiss checklist"
+              >
+                Dismiss
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {completedCount} of {checklistSteps.length} complete
+            </p>
+            {/* Progress bar */}
+            <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2 mt-2">
+              <div
+                className="h-2 rounded-full bg-brand transition-all"
+                style={{ width: `${(completedCount / checklistSteps.length) * 100}%` }}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="divide-y divide-gray-100 dark:divide-[#252836]">
+              {checklistSteps.map((step) => (
+                <div key={step.key} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                  {/* Checkbox icon */}
+                  <div className="mt-0.5 shrink-0">
+                    {step.done ? (
+                      <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <circle cx="12" cy="12" r="9" />
+                      </svg>
+                    )}
+                  </div>
+                  {/* Step content */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${step.done ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-indigo dark:text-gray-100'}`}>
+                      {step.label}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {step.description}
+                    </p>
+                    {/* SDK install snippet */}
+                    {step.key === 'install-sdk' && !step.done && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300">
+                          npm install @settlegrid/mcp
+                        </code>
+                        <button
+                          onClick={dismissSdkStep}
+                          className="text-xs text-brand hover:text-brand/80 font-medium transition-colors"
+                        >
+                          Mark done
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {/* CTA */}
+                  {!step.done && step.href && step.cta && (
+                    <Link href={step.href} className="shrink-0">
+                      <Button variant="outline" size="sm">
+                        {step.cta}
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Top Stats */}

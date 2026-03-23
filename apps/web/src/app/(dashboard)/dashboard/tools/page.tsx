@@ -125,22 +125,26 @@ export default function ToolsPage() {
                   <label htmlFor="tool-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <input id="tool-name" type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A human-readable name for your tool (e.g., &apos;Code Reviewer Pro&apos;)</p>
                 </div>
                 <div>
                   <label htmlFor="tool-slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slug</label>
                   <input id="tool-slug" type="text" required pattern="[a-z0-9-]+" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A URL-safe identifier used in the SDK and API (e.g., &apos;code-reviewer-pro&apos;). Cannot be changed later.</p>
                 </div>
               </div>
               <div>
                 <label htmlFor="tool-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea id="tool-desc" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Describe what your tool does. This is shown to consumers in the marketplace.</p>
               </div>
               <div className="w-48">
                 <label htmlFor="tool-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Cost (cents)</label>
                 <input id="tool-cost" type="number" min="0" required value={form.defaultCostCents} onChange={(e) => setForm({ ...form, defaultCostCents: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Price per invocation in cents. Most AI tools charge 1-25 cents per call. You can set per-method pricing later in the SDK.</p>
               </div>
               <Button type="submit" disabled={creating}>{creating ? 'Creating...' : 'Create Tool'}</Button>
             </form>
@@ -169,10 +173,14 @@ export default function ToolsPage() {
                 </svg>
               }
               title="No tools yet"
-              description="Create your first tool to start monetizing your MCP endpoints and earning revenue."
+              description="Tools are the core of SettleGrid — each one meters usage and collects revenue for your API or MCP endpoint automatically."
               onAction={() => setShowCreate(true)}
               actionLabel="Create Tool"
             />
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4">
+              Learn how to create and configure tools in the{' '}
+              <Link href="/docs" className="text-brand hover:underline">documentation</Link>.
+            </p>
           </CardContent>
         </Card>
       ) : (

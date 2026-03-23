@@ -221,10 +221,14 @@ export default function WebhooksPage() {
                 </svg>
               }
               title="No webhook endpoints"
-              description="Add a webhook endpoint to receive real-time event notifications via HMAC-SHA256 signed HTTP POST requests."
+              description="Webhooks keep your backend in sync by pushing real-time events for invocations, payouts, and tool changes."
               onAction={() => setShowCreate(true)}
               actionLabel="Add Endpoint"
             />
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4">
+              All deliveries are HMAC-SHA256 signed. See the{' '}
+              <a href="/docs" className="text-brand hover:underline">webhook integration guide</a>.
+            </p>
           </CardContent>
         </Card>
       ) : (

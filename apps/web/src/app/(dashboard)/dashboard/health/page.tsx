@@ -209,7 +209,13 @@ export default function HealthPage() {
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-2">No tools with health endpoints configured.</p>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">Add a health endpoint URL to your tools to enable monitoring.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-3">
+              Health monitoring tracks uptime, response times, and incidents so you can catch outages before your users do.
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Add a health endpoint URL to your tools to get started. See the{' '}
+              <a href="/docs" className="text-brand hover:underline">health monitoring docs</a>.
+            </p>
           </CardContent>
         </Card>
       ) : (

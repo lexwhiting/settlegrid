@@ -106,10 +106,14 @@ export default function PayoutsPage() {
                 </svg>
               }
               title="No payouts yet"
-              description="Payouts are processed when your balance reaches the minimum threshold ($25). Start monetizing tools to see payouts here."
+              description="Payouts let you withdraw your tool revenue directly to your bank account via Stripe Connect."
               actionLabel="Manage Tools"
               actionHref="/dashboard/tools"
             />
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4">
+              Payouts are triggered when your balance reaches $25. See{' '}
+              <a href="/docs" className="text-brand hover:underline">payout docs</a> for details.
+            </p>
           </CardContent>
         </Card>
       ) : (

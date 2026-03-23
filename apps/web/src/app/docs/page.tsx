@@ -119,6 +119,52 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   ],
 },
 {
+  title: 'Pricing Your Tool',
+  faqs: [
+    {
+      q: 'How much should I charge per invocation?',
+      a: 'It depends on your tool\'s value and compute costs. Here are benchmarks by tool type:\n\n- Simple lookups/search: 1-5 cents per call\n- Data enrichment/APIs: 5-25 cents per call\n- AI-powered analysis: 10-50 cents per call\n- Complex multi-step workflows: 25 cents - $1+ per call\n\nStart on the lower end to attract early users, then adjust based on demand and feedback.',
+    },
+    {
+      q: 'Which pricing model should I use?',
+      a: 'SettleGrid supports 6 models:\n\n- Per-invocation (most common): Fixed price per API call. Best for simple, predictable tools.\n- Per-token: Charge based on input/output size. Best for LLM wrappers and text processing.\n- Per-byte: Charge based on data volume. Best for file processing and data transfer.\n- Per-second: Charge based on processing time. Best for compute-intensive tasks.\n- Tiered: Different prices per method. Best for tools with multiple endpoints of varying complexity.\n- Outcome-based: Charge only when the tool delivers a successful result. Best for high-value, variable-success tasks.',
+    },
+    {
+      q: 'How do consumers pay for my tool?',
+      a: 'Consumers purchase credits via Stripe (credit card). They can enable auto-refill so their balance never runs out. When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).',
+    },
+    {
+      q: 'Can I offer a free trial?',
+      a: 'Yes. You can create promotional API keys with a pre-loaded credit balance, or set your initial price to $0 for the first N invocations using outcome-based billing with a free tier threshold. Many successful tools offer the first 50-100 calls free to let consumers evaluate quality.',
+    },
+    {
+      q: 'What if I price too high or too low?',
+      a: 'You can change your pricing at any time from the dashboard or by updating your SDK configuration. Price changes apply to future invocations only — existing consumer balances are not affected. We recommend starting lower and raising prices as you build a track record and reviews.',
+    },
+  ],
+},
+{
+  title: 'Framework Integration',
+  faqs: [
+    {
+      q: 'How do I use SettleGrid with a standard MCP server?',
+      a: 'Use the @modelcontextprotocol/sdk with settlegrid.init() and sg.wrap(). Example:\n\nimport { Server } from \'@modelcontextprotocol/sdk/server/index.js\'\nimport { StdioServerTransport } from \'@modelcontextprotocol/sdk/server/stdio.js\'\nimport { settlegrid } from \'@settlegrid/mcp\'\n\nconst sg = settlegrid.init({\n  toolSlug: \'my-mcp-tool\',\n  pricing: { defaultCostCents: 5 },\n})\n\nconst server = new Server({ name: \'my-server\', version: \'1.0.0\' }, { capabilities: { tools: {} } })\n\nconst handler = sg.wrap(async (args: { query: string }) => {\n  return { content: [{ type: \'text\', text: \'Result for: \' + args.query }] }\n}, { method: \'search\' })\n\nserver.setRequestHandler(\'tools/call\', async (request) => {\n  const result = await handler(request.params.arguments, {\n    headers: request.params._meta ?? {},\n  })\n  return result\n})\n\nconst transport = new StdioServerTransport()\nawait server.connect(transport)',
+    },
+    {
+      q: 'How do I use SettleGrid with Next.js App Router?',
+      a: 'Use settlegridMiddleware() in a route.ts handler. Example:\n\nimport { NextRequest, NextResponse } from \'next/server\'\nimport { settlegridMiddleware } from \'@settlegrid/mcp/rest\'\n\nconst billing = settlegridMiddleware({\n  toolSlug: \'my-nextjs-tool\',\n  pricing: { defaultCostCents: 10 },\n})\n\nexport async function POST(request: NextRequest) {\n  // Run billing middleware — throws on invalid key or insufficient credits\n  const billingCtx = await billing(request)\n\n  const body = await request.json()\n  const result = await processRequest(body)\n\n  return NextResponse.json({ result, metered: true })\n}\n\nPlace this file at app/api/your-tool/route.ts and deploy. The middleware extracts the API key from the x-api-key header, validates credits, and meters the call automatically.',
+    },
+    {
+      q: 'How do I use SettleGrid with Express.js?',
+      a: 'Use settlegridMiddleware() as Express middleware. Example:\n\nimport express from \'express\'\nimport { settlegridMiddleware } from \'@settlegrid/mcp/rest\'\n\nconst app = express()\napp.use(express.json())\n\nconst billing = settlegridMiddleware({\n  toolSlug: \'my-express-tool\',\n  pricing: {\n    defaultCostCents: 5,\n    methods: {\n      \'search\': { costCents: 5 },\n      \'analyze\': { costCents: 25 },\n    },\n  },\n})\n\n// Apply billing to specific routes\napp.post(\'/api/search\', billing, (req, res) => {\n  const { query } = req.body\n  res.json({ results: [\'result 1\', \'result 2\'], query })\n})\n\napp.post(\'/api/analyze\', billing, (req, res) => {\n  const { data } = req.body\n  res.json({ analysis: \'Complete\', confidence: 0.95 })\n})\n\napp.listen(3000, () => console.log(\'Server running on :3000\'))',
+    },
+    {
+      q: 'How do I verify webhook signatures?',
+      a: 'Every SettleGrid webhook is signed with HMAC-SHA256. Verify using the X-SettleGrid-Signature header. Example:\n\nimport crypto from \'crypto\'\n\nfunction verifyWebhookSignature(\n  rawBody: string,\n  signature: string,\n  secret: string\n): boolean {\n  const expected = crypto\n    .createHmac(\'sha256\', secret)\n    .update(rawBody, \'utf8\')\n    .digest(\'hex\')\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expected)\n  )\n}\n\n// In your webhook handler:\napp.post(\'/webhooks/settlegrid\', express.raw({ type: \'application/json\' }), (req, res) => {\n  const signature = req.headers[\'x-settlegrid-signature\'] as string\n  const secret = process.env.SETTLEGRID_WEBHOOK_SECRET!\n\n  if (!verifyWebhookSignature(req.body.toString(), signature, secret)) {\n    return res.status(401).json({ error: \'Invalid signature\' })\n  }\n\n  const event = JSON.parse(req.body.toString())\n  // Process event.type: invocation.completed, payout.initiated, etc.\n  res.json({ received: true })\n})\n\nAlways use crypto.timingSafeEqual to prevent timing attacks. Store your webhook secret in an environment variable.',
+    },
+  ],
+},
+{
   title: 'Billing & Credits',
   faqs: [
     {
@@ -638,6 +684,7 @@ export default function DocsPage() {
         <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2E3148] p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
           <nav className="space-y-1 text-sm">
             {[
+              { href: '#getting-started', label: 'Getting Started' },
               { href: '#quick-start', label: 'Quick Start' },
               { href: '#sdk-reference', label: 'SDK Reference' },
               { href: '#api-reference', label: 'API Reference' },
@@ -661,6 +708,126 @@ export default function DocsPage() {
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-10">
             Everything you need to monetize your MCP tools with SettleGrid.
           </p>
+
+          {/* ── Getting Started: Zero to Revenue ─────────────────────────── */}
+          <section id="getting-started" className="mb-14">
+            <div className="rounded-xl border-2 border-brand/30 bg-gradient-to-br from-[#10B981]/5 via-transparent to-transparent p-8">
+              <h2 className="text-3xl font-bold text-gray-100 mb-2">Getting Started: Zero to Revenue in 5 Minutes</h2>
+              <p className="text-gray-400 mb-8">A step-by-step walkthrough from account creation to your first paid invocation.</p>
+
+              {/* Step 1 */}
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white text-sm font-bold flex-shrink-0">1</span>
+                  <h3 className="text-xl font-semibold text-gray-100">Create Your Account</h3>
+                </div>
+                <div className="ml-11 text-gray-400 space-y-2 text-sm leading-relaxed">
+                  <p>
+                    Sign up at{' '}
+                    <Link href="/register" className="text-brand-text hover:text-brand-dark font-medium">settlegrid.ai/register</Link>{' '}
+                    — free, no credit card required.
+                  </p>
+                  <p>
+                    Connect your Stripe account for payouts under{' '}
+                    <strong className="text-gray-300">Settings &gt; Payouts</strong>.
+                    This enables automatic revenue disbursement to your bank account.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white text-sm font-bold flex-shrink-0">2</span>
+                  <h3 className="text-xl font-semibold text-gray-100">Create Your First Tool</h3>
+                </div>
+                <div className="ml-11 text-gray-400 space-y-2 text-sm leading-relaxed">
+                  <p>
+                    Go to <strong className="text-gray-300">Dashboard &gt; Tools &gt; Create Tool</strong>.
+                    Set a name, slug (URL-safe identifier), description, and price per call.
+                  </p>
+                  <p className="bg-[#1A1D2E] border border-[#2E3148] rounded-lg px-4 py-3 text-xs">
+                    <strong className="text-brand-text">Pricing guidance:</strong> Most AI tools charge 1-25 cents per invocation.
+                    Start low to attract early users, then adjust based on demand.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white text-sm font-bold flex-shrink-0">3</span>
+                  <h3 className="text-xl font-semibold text-gray-100">Install the SDK</h3>
+                </div>
+                <div className="ml-11">
+                  <CopyableCodeBlock title="Terminal" code={`npm install @settlegrid/mcp`} />
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white text-sm font-bold flex-shrink-0">4</span>
+                  <h3 className="text-xl font-semibold text-gray-100">Wrap Your Handler</h3>
+                </div>
+                <div className="ml-11 text-gray-400 space-y-3 text-sm leading-relaxed">
+                  <p>
+                    <strong className="text-gray-300">MCP / Function wrapper</strong> — wrap any async function with billing:
+                  </p>
+                  <CopyableCodeBlock title="server.ts" language="TypeScript" code={`import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'my-tool',
+  pricing: { defaultCostCents: 5 },
+})
+
+// Your existing handler
+async function myHandler(args: { query: string }) {
+  const result = await doSomethingUseful(args.query)
+  return result
+}
+
+// Wrap it — that's it!
+export const billedHandler = sg.wrap(myHandler, { method: 'search' })`} />
+
+                  <p className="mt-4">
+                    <strong className="text-gray-300">REST / Express equivalent</strong> — use the middleware for HTTP routes:
+                  </p>
+                  <CopyableCodeBlock title="app.ts" language="TypeScript" code={`import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+
+app.post('/api/search', settlegridMiddleware({
+  toolSlug: 'my-tool',
+  pricing: { defaultCostCents: 5 },
+}), (req, res) => {
+  // Your handler runs after billing check
+  res.json({ result: 'Hello from a monetized endpoint!' })
+})`} />
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white text-sm font-bold flex-shrink-0">5</span>
+                  <h3 className="text-xl font-semibold text-gray-100">Test &amp; Go Live</h3>
+                </div>
+                <div className="ml-11 text-gray-400 space-y-3 text-sm leading-relaxed">
+                  <p>Create a test API key in your dashboard, then make a test invocation:</p>
+                  <CopyableCodeBlock title="Terminal" code={`curl -X POST https://your-server.com/api/search \\
+  -H "x-api-key: sg_test_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "test"}'`} />
+                  <ul className="list-disc list-inside space-y-1 mt-2">
+                    <li>Check your dashboard — you should see the invocation appear in real time.</li>
+                    <li>When ready, activate your tool and share it with consumers.</li>
+                    <li>Your tool gets a public storefront at{' '}
+                      <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">settlegrid.ai/tools/your-slug</code>.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <Section title="Quick Start" id="quick-start">
             <p className="text-gray-600 dark:text-gray-400 mb-4">Get your first monetized tool running in under 5 minutes.</p>

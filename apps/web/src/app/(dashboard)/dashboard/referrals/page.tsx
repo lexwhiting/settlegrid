@@ -230,7 +230,15 @@ export default function ReferralsPage() {
         </CardHeader>
         <CardContent>
           {referrals.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No referrals yet. Create your first referral link to start earning commissions.</p>
+            <div>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">
+                No referrals yet. Referral links let you earn recurring commissions when others use tools through your link.
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                Create your first referral link above, or learn more in the{' '}
+                <a href="/docs" className="text-brand hover:underline">referral program docs</a>.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Referrals list">
