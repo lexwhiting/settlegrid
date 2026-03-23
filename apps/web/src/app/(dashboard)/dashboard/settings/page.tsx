@@ -302,55 +302,57 @@ export default function SettingsPage() {
   // Plan & Billing state
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null)
   const [managingSubscription, setManagingSubscription] = useState(false)
+  const [changingPlan, setChangingPlan] = useState<string | null>(null)
   const searchParams = useSearchParams()
 
   // ─── Fetch Profile ──────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    async function fetchProfile() {
-      try {
-        const res = await fetch('/api/auth/developer/me')
-        if (!res.ok) { setError('Failed to load profile'); return }
-        const data = await res.json()
-        const dev = data.developer as DeveloperProfile
-        setProfile(dev)
-        setProfileName(dev.name ?? '')
-        setProfileSlug(dev.slug ?? '')
-        setProfileBio(dev.publicBio ?? '')
-        setPublicProfile(dev.publicProfile)
-        setPayoutSchedule(dev.payoutSchedule)
-        setPayoutMinimumDollars(String(dev.payoutMinimumCents / 100))
-        setLogRetentionDays(dev.logRetentionDays ?? 90)
-        setWebhookLogRetentionDays(dev.webhookLogRetentionDays ?? 30)
-        setAuditLogRetentionDays(dev.auditLogRetentionDays ?? 365)
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/developer/me')
+      if (!res.ok) { setError('Failed to load profile'); return }
+      const data = await res.json()
+      const dev = data.developer as DeveloperProfile
+      setProfile(dev)
+      setProfileName(dev.name ?? '')
+      setProfileSlug(dev.slug ?? '')
+      setProfileBio(dev.publicBio ?? '')
+      setPublicProfile(dev.publicProfile)
+      setPayoutSchedule(dev.payoutSchedule)
+      setPayoutMinimumDollars(String(dev.payoutMinimumCents / 100))
+      setLogRetentionDays(dev.logRetentionDays ?? 90)
+      setWebhookLogRetentionDays(dev.webhookLogRetentionDays ?? 30)
+      setAuditLogRetentionDays(dev.auditLogRetentionDays ?? 365)
 
-        // Load saved notification preferences
-        try {
-          const prefsRes = await fetch('/api/dashboard/developer/notification-preferences')
-          if (prefsRes.ok) {
-            const prefsData = await prefsRes.json()
-            const saved = prefsData.preferences as Record<string, boolean>
-            if (saved && Object.keys(saved).length > 0) {
-              setNotifications((prev) =>
-                prev.map((n) => saved[n.key] !== undefined ? { ...n, emailEnabled: saved[n.key] } : n)
-              )
-              // Load marketing communications preference
-              if (saved.marketing_updates !== undefined) {
-                setMarketingUpdates(saved.marketing_updates)
-              }
+      // Load saved notification preferences
+      try {
+        const prefsRes = await fetch('/api/dashboard/developer/notification-preferences')
+        if (prefsRes.ok) {
+          const prefsData = await prefsRes.json()
+          const saved = prefsData.preferences as Record<string, boolean>
+          if (saved && Object.keys(saved).length > 0) {
+            setNotifications((prev) =>
+              prev.map((n) => saved[n.key] !== undefined ? { ...n, emailEnabled: saved[n.key] } : n)
+            )
+            // Load marketing communications preference
+            if (saved.marketing_updates !== undefined) {
+              setMarketingUpdates(saved.marketing_updates)
             }
           }
-        } catch {
-          // Non-critical — use defaults
         }
       } catch {
-        setError('Network error')
-      } finally {
-        setLoading(false)
+        // Non-critical — use defaults
       }
+    } catch {
+      setError('Network error')
+    } finally {
+      setLoading(false)
     }
-    fetchProfile()
   }, [])
+
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
 
   // ─── Subscription result toast ───────────────────────────────────────────────
 
@@ -753,6 +755,29 @@ export default function SettingsPage() {
       toast('Network error', 'error')
     } finally {
       setManagingSubscription(false)
+    }
+  }
+
+  async function handleChangePlan(plan: string) {
+    setChangingPlan(plan)
+    try {
+      const res = await fetch('/api/billing/change-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error || 'Failed to change plan', 'error')
+        return
+      }
+      toast(data.message || `Switched to ${plan} plan`, 'success')
+      // Refresh profile to reflect the new tier
+      fetchProfile()
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setChangingPlan(null)
     }
   }
 
@@ -1323,24 +1348,15 @@ export default function SettingsPage() {
                   </Badge>
                 </div>
 
-                {/* Manage Subscription (shown when developer has active subscription) */}
-                {profile?.stripeSubscriptionId && (
-                  <div className="flex items-center gap-3">
-                    <Button onClick={handleManageSubscription} disabled={managingSubscription} variant="outline">
-                      {managingSubscription ? 'Opening...' : 'Manage Subscription'}
-                    </Button>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Upgrade, downgrade, cancel, or update payment method
-                    </span>
-                  </div>
-                )}
-
                 {/* Plan Comparison */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {PLAN_ORDER.map((planKey, planIndex) => {
                     const plan = PLANS[planKey]
-                    const isCurrent = planIndex === (currentPlanIndex < 0 ? 0 : currentPlanIndex)
-                    const isUpgrade = planIndex > (currentPlanIndex < 0 ? 0 : currentPlanIndex)
+                    const effectiveCurrentIndex = currentPlanIndex < 0 ? 0 : currentPlanIndex
+                    const isCurrent = planIndex === effectiveCurrentIndex
+                    const isUpgrade = planIndex > effectiveCurrentIndex
+                    const isDowngrade = planIndex < effectiveCurrentIndex && planKey !== 'free'
+                    const isPaidPlan = planKey !== 'free'
                     return (
                       <div
                         key={planKey}
@@ -1364,17 +1380,19 @@ export default function SettingsPage() {
                         </ul>
                         {isCurrent ? (
                           <Badge variant="outline" className="w-full justify-center">Current Plan</Badge>
-                        ) : isUpgrade ? (
+                        ) : isUpgrade && isPaidPlan ? (
                           profile?.stripeSubscriptionId ? (
+                            /* Has subscription — use change-plan API for instant upgrade */
                             <Button
                               size="sm"
                               className="w-full"
-                              onClick={handleManageSubscription}
-                              disabled={managingSubscription}
+                              onClick={() => handleChangePlan(planKey)}
+                              disabled={changingPlan === planKey}
                             >
-                              {managingSubscription ? 'Opening...' : `Upgrade to ${plan.name}`}
+                              {changingPlan === planKey ? 'Switching...' : `Upgrade to ${plan.name}`}
                             </Button>
                           ) : (
+                            /* No subscription — create new checkout session */
                             <Button
                               size="sm"
                               className="w-full"
@@ -1384,6 +1402,17 @@ export default function SettingsPage() {
                               {upgradingPlan === planKey ? 'Redirecting...' : `Upgrade to ${plan.name}`}
                             </Button>
                           )
+                        ) : isDowngrade && profile?.stripeSubscriptionId ? (
+                          /* Has subscription — use change-plan API for downgrade */
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleChangePlan(planKey)}
+                            disabled={changingPlan === planKey}
+                          >
+                            {changingPlan === planKey ? 'Switching...' : `Downgrade to ${plan.name}`}
+                          </Button>
                         ) : (
                           <Button size="sm" variant="ghost" className="w-full" disabled>
                             {plan.name}
@@ -1394,7 +1423,25 @@ export default function SettingsPage() {
                   })}
                 </div>
 
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-4">
+                {/* Proration info */}
+                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1 pt-2">
+                  <p>Changes are prorated — you only pay the difference for upgrades.</p>
+                  <p>Downgrades apply a prorated credit to your next invoice.</p>
+                </div>
+
+                {/* Cancel / Manage Billing — uses Stripe Billing Portal (cancel + payment methods) */}
+                {profile?.stripeSubscriptionId && (
+                  <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4 flex items-center gap-4">
+                    <Button onClick={handleManageSubscription} disabled={managingSubscription} variant="outline" size="sm">
+                      {managingSubscription ? 'Opening...' : 'Cancel or Update Payment Method'}
+                    </Button>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Cancel anytime — your tools keep working until the period ends
+                    </span>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
                   Need higher limits or a custom arrangement?{' '}
                   <a href="mailto:support@settlegrid.ai" className="text-brand hover:text-brand-dark font-medium">
                     Let&apos;s talk
