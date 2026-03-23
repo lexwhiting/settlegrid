@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         and(
           eq(webhookDeliveries.status, 'failed'),
           lt(webhookDeliveries.attempts, sql`${webhookDeliveries.maxAttempts}`),
-          lte(webhookDeliveries.nextRetryAt, now)
+          lte(webhookDeliveries.nextRetryAt, sql`${now.toISOString()}::timestamptz`)
         )
       )
       .limit(50)

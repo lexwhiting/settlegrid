@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(consumerAlerts.status, 'active'),
-          sql`(${consumerAlerts.lastTriggeredAt} IS NULL OR ${consumerAlerts.lastTriggeredAt} <= ${cooldownCutoff})`
+          sql`(${consumerAlerts.lastTriggeredAt} IS NULL OR ${consumerAlerts.lastTriggeredAt} <= ${cooldownCutoff.toISOString()}::timestamptz)`
         )
       )
       .limit(200)
