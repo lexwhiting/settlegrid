@@ -126,6 +126,10 @@ export async function POST(request: NextRequest) {
 
     return successResponse({ checkoutUrl: session.url }, 201)
   } catch (error) {
-    return internalErrorResponse(error)
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error('billing.subscribe.error', { message: msg, stack })
+    // Return the actual error message in development/test to aid debugging
+    return errorResponse(msg, 500, 'SUBSCRIBE_ERROR')
   }
 }
