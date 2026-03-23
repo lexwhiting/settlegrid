@@ -60,7 +60,7 @@ export default function ToolsPage() {
           name: form.name,
           slug: form.slug,
           description: form.description,
-          pricingConfig: { defaultCostCents: parseInt(form.defaultCostCents, 10) },
+          pricingConfig: { model: 'per_call' as const, perCallCents: parseInt(form.defaultCostCents, 10), defaultCostCents: parseInt(form.defaultCostCents, 10) },
         }),
       })
       if (!res.ok) {
