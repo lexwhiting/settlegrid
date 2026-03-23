@@ -48,7 +48,7 @@ export default function PrivacyPage() {
                 SettleGrid (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) operates the settlegrid.ai
                 platform and related services. This Privacy Policy explains how we collect, use,
                 disclose, and safeguard your information when you use our platform, SDK, API, and
-                marketplace (collectively, the &quot;Service&quot;). By using the Service you agree to
+                tool showcase (collectively, the &quot;Service&quot;). By using the Service you agree to
                 the practices described below.
               </p>
             </Section>

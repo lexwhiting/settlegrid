@@ -42,6 +42,12 @@ export default async function ShowcasePage() {
             <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Docs
             </Link>
+            <Link href="/learn" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
+              Learn
+            </Link>
+            <Link href="/faq" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
+              FAQ
+            </Link>
             <Link href="/login" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100">
               Log in
             </Link>
@@ -153,6 +159,8 @@ export default async function ShowcasePage() {
           <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
             <Link href="/tools" className="hover:text-indigo dark:text-gray-100 transition-colors">Showcase</Link>
             <Link href="/docs" className="hover:text-indigo dark:text-gray-100 transition-colors">Documentation</Link>
+            <Link href="/learn" className="hover:text-indigo dark:text-gray-100 transition-colors">Learn</Link>
+            <Link href="/faq" className="hover:text-indigo dark:text-gray-100 transition-colors">FAQ</Link>
             <Link href="/privacy" className="hover:text-indigo dark:text-gray-100 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-indigo dark:text-gray-100 transition-colors">Terms</Link>
           </div>

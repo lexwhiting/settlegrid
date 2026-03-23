@@ -45,7 +45,7 @@ export default function TermsPage() {
           <div className="text-gray-600 dark:text-gray-400 leading-relaxed space-y-0">
             <Section title="1. Acceptance of Terms">
               <p>
-                By accessing or using the SettleGrid platform, SDK, API, and marketplace
+                By accessing or using the SettleGrid platform, SDK, API, and tool showcase
                 (collectively, the &quot;Service&quot;), you agree to be bound by these Terms of
                 Service (&quot;Terms&quot;). If you do not agree, do not use the Service. We may
                 update these Terms from time to time; continued use after changes constitutes
@@ -76,7 +76,7 @@ export default function TermsPage() {
                 <li>
                   You retain all intellectual property rights in your tools. By publishing, you grant
                   SettleGrid a non-exclusive license to list, display, and facilitate access to your
-                  tools through the marketplace.
+                  tools through the platform.
                 </li>
                 <li>
                   SettleGrid retains a 0-5% platform fee on each transaction depending on your plan
@@ -143,7 +143,7 @@ export default function TermsPage() {
                 <li>
                   Interfere with or disrupt the Service, servers, or networks connected to it.
                 </li>
-                <li>Scrape, data-mine, or systematically extract data from the marketplace.</li>
+                <li>Scrape, data-mine, or systematically extract data from the platform.</li>
                 <li>
                   Impersonate another person or entity, or misrepresent your affiliation with any
                   person or entity.
@@ -186,7 +186,7 @@ export default function TermsPage() {
                   processing fees.
                 </li>
                 <li>
-                  Your published tools will be unpublished and removed from the marketplace.
+                  Your published tools will be unpublished and removed from the showcase.
                 </li>
               </ul>
             </Section>

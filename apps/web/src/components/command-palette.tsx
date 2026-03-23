@@ -19,6 +19,8 @@ const pages = [
   { name: 'Consumer Dashboard', href: '/consumer', group: 'Navigation' },
   { name: 'Showcase', href: '/tools', group: 'Navigation' },
   { name: 'Documentation', href: '/docs', group: 'Navigation' },
+  { name: 'Learn', href: '/learn', group: 'Navigation' },
+  { name: 'FAQ', href: '/faq', group: 'Navigation' },
   { name: 'Create Tool', href: '/dashboard/tools', group: 'Actions' },
   { name: 'Add Webhook', href: '/dashboard/webhooks', group: 'Actions' },
   { name: 'Export Audit Log', href: '/dashboard/audit-log', group: 'Actions' },

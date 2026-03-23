@@ -968,6 +968,7 @@ assert signature == request.headers[
               <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Showcase</Link>
               <Link href="/docs" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Docs</Link>
               <Link href="/learn" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Learn</Link>
+              <Link href="/faq" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">FAQ</Link>
               <a href="https://github.com/lexwhiting/settlegrid" target="_blank" rel="noopener noreferrer" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">GitHub</a>
               <Link href="/privacy" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Privacy</Link>
               <Link href="/terms" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Terms</Link>
