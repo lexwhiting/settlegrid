@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and } from 'drizzle-orm'
+import { eq, sql, gte, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       return successResponse(emptyResult)
     }
 
-    const toolFilter = sql`${invocations.toolId} = ANY(${toolIds})`
+    const toolFilter = inArray(invocations.toolId, toolIds)
 
     // ── Method Breakdown ────────────────────────────────────────────────────────
     const methodBreakdown = await db

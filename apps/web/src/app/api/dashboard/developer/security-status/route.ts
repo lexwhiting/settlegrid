@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, and, lt } from 'drizzle-orm'
+import { eq, sql, and, lt, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, tools, apiKeys, webhookEndpoints, consumerToolBalances } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         .from(apiKeys)
         .where(
           and(
-            sql`${apiKeys.toolId} = ANY(${toolIds})`,
+            inArray(apiKeys.toolId, toolIds),
             eq(apiKeys.status, 'active')
           )
         )
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         .from(consumerToolBalances)
         .where(
           and(
-            sql`${consumerToolBalances.toolId} = ANY(${toolIds})`,
+            inArray(consumerToolBalances.toolId, toolIds),
             sql`${consumerToolBalances.spendingLimitCents} is not null`
           )
         )
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         .from(apiKeys)
         .where(
           and(
-            sql`${apiKeys.toolId} = ANY(${toolIds})`,
+            inArray(apiKeys.toolId, toolIds),
             eq(apiKeys.status, 'active'),
             lt(apiKeys.createdAt, ninetyDaysAgo)
           )

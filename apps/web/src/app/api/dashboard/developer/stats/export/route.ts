@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, sql, gte, and, desc } from 'drizzle-orm'
+import { eq, sql, gte, and, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           gte(invocations.createdAt, since),
-          sql`${invocations.toolId} = ANY(${toolIds})`
+          inArray(invocations.toolId, toolIds)
         )
       )
       .orderBy(desc(invocations.createdAt))

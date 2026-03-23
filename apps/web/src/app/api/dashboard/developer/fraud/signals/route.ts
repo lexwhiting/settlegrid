@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and } from 'drizzle-orm'
+import { eq, sql, gte, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -240,7 +240,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             gte(invocations.createdAt, todayStart),
-            sql`${invocations.toolId} = ANY(${toolIds})`
+            inArray(invocations.toolId, toolIds)
           )
         )
       scannedTodayTotal = scannedRow?.count ?? 0
@@ -258,7 +258,7 @@ export async function GET(request: NextRequest) {
           and(
             gte(invocations.createdAt, weekAgo),
             eq(invocations.isFlagged, true),
-            sql`${invocations.toolId} = ANY(${toolIds})`
+            inArray(invocations.toolId, toolIds)
           )
         )
       flaggedThisWeekTotal = flaggedRow?.count ?? 0
@@ -272,7 +272,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             eq(invocations.isFlagged, true),
-            sql`${invocations.toolId} = ANY(${toolIds})`
+            inArray(invocations.toolId, toolIds)
           )
         )
         .orderBy(sql`${invocations.createdAt} DESC`)

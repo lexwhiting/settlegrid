@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, conversionEvents } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       return successResponse(emptyResult)
     }
 
-    const toolFilter = sql`${conversionEvents.toolId} = ANY(${toolIds})`
+    const toolFilter = inArray(conversionEvents.toolId, toolIds)
 
     // Conversion rates by event type
     const conversionRates = await db
