@@ -1387,17 +1387,205 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Data & Privacy</CardTitle>
-                <CardDescription>Manage your data and privacy preferences</CardDescription>
+                <CardDescription>Manage your data retention, privacy preferences, and exports</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {/* Export Data */}
+
+                {/* A. Data Retention Settings */}
                 <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Data Retention</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
+                    Configure how long different types of data are retained.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label htmlFor="log-retention" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Invocation Log Retention
+                      </label>
+                      <select
+                        id="log-retention"
+                        value={logRetentionDays}
+                        onChange={(e) => setLogRetentionDays(Number(e.target.value))}
+                        className="w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                      >
+                        <option value={30}>30 days</option>
+                        <option value={60}>60 days</option>
+                        <option value={90}>90 days (default)</option>
+                        <option value={180}>180 days</option>
+                        <option value={365}>365 days</option>
+                        <option value={0}>Forever</option>
+                      </select>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">How long to keep invocation records</p>
+                    </div>
+                    <div>
+                      <label htmlFor="webhook-retention" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Webhook Log Retention
+                      </label>
+                      <select
+                        id="webhook-retention"
+                        value={webhookLogRetentionDays}
+                        onChange={(e) => setWebhookLogRetentionDays(Number(e.target.value))}
+                        className="w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                      >
+                        <option value={7}>7 days</option>
+                        <option value={14}>14 days</option>
+                        <option value={30}>30 days (default)</option>
+                        <option value={60}>60 days</option>
+                        <option value={90}>90 days</option>
+                      </select>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">How long to keep webhook delivery logs</p>
+                    </div>
+                    <div>
+                      <label htmlFor="audit-retention" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Audit Log Retention
+                      </label>
+                      <select
+                        id="audit-retention"
+                        value={auditLogRetentionDays}
+                        onChange={(e) => setAuditLogRetentionDays(Number(e.target.value))}
+                        className="w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                      >
+                        <option value={90}>90 days (minimum)</option>
+                        <option value={180}>180 days</option>
+                        <option value={365}>365 days (default)</option>
+                        <option value={730}>730 days</option>
+                      </select>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">How long to keep audit trail records</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Button variant="outline" onClick={saveRetentionSettings} disabled={savingRetention}>
+                      {savingRetention ? 'Saving...' : 'Save Retention Settings'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* B. Third-Party Data Transparency */}
+                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Third-Party Services</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
+                    Services that process your data as part of SettleGrid&apos;s operation.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                          <th className="pb-2 pr-4 font-medium text-gray-500 dark:text-gray-400">Service</th>
+                          <th className="pb-2 pr-4 font-medium text-gray-500 dark:text-gray-400">Data Shared</th>
+                          <th className="pb-2 pr-4 font-medium text-gray-500 dark:text-gray-400">Purpose</th>
+                          <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">Policy</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-600 dark:text-gray-300">
+                        <tr className="border-b border-gray-100 dark:border-[#252836]">
+                          <td className="py-2 pr-4 font-medium">Stripe</td>
+                          <td className="py-2 pr-4">Payment data, email, payout details</td>
+                          <td className="py-2 pr-4">Payment processing &amp; developer payouts</td>
+                          <td className="py-2"><a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark">stripe.com/privacy</a></td>
+                        </tr>
+                        <tr className="border-b border-gray-100 dark:border-[#252836]">
+                          <td className="py-2 pr-4 font-medium">Supabase</td>
+                          <td className="py-2 pr-4">All account data (database host)</td>
+                          <td className="py-2 pr-4">Authentication &amp; data storage</td>
+                          <td className="py-2"><a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark">supabase.com/privacy</a></td>
+                        </tr>
+                        <tr className="border-b border-gray-100 dark:border-[#252836]">
+                          <td className="py-2 pr-4 font-medium">Resend</td>
+                          <td className="py-2 pr-4">Email address</td>
+                          <td className="py-2 pr-4">Transactional email delivery</td>
+                          <td className="py-2"><a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark">resend.com/legal/privacy-policy</a></td>
+                        </tr>
+                        <tr className="border-b border-gray-100 dark:border-[#252836]">
+                          <td className="py-2 pr-4 font-medium">Upstash Redis</td>
+                          <td className="py-2 pr-4">API key hashes, rate limit counters</td>
+                          <td className="py-2 pr-4">Rate limiting &amp; real-time metering</td>
+                          <td className="py-2"><a href="https://upstash.com/trust/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark">upstash.com/trust/privacy-policy</a></td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-4 font-medium">Vercel</td>
+                          <td className="py-2 pr-4">Server logs, IP addresses</td>
+                          <td className="py-2 pr-4">Application hosting</td>
+                          <td className="py-2"><a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark">vercel.com/legal/privacy-policy</a></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* C. Marketing Communications Toggle */}
+                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Product updates and tips</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Receive occasional emails about new features, tips, and SettleGrid news.
+                        Transactional emails (payouts, security alerts) are always sent.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={marketingUpdates}
+                      aria-label="Toggle marketing emails"
+                      onClick={toggleMarketingUpdates}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${
+                        marketingUpdates ? 'bg-brand' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition duration-200 ease-in-out ${
+                          marketingUpdates ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* D. Selective Data Export */}
+                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Export My Data</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
-                    Download a copy of all your data including profile, tools, invocations, and payouts.
+                    Select which data categories to include in your export.
                   </p>
+                  <div className="grid gap-2 sm:grid-cols-2 mb-3">
+                    {([
+                      ['profile', 'Profile & Account'],
+                      ['tools', 'Tools & Configuration'],
+                      ['invocations', 'Invocations'],
+                      ['payouts', 'Payouts & Revenue'],
+                      ['webhooks', 'Webhook Endpoints'],
+                      ['audit_logs', 'Audit Logs'],
+                    ] as const).map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportCategories[key]}
+                          onChange={() => toggleExportCategory(key)}
+                          className="rounded border-gray-300 dark:border-gray-600 text-brand focus:ring-brand"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <label htmlFor="export-days" className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      Date range:
+                    </label>
+                    <select
+                      id="export-days"
+                      value={exportDays}
+                      onChange={(e) => setExportDays(Number(e.target.value))}
+                      className="rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                    >
+                      <option value={30}>Last 30 days</option>
+                      <option value={60}>Last 60 days</option>
+                      <option value={90}>Last 90 days (default)</option>
+                      <option value={180}>Last 180 days</option>
+                      <option value={365}>Last 365 days</option>
+                    </select>
+                  </div>
                   <Button variant="outline" onClick={handleExportData} disabled={exportingData}>
-                    {exportingData ? 'Requesting...' : 'Export My Data'}
+                    {exportingData ? 'Exporting...' : 'Export Selected'}
                   </Button>
                 </div>
 
