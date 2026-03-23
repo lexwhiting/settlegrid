@@ -97,7 +97,41 @@ export default async function ToolStorefrontPage({
 }) {
   const { slug } = await params
   const tool = await getToolData(slug)
-  if (!tool) notFound()
+
+  if (!tool) {
+    return (
+      <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+        <header className="border-b border-[#2E3148] px-6 py-4">
+          <nav className="max-w-4xl mx-auto flex items-center justify-between">
+            <Link href="/"><SettleGridLogo variant="horizontal" size={28} /></Link>
+            <div className="flex items-center gap-4">
+              <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Showcase</Link>
+              <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">Sign up</Link>
+            </div>
+          </nav>
+        </header>
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center max-w-md">
+            <div className="w-14 h-14 rounded-full bg-[#1A1D2E] border border-[#2E3148] flex items-center justify-center mx-auto mb-6">
+              <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-100 mb-3">Tool Not Available</h1>
+            <p className="text-gray-400 mb-6">
+              This tool hasn&apos;t been published yet, or the URL may be incorrect. Published tools appear in our showcase.
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <Link href="/tools" className="bg-brand text-white px-5 py-2.5 rounded-lg font-medium hover:bg-brand-dark transition-colors">
+                Browse Showcase
+              </Link>
+              <Link href="/docs" className="text-gray-400 hover:text-gray-200 font-medium transition-colors">
+                Read Docs
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   const methods = tool.pricingConfig.methods ?? {}
   const methodEntries = Object.entries(methods)
