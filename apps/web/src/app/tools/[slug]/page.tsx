@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
+import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
 
 interface ToolData {
   id: string
@@ -254,13 +255,12 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                     { amount: 2000, label: '$20.00' },
                     { amount: 5000, label: '$50.00' },
                   ].map((tier) => (
-                    <a
+                    <BuyCreditsButton
                       key={tier.amount}
-                      href={`/api/billing/checkout?toolId=${tool.id}&amountCents=${tier.amount}`}
-                      className="block w-full py-3 px-4 text-center bg-brand text-white rounded-lg font-medium hover:bg-brand-dark transition-colors"
-                    >
-                      {tier.label}
-                    </a>
+                      toolId={tool.id}
+                      amountCents={tier.amount}
+                      label={tier.label}
+                    />
                   ))}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
