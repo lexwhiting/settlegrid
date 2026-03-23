@@ -89,9 +89,7 @@ export default async function ShowcasePage() {
                       </span>
                     )}
                   </div>
-                  {tool.developerName && (
-                    <p className="text-xs text-gray-500 mb-2">by {tool.developerName}</p>
-                  )}
+                  {/* Developer name hidden until multiple creators are on the platform */}
                   {tool.description && (
                     <p className="text-sm text-gray-400 leading-relaxed mb-4 line-clamp-2">
                       {tool.description.length > 100
