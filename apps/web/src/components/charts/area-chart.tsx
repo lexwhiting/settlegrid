@@ -53,7 +53,7 @@ export function AreaChart({
             <stop offset="95%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
         <XAxis
           dataKey={xKey}
           axisLine={false}
@@ -70,12 +70,13 @@ export function AreaChart({
         <Tooltip
           contentStyle={{
             backgroundColor: '#1A1F3A',
-            border: 'none',
+            border: '1px solid #2E3148',
             borderRadius: '8px',
             color: '#fff',
             fontSize: '12px',
             padding: '8px 12px',
           }}
+          cursor={{ stroke: 'rgba(255,255,255,0.1)' }}
           formatter={(value: number) => [formatValue(value), '']}
           labelFormatter={formatXAxis}
         />
