@@ -252,7 +252,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What is the minimum payout?',
-      a: 'The default minimum payout is just $1.00 — the lowest in the industry. Get paid from your very first earnings. You can adjust this threshold up to $500 in Settings > Payouts.',
+      a: 'The default minimum payout is just $1.00 — the lowest of any AI monetization platform. Get paid from your very first earnings. You can adjust this threshold up to $500 in Settings > Payouts.',
     },
     {
       q: 'How long do payouts take?',
