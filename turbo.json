@@ -25,7 +25,10 @@
         "SETTLEGRID_GAS_WALLET_KEY",
         "AP2_SIGNING_SECRET",
         "OPEN_EXCHANGE_RATES_API_KEY",
-        "ANTHROPIC_API_KEY"
+        "ANTHROPIC_API_KEY",
+        "STRIPE_PRICE_STARTER",
+        "STRIPE_PRICE_GROWTH",
+        "STRIPE_PRICE_SCALE"
       ]
     },
     "dev": {

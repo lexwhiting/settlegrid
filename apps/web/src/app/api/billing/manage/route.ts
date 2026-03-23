@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger'
 export const maxDuration = 30
 
 function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
+  return new Stripe(getStripeSecretKey())
 }
 
 /** POST /api/billing/manage — create a Stripe Billing Portal session */

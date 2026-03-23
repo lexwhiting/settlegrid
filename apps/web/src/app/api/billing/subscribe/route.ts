@@ -25,7 +25,7 @@ const subscribeSchema = z.object({
 })
 
 function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
+  return new Stripe(getStripeSecretKey())
 }
 
 /** POST /api/billing/subscribe — create a Stripe Checkout session for plan subscription */
@@ -97,7 +97,6 @@ export async function POST(request: NextRequest) {
     // Create Stripe Checkout Session in subscription mode
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,
