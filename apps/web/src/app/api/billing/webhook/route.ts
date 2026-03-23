@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    const webhookSecret = getStripeWebhookSecret()
+    const webhookSecret = getStripeWebhookSecret()?.trim()
     if (!webhookSecret) {
       logger.error('stripe.webhook.not_configured', {
         message: 'STRIPE_WEBHOOK_SECRET is not set. Configure it in your environment to enable billing webhooks.',
