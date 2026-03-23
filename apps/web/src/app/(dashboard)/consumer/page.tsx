@@ -54,6 +54,10 @@ export default function ConsumerDashboardPage() {
   const [budgetForm, setBudgetForm] = useState({ spendingLimitCents: '', period: 'monthly', alertThresholdPercent: '80' })
   const [savingBudget, setSavingBudget] = useState(false)
 
+  // Key generation state
+  const [generatingKeyForTool, setGeneratingKeyForTool] = useState<string | null>(null)
+  const [newlyCreatedKeys, setNewlyCreatedKeys] = useState<Record<string, string>>({}) // toolId -> full key (shown once)
+
   // IP add state
   const [addingIpForKey, setAddingIpForKey] = useState<string | null>(null)
   const [newIp, setNewIp] = useState('')
@@ -105,6 +109,30 @@ export default function ConsumerDashboardPage() {
       }
     } catch {
       setError('Failed to revoke key')
+    }
+  }
+
+  async function generateKey(toolId: string) {
+    setGeneratingKeyForTool(toolId)
+    setError('')
+    try {
+      const res = await fetch('/api/consumer/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to generate API key')
+        return
+      }
+      // Store the full key (shown once) and add the new key metadata to the list
+      setNewlyCreatedKeys((prev) => ({ ...prev, [toolId]: data.key }))
+      setKeys((prev) => [...prev, data.apiKey])
+    } catch {
+      setError('Network error')
+    } finally {
+      setGeneratingKeyForTool(null)
     }
   }
 
@@ -228,24 +256,65 @@ export default function ConsumerDashboardPage() {
             <p className="text-gray-500 dark:text-gray-400 text-sm">No credits yet. Browse tools and purchase credits to get started.</p>
           ) : (
             <div className="space-y-3">
-              {balances.map((b) => (
-                <div key={b.toolId} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836] last:border-0">
-                  <div>
-                    <span className="font-medium text-indigo dark:text-gray-100">{b.toolName}</span>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
+              {balances.map((b) => {
+                const hasActiveKey = keys.some((k) => k.toolId === b.toolId && k.status === 'active')
+                const newKey = newlyCreatedKeys[b.toolId]
+                return (
+                  <div key={b.toolId} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-medium text-indigo dark:text-gray-100">{b.toolName}</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {b.autoRefill && <Badge variant="secondary">Auto-refill</Badge>}
+                        <span className="font-semibold text-brand-text">{formatCents(b.balanceCents)}</span>
+                        <a
+                          href={`/tools/${b.toolSlug}`}
+                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors"
+                        >
+                          Add Credits
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Generate Key / Show Key */}
+                    {newKey ? (
+                      <div className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-md p-3">
+                        <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mb-1">API key created. Copy it now -- it will not be shown again.</p>
+                        <code className="block text-xs bg-white dark:bg-[#1A1D2E] border border-emerald-200 dark:border-emerald-800/40 rounded px-2 py-1.5 font-mono text-gray-900 dark:text-gray-100 break-all select-all">
+                          {newKey}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText(newKey)
+                            setNewlyCreatedKeys((prev) => {
+                              const next = { ...prev }
+                              delete next[b.toolId]
+                              return next
+                            })
+                          }}
+                        >
+                          Copy &amp; Dismiss
+                        </Button>
+                      </div>
+                    ) : !hasActiveKey ? (
+                      <div className="mt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => generateKey(b.toolId)}
+                          disabled={generatingKeyForTool === b.toolId}
+                        >
+                          {generatingKeyForTool === b.toolId ? 'Generating...' : 'Generate API Key'}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-3">
-                    {b.autoRefill && <Badge variant="secondary">Auto-refill</Badge>}
-                    <span className="font-semibold text-brand-text">{formatCents(b.balanceCents)}</span>
-                    <a
-                      href={`/tools/${b.toolSlug}`}
-                      className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors"
-                    >
-                      Add Credits
-                    </a>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -369,7 +438,7 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {keys.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No API keys yet. Create a key from a tool storefront to start making API calls.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No API keys yet. Use the &quot;Generate API Key&quot; button on a tool above, or visit a tool storefront to create one.</p>
           ) : (
             <div className="space-y-4">
               {keys.map((key) => {

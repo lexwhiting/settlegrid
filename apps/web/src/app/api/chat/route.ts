@@ -1,4 +1,4 @@
-import { streamText } from 'ai'
+import { streamText, convertToModelMessages } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -15,6 +15,7 @@ const ALLOWED_PAGES = new Set([
   '/dashboard/webhooks',
   '/dashboard/payouts',
   '/dashboard/settings',
+  '/consumer',
   '/',
   '/pricing',
   '/docs',
@@ -149,15 +150,19 @@ export async function POST(req: NextRequest) {
     const safePage = pageContext && ALLOWED_PAGES.has(pageContext) ? pageContext : null
     const contextNote = safePage ? `\n\nThe user is currently on the ${safePage} page.` : ''
 
+    // Convert UIMessages (from DefaultChatTransport) to ModelMessages (for streamText)
+    const modelMessages = await convertToModelMessages(raw.messages)
+
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system: SYSTEM_PROMPT + contextNote,
-      // Pass the validated raw messages — the AI SDK handles UIMessage format internally
-      messages: raw.messages,
+      messages: modelMessages,
       maxOutputTokens: 1024,
     })
 
-    return result.toUIMessageStreamResponse()
+    return result.toUIMessageStreamResponse({
+      originalMessages: raw.messages,
+    })
   } catch (error) {
     logger.error('chat.error', {}, error)
     return new Response(JSON.stringify({ error: 'Chat unavailable' }), {
