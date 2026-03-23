@@ -800,7 +800,12 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue Share</dt>
-                    <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">{profile?.revenueSharePct ?? 95}%</dd>
+                    <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">
+                      {currentPlanKey === 'standard' || currentPlanKey === 'free' ? '100%' : '95%'}
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                        ({currentPlanKey === 'standard' || currentPlanKey === 'free' ? '0% platform fee on Free tier' : '5% platform fee on paid tiers'})
+                      </span>
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since</dt>
