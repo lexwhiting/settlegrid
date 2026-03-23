@@ -686,7 +686,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'Are there template MCP servers I can start from?',
-      a: 'Yes. We publish 5 open-source template files you can fork and customize. Each is a complete, runnable TypeScript file with SettleGrid billing already wired in:\n\n- Web Search Tool (3 cents/query) — wraps Brave Search with web and news methods.\n- Document Analyzer (4-10 cents/call) — Claude-powered full analysis, summaries, and field extraction.\n- Database Query Tool (5 cents/query) — natural language to SQL with Claude, with SQL injection protection.\n- Image Generator (8-15 cents/image) — DALL-E 3 wrapper with standard, HD, and variation methods.\n- Code Reviewer (8-15 cents/review) — Claude-powered code review, security analysis, and improvement suggestions for 16 languages.\n\nBrowse all templates at settlegrid.ai/templates or download them directly from the /templates/ directory.',
+      a: 'Yes. We publish 13 open-source template files you can fork and customize. Each is a complete, runnable TypeScript file with SettleGrid billing already wired in:\n\n- Web Search Tool (3 cents/query) — wraps Brave Search with web and news methods.\n- Document Analyzer (4-10 cents/call) — Claude-powered full analysis, summaries, and field extraction.\n- Database Query Tool (5 cents/query) — natural language to SQL with Claude, with SQL injection protection.\n- Image Generator (8-15 cents/image) — DALL-E 3 wrapper with standard, HD, and variation methods.\n- Code Reviewer (8-15 cents/review) — Claude-powered code review, security analysis, and improvement suggestions for 16 languages.\n- Lead Enrichment (2-8 cents/call) — PeopleDataLabs company/contact enrichment and email verification.\n- Web Scraper (2-5 cents/call) — Firecrawl scraping, structured extraction, and batch scrape.\n- Speech Transcription (4-8 cents/min) — Whisper transcription with speaker detection and Claude summaries.\n- Email Outreach (1-3 cents/call) — Resend email sending, templates, and email validation.\n- Financial Data (2-5 cents/call) — Alpha Vantage quotes, historical prices, and financial statements.\n- Translation (1-3 cents/call) — DeepL translation, language detection, and batch translate.\n- Sentiment Analyzer (2-4 cents/call) — Claude sentiment scoring, batch analysis, and entity extraction.\n- PDF Processor (3-6 cents/call) — PDF text extraction, structured field parsing, and markdown conversion.\n\nBrowse all templates at settlegrid.ai/templates or download them directly from the /templates/ directory.',
     },
     {
       q: 'How do I use a template?',
@@ -699,6 +699,10 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     {
       q: 'Do templates show the REST middleware pattern too?',
       a: 'Yes. Every template shows the primary sg.wrap() pattern for MCP servers and includes a commented-out section showing the equivalent settlegridMiddleware() approach for REST API endpoints. You can use either pattern depending on whether you are building an MCP server or an HTTP API.',
+    },
+    {
+      q: 'Do these templates work with all 10 protocols SettleGrid supports?',
+      a: 'Yes. The sg.wrap() pattern used in every template automatically supports all 10 protocols: MCP, MPP (Stripe + Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP (Google + Shopify), ACP (OpenAI), Mastercard Agent Pay, Circle Nanopayments, and REST. You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, every protocol.',
     },
   ],
 },
@@ -1060,6 +1064,14 @@ try {
                 { name: 'Database Query Tool', file: 'mcp-database-query.txt', price: '5\u00a2/query', desc: 'Natural language to SQL with safety validation' },
                 { name: 'Image Generator', file: 'mcp-image-generator.txt', price: '8-15\u00a2/image', desc: 'DALL-E 3 wrapper with standard, HD, and variation modes' },
                 { name: 'Code Reviewer', file: 'mcp-code-reviewer.txt', price: '8-15\u00a2/review', desc: 'AI code review, security scanning, and suggestions' },
+                { name: 'Lead Enrichment', file: 'mcp-lead-enrichment.txt', price: '2-8\u00a2/call', desc: 'PeopleDataLabs company/contact enrichment and email verification' },
+                { name: 'Web Scraper', file: 'mcp-web-scraper.txt', price: '2-5\u00a2/call', desc: 'Firecrawl-powered scraping, structured extraction, and batch scrape' },
+                { name: 'Speech Transcription', file: 'mcp-speech-transcription.txt', price: '4-8\u00a2/min', desc: 'Whisper transcription with speaker detection and Claude summaries' },
+                { name: 'Email Outreach', file: 'mcp-email-outreach.txt', price: '1-3\u00a2/call', desc: 'Resend email sending, templates, and MX-based validation' },
+                { name: 'Financial Data', file: 'mcp-financial-data.txt', price: '2-5\u00a2/call', desc: 'Alpha Vantage quotes, historical prices, and financial statements' },
+                { name: 'Translation', file: 'mcp-translation.txt', price: '1-3\u00a2/call', desc: 'DeepL translation, language detection, and batch translate (29 languages)' },
+                { name: 'Sentiment Analyzer', file: 'mcp-sentiment-analyzer.txt', price: '2-4\u00a2/call', desc: 'Claude-powered sentiment scoring, batch analysis, and entity extraction' },
+                { name: 'PDF Processor', file: 'mcp-pdf-processor.txt', price: '3-6\u00a2/call', desc: 'PDF text extraction, structured field parsing, and markdown conversion' },
               ].map((t) => (
                 <a
                   key={t.file}

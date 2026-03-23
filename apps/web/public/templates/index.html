@@ -65,7 +65,69 @@
       <a href="/templates/mcp-code-reviewer.txt">View source &rarr;</a>
     </div>
 
-    <p style="margin-top: 2rem; font-size: 0.8125rem; color: #6b7280;">
+    <div class="template">
+      <h2>Lead Enrichment</h2>
+      <div class="meta"><span>2-8&cent;/call</span><span>PeopleDataLabs</span></div>
+      <p>Enrich companies and contacts with firmographic data, verify email addresses. Returns industry, size, location, and social links.</p>
+      <a href="/templates/mcp-lead-enrichment.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Web Scraper</h2>
+      <div class="meta"><span>2-5&cent;/call</span><span>Firecrawl</span></div>
+      <p>Scrape web pages to clean markdown, extract structured data with custom schemas, and batch-scrape up to 10 URLs per call.</p>
+      <a href="/templates/mcp-web-scraper.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Speech Transcription</h2>
+      <div class="meta"><span>4-8&cent;/min</span><span>Whisper + Claude</span></div>
+      <p>Transcribe audio files with timestamps and speaker detection. Includes AI-powered transcript summarization via Claude.</p>
+      <a href="/templates/mcp-speech-transcription.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Email Outreach</h2>
+      <div class="meta"><span>1-3&cent;/call</span><span>Resend</span></div>
+      <p>Send emails, render built-in templates with variables, and validate email addresses with MX record checks. Includes blocked-domain protection.</p>
+      <a href="/templates/mcp-email-outreach.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Financial Data</h2>
+      <div class="meta"><span>2-5&cent;/call</span><span>Alpha Vantage</span></div>
+      <p>Get real-time stock quotes, historical OHLCV candles (daily/weekly/monthly), and annual financial statements for any ticker.</p>
+      <a href="/templates/mcp-financial-data.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Translation</h2>
+      <div class="meta"><span>1-3&cent;/call</span><span>DeepL</span></div>
+      <p>Translate text between 29 languages, detect source language, and batch-translate up to 20 items. Powered by DeepL&rsquo;s neural engine.</p>
+      <a href="/templates/mcp-translation.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Sentiment Analyzer</h2>
+      <div class="meta"><span>2-4&cent;/call</span><span>Claude AI</span></div>
+      <p>Analyze sentiment with scored results (-1 to 1), batch-analyze up to 25 texts, and extract named entities with per-entity sentiment.</p>
+      <a href="/templates/mcp-sentiment-analyzer.txt">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>PDF Processor</h2>
+      <div class="meta"><span>3-6&cent;/call</span><span>pdf-parse + Claude</span></div>
+      <p>Extract raw text from PDFs, pull structured fields with AI, and convert documents to clean Markdown. Handles files up to 10 MB.</p>
+      <a href="/templates/mcp-pdf-processor.txt">View source &rarr;</a>
+    </div>
+
+    <div style="margin-top: 2rem; padding: 16px 20px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); border-radius: 10px;">
+      <p style="font-size: 0.875rem; font-weight: 600; color: #10B981; margin-bottom: 6px;">Works across all 10 protocols</p>
+      <p style="font-size: 0.8125rem; color: #9ca3af; line-height: 1.6; margin: 0;">
+        These templates use <code style="background:#1A1D2E;padding:2px 6px;border-radius:4px;font-size:12px">sg.wrap()</code> which automatically supports MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST &mdash; no protocol-specific code needed. SettleGrid detects the protocol from each incoming request and handles settlement automatically.
+      </p>
+    </div>
+    <p style="margin-top: 1rem; font-size: 0.8125rem; color: #6b7280;">
       All templates use the <a href="https://www.npmjs.com/package/@settlegrid/mcp" style="color: #10B981;">@settlegrid/mcp</a> SDK.
       See <a href="/docs" style="color: #10B981;">full documentation</a> for setup instructions.
     </p>

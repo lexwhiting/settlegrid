@@ -1,0 +1,233 @@
+#!/usr/bin/env npx tsx
+/**
+ * MCP Email Outreach Tool — Monetized with SettleGrid
+ *
+ * A complete MCP server that sends and validates emails via Resend.
+ * Fork this template, add your Resend API key, and deploy.
+ *
+ * Setup:
+ *   1. npm install @settlegrid/mcp
+ *   2. Set RESEND_API_KEY, SENDER_EMAIL, and SETTLEGRID_API_KEY in your env
+ *   3. Register your tool at settlegrid.ai/dashboard/tools
+ *   4. Run: npx tsx mcp-email-outreach.ts
+ *
+ * Pricing: 2 cents per email, 3 cents per template send, 1 cent per validation
+ *   - Resend costs ~$0.0004/email on Pro plan ($20/50K emails)
+ *   - 2 cents = ~50x margin on raw sends
+ *   - Template sends include rendering, 3 cents = ~33x margin
+ *   - Validation is lightweight DNS lookup, 1 cent = pure margin
+ *
+ * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+// ── SettleGrid Setup ────────────────────────────────────────────────────────
+
+const sg = settlegrid.init({
+  toolSlug: 'my-email-outreach', // Replace with your tool slug
+  pricing: {
+    defaultCostCents: 2,
+    methods: {
+      send_email: { costCents: 2, displayName: 'Send Email' },
+      send_template: { costCents: 3, displayName: 'Send Template' },
+      validate_email: { costCents: 1, displayName: 'Validate Email' },
+    },
+  },
+})
+
+// ── Resend API Helper ───────────────────────────────────────────────────────
+
+const RESEND_BASE = 'https://api.resend.com'
+
+async function resendPost(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const response = await fetch(`${RESEND_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.RESEND_API_KEY!}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Resend API returned ${response.status}: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface SendArgs {
+  to: string
+  subject: string
+  body: string
+  replyTo?: string
+}
+
+interface SendResult {
+  messageId: string
+  status: 'sent' | 'queued'
+}
+
+interface TemplateArgs {
+  to: string
+  subject: string
+  templateName: string
+  variables: Record<string, string>
+}
+
+interface ValidateArgs {
+  email: string
+}
+
+interface ValidateResult {
+  email: string
+  valid: boolean
+  mxRecords: boolean
+  format: boolean
+}
+
+// ── Validation ──────────────────────────────────────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const BLOCKED_DOMAINS = ['example.com', 'test.com', 'localhost', 'mailinator.com', 'guerrillamail.com']
+
+function validateEmailAddress(email: string): void {
+  if (!email || !EMAIL_RE.test(email)) {
+    throw new Error('A valid email address is required')
+  }
+  const domain = email.split('@')[1].toLowerCase()
+  if (BLOCKED_DOMAINS.includes(domain)) {
+    throw new Error(`Email domain "${domain}" is blocked`)
+  }
+}
+
+// ── Email Methods ───────────────────────────────────────────────────────────
+
+async function sendEmail(args: SendArgs): Promise<{ result: SendResult }> {
+  validateEmailAddress(args.to)
+  if (!args.subject || args.subject.trim().length === 0) {
+    throw new Error('Subject must be non-empty')
+  }
+  if (args.subject.length > 200) {
+    throw new Error('Subject must be 200 characters or fewer')
+  }
+  if (!args.body || args.body.trim().length === 0) {
+    throw new Error('Email body must be non-empty')
+  }
+  if (args.body.length > 50_000) {
+    throw new Error('Email body exceeds 50,000 character limit')
+  }
+
+  const data = await resendPost('/emails', {
+    from: process.env.SENDER_EMAIL!,
+    to: [args.to],
+    subject: args.subject,
+    html: args.body,
+    reply_to: args.replyTo,
+  })
+
+  return {
+    result: {
+      messageId: (data.id as string) ?? '',
+      status: 'sent',
+    },
+  }
+}
+
+// Built-in simple templates
+const TEMPLATES: Record<string, string> = {
+  welcome: '<h1>Welcome, {{name}}!</h1><p>Thanks for signing up. {{message}}</p>',
+  followup: '<p>Hi {{name}},</p><p>Following up on our conversation. {{message}}</p><p>Best,<br/>{{sender}}</p>',
+  announcement: '<h2>{{headline}}</h2><p>{{message}}</p><p><a href="{{link}}">Learn more</a></p>',
+}
+
+async function sendTemplate(args: TemplateArgs): Promise<{ result: SendResult }> {
+  validateEmailAddress(args.to)
+  if (!args.subject || args.subject.length > 200) {
+    throw new Error('Subject must be 1-200 characters')
+  }
+  if (!args.templateName || !TEMPLATES[args.templateName]) {
+    throw new Error(`Unknown template. Available: ${Object.keys(TEMPLATES).join(', ')}`)
+  }
+
+  let html = TEMPLATES[args.templateName]
+  for (const [key, value] of Object.entries(args.variables ?? {})) {
+    html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+  }
+
+  const data = await resendPost('/emails', {
+    from: process.env.SENDER_EMAIL!,
+    to: [args.to],
+    subject: args.subject,
+    html,
+  })
+
+  return {
+    result: {
+      messageId: (data.id as string) ?? '',
+      status: 'sent',
+    },
+  }
+}
+
+async function validateEmail(args: ValidateArgs): Promise<{ result: ValidateResult }> {
+  if (!args.email) {
+    throw new Error('Email address is required')
+  }
+
+  const formatValid = EMAIL_RE.test(args.email)
+  const domain = args.email.split('@')[1] ?? ''
+
+  // DNS MX record check via public DNS-over-HTTPS
+  let mxRecords = false
+  if (formatValid && domain) {
+    try {
+      const resp = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`)
+      const data = await resp.json()
+      mxRecords = Array.isArray(data.Answer) && data.Answer.length > 0
+    } catch {
+      // DNS lookup failed — treat as no MX
+    }
+  }
+
+  return {
+    result: {
+      email: args.email,
+      valid: formatValid && mxRecords,
+      mxRecords,
+      format: formatValid,
+    },
+  }
+}
+
+// ── Wrap with SettleGrid Billing ─────────────────────────────────────────────
+
+export const billedSend = sg.wrap(sendEmail, { method: 'send_email' })
+export const billedTemplate = sg.wrap(sendTemplate, { method: 'send_template' })
+export const billedValidate = sg.wrap(validateEmail, { method: 'validate_email' })
+
+// ── REST Alternative ────────────────────────────────────────────────────────
+// import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+//
+// const withBilling = settlegridMiddleware({
+//   toolSlug: 'my-email-outreach',
+//   pricing: {
+//     defaultCostCents: 2,
+//     methods: {
+//       send_email: { costCents: 2 },
+//       send_template: { costCents: 3 },
+//       validate_email: { costCents: 1 },
+//     },
+//   },
+// })
+//
+// export async function POST(request: Request) {
+//   return withBilling(request, async () => {
+//     const body = await request.json()
+//     const result = await sendEmail(body)
+//     return Response.json(result)
+//   }, 'send_email')
+// }

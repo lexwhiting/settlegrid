@@ -1,0 +1,161 @@
+#!/usr/bin/env npx tsx
+/**
+ * MCP Lead Enrichment Tool — Monetized with SettleGrid
+ *
+ * A complete MCP server that enriches companies and contacts via PeopleDataLabs.
+ * Fork this template, add your PDL API key, and deploy.
+ *
+ * Setup:
+ *   1. npm install @settlegrid/mcp
+ *   2. Set PDL_API_KEY and SETTLEGRID_API_KEY in your env
+ *   3. Register your tool at settlegrid.ai/dashboard/tools
+ *   4. Run: npx tsx mcp-lead-enrichment.ts
+ *
+ * Pricing: 5 cents per company, 8 cents per contact, 2 cents per email verify
+ *   - PDL Company Enrichment costs ~$0.01/call on Growth plan
+ *   - PDL Person Enrichment costs ~$0.03/call on Growth plan
+ *   - 5 cents company = ~5x margin, 8 cents contact = ~2.6x margin
+ *   - Competitive with Clearbit/Apollo enrichment pricing
+ *
+ * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+// ── SettleGrid Setup ────────────────────────────────────────────────────────
+
+const sg = settlegrid.init({
+  toolSlug: 'my-lead-enrichment', // Replace with your tool slug
+  pricing: {
+    defaultCostCents: 5,
+    methods: {
+      enrich_company: { costCents: 5, displayName: 'Enrich Company' },
+      enrich_contact: { costCents: 8, displayName: 'Enrich Contact' },
+      verify_email: { costCents: 2, displayName: 'Verify Email' },
+    },
+  },
+})
+
+// ── PeopleDataLabs API Helper ───────────────────────────────────────────────
+
+const PDL_BASE = 'https://api.peopledatalabs.com/v5'
+
+async function pdlFetch(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
+  const url = new URL(`${PDL_BASE}${path}`)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const response = await fetch(url.toString(), {
+    headers: { 'X-Api-Key': process.env.PDL_API_KEY! },
+  })
+  if (!response.ok) {
+    throw new Error(`PDL API returned ${response.status}: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+// ── Enrichment Methods ──────────────────────────────────────────────────────
+
+const DOMAIN_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+interface CompanyArgs { domain: string }
+
+async function enrichCompany(args: CompanyArgs): Promise<{
+  company: { name: string; industry: string; size: string; location: string; description: string; socialLinks: { linkedin?: string; twitter?: string } }
+}> {
+  if (!args.domain || !DOMAIN_RE.test(args.domain)) {
+    throw new Error('A valid company domain is required (e.g. "acme.com")')
+  }
+  const data = await pdlFetch('/company/enrich', { website: args.domain })
+  return {
+    company: {
+      name: (data.name as string) ?? 'Unknown',
+      industry: (data.industry as string) ?? 'Unknown',
+      size: (data.employee_count_range as string) ?? 'Unknown',
+      location: (data.location?.name as string) ?? 'Unknown',
+      description: (data.summary as string) ?? '',
+      socialLinks: {
+        linkedin: (data.linkedin_url as string) ?? undefined,
+        twitter: (data.twitter_url as string) ?? undefined,
+      },
+    },
+  }
+}
+
+interface ContactArgs { email?: string; name?: string; company?: string }
+
+async function enrichContact(args: ContactArgs): Promise<{
+  contact: { fullName: string; title: string; company: string; location: string; socialLinks: { linkedin?: string; twitter?: string } }
+}> {
+  if (!args.email && !args.name) {
+    throw new Error('Either email or name is required')
+  }
+  if (args.email && !EMAIL_RE.test(args.email)) {
+    throw new Error('Invalid email format')
+  }
+  const params: Record<string, string> = {}
+  if (args.email) params.email = args.email
+  if (args.name) params.name = args.name
+  if (args.company) params.company = args.company
+
+  const data = await pdlFetch('/person/enrich', params)
+  return {
+    contact: {
+      fullName: (data.full_name as string) ?? 'Unknown',
+      title: (data.job_title as string) ?? 'Unknown',
+      company: (data.job_company_name as string) ?? 'Unknown',
+      location: (data.location_name as string) ?? 'Unknown',
+      socialLinks: {
+        linkedin: (data.linkedin_url as string) ?? undefined,
+        twitter: (data.twitter_url as string) ?? undefined,
+      },
+    },
+  }
+}
+
+interface VerifyArgs { email: string }
+
+async function verifyEmail(args: VerifyArgs): Promise<{
+  result: { email: string; valid: boolean; deliverable: boolean; disposable: boolean }
+}> {
+  if (!args.email || !EMAIL_RE.test(args.email)) {
+    throw new Error('A valid email address is required')
+  }
+  const data = await pdlFetch('/email/verify', { email: args.email })
+  return {
+    result: {
+      email: args.email,
+      valid: (data.valid as boolean) ?? false,
+      deliverable: (data.deliverable as boolean) ?? false,
+      disposable: (data.disposable as boolean) ?? false,
+    },
+  }
+}
+
+// ── Wrap with SettleGrid Billing ─────────────────────────────────────────────
+
+export const billedEnrichCompany = sg.wrap(enrichCompany, { method: 'enrich_company' })
+export const billedEnrichContact = sg.wrap(enrichContact, { method: 'enrich_contact' })
+export const billedVerifyEmail = sg.wrap(verifyEmail, { method: 'verify_email' })
+
+// ── REST Alternative ────────────────────────────────────────────────────────
+// import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+//
+// const withBilling = settlegridMiddleware({
+//   toolSlug: 'my-lead-enrichment',
+//   pricing: {
+//     defaultCostCents: 5,
+//     methods: {
+//       enrich_company: { costCents: 5 },
+//       enrich_contact: { costCents: 8 },
+//       verify_email: { costCents: 2 },
+//     },
+//   },
+// })
+//
+// export async function POST(request: Request) {
+//   return withBilling(request, async () => {
+//     const { domain } = await request.json()
+//     const result = await enrichCompany({ domain })
+//     return Response.json(result)
+//   }, 'enrich_company')
+// }

@@ -1,0 +1,146 @@
+#!/usr/bin/env npx tsx
+/**
+ * MCP Web Scraper Tool — Monetized with SettleGrid
+ *
+ * A complete MCP server that scrapes and extracts data via Firecrawl.
+ * Fork this template, add your Firecrawl API key, and deploy.
+ *
+ * Setup:
+ *   1. npm install @settlegrid/mcp
+ *   2. Set FIRECRAWL_API_KEY and SETTLEGRID_API_KEY in your env
+ *   3. Register your tool at settlegrid.ai/dashboard/tools
+ *   4. Run: npx tsx mcp-web-scraper.ts
+ *
+ * Pricing: 3 cents per scrape, 5 cents per structured extraction, 2 cents per batch URL
+ *   - Firecrawl costs ~$0.004/page on Starter plan (500 credits at $19)
+ *   - 3 cents gives you ~7.5x margin on simple scrape
+ *   - Structured extraction uses more compute, 5 cents = ~5x margin
+ *   - Batch discount at 2 cents/URL encourages higher volume
+ *
+ * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+// ── SettleGrid Setup ────────────────────────────────────────────────────────
+
+const sg = settlegrid.init({
+  toolSlug: 'my-web-scraper', // Replace with your tool slug
+  pricing: {
+    defaultCostCents: 3,
+    methods: {
+      scrape_url: { costCents: 3, displayName: 'Scrape URL' },
+      extract_structured: { costCents: 5, displayName: 'Structured Extraction' },
+      scrape_batch: { costCents: 2, displayName: 'Batch Scrape (per URL)' },
+    },
+  },
+})
+
+// ── Firecrawl API Helper ────────────────────────────────────────────────────
+
+const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1'
+const URL_RE = /^https?:\/\/[^\s/$.?#].[^\s]*$/
+
+async function firecrawlPost(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const response = await fetch(`${FIRECRAWL_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY!}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error(`Firecrawl API returned ${response.status}: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+function validateUrl(url: string): void {
+  if (!url || !URL_RE.test(url)) throw new Error('A valid HTTP or HTTPS URL is required')
+}
+
+// ── Scraper Methods ─────────────────────────────────────────────────────────
+
+interface ScrapeArgs { url: string; includeLinks?: boolean }
+
+async function scrapeUrl(args: ScrapeArgs): Promise<{
+  result: { markdown: string; title: string; url: string; wordCount: number }
+}> {
+  validateUrl(args.url)
+  const data = await firecrawlPost('/scrape', {
+    url: args.url, formats: ['markdown'], onlyMainContent: true, includeLinks: args.includeLinks ?? false,
+  })
+  const doc = data.data as Record<string, unknown>
+  const markdown = (doc?.markdown as string) ?? ''
+  return {
+    result: {
+      markdown, title: (doc?.metadata as Record<string, string>)?.title ?? '',
+      url: args.url, wordCount: markdown.split(/\s+/).filter(Boolean).length,
+    },
+  }
+}
+
+interface ExtractArgs { url: string; schema: Record<string, string> }
+
+async function extractStructured(args: ExtractArgs): Promise<{ data: Record<string, unknown> }> {
+  validateUrl(args.url)
+  if (!args.schema || Object.keys(args.schema).length === 0) {
+    throw new Error('An extraction schema with at least one field is required')
+  }
+  const data = await firecrawlPost('/scrape', {
+    url: args.url, formats: ['extract'], extract: { schema: args.schema },
+  })
+  const doc = data.data as Record<string, unknown>
+  return { data: (doc?.extract as Record<string, unknown>) ?? {} }
+}
+
+interface BatchArgs { urls: string[] }
+
+async function scrapeBatch(args: BatchArgs): Promise<{
+  batch: { results: Array<{ url: string; markdown: string; title: string }>; successCount: number; failCount: number }
+}> {
+  if (!args.urls || args.urls.length === 0) throw new Error('At least one URL is required')
+  if (args.urls.length > 10) throw new Error('Batch size is limited to 10 URLs per call')
+  for (const url of args.urls) validateUrl(url)
+
+  const results: Array<{ url: string; markdown: string; title: string }> = []
+  let failCount = 0
+  for (const url of args.urls) {
+    try {
+      const data = await firecrawlPost('/scrape', { url, formats: ['markdown'], onlyMainContent: true })
+      const doc = data.data as Record<string, unknown>
+      results.push({ url, markdown: (doc?.markdown as string) ?? '', title: (doc?.metadata as Record<string, string>)?.title ?? '' })
+    } catch { failCount++ }
+  }
+  return { batch: { results, successCount: results.length, failCount } }
+}
+
+// ── Wrap with SettleGrid Billing ─────────────────────────────────────────────
+
+export const billedScrape = sg.wrap(scrapeUrl, { method: 'scrape_url' })
+export const billedExtract = sg.wrap(extractStructured, { method: 'extract_structured' })
+export const billedBatch = sg.wrap(scrapeBatch, { method: 'scrape_batch' })
+
+// ── REST Alternative ────────────────────────────────────────────────────────
+// import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+//
+// const withBilling = settlegridMiddleware({
+//   toolSlug: 'my-web-scraper',
+//   pricing: {
+//     defaultCostCents: 3,
+//     methods: {
+//       scrape_url: { costCents: 3 },
+//       extract_structured: { costCents: 5 },
+//       scrape_batch: { costCents: 2 },
+//     },
+//   },
+// })
+//
+// export async function POST(request: Request) {
+//   return withBilling(request, async () => {
+//     const { url } = await request.json()
+//     const result = await scrapeUrl({ url })
+//     return Response.json(result)
+//   }, 'scrape_url')
+// }

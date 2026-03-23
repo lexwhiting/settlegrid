@@ -1,0 +1,228 @@
+#!/usr/bin/env npx tsx
+/**
+ * MCP Sentiment Analyzer — Monetized with SettleGrid
+ *
+ * A complete MCP server that performs structured sentiment analysis
+ * and entity extraction via Claude. Fork, add your key, and deploy.
+ *
+ * Setup:
+ *   1. npm install @settlegrid/mcp
+ *   2. Set ANTHROPIC_API_KEY and SETTLEGRID_API_KEY in your env
+ *   3. Register your tool at settlegrid.ai/dashboard/tools
+ *   4. Run: npx tsx mcp-sentiment-analyzer.ts
+ *
+ * Pricing: 3 cents per analysis, 2 cents per batch item, 4 cents per entity extraction
+ *   - Claude Haiku input ~$0.001/1K tokens, output ~$0.005/1K tokens
+ *   - Average sentiment call ~500 input + 200 output = ~$0.002
+ *   - 3 cents = ~15x margin on single analysis
+ *   - Entity extraction uses more output tokens, 4 cents = ~8x margin
+ *   - Batch discount at 2 cents/item encourages high volume
+ *
+ * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+// ── SettleGrid Setup ────────────────────────────────────────────────────────
+
+const sg = settlegrid.init({
+  toolSlug: 'my-sentiment-analyzer', // Replace with your tool slug
+  pricing: {
+    defaultCostCents: 3,
+    methods: {
+      analyze_sentiment: { costCents: 3, displayName: 'Analyze Sentiment' },
+      analyze_batch: { costCents: 2, displayName: 'Batch Analyze (per item)' },
+      extract_entities: { costCents: 4, displayName: 'Extract Entities' },
+    },
+  },
+})
+
+// ── Claude API Helper ───────────────────────────────────────────────────────
+
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
+
+async function callClaude(prompt: string, systemPrompt: string): Promise<string> {
+  const response = await fetch(ANTHROPIC_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Claude API returned ${response.status}: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  const block = data.content?.[0]
+  if (!block || block.type !== 'text') {
+    throw new Error('Unexpected Claude response format')
+  }
+  return block.text
+}
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface SentimentArgs {
+  text: string
+}
+
+interface SentimentResult {
+  score: number        // -1 (negative) to 1 (positive)
+  magnitude: number    // 0 (weak) to 1 (strong)
+  label: 'positive' | 'negative' | 'neutral' | 'mixed'
+  summary: string
+}
+
+interface BatchArgs {
+  texts: string[]
+}
+
+interface BatchResult {
+  results: Array<{ text: string; score: number; label: string }>
+}
+
+interface EntityArgs {
+  text: string
+}
+
+interface Entity {
+  name: string
+  type: 'person' | 'organization' | 'product' | 'location' | 'event' | 'other'
+  sentiment: number
+  mentions: number
+}
+
+interface EntityResult {
+  entities: Entity[]
+  overallSentiment: number
+}
+
+// ── Validation ──────────────────────────────────────────────────────────────
+
+function validateText(text: string, maxLen = 10_000): void {
+  if (!text || text.trim().length === 0) {
+    throw new Error('Text must be non-empty')
+  }
+  if (text.length > maxLen) {
+    throw new Error(`Text exceeds ${maxLen.toLocaleString()} character limit`)
+  }
+}
+
+// ── Sentiment Methods ───────────────────────────────────────────────────────
+
+async function analyzeSentiment(args: SentimentArgs): Promise<{ result: SentimentResult }> {
+  validateText(args.text)
+
+  const raw = await callClaude(
+    `Analyze the sentiment of the following text:\n\n${args.text}`,
+    'You are a sentiment analysis engine. Return ONLY valid JSON with this schema: { "score": number (-1 to 1), "magnitude": number (0 to 1), "label": "positive"|"negative"|"neutral"|"mixed", "summary": "brief explanation" }. No markdown.'
+  )
+
+  try {
+    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim()
+    const parsed = JSON.parse(cleaned) as SentimentResult
+    return {
+      result: {
+        score: Math.max(-1, Math.min(1, parsed.score ?? 0)),
+        magnitude: Math.max(0, Math.min(1, parsed.magnitude ?? 0)),
+        label: parsed.label ?? 'neutral',
+        summary: parsed.summary ?? '',
+      },
+    }
+  } catch {
+    return {
+      result: { score: 0, magnitude: 0, label: 'neutral', summary: raw },
+    }
+  }
+}
+
+async function analyzeBatch(args: BatchArgs): Promise<{ batch: BatchResult }> {
+  if (!args.texts || args.texts.length === 0) {
+    throw new Error('At least one text is required')
+  }
+  if (args.texts.length > 25) {
+    throw new Error('Batch size is limited to 25 items per call')
+  }
+
+  const numbered = args.texts.map((t, i) => `[${i + 1}] ${t.slice(0, 500)}`).join('\n\n')
+  const raw = await callClaude(
+    `Analyze the sentiment of each numbered text:\n\n${numbered}`,
+    'You are a sentiment analysis engine. Return ONLY a JSON array where each item has: { "index": number, "score": number (-1 to 1), "label": "positive"|"negative"|"neutral"|"mixed" }. No markdown.'
+  )
+
+  try {
+    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim()
+    const parsed = JSON.parse(cleaned) as Array<{ index: number; score: number; label: string }>
+    return {
+      batch: {
+        results: parsed.map((p) => ({
+          text: args.texts[(p.index ?? 1) - 1]?.slice(0, 100) ?? '',
+          score: Math.max(-1, Math.min(1, p.score ?? 0)),
+          label: p.label ?? 'neutral',
+        })),
+      },
+    }
+  } catch {
+    return { batch: { results: [] } }
+  }
+}
+
+async function extractEntities(args: EntityArgs): Promise<{ result: EntityResult }> {
+  validateText(args.text)
+
+  const raw = await callClaude(
+    `Extract named entities and their sentiment from:\n\n${args.text}`,
+    'You are an entity extraction engine. Return ONLY valid JSON: { "entities": [{ "name": string, "type": "person"|"organization"|"product"|"location"|"event"|"other", "sentiment": number (-1 to 1), "mentions": number }], "overallSentiment": number (-1 to 1) }. No markdown.'
+  )
+
+  try {
+    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim()
+    const parsed = JSON.parse(cleaned) as EntityResult
+    return {
+      result: {
+        entities: (parsed.entities ?? []).slice(0, 50),
+        overallSentiment: Math.max(-1, Math.min(1, parsed.overallSentiment ?? 0)),
+      },
+    }
+  } catch {
+    return { result: { entities: [], overallSentiment: 0 } }
+  }
+}
+
+// ── Wrap with SettleGrid Billing ─────────────────────────────────────────────
+
+export const billedSentiment = sg.wrap(analyzeSentiment, { method: 'analyze_sentiment' })
+export const billedBatchSentiment = sg.wrap(analyzeBatch, { method: 'analyze_batch' })
+export const billedEntities = sg.wrap(extractEntities, { method: 'extract_entities' })
+
+// ── REST Alternative ────────────────────────────────────────────────────────
+// import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+//
+// const withBilling = settlegridMiddleware({
+//   toolSlug: 'my-sentiment-analyzer',
+//   pricing: {
+//     defaultCostCents: 3,
+//     methods: {
+//       analyze_sentiment: { costCents: 3 },
+//       analyze_batch: { costCents: 2 },
+//       extract_entities: { costCents: 4 },
+//     },
+//   },
+// })
+//
+// export async function POST(request: Request) {
+//   return withBilling(request, async () => {
+//     const { text } = await request.json()
+//     const result = await analyzeSentiment({ text })
+//     return Response.json(result)
+//   }, 'analyze_sentiment')
+// }
