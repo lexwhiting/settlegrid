@@ -101,10 +101,7 @@ export default async function ShowcasePage() {
                         : tool.description}
                     </p>
                   )}
-                  <div className="flex items-center justify-between pt-3 border-t border-[#252836]">
-                    <span className="text-xs text-gray-500">
-                      {formatNumber(tool.totalInvocations)} calls
-                    </span>
+                  <div className="flex items-center justify-end pt-3 border-t border-[#252836]">
                     <span className="text-xs text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       View storefront &rarr;
                     </span>
