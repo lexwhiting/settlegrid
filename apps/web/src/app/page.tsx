@@ -476,9 +476,19 @@ export default function HomePage() {
         {/*  1. Hero — Dark with animated gradient mesh + grid              */}
         {/* ================================================================ */}
         <section className="relative px-6 pt-20 pb-24 bg-indigo overflow-hidden">
-          {/* Layered gradient mesh background — animated drift */}
+          {/* Layer 1: Haikei stacked waves — static texture at the bottom */}
+          <div
+            className="absolute inset-0 opacity-60"
+            style={{
+              backgroundImage: 'url(/hero-waves.svg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center bottom',
+              backgroundRepeat: 'no-repeat',
+            }}
+          />
+          {/* Layer 2: Animated gradient mesh — drifting glow on top */}
           <div className="absolute inset-0 opacity-40 hero-gradient-mesh" />
-          {/* Subtle dot grid overlay for depth */}
+          {/* Layer 3: Subtle dot grid overlay for depth */}
           <div
             className="absolute inset-0 opacity-[0.04]"
             style={{
