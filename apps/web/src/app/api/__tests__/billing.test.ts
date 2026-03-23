@@ -558,6 +558,11 @@ describe('Webhook (POST /api/billing/webhook)', () => {
       },
     })
 
+    // Mock the developer lookup — must return a matching stripeSubscriptionId
+    mockDb.limit.mockResolvedValueOnce([{
+      stripeSubscriptionId: 'sub_cancelled_123',
+    }])
+
     const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
       method: 'POST',
       headers: {

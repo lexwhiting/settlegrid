@@ -192,7 +192,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
   it('returns 400 when balance is below minimum', async () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-123',
-      balanceCents: 1000,
+      balanceCents: 50,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
       payoutMinimumCents: 100,

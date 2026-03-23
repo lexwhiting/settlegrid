@@ -17,12 +17,13 @@ vi.mock('@/lib/redis', () => ({
   }),
 }))
 
-// Mock DB
+// Mock DB — each chained method returns a thenable so fire-and-forget .then() works
+const mockThenable = { then: (fn: (v: unknown) => void) => { fn([]); return Promise.resolve() }, catch: () => Promise.resolve() }
 vi.mock('@/lib/db', () => ({
   db: {
     select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) }),
-    update: () => ({ set: () => ({ where: () => ({ returning: () => Promise.resolve([]) }) }) }),
-    insert: () => ({ values: () => ({ returning: () => Promise.resolve([{ id: 'inv-1' }]) }) }),
+    update: () => ({ set: () => ({ where: () => ({ ...mockThenable, returning: () => Promise.resolve([]) }) }) }),
+    insert: () => ({ values: () => ({ ...mockThenable, returning: () => Promise.resolve([{ id: 'inv-1' }]) }) }),
   },
 }))
 
@@ -31,6 +32,7 @@ vi.mock('@/lib/db/schema', () => ({
   invocations: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', apiKeyId: 'api_key_id', method: 'method', costCents: 'cost_cents', latencyMs: 'latency_ms', status: 'status' },
   tools: { id: 'id', totalInvocations: 'total_invocations', totalRevenueCents: 'total_revenue_cents', developerId: 'developer_id', updatedAt: 'updated_at' },
   developers: { id: 'id', balanceCents: 'balance_cents', updatedAt: 'updated_at' },
+  referrals: { id: 'id', referralCode: 'referral_code', commissionPct: 'commission_pct', status: 'status', totalEarnedCents: 'total_earned_cents' },
 }))
 
 vi.mock('@/lib/logger', () => ({

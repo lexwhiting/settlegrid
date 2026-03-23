@@ -275,9 +275,9 @@ describe('PATCH /api/dashboard/developer/payout-settings', () => {
     expect(response.status).toBe(422)
   })
 
-  it('rejects minimum below $10 (1000 cents)', async () => {
+  it('rejects minimum below $1 (100 cents)', async () => {
     const request = makeRequest('/api/dashboard/developer/payout-settings', 'PATCH', {
-      payoutMinimumCents: 500,
+      payoutMinimumCents: 50,
     })
     const response = await patchPayoutSettings(request)
     expect(response.status).toBe(422)

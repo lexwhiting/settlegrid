@@ -169,7 +169,7 @@ describe('Stripe Connect Callback (GET /api/stripe/connect/callback)', () => {
 
     expect(response.status).toBe(307)
     const location = response.headers.get('location')
-    expect(location).toContain('/dashboard/developer/settings')
+    expect(location).toContain('/dashboard/settings')
     expect(location).toContain('stripe=active')
   })
 
