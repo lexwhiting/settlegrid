@@ -75,8 +75,9 @@ export async function GET(request: NextRequest) {
       .limit(10)
 
     // ── Hourly Distribution (last 7 days) ───────────────────────────────────────
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const sevenDaysAgoDate = new Date()
+    sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7)
+    const sevenDaysAgo = sevenDaysAgoDate.toISOString()
 
     const hourlyDistribution = await db
       .select({
@@ -120,8 +121,9 @@ export async function GET(request: NextRequest) {
       : 0
 
     // ── Revenue Trend (last 30 days) ────────────────────────────────────────────
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const thirtyDaysAgoDate = new Date()
+    thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30)
+    const thirtyDaysAgo = thirtyDaysAgoDate.toISOString()
 
     const revenueTrend = await db
       .select({

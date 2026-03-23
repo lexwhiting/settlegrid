@@ -111,8 +111,9 @@ export async function GET(request: NextRequest) {
     let staleKeyCount = 0
 
     if (toolIds.length > 0) {
-      const ninetyDaysAgo = new Date()
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+      const ninetyDaysAgoDate = new Date()
+      ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90)
+      const ninetyDaysAgo = ninetyDaysAgoDate.toISOString()
 
       const [staleRow] = await db
         .select({ count: sql<number>`count(*)::int` })

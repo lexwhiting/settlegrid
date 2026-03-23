@@ -41,8 +41,7 @@ export async function GET(request: NextRequest) {
     const totalRevenueCents = developerTools.reduce((sum, t) => sum + t.totalRevenueCents, 0)
 
     // Get invocations from the last 24 hours, grouped by hour
-    const twentyFourHoursAgo = new Date()
-    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
     const toolIds = developerTools.map((t) => t.id)
 

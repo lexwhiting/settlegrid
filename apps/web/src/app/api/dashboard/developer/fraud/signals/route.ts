@@ -223,8 +223,9 @@ export async function GET(request: NextRequest) {
     const toolIds = developerTools.map((t) => t.id)
 
     // Get scanned today count (all invocations today)
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    const todayStartDate = new Date()
+    todayStartDate.setHours(0, 0, 0, 0)
+    const todayStart = todayStartDate.toISOString()
 
     let scannedTodayTotal = 0
     let flaggedThisWeekTotal = 0
@@ -246,8 +247,9 @@ export async function GET(request: NextRequest) {
       scannedTodayTotal = scannedRow?.count ?? 0
 
       // Count flagged invocations this week
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
+      const weekAgoDate = new Date()
+      weekAgoDate.setDate(weekAgoDate.getDate() - 7)
+      const weekAgo = weekAgoDate.toISOString()
 
       const [flaggedRow] = await db
         .select({

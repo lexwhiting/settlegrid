@@ -29,8 +29,9 @@ export async function GET(request: NextRequest) {
     const daysParam = parseInt(url.searchParams.get('days') ?? '30', 10)
     const days = Math.min(Math.max(daysParam, 1), 365)
 
-    const since = new Date()
-    since.setDate(since.getDate() - days)
+    const sinceDate = new Date()
+    sinceDate.setDate(sinceDate.getDate() - days)
+    const since = sinceDate.toISOString()
 
     // Get developer's tool IDs
     const developerTools = await db
