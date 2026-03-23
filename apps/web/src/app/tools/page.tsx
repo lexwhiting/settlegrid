@@ -4,19 +4,12 @@ import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toString()
-}
-
 export default async function ShowcasePage() {
   let activeTools: {
     name: string
     slug: string
     description: string | null
     category: string | null
-    totalInvocations: number
     developerName: string | null
   }[] = []
 
@@ -27,13 +20,12 @@ export default async function ShowcasePage() {
         slug: tools.slug,
         description: tools.description,
         category: tools.category,
-        totalInvocations: tools.totalInvocations,
         developerName: developers.name,
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
       .where(eq(tools.status, 'active'))
-      .orderBy(desc(tools.totalInvocations))
+      .orderBy(desc(tools.createdAt))
       .limit(20)
   } catch {
     // DB unavailable — show empty state gracefully
