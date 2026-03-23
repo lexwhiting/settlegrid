@@ -48,6 +48,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
       })
     ),
     {
+      url: `${BASE_URL}/learn/compare`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+    ...(['vs-diy', 'vs-nevermined', 'vs-stripe'] as const).map(
+      (slug) => ({
+        url: `${BASE_URL}/learn/compare/${slug}`,
+        lastModified: now,
+        changeFrequency: 'monthly' as const,
+        priority: 0.5,
+      })
+    ),
+    {
       url: `${BASE_URL}/faq`,
       lastModified: now,
       changeFrequency: 'monthly',
