@@ -4,6 +4,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 import { CodeSnippet } from '@/components/marketing/code-snippet'
 import { RevealSection } from '@/components/marketing/home-sections'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
+import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
 
 export const metadata: Metadata = {
   title: 'SettleGrid — Monetize AI Tools with 2 Lines of Code',
@@ -523,20 +524,17 @@ export default function HomePage() {
 
               {/* Stat bar */}
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
+                <span className="text-brand-light font-semibold">Free forever</span>
+                <span className="text-white/20">|</span>
+                <span className="text-white font-semibold">0% <span className="text-gray-400 font-normal">fees on free tier</span></span>
+                <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">&lt;50ms <span className="text-gray-400 font-normal">metering</span></span>
-                <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">95% <span className="text-gray-400 font-normal">rev share</span></span>
-                <span className="text-white/20">|</span>
-                <span className="text-brand-light font-semibold">Free forever</span>
               </div>
 
-              {/* npm install bar */}
-              <div className="flex items-center gap-2 bg-white/[0.06] border border-white/10 rounded-lg px-4 py-2.5 mb-8 max-w-md font-mono text-sm backdrop-blur-sm">
-                <span className="text-gray-500 select-none">$</span>
-                <span className="text-gray-300">npm install @settlegrid/mcp</span>
-              </div>
+              {/* npm install bar with copy */}
+              <NpmInstallBar />
 
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-4">
