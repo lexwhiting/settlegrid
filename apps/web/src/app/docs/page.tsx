@@ -743,6 +743,12 @@ export default function DocsPage() {
             <SettleGridLogo variant="horizontal" size={28} />
           </Link>
           <div className="flex items-center gap-4">
+            <Link href="/tools" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
+              Showcase
+            </Link>
+            <Link href="/learn" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
+              Learn
+            </Link>
             <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">
               Get Started
             </Link>

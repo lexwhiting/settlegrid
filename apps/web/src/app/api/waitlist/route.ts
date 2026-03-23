@@ -11,7 +11,7 @@ export const maxDuration = 60
 
 const waitlistSchema = z.object({
   email: z.string().email('Invalid email address').max(320),
-  feature: z.string().min(1).max(100).default('marketplace'),
+  feature: z.string().min(1).max(100).default('showcase'),
 })
 
 export async function POST(request: NextRequest) {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       })
 
     // Fire-and-forget: send waitlist confirmation email
-    const tmpl = waitlistConfirmationEmail(body.email, body.feature ?? 'marketplace')
+    const tmpl = waitlistConfirmationEmail(body.email, body.feature ?? 'showcase')
     sendEmail({ to: body.email, subject: tmpl.subject, html: tmpl.html }).catch(() => {})
 
     return successResponse({ success: true })
