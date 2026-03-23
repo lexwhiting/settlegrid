@@ -1488,6 +1488,113 @@ ${ctaButton('Contact Support', 'mailto:support@settlegrid.ai', '#ef4444')}
   }
 }
 
+// ── Usage Alert Templates ────────────────────────────────────────────────────
+
+const TIER_DISPLAY_NAMES: Record<string, string> = {
+  standard: 'Free',
+  starter: 'Starter',
+  growth: 'Growth',
+  scale: 'Scale',
+  enterprise: 'Enterprise',
+}
+
+/**
+ * Sent when a developer reaches 80% of their monthly operation limit.
+ * Friendly heads-up with current stats and optional upgrade link.
+ */
+export function usageWarning80Email(
+  name: string,
+  currentOps: number,
+  limit: number,
+  tier: string
+): EmailTemplate {
+  const tierName = TIER_DISPLAY_NAMES[tier] ?? tier
+  const opsFormatted = currentOps.toLocaleString()
+  const limitFormatted = limit.toLocaleString()
+  return {
+    subject: sanitizeSubject("You've used 80% of your monthly operations"),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Approaching Your Monthly Limit</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your tools have used <strong>80%</strong> of your monthly operation limit on the <strong>${escapeHtml(tierName)}</strong> plan.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#92400e;margin:0 0 4px;font-size:14px"><strong>Current usage:</strong> ${opsFormatted} / ${limitFormatted} operations</p>
+<p class="sg-text" style="color:#92400e;margin:0;font-size:14px"><strong>Plan:</strong> ${escapeHtml(tierName)}</p>
+</td></tr>
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">No action is needed yet. This is just a heads-up so you can plan ahead. If you expect to exceed your limit, consider upgrading for more capacity.</p>
+${ctaButton('View Usage', 'https://settlegrid.ai/dashboard')}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Your operations reset on the first of each month.</p>
+`,
+      { preheader: `You've used ${opsFormatted} of ${limitFormatted} operations this month (80%).` }
+    ),
+  }
+}
+
+/**
+ * Sent when a developer reaches 90% of their monthly operation limit.
+ * Stronger nudge with more prominent upgrade CTA.
+ */
+export function usageWarning90Email(
+  name: string,
+  currentOps: number,
+  limit: number,
+  tier: string
+): EmailTemplate {
+  const tierName = TIER_DISPLAY_NAMES[tier] ?? tier
+  const opsFormatted = currentOps.toLocaleString()
+  const limitFormatted = limit.toLocaleString()
+  return {
+    subject: sanitizeSubject("You've used 90% of your monthly operations"),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Nearing Your Monthly Limit</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your tools have used <strong>90%</strong> of your monthly operation limit on the <strong>${escapeHtml(tierName)}</strong> plan.</p>
+${alertBanner('warning', '90% of limit reached', `You have used ${opsFormatted} of ${limitFormatted} operations this month. You are close to exceeding your plan limit.`)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your tools will continue to work even if you exceed the limit, but upgrading gives you higher capacity and priority support.</p>
+${ctaButton('Upgrade Plan', 'https://settlegrid.ai/dashboard/settings#plan', '#d97706')}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Your operations reset on the first of each month.</p>
+`,
+      { preheader: `You've used ${opsFormatted} of ${limitFormatted} operations this month (90%). Consider upgrading.` }
+    ),
+  }
+}
+
+/**
+ * Sent when a developer exceeds 100% of their monthly operation limit.
+ * Reassures tools still work (soft limit) with strong upgrade CTA.
+ */
+export function usageExceededEmail(
+  name: string,
+  currentOps: number,
+  limit: number,
+  tier: string
+): EmailTemplate {
+  const tierName = TIER_DISPLAY_NAMES[tier] ?? tier
+  const opsFormatted = currentOps.toLocaleString()
+  const limitFormatted = limit.toLocaleString()
+  return {
+    subject: sanitizeSubject("You've exceeded your monthly operation limit"),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Monthly Limit Exceeded</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your tools have exceeded the monthly operation limit on the <strong>${escapeHtml(tierName)}</strong> plan.</p>
+${alertBanner('error', 'Limit exceeded', `You have used ${opsFormatted} operations this month, exceeding your ${limitFormatted} limit.`)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong>Your tools still work.</strong> SettleGrid uses soft limits, so your users will not experience any disruption. However, we recommend upgrading to ensure you have the capacity your tools need.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Current usage', `${opsFormatted} operations`)}
+${dataRow('Plan limit', `${limitFormatted} operations`)}
+${dataRow('Plan', tierName)}
+</table>
+${ctaButton('Upgrade Now', 'https://settlegrid.ai/dashboard/settings#plan', '#ef4444')}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Your operations reset on the first of each month. Upgrading takes effect immediately.</p>
+`,
+      { preheader: `You've used ${opsFormatted} operations, exceeding your ${limitFormatted} monthly limit. Your tools still work.` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {

@@ -30,6 +30,25 @@ interface ToolSummary {
 const CHECKLIST_DISMISSED_KEY = 'settlegrid_checklist_dismissed'
 const SDK_STEP_DISMISSED_KEY = 'settlegrid_sdk_step_dismissed'
 
+interface UsageData {
+  currentMonthOps: number
+  tierLimit: number
+  tier: string
+  usagePercent: number
+  periodStart: string
+  periodEnd: string
+  daysRemaining: number
+  overLimit: boolean
+}
+
+const TIER_LABELS: Record<string, string> = {
+  standard: 'Free',
+  starter: 'Starter',
+  growth: 'Growth',
+  scale: 'Scale',
+  enterprise: 'Enterprise',
+}
+
 interface AnalyticsData {
   methodBreakdown: { method: string; invocations: number; revenueCents: number; errorRate: number }[]
   revenueTrend: { date: string; revenueCents: number }[]
@@ -50,6 +69,7 @@ type Period = '7' | '30' | '90'
 export default function DeveloperDashboardPage() {
   const [stats, setStats] = useState<DeveloperStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [usage, setUsage] = useState<UsageData | null>(null)
   const [profile, setProfile] = useState<DeveloperProfile | null>(null)
   const [toolList, setToolList] = useState<ToolSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,11 +86,12 @@ export default function DeveloperDashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, analyticsRes, profileRes, toolsRes] = await Promise.all([
+        const [statsRes, analyticsRes, profileRes, toolsRes, usageRes] = await Promise.all([
           fetch('/api/dashboard/developer/stats'),
           fetch('/api/dashboard/developer/stats/analytics'),
           fetch('/api/auth/developer/me'),
           fetch('/api/tools'),
+          fetch('/api/dashboard/developer/usage'),
         ])
         if (statsRes.ok) {
           const data = await statsRes.json()
@@ -89,6 +110,10 @@ export default function DeveloperDashboardPage() {
         if (toolsRes.ok) {
           const data = await toolsRes.json()
           setToolList((data.tools ?? []).map((t: { id: string; status: string }) => ({ id: t.id, status: t.status })))
+        }
+        if (usageRes.ok) {
+          const data = await usageRes.json()
+          setUsage(data as UsageData)
         }
       } catch {
         setError('Network error loading dashboard')
@@ -294,6 +319,97 @@ export default function DeveloperDashboardPage() {
           animate
         />
       </div>
+
+      {/* Usage Tracking Widget */}
+      {usage && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Monthly Usage</CardTitle>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#252836] text-gray-600 dark:text-gray-300">
+                {TIER_LABELS[usage.tier] ?? usage.tier} plan
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-4">
+            {/* Progress bar */}
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-sm font-medium text-indigo dark:text-gray-100">
+                  {usage.currentMonthOps.toLocaleString()} / {usage.tierLimit.toLocaleString()} operations this month ({usage.usagePercent}%)
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {usage.daysRemaining} day{usage.daysRemaining !== 1 ? 's' : ''} remaining
+                </p>
+              </div>
+              <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full transition-all duration-500 ease-out ${
+                    usage.usagePercent >= 90
+                      ? 'bg-red-500'
+                      : usage.usagePercent >= 70
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${Math.min(usage.usagePercent, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Warnings */}
+            {usage.overLimit && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-lg p-3 flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                    You have exceeded your monthly operation limit
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400/80 mt-0.5">
+                    Your tools still work, but consider upgrading for higher limits.
+                  </p>
+                </div>
+                <Link href="/dashboard/settings#plan" className="shrink-0">
+                  <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+                    Upgrade
+                  </Button>
+                </Link>
+              </div>
+            )}
+            {!usage.overLimit && usage.usagePercent >= 80 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg p-3 flex items-start gap-3">
+                <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    Approaching your monthly limit
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">
+                    You have used {usage.usagePercent}% of your monthly operations.
+                  </p>
+                </div>
+                <Link href="/dashboard/settings#plan" className="shrink-0">
+                  <Button variant="outline" size="sm">
+                    Upgrade
+                  </Button>
+                </Link>
+              </div>
+            )}
+
+            {/* Reset date */}
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Operations reset on{' '}
+              {new Date(usage.periodEnd).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error Rate & Latency */}
       {analytics && (

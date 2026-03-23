@@ -13,6 +13,17 @@ export const maxDuration = 60
  * Vercel Cron handler: aggregates cost allocations by org + department
  * for the current billing period.
  * Schedule: daily at 2 AM UTC
+ *
+ * TODO: Usage tier alert emails
+ * After aggregation, check each developer's monthly invocation count against
+ * their tier limit (standard: 25K, starter: 100K, growth: 500K, scale: 2M).
+ * Send usage alert emails at 80%, 90%, and 100% thresholds using:
+ *   - usageWarning80Email(name, currentOps, limit, tier)
+ *   - usageWarning90Email(name, currentOps, limit, tier)
+ *   - usageExceededEmail(name, currentOps, limit, tier)
+ * Track which thresholds have already been emailed (e.g. via Redis or a
+ * notification_preferences JSONB field) to avoid duplicate sends.
+ * See: /apps/web/src/lib/email.ts and /apps/web/src/app/api/dashboard/developer/usage/route.ts
  */
 export async function GET(request: NextRequest) {
   try {
