@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCP Server Templates — SettleGrid</title>
+  <meta name="description" content="Open-source MCP server templates you can fork and customize to monetize your AI tools with SettleGrid." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0F1117; color: #d1d5db; line-height: 1.6; padding: 2rem; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2rem; font-weight: 700; color: #f3f4f6; margin-bottom: 0.5rem; }
+    h1 span { color: #10B981; font-weight: 400; }
+    .subtitle { color: #9ca3af; margin-bottom: 2rem; }
+    .template { background: #1A1D2E; border: 1px solid #2E3148; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; transition: border-color 0.2s; }
+    .template:hover { border-color: rgba(16, 185, 129, 0.4); }
+    .template h2 { font-size: 1.125rem; font-weight: 600; color: #f3f4f6; margin-bottom: 0.25rem; }
+    .template .meta { display: flex; gap: 1rem; margin-bottom: 0.75rem; }
+    .template .meta span { font-size: 0.75rem; color: #10B981; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 9999px; padding: 2px 10px; }
+    .template p { font-size: 0.875rem; color: #9ca3af; margin-bottom: 1rem; }
+    .template a { display: inline-block; font-size: 0.8125rem; font-weight: 500; color: #10B981; text-decoration: none; }
+    .template a:hover { text-decoration: underline; }
+    .back { display: inline-block; margin-bottom: 1.5rem; font-size: 0.875rem; color: #9ca3af; text-decoration: none; }
+    .back:hover { color: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">&larr; Back to SettleGrid</a>
+    <h1>MCP Server <span>Templates</span></h1>
+    <p class="subtitle">Open-source starter templates. Fork one, add your API key, and start earning.</p>
+
+    <div class="template">
+      <h2>Web Search Tool</h2>
+      <div class="meta"><span>3&cent;/query</span><span>Brave / Serper / Tavily</span></div>
+      <p>Wrap any web search API with per-query billing. Includes web search and news search methods with input validation and error handling.</p>
+      <a href="/templates/mcp-web-search.ts">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Document Analyzer</h2>
+      <div class="meta"><span>4-10&cent;/call</span><span>Claude AI</span></div>
+      <p>Full document analysis, quick summaries, and field extraction powered by Claude. Three methods with different price points based on complexity.</p>
+      <a href="/templates/mcp-document-analyzer.ts">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Database Query Tool</h2>
+      <div class="meta"><span>5&cent;/query</span><span>Claude + SQL</span></div>
+      <p>Natural language to SQL with Claude, executed against a read-only database. Includes SQL injection protection, DDL blocking, and row limits.</p>
+      <a href="/templates/mcp-database-query.ts">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Image Generator</h2>
+      <div class="meta"><span>8-15&cent;/image</span><span>DALL-E 3</span></div>
+      <p>Generate, create HD, and produce variations of images via DALL-E 3. Prompt validation, size enforcement, and style options included.</p>
+      <a href="/templates/mcp-image-generator.ts">View source &rarr;</a>
+    </div>
+
+    <div class="template">
+      <h2>Code Reviewer</h2>
+      <div class="meta"><span>8-15&cent;/review</span><span>Claude AI</span></div>
+      <p>AI-powered code review with full analysis, security vulnerability scanning (CWE-tagged), and improvement suggestions. Supports 16 languages.</p>
+      <a href="/templates/mcp-code-reviewer.ts">View source &rarr;</a>
+    </div>
+
+    <p style="margin-top: 2rem; font-size: 0.8125rem; color: #6b7280;">
+      All templates use the <a href="https://www.npmjs.com/package/@settlegrid/mcp" style="color: #10B981;">@settlegrid/mcp</a> SDK.
+      See <a href="/docs" style="color: #10B981;">full documentation</a> for setup instructions.
+    </p>
+  </div>
+</body>
+</html>

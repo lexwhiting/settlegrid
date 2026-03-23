@@ -174,6 +174,27 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   ],
 },
 {
+  title: 'AI Framework Integration',
+  faqs: [
+    {
+      q: 'How do I use SettleGrid tools with LangChain?',
+      a: 'Use the LangChain Tool base class to wrap any SettleGrid-powered endpoint. Example:\n\nimport { Tool } from \'@langchain/core/tools\'\n\nclass SettleGridTool extends Tool {\n  name = \'sanctions_screening\'\n  description = \'Screen entities against sanctions lists\'\n\n  constructor(private apiKey: string) {\n    super()\n  }\n\n  async _call(query: string): Promise<string> {\n    const response = await fetch(\'https://settlegrid.ai/api/tools/scrutera-sanctions/invoke\', {\n      method: \'POST\',\n      headers: {\n        \'x-api-key\': this.apiKey, // Your SettleGrid consumer API key\n        \'Content-Type\': \'application/json\',\n      },\n      body: JSON.stringify({ query }),\n    })\n    const data = await response.json()\n    return JSON.stringify(data.results)\n  }\n}\n\n// Use in a LangChain agent\nconst tool = new SettleGridTool(\'sg_live_your_key_here\')\nconst agent = await initializeAgent([tool], model, { agentType: \'tool-calling\' })',
+    },
+    {
+      q: 'How do I use SettleGrid tools with CrewAI?',
+      a: 'Use the CrewAI BaseTool class to call SettleGrid-powered endpoints from your agents. Example:\n\nfrom crewai import Agent, Task, Crew\nfrom crewai_tools import BaseTool\nimport requests\n\nclass SettleGridTool(BaseTool):\n    name: str = \"Country Risk Check\"\n    description: str = \"Get country risk intelligence from Gradara\"\n\n    def _run(self, country_iso3: str) -> str:\n        response = requests.get(\n            f\"https://your-server.com/api/country-risk/{country_iso3}\",\n            headers={\"x-api-key\": \"sg_live_your_key_here\"}\n        )\n        return response.json()\n\nrisk_tool = SettleGridTool()\nanalyst = Agent(\n    role=\"Risk Analyst\",\n    goal=\"Assess country risk for supply chain decisions\",\n    tools=[risk_tool],\n)',
+    },
+    {
+      q: 'How do I use SettleGrid tools with OpenAI function calling?',
+      a: 'Define a function schema and handle tool calls by forwarding to the SettleGrid endpoint. Example:\n\nimport OpenAI from \'openai\'\n\nconst openai = new OpenAI()\n\nconst tools = [{\n  type: \'function\' as const,\n  function: {\n    name: \'screen_sanctions\',\n    description: \'Screen an entity against global sanctions lists\',\n    parameters: {\n      type: \'object\',\n      properties: {\n        query: { type: \'string\', description: \'Entity name to screen\' },\n      },\n      required: [\'query\'],\n    },\n  },\n}]\n\n// When the model calls the function:\nasync function handleToolCall(name: string, args: any) {\n  if (name === \'screen_sanctions\') {\n    const res = await fetch(\'https://your-server.com/api/screen\', {\n      method: \'POST\',\n      headers: { \'x-api-key\': \'sg_live_your_key_here\', \'Content-Type\': \'application/json\' },\n      body: JSON.stringify(args),\n    })\n    return res.json()\n  }\n}',
+    },
+    {
+      q: 'How do I use SettleGrid tools with Anthropic Claude tool use?',
+      a: 'Define a tool schema with input_schema and handle tool_use blocks by calling the SettleGrid endpoint. Example:\n\nimport Anthropic from \'@anthropic-ai/sdk\'\n\nconst client = new Anthropic()\n\nconst tools = [{\n  name: \'classify_tariff\',\n  description: \'Classify a product into its HS tariff code\',\n  input_schema: {\n    type: \'object\' as const,\n    properties: {\n      product_description: { type: \'string\', description: \'Description of the product to classify\' },\n      country_of_origin: { type: \'string\', description: \'ISO country code\' },\n    },\n    required: [\'product_description\'],\n  },\n}]\n\n// When Claude uses the tool:\nasync function handleToolUse(name: string, input: any) {\n  if (name === \'classify_tariff\') {\n    const res = await fetch(\'https://your-server.com/api/classify\', {\n      method: \'POST\',\n      headers: { \'x-api-key\': \'sg_live_your_key_here\', \'Content-Type\': \'application/json\' },\n      body: JSON.stringify(input),\n    })\n    return res.json()\n  }\n}',
+    },
+  ],
+},
+{
   title: 'Billing & Credits',
   faqs: [
     {
