@@ -682,6 +682,27 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   ],
 },
 {
+  title: 'Templates & Starters',
+  faqs: [
+    {
+      q: 'Are there template MCP servers I can start from?',
+      a: 'Yes. We publish 5 open-source template files you can fork and customize. Each is a complete, runnable TypeScript file with SettleGrid billing already wired in:\n\n- Web Search Tool (3 cents/query) — wraps Brave Search with web and news methods.\n- Document Analyzer (4-10 cents/call) — Claude-powered full analysis, summaries, and field extraction.\n- Database Query Tool (5 cents/query) — natural language to SQL with Claude, with SQL injection protection.\n- Image Generator (8-15 cents/image) — DALL-E 3 wrapper with standard, HD, and variation methods.\n- Code Reviewer (8-15 cents/review) — Claude-powered code review, security analysis, and improvement suggestions for 16 languages.\n\nBrowse all templates at settlegrid.ai/templates or download them directly from the /templates/ directory.',
+    },
+    {
+      q: 'How do I use a template?',
+      a: 'Download the .ts file, install the @settlegrid/mcp SDK (npm install @settlegrid/mcp), set your API keys as environment variables (e.g. SEARCH_API_KEY, ANTHROPIC_API_KEY), replace the toolSlug with your registered slug from settlegrid.ai/dashboard/tools, and run it with npx tsx filename.ts. Each template includes setup instructions in the header comment.',
+    },
+    {
+      q: 'Can I customize the pricing in a template?',
+      a: 'Absolutely. Each template includes a pricing config with per-method costs. Change the defaultCostCents and individual method costs to match your margins. The templates include comments explaining the cost structure (API cost + your margin) so you can make informed pricing decisions.',
+    },
+    {
+      q: 'Do templates show the REST middleware pattern too?',
+      a: 'Yes. Every template shows the primary sg.wrap() pattern for MCP servers and includes a commented-out section showing the equivalent settlegridMiddleware() approach for REST API endpoints. You can use either pattern depending on whether you are building an MCP server or an HTTP API.',
+    },
+  ],
+},
+{
   title: 'Support',
   faqs: [
     {
@@ -739,6 +760,7 @@ export default function DocsPage() {
               { href: '#sdk-reference', label: 'SDK Reference' },
               { href: '#api-reference', label: 'API Reference' },
               { href: '#pricing', label: 'Pricing Model' },
+              { href: '#templates', label: 'Templates' },
               { href: '#faq', label: 'FAQ' },
             ].map((item) => (
               <a
@@ -1018,6 +1040,40 @@ try {
               <li><strong>Platform fee:</strong> 0-5% per transaction (0% on Free, 5% on paid plans). No minimums.</li>
               <li><strong>Payouts:</strong> Weekly or monthly via Stripe Connect. $25 minimum.</li>
             </ul>
+          </Section>
+
+          <Section title="Templates" id="templates">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Open-source MCP server templates you can fork and customize. Each is a complete, runnable
+              TypeScript file with SettleGrid billing already integrated.
+            </p>
+            <div className="space-y-3 mb-6">
+              {[
+                { name: 'Web Search Tool', file: 'mcp-web-search.ts', price: '3\u00a2/query', desc: 'Brave Search API wrapper with web and news methods' },
+                { name: 'Document Analyzer', file: 'mcp-document-analyzer.ts', price: '4-10\u00a2/call', desc: 'Claude-powered analysis, summaries, and field extraction' },
+                { name: 'Database Query Tool', file: 'mcp-database-query.ts', price: '5\u00a2/query', desc: 'Natural language to SQL with safety validation' },
+                { name: 'Image Generator', file: 'mcp-image-generator.ts', price: '8-15\u00a2/image', desc: 'DALL-E 3 wrapper with standard, HD, and variation modes' },
+                { name: 'Code Reviewer', file: 'mcp-code-reviewer.ts', price: '8-15\u00a2/review', desc: 'AI code review, security scanning, and suggestions' },
+              ].map((t) => (
+                <a
+                  key={t.file}
+                  href={`/templates/${t.file}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2E3148] hover:border-brand/40 transition-colors group"
+                >
+                  <div>
+                    <span className="font-medium text-indigo dark:text-gray-100 group-hover:text-brand transition-colors">{t.name}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</p>
+                  </div>
+                  <span className="text-xs font-semibold bg-brand/10 text-brand border border-brand/20 rounded-full px-2 py-0.5 flex-shrink-0 ml-3">{t.price}</span>
+                </a>
+              ))}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Browse all templates at{' '}
+              <a href="/templates/" className="text-brand-text hover:text-brand-dark font-medium">settlegrid.ai/templates</a>.
+            </p>
           </Section>
 
           <Section title="FAQ" id="faq">
