@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const rateLimit = await checkRateLimit(apiLimiter, `stripe-callback:${ip}`)
     if (!rateLimit.success) {
       const appUrl = getAppUrl()
-      return NextResponse.redirect(`${appUrl}/dashboard/developer/settings?stripe=error&reason=rate_limited`)
+      return NextResponse.redirect(`${appUrl}/dashboard/settings?stripe=error&reason=rate_limited`)
     }
 
     const url = new URL(request.url)
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const appUrl = getAppUrl()
 
     if (!accountId) {
-      return NextResponse.redirect(`${appUrl}/dashboard/developer/settings?stripe=error&reason=missing_account`)
+      return NextResponse.redirect(`${appUrl}/dashboard/settings?stripe=error&reason=missing_account`)
     }
 
     const stripe = getStripe()
@@ -75,11 +75,11 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.redirect(
-      `${appUrl}/dashboard/developer/settings?stripe=${connectStatus}`
+      `${appUrl}/dashboard/settings?stripe=${connectStatus}`
     )
   } catch (error) {
     const appUrl = getAppUrl()
     logger.error('stripe.connect.callback_failed', {}, error)
-    return NextResponse.redirect(`${appUrl}/dashboard/developer/settings?stripe=error`)
+    return NextResponse.redirect(`${appUrl}/dashboard/settings?stripe=error`)
   }
 }
