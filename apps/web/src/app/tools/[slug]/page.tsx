@@ -115,7 +115,7 @@ export default async function ToolStorefrontPage({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
       <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4">
         <nav className="max-w-4xl mx-auto flex items-center justify-between">
           <Link href="/">

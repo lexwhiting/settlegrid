@@ -431,7 +431,7 @@ const dxFeatures = [
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"

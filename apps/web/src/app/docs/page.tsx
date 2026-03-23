@@ -619,7 +619,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
 
 export default function DocsPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0F1117]">
+    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
       <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 sticky top-0 bg-white dark:bg-[#1A1D2E] z-10">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">

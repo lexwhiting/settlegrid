@@ -213,7 +213,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-cloud dark:bg-[#0F1117]">
+    <div className="dark min-h-screen flex items-center justify-center px-4 bg-[#0F1117] text-gray-100">
       <div className="w-full max-w-md">
         <Suspense fallback={
           <div className="bg-white dark:bg-[#1A1D2E] rounded-xl shadow-lg border border-gray-200 dark:border-[#2E3148] p-8 text-center">

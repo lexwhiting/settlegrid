@@ -38,7 +38,7 @@ export default function MarketplacePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-[#0F1117]">
+    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
       <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#1A1D2E]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
