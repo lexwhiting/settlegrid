@@ -13,7 +13,9 @@ interface ToolData {
   category: string
   currentVersion: string
   pricingConfig: {
-    defaultCostCents: number
+    defaultCostCents?: number
+    perCallCents?: number
+    model?: string
     methods?: Record<string, { costCents: number; displayName?: string }>
   }
   reviews: {
@@ -209,7 +211,7 @@ export default async function ToolStorefrontPage({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
                     <span className="text-gray-600 dark:text-gray-400">Default (per call)</span>
-                    <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.defaultCostCents)}</span>
+                    <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.defaultCostCents ?? tool.pricingConfig.perCallCents ?? 0)}</span>
                   </div>
                   {methodEntries.map(([method, config]) => (
                     <div key={method} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
