@@ -238,7 +238,7 @@ function ComparisonTable() {
         </thead>
         <tbody>
           {features.map((f) => (
-            <tr key={f.name} className="border-b border-gray-100 dark:border-[#2E3148]/50 last:border-b-0">
+            <tr key={f.name} className="comparison-row border-b border-gray-100 dark:border-[#2E3148]/50 last:border-b-0">
               <td className="py-3 px-4 text-gray-700 dark:text-gray-300 font-medium">{f.name}</td>
               <td className="text-center py-3 px-4 bg-brand/5 dark:bg-brand/10">{renderCell(f.settlegrid)}</td>
               <td className="text-center py-3 px-4">{renderCell(f.stripe)}</td>
@@ -335,10 +335,10 @@ function PricingSection() {
         At scale, you still keep 95% of every transaction.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-5xl mx-auto">
-        {tiers.map((tier) => (
+        {tiers.map((tier, i) => (
+          <RevealSection key={tier.name} delay={i * 0.08}>
           <div
-            key={tier.name}
-            className={`p-6 rounded-xl border-2 text-left relative transition-all hover:shadow-md ${
+            className={`p-6 rounded-xl border-2 text-left relative transition-all hover:shadow-md h-full ${
               tier.highlighted
                 ? 'border-brand shadow-lg shadow-brand/15 bg-brand/[0.02] dark:bg-brand/[0.05] scale-[1.02]'
                 : 'border-gray-200 dark:border-[#2E3148]'
@@ -374,6 +374,7 @@ function PricingSection() {
               ))}
             </ul>
           </div>
+          </RevealSection>
         ))}
       </div>
       <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-8">
@@ -475,18 +476,8 @@ export default function HomePage() {
         {/*  1. Hero — Dark with animated gradient mesh + grid              */}
         {/* ================================================================ */}
         <section className="relative px-6 pt-20 pb-24 bg-indigo overflow-hidden">
-          {/* Layered gradient mesh background */}
-          <div
-            className="absolute inset-0 opacity-40"
-            style={{
-              background: `
-                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(16, 185, 129, 0.4), transparent),
-                radial-gradient(ellipse 60% 40% at 85% 50%, rgba(14, 165, 233, 0.2), transparent),
-                radial-gradient(ellipse 50% 60% at 10% 80%, rgba(139, 92, 246, 0.15), transparent),
-                radial-gradient(ellipse 40% 30% at 60% 70%, rgba(16, 185, 129, 0.1), transparent)
-              `,
-            }}
-          />
+          {/* Layered gradient mesh background — animated drift */}
+          <div className="absolute inset-0 opacity-40 hero-gradient-mesh" />
           {/* Subtle dot grid overlay for depth */}
           <div
             className="absolute inset-0 opacity-[0.04]"
@@ -622,17 +613,18 @@ export default function HomePage() {
                   { name: 'MC Agent Pay', backer: 'Mastercard', href: 'https://www.mastercard.com/us/en/business/artificial-intelligence/mastercard-agent-pay.html', color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/30' },
                   { name: 'Nanopayments', backer: 'Circle (USDC)', href: 'https://www.circle.com/nanopayments', color: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/30' },
                   { name: 'REST', backer: 'Any HTTP API', href: '/docs', color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700/50' },
-                ].map((proto) => (
-                  <a
-                    key={proto.name}
-                    href={proto.href}
-                    target={proto.href.startsWith('/') ? undefined : '_blank'}
-                    rel={proto.href.startsWith('/') ? undefined : 'noopener noreferrer'}
-                    className={`group flex flex-col items-center gap-2 rounded-xl border px-3 py-5 transition-all hover:shadow-lg hover:scale-[1.04] ${proto.color}`}
-                  >
-                    <span className="text-sm sm:text-base font-bold tracking-tight">{proto.name}</span>
-                    <span className="text-[10px] sm:text-xs font-semibold opacity-80 text-center leading-tight">{proto.backer}</span>
-                  </a>
+                ].map((proto, i) => (
+                  <RevealSection key={proto.name} delay={i * 0.07}>
+                    <a
+                      href={proto.href}
+                      target={proto.href.startsWith('/') ? undefined : '_blank'}
+                      rel={proto.href.startsWith('/') ? undefined : 'noopener noreferrer'}
+                      className={`protocol-card group flex flex-col items-center gap-2 rounded-xl border px-3 py-5 hover:scale-[1.04] ${proto.color}`}
+                    >
+                      <span className="text-sm sm:text-base font-bold tracking-tight">{proto.name}</span>
+                      <span className="text-[10px] sm:text-xs font-semibold opacity-80 text-center leading-tight">{proto.backer}</span>
+                    </a>
+                  </RevealSection>
                 ))}
               </div>
             </div>
@@ -687,36 +679,22 @@ export default function HomePage() {
                 Six capabilities purpose-built for AI agent payments that no other platform offers together.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <CoreCard
-                  icon={<Icon d={iconMetering} />}
-                  title="Real-Time Metering"
-                  description="Sub-50ms Redis metering on every API call. Pre-funded credit balances with auto-refill. Atomic balance checks, deductions, and usage recording in a single pipeline."
-                />
-                <CoreCard
-                  icon={<Icon d={iconProtocol} />}
-                  title="Protocol-Agnostic"
-                  description="Native support for 10 protocols: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. One SDK. Zero vendor lock-in."
-                />
-                <CoreCard
-                  icon={<Icon d={iconMultiHop} />}
-                  title="Multi-Hop Settlement"
-                  description="Atomic settlement across multi-agent workflows. Agent A calls B calls C — everyone gets paid or no one does. Revenue splits resolved in real time."
-                />
-                <CoreCard
-                  icon={<Icon d={iconIdentity} />}
-                  title="Agent Identity (KYA)"
-                  description="Know Your Agent verification compatible with AgentFacts, Skyfire JWT, and DID standards. Trust scoring and budget delegation for autonomous agents."
-                />
-                <CoreCard
-                  icon={<Icon d={iconOutcome} />}
-                  title="Outcome-Based Billing"
-                  description="Charge only when AI delivers results. Define success criteria, verify outcomes, handle disputes. Move beyond per-call to value-based pricing."
-                />
-                <CoreCard
-                  icon={<Icon d={iconEnterprise} />}
-                  title="Enterprise Ready"
-                  description="Organizations, RBAC, SOC 2 readiness, GDPR compliance, cost allocation, and white-label. Built for teams that need governance and control."
-                />
+                {[
+                  { icon: iconMetering, title: 'Real-Time Metering', description: 'Sub-50ms Redis metering on every API call. Pre-funded credit balances with auto-refill. Atomic balance checks, deductions, and usage recording in a single pipeline.' },
+                  { icon: iconProtocol, title: 'Protocol-Agnostic', description: 'Native support for 10 protocols: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. One SDK. Zero vendor lock-in.' },
+                  { icon: iconMultiHop, title: 'Multi-Hop Settlement', description: 'Atomic settlement across multi-agent workflows. Agent A calls B calls C — everyone gets paid or no one does. Revenue splits resolved in real time.' },
+                  { icon: iconIdentity, title: 'Agent Identity (KYA)', description: 'Know Your Agent verification compatible with AgentFacts, Skyfire JWT, and DID standards. Trust scoring and budget delegation for autonomous agents.' },
+                  { icon: iconOutcome, title: 'Outcome-Based Billing', description: 'Charge only when AI delivers results. Define success criteria, verify outcomes, handle disputes. Move beyond per-call to value-based pricing.' },
+                  { icon: iconEnterprise, title: 'Enterprise Ready', description: 'Organizations, RBAC, SOC 2 readiness, GDPR compliance, cost allocation, and white-label. Built for teams that need governance and control.' },
+                ].map((card, i) => (
+                  <RevealSection key={card.title} delay={i * 0.08}>
+                    <CoreCard
+                      icon={<Icon d={card.icon} />}
+                      title={card.title}
+                      description={card.description}
+                    />
+                  </RevealSection>
+                ))}
               </div>
             </div>
           </RevealSection>
