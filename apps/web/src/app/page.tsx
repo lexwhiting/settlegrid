@@ -961,7 +961,7 @@ assert signature == request.headers[
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <SettleGridLogo variant="compact" size={24} />
+              <SettleGridLogo variant="compact" size={32} />
               <span className="hidden sm:inline text-sm text-gray-400 dark:text-gray-500">The settlement layer for AI agent payments</span>
             </div>
             <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
