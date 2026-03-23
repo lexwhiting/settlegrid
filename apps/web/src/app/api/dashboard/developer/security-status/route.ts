@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
             ? `Enabled — ${keysWithoutIpRestriction} key${keysWithoutIpRestriction === 1 ? '' : 's'} without IP restrictions`
             : 'All keys have IP restrictions'
           : 'Not started',
-        href: '/consumer',
+        href: '/dashboard/settings#security',
         steps: [
           'Go to the Consumer Dashboard.',
           'Select the API key you want to restrict.',

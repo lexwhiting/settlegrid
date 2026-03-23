@@ -997,6 +997,48 @@ ${ctaButton('View Tool', 'https://settlegrid.ai/dashboard/tools')}
   }
 }
 
+const PLAN_DETAILS: Record<string, { label: string; opsLimit: string; takeRate: string }> = {
+  standard: { label: 'Free', opsLimit: '25,000', takeRate: '0%' },
+  starter: { label: 'Starter', opsLimit: '100,000', takeRate: '5%' },
+  growth: { label: 'Growth', opsLimit: '500,000', takeRate: '5%' },
+  scale: { label: 'Scale', opsLimit: '2,000,000', takeRate: '5%' },
+}
+
+const PLAN_RANK: Record<string, number> = { standard: 0, starter: 1, growth: 2, scale: 3 }
+
+export function planChangedEmail(
+  name: string,
+  oldPlan: string,
+  newPlan: string
+): EmailTemplate {
+  const isUpgrade = (PLAN_RANK[newPlan] ?? 0) > (PLAN_RANK[oldPlan] ?? 0)
+  const oldDetails = PLAN_DETAILS[oldPlan] ?? PLAN_DETAILS.standard
+  const newDetails = PLAN_DETAILS[newPlan] ?? PLAN_DETAILS.standard
+
+  const changeNote = isUpgrade
+    ? `You now have access to ${newDetails.opsLimit} operations/month.`
+    : `Your new limit of ${newDetails.opsLimit} operations/month takes effect immediately. A prorated credit has been applied.`
+
+  return {
+    subject: sanitizeSubject('Your SettleGrid plan has been updated'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Plan ${isUpgrade ? 'Upgraded' : 'Changed'}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your plan has been changed from <strong>${escapeHtml(oldDetails.label)}</strong> to <strong>${escapeHtml(newDetails.label)}</strong>.</p>
+${alertBanner(isUpgrade ? 'success' : 'info', isUpgrade ? 'Upgrade confirmed' : 'Plan updated', changeNote)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Previous plan', oldDetails.label)}
+${dataRow('New plan', newDetails.label)}
+${dataRow('Operations/month', newDetails.opsLimit)}
+${dataRow('Take rate', newDetails.takeRate)}
+</table>
+${ctaButton('View Your Plan', 'https://settlegrid.ai/dashboard/settings')}
+`,
+      { preheader: `Your plan has been changed from ${oldDetails.label} to ${newDetails.label}. ${changeNote}` }
+    ),
+  }
+}
+
 export function revenueMilestoneEmail(
   name: string,
   toolName: string,

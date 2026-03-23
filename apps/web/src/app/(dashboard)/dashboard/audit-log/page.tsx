@@ -11,7 +11,7 @@ interface AuditEntry {
   id: string
   action: string
   resourceType: string
-  resourceId: string
+  resourceId: string | null
   ipAddress: string | null
   details: Record<string, unknown> | null
   createdAt: string
@@ -72,8 +72,8 @@ export default function AuditLogPage() {
         return
       }
       const data = await res.json()
-      setEntries(data.entries ?? [])
-      setTotalCount(data.total ?? 0)
+      setEntries(data.entries ?? data.data ?? [])
+      setTotalCount(data.total ?? data.totalCount ?? 0)
     } catch {
       setError('Network error')
     } finally {
@@ -218,7 +218,7 @@ export default function AuditLogPage() {
                         <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{entry.resourceType}</td>
                         <td className="py-3 px-4">
                           <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs text-gray-600 dark:text-gray-400">
-                            {entry.resourceId.slice(0, 12)}...
+                            {entry.resourceId ? `${entry.resourceId.slice(0, 12)}...` : '—'}
                           </code>
                         </td>
                         <td className="py-3 px-4 text-gray-500 dark:text-gray-400 font-mono text-xs">{entry.ipAddress ?? '—'}</td>

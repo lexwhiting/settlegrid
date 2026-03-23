@@ -374,20 +374,36 @@ export async function POST(request: NextRequest) {
         const developerId = subscription.metadata?.developerId
 
         if (developerId) {
-          await db
-            .update(developers)
-            .set({
-              tier: 'standard',
-              stripeSubscriptionId: null,
-              revenueSharePct: 100, // Free tier: 0% platform fee
-              updatedAt: new Date(),
-            })
+          // Only revert if this is the developer's CURRENT subscription
+          const [dev] = await db
+            .select({ stripeSubscriptionId: developers.stripeSubscriptionId })
+            .from(developers)
             .where(eq(developers.id, developerId))
+            .limit(1)
 
-          logger.info('stripe.webhook.subscription_cancelled', {
-            developerId,
-            subscriptionId: subscription.id,
-          })
+          if (dev?.stripeSubscriptionId === subscription.id) {
+            // This IS their active subscription — revert to free
+            await db
+              .update(developers)
+              .set({
+                tier: 'standard',
+                stripeSubscriptionId: null,
+                revenueSharePct: 100, // Free tier: 0% platform fee
+                updatedAt: new Date(),
+              })
+              .where(eq(developers.id, developerId))
+
+            logger.info('stripe.webhook.subscription_cancelled', {
+              developerId,
+              subscriptionId: subscription.id,
+            })
+          } else {
+            logger.info('stripe.webhook.subscription_deleted_ignored', {
+              developerId,
+              deletedSubId: subscription.id,
+              activeSubId: dev?.stripeSubscriptionId,
+            })
+          }
         } else {
           logger.info('stripe.webhook.subscription_deleted_no_developer', {
             subscriptionId: subscription.id,

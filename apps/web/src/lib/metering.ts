@@ -302,10 +302,15 @@ export function recordInvocationAsync(params: {
   const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, revenueSharePct, isTest, referralCode, isFlagged } = params
   const developerShareCents = Math.floor(costCents * (revenueSharePct / 100))
 
+  const now = new Date()
+
   // All DB writes in parallel (fire-and-forget)
-  Promise.all([
-    // Deduct from DB balance (skip for test mode)
-    ...(isTest ? [] : [
+  // Each write is individually caught so one failure doesn't block others.
+  const writes: Promise<unknown>[] = []
+
+  // Deduct from DB balance (skip for test mode)
+  if (!isTest) {
+    writes.push(
       db.update(consumerToolBalances)
         .set({ balanceCents: sql`${consumerToolBalances.balanceCents} - ${costCents}` })
         .where(
@@ -313,26 +318,44 @@ export function recordInvocationAsync(params: {
             eq(consumerToolBalances.consumerId, consumerId),
             eq(consumerToolBalances.toolId, toolId)
           )
-        ),
-    ]),
-    // Increment tool stats
+        )
+        .catch((err) => {
+          logger.error('metering.balance_deduct_failed', { toolId, consumerId, costCents }, err)
+        }),
+    )
+  }
+
+  // Increment tool stats
+  writes.push(
     db.update(tools)
       .set({
         totalInvocations: sql`${tools.totalInvocations} + 1`,
         totalRevenueCents: isTest ? tools.totalRevenueCents : sql`${tools.totalRevenueCents} + ${costCents}`,
-        updatedAt: new Date(),
+        updatedAt: sql`${now.toISOString()}::timestamptz`,
       })
-      .where(eq(tools.id, toolId)),
-    // Developer revenue share (skip for test mode)
-    ...(isTest ? [] : [
+      .where(eq(tools.id, toolId))
+      .catch((err) => {
+        logger.error('metering.tool_stats_failed', { toolId, costCents }, err)
+      }),
+  )
+
+  // Developer revenue share (skip for test mode)
+  if (!isTest) {
+    writes.push(
       db.update(developers)
         .set({
           balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-          updatedAt: new Date(),
+          updatedAt: sql`${now.toISOString()}::timestamptz`,
         })
-        .where(eq(developers.id, developerId)),
-    ]),
-    // Insert invocation record
+        .where(eq(developers.id, developerId))
+        .catch((err) => {
+          logger.error('metering.developer_balance_failed', { developerId, developerShareCents }, err)
+        }),
+    )
+  }
+
+  // Insert invocation record
+  writes.push(
     db.insert(invocations)
       .values({
         toolId,
@@ -345,8 +368,13 @@ export function recordInvocationAsync(params: {
         isTest: isTest ?? false,
         referralCode: referralCode ?? null,
         isFlagged: isFlagged ?? false,
+      })
+      .catch((err) => {
+        logger.error('metering.invocation_insert_failed', { toolId, consumerId, method }, err)
       }),
-  ]).catch((err) => {
+  )
+
+  Promise.all(writes).catch((err) => {
     logger.error('metering.writeback_failed', { toolId, consumerId, costCents }, err)
   })
 

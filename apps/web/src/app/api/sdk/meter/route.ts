@@ -97,7 +97,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
           .update(tools)
           .set({
             totalInvocations: sql`${tools.totalInvocations} + 1`,
-            updatedAt: new Date(),
+            updatedAt: sql`${new Date().toISOString()}::timestamptz`,
           })
           .where(eq(tools.id, body.toolId))
 
@@ -134,7 +134,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
         .update(tools)
         .set({
           totalInvocations: sql`${tools.totalInvocations} + 1`,
-          updatedAt: new Date(),
+          updatedAt: sql`${new Date().toISOString()}::timestamptz`,
         })
         .where(eq(tools.id, body.toolId))
 
@@ -290,12 +290,13 @@ export const POST = withCors(async function POST(request: NextRequest) {
     }
 
     // Increment tool totalInvocations and totalRevenueCents
+    const now = new Date()
     await db
       .update(tools)
       .set({
         totalInvocations: sql`${tools.totalInvocations} + 1`,
         totalRevenueCents: sql`${tools.totalRevenueCents} + ${body.costCents}`,
-        updatedAt: new Date(),
+        updatedAt: sql`${now.toISOString()}::timestamptz`,
       })
       .where(eq(tools.id, body.toolId))
 
@@ -304,7 +305,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       .update(developers)
       .set({
         balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-        updatedAt: new Date(),
+        updatedAt: sql`${now.toISOString()}::timestamptz`,
       })
       .where(eq(developers.id, toolDev.developerId))
 

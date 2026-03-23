@@ -9,6 +9,9 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { getStripeSecretKey } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { writeAuditLog } from '@/lib/audit'
+import { planChangedEmail } from '@/lib/email'
+import { sendNotificationEmail } from '@/lib/notifications'
 
 export const maxDuration = 30
 
@@ -151,6 +154,27 @@ export async function POST(request: NextRequest) {
       isUpgrade,
       subscriptionId: developer.stripeSubscriptionId,
     })
+
+    // Fire-and-forget audit log
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'billing.plan_changed',
+      resourceType: 'subscription',
+      resourceId: developer.stripeSubscriptionId ?? undefined,
+      details: { oldPlan: developer.tier, newPlan: body.plan, proration: true },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {})
+
+    // Fire-and-forget plan change email
+    const template = planChangedEmail(auth.email, developer.tier, body.plan)
+    sendNotificationEmail({
+      developerId: auth.id,
+      eventKey: 'plan_changed',
+      email: auth.email,
+      subject: template.subject,
+      html: template.html,
+    }).catch(() => {})
 
     return successResponse({
       plan: body.plan,

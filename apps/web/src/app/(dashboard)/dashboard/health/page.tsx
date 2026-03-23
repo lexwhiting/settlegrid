@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -204,6 +205,55 @@ export default function HealthPage() {
         />
       </div>
 
+      {/* Health Monitoring Setup Guidance */}
+      {(monitoredTools.length === 0 || healthEntries.every((h) => (h.totalChecks30d ?? 0) === 0)) && (
+        <Card className="border-brand/30 dark:border-brand/20 bg-brand/5 dark:bg-brand/5">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 dark:bg-brand/20 shrink-0 mt-0.5">
+                <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-base">Set Up Health Monitoring</CardTitle>
+                <CardDescription className="mt-1">
+                  Add a health endpoint URL to your tools to enable uptime monitoring. SettleGrid pings your endpoint every 5 minutes and tracks response time, uptime percentage, and incidents.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-300 mb-4">
+              <li className="flex gap-2">
+                <span className="font-semibold text-brand shrink-0">1.</span>
+                <span>Go to <strong>Dashboard &gt; Tools</strong></span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-brand shrink-0">2.</span>
+                <span>Edit your tool</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-brand shrink-0">3.</span>
+                <span>Add a health endpoint URL (e.g., <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded font-mono">https://your-server.com/health</code>)</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-brand shrink-0">4.</span>
+                <span>SettleGrid will start monitoring automatically</span>
+              </li>
+            </ol>
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard/tools">
+                <Button variant="outline" size="sm">Configure your tools</Button>
+              </Link>
+              <Link href="/docs" className="text-sm text-brand hover:text-brand-dark dark:hover:text-brand-light font-medium transition-colors">
+                Learn more about health monitoring &rarr;
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tool Health Cards */}
       {monitoredTools.length === 0 ? (
         <Card>
@@ -214,7 +264,7 @@ export default function HealthPage() {
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
               Add a health endpoint URL to your tools to get started. See the{' '}
-              <a href="/docs" className="text-brand hover:underline">health monitoring docs</a>.
+              <Link href="/docs" className="text-brand hover:underline">health monitoring docs</Link>.
             </p>
           </CardContent>
         </Card>
