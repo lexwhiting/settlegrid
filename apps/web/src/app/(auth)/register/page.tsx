@@ -5,9 +5,73 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { SettleGridLogo } from '@/components/ui/logo'
 
+// ─── Password Validation ─────────────────────────────────────────────────────
+
+const PASSWORD_RULES = [
+  { test: (p: string) => p.length >= 12, label: 'At least 12 characters' },
+  { test: (p: string) => /[A-Z]/.test(p), label: 'One uppercase letter' },
+  { test: (p: string) => /[a-z]/.test(p), label: 'One lowercase letter' },
+  { test: (p: string) => /[0-9]/.test(p), label: 'One number' },
+  { test: (p: string) => /[^A-Za-z0-9]/.test(p), label: 'One special character' },
+]
+
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  const passed = PASSWORD_RULES.filter((r) => r.test(password)).length
+  if (passed <= 1) return { score: passed, label: 'Weak', color: 'bg-red-500' }
+  if (passed <= 2) return { score: passed, label: 'Fair', color: 'bg-orange-500' }
+  if (passed <= 3) return { score: passed, label: 'Good', color: 'bg-amber-500' }
+  if (passed <= 4) return { score: passed, label: 'Strong', color: 'bg-emerald-500' }
+  return { score: passed, label: 'Excellent', color: 'bg-emerald-600' }
+}
+
+function PasswordStrengthIndicator({ password }: { password: string }) {
+  if (!password) return null
+  const strength = getPasswordStrength(password)
+  const pct = (strength.score / PASSWORD_RULES.length) * 100
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <div className="h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${strength.color}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className={`text-[10px] font-semibold ${
+          strength.score >= 4 ? 'text-emerald-400' : strength.score >= 3 ? 'text-amber-400' : 'text-red-400'
+        }`}>
+          {strength.label}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+        {PASSWORD_RULES.map((rule) => (
+          <div key={rule.label} className="flex items-center gap-1.5">
+            {rule.test(password) ? (
+              <svg className="h-3 w-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            ) : (
+              <svg className="h-3 w-3 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <span className={`text-[10px] ${rule.test(password) ? 'text-emerald-400/80' : 'text-white/40'}`}>
+              {rule.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Register Page ───────────────────────────────────────────────────────────
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -15,6 +79,20 @@ export default function RegisterPage() {
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    // Validate password match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    // Validate password rules
+    const failedRules = PASSWORD_RULES.filter((r) => !r.test(password))
+    if (failedRules.length > 0) {
+      setError(`Password requirements not met: ${failedRules.map((r) => r.label.toLowerCase()).join(', ')}.`)
+      return
+    }
+
     setLoading(true)
 
     const supabase = createClient()
@@ -165,7 +243,7 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Email/password form — SECONDARY, below divider */}
+          {/* Email/password form */}
           <form onSubmit={handleSignUp} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -191,10 +269,36 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={12}
                 className="w-full rounded-lg border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#252836] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                placeholder="Min 12 characters"
+                placeholder="Create a strong password"
               />
+              <PasswordStrengthIndicator password={password} />
+            </div>
+            <div>
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Confirm Password
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className={`w-full rounded-lg border bg-white dark:bg-[#252836] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent ${
+                  confirmPassword && confirmPassword !== password
+                    ? 'border-red-400 dark:border-red-600'
+                    : confirmPassword && confirmPassword === password
+                      ? 'border-emerald-400 dark:border-emerald-600'
+                      : 'border-gray-300 dark:border-[#2E3148]'
+                }`}
+                placeholder="Re-enter your password"
+              />
+              {confirmPassword && confirmPassword !== password && (
+                <p className="text-xs text-red-400 mt-1">Passwords do not match</p>
+              )}
+              {confirmPassword && confirmPassword === password && (
+                <p className="text-xs text-emerald-400 mt-1">Passwords match</p>
+              )}
             </div>
 
             {error && (
