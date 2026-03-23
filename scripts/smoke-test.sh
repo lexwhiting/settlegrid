@@ -440,7 +440,7 @@ run_redirect_test "S07" "/dashboard" "gate" "Dashboard redirects to gate without
 
 # ── Phase 3: Tool Management ──
 printf "\n${BOLD}Phase 3: Tools${NC}\n"
-run_test "S18" "/tools" "200" "Tool marketplace loads"
+run_test "S18" "/tools" "200" "Tool showcase loads"
 
 # ── Phase 4: SDK ──
 printf "\n${BOLD}Phase 4: SDK${NC}\n"

@@ -123,7 +123,7 @@ export default async function ToolStorefrontPage({
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/tools" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100 transition-colors">
-              Marketplace
+              Showcase
             </Link>
             <Link href="/login" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100">
               Log in

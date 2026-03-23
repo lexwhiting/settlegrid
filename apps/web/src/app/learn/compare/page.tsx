@@ -92,7 +92,7 @@ export default function CompareIndexPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={24} />
           <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/tools" className="hover:text-gray-100 transition-colors">Marketplace</Link>
+            <Link href="/tools" className="hover:text-gray-100 transition-colors">Showcase</Link>
             <Link href="/docs" className="hover:text-gray-100 transition-colors">Documentation</Link>
             <Link href="/privacy" className="hover:text-gray-100 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-gray-100 transition-colors">Terms</Link>

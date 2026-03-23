@@ -100,7 +100,7 @@ export default async function DeveloperProfilePage({
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-                Marketplace
+                Showcase
               </Link>
               <Link href="/login" className="text-sm font-medium text-gray-400 hover:text-gray-100">
                 Log in
@@ -120,7 +120,7 @@ export default async function DeveloperProfilePage({
               This developer profile is either private or does not exist.
             </p>
             <Link href="/tools" className="text-sm font-medium bg-brand text-white px-5 py-2.5 rounded-lg hover:bg-brand-dark transition-colors">
-              Browse Marketplace
+              Browse Showcase
             </Link>
           </div>
         </main>
@@ -150,7 +150,7 @@ export default async function DeveloperProfilePage({
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Marketplace
+              Showcase
             </Link>
             <Link href="/login" className="text-sm font-medium text-gray-400 hover:text-gray-100">
               Log in

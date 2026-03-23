@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { logger } from '@/lib/logger'
 
-export default function MarketplaceError({
+export default function ShowcaseError({
   error,
   reset,
 }: {
@@ -23,9 +23,9 @@ export default function MarketplaceError({
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
         </div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Marketplace Error</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Showcase Error</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 max-w-md" role="alert">
-          Something went wrong loading the tool marketplace. This is usually temporary.
+          Something went wrong loading the showcase. This is usually temporary.
         </p>
         <div className="flex items-center gap-3">
           <button

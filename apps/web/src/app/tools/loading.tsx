@@ -1,4 +1,4 @@
-export default function MarketplaceLoading() {
+export default function ShowcaseLoading() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#1A1D2E]">
       <header className="bg-white dark:bg-[#1A1D2E] border-b border-gray-200 dark:border-[#2E3148] px-6 py-4">

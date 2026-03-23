@@ -480,7 +480,7 @@ export default function HomePage() {
           <Link href="/" className="flex items-center"><SettleGridLogo variant="horizontal" size={32} /></Link>
           <div className="flex items-center gap-5">
             <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
-              Marketplace
+              Showcase
             </Link>
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Docs
@@ -965,7 +965,7 @@ assert signature == request.headers[
               <span className="hidden sm:inline text-sm text-gray-400 dark:text-gray-500">The settlement layer for AI agent payments</span>
             </div>
             <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-              <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Marketplace</Link>
+              <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Showcase</Link>
               <Link href="/docs" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Docs</Link>
               <Link href="/learn" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Learn</Link>
               <a href="https://github.com/lexwhiting/settlegrid" target="_blank" rel="noopener noreferrer" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">GitHub</a>

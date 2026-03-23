@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     'developer platform',
     'AI economy',
     'MCP',
-    'tool marketplace',
+    'tool showcase',
   ],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://settlegrid.ai'),
   icons: {

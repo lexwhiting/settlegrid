@@ -260,7 +260,7 @@ function generateRecommendations(
       priority: 'critical',
       title: 'No consumers yet',
       body: 'No consumers yet. Share your tool listing, add clear descriptions, and consider offering promotional credits.',
-      action: { label: 'View marketplace listing', href: '/tools' },
+      action: { label: 'View showcase listing', href: '/tools' },
       impact: '+15 points at 20 consumers',
     })
   } else if (totalConsumers <= 5) {

@@ -296,7 +296,7 @@ export function welcomeConsumerEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You're ready to discover and use powerful AI tools with simple pay-per-call billing.</p>
 <h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Getting started:</h3>
 <ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
-<li>Browse available tools in the marketplace</li>
+<li>Browse available tools in the showcase</li>
 <li>Add credits to your account</li>
 <li>Generate an API key</li>
 <li>Start making calls</li>
@@ -944,7 +944,7 @@ export function firstToolPublishedEmail(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Congratulations, ${escapeHtml(name)}!</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your first tool, <strong>${escapeHtml(toolName)}</strong>, is now live on SettleGrid and ready to earn revenue.</p>
-${alertBanner('success', 'Tool published', 'Your tool is visible in the marketplace and ready to receive API calls.')}
+${alertBanner('success', 'Tool published', 'Your tool is visible in the showcase and ready to receive API calls.')}
 <h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Next steps:</h3>
 <ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
 <li>Embed the SettleGrid widget on your site</li>

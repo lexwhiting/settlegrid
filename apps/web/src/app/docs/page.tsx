@@ -42,7 +42,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I get started as a consumer?',
-      a: 'Browse the SettleGrid Marketplace to find tools you want to use. Purchase credits for a tool using a credit card (via Stripe), then generate an API key from your dashboard. Pass the key in the x-api-key header when calling the tool.',
+      a: 'Browse the SettleGrid Showcase to find tools you want to use. Purchase credits for a tool using a credit card (via Stripe), then generate an API key from your dashboard. Pass the key in the x-api-key header when calling the tool.',
     },
     {
       q: 'Is there a free tier?',
@@ -372,11 +372,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   ],
 },
 {
-  title: 'Marketplace & Discovery',
+  title: 'Showcase & Discovery',
   faqs: [
     {
-      q: 'What is the SettleGrid Marketplace?',
-      a: 'The Marketplace is a public directory at settlegrid.ai/tools where consumers can discover, evaluate, and purchase credits for developer tools. Each tool has a storefront page with description, pricing, version history, reviews, and a one-click purchase flow.',
+      q: 'What is the SettleGrid Showcase?',
+      a: 'The Showcase is a public directory at settlegrid.ai/tools where consumers can discover, evaluate, and purchase credits for developer tools. Each tool has a storefront page with description, pricing, version history, reviews, and a one-click purchase flow.',
     },
     {
       q: 'Can consumers leave reviews?',
@@ -388,11 +388,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How are tools categorized?',
-      a: 'Tools can be assigned a category (data, NLP, image, code, search, finance, etc.) and tagged with keywords. The Marketplace supports filtering and browsing by category to help consumers find relevant tools.',
+      a: 'Tools can be assigned a category (data, NLP, image, code, search, finance, etc.) and tagged with keywords. The Showcase supports filtering and browsing by category to help consumers find relevant tools.',
     },
     {
       q: 'What does the reputation score mean?',
-      a: 'A developer\'s reputation score (visible on the /dashboard/reputation page and public profile) reflects tool uptime, consumer reviews, response time, and payout history. Higher scores increase visibility in the Marketplace and build consumer trust.',
+      a: 'A developer\'s reputation score (visible on the /dashboard/reputation page and public profile) reflects tool uptime, consumer reviews, response time, and payout history. Higher scores increase visibility in the Showcase and build consumer trust.',
     },
     {
       q: 'Can I embed a pricing widget on my own site?',
@@ -548,7 +548,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What is the attribution dashboard?',
-      a: 'The /api/dashboard/developer/stats/attribution endpoint shows where your consumers come from — direct traffic, referral links, marketplace browse, or API discovery. This helps you understand which acquisition channels are most effective.',
+      a: 'The /api/dashboard/developer/stats/attribution endpoint shows where your consumers come from — direct traffic, referral links, showcase browse, or API discovery. This helps you understand which acquisition channels are most effective.',
     },
   ],
 },
@@ -569,7 +569,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Which features require a paid plan?',
-      a: 'Sandbox mode requires Starter ($9/mo) or above. IP allowlisting, CSV export, and referral system require Growth ($29/mo). Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the marketplace are available on all plans.',
+      a: 'Sandbox mode requires Starter ($9/mo) or above. IP allowlisting, CSV export, and referral system require Growth ($29/mo). Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
     },
   ],
 },

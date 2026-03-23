@@ -58,7 +58,7 @@ TESTS = [
     ("S16", "4.4", "SDK Integration", "Validate Key", "AUTO", "/api/sdk/validate-key"),
     ("S17", "4.5", "SDK Integration", "Meter Usage", "AUTO", "/api/sdk/meter"),
     # Phase 5: Consumer Experience
-    ("S18", "5.1", "Consumer Experience", "Tool Marketplace", "MANUAL", "/tools"),
+    ("S18", "5.1", "Consumer Experience", "Tool Showcase", "MANUAL", "/tools"),
     ("S19", "5.2", "Consumer Experience", "Tool Storefront", "MANUAL", "/tools/[id]/storefront"),
     ("S20", "5.3", "Consumer Experience", "Purchase Credits", "MANUAL", "N/A (Stripe)"),
     ("S21", "5.4", "Consumer Experience", "Consumer API Keys", "MANUAL", "N/A (UI)"),
