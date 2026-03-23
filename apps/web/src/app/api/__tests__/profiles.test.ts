@@ -75,6 +75,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
   count: vi.fn().mockImplementation((col: unknown) => ({ count: col })),
+  inArray: vi.fn().mockImplementation((col: unknown, vals: unknown[]) => ({ inArray: [col, vals] })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
       sql: strings,
@@ -191,15 +192,15 @@ describe('Public Developer Profile (GET /api/developers/[id]/profile)', () => {
     expect(data.code).toBe('NOT_FOUND')
   })
 
-  it('returns 400 for invalid UUID', async () => {
+  it('returns 404 for non-existent slug (non-UUID treated as slug lookup)', async () => {
     const response = await getPublicProfile(
       makeRequest('/api/developers/not-a-uuid/profile'),
       makeIdParams('not-a-uuid')
     )
     const data = await response.json()
 
-    expect(response.status).toBe(400)
-    expect(data.code).toBe('INVALID_ID')
+    expect(response.status).toBe(404)
+    expect(data.code).toBe('NOT_FOUND')
   })
 
   it('returns 429 when rate limited', async () => {

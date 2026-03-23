@@ -59,8 +59,8 @@ vi.mock('@/lib/db/schema', () => ({
     finalizedAt: 'finalized_at', settledAt: 'settled_at',
   },
   settlementBatches: { id: 'id', sessionId: 'session_id', status: 'status', totalAmountCents: 'total_amount_cents', platformFeeCents: 'platform_fee_cents', disbursements: 'disbursements', rollbackReason: 'rollback_reason', processedAt: 'processed_at', createdAt: 'created_at' },
-  tools: { id: 'id', developerId: 'developer_id' },
-  developers: { id: 'id', revenueSharePct: 'revenue_share_pct', balanceCents: 'balance_cents', updatedAt: 'updated_at' },
+  tools: { id: 'id', developerId: 'developer_id', status: 'status', description: 'description', healthEndpoint: 'health_endpoint', updatedAt: 'updated_at' },
+  developers: { id: 'id', email: 'email', revenueSharePct: 'revenue_share_pct', balanceCents: 'balance_cents', updatedAt: 'updated_at' },
   organizations: { id: 'id', monthlyBudgetCents: 'monthly_budget_cents', currentMonthSpendCents: 'current_month_spend_cents' },
   outcomeVerifications: {
     id: 'id', invocationId: 'invocation_id', toolId: 'tool_id', consumerId: 'consumer_id',
@@ -81,7 +81,10 @@ vi.mock('@/lib/db/schema', () => ({
   payouts: { id: 'id', developerId: 'developer_id', createdAt: 'created_at' },
   webhookEndpoints: { id: 'id', developerId: 'developer_id', secret: 'secret', createdAt: 'created_at' },
   referrals: { id: 'id', referrerId: 'referrer_id', createdAt: 'created_at' },
-  auditLogs: { id: 'id', developerId: 'developer_id', createdAt: 'created_at' },
+  auditLogs: { id: 'id', developerId: 'developer_id', ipAddress: 'ip_address', userAgent: 'user_agent', createdAt: 'created_at' },
+  consumers: { id: 'id', email: 'email', supabaseUserId: 'supabase_user_id', passwordHash: 'password_hash' },
+  apiKeys: { id: 'id', toolId: 'tool_id' },
+  toolReviews: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', comment: 'comment' },
   agentIdentities: {
     id: 'id', providerId: 'provider_id', agentName: 'agent_name', identityType: 'identity_type',
     publicKey: 'public_key', fingerprint: 'fingerprint', verificationLevel: 'verification_level',
@@ -112,6 +115,7 @@ vi.mock('drizzle-orm', () => ({
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
   lte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ lte: [a, b] })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
+  inArray: vi.fn().mockImplementation((col: unknown, vals: unknown[]) => ({ inArray: [col, vals] })),
 }))
 
 // ─── Imports ────────────────────────────────────────────────────────────────
@@ -638,14 +642,60 @@ describe('processDataDeletion', () => {
   })
 
   it('processes a pending deletion and returns completed', async () => {
-    setupSelectChain([{
-      id: 'del-1',
-      requestType: 'data-deletion',
-      entityType: 'customer',
-      entityId: 'cust-1',
-      status: 'pending',
-    }])
+    // The function calls db.select() three times sequentially:
+    // 1) complianceExports record, 2) developer lookup, 3) tool IDs
+    let selectCallCount = 0
+    mockDbSelect.mockImplementation(() => {
+      selectCallCount++
+      const chain = {
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        orderBy: vi.fn().mockReturnThis(),
+        limit: vi.fn(),
+      }
+      if (selectCallCount === 1) {
+        // complianceExports record
+        chain.limit.mockResolvedValue([{
+          id: 'del-1',
+          requestType: 'data-deletion',
+          entityType: 'customer',
+          entityId: 'cust-1',
+          status: 'pending',
+        }])
+      } else if (selectCallCount === 2) {
+        // developer lookup
+        chain.limit.mockResolvedValue([{ id: 'cust-1', email: 'dev@test.com' }])
+      } else {
+        // tool IDs (no limit call — resolves from where)
+        chain.where.mockResolvedValue([])
+        chain.limit.mockResolvedValue([])
+      }
+      return chain
+    })
     setupUpdateChain()
+
+    // Transaction mock: run the callback with a tx that supports all ops
+    mockDbTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      const txChain = {
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(undefined),
+          }),
+        }),
+        delete: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined),
+        }),
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      }
+      await cb(txChain)
+    })
 
     const result = await processDataDeletion('del-1')
 

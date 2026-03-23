@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -82,11 +82,11 @@ export async function GET(
           version: toolChangelogs.version,
           changeType: toolChangelogs.changeType,
           summary: toolChangelogs.summary,
-          releasedAt: toolChangelogs.releasedAt,
+          releasedAt: toolChangelogs.createdAt,
         })
         .from(toolChangelogs)
         .where(eq(toolChangelogs.toolId, tool.id))
-        .orderBy(desc(toolChangelogs.releasedAt))
+        .orderBy(desc(toolChangelogs.createdAt))
         .limit(10)
     } catch { /* changelog table may not exist yet */ }
 

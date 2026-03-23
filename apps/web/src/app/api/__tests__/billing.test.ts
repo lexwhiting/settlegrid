@@ -48,6 +48,15 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@/lib/db/schema', () => ({
+  developers: {
+    id: 'id',
+    email: 'email',
+    tier: 'tier',
+    stripeSubscriptionId: 'stripe_subscription_id',
+    stripeCustomerId: 'stripe_customer_id',
+    revenueSharePct: 'revenue_share_pct',
+    updatedAt: 'updated_at',
+  },
   purchases: {
     id: 'id',
     consumerId: 'consumer_id',
@@ -392,6 +401,207 @@ describe('Webhook (POST /api/billing/webhook)', () => {
 
     expect(response.status).toBe(200)
     expect(data.received).toBe(true)
+  })
+
+  it('handles checkout.session.completed for developer subscription', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_sub_123',
+          mode: 'subscription',
+          subscription: 'sub_test_123',
+          metadata: {
+            developerId: 'dev-123',
+            plan: 'starter',
+          },
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'stripe-signature': 'sig_sub_test',
+      },
+      body: JSON.stringify({ type: 'checkout.session.completed' }),
+    })
+
+    const response = await webhook(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.received).toBe(true)
+    // Verify developer update was called
+    expect(mockDb.update).toHaveBeenCalled()
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: 'starter',
+        stripeSubscriptionId: 'sub_test_123',
+        revenueSharePct: 95,
+      })
+    )
+  })
+
+  it('handles checkout.session.completed for growth plan subscription', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_sub_growth',
+          mode: 'subscription',
+          subscription: 'sub_growth_123',
+          metadata: {
+            developerId: 'dev-456',
+            plan: 'growth',
+          },
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'stripe-signature': 'sig_growth_test',
+      },
+      body: JSON.stringify({ type: 'checkout.session.completed' }),
+    })
+
+    const response = await webhook(request)
+    expect(response.status).toBe(200)
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: 'growth',
+        stripeSubscriptionId: 'sub_growth_123',
+        revenueSharePct: 95,
+      })
+    )
+  })
+
+  it('rejects invalid plan tier in subscription checkout', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_sub_bad',
+          mode: 'subscription',
+          subscription: 'sub_bad_123',
+          metadata: {
+            developerId: 'dev-789',
+            plan: 'invalid_tier',
+          },
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'stripe-signature': 'sig_bad_test',
+      },
+      body: JSON.stringify({ type: 'checkout.session.completed' }),
+    })
+
+    const response = await webhook(request)
+    expect(response.status).toBe(200)
+    // update should NOT be called for invalid tier
+    expect(mockDb.update).not.toHaveBeenCalled()
+  })
+
+  it('handles customer.subscription.updated event', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_updated_123',
+          status: 'active',
+          metadata: {
+            developerId: 'dev-123',
+            plan: 'scale',
+          },
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'stripe-signature': 'sig_updated_test',
+      },
+      body: JSON.stringify({ type: 'customer.subscription.updated' }),
+    })
+
+    const response = await webhook(request)
+    expect(response.status).toBe(200)
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: 'scale',
+        revenueSharePct: 95,
+      })
+    )
+  })
+
+  it('handles customer.subscription.deleted event — reverts to free tier', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_cancelled_123',
+          metadata: {
+            developerId: 'dev-123',
+          },
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'stripe-signature': 'sig_cancelled_test',
+      },
+      body: JSON.stringify({ type: 'customer.subscription.deleted' }),
+    })
+
+    const response = await webhook(request)
+    expect(response.status).toBe(200)
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tier: 'standard',
+        stripeSubscriptionId: null,
+        revenueSharePct: 100,
+      })
+    )
+  })
+
+  it('handles subscription.deleted without developerId gracefully', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_no_dev_123',
+          metadata: {},
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'stripe-signature': 'sig_no_dev_test',
+      },
+      body: JSON.stringify({ type: 'customer.subscription.deleted' }),
+    })
+
+    const response = await webhook(request)
+    expect(response.status).toBe(200)
+    // Should not attempt DB update without developerId
+    expect(mockDb.update).not.toHaveBeenCalled()
   })
 })
 

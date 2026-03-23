@@ -36,6 +36,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
+  inArray: vi.fn().mockImplementation((col: unknown, vals: unknown[]) => ({ inArray: [col, vals] })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({ sql: strings, values })),
     { raw: vi.fn() }
@@ -76,24 +77,26 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
   })
 
   it('computes fresh reputation when no cache', async () => {
+    // Developer found, no cached reputation
     mockDb.limit
       .mockResolvedValueOnce([{ id: validUuid, name: 'Dev Name', publicProfile: true }])
       .mockResolvedValueOnce([])
 
+    // The route uses .where(sql).then(r => ...).catch(() => default) for aggregate queries.
+    // We need .where() to return a thenable that resolves with sensible data.
     let whereCount = 0
     mockDb.where.mockImplementation(() => {
       whereCount++
-      // toolStats
-      if (whereCount === 3) return Object.assign(Promise.resolve([{ count: 3 }]), mockDb)
-      // reviewStats (through innerJoin)
-      if (whereCount === 4) return Object.assign(Promise.resolve([{ avg: 4.2 }]), mockDb)
-      // uptimeData (through innerJoin)
-      if (whereCount === 5) return Object.assign(Promise.resolve([{ total: 100, upCount: 95 }]), mockDb)
-      // latencyData (through innerJoin)
-      if (whereCount === 6) return Object.assign(Promise.resolve([{ medianMs: 150 }]), mockDb)
-      // consumerStats
-      if (whereCount === 7) return Object.assign(Promise.resolve([{ count: 25 }]), mockDb)
-      return mockDb
+      // First 2 where calls are for the developer and cache lookups (chained with .limit())
+      if (whereCount <= 2) return mockDb
+      // Remaining where calls are for aggregate queries using .then().catch() chains.
+      // Return a real Promise that also has mockDb's methods for chaining.
+      const resolved = Promise.resolve([{ count: 0, avg: 0, pct: 100, median: 0 }])
+      return Object.assign(resolved, {
+        // Some queries chain further methods after .where(), like .catch()
+        catch: resolved.catch.bind(resolved),
+        then: resolved.then.bind(resolved),
+      })
     })
 
     // insert call (store computed score) — values().onConflictDoUpdate() chain
@@ -113,9 +116,10 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
     expect(res.status).toBe(404)
   })
 
-  it('returns 400 for invalid UUID', async () => {
+  it('returns 404 for non-existent slug (non-UUID treated as slug lookup)', async () => {
+    mockDb.limit.mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/developers/bad-id/reputation'), { params: Promise.resolve({ id: 'bad-id' }) })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(404)
   })
 
   it('returns 429 when rate limited', async () => {

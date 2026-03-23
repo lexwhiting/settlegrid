@@ -44,6 +44,22 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'id',
     name: 'name',
   },
+  toolReviews: {
+    id: 'id',
+    toolId: 'tool_id',
+    rating: 'rating',
+    comment: 'comment',
+    createdAt: 'created_at',
+    consumerId: 'consumer_id',
+  },
+  toolChangelogs: {
+    id: 'id',
+    toolId: 'tool_id',
+    version: 'version',
+    changeType: 'change_type',
+    summary: 'summary',
+    releasedAt: 'released_at',
+  },
 }))
 
 vi.mock('@/lib/middleware/auth', () => ({
@@ -342,8 +358,8 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data.tool.name).toBe('Public Tool')
-    expect(data.tool.developerName).toBe('Dev Co')
+    expect(data.data.name).toBe('Public Tool')
+    expect(data.data.developerName).toBe('Dev Co')
   })
 
   it('returns 404 for non-existent slug', async () => {

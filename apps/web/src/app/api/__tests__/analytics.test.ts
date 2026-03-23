@@ -62,6 +62,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
+  inArray: vi.fn().mockImplementation((col: unknown, vals: unknown[]) => ({ inArray: [col, vals] })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
       sql: strings,

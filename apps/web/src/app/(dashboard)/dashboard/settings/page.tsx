@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -301,6 +302,7 @@ export default function SettingsPage() {
   // Plan & Billing state
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null)
   const [managingSubscription, setManagingSubscription] = useState(false)
+  const searchParams = useSearchParams()
 
   // ─── Fetch Profile ──────────────────────────────────────────────────────────
 
@@ -349,6 +351,25 @@ export default function SettingsPage() {
     }
     fetchProfile()
   }, [])
+
+  // ─── Subscription result toast ───────────────────────────────────────────────
+
+  useEffect(() => {
+    const subscriptionStatus = searchParams.get('subscription')
+    if (subscriptionStatus === 'success') {
+      toast('Subscription activated! Your plan will update shortly.', 'success')
+      // Clean up URL params without page reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete('subscription')
+      url.searchParams.delete('session_id')
+      window.history.replaceState({}, '', url.toString())
+    } else if (subscriptionStatus === 'cancelled') {
+      toast('Subscription checkout was cancelled.', 'info')
+      const url = new URL(window.location.href)
+      url.searchParams.delete('subscription')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [searchParams, toast])
 
   // ─── Scroll spy ─────────────────────────────────────────────────────────────
 
