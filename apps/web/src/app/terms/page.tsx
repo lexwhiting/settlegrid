@@ -5,6 +5,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export const metadata: Metadata = {
   title: 'Terms of Service | SettleGrid',
   description: 'Terms and conditions for using the SettleGrid platform.',
+  alternates: { canonical: 'https://settlegrid.ai/terms' },
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

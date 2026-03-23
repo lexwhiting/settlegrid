@@ -10,6 +10,21 @@ export const metadata: Metadata = {
   title: 'SettleGrid — Monetize AI Tools with 2 Lines of Code',
   description:
     'The settlement layer for AI agent payments. Per-call billing, usage metering, and automated payouts for MCP tools, REST APIs, and AI agents. Free forever — 25K ops/month, 0% fees. 10 protocols. Open source SDK.',
+  alternates: { canonical: 'https://settlegrid.ai' },
+  keywords: [
+    'MCP monetization',
+    'AI agent payments',
+    'settlement layer',
+    'per-call billing',
+    'AI tool billing',
+    'Model Context Protocol',
+    'x402',
+    'AP2',
+    'developer tools',
+    'API monetization',
+    'usage-based billing',
+    'AI economy',
+  ],
 }
 
 /* -------------------------------------------------------------------------- */
@@ -130,6 +145,14 @@ const jsonLdFaq = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'SettleGrid offers four plans: Free ($0, 25K ops/month, 0% take rate), Starter ($9/mo, 100K ops), Growth ($29/mo, 500K ops), and Scale ($79/mo, 2M ops). Developers keep 95-100% of revenue. Need more? Email support@settlegrid.ai.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Which AI payment protocols does SettleGrid support?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'SettleGrid supports 10 protocols out of the box: MCP (Model Context Protocol), x402, AP2 (Anthropic Agent Protocol), MPP (Stripe Model Provider Protocol), Visa TAP, UCP (Unified Checkout Protocol), ACP, Mastercard Agent Pay, Circle Nanopayments, and standard REST APIs. One SDK handles all of them — no protocol-specific code required.',
       },
     },
   ],

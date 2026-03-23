@@ -26,6 +26,34 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
 
+    // ── Learn hub & FAQ ────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/learn`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/learn/protocols`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.7,
+    },
+    ...(['mcp', 'mpp', 'x402', 'ap2', 'visa-tap', 'ucp', 'acp', 'mastercard-agent-pay', 'circle-nanopayments', 'rest'] as const).map(
+      (slug) => ({
+        url: `${BASE_URL}/learn/protocols/${slug}`,
+        lastModified: now,
+        changeFrequency: 'monthly' as const,
+        priority: 0.6,
+      })
+    ),
+    {
+      url: `${BASE_URL}/faq`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+
     // ── Auth pages ───────────────────────────────────────────────────────────
     {
       url: `${BASE_URL}/register`,

@@ -5,6 +5,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export const metadata: Metadata = {
   title: 'Privacy Policy | SettleGrid',
   description: 'How SettleGrid collects, uses, and protects your data.',
+  alternates: { canonical: 'https://settlegrid.ai/privacy' },
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

@@ -8,6 +8,15 @@ import { FaqAccordion } from '@/components/ui/faq-accordion'
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
   description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid.',
+  alternates: { canonical: 'https://settlegrid.ai/docs' },
+  keywords: [
+    'SettleGrid documentation',
+    'MCP SDK',
+    'AI billing API',
+    'per-call billing guide',
+    'settlegrid tutorial',
+    'AI agent billing docs',
+  ],
 }
 
 function Section({ title, id, children }: { title: string; id: string; children: React.ReactNode }) {
