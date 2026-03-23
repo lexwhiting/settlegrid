@@ -53,7 +53,7 @@ async function getProfile(id: string): Promise<ProfileData | null> {
     })
     if (!res.ok) return null
     const json = await res.json()
-    return json.data
+    return (json.data ?? json) as ProfileData
   } catch {
     return null
   }
