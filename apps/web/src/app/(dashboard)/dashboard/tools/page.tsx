@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { EmptyState } from '@/components/dashboard/empty-state'
+import { useToast } from '@/components/ui/toast'
 
 interface Tool {
   id: string
@@ -25,13 +26,25 @@ function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
+interface ChangelogForm {
+  version: string
+  changeType: 'feature' | 'fix' | 'breaking' | 'deprecation'
+  summary: string
+}
+
+const EMPTY_CHANGELOG_FORM: ChangelogForm = { version: '', changeType: 'feature', summary: '' }
+
 export default function ToolsPage() {
+  const { toast } = useToast()
   const [tools, setTools] = useState<Tool[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '', description: '', defaultCostCents: '1' })
   const [creating, setCreating] = useState(false)
+  const [changelogToolId, setChangelogToolId] = useState<string | null>(null)
+  const [changelogForm, setChangelogForm] = useState<ChangelogForm>(EMPTY_CHANGELOG_FORM)
+  const [submittingChangelog, setSubmittingChangelog] = useState(false)
 
   async function fetchTools() {
     try {
@@ -94,6 +107,30 @@ export default function ToolsPage() {
       fetchTools()
     } catch {
       setError('Failed to toggle status')
+    }
+  }
+
+  async function handleChangelogSubmit(e: React.FormEvent, toolId: string) {
+    e.preventDefault()
+    setSubmittingChangelog(true)
+    try {
+      const res = await fetch(`/api/tools/${toolId}/changelog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changelogForm),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || 'Failed to create changelog entry')
+        return
+      }
+      toast('Changelog entry created', 'success')
+      setChangelogToolId(null)
+      setChangelogForm(EMPTY_CHANGELOG_FORM)
+    } catch {
+      setError('Network error')
+    } finally {
+      setSubmittingChangelog(false)
     }
   }
 
@@ -205,6 +242,21 @@ export default function ToolsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (changelogToolId === tool.id) {
+                          setChangelogToolId(null)
+                          setChangelogForm(EMPTY_CHANGELOG_FORM)
+                        } else {
+                          setChangelogToolId(tool.id)
+                          setChangelogForm(EMPTY_CHANGELOG_FORM)
+                        }
+                      }}
+                    >
+                      {changelogToolId === tool.id ? 'Cancel' : 'Add Changelog'}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => toggleStatus(tool.id, tool.status)}>
                       {tool.status === 'active' ? 'Deactivate' : 'Activate'}
                     </Button>
@@ -213,6 +265,61 @@ export default function ToolsPage() {
                     </Link>
                   </div>
                 </div>
+
+                {/* Changelog creation form */}
+                {changelogToolId === tool.id && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2E3148]">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">New Changelog Entry</h4>
+                    <form onSubmit={(e) => handleChangelogSubmit(e, tool.id)} className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor={`cl-version-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Version</label>
+                          <input
+                            id={`cl-version-${tool.id}`}
+                            type="text"
+                            required
+                            placeholder="1.2.0"
+                            pattern="\d+\.\d+\.\d+"
+                            value={changelogForm.version}
+                            onChange={(e) => setChangelogForm({ ...changelogForm, version: e.target.value })}
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`cl-type-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Change Type</label>
+                          <select
+                            id={`cl-type-${tool.id}`}
+                            value={changelogForm.changeType}
+                            onChange={(e) => setChangelogForm({ ...changelogForm, changeType: e.target.value as ChangelogForm['changeType'] })}
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                          >
+                            <option value="feature">Feature</option>
+                            <option value="fix">Fix</option>
+                            <option value="breaking">Breaking</option>
+                            <option value="deprecation">Deprecation</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label htmlFor={`cl-summary-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Summary</label>
+                        <textarea
+                          id={`cl-summary-${tool.id}`}
+                          required
+                          maxLength={500}
+                          rows={2}
+                          placeholder="Describe what changed..."
+                          value={changelogForm.summary}
+                          onChange={(e) => setChangelogForm({ ...changelogForm, summary: e.target.value })}
+                          className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand min-h-[56px] resize-none"
+                        />
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">{changelogForm.summary.length}/500</p>
+                      </div>
+                      <Button type="submit" size="sm" disabled={submittingChangelog}>
+                        {submittingChangelog ? 'Saving...' : 'Save Entry'}
+                      </Button>
+                    </form>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

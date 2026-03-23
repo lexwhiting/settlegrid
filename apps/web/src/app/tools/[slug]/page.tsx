@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
+import { ReviewForm } from '@/components/storefront/review-form'
 
 interface ToolData {
   id: string
@@ -301,6 +302,7 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                   ))}
                 </div>
               )}
+              <ReviewForm toolSlug={slug} />
             </div>
           </div>
 

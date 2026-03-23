@@ -1,0 +1,232 @@
+#!/usr/bin/env npx tsx
+/**
+ * REST API Template: Dual Protocol (MCP + REST)
+ * Expose the SAME tool as both an MCP handler AND a REST endpoint.
+ *
+ * This template demonstrates SettleGrid's protocol-agnostic value proposition:
+ * one tool registration, one handler function, two integration patterns.
+ * The handler logic is shared — only the wrapping differs.
+ *
+ * - MCP consumers call your tool via sg.wrap() (function-level billing)
+ * - REST consumers call your API via settlegridMiddleware() (HTTP-level billing)
+ * - Both use the same SettleGrid billing pipeline, same pricing, same analytics
+ *
+ * Works with all 10 SettleGrid protocols — protocol detection is automatic.
+ *
+ * Setup:
+ *   1. npm install @settlegrid/mcp @modelcontextprotocol/sdk
+ *   2. Set SETTLEGRID_API_KEY and GEOCODING_API_KEY in your env
+ *   3. Register your tool at settlegrid.ai/dashboard/tools
+ *   4. Deploy both the MCP server and the REST endpoint
+ *
+ * Pricing: 2 cents for geocode, 3 cents for reverse geocode, 5 cents for batch
+ *   - Geocoding API cost ~$0.005/call (Google, Mapbox, or Nominatim)
+ *   - 2-5 cents gives you ~4-10x margin depending on method
+ *
+ * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+import { NextRequest, NextResponse } from 'next/server'
+
+// ── Shared Configuration ────────────────────────────────────────────────────
+// Both MCP and REST use the same tool slug and pricing.
+
+const TOOL_SLUG = 'my-geocoder'       // Replace with your tool slug
+const PRICING = {
+  defaultCostCents: 2,
+  methods: {
+    geocode:  { costCents: 2, displayName: 'Geocode Address' },
+    reverse:  { costCents: 3, displayName: 'Reverse Geocode' },
+    batch:    { costCents: 5, displayName: 'Batch Geocode' },
+  },
+}
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface GeoLocation {
+  lat: number
+  lng: number
+  formattedAddress: string
+  placeId: string
+}
+
+interface ReverseResult {
+  address: string
+  city: string
+  country: string
+  countryCode: string
+}
+
+// ── Shared Handler Logic ────────────────────────────────────────────────────
+// These functions contain ALL the business logic. Both MCP and REST patterns
+// call the same functions — zero duplication.
+
+async function geocodeAddress(args: { address: string }): Promise<{ location: GeoLocation }> {
+  if (!args.address || args.address.trim().length === 0) {
+    throw new Error('Address must be a non-empty string')
+  }
+  if (args.address.length > 500) {
+    throw new Error('Address exceeds 500 character limit')
+  }
+
+  const url = new URL('https://api.your-geocoder.com/v1/geocode')
+  url.searchParams.set('q', args.address)
+
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${process.env.GEOCODING_API_KEY!}` },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Geocoding API returned ${response.status}: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  const result = data.results?.[0]
+  if (!result) {
+    throw new Error('No results found for the given address')
+  }
+
+  return {
+    location: {
+      lat: result.lat,
+      lng: result.lng,
+      formattedAddress: result.formatted ?? args.address,
+      placeId: result.place_id ?? '',
+    },
+  }
+}
+
+async function reverseGeocode(args: { lat: number; lng: number }): Promise<{ result: ReverseResult }> {
+  if (typeof args.lat !== 'number' || typeof args.lng !== 'number') {
+    throw new Error('lat and lng must be numbers')
+  }
+  if (args.lat < -90 || args.lat > 90 || args.lng < -180 || args.lng > 180) {
+    throw new Error('Coordinates out of range (lat: -90..90, lng: -180..180)')
+  }
+
+  const url = new URL('https://api.your-geocoder.com/v1/reverse')
+  url.searchParams.set('lat', String(args.lat))
+  url.searchParams.set('lng', String(args.lng))
+
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${process.env.GEOCODING_API_KEY!}` },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Reverse geocoding API returned ${response.status}`)
+  }
+
+  const data = await response.json()
+  return {
+    result: {
+      address: data.formatted ?? '',
+      city: data.city ?? '',
+      country: data.country ?? '',
+      countryCode: data.country_code ?? '',
+    },
+  }
+}
+
+async function batchGeocode(args: { addresses: string[] }): Promise<{ locations: (GeoLocation | null)[] }> {
+  if (!Array.isArray(args.addresses) || args.addresses.length === 0) {
+    throw new Error('Addresses array is required and must be non-empty')
+  }
+  if (args.addresses.length > 25) {
+    throw new Error('Maximum 25 addresses per batch')
+  }
+
+  const locations = await Promise.all(
+    args.addresses.map(async (address) => {
+      try {
+        const result = await geocodeAddress({ address })
+        return result.location
+      } catch {
+        return null // Failed lookups return null instead of throwing
+      }
+    })
+  )
+
+  return { locations }
+}
+
+// ── Pattern 1: MCP Server (sg.wrap) ─────────────────────────────────────────
+// For MCP consumers — AI agents, Claude Desktop, Cursor, etc.
+// The wrapped functions are exported for use in your MCP server setup.
+
+const sg = settlegrid.init({ toolSlug: TOOL_SLUG, pricing: PRICING })
+
+export const mcpGeocode  = sg.wrap(geocodeAddress,  { method: 'geocode' })
+export const mcpReverse  = sg.wrap(reverseGeocode,  { method: 'reverse' })
+export const mcpBatch    = sg.wrap(batchGeocode,     { method: 'batch' })
+
+// ── Pattern 2: REST API (settlegridMiddleware) ──────────────────────────────
+// For HTTP consumers — web apps, mobile apps, cURL, Postman, etc.
+// Place this in app/api/geocode/route.ts in a Next.js project.
+
+const restBilling = settlegridMiddleware({ toolSlug: TOOL_SLUG, pricing: PRICING })
+
+export async function GET(request: NextRequest) {
+  // GET /api/geocode?address=1600+Pennsylvania+Ave
+  await restBilling(request, 'geocode')
+
+  const address = request.nextUrl.searchParams.get('address')
+  if (!address) {
+    return NextResponse.json({ error: 'Missing ?address= parameter' }, { status: 400 })
+  }
+
+  try {
+    const result = await geocodeAddress({ address })
+    return NextResponse.json({ data: result })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  let body: { method?: string; address?: string; lat?: number; lng?: number; addresses?: string[] }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const method = body.method ?? 'geocode'
+
+  if (method === 'reverse') {
+    await restBilling(request, 'reverse')
+    try {
+      const result = await reverseGeocode({ lat: body.lat!, lng: body.lng! })
+      return NextResponse.json({ data: result })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Internal error'
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+  }
+
+  if (method === 'batch') {
+    await restBilling(request, 'batch')
+    try {
+      const result = await batchGeocode({ addresses: body.addresses! })
+      return NextResponse.json({ data: result })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Internal error'
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+  }
+
+  // Default: geocode
+  await restBilling(request, 'geocode')
+  if (!body.address) {
+    return NextResponse.json({ error: 'Missing "address" in request body' }, { status: 400 })
+  }
+  try {
+    const result = await geocodeAddress({ address: body.address })
+    return NextResponse.json({ data: result })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

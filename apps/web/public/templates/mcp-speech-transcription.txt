@@ -36,70 +36,23 @@ const sg = settlegrid.init({
   },
 })
 
-// ── Types ───────────────────────────────────────────────────────────────────
-
-interface TranscribeArgs {
-  audioUrl: string
-  language?: string
-}
-
-interface Segment {
-  start: number
-  end: number
-  text: string
-}
-
-interface TranscribeResult {
-  text: string
-  language: string
-  duration: number
-  segments: Segment[]
-}
-
-interface SpeakerSegment extends Segment {
-  speaker: string
-}
-
-interface SpeakerResult {
-  text: string
-  language: string
-  duration: number
-  segments: SpeakerSegment[]
-  speakerCount: number
-}
-
-interface SummarizeArgs {
-  transcript: string
-  style?: 'bullets' | 'paragraph' | 'action-items'
-}
-
-// ── Validation ──────────────────────────────────────────────────────────────
+// ── Whisper API Helper ──────────────────────────────────────────────────────
 
 const AUDIO_URL_RE = /^https?:\/\/.+\.(mp3|mp4|wav|m4a|webm|ogg|flac|mpeg)(\?.*)?$/i
 
-function validateAudioUrl(url: string): void {
-  if (!url || !AUDIO_URL_RE.test(url)) {
+async function callWhisper(audioUrl: string, language?: string): Promise<Record<string, unknown>> {
+  if (!audioUrl || !AUDIO_URL_RE.test(audioUrl)) {
     throw new Error('A valid audio URL is required (mp3, mp4, wav, m4a, webm, ogg, flac)')
   }
-}
-
-// ── OpenAI Whisper Helper ───────────────────────────────────────────────────
-
-async function callWhisper(audioUrl: string, language?: string, responseFormat = 'verbose_json'): Promise<Record<string, unknown>> {
   const audioResponse = await fetch(audioUrl)
-  if (!audioResponse.ok) {
-    throw new Error(`Failed to fetch audio: ${audioResponse.status}`)
-  }
-
+  if (!audioResponse.ok) throw new Error(`Failed to fetch audio: ${audioResponse.status}`)
   const audioBlob = await audioResponse.blob()
-  if (audioBlob.size > 25 * 1024 * 1024) {
-    throw new Error('Audio file exceeds 25 MB limit')
-  }
+  if (audioBlob.size > 25 * 1024 * 1024) throw new Error('Audio file exceeds 25 MB limit')
 
   const form = new FormData()
   form.append('file', audioBlob, 'audio.mp3')
   form.append('model', 'whisper-1')
-  form.append('response_format', responseFormat)
+  form.append('response_format', 'verbose_json')
   if (language) form.append('language', language)
 
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -107,98 +60,57 @@ async function callWhisper(audioUrl: string, language?: string, responseFormat =
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!}` },
     body: form,
   })
-
-  if (!response.ok) {
-    throw new Error(`Whisper API returned ${response.status}: ${response.statusText}`)
-  }
-
+  if (!response.ok) throw new Error(`Whisper API returned ${response.status}: ${response.statusText}`)
   return response.json()
 }
 
 // ── Transcription Methods ───────────────────────────────────────────────────
 
-async function transcribe(args: TranscribeArgs): Promise<{ result: TranscribeResult }> {
-  validateAudioUrl(args.audioUrl)
+interface TranscribeArgs { audioUrl: string; language?: string }
+interface Segment { start: number; end: number; text: string }
 
+async function transcribe(args: TranscribeArgs): Promise<{
+  result: { text: string; language: string; duration: number; segments: Segment[] }
+}> {
   const data = await callWhisper(args.audioUrl, args.language)
   const segments: Segment[] = ((data.segments as Array<Record<string, unknown>>) ?? []).map((s) => ({
-    start: s.start as number,
-    end: s.end as number,
-    text: (s.text as string).trim(),
+    start: s.start as number, end: s.end as number, text: (s.text as string).trim(),
   }))
-
-  return {
-    result: {
-      text: (data.text as string) ?? '',
-      language: (data.language as string) ?? 'unknown',
-      duration: (data.duration as number) ?? 0,
-      segments,
-    },
-  }
+  return { result: { text: (data.text as string) ?? '', language: (data.language as string) ?? 'unknown', duration: (data.duration as number) ?? 0, segments } }
 }
 
-async function transcribeWithSpeakers(args: TranscribeArgs): Promise<{ result: SpeakerResult }> {
-  validateAudioUrl(args.audioUrl)
-
+async function transcribeWithSpeakers(args: TranscribeArgs): Promise<{
+  result: { text: string; language: string; duration: number; segments: Array<Segment & { speaker: string }>; speakerCount: number }
+}> {
   const data = await callWhisper(args.audioUrl, args.language)
   const rawSegments = (data.segments as Array<Record<string, unknown>>) ?? []
-
-  // Simple speaker assignment based on pauses (> 2s gap = likely new speaker)
   let currentSpeaker = 0
-  const segments: SpeakerSegment[] = rawSegments.map((s, i) => {
+  const segments = rawSegments.map((s, i) => {
     if (i > 0) {
       const gap = (s.start as number) - (rawSegments[i - 1].end as number)
       if (gap > 2) currentSpeaker = (currentSpeaker + 1) % 10
     }
-    return {
-      start: s.start as number,
-      end: s.end as number,
-      text: (s.text as string).trim(),
-      speaker: `Speaker ${currentSpeaker + 1}`,
-    }
+    return { start: s.start as number, end: s.end as number, text: (s.text as string).trim(), speaker: `Speaker ${currentSpeaker + 1}` }
   })
-
-  const speakerCount = new Set(segments.map((s) => s.speaker)).size
-
-  return {
-    result: {
-      text: (data.text as string) ?? '',
-      language: (data.language as string) ?? 'unknown',
-      duration: (data.duration as number) ?? 0,
-      segments,
-      speakerCount,
-    },
-  }
+  return { result: { text: (data.text as string) ?? '', language: (data.language as string) ?? 'unknown', duration: (data.duration as number) ?? 0, segments, speakerCount: new Set(segments.map((s) => s.speaker)).size } }
 }
 
-async function summarizeTranscript(args: SummarizeArgs): Promise<{ summary: string }> {
-  if (!args.transcript || args.transcript.trim().length === 0) {
-    throw new Error('Transcript text must be non-empty')
-  }
-  if (args.transcript.length > 100_000) {
-    throw new Error('Transcript exceeds 100,000 character limit')
-  }
+interface SummarizeArgs { transcript: string; style?: 'bullets' | 'paragraph' | 'action-items' }
 
+async function summarizeTranscript(args: SummarizeArgs): Promise<{ summary: string }> {
+  if (!args.transcript || args.transcript.trim().length === 0) throw new Error('Transcript text must be non-empty')
+  if (args.transcript.length > 100_000) throw new Error('Transcript exceeds 100,000 character limit')
   const style = args.style ?? 'bullets'
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
+      model: 'claude-sonnet-4-20250514', max_tokens: 2048,
       system: `You are a transcript summarizer. Produce a ${style} summary covering key topics, decisions, and action items.`,
       messages: [{ role: 'user', content: `Summarize this transcript:\n\n${args.transcript}` }],
     }),
   })
-
-  if (!response.ok) {
-    throw new Error(`Claude API returned ${response.status}: ${response.statusText}`)
-  }
-
+  if (!response.ok) throw new Error(`Claude API returned ${response.status}: ${response.statusText}`)
   const data = await response.json()
   return { summary: data.content?.[0]?.text ?? '' }
 }

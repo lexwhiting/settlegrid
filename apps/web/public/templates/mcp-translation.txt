@@ -12,10 +12,9 @@
  *   4. Run: npx tsx mcp-translation.ts
  *
  * Pricing: 3 cents per translation, 1 cent per detect, 2 cents per batch item
- *   - DeepL Free API: 500K chars/mo free; Pro API ~$0.00002/char ($4.99/250K)
+ *   - DeepL Free API: 500K chars/mo free; Pro API ~$0.00002/char
  *   - Average translation ~500 chars = ~$0.01 on Pro plan
  *   - 3 cents = ~3x margin on Pro, pure profit on Free tier
- *   - Language detection is lightweight, 1 cent is strong margin
  *   - Batch discount at 2 cents/item encourages bulk usage
  *
  * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
@@ -44,155 +43,71 @@ const DEEPL_BASE = 'https://api-free.deepl.com/v2'
 async function deeplPost(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const response = await fetch(`${DEEPL_BASE}${path}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `DeepL-Auth-Key ${process.env.DEEPL_API_KEY!}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `DeepL-Auth-Key ${process.env.DEEPL_API_KEY!}` },
     body: JSON.stringify(body),
   })
-
-  if (!response.ok) {
-    throw new Error(`DeepL API returned ${response.status}: ${response.statusText}`)
-  }
-
+  if (!response.ok) throw new Error(`DeepL API returned ${response.status}: ${response.statusText}`)
   return response.json()
-}
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-const SUPPORTED_LANGS = [
-  'BG', 'CS', 'DA', 'DE', 'EL', 'EN', 'ES', 'ET', 'FI', 'FR',
-  'HU', 'ID', 'IT', 'JA', 'KO', 'LT', 'LV', 'NB', 'NL', 'PL',
-  'PT', 'RO', 'RU', 'SK', 'SL', 'SV', 'TR', 'UK', 'ZH',
-] as const
-
-interface TranslateArgs {
-  text: string
-  targetLang: string
-  sourceLang?: string
-}
-
-interface TranslateResult {
-  translatedText: string
-  detectedSourceLang: string
-  targetLang: string
-}
-
-interface DetectArgs {
-  text: string
-}
-
-interface DetectResult {
-  language: string
-  confidence: number
-}
-
-interface BatchArgs {
-  items: Array<{ text: string; targetLang: string }>
-}
-
-interface BatchResult {
-  translations: Array<{ original: string; translated: string; sourceLang: string; targetLang: string }>
 }
 
 // ── Validation ──────────────────────────────────────────────────────────────
 
+const SUPPORTED_LANGS = ['BG','CS','DA','DE','EL','EN','ES','ET','FI','FR','HU','ID','IT','JA','KO','LT','LV','NB','NL','PL','PT','RO','RU','SK','SL','SV','TR','UK','ZH'] as const
+
 function validateText(text: string, maxLen = 10_000): void {
-  if (!text || text.trim().length === 0) {
-    throw new Error('Text must be non-empty')
-  }
-  if (text.length > maxLen) {
-    throw new Error(`Text exceeds ${maxLen.toLocaleString()} character limit`)
-  }
+  if (!text || text.trim().length === 0) throw new Error('Text must be non-empty')
+  if (text.length > maxLen) throw new Error(`Text exceeds ${maxLen.toLocaleString()} character limit`)
 }
 
 function validateLang(lang: string): string {
   const upper = lang.toUpperCase().trim()
   if (!SUPPORTED_LANGS.includes(upper as (typeof SUPPORTED_LANGS)[number])) {
-    throw new Error(`Unsupported language code "${lang}". Supported: ${SUPPORTED_LANGS.join(', ')}`)
+    throw new Error(`Unsupported language "${lang}". Supported: ${SUPPORTED_LANGS.join(', ')}`)
   }
   return upper
 }
 
 // ── Translation Methods ─────────────────────────────────────────────────────
 
-async function translate(args: TranslateArgs): Promise<{ result: TranslateResult }> {
+interface TranslateArgs { text: string; targetLang: string; sourceLang?: string }
+
+async function translate(args: TranslateArgs): Promise<{
+  result: { translatedText: string; detectedSourceLang: string; targetLang: string }
+}> {
   validateText(args.text)
   const targetLang = validateLang(args.targetLang)
-
-  const body: Record<string, unknown> = {
-    text: [args.text],
-    target_lang: targetLang,
-  }
-  if (args.sourceLang) {
-    body.source_lang = validateLang(args.sourceLang)
-  }
-
+  const body: Record<string, unknown> = { text: [args.text], target_lang: targetLang }
+  if (args.sourceLang) body.source_lang = validateLang(args.sourceLang)
   const data = await deeplPost('/translate', body)
-  const translations = data.translations as Array<Record<string, string>>
-  const first = translations?.[0]
-
-  if (!first) {
-    throw new Error('No translation returned')
-  }
-
-  return {
-    result: {
-      translatedText: first.text,
-      detectedSourceLang: first.detected_source_language ?? 'unknown',
-      targetLang,
-    },
-  }
+  const first = (data.translations as Array<Record<string, string>>)?.[0]
+  if (!first) throw new Error('No translation returned')
+  return { result: { translatedText: first.text, detectedSourceLang: first.detected_source_language ?? 'unknown', targetLang } }
 }
 
-async function detectLanguage(args: DetectArgs): Promise<{ result: DetectResult }> {
+interface DetectArgs { text: string }
+
+async function detectLanguage(args: DetectArgs): Promise<{ result: { language: string; confidence: number } }> {
   validateText(args.text, 1_000)
-
-  // DeepL detects language as a side-effect of translation
-  const data = await deeplPost('/translate', {
-    text: [args.text.slice(0, 500)],
-    target_lang: 'EN',
-  })
-
-  const translations = data.translations as Array<Record<string, string>>
-  const detected = translations?.[0]?.detected_source_language ?? 'unknown'
-
-  return {
-    result: {
-      language: detected,
-      confidence: detected !== 'unknown' ? 0.95 : 0,
-    },
-  }
+  const data = await deeplPost('/translate', { text: [args.text.slice(0, 500)], target_lang: 'EN' })
+  const detected = (data.translations as Array<Record<string, string>>)?.[0]?.detected_source_language ?? 'unknown'
+  return { result: { language: detected, confidence: detected !== 'unknown' ? 0.95 : 0 } }
 }
 
-async function translateBatch(args: BatchArgs): Promise<{ batch: BatchResult }> {
-  if (!args.items || args.items.length === 0) {
-    throw new Error('At least one item is required')
-  }
-  if (args.items.length > 20) {
-    throw new Error('Batch size is limited to 20 items per call')
-  }
+interface BatchArgs { items: Array<{ text: string; targetLang: string }> }
 
-  const translations: BatchResult['translations'] = []
-
+async function translateBatch(args: BatchArgs): Promise<{
+  batch: { translations: Array<{ original: string; translated: string; sourceLang: string; targetLang: string }> }
+}> {
+  if (!args.items || args.items.length === 0) throw new Error('At least one item is required')
+  if (args.items.length > 20) throw new Error('Batch size is limited to 20 items per call')
+  const translations: Array<{ original: string; translated: string; sourceLang: string; targetLang: string }> = []
   for (const item of args.items) {
     validateText(item.text, 5_000)
     const targetLang = validateLang(item.targetLang)
-
-    const data = await deeplPost('/translate', {
-      text: [item.text],
-      target_lang: targetLang,
-    })
-
+    const data = await deeplPost('/translate', { text: [item.text], target_lang: targetLang })
     const result = (data.translations as Array<Record<string, string>>)?.[0]
-    translations.push({
-      original: item.text,
-      translated: result?.text ?? '',
-      sourceLang: result?.detected_source_language ?? 'unknown',
-      targetLang,
-    })
+    translations.push({ original: item.text, translated: result?.text ?? '', sourceLang: result?.detected_source_language ?? 'unknown', targetLang })
   }
-
   return { batch: { translations } }
 }
 

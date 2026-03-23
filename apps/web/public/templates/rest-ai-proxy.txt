@@ -1,0 +1,277 @@
+#!/usr/bin/env npx tsx
+/**
+ * REST API Template: AI Proxy with Billing
+ * Resell OpenAI/Anthropic API access with automatic per-request markup.
+ *
+ * This is the highest-value REST template — developers can monetize AI access
+ * without building a full product. Wrap any LLM provider, set your margin, and
+ * SettleGrid handles billing, metering, and payouts.
+ *
+ * This template uses settlegridMiddleware() — the REST equivalent of sg.wrap().
+ * While MCP templates use sg.wrap() to bill function calls, REST templates use
+ * settlegridMiddleware() to bill HTTP requests. Same billing pipeline, different
+ * integration pattern.
+ *
+ * Works with all 10 SettleGrid protocols — protocol detection is automatic.
+ *
+ * Setup:
+ *   1. npm install @settlegrid/mcp
+ *   2. Set OPENAI_API_KEY and SETTLEGRID_API_KEY in your env
+ *   3. Register your tool at settlegrid.ai/dashboard/tools
+ *   4. Deploy and share your proxy URL with consumers
+ *
+ * Pricing:
+ *   - chat (GPT-4o):   8 cents — OpenAI cost ~$0.02, 4x margin
+ *   - chat (GPT-4o-mini): 2 cents — OpenAI cost ~$0.003, 6x margin
+ *   - embed:           1 cent  — OpenAI cost ~$0.001, 10x margin
+ *
+ * Revenue: You keep 95-100% (100% on Free tier, 95% on paid tiers)
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+
+// ── SettleGrid Billing Setup ────────────────────────────────────────────────
+
+const billing = settlegridMiddleware({
+  toolSlug: 'my-ai-proxy',            // Replace with your tool slug
+  pricing: {
+    defaultCostCents: 8,
+    methods: {
+      'chat-gpt4o':      { costCents: 8,  displayName: 'Chat (GPT-4o)' },
+      'chat-gpt4o-mini': { costCents: 2,  displayName: 'Chat (GPT-4o-mini)' },
+      'embed':           { costCents: 1,  displayName: 'Embedding' },
+    },
+  },
+})
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+interface ChatRequest {
+  messages: ChatMessage[]
+  model?: 'gpt-4o' | 'gpt-4o-mini'
+  temperature?: number
+  maxTokens?: number
+}
+
+interface ChatResponse {
+  message: string
+  model: string
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number }
+  costCents: number
+}
+
+interface EmbedRequest {
+  input: string | string[]
+  model?: string
+}
+
+interface EmbedResponse {
+  embeddings: number[][]
+  model: string
+  dimensions: number
+  costCents: number
+}
+
+// ── Model Configuration ─────────────────────────────────────────────────────
+
+const MODEL_MAP: Record<string, { apiModel: string; billingMethod: string; costCents: number }> = {
+  'gpt-4o':      { apiModel: 'gpt-4o',      billingMethod: 'chat-gpt4o',      costCents: 8 },
+  'gpt-4o-mini': { apiModel: 'gpt-4o-mini', billingMethod: 'chat-gpt4o-mini', costCents: 2 },
+}
+
+const ALLOWED_MODELS = new Set(Object.keys(MODEL_MAP))
+const MAX_MESSAGES = 50
+const MAX_MESSAGE_LENGTH = 32_000
+const MAX_EMBED_INPUTS = 100
+const MAX_EMBED_LENGTH = 8_000
+
+// ── OpenAI API Helpers ──────────────────────────────────────────────────────
+
+const OPENAI_API_URL = 'https://api.openai.com/v1'
+
+async function callChatCompletion(
+  messages: ChatMessage[],
+  model: string,
+  temperature: number,
+  maxTokens: number
+): Promise<{ text: string; usage: { promptTokens: number; completionTokens: number } }> {
+  const response = await fetch(`${OPENAI_API_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  })
+
+  if (!response.ok) {
+    const errBody = await response.text()
+    throw new Error(`OpenAI API returned ${response.status}: ${errBody}`)
+  }
+
+  const data = await response.json()
+  return {
+    text: data.choices?.[0]?.message?.content ?? '',
+    usage: {
+      promptTokens: data.usage?.prompt_tokens ?? 0,
+      completionTokens: data.usage?.completion_tokens ?? 0,
+    },
+  }
+}
+
+async function callEmbedding(
+  input: string[],
+  model: string
+): Promise<{ embeddings: number[][]; dimensions: number }> {
+  const response = await fetch(`${OPENAI_API_URL}/embeddings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+    },
+    body: JSON.stringify({ model, input }),
+  })
+
+  if (!response.ok) {
+    const errBody = await response.text()
+    throw new Error(`OpenAI API returned ${response.status}: ${errBody}`)
+  }
+
+  const data = await response.json()
+  const embeddings = (data.data ?? []).map((d: { embedding: number[] }) => d.embedding)
+  const dimensions = embeddings[0]?.length ?? 0
+  return { embeddings, dimensions }
+}
+
+// ── POST /api/ai/chat — Chat Completion ────────────────────────────────────
+// Usage: POST /api/ai/chat { "messages": [...], "model": "gpt-4o" }
+// Header: x-api-key: sg_live_your_key_here
+
+export async function POST(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Route to the correct handler
+  if (pathname.endsWith('/embed')) {
+    return handleEmbed(request)
+  }
+  return handleChat(request)
+}
+
+async function handleChat(request: NextRequest): Promise<NextResponse> {
+  let body: ChatRequest
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // Validate model
+  const modelKey = body.model ?? 'gpt-4o'
+  if (!ALLOWED_MODELS.has(modelKey)) {
+    return NextResponse.json(
+      { error: `Invalid model. Allowed: ${[...ALLOWED_MODELS].join(', ')}` },
+      { status: 400 }
+    )
+  }
+
+  // Validate messages
+  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+    return NextResponse.json({ error: 'Messages array is required' }, { status: 400 })
+  }
+  if (body.messages.length > MAX_MESSAGES) {
+    return NextResponse.json({ error: `Maximum ${MAX_MESSAGES} messages per request` }, { status: 400 })
+  }
+  for (const msg of body.messages) {
+    if (!msg.role || !msg.content) {
+      return NextResponse.json({ error: 'Each message must have role and content' }, { status: 400 })
+    }
+    if (msg.content.length > MAX_MESSAGE_LENGTH) {
+      return NextResponse.json({ error: `Message exceeds ${MAX_MESSAGE_LENGTH} character limit` }, { status: 400 })
+    }
+  }
+
+  const config = MODEL_MAP[modelKey]
+
+  // Bill the request — cost depends on the model tier
+  await billing(request, config.billingMethod)
+
+  try {
+    const temperature = Math.min(Math.max(body.temperature ?? 0.7, 0), 2)
+    const maxTokens = Math.min(body.maxTokens ?? 4096, 16384)
+
+    const result = await callChatCompletion(body.messages, config.apiModel, temperature, maxTokens)
+
+    const response: ChatResponse = {
+      message: result.text,
+      model: config.apiModel,
+      usage: {
+        promptTokens: result.usage.promptTokens,
+        completionTokens: result.usage.completionTokens,
+        totalTokens: result.usage.promptTokens + result.usage.completionTokens,
+      },
+      costCents: config.costCents,
+    }
+
+    return NextResponse.json({ data: response })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 502 })
+  }
+}
+
+// ── POST /api/ai/embed — Embeddings ───────────────────────────────────────
+// Usage: POST /api/ai/embed { "input": "text to embed" }
+// Header: x-api-key: sg_live_your_key_here
+
+async function handleEmbed(request: NextRequest): Promise<NextResponse> {
+  await billing(request, 'embed')
+
+  let body: EmbedRequest
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // Normalize input to array
+  const inputs = Array.isArray(body.input) ? body.input : [body.input]
+  if (inputs.length === 0) {
+    return NextResponse.json({ error: 'Input is required' }, { status: 400 })
+  }
+  if (inputs.length > MAX_EMBED_INPUTS) {
+    return NextResponse.json({ error: `Maximum ${MAX_EMBED_INPUTS} inputs per request` }, { status: 400 })
+  }
+  for (const text of inputs) {
+    if (typeof text !== 'string' || text.length > MAX_EMBED_LENGTH) {
+      return NextResponse.json({ error: `Each input must be a string under ${MAX_EMBED_LENGTH} characters` }, { status: 400 })
+    }
+  }
+
+  try {
+    const model = body.model ?? 'text-embedding-3-small'
+    const result = await callEmbedding(inputs, model)
+
+    const response: EmbedResponse = {
+      embeddings: result.embeddings,
+      model,
+      dimensions: result.dimensions,
+      costCents: 1,
+    }
+
+    return NextResponse.json({ data: response })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 502 })
+  }
+}

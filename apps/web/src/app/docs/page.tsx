@@ -1054,9 +1054,11 @@ try {
 
           <Section title="Templates" id="templates">
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Open-source MCP server templates you can fork and customize. Each is a complete, runnable
+              Open-source starter templates you can fork and customize. Each is a complete, runnable
               TypeScript file with SettleGrid billing already integrated.
             </p>
+
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-200 mb-3">MCP Server Templates <span className="text-xs font-normal text-brand">sg.wrap()</span></h3>
             <div className="space-y-3 mb-6">
               {[
                 { name: 'Web Search Tool', file: 'mcp-web-search.txt', price: '3\u00a2/query', desc: 'Brave Search API wrapper with web and news methods' },
@@ -1088,8 +1090,33 @@ try {
                 </a>
               ))}
             </div>
+
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-200 mb-3">REST API Templates <span className="text-xs font-normal text-brand">settlegridMiddleware()</span></h3>
+            <div className="space-y-3 mb-6">
+              {[
+                { name: 'Next.js App Router', file: 'rest-nextjs-api.txt', price: '2-5\u00a2/call', desc: 'Multi-method route with GET lookups and POST enrichment' },
+                { name: 'Express.js Middleware', file: 'rest-express-api.txt', price: '3-10\u00a2/call', desc: 'Per-route billing middleware with search and AI analysis endpoints' },
+                { name: 'AI Proxy with Markup', file: 'rest-ai-proxy.txt', price: '1-8\u00a2/call', desc: 'Resell OpenAI access with model-based pricing and automatic margin' },
+                { name: 'Dual Protocol (MCP + REST)', file: 'rest-dual-protocol.txt', price: '2-5\u00a2/call', desc: 'Same tool exposed as both MCP handler and REST endpoint' },
+              ].map((t) => (
+                <a
+                  key={t.file}
+                  href={`/templates/${t.file}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2E3148] hover:border-brand/40 transition-colors group"
+                >
+                  <div>
+                    <span className="font-medium text-indigo dark:text-gray-100 group-hover:text-brand transition-colors">{t.name}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</p>
+                  </div>
+                  <span className="text-xs font-semibold bg-brand/10 text-brand border border-brand/20 rounded-full px-2 py-0.5 flex-shrink-0 ml-3">{t.price}</span>
+                </a>
+              ))}
+            </div>
+
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Browse all templates at{' '}
+              Browse all 17 templates at{' '}
               <a href="/templates/" className="text-brand-text hover:text-brand-dark font-medium">settlegrid.ai/templates</a>.
             </p>
           </Section>
