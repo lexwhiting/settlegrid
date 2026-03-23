@@ -12,7 +12,7 @@ export const maxDuration = 60
 
 const updatePayoutSettingsSchema = z.object({
   payoutSchedule: z.enum(['daily', 'weekly', 'monthly']).optional(),
-  payoutMinimumCents: z.number().int().min(1000).max(50000).optional(),
+  payoutMinimumCents: z.number().int().min(100).max(50000).optional(), // $1 minimum
 })
 
 /** PATCH /api/dashboard/developer/payout-settings — update payout schedule and minimum */

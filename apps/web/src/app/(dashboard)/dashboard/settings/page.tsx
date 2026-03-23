@@ -247,7 +247,7 @@ export default function SettingsPage() {
 
   // Payout form state
   const [payoutSchedule, setPayoutSchedule] = useState('monthly')
-  const [payoutMinimumDollars, setPayoutMinimumDollars] = useState('25')
+  const [payoutMinimumDollars, setPayoutMinimumDollars] = useState('1')
   const [savingPayouts, setSavingPayouts] = useState(false)
 
   // Stripe connect state
@@ -1074,15 +1074,15 @@ export default function SettingsPage() {
                     <Input
                       id="payout-minimum"
                       type="number"
-                      min={10}
+                      min={1}
                       max={500}
-                      step={5}
+                      step={1}
                       value={payoutMinimumDollars}
                       onChange={(e) => setPayoutMinimumDollars(e.target.value)}
                       className="max-w-[120px]"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Between $10 and $500</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">As low as $1 — get paid faster</p>
                 </div>
 
                 {/* Current Balance */}

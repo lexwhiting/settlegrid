@@ -168,7 +168,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
       balanceCents: 5000,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     mockDb.returning.mockResolvedValueOnce([{
@@ -195,7 +195,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
       balanceCents: 1000,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     const request = makeRequest('/api/payouts/trigger', 'POST')
@@ -212,7 +212,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
       balanceCents: 5000,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'pending',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     const request = makeRequest('/api/payouts/trigger', 'POST')
@@ -229,7 +229,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
       balanceCents: 5000,
       stripeConnectId: null,
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     const request = makeRequest('/api/payouts/trigger', 'POST')
@@ -266,7 +266,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
       balanceCents: 3000,
       stripeConnectId: 'acct_test_456',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     mockDb.returning.mockResolvedValueOnce([{
@@ -296,7 +296,7 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
       balanceCents: 5000,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     mockDb.returning.mockResolvedValueOnce([{

@@ -321,7 +321,7 @@ export function stripeConnectCompleteEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Great news, ${escapeHtml(name)}! Your Stripe Connect account is now active. You'll receive payouts automatically based on your payout schedule.</p>
 <ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
 <li>Revenue split: You keep ${pct}%</li>
-<li>Minimum payout: $25.00</li>
+<li>Minimum payout: $1.00 — get paid from your very first earnings</li>
 <li>Schedule: Based on your settings (weekly or monthly)</li>
 </ul>
 ${ctaButton('View Settings', 'https://settlegrid.ai/dashboard/developer/settings')}

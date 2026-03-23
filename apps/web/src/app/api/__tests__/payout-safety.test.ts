@@ -120,7 +120,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
       revenueSharePct: 95,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     // First returning = payout insert (processing)
@@ -154,7 +154,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
       revenueSharePct: 95,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     // Payout insert (processing)
@@ -193,7 +193,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
       revenueSharePct: 95,
       stripeConnectId: 'acct_test_123',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     mockDb.returning.mockResolvedValueOnce([{
@@ -224,7 +224,7 @@ describe('Payout Safety (Transaction Wrapping)', () => {
       revenueSharePct: 95,
       stripeConnectId: 'acct_test_456',
       stripeConnectStatus: 'active',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
     }])
 
     mockDb.returning.mockResolvedValueOnce([{

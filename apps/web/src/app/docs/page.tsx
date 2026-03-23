@@ -252,7 +252,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What is the minimum payout?',
-      a: 'The default minimum payout is $25.00. You can configure this threshold in your developer settings. Payouts below the minimum are rolled over to the next payout period.',
+      a: 'The default minimum payout is just $1.00 — the lowest in the industry. Get paid from your very first earnings. You can adjust this threshold up to $500 in Settings > Payouts.',
     },
     {
       q: 'How long do payouts take?',
@@ -1044,7 +1044,7 @@ try {
               <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 95-100% of revenue.</li>
               <li><strong>Consumers:</strong> Prepaid credits. Purchase $5, $20, $50, or custom amounts.</li>
               <li><strong>Platform fee:</strong> 0-5% per transaction (0% on Free, 5% on paid plans). No minimums.</li>
-              <li><strong>Payouts:</strong> Weekly or monthly via Stripe Connect. $25 minimum.</li>
+              <li><strong>Payouts:</strong> Daily, weekly, or monthly via Stripe Connect. $1 minimum — the lowest in the industry.</li>
             </ul>
           </Section>
 
