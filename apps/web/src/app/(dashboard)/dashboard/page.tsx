@@ -276,16 +276,16 @@ export default function DeveloperDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {analytics.methodBreakdown.map((method) => (
-                    <tr key={method.method} className="border-b border-gray-100 dark:border-[#252836]">
+                  {analytics.methodBreakdown.map((method: Record<string, unknown>) => (
+                    <tr key={String(method.method)} className="border-b border-gray-100 dark:border-[#252836]">
                       <td className="py-3 px-4">
-                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{method.method}</code>
+                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{String(method.method)}</code>
                       </td>
-                      <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{method.invocations.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(method.revenueCents)}</td>
+                      <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{(Number(method.invocations ?? method.count ?? 0)).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(Number(method.revenueCents ?? method.totalRevenueCents ?? 0))}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={method.errorRate > 0.05 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
-                          {(method.errorRate * 100).toFixed(2)}%
+                        <span className={Number(method.errorRate ?? 0) > 0.05 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                          {(Number(method.errorRate ?? 0) * 100).toFixed(2)}%
                         </span>
                       </td>
                     </tr>
@@ -315,12 +315,12 @@ export default function DeveloperDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {analytics.topConsumers.slice(0, 5).map((consumer, i) => (
-                    <tr key={consumer.email} className="border-b border-gray-100 dark:border-[#252836]">
+                  {analytics.topConsumers.slice(0, 5).map((consumer: Record<string, unknown>, i: number) => (
+                    <tr key={String(consumer.email ?? consumer.consumerId ?? i)} className="border-b border-gray-100 dark:border-[#252836]">
                       <td className="py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">{i + 1}</td>
-                      <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{consumer.email}</td>
-                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(consumer.totalSpendCents)}</td>
-                      <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{consumer.invocations.toLocaleString()}</td>
+                      <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{String(consumer.email ?? consumer.consumerId ?? 'Unknown')}</td>
+                      <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(Number(consumer.totalSpendCents ?? 0))}</td>
+                      <td className="py-3 px-4 text-right text-gray-500 dark:text-gray-400">{(Number(consumer.invocations ?? consumer.invocationCount ?? 0)).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
