@@ -16,6 +16,7 @@ interface DeveloperProfile {
   id: string
   email: string
   name: string | null
+  slug: string | null
   tier: string
   revenueSharePct: number
   stripeConnectStatus: string
@@ -234,6 +235,8 @@ export default function SettingsPage() {
 
   // Profile form state
   const [profileName, setProfileName] = useState('')
+  const [profileSlug, setProfileSlug] = useState('')
+  const [profileSlugError, setProfileSlugError] = useState('')
   const [profileBio, setProfileBio] = useState('')
   const [publicProfile, setPublicProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
@@ -287,6 +290,7 @@ export default function SettingsPage() {
         const dev = data.developer as DeveloperProfile
         setProfile(dev)
         setProfileName(dev.name ?? '')
+        setProfileSlug(dev.slug ?? '')
         setProfileBio(dev.publicBio ?? '')
         setPublicProfile(dev.publicProfile)
         setPayoutSchedule(dev.payoutSchedule)
@@ -342,30 +346,53 @@ export default function SettingsPage() {
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
   const saveProfile = useCallback(async () => {
+    setProfileSlugError('')
+
+    // Client-side slug validation
+    if (profileSlug) {
+      if (profileSlug.length < 3 || profileSlug.length > 30) {
+        setProfileSlugError('Must be 3-30 characters.')
+        return
+      }
+      if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug)) {
+        setProfileSlugError('Only lowercase letters, numbers, and hyphens. No leading/trailing hyphens.')
+        return
+      }
+    }
+
     setSavingProfile(true)
     try {
+      const payload: Record<string, unknown> = {
+        name: profileName,
+        publicBio: profileBio,
+        publicProfile,
+      }
+      if (profileSlug) {
+        payload.slug = profileSlug.toLowerCase()
+      }
+
       const res = await fetch('/api/dashboard/developer/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: profileName,
-          publicBio: profileBio,
-          publicProfile,
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const data = await res.json()
+        if (res.status === 409) {
+          setProfileSlugError(data.error || 'This profile URL is already taken.')
+          return
+        }
         toast(data.error || 'Failed to save profile', 'error')
         return
       }
-      setProfile((prev) => prev ? { ...prev, name: profileName, publicBio: profileBio, publicProfile } : prev)
+      setProfile((prev) => prev ? { ...prev, name: profileName, slug: profileSlug || null, publicBio: profileBio, publicProfile } : prev)
       toast('Profile saved successfully', 'success')
     } catch {
       toast('Network error', 'error')
     } finally {
       setSavingProfile(false)
     }
-  }, [profileName, profileBio, publicProfile, toast])
+  }, [profileName, profileSlug, profileBio, publicProfile, toast])
 
   const savePayoutSettings = useCallback(async () => {
     const dollars = parseFloat(payoutMinimumDollars)
@@ -735,6 +762,41 @@ export default function SettingsPage() {
                     maxLength={100}
                     className="max-w-sm"
                   />
+                </div>
+
+                {/* Profile URL */}
+                <div>
+                  <label htmlFor="profile-slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Profile URL
+                  </label>
+                  <div className="flex items-center gap-0 max-w-lg">
+                    <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-[#2E3148] dark:bg-[#252836] dark:text-gray-400 whitespace-nowrap">
+                      settlegrid.ai/developers/
+                    </span>
+                    <Input
+                      id="profile-slug"
+                      value={profileSlug}
+                      onChange={(e) => {
+                        const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                        setProfileSlug(val)
+                        setProfileSlugError('')
+                      }}
+                      placeholder="e.g., your-name"
+                      maxLength={30}
+                      className="rounded-l-none"
+                    />
+                  </div>
+                  {profileSlugError && (
+                    <p className="mt-1 text-xs text-red-500 dark:text-red-400">{profileSlugError}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Choose a unique URL for your public profile. Only lowercase letters, numbers, and hyphens.
+                  </p>
+                  {profileSlug && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug) && profileSlug.length >= 3 && (
+                    <p className="mt-1 text-xs text-brand dark:text-emerald-400">
+                      Your profile: settlegrid.ai/developers/{profileSlug}
+                    </p>
+                  )}
                 </div>
 
                 {/* Email (read-only) */}

@@ -20,6 +20,7 @@ export const developers = pgTable('developers', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   name: text('name'),
+  slug: text('slug').unique(), // vanity URL slug, e.g., 'lexwhiting'
   supabaseUserId: text('supabase_user_id').unique(),
   passwordHash: text('password_hash'),
   tier: text('tier').notNull().default('standard'), // 'standard' | 'enterprise'
@@ -40,7 +41,9 @@ export const developers = pgTable('developers', {
   avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('developers_slug_idx').on(table.slug),
+])
 
 export const developersRelations = relations(developers, ({ many }) => ({
   tools: many(tools),

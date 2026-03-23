@@ -11,7 +11,7 @@ export const maxDuration = 60
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** GET /api/developers/[id]/profile — public developer profile */
+/** GET /api/developers/[id]/profile — public developer profile (resolves by UUID or slug) */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -25,27 +25,33 @@ export async function GET(
     }
 
     const { id } = await params
-    if (!UUID_RE.test(id)) {
-      return errorResponse('Invalid developer ID.', 400, 'INVALID_ID', requestId)
-    }
+    const isUuid = UUID_RE.test(id)
+
+    // Resolve by UUID or slug (case-insensitive)
+    const whereClause = isUuid
+      ? eq(developers.id, id)
+      : eq(developers.slug, id.toLowerCase())
 
     // Fetch developer — only if public profile is enabled
     const [developer] = await db
       .select({
         id: developers.id,
         name: developers.name,
+        slug: developers.slug,
         publicBio: developers.publicBio,
         avatarUrl: developers.avatarUrl,
         publicProfile: developers.publicProfile,
         createdAt: developers.createdAt,
       })
       .from(developers)
-      .where(eq(developers.id, id))
+      .where(whereClause)
       .limit(1)
 
     if (!developer || !developer.publicProfile) {
       return errorResponse('Developer profile not found.', 404, 'NOT_FOUND', requestId)
     }
+
+    const developerId = developer.id
 
     // Fetch active tools with average ratings
     const devTools = await db
@@ -62,7 +68,7 @@ export async function GET(
         ), 0)`,
       })
       .from(tools)
-      .where(and(eq(tools.developerId, id), eq(tools.status, 'active')))
+      .where(and(eq(tools.developerId, developerId), eq(tools.status, 'active')))
       .orderBy(desc(tools.totalInvocations))
       .limit(20)
 
@@ -91,6 +97,7 @@ export async function GET(
 
     return successResponse({
       name: developer.name,
+      slug: developer.slug,
       bio: developer.publicBio,
       avatarUrl: developer.avatarUrl,
       joinedAt: developer.createdAt,

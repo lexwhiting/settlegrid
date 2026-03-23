@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         id: developers.id,
         email: developers.email,
         name: developers.name,
+        slug: developers.slug,
         tier: developers.tier,
         revenueSharePct: developers.revenueSharePct,
         stripeConnectStatus: developers.stripeConnectStatus,

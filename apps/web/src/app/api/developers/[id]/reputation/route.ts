@@ -10,6 +10,7 @@ export const maxDuration = 60
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/** GET /api/developers/[id]/reputation — developer reputation (resolves by UUID or slug) */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,25 +21,30 @@ export async function GET(
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const { id } = await params
-    if (!UUID_RE.test(id)) {
-      return errorResponse('Invalid developer ID.', 400, 'INVALID_ID')
-    }
+    const isUuid = UUID_RE.test(id)
+
+    // Resolve by UUID or slug (case-insensitive)
+    const whereClause = isUuid
+      ? eq(developers.id, id)
+      : eq(developers.slug, id.toLowerCase())
 
     const [developer] = await db
       .select({ id: developers.id, name: developers.name })
       .from(developers)
-      .where(eq(developers.id, id))
+      .where(whereClause)
       .limit(1)
 
     if (!developer) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
     }
 
+    const developerId = developer.id
+
     // Check for cached reputation
     const [cached] = await db
       .select()
       .from(developerReputation)
-      .where(eq(developerReputation.developerId, id))
+      .where(eq(developerReputation.developerId, developerId))
       .limit(1)
 
     if (cached) {
@@ -64,7 +70,7 @@ export async function GET(
     const totalTools = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(tools)
-      .where(sql`${tools.developerId} = ${id} AND ${tools.status} = 'active'`)
+      .where(sql`${tools.developerId} = ${developerId} AND ${tools.status} = 'active'`)
       .then(r => r[0]?.count ?? 0)
       .catch(() => 0)
 
@@ -72,7 +78,7 @@ export async function GET(
       .select({ avg: sql<number>`coalesce(avg(${toolReviews.rating}), 0)` })
       .from(toolReviews)
       .innerJoin(tools, eq(toolReviews.toolId, tools.id))
-      .where(eq(tools.developerId, id))
+      .where(eq(tools.developerId, developerId))
       .then(r => Number(r[0]?.avg ?? 0))
       .catch(() => 0)
 
@@ -80,7 +86,7 @@ export async function GET(
     const toolRows = await db
       .select({ id: tools.id })
       .from(tools)
-      .where(sql`${tools.developerId} = ${id} AND ${tools.status} = 'active'`)
+      .where(sql`${tools.developerId} = ${developerId} AND ${tools.status} = 'active'`)
       .catch(() => [] as { id: string }[])
     const toolIds = toolRows.map(t => t.id)
 
@@ -141,7 +147,7 @@ export async function GET(
       await db
         .insert(developerReputation)
         .values({
-          developerId: id,
+          developerId,
           score,
           responseTimePct,
           uptimePct,
@@ -162,7 +168,7 @@ export async function GET(
           },
         })
     } catch (e) {
-      logger.error('reputation.upsert_failed', { developerId: id }, e as Error)
+      logger.error('reputation.upsert_failed', { developerId }, e as Error)
     }
 
     return successResponse({

@@ -4,6 +4,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 
 interface ProfileData {
   name: string
+  slug: string | null
   bio: string | null
   avatarUrl: string | null
   joinedAt: string
@@ -66,12 +67,13 @@ export async function generateMetadata({
   const { id } = await params
   const profile = await getProfile(id)
   if (!profile) return { title: 'Profile Not Found | SettleGrid' }
+  const canonicalSlug = profile.slug ?? id
   return {
     title: `${profile.name} | SettleGrid Developer`,
     description: profile.bio
       ? `${profile.bio.slice(0, 150)} — ${profile.stats.toolCount} tools on SettleGrid.`
       : `${profile.name} has ${profile.stats.toolCount} tools on SettleGrid.`,
-    alternates: { canonical: `https://settlegrid.ai/developers/${id}` },
+    alternates: { canonical: `https://settlegrid.ai/developers/${canonicalSlug}` },
     openGraph: {
       title: `${profile.name} | SettleGrid Developer`,
       description: profile.bio || `Developer profile for ${profile.name} on SettleGrid.`,

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -9,9 +9,16 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
+const RESERVED_SLUGS = new Set([
+  'admin', 'api', 'settings', 'dashboard', 'login', 'register',
+  'docs', 'tools', 'learn', 'faq', 'privacy', 'terms', 'support',
+  'help', 'billing', 'pricing', 'about', 'contact', 'blog',
+  'settlegrid', 'system', 'null', 'undefined', 'new',
+])
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
+  slug: z.string().min(3).max(30).regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, 'Slug must be lowercase letters, numbers, and hyphens only. No leading/trailing hyphens.').optional(),
   publicProfile: z.boolean().optional(),
   publicBio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
@@ -39,6 +46,27 @@ export async function PATCH(request: NextRequest) {
     if (body.name !== undefined) {
       updates.name = body.name
     }
+    if (body.slug !== undefined) {
+      const normalizedSlug = body.slug.toLowerCase()
+
+      // Check reserved slugs
+      if (RESERVED_SLUGS.has(normalizedSlug)) {
+        return errorResponse('This profile URL is reserved.', 409, 'SLUG_RESERVED')
+      }
+
+      // Check uniqueness (exclude current developer)
+      const [existing] = await db
+        .select({ id: developers.id })
+        .from(developers)
+        .where(and(eq(developers.slug, normalizedSlug), ne(developers.id, auth.id)))
+        .limit(1)
+
+      if (existing) {
+        return errorResponse('This profile URL is already taken.', 409, 'SLUG_TAKEN')
+      }
+
+      updates.slug = normalizedSlug
+    }
     if (body.publicProfile !== undefined) {
       updates.publicProfile = body.publicProfile
     }
@@ -55,6 +83,7 @@ export async function PATCH(request: NextRequest) {
       .where(eq(developers.id, auth.id))
       .returning({
         name: developers.name,
+        slug: developers.slug,
         publicProfile: developers.publicProfile,
         publicBio: developers.publicBio,
         avatarUrl: developers.avatarUrl,

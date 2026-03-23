@@ -30,12 +30,12 @@ async function main() {
     .limit(1);
 
   if (existing.length > 0) {
-    console.log(`Developer ${email} already exists (id: ${existing[0].id}). Updating supabaseUserId.`);
+    console.log(`Developer ${email} already exists (id: ${existing[0].id}). Updating supabaseUserId and slug.`);
     await db
       .update(developers)
-      .set({ supabaseUserId })
+      .set({ supabaseUserId, slug: "lexwhiting" })
       .where(eq(developers.email, email));
-    console.log("supabaseUserId updated.");
+    console.log("supabaseUserId and slug updated.");
     process.exit(0);
   }
 
@@ -45,6 +45,7 @@ async function main() {
     .values({
       email,
       name: "Lex Whiting",
+      slug: "lexwhiting",
       supabaseUserId,
       tier: "enterprise",
       revenueSharePct: 97,
