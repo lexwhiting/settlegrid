@@ -125,8 +125,8 @@ export async function POST(request: NextRequest) {
         },
       ],
       mode: 'payment',
-      success_url: `${appUrl}/dashboard/consumer?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/dashboard/consumer?purchase=cancelled`,
+      success_url: `${appUrl}/consumer?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/consumer?purchase=cancelled`,
       metadata: {
         purchaseId: purchase.id,
         consumerId: auth.id,
