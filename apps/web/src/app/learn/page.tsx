@@ -83,9 +83,9 @@ const SECTIONS: SectionCard[] = [
   {
     title: 'Templates & Starters',
     description:
-      'Open-source MCP server templates you can fork and customize. Web search, document analysis, database query, image generation, code review, lead enrichment, web scraping, transcription, email, finance, translation, sentiment, and PDF processing — each with billing already wired in.',
+      'Open-source MCP server and REST API templates you can fork and customize. 13 MCP templates (web search, document analysis, database query, and more) plus 4 REST templates (Next.js, Express, AI proxy, dual protocol) — each with billing already wired in.',
     href: '/templates/',
-    badge: '13 templates',
+    badge: '17 templates',
     icon: (
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
