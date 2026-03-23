@@ -15,9 +15,9 @@ export const maxDuration = 30
 // ── Plan → Stripe Price ID mapping (configure in env or replace with real IDs) ──
 
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  starter: process.env.STRIPE_PRICE_STARTER,
-  growth: process.env.STRIPE_PRICE_GROWTH,
-  scale: process.env.STRIPE_PRICE_SCALE,
+  starter: process.env.STRIPE_PRICE_STARTER?.trim(),
+  growth: process.env.STRIPE_PRICE_GROWTH?.trim(),
+  scale: process.env.STRIPE_PRICE_SCALE?.trim(),
 }
 
 const subscribeSchema = z.object({
