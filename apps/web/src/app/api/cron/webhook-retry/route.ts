@@ -7,7 +7,8 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
-import { webhookFailureEmail, sendEmail } from '@/lib/email'
+import { webhookFailureEmail } from '@/lib/email'
+import { sendNotificationEmail } from '@/lib/notifications'
 
 export const maxDuration = 60
 
@@ -135,7 +136,6 @@ export async function GET(request: NextRequest) {
         if (endpoint.developerId) {
           const devId = endpoint.developerId
           const epUrl = endpoint.url
-          const epId = endpoint.id
           const httpStatus = result.httpStatus ?? 0
           Promise.resolve().then(async () => {
             try {
@@ -146,10 +146,16 @@ export async function GET(request: NextRequest) {
                 .limit(1)
               if (dev?.email) {
                 const template = webhookFailureEmail(dev.email, epUrl, newAttempts, httpStatus)
-                await sendEmail({ to: dev.email, subject: template.subject, html: template.html })
+                await sendNotificationEmail({
+                  developerId: devId,
+                  eventKey: 'webhook_delivery_failed',
+                  email: dev.email,
+                  subject: template.subject,
+                  html: template.html,
+                })
               }
             } catch {
-              logger.error('webhook.failure_email_failed', { endpointId: epId })
+              logger.error('webhook.failure_email_failed', { developerId: devId })
             }
           })
         }

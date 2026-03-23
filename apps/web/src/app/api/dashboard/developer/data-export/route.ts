@@ -1,11 +1,19 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
-import { requestDataExport, processDataExport } from '@/lib/settlement/compliance'
+import { requestDataExport, processDataExport, ALL_EXPORT_CATEGORIES } from '@/lib/settlement/compliance'
+import type { ExportCategory } from '@/lib/settlement/compliance'
 import { dataExportReadyEmail, sendEmail } from '@/lib/email'
 import { getAppUrl } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { writeAuditLog } from '@/lib/audit'
+
+const exportBodySchema = z.object({
+  categories: z.array(z.enum(['profile', 'tools', 'invocations', 'payouts', 'webhooks', 'audit_logs'])).min(1).optional(),
+  days: z.number().int().min(1).max(730).optional(),
+}).optional()
 
 export const maxDuration = 60
 
@@ -26,11 +34,25 @@ export async function POST(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    // Parse optional body for selective export
+    let categories: ExportCategory[] | undefined
+    let days: number | undefined
+    try {
+      const rawBody = await request.json().catch(() => undefined)
+      if (rawBody) {
+        const parsed = exportBodySchema.parse(rawBody)
+        categories = parsed?.categories as ExportCategory[] | undefined
+        days = parsed?.days
+      }
+    } catch {
+      // If body parsing fails, fall back to full export
+    }
+
     // Create the export request record
     const { id: exportId } = await requestDataExport('provider', auth.id)
 
-    // Process the export immediately (collects all data and stores as base64)
-    const result = await processDataExport(exportId)
+    // Process the export (optionally filtered by categories and time range)
+    const result = await processDataExport(exportId, categories, days)
 
     if (result.status !== 'completed') {
       return errorResponse('Data export failed. Please try again later.', 500, 'EXPORT_FAILED')
@@ -44,6 +66,16 @@ export async function POST(request: NextRequest) {
     sendEmail({ to: auth.email, subject: template.subject, html: template.html }).catch((err) =>
       logger.error('data_export.email_failed', { exportId, developerId: auth.id }, err)
     )
+
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'privacy.data_export_requested',
+      resourceType: 'compliance_export',
+      resourceId: exportId,
+      details: { exportId, categories: categories ?? ALL_EXPORT_CATEGORIES, days: days ?? 90 },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
 
     return successResponse({ success: true, exportId })
   } catch (error) {

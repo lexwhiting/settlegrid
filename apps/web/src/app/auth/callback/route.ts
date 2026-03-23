@@ -5,6 +5,7 @@ import { developers, consumers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { welcomeDeveloperEmail, welcomeConsumerEmail, sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { writeAuditLog } from '@/lib/audit'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
       null
 
     // Ensure developer record exists
+    let developerId: string | undefined
     try {
       const [existing] = await db
         .select({ id: developers.id })
@@ -64,17 +66,20 @@ export async function GET(request: NextRequest) {
           .limit(1)
 
         if (byEmail) {
+          developerId = byEmail.id
           await db
             .update(developers)
             .set({ supabaseUserId: user.id, updatedAt: new Date() })
             .where(eq(developers.email, email))
         } else {
-          await db.insert(developers).values({
+          const [inserted] = await db.insert(developers).values({
             email,
             name,
             supabaseUserId: user.id,
             updatedAt: new Date(),
-          })
+          }).returning({ id: developers.id })
+
+          developerId = inserted?.id
 
           const displayName = name ?? email
           const template = welcomeDeveloperEmail(displayName)
@@ -82,6 +87,19 @@ export async function GET(request: NextRequest) {
             logger.error('auth.welcome_email_failed', { email }, err)
           })
         }
+      } else {
+        developerId = existing.id
+      }
+
+      if (developerId) {
+        writeAuditLog({
+          developerId,
+          action: 'auth.login',
+          resourceType: 'session',
+          details: { provider: user.app_metadata?.provider ?? 'email', email: user.email },
+          ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+          userAgent: request.headers.get('user-agent') ?? undefined,
+        }).catch(() => {/* fire-and-forget */})
       }
     } catch (dbErr) {
       logger.error('auth.developer_record_failed', { email, userId: user.id }, dbErr as Error)

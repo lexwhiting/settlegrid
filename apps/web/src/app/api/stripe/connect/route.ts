@@ -7,6 +7,7 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 60
 
@@ -80,6 +81,16 @@ export async function POST(request: NextRequest) {
       return_url: `${appUrl}/api/stripe/connect/callback?account_id=${accountId}`,
       type: 'account_onboarding',
     })
+
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'billing.stripe_connect_started',
+      resourceType: 'stripe_account',
+      resourceId: accountId,
+      details: { stripeAccountId: accountId },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
 
     return successResponse({ url: accountLink.url })
   } catch (error) {

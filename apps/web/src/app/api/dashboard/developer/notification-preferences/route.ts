@@ -6,6 +6,7 @@ import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 30
 
@@ -25,6 +26,7 @@ const VALID_EVENT_KEYS = [
   'suspicious_activity',
   'webhook_delivery_failed',
   'webhook_endpoint_disabled',
+  'marketing_updates',
 ] as const
 
 const notificationPreferencesSchema = z.record(
@@ -108,6 +110,16 @@ export async function PATCH(request: NextRequest) {
     if (!updated) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
     }
+
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'settings.notifications_updated',
+      resourceType: 'developer',
+      resourceId: auth.id,
+      details: { updatedKeys: Object.keys(body) },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
 
     return successResponse({
       preferences: updated.notificationPreferences,

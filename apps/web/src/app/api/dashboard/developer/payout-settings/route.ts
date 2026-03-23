@@ -6,6 +6,7 @@ import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 60
 
@@ -52,6 +53,16 @@ export async function PATCH(request: NextRequest) {
     if (!updated) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
     }
+
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'settings.payout_updated',
+      resourceType: 'developer',
+      resourceId: auth.id,
+      details: { fields: Object.keys(updates).filter((k) => k !== 'updatedAt') },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
 
     return successResponse({ payoutSettings: updated })
   } catch (error) {

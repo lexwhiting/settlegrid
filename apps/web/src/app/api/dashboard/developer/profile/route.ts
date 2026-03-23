@@ -6,6 +6,7 @@ import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 60
 
@@ -22,6 +23,10 @@ const updateProfileSchema = z.object({
   publicProfile: z.boolean().optional(),
   publicBio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
+  // Data retention settings
+  logRetentionDays: z.number().int().refine((v) => v === 0 || (v >= 30 && v <= 365), 'Must be 0 (forever) or 30-365').optional(),
+  webhookLogRetentionDays: z.number().int().min(7, 'Minimum 7 days').max(90, 'Maximum 90 days').optional(),
+  auditLogRetentionDays: z.number().int().min(90, 'Minimum 90 days').max(730, 'Maximum 730 days').optional(),
 })
 
 /** PATCH /api/dashboard/developer/profile — update developer profile settings */
@@ -76,6 +81,15 @@ export async function PATCH(request: NextRequest) {
     if (body.avatarUrl !== undefined) {
       updates.avatarUrl = body.avatarUrl
     }
+    if (body.logRetentionDays !== undefined) {
+      updates.logRetentionDays = body.logRetentionDays
+    }
+    if (body.webhookLogRetentionDays !== undefined) {
+      updates.webhookLogRetentionDays = body.webhookLogRetentionDays
+    }
+    if (body.auditLogRetentionDays !== undefined) {
+      updates.auditLogRetentionDays = body.auditLogRetentionDays
+    }
 
     const [updated] = await db
       .update(developers)
@@ -87,12 +101,25 @@ export async function PATCH(request: NextRequest) {
         publicProfile: developers.publicProfile,
         publicBio: developers.publicBio,
         avatarUrl: developers.avatarUrl,
+        logRetentionDays: developers.logRetentionDays,
+        webhookLogRetentionDays: developers.webhookLogRetentionDays,
+        auditLogRetentionDays: developers.auditLogRetentionDays,
         updatedAt: developers.updatedAt,
       })
 
     if (!updated) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
     }
+
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'settings.profile_updated',
+      resourceType: 'developer',
+      resourceId: auth.id,
+      details: { fields: Object.keys(updates).filter((k) => k !== 'updatedAt') },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
 
     return successResponse({ profile: updated })
   } catch (error) {

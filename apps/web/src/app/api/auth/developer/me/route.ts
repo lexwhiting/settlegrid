@@ -40,6 +40,9 @@ export async function GET(request: NextRequest) {
         payoutMinimumCents: developers.payoutMinimumCents,
         publicProfile: developers.publicProfile,
         publicBio: developers.publicBio,
+        logRetentionDays: developers.logRetentionDays,
+        webhookLogRetentionDays: developers.webhookLogRetentionDays,
+        auditLogRetentionDays: developers.auditLogRetentionDays,
         createdAt: developers.createdAt,
       })
       .from(developers)

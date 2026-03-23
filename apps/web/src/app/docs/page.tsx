@@ -596,6 +596,26 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       q: 'Is there an OpenAPI specification?',
       a: 'Yes. The full SettleGrid API is documented in an OpenAPI 3.1 spec available at /api/openapi.json. This spec can be imported into Postman, Swagger UI, or any API client to explore and test all endpoints.',
     },
+    {
+      q: 'How is my data backed up?',
+      a: 'SettleGrid\'s data is hosted on Supabase (PostgreSQL), which provides automated daily backups with point-in-time recovery (PITR) up to 7 days. Backups are encrypted at rest using AES-256. Database connections use TLS 1.2+ encryption in transit. All infrastructure runs on SOC 2 Type II certified providers.',
+    },
+    {
+      q: 'What happens if there is a data loss event?',
+      a: 'Supabase maintains automated backups that can restore data to any point within the last 7 days. Payment records are also independently stored by Stripe, providing an additional layer of redundancy for financial data. In a disaster scenario, SettleGrid can restore from Supabase backups + Stripe records.',
+    },
+    {
+      q: 'How long are my payment records retained?',
+      a: 'Payment records (payouts, purchases, settlement batches) are retained for 7 years per IRS record-keeping requirements and Stripe\'s terms of service. These records cannot be deleted even if you close your account, as they are required for tax compliance.',
+    },
+    {
+      q: 'What data is retained after account deletion?',
+      a: 'When you delete your account, all personally identifiable information (name, email, bio, avatar) is immediately anonymized. Your API keys, webhook endpoints, and Supabase auth records are deleted. However, financial records (payouts, purchases) are retained for 7 years with your developer ID anonymized. Audit logs are retained with IP addresses removed. This process completes within 90 days of your deletion request.',
+    },
+    {
+      q: 'Can I request my data be removed from backups?',
+      a: 'Supabase backups rotate automatically on a 7-day cycle. After account deletion + 7 days, your PII will no longer exist in any backup. Financial records in backups are retained per the 7-year requirement but are anonymized in the primary database.',
+    },
   ],
 },
 {

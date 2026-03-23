@@ -9,7 +9,8 @@ import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriod
 import { detectFraud } from '@/lib/fraud'
 import { logger } from '@/lib/logger'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
-import { sendEmail, suspiciousActivityEmail } from '@/lib/email'
+import { suspiciousActivityEmail } from '@/lib/email'
+import { sendNotificationEmail } from '@/lib/notifications'
 
 export const maxDuration = 60
 export { corsOptions as OPTIONS }
@@ -188,7 +189,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
         reasons: fraudResult.reasons,
       })
 
-      // Fire-and-forget: notify the consumer about suspicious activity
+      // Fire-and-forget: notify the consumer about suspicious activity (critical — always sent)
       db.select({ email: consumers.email })
         .from(consumers)
         .where(eq(consumers.id, body.consumerId))
@@ -196,7 +197,14 @@ export const POST = withCors(async function POST(request: NextRequest) {
         .then(([consumer]) => {
           if (consumer?.email) {
             const tmpl = suspiciousActivityEmail(consumer.email, fraudResult.reasons, fraudResult.riskScore)
-            sendEmail({ to: consumer.email, subject: tmpl.subject, html: tmpl.html }).catch(() => {})
+            sendNotificationEmail({
+              developerId: toolDev.developerId,
+              eventKey: 'suspicious_activity',
+              email: consumer.email,
+              subject: tmpl.subject,
+              html: tmpl.html,
+              critical: true,
+            }).catch(() => {})
           }
         })
         .catch(() => {})

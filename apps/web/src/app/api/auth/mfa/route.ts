@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 30
 
@@ -103,8 +104,9 @@ export async function PUT(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
+    let auth
     try {
-      await requireDeveloper(request)
+      auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
@@ -132,6 +134,16 @@ export async function PUT(request: NextRequest) {
       return errorResponse(verifyError.message || 'Invalid verification code.', 400, 'MFA_VERIFY_ERROR')
     }
 
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'security.mfa_enabled',
+      resourceType: 'mfa_factor',
+      resourceId: body.factorId,
+      details: { factorId: body.factorId },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
+
     return successResponse({
       verified: true,
       factorId: body.factorId,
@@ -156,8 +168,9 @@ export async function DELETE(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
+    let auth
     try {
-      await requireDeveloper(request)
+      auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
@@ -182,6 +195,16 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       return errorResponse(error.message || 'Failed to unenroll MFA factor.', 400, 'MFA_UNENROLL_ERROR')
     }
+
+    writeAuditLog({
+      developerId: auth.id,
+      action: 'security.mfa_disabled',
+      resourceType: 'mfa_factor',
+      resourceId: factorId,
+      details: { factorId },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    }).catch(() => {/* fire-and-forget */})
 
     return successResponse({ unenrolled: true, factorId })
   } catch (error) {

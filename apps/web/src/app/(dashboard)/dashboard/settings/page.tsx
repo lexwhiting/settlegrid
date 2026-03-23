@@ -26,6 +26,9 @@ interface DeveloperProfile {
   payoutMinimumCents: number
   publicProfile: boolean
   publicBio: string | null
+  logRetentionDays: number
+  webhookLogRetentionDays: number
+  auditLogRetentionDays: number
   createdAt: string
 }
 
@@ -275,6 +278,26 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
+  // Data retention state
+  const [logRetentionDays, setLogRetentionDays] = useState(90)
+  const [webhookLogRetentionDays, setWebhookLogRetentionDays] = useState(30)
+  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365)
+  const [savingRetention, setSavingRetention] = useState(false)
+
+  // Marketing communications toggle
+  const [marketingUpdates, setMarketingUpdates] = useState(true)
+
+  // Selective export state
+  const [exportCategories, setExportCategories] = useState({
+    profile: true,
+    tools: true,
+    invocations: true,
+    payouts: true,
+    webhooks: true,
+    audit_logs: true,
+  })
+  const [exportDays, setExportDays] = useState(90)
+
   // Plan & Billing state
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null)
   const [managingSubscription, setManagingSubscription] = useState(false)
@@ -295,6 +318,9 @@ export default function SettingsPage() {
         setPublicProfile(dev.publicProfile)
         setPayoutSchedule(dev.payoutSchedule)
         setPayoutMinimumDollars(String(dev.payoutMinimumCents / 100))
+        setLogRetentionDays(dev.logRetentionDays ?? 90)
+        setWebhookLogRetentionDays(dev.webhookLogRetentionDays ?? 30)
+        setAuditLogRetentionDays(dev.auditLogRetentionDays ?? 365)
 
         // Load saved notification preferences
         try {
@@ -306,6 +332,10 @@ export default function SettingsPage() {
               setNotifications((prev) =>
                 prev.map((n) => saved[n.key] !== undefined ? { ...n, emailEnabled: saved[n.key] } : n)
               )
+              // Load marketing communications preference
+              if (saved.marketing_updates !== undefined) {
+                setMarketingUpdates(saved.marketing_updates)
+              }
             }
           }
         } catch {
@@ -591,9 +621,20 @@ export default function SettingsPage() {
   }
 
   async function handleExportData() {
+    const selectedCategories = Object.entries(exportCategories)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+    if (selectedCategories.length === 0) {
+      toast('Select at least one data category to export', 'error')
+      return
+    }
     setExportingData(true)
     try {
-      const res = await fetch('/api/dashboard/developer/data-export', { method: 'POST' })
+      const res = await fetch('/api/dashboard/developer/data-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: selectedCategories, days: exportDays }),
+      })
       const data = await res.json()
       if (!res.ok) {
         toast(data.error || 'Failed to export data', 'error')
@@ -605,6 +646,51 @@ export default function SettingsPage() {
     } finally {
       setExportingData(false)
     }
+  }
+
+  async function saveRetentionSettings() {
+    setSavingRetention(true)
+    try {
+      const res = await fetch('/api/dashboard/developer/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          logRetentionDays,
+          webhookLogRetentionDays,
+          auditLogRetentionDays,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast(data.error || 'Failed to save retention settings', 'error')
+        return
+      }
+      toast('Retention settings saved', 'success')
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setSavingRetention(false)
+    }
+  }
+
+  function toggleMarketingUpdates() {
+    const newValue = !marketingUpdates
+    setMarketingUpdates(newValue)
+    // Save to notification preferences API
+    fetch('/api/dashboard/developer/notification-preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ marketing_updates: newValue }),
+    })
+      .then(async (res) => {
+        if (!res.ok) toast('Failed to update preference', 'error')
+        else toast(newValue ? 'Marketing emails enabled' : 'Marketing emails disabled', 'success')
+      })
+      .catch(() => toast('Network error', 'error'))
+  }
+
+  function toggleExportCategory(key: keyof typeof exportCategories) {
+    setExportCategories((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
   async function handleUpgradePlan(plan: string) {

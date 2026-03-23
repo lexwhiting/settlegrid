@@ -2,14 +2,17 @@ import { db } from '@/lib/db'
 import {
   complianceExports,
   developers,
+  consumers,
   tools,
   invocations,
+  apiKeys,
   payouts,
   webhookEndpoints,
   referrals,
   auditLogs,
+  toolReviews,
 } from '@/lib/db/schema'
-import { eq, and, gte, desc } from 'drizzle-orm'
+import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ---- Types ------------------------------------------------------------------
@@ -109,20 +112,41 @@ export async function getExportStatus(
  * Returns a structured JSON object with profile, tools, invocations (last 90 days),
  * payouts, webhooks, referrals, and audit logs.
  */
-export async function collectDeveloperData(developerId: string): Promise<Record<string, unknown>> {
-  const ninetyDaysAgo = new Date()
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+/** Valid category keys for selective data export */
+export type ExportCategory = 'profile' | 'tools' | 'invocations' | 'payouts' | 'webhooks' | 'audit_logs'
 
-  // Query all related data in parallel
-  const [profileRows, toolRows, invocationRows, payoutRows, webhookRows, referralRows, auditLogRows] =
-    await Promise.all([
-      // Developer profile
-      db.select().from(developers).where(eq(developers.id, developerId)).limit(1),
+export const ALL_EXPORT_CATEGORIES: ExportCategory[] = [
+  'profile', 'tools', 'invocations', 'payouts', 'webhooks', 'audit_logs',
+]
 
-      // Developer tools
-      db.select().from(tools).where(eq(tools.developerId, developerId)).orderBy(desc(tools.createdAt)),
+export async function collectDeveloperData(
+  developerId: string,
+  categories?: ExportCategory[],
+  days?: number,
+): Promise<Record<string, unknown>> {
+  const lookbackDays = days ?? 90
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - lookbackDays)
 
-      // Invocations for developer's tools (last 90 days)
+  const cats = new Set(categories ?? ALL_EXPORT_CATEGORIES)
+
+  // Build parallel query array based on requested categories
+  const queries: Promise<unknown>[] = []
+  const queryKeys: string[] = []
+
+  if (cats.has('profile')) {
+    queryKeys.push('profile')
+    queries.push(db.select().from(developers).where(eq(developers.id, developerId)).limit(1))
+  }
+
+  if (cats.has('tools')) {
+    queryKeys.push('tools')
+    queries.push(db.select().from(tools).where(eq(tools.developerId, developerId)).orderBy(desc(tools.createdAt)))
+  }
+
+  if (cats.has('invocations')) {
+    queryKeys.push('invocations')
+    queries.push(
       db
         .select({
           id: invocations.id,
@@ -137,55 +161,91 @@ export async function collectDeveloperData(developerId: string): Promise<Record<
         })
         .from(invocations)
         .innerJoin(tools, eq(invocations.toolId, tools.id))
-        .where(and(eq(tools.developerId, developerId), gte(invocations.createdAt, ninetyDaysAgo)))
+        .where(and(eq(tools.developerId, developerId), gte(invocations.createdAt, cutoffDate)))
         .orderBy(desc(invocations.createdAt))
-        .limit(10000),
+        .limit(10000)
+    )
+  }
 
-      // Payouts
-      db.select().from(payouts).where(eq(payouts.developerId, developerId)).orderBy(desc(payouts.createdAt)),
+  if (cats.has('payouts')) {
+    queryKeys.push('payouts')
+    queries.push(db.select().from(payouts).where(eq(payouts.developerId, developerId)).orderBy(desc(payouts.createdAt)))
+  }
 
-      // Webhook endpoints
+  if (cats.has('webhooks')) {
+    queryKeys.push('webhooks')
+    queries.push(
       db
         .select()
         .from(webhookEndpoints)
         .where(eq(webhookEndpoints.developerId, developerId))
-        .orderBy(desc(webhookEndpoints.createdAt)),
+        .orderBy(desc(webhookEndpoints.createdAt))
+    )
+  }
 
-      // Referrals
-      db.select().from(referrals).where(eq(referrals.referrerId, developerId)).orderBy(desc(referrals.createdAt)),
+  // Referrals are included whenever profile or tools are requested
+  if (cats.has('profile') || cats.has('tools')) {
+    queryKeys.push('referrals')
+    queries.push(db.select().from(referrals).where(eq(referrals.referrerId, developerId)).orderBy(desc(referrals.createdAt)))
+  }
 
-      // Audit logs (last 90 days)
+  if (cats.has('audit_logs')) {
+    queryKeys.push('audit_logs')
+    queries.push(
       db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.developerId, developerId), gte(auditLogs.createdAt, ninetyDaysAgo)))
+        .where(and(eq(auditLogs.developerId, developerId), gte(auditLogs.createdAt, cutoffDate)))
         .orderBy(desc(auditLogs.createdAt))
-        .limit(5000),
-    ])
-
-  // Redact sensitive fields from the profile
-  const profile = profileRows[0]
-    ? {
-        ...profileRows[0],
-        passwordHash: undefined,
-        apiKeyHash: undefined,
-      }
-    : null
-
-  return {
-    exportedAt: new Date().toISOString(),
-    exportVersion: '1.0',
-    profile,
-    tools: toolRows,
-    invocations: invocationRows,
-    payouts: payoutRows,
-    webhookEndpoints: webhookRows.map((w) => ({
-      ...w,
-      secret: '[REDACTED]', // Do not expose webhook secrets in export
-    })),
-    referrals: referralRows,
-    auditLogs: auditLogRows,
+        .limit(5000)
+    )
   }
+
+  const results = await Promise.all(queries)
+
+  // Build result map keyed by queryKeys
+  const resultMap = new Map<string, unknown>()
+  for (let i = 0; i < queryKeys.length; i++) {
+    resultMap.set(queryKeys[i], results[i])
+  }
+
+  const output: Record<string, unknown> = {
+    exportedAt: new Date().toISOString(),
+    exportVersion: '1.1',
+    categories: [...cats],
+    lookbackDays,
+  }
+
+  if (resultMap.has('profile')) {
+    const profileRows = resultMap.get('profile') as typeof developers.$inferSelect[]
+    output.profile = profileRows[0]
+      ? { ...profileRows[0], passwordHash: undefined, apiKeyHash: undefined }
+      : null
+  }
+  if (resultMap.has('tools')) {
+    output.tools = resultMap.get('tools')
+  }
+  if (resultMap.has('invocations')) {
+    output.invocations = resultMap.get('invocations')
+  }
+  if (resultMap.has('payouts')) {
+    output.payouts = resultMap.get('payouts')
+  }
+  if (resultMap.has('webhooks')) {
+    const webhookRows = resultMap.get('webhooks') as typeof webhookEndpoints.$inferSelect[]
+    output.webhookEndpoints = webhookRows.map((w) => ({
+      ...w,
+      secret: '[REDACTED]',
+    }))
+  }
+  if (resultMap.has('referrals')) {
+    output.referrals = resultMap.get('referrals')
+  }
+  if (resultMap.has('audit_logs')) {
+    output.auditLogs = resultMap.get('audit_logs')
+  }
+
+  return output
 }
 
 // ---- Process Data Export (GDPR Article 20) ----------------------------------
@@ -196,7 +256,9 @@ export async function collectDeveloperData(developerId: string): Promise<Record<
  * and stores the result in the compliance_exports record.
  */
 export async function processDataExport(
-  exportId: string
+  exportId: string,
+  categories?: ExportCategory[],
+  days?: number,
 ): Promise<{ status: ComplianceStatus; resultUrl: string | null }> {
   const [record] = await db
     .select()
@@ -223,8 +285,8 @@ export async function processDataExport(
     .where(eq(complianceExports.id, exportId))
 
   try {
-    // Collect all developer data
-    const exportData = await collectDeveloperData(record.entityId)
+    // Collect developer data (optionally filtered by categories and time range)
+    const exportData = await collectDeveloperData(record.entityId, categories, days)
 
     // Encode the JSON as a base64 data URL for storage in the DB
     const jsonString = JSON.stringify(exportData, null, 2)
@@ -263,9 +325,13 @@ export async function processDataExport(
 
 /**
  * Process a pending data deletion request.
- * Anonymizes PII for the entity across all relevant tables.
- * In production this would scrub names, emails, IPs etc.;
- * for now it marks the record as completed.
+ * Anonymizes PII across all relevant tables in a single transaction.
+ * Financial records (payouts, purchases, ledger_entries, settlement_batches)
+ * are retained for 7-year IRS / Stripe compliance but PII is scrubbed.
+ *
+ * Idempotent: re-running on an already-anonymized developer is a no-op
+ * for each individual step (UPDATE ... SET name = '[Deleted]' WHERE id = X
+ * is safe to run twice).
  */
 export async function processDataDeletion(
   exportId: string
@@ -288,6 +354,8 @@ export async function processDataDeletion(
     throw new Error(`Deletion already processed: status=${record.status}`)
   }
 
+  const developerId = record.entityId
+
   // Mark as processing
   await db
     .update(complianceExports)
@@ -295,23 +363,143 @@ export async function processDataDeletion(
     .where(eq(complianceExports.id, exportId))
 
   try {
-    // In production: anonymize PII in accounts, ledger_entries, invocations,
-    // agent_identities, workflow_sessions etc. for this entity.
-    // Replace emails with "deleted@anonymized", names with "[REDACTED]",
-    // IPs with "0.0.0.0", etc.
+    // Look up developer to get email for consumer cross-reference
+    const [dev] = await db
+      .select({ id: developers.id, email: developers.email })
+      .from(developers)
+      .where(eq(developers.id, developerId))
+      .limit(1)
 
-    await db
-      .update(complianceExports)
-      .set({
-        status: 'completed',
-        completedAt: new Date(),
-      })
-      .where(eq(complianceExports.id, exportId))
+    if (!dev) {
+      throw new Error(`Developer not found: ${developerId}`)
+    }
+
+    // Get all tool IDs owned by this developer (needed for cascading deletes)
+    const devTools = await db
+      .select({ id: tools.id })
+      .from(tools)
+      .where(eq(tools.developerId, developerId))
+
+    const toolIds = devTools.map((t) => t.id)
+
+    await db.transaction(async (tx) => {
+      // ── 1. Anonymize developer profile ─────────────────────────────
+      await tx
+        .update(developers)
+        .set({
+          name: '[Deleted]',
+          email: `deleted-${developerId}@deleted.settlegrid.ai`,
+          publicBio: null,
+          avatarUrl: null,
+          passwordHash: null,
+          apiKeyHash: null,
+          supabaseUserId: null,
+          slug: null,
+          stripeConnectId: null,
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          notificationPreferences: {},
+          publicProfile: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(developers.id, developerId))
+
+      // ── 2. Anonymize consumer record with the same email (if any) ──
+      const [consumerRecord] = await tx
+        .select({ id: consumers.id })
+        .from(consumers)
+        .where(eq(consumers.email, dev.email))
+        .limit(1)
+
+      if (consumerRecord) {
+        await tx
+          .update(consumers)
+          .set({
+            email: `deleted-${consumerRecord.id}@deleted.settlegrid.ai`,
+            supabaseUserId: null,
+            passwordHash: null,
+          })
+          .where(eq(consumers.id, consumerRecord.id))
+      }
+
+      // ── 3. Delete API keys for this developer's tools ──────────────
+      if (toolIds.length > 0) {
+        await tx
+          .delete(apiKeys)
+          .where(inArray(apiKeys.toolId, toolIds))
+      }
+
+      // ── 4. Null out PII metadata on invocations (keep financial data) ──
+      if (toolIds.length > 0) {
+        await tx
+          .update(invocations)
+          .set({ metadata: null })
+          .where(inArray(invocations.toolId, toolIds))
+      }
+
+      // ── 5. Scrub IP/UA from audit logs ─────────────────────────────
+      await tx
+        .update(auditLogs)
+        .set({ ipAddress: null, userAgent: null })
+        .where(eq(auditLogs.developerId, developerId))
+
+      // ── 6. Delete webhook endpoints (may reveal infrastructure URLs) ─
+      await tx
+        .delete(webhookEndpoints)
+        .where(eq(webhookEndpoints.developerId, developerId))
+
+      // ── 7. Anonymize tool reviews written by the developer's consumer ─
+      //    Reviews are authored by consumers, not the developer, but if the
+      //    developer also has a consumer account, anonymize those reviews.
+      if (consumerRecord) {
+        await tx
+          .update(toolReviews)
+          .set({ comment: null })
+          .where(eq(toolReviews.consumerId, consumerRecord.id))
+      }
+
+      // ── 8. Mark tools as deleted, clear description/health endpoint ─
+      if (toolIds.length > 0) {
+        await tx
+          .update(tools)
+          .set({
+            status: 'deleted',
+            description: null,
+            healthEndpoint: null,
+            updatedAt: new Date(),
+          })
+          .where(inArray(tools.id, toolIds))
+      }
+
+      // ── 9. Mark compliance export as completed ─────────────────────
+      await tx
+        .update(complianceExports)
+        .set({
+          status: 'completed',
+          resultUrl: JSON.stringify({
+            anonymized: [
+              'developers',
+              ...(consumerRecord ? ['consumers'] : []),
+              ...(toolIds.length > 0 ? ['api_keys', 'invocations.metadata'] : []),
+              'audit_logs.ip_address',
+              'audit_logs.user_agent',
+              'webhook_endpoints',
+              ...(consumerRecord ? ['tool_reviews'] : []),
+              ...(toolIds.length > 0 ? ['tools'] : []),
+            ],
+            retained: ['payouts', 'purchases', 'ledger_entries', 'settlement_batches'],
+            toolCount: toolIds.length,
+          }),
+          completedAt: new Date(),
+        })
+        .where(eq(complianceExports.id, exportId))
+    })
 
     logger.info('compliance.data_deletion_completed', {
       exportId,
       entityType: record.entityType,
-      entityId: record.entityId,
+      entityId: developerId,
+      toolCount: toolIds.length,
     })
 
     return { status: 'completed' }
