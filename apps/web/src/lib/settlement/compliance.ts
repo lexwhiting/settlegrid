@@ -12,7 +12,7 @@ import {
   auditLogs,
   toolReviews,
 } from '@/lib/db/schema'
-import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
+import { eq, and, gte, desc, inArray } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ---- Types ------------------------------------------------------------------
