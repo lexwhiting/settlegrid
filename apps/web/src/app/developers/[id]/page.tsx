@@ -167,6 +167,7 @@ export default async function DeveloperProfilePage({
           {/* Developer Info */}
           <div className="flex items-start gap-6 mb-10">
             {profile.avatarUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={profile.avatarUrl}
                 alt={profile.name}

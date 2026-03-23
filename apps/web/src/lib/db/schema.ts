@@ -23,7 +23,7 @@ export const developers = pgTable('developers', {
   slug: text('slug').unique(), // vanity URL slug, e.g., 'lexwhiting'
   supabaseUserId: text('supabase_user_id').unique(),
   passwordHash: text('password_hash'),
-  tier: text('tier').notNull().default('standard'), // 'standard' | 'enterprise'
+  tier: text('tier').notNull().default('standard'), // 'standard' | 'starter' | 'growth' | 'scale' | 'enterprise'
   revenueSharePct: integer('revenue_share_pct').notNull().default(100), // 100 = free tier keeps 100% (0% fee); paid tiers set to 95 on upgrade
   stripeConnectId: text('stripe_connect_id'),
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),

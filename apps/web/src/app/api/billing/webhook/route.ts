@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { purchases, consumerToolBalances, consumers, tools } from '@/lib/db/schema'
+import { developers, purchases, consumerToolBalances, consumers, tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
@@ -13,6 +13,14 @@ import {
   paymentFailedEmail,
   sendEmail,
 } from '@/lib/email'
+
+/** Valid paid plan tiers that map from Stripe subscription metadata */
+const VALID_PAID_TIERS = ['starter', 'growth', 'scale'] as const
+type PaidTier = typeof VALID_PAID_TIERS[number]
+
+function isValidPaidTier(plan: string | undefined): plan is PaidTier {
+  return VALID_PAID_TIERS.includes(plan as PaidTier)
+}
 
 export const maxDuration = 60
 
@@ -94,6 +102,42 @@ export async function POST(request: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
 
+        // ── Developer subscription checkout ────────────────────────────
+        if (session.mode === 'subscription' && session.metadata?.developerId) {
+          const developerId = session.metadata.developerId
+          const plan = session.metadata.plan
+          const subscriptionId = typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription?.toString() ?? null
+
+          if (isValidPaidTier(plan) && subscriptionId) {
+            await db
+              .update(developers)
+              .set({
+                tier: plan,
+                stripeSubscriptionId: subscriptionId,
+                revenueSharePct: 95, // Paid tiers: 5% platform fee
+                updatedAt: new Date(),
+              })
+              .where(eq(developers.id, developerId))
+
+            logger.info('stripe.webhook.subscription_activated', {
+              developerId,
+              plan,
+              subscriptionId,
+            })
+          } else {
+            logger.error('stripe.webhook.subscription_invalid_metadata', {
+              sessionId: session.id,
+              developerId,
+              plan,
+              subscriptionId,
+            })
+          }
+          break
+        }
+
+        // ── Consumer credit purchase checkout ──────────────────────────
         const purchaseId = session.metadata?.purchaseId
         const consumerId = session.metadata?.consumerId
         const toolId = session.metadata?.toolId
@@ -288,6 +332,67 @@ export async function POST(request: NextRequest) {
           })
         }
 
+        break
+      }
+
+      // ── Developer subscription lifecycle events ─────────────────────
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription
+        const developerId = subscription.metadata?.developerId
+        const plan = subscription.metadata?.plan
+
+        if (developerId && isValidPaidTier(plan)) {
+          await db
+            .update(developers)
+            .set({
+              tier: plan,
+              revenueSharePct: 95,
+              updatedAt: new Date(),
+            })
+            .where(eq(developers.id, developerId))
+
+          logger.info('stripe.webhook.subscription_updated', {
+            developerId,
+            plan,
+            subscriptionId: subscription.id,
+            status: subscription.status,
+          })
+        } else {
+          logger.info('stripe.webhook.subscription_updated_no_action', {
+            subscriptionId: subscription.id,
+            status: subscription.status,
+            hasDeveloperId: !!developerId,
+            plan,
+          })
+        }
+        break
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription
+        const developerId = subscription.metadata?.developerId
+
+        if (developerId) {
+          await db
+            .update(developers)
+            .set({
+              tier: 'standard',
+              stripeSubscriptionId: null,
+              revenueSharePct: 100, // Free tier: 0% platform fee
+              updatedAt: new Date(),
+            })
+            .where(eq(developers.id, developerId))
+
+          logger.info('stripe.webhook.subscription_cancelled', {
+            developerId,
+            subscriptionId: subscription.id,
+          })
+        } else {
+          logger.info('stripe.webhook.subscription_deleted_no_developer', {
+            subscriptionId: subscription.id,
+          })
+        }
         break
       }
 

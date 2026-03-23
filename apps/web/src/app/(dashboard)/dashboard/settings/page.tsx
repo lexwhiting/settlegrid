@@ -1215,6 +1215,7 @@ export default function SettingsPage() {
                       </p>
                       <div className="flex justify-center">
                         {/* QR code rendered as a URI the user can scan. We use an img tag with a QR API. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaQrCode)}`}
                           alt="TOTP QR Code"
