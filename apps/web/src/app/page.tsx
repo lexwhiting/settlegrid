@@ -228,7 +228,7 @@ function ComparisonTable() {
     { name: 'Agent identity (KYA)', settlegrid: true, stripe: false, nevermined: false, paid: false },
     { name: 'Outcome-based billing', settlegrid: true, stripe: false, nevermined: true, paid: false },
     { name: 'Fiat + crypto ledger', settlegrid: true, stripe: false, nevermined: true, paid: false },
-    { name: 'Stripe Connect payouts', settlegrid: true, stripe: true, nevermined: false, paid: false },
+    { name: 'Stripe Connect payouts ($1 min)', settlegrid: true, stripe: true, nevermined: false, paid: false },
     { name: 'Per-method pricing', settlegrid: true, stripe: true, nevermined: false, paid: true },
     { name: 'Auto-refill credits', settlegrid: true, stripe: false, nevermined: false, paid: false },
     { name: 'IP allowlisting', settlegrid: true, stripe: false, nevermined: false, paid: false },
@@ -703,7 +703,7 @@ export default function HomePage() {
                 <StepCard
                   step="3"
                   title="Get Paid Automatically"
-                  description="Every call is metered in real time. Revenue splits across multi-agent chains settle atomically. Payouts hit your bank or wallet on schedule."
+                  description="Every call is metered in real time. Revenue splits across multi-agent chains settle atomically. $1 minimum payout — get paid from your very first earnings."
                 />
               </div>
             </div>
@@ -949,7 +949,7 @@ assert signature == request.headers[
               </div>
               {/* Final trust line */}
               <p className="mt-8 text-xs text-gray-400 dark:text-gray-500">
-                MIT-licensed SDK. Open source on GitHub. Backed by Stripe Connect for payouts.
+                MIT-licensed SDK. Open source on GitHub. Backed by Stripe Connect. $1 minimum payout.
               </p>
             </div>
           </RevealSection>
