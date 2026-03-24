@@ -170,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Nav items */}
-        <nav className="px-2 py-4 space-y-1">
+        <nav className="px-2 py-4 space-y-1 pb-24">
           {devNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
             return (
