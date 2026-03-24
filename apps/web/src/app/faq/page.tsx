@@ -49,6 +49,19 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     ],
   },
   {
+    title: 'CLI Tools',
+    faqs: [
+      {
+        q: 'How do I scaffold a new SettleGrid tool?',
+        a: 'Run npx create-settlegrid-tool in your terminal. It generates a complete MCP server project with SettleGrid billing, tests, Dockerfile, and README. Choose from 4 templates (blank, rest-api, openapi, mcp-server) and 3 deploy targets (Vercel, Docker, Railway). The generated project includes pricing configuration, error handling, and CI already wired in — you can be live in minutes.',
+      },
+      {
+        q: 'How do AI agents discover my tools?',
+        a: 'SettleGrid provides two discovery mechanisms. First, the MCP Discovery Server: run npx @settlegrid/discovery to start a local MCP server that any AI client (e.g., Claude Desktop) can connect to. It exposes search_tools, get_tool, list_categories, and get_developer tools so agents can find and evaluate SettleGrid-powered services at runtime. Second, the Discovery API: public REST endpoints at /api/v1/discover let any HTTP client search tools by keyword, category, or developer. Both require no authentication.',
+      },
+    ],
+  },
+  {
     title: 'SDK & Integration',
     faqs: [
       {

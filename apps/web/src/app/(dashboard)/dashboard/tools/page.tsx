@@ -478,17 +478,33 @@ export default function ToolsPage() {
               onAction={() => setShowCreate(true)}
               actionLabel="Create Tool"
             />
-            <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4 space-y-1">
-              <p>
-                Need a head start?{' '}
-                <Link href="/servers" className="text-brand hover:underline">Browse 1,017 open-source templates</Link>{' '}
-                or try{' '}
-                <Link href="/templates/" className="text-brand hover:underline">17 quickstart guides</Link>.
-              </p>
-              <p>
-                Or scaffold one instantly:{' '}
-                <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-[11px]">npx create-settlegrid-tool</code>
-              </p>
+            <div className="text-center pb-6 pt-2 space-y-4">
+              {/* CLI scaffolder */}
+              <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-lg mx-6 p-4">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Scaffold a complete project with billing pre-wired
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Generates an MCP server with tests, Dockerfile, README, and deploy config. 4 templates, 3 deploy targets.
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <code className="text-sm font-mono bg-gray-100 dark:bg-[#252836] text-brand dark:text-emerald-400 px-4 py-2 rounded-lg border border-gray-200 dark:border-[#2E3148]">
+                    npx create-settlegrid-tool
+                  </code>
+                </div>
+              </div>
+              {/* Additional links */}
+              <div className="text-xs text-gray-400 dark:text-gray-500 space-y-1">
+                <p>
+                  Or browse{' '}
+                  <Link href="/servers" className="text-brand hover:underline">1,017 open-source templates</Link>{' '}
+                  and{' '}
+                  <Link href="/templates/" className="text-brand hover:underline">17 quickstart guides</Link>.
+                </p>
+                <p>
+                  <Link href="/docs#cli-tools" className="text-brand hover:underline">View all CLI tools</Link>
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

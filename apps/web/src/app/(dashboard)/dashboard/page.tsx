@@ -395,16 +395,27 @@ export default function DeveloperDashboardPage() {
                     </p>
                     {/* SDK install snippet */}
                     {step.key === 'install-sdk' && !step.done && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300">
-                          npm install @settlegrid/mcp
-                        </code>
-                        <button
-                          onClick={dismissSdkStep}
-                          className="text-xs text-brand hover:text-brand/80 font-medium transition-colors"
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300">
+                            npm install @settlegrid/mcp
+                          </code>
+                          <button
+                            onClick={dismissSdkStep}
+                            className="text-xs text-brand hover:text-brand/80 font-medium transition-colors"
+                          >
+                            Mark done
+                          </button>
+                        </div>
+                        <Link
+                          href="/docs#cli-tools"
+                          className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors"
                         >
-                          Mark done
-                        </button>
+                          View all CLI tools
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                          </svg>
+                        </Link>
                       </div>
                     )}
                   </div>

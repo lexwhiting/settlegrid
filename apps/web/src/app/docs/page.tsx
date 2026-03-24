@@ -766,6 +766,7 @@ export default function DocsPage() {
           <nav className="space-y-1 text-sm">
             {[
               { href: '#getting-started', label: 'Getting Started' },
+              { href: '#cli-tools', label: 'CLI Tools' },
               { href: '#quick-start', label: 'Quick Start' },
               { href: '#sdk-reference', label: 'SDK Reference' },
               { href: '#api-reference', label: 'API Reference' },
@@ -909,6 +910,68 @@ app.post('/api/search', settlegridMiddleware({
                   </ul>
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* ── CLI Tools ─────────────────────────── */}
+          <section id="cli-tools" className="mb-14">
+            <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-2">CLI Tools</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              Three command-line tools to scaffold, discover, and integrate SettleGrid-powered services.
+            </p>
+
+            {/* Tool 1: create-settlegrid-tool */}
+            <div className="mb-10">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-2">
+                1. Scaffold a New Tool
+              </h3>
+              <CopyableCodeBlock title="Terminal" code="npx create-settlegrid-tool" />
+              <p className="text-sm text-gray-400 mt-3 leading-relaxed">
+                Generates a complete MCP server project with SettleGrid billing, tests, Dockerfile, and README.
+                Choose from <strong className="text-gray-300">4 templates</strong> (blank, rest-api, openapi, mcp-server)
+                and <strong className="text-gray-300">3 deploy targets</strong> (Vercel, Docker, Railway).
+                You get a production-ready project in seconds with pricing, error handling, and CI already wired in.
+              </p>
+            </div>
+
+            {/* Tool 2: @settlegrid/discovery */}
+            <div className="mb-10">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-2">
+                2. MCP Discovery Server
+              </h3>
+              <CopyableCodeBlock title="Terminal" code="npx @settlegrid/discovery" />
+              <p className="text-sm text-gray-400 mt-3 leading-relaxed">
+                Add to any MCP client so AI agents can discover SettleGrid-powered tools at runtime.
+                Available tools: <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">search_tools</code>,{' '}
+                <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">get_tool</code>,{' '}
+                <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">list_categories</code>,{' '}
+                <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">get_developer</code>.
+              </p>
+              <p className="text-sm text-gray-300 font-medium mt-4 mb-2">Claude Desktop configuration:</p>
+              <CopyableCodeBlock title="claude_desktop_config.json" language="JSON" code={`{
+  "mcpServers": {
+    "settlegrid-discovery": {
+      "command": "npx",
+      "args": ["-y", "@settlegrid/discovery"]
+    }
+  }
+}`} />
+            </div>
+
+            {/* Tool 3: @settlegrid/mcp */}
+            <div className="mb-2">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-2">
+                3. Core SDK
+              </h3>
+              <CopyableCodeBlock title="Terminal" code="npm install @settlegrid/mcp" />
+              <p className="text-sm text-gray-400 mt-3 leading-relaxed">
+                The SDK. Call <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">settlegrid.init()</code> with
+                your tool slug and pricing, then <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs">sg.wrap()</code> any
+                async function to enable per-call billing. Works with MCP servers, REST APIs, and AI agents.
+                See the{' '}
+                <a href="#sdk-reference" className="text-brand-text hover:text-brand-dark font-medium">SDK Reference</a>{' '}
+                for the full API.
+              </p>
             </div>
           </section>
 

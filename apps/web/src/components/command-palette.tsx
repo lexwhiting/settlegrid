@@ -7,6 +7,7 @@ import { Command } from 'cmdk'
 const pages = [
   { name: 'Dashboard', href: '/dashboard', group: 'Navigation' },
   { name: 'Tools', href: '/dashboard/tools', group: 'Navigation' },
+  { name: 'Discovery', href: '/dashboard/discovery', group: 'Navigation' },
   { name: 'Analytics', href: '/dashboard/analytics', group: 'Navigation' },
   { name: 'Health', href: '/dashboard/health', group: 'Navigation' },
   { name: 'Payouts', href: '/dashboard/payouts', group: 'Navigation' },

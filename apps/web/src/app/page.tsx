@@ -693,11 +693,17 @@ export default function HomePage() {
                 Three steps to go from open-source function to paid API product.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-                <StepCard
-                  step="1"
-                  title="Install & Wrap"
-                  description="npm install the SDK, set your pricing, and wrap your handler. MCP tool, REST API, or AI agent — five lines of code, any protocol."
-                />
+                <div>
+                  <StepCard
+                    step="1"
+                    title="Install & Wrap"
+                    description="npm install the SDK, set your pricing, and wrap your handler. MCP tool, REST API, or AI agent — five lines of code, any protocol."
+                  />
+                  <div className="mt-4 text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Or scaffold a complete project instantly:</p>
+                    <code className="inline-block text-sm bg-gray-100 dark:bg-[#252836] px-3 py-1.5 rounded-lg font-mono text-brand dark:text-emerald-400">npx create-settlegrid-tool</code>
+                  </div>
+                </div>
                 <StepCard
                   step="2"
                   title="Users Pay Per Call"
