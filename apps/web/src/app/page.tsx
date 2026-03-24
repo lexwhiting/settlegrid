@@ -549,10 +549,10 @@ export default function HomePage() {
               </p>
 
               {/* Stat bar */}
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-6 text-sm">
                 <span className="text-brand-light font-semibold">Free forever</span>
                 <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">open-source servers</span></span>
+                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">servers</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
@@ -732,12 +732,18 @@ export default function HomePage() {
                 Each one is a business waiting to be built.
               </p>
               <div className="flex flex-wrap justify-center items-center gap-4">
-                <Link href="/tools" className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                <Link href="/servers" className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
                   Browse the catalog
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>
                 </Link>
+                <a href="https://github.com/lexwhiting/settlegrid/tree/main/open-source-servers" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-200 transition-colors">
+                  View on GitHub
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </a>
                 <Link href="/learn/handbook" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-200 transition-colors">
                   Read the Monetization Handbook
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
