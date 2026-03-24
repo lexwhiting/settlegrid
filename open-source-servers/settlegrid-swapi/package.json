@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-swapi",
+  "version": "1.0.0",
+  "description": "Access Star Wars universe data: people, planets, starships, and films from SWAPI.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "entertainment",
+    "star-wars",
+    "movies",
+    "swapi"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-swapi"
+  }
+}

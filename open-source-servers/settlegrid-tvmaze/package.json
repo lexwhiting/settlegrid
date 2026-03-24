@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-tvmaze",
+  "version": "1.0.0",
+  "description": "Search TV shows, get episode guides, and schedule data from TVMaze.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "entertainment",
+    "tv",
+    "shows",
+    "episodes"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-tvmaze"
+  }
+}
