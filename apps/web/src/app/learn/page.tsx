@@ -35,6 +35,18 @@ interface SectionCard {
 
 const SECTIONS: SectionCard[] = [
   {
+    title: 'MCP Monetization Handbook',
+    description:
+      'The definitive guide to monetizing MCP servers and AI tools. Pricing models, code examples, revenue benchmarks from 1,017 servers, and growth strategies. Everything you need to turn AI tools into revenue.',
+    href: '/learn/handbook',
+    badge: 'New — 7 chapters',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+      </svg>
+    ),
+  },
+  {
     title: 'Protocol Guides',
     description:
       'Deep dives into all 10 AI payment protocols SettleGrid supports — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. Learn how each protocol works and how SettleGrid integrates with it.',

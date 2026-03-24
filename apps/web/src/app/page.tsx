@@ -552,7 +552,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
                 <span className="text-brand-light font-semibold">Free forever</span>
                 <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">0% <span className="text-gray-400 font-normal">fees on free tier</span></span>
+                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">open-source servers</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
@@ -705,6 +705,45 @@ export default function HomePage() {
                   title="Get Paid Automatically"
                   description="Every call is metered in real time. Revenue splits across multi-agent chains settle atomically. $1 minimum payout — the lowest of any AI monetization platform."
                 />
+              </div>
+            </div>
+          </RevealSection>
+        </section>
+
+        {/* ================================================================ */}
+        {/*  3b. 1,017 Open-Source Servers callout                          */}
+        {/* ================================================================ */}
+        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148] bg-cloud dark:bg-[#0F1117]">
+          <RevealSection>
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-6">
+                <svg className="w-8 h-8 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" />
+                </svg>
+              </div>
+              <p className="text-5xl sm:text-6xl font-bold text-indigo dark:text-gray-100 mb-3">
+                1,017
+              </p>
+              <p className="text-xl sm:text-2xl font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                Open-Source MCP Servers Ready to Monetize
+              </p>
+              <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-6">
+                We cataloged every open-source MCP server in the ecosystem. Fewer than 5% have any form of billing.
+                Each one is a business waiting to be built.
+              </p>
+              <div className="flex flex-wrap justify-center items-center gap-4">
+                <Link href="/tools" className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                  Browse the catalog
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
+                <Link href="/learn/handbook" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-200 transition-colors">
+                  Read the Monetization Handbook
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
               </div>
             </div>
           </RevealSection>
@@ -967,6 +1006,7 @@ assert signature == request.headers[
             <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
               <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Showcase</Link>
               <Link href="/docs" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Docs</Link>
+              <Link href="/learn/handbook" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Handbook</Link>
               <Link href="/learn" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Learn</Link>
               <Link href="/faq" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">FAQ</Link>
               <a href="https://github.com/lexwhiting/settlegrid" target="_blank" rel="noopener noreferrer" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">GitHub</a>
