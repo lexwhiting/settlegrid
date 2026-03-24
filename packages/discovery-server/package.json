@@ -1,6 +1,7 @@
 {
   "name": "@settlegrid/discovery",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "mcpName": "io.github.lexwhiting/settlegrid-discovery",
   "description": "MCP Discovery Server — AI agents connect to discover and evaluate monetized tools on the SettleGrid marketplace.",
   "keywords": [
     "settlegrid",
