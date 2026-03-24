@@ -1,9 +1,10 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
-import { eq, desc, sql, and } from 'drizzle-orm'
+import { eq, desc, sql } from 'drizzle-orm'
 
 // ─── SEO Metadata ──────────────────────────────────────────────────────────
 
@@ -211,9 +212,11 @@ export default async function DeveloperDirectoryPage() {
                     {/* Avatar + Name */}
                     <div className="flex items-center gap-4 mb-4">
                       {dev.avatarUrl ? (
-                        <img
+                        <Image
                           src={dev.avatarUrl}
                           alt={dev.name ?? 'Developer'}
+                          width={48}
+                          height={48}
                           className="w-12 h-12 rounded-full object-cover ring-2 ring-[#2E3148] group-hover:ring-emerald-500/40 transition-colors"
                         />
                       ) : (

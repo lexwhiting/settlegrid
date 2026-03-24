@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 import { logger } from '@/lib/logger'
 
 export default function DevelopersError({
@@ -33,9 +34,9 @@ export default function DevelopersError({
           >
             Try Again
           </button>
-          <a href="/tools" className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
+          <Link href="/tools" className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
             Browse Tools
-          </a>
+          </Link>
         </div>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
           If this keeps happening, email <a href="mailto:support@settlegrid.ai" className="text-brand hover:underline">support@settlegrid.ai</a>
