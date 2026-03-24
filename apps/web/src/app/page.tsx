@@ -552,12 +552,14 @@ export default function HomePage() {
               </p>
 
               {/* Stat bar */}
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-6 text-sm">
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-6 text-sm">
                 <span className="text-brand-light font-semibold">Free forever</span>
                 <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">3 <span className="text-gray-400 font-normal">discovery channels</span></span>
+                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">templates</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
+                <span className="text-white/20">|</span>
+                <span className="text-white font-semibold">Built-in <span className="text-gray-400 font-normal">discovery</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">&lt;50ms <span className="text-gray-400 font-normal">metering</span></span>
               </div>
