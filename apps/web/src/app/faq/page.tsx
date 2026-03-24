@@ -46,6 +46,14 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
         q: 'What protocols does SettleGrid support?',
         a: "SettleGrid is protocol-agnostic. It natively supports 10 protocols: MCP (Model Context Protocol), MPP (Machine Payments Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Agent Pay (Verifiable Intent), Circle Nanopayments (USDC), and any standard REST API. One SDK covers every protocol.",
       },
+      {
+        q: 'How do my tools appear in the Showcase?',
+        a: "Any tool with 'active' status automatically appears in the Showcase. Set your tool to active from the Tools page in your dashboard.",
+      },
+      {
+        q: "What's the fork-deploy-appear workflow?",
+        a: 'Fork one of our 1,017 open-source templates, add your API key, deploy to Vercel or Railway. Your tool automatically appears in the Showcase and becomes discoverable via the Discovery API and MCP Discovery Server.',
+      },
     ],
   },
   {

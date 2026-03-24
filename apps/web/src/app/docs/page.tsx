@@ -1583,6 +1583,18 @@ npm install -g @settlegrid/discovery`} />
                 <li>New developers start at 0 and earn points organically — reputation cannot be purchased</li>
               </ul>
             </div>
+
+            {/* ── Discovery guide cross-link ─────────────────────────── */}
+            <div className="mt-8 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-sm text-gray-400">
+              For a step-by-step guide to maximizing your tool&apos;s visibility, see{' '}
+              <Link
+                href="/learn/discovery"
+                className="text-emerald-400 hover:underline font-medium"
+              >
+                How to Get Discovered
+              </Link>
+              .
+            </div>
           </section>
 
           <Section title="FAQ" id="faq">

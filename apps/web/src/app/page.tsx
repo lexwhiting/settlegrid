@@ -555,7 +555,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-6 text-sm">
                 <span className="text-brand-light font-semibold">Free forever</span>
                 <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">starter templates</span></span>
+                <span className="text-white font-semibold">3 <span className="text-gray-400 font-normal">discovery channels</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
@@ -759,6 +759,98 @@ export default function HomePage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>
                 </Link>
+              </div>
+            </div>
+          </RevealSection>
+        </section>
+
+        {/* ================================================================ */}
+        {/*  3c. How Your Tools Get Found — discovery channels               */}
+        {/* ================================================================ */}
+        <section className="px-6 py-20 border-b border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#0F1117]">
+          <RevealSection>
+            <div className="max-w-5xl mx-auto">
+              <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">Discovery</p>
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 text-center mb-4">
+                How Your Tools Get Found
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-16 max-w-2xl mx-auto">
+                Three channels bring consumers and AI agents to your tools &mdash; automatically.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Card 1: Showcase & Search */}
+                <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-8">
+                  <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">Showcase &amp; Search</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+                    Active tools appear in the SettleGrid Showcase. Consumers browse, search by category, and purchase credits directly.
+                  </p>
+                  <Link href="/tools" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                    Browse Showcase
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Link>
+                </div>
+
+                {/* Card 2: Discovery API */}
+                <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-8">
+                  <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">Discovery API</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                    Any directory, integration, or app can query your tools programmatically.
+                  </p>
+                  <code className="block text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded-lg font-mono text-brand dark:text-emerald-400 mb-4">
+                    GET /api/v1/discover
+                  </code>
+                  <Link href="/docs#discovery" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                    API Docs
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Link>
+                </div>
+
+                {/* Card 3: AI Agent Discovery */}
+                <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-8">
+                  <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">AI Agent Discovery</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                    AI agents find your tools natively via the MCP Discovery Server. Add one line to any MCP client and your tools are findable.
+                  </p>
+                  <code className="block text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded-lg font-mono text-brand dark:text-emerald-400 mb-4">
+                    npx @settlegrid/discovery
+                  </code>
+                  <Link href="/learn/discovery" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                    Learn More
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Bottom callout */}
+              <div className="mt-10 text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-lg inline-flex items-center gap-2 px-5 py-3">
+                  <svg className="w-4 h-4 text-brand shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Every active tool is automatically indexed across all three channels. No extra configuration.
+                </p>
               </div>
             </div>
           </RevealSection>

@@ -84,6 +84,14 @@ export default async function ShowcasePage() {
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
               See what developers are building with SettleGrid&apos;s settlement layer.
             </p>
+            <p className="text-sm text-gray-500 mt-3 max-w-2xl mx-auto">
+              Tools appear here automatically when developers publish them. AI agents and
+              integrations also discover these tools via the{' '}
+              <Link href="/docs#discovery" className="text-emerald-400 hover:underline">
+                Discovery API
+              </Link>
+              .
+            </p>
           </div>
 
           {/* Showcase: search + filter + featured + grid (client component) */}
@@ -108,6 +116,22 @@ export default async function ShowcasePage() {
               </Link>
             </div>
           )}
+
+          {/* For developers callout */}
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-6 py-4 mb-10 text-center text-sm text-gray-400">
+            Want your tool here?{' '}
+            <Link href="/register" className="text-emerald-400 hover:underline font-medium">
+              Get started free
+            </Link>{' '}
+            or read the{' '}
+            <Link
+              href="/learn/discovery"
+              className="text-emerald-400 hover:underline font-medium"
+            >
+              Discovery Guide
+            </Link>{' '}
+            to maximize visibility.
+          </div>
 
           {/* CTA */}
           <div className="rounded-xl border border-[#2E3148] bg-gradient-to-br from-[#1A1D2E] to-[#0F1117] p-12 text-center">

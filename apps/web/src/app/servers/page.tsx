@@ -102,6 +102,22 @@ export default function ServersPage() {
               Settle<span className="text-emerald-400">Grid</span> billing is
               pre-wired &mdash; start earning on every call.
             </p>
+
+            {/* Workflow callout */}
+            <div className="mt-6 mx-auto max-w-xl rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-5 py-3 text-sm text-gray-400">
+              <span className="font-medium text-emerald-400">Fork</span>
+              {' \u2192 '}
+              <span className="font-medium text-emerald-400">Deploy</span>
+              {' \u2192 '}Your tool appears in the{' '}
+              <Link href="/tools" className="text-emerald-400 hover:underline">
+                Showcase
+              </Link>{' '}
+              and becomes discoverable by AI agents via the{' '}
+              <Link href="/docs#discovery" className="text-emerald-400 hover:underline">
+                Discovery API
+              </Link>
+              .
+            </div>
           </div>
 
           {/* ── Search + Filter + Grid (client component) ──────────── */}

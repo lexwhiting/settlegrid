@@ -11,6 +11,7 @@ interface ToolData {
   slug: string
   description: string
   developerName: string
+  developerSlug: string | null
   category: string
   currentVersion: string
   pricingConfig: {
@@ -209,7 +210,19 @@ export default async function ToolStorefrontPage({
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">{tool.description}</p>
             <div className="flex items-center gap-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                by <span className="text-gray-600 dark:text-gray-400">{tool.developerName}</span>
+                by{' '}
+                {tool.developerSlug ? (
+                  <Link
+                    href={`/dev/${tool.developerSlug}`}
+                    className="text-brand-text hover:underline"
+                  >
+                    {tool.developerName}
+                  </Link>
+                ) : (
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {tool.developerName}
+                  </span>
+                )}
               </p>
               {tool.reviewCount > 0 && (
                 <div className="flex items-center gap-2">

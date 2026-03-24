@@ -31,6 +31,7 @@ export async function GET(
         currentVersion: tools.currentVersion,
         pricingConfig: tools.pricingConfig,
         developerName: developers.name,
+        developerSlug: developers.slug,
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
@@ -100,6 +101,7 @@ export async function GET(
         currentVersion: tool.currentVersion,
         pricingConfig: tool.pricingConfig ?? { defaultCostCents: 0 },
         developerName: tool.developerName ?? 'Anonymous',
+        developerSlug: tool.developerSlug ?? null,
         reviews,
         changelog,
         averageRating: Math.round(averageRating * 10) / 10,
