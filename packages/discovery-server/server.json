@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.lexwhiting/settlegrid-discovery",
+  "description": "Discover monetized AI tools on SettleGrid. Search by category, get pricing.",
+  "repository": {
+    "url": "https://github.com/lexwhiting/settlegrid",
+    "source": "github",
+    "subfolder": "packages/discovery-server"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@settlegrid/discovery",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "SettleGrid API base URL (default: https://settlegrid.ai)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false,
+          "name": "SETTLEGRID_API_URL"
+        }
+      ]
+    }
+  ]
+}

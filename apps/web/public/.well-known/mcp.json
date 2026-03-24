@@ -7,7 +7,18 @@
   "github": "https://github.com/lexwhiting/settlegrid",
   "documentation": "https://settlegrid.ai/docs",
   "pricing": "https://settlegrid.ai/pricing",
-  "protocols": ["MCP", "x402", "AP2", "Visa TAP", "REST"],
+  "protocols": [
+    "MCP",
+    "x402",
+    "AP2",
+    "Visa TAP",
+    "REST",
+    "MPP",
+    "UCP",
+    "ACP",
+    "Mastercard Agent Pay",
+    "Circle Nanopayments"
+  ],
   "features": [
     "per-call-billing",
     "real-time-metering",
@@ -16,7 +27,27 @@
     "agent-identity",
     "outcome-based-billing",
     "fraud-detection",
-    "stripe-connect-payouts"
+    "stripe-connect-payouts",
+    "sandbox-mode",
+    "ip-allowlisting",
+    "referral-earnings",
+    "tiered-rate-limits"
   ],
+  "discovery": {
+    "server_card": "https://settlegrid.ai/.well-known/mcp/server-card.json",
+    "agent_card": "https://settlegrid.ai/.well-known/agent-card.json",
+    "openapi": "https://settlegrid.ai/api/openapi.json",
+    "rss_feed": "https://settlegrid.ai/api/feed",
+    "api_discover": "https://settlegrid.ai/api/v1/discover",
+    "api_categories": "https://settlegrid.ai/api/v1/discover/categories",
+    "llms_txt": "https://settlegrid.ai/llms.txt",
+    "llms_full_txt": "https://settlegrid.ai/llms-full.txt"
+  },
+  "discovery_server": {
+    "package": "@settlegrid/discovery",
+    "transport": "stdio",
+    "command": "npx @settlegrid/discovery",
+    "tools": ["search_tools", "get_tool", "list_categories", "get_developer"]
+  },
   "license": "MIT"
 }

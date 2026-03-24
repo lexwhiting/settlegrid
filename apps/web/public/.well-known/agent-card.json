@@ -1,0 +1,16 @@
+{
+  "name": "SettleGrid Settlement",
+  "description": "AI settlement layer -- payment method management and credential issuance for autonomous agent commerce.",
+  "url": "https://api.settlegrid.ai/a2a",
+  "skills": [
+    "get_eligible_payment_methods",
+    "provision_credentials",
+    "process_payment",
+    "verify_intent_mandate",
+    "verify_cart_mandate"
+  ],
+  "extensions": [
+    "https://github.com/google-agentic-commerce/ap2/tree/v0.1"
+  ],
+  "ap2_roles": ["credentials-provider"]
+}

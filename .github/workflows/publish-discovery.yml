@@ -1,0 +1,19 @@
+name: Publish Discovery Server
+
+on:
+  push:
+    tags: ['v*']
+    paths: ['packages/discovery-server/**']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - run: cd packages/discovery-server && npm ci && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

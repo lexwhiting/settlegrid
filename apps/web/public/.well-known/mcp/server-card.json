@@ -1,0 +1,17 @@
+{
+  "name": "SettleGrid Discovery",
+  "description": "Discover monetized AI tools on SettleGrid. Search by category, get pricing, find developers.",
+  "version": "1.0.0",
+  "transport": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["@settlegrid/discovery"]
+  },
+  "capabilities": {
+    "tools": ["search_tools", "get_tool", "list_categories", "get_developer"]
+  },
+  "homepage": "https://settlegrid.ai",
+  "repository": "https://github.com/lexwhiting/settlegrid",
+  "npm": "https://www.npmjs.com/package/@settlegrid/discovery",
+  "license": "MIT"
+}
