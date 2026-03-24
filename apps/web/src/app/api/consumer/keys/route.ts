@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
         keyPrefix: apiKeys.keyPrefix,
         toolId: apiKeys.toolId,
         status: apiKeys.status,
+        isTestKey: apiKeys.isTestKey,
+        ipAllowlist: apiKeys.ipAllowlist,
         lastUsedAt: apiKeys.lastUsedAt,
         createdAt: apiKeys.createdAt,
       })

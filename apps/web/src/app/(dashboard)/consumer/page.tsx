@@ -110,11 +110,10 @@ export default function ConsumerDashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [balRes, keyRes, budgetRes, ipRes] = await Promise.all([
+        const [balRes, keyRes, budgetRes] = await Promise.all([
           fetch('/api/consumer/balance'),
           fetch('/api/consumer/keys'),
-          fetch('/api/consumer/budgets'),
-          fetch('/api/consumer/ip-restrictions'),
+          fetch('/api/consumer/budget'),
         ])
         if (balRes.ok) {
           const balData = await balRes.json()
@@ -122,19 +121,20 @@ export default function ConsumerDashboardPage() {
         }
         if (keyRes.ok) {
           const keyData = await keyRes.json()
-          setKeys(keyData.keys ?? [])
+          const fetchedKeys = keyData.keys ?? []
+          setKeys(fetchedKeys)
+          // Build IP restrictions map from keys data (ipAllowlist field)
+          const map: Record<string, IpRestriction> = {}
+          for (const key of fetchedKeys) {
+            if (key.ipAllowlist && Array.isArray(key.ipAllowlist) && key.ipAllowlist.length > 0) {
+              map[key.id] = { keyId: key.id, allowedIps: key.ipAllowlist as string[] }
+            }
+          }
+          setIpRestrictions(map)
         }
         if (budgetRes.ok) {
           const budgetData = await budgetRes.json()
           setBudgets(budgetData.budgets ?? [])
-        }
-        if (ipRes.ok) {
-          const ipData = await ipRes.json()
-          const map: Record<string, IpRestriction> = {}
-          for (const restriction of ipData.restrictions ?? []) {
-            map[restriction.keyId] = restriction
-          }
-          setIpRestrictions(map)
         }
       } catch {
         setError('Failed to load dashboard data')
@@ -219,13 +219,14 @@ export default function ConsumerDashboardPage() {
     setSavingBudget(true)
     setError('')
     try {
-      const res = await fetch(`/api/consumer/budgets/${toolId}`, {
-        method: 'PUT',
+      const res = await fetch('/api/consumer/budget', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          toolId,
           spendingLimitCents: parseInt(budgetForm.spendingLimitCents, 10),
-          period: budgetForm.period,
-          alertThresholdPercent: parseInt(budgetForm.alertThresholdPercent, 10),
+          spendingLimitPeriod: budgetForm.period,
+          alertAtPct: parseInt(budgetForm.alertThresholdPercent, 10),
         }),
       })
       if (!res.ok) {
@@ -248,20 +249,21 @@ export default function ConsumerDashboardPage() {
     setSavingIp(true)
     setError('')
     try {
-      const res = await fetch(`/api/consumer/keys/${keyId}/ip-restrictions`, {
-        method: 'POST',
+      const current = ipRestrictions[keyId]?.allowedIps ?? []
+      const updated = [...current, newIp.trim()]
+      const res = await fetch(`/api/consumer/keys/${keyId}/ip-restrict`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: newIp.trim() }),
+        body: JSON.stringify({ ipAllowlist: updated }),
       })
       if (!res.ok) {
         const data = await res.json()
         setError(data.error || 'Failed to add IP')
         return
       }
-      const current = ipRestrictions[keyId]?.allowedIps ?? []
       setIpRestrictions({
         ...ipRestrictions,
-        [keyId]: { keyId, allowedIps: [...current, newIp.trim()] },
+        [keyId]: { keyId, allowedIps: updated },
       })
       setNewIp('')
       setAddingIpForKey(null)
@@ -275,17 +277,18 @@ export default function ConsumerDashboardPage() {
   async function removeIp(keyId: string, ip: string) {
     setError('')
     try {
-      const res = await fetch(`/api/consumer/keys/${keyId}/ip-restrictions`, {
-        method: 'DELETE',
+      const current = ipRestrictions[keyId]?.allowedIps ?? []
+      const updated = current.filter((i) => i !== ip)
+      const res = await fetch(`/api/consumer/keys/${keyId}/ip-restrict`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip }),
+        body: JSON.stringify({ ipAllowlist: updated }),
       })
       if (!res.ok) {
         const data = await res.json()
         setError(data.error || 'Failed to remove IP')
         return
       }
-      const current = ipRestrictions[keyId]?.allowedIps ?? []
       setIpRestrictions({
         ...ipRestrictions,
         [keyId]: { keyId, allowedIps: current.filter((i) => i !== ip) },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 import { logger } from '@/lib/logger'
 
 export default function DiscoveryError({
@@ -17,7 +18,7 @@ export default function DiscoveryError({
   return (
     <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
       <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mb-4">
-        <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
         </svg>
       </div>
@@ -32,9 +33,9 @@ export default function DiscoveryError({
         >
           Try Again
         </button>
-        <a href="/dashboard" className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
+        <Link href="/dashboard" className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
           Back to Dashboard
-        </a>
+        </Link>
       </div>
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
         If this keeps happening, email <a href="mailto:support@settlegrid.ai" className="text-brand hover:underline">support@settlegrid.ai</a>
