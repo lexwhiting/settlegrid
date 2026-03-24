@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 
 interface AdminStats {
   developers: { total: number; last24h: number; last7d: number; last30d: number }
@@ -107,7 +108,7 @@ export default function AdminDashboardPage() {
         <div className="text-center">
           <p className="text-7xl font-bold text-gray-700 mb-4">404</p>
           <p className="text-gray-500 mb-6">This page could not be found.</p>
-          <a href="/" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">Go home</a>
+          <Link href="/" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">Go home</Link>
         </div>
       </div>
     )
