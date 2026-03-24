@@ -111,7 +111,7 @@ export default function PayoutsPage() {
               actionHref="/dashboard/tools"
             />
             <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4">
-              Payouts are triggered when your balance reaches $25. See{' '}
+              Payouts are triggered when your balance reaches $1. See{' '}
               <a href="/docs" className="text-brand hover:underline">payout docs</a> for details.
             </p>
           </CardContent>

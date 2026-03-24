@@ -96,7 +96,7 @@ function registerDeveloper(email: string, name: string): MockDeveloper {
     stripeConnectId: null,
     stripeConnectStatus: 'not_started',
     balanceCents: 0,
-    payoutMinimumCents: 2500,
+    payoutMinimumCents: 100,
   }
   mockDevelopers.push(dev)
   return dev
@@ -495,22 +495,24 @@ describe('Full Lifecycle Scenario', () => {
     // Developer got 95% of each invocation: floor(5 * 0.95) = 4 per call
     expect(dev.balanceCents).toBe(400) // 100 * floor(5 * 0.95)
 
-    // 5. Not enough for payout yet (400 < 2500)
-    const failedPayout = triggerPayout(dev)
-    expect(failedPayout.success).toBe(false)
+    // 5. Balance is 400 cents ($4), above $1 minimum — payout should succeed
+    const payout = triggerPayout(dev)
+    expect(payout.success).toBe(true)
+    expect(payout.payout!.amountCents).toBe(400)
+    expect(dev.balanceCents).toBe(0)
 
-    // 6. More invocations to reach payout threshold
-    for (let i = 0; i < 600; i++) {
+    // 6. More invocations to accumulate again
+    for (let i = 0; i < 100; i++) {
       invokeToolCall(consumer, tool, 'classify', 5)
     }
 
-    // 700 total invocations: dev earned 700 * floor(5 * 0.95) = 2800 cents
-    expect(dev.balanceCents).toBe(2800)
+    // 200 total invocations: dev earned 100 * floor(5 * 0.95) = 400 cents
+    expect(dev.balanceCents).toBe(400)
 
-    // 7. Trigger payout
-    const payout = triggerPayout(dev)
-    expect(payout.success).toBe(true)
-    expect(payout.payout!.amountCents).toBe(2800)
+    // 7. Trigger another payout
+    const payout2 = triggerPayout(dev)
+    expect(payout2.success).toBe(true)
+    expect(payout2.payout!.amountCents).toBe(400)
     expect(dev.balanceCents).toBe(0)
   })
 

@@ -89,7 +89,7 @@ describe('GET /api/auth/developer/me — extended fields', () => {
       stripeConnectStatus: 'active',
       balanceCents: 5000,
       payoutSchedule: 'monthly',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
       publicProfile: true,
       publicBio: 'Hi there',
       createdAt: '2026-01-01T00:00:00Z',
@@ -236,7 +236,7 @@ describe('PATCH /api/dashboard/developer/payout-settings', () => {
   it('updates only payout schedule', async () => {
     mockDb.returning.mockResolvedValueOnce([{
       payoutSchedule: 'daily',
-      payoutMinimumCents: 2500,
+      payoutMinimumCents: 100,
       updatedAt: new Date(),
     }])
 
@@ -325,7 +325,7 @@ describe('PATCH /api/dashboard/developer/payout-settings', () => {
       mockDb.where.mockReturnThis()
       mockDb.returning.mockResolvedValueOnce([{
         payoutSchedule: schedule,
-        payoutMinimumCents: 2500,
+        payoutMinimumCents: 100,
         updatedAt: new Date(),
       }])
 

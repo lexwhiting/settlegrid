@@ -630,8 +630,8 @@ describe('payoutNotificationEmail', () => {
   })
 
   it('includes formatted amount in body', () => {
-    const result = payoutNotificationEmail('Dev', 2500)
-    expect(result.html).toContain('$25.00')
+    const result = payoutNotificationEmail('Dev', 350)
+    expect(result.html).toContain('$3.50')
   })
 
   it('includes payouts link', () => {
