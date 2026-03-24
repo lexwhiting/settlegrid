@@ -1,63 +1,33 @@
 /**
- * settlegrid-binance — Binance MCP Server
+ * settlegrid-binance — Binance Public Market Data MCP Server
  *
- * Wraps the Binance API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the public Binance API with SettleGrid billing.
+ * No API key needed for public endpoints.
  *
  * Methods:
- *   get_ticker(symbol)                       (1¢)
- *   get_klines(symbol, interval)             (2¢)
- *   get_orderbook(symbol)                    (1¢)
+ *   get_ticker(symbol)              — 24hr ticker         (1¢)
+ *   get_depth(symbol, limit?)       — Order book depth    (1¢)
+ *   get_klines(symbol, interval)    — Candlestick data    (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetTickerInput {
-  symbol: string
-}
-
-interface GetKlinesInput {
-  symbol: string
-  interval: string
-  limit?: number
-}
-
-interface GetOrderbookInput {
-  symbol: string
-  limit?: number
-}
+interface TickerInput { symbol: string }
+interface DepthInput { symbol: string; limit?: number }
+interface KlinesInput { symbol: string; interval: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.binance.com/api/v3'
-const USER_AGENT = 'settlegrid-binance/1.0 (contact@settlegrid.ai)'
+const BASE = 'https://api.binance.com/api/v3'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function bnFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`${BASE}${path}`)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const res = await fetch(url.toString(), {
+    headers: { 'User-Agent': 'settlegrid-binance/1.0 (contact@settlegrid.ai)' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Binance API ${res.status}: ${body.slice(0, 200)}`)
@@ -72,70 +42,80 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_ticker: { costCents: 1, displayName: 'Get 24hr price change statistics' },
-      get_klines: { costCents: 2, displayName: 'Get candlestick/kline data' },
-      get_orderbook: { costCents: 1, displayName: 'Get current order book depth' },
+      get_ticker: { costCents: 1, displayName: '24hr Ticker' },
+      get_depth: { costCents: 1, displayName: 'Order Book' },
+      get_klines: { costCents: 1, displayName: 'Candlestick Data' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getTicker = sg.wrap(async (args: GetTickerInput) => {
+const getTicker = sg.wrap(async (args: TickerInput) => {
   if (!args.symbol || typeof args.symbol !== 'string') {
-    throw new Error('symbol is required (trading pair (e.g. btcusdt))')
+    throw new Error('symbol is required (e.g. "BTCUSDT")')
   }
-
-  const params: Record<string, string> = {}
-  params['symbol'] = args.symbol
-
-  const data = await apiFetch<Record<string, unknown>>('/ticker/24hr', {
-    params,
-  })
-
-  return data
+  const data = await bnFetch<Record<string, string>>('/ticker/24hr', { symbol: args.symbol.toUpperCase().trim() })
+  return {
+    symbol: data.symbol,
+    priceChange: data.priceChange,
+    priceChangePercent: data.priceChangePercent,
+    lastPrice: data.lastPrice,
+    highPrice: data.highPrice,
+    lowPrice: data.lowPrice,
+    volume: data.volume,
+    quoteVolume: data.quoteVolume,
+  }
 }, { method: 'get_ticker' })
 
-const getKlines = sg.wrap(async (args: GetKlinesInput) => {
+const getDepth = sg.wrap(async (args: DepthInput) => {
   if (!args.symbol || typeof args.symbol !== 'string') {
-    throw new Error('symbol is required (trading pair (e.g. btcusdt))')
+    throw new Error('symbol is required (e.g. "BTCUSDT")')
   }
-  if (!args.interval || typeof args.interval !== 'string') {
-    throw new Error('interval is required (interval: 1m,5m,1h,1d,1w)')
-  }
-
-  const params: Record<string, string> = {}
-  params['symbol'] = args.symbol
-  params['interval'] = args.interval
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/klines', {
-    params,
+  const limit = Math.min(Math.max(args.limit ?? 20, 5), 50)
+  const data = await bnFetch<{ bids: string[][]; asks: string[][] }>('/depth', {
+    symbol: args.symbol.toUpperCase().trim(),
+    limit: String(limit),
   })
+  return {
+    symbol: args.symbol.toUpperCase(),
+    bids: data.bids.map(([price, qty]) => ({ price, quantity: qty })),
+    asks: data.asks.map(([price, qty]) => ({ price, quantity: qty })),
+  }
+}, { method: 'get_depth' })
 
-  return data
+const getKlines = sg.wrap(async (args: KlinesInput) => {
+  if (!args.symbol || typeof args.symbol !== 'string') {
+    throw new Error('symbol is required (e.g. "BTCUSDT")')
+  }
+  const validIntervals = new Set(['1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w','1M'])
+  if (!args.interval || !validIntervals.has(args.interval)) {
+    throw new Error('interval is required (1m, 5m, 15m, 1h, 4h, 1d, 1w, etc.)')
+  }
+  const data = await bnFetch<Array<Array<string | number>>>('/klines', {
+    symbol: args.symbol.toUpperCase().trim(),
+    interval: args.interval,
+    limit: '50',
+  })
+  return {
+    symbol: args.symbol.toUpperCase(),
+    interval: args.interval,
+    candles: data.map((k) => ({
+      openTime: k[0],
+      open: k[1],
+      high: k[2],
+      low: k[3],
+      close: k[4],
+      volume: k[5],
+      closeTime: k[6],
+    })),
+  }
 }, { method: 'get_klines' })
-
-const getOrderbook = sg.wrap(async (args: GetOrderbookInput) => {
-  if (!args.symbol || typeof args.symbol !== 'string') {
-    throw new Error('symbol is required (trading pair)')
-  }
-
-  const params: Record<string, string> = {}
-  params['symbol'] = args.symbol
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/depth', {
-    params,
-  })
-
-  return data
-}, { method: 'get_orderbook' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getTicker, getKlines, getOrderbook }
+export { getTicker, getDepth, getKlines }
 
 console.log('settlegrid-binance MCP server ready')
-console.log('Methods: get_ticker, get_klines, get_orderbook')
-console.log('Pricing: 1-2¢ per call | Powered by SettleGrid')
+console.log('Methods: get_ticker, get_depth, get_klines')
+console.log('Pricing: 1¢ per call | Powered by SettleGrid')

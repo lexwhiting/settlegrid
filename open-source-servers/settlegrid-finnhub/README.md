@@ -6,13 +6,13 @@ Finnhub MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-finnhub)
 
-Real-time stock data, company fundamentals, and financial news
+Real-time stock prices, company profiles, and news via Finnhub.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key + FINNHUB_API_KEY
+cp .env.example .env   # Add your SettleGrid API key
 npm run dev
 ```
 
@@ -20,9 +20,9 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_quote(symbol)` | Get real-time stock quote | 1¢ |
-| `get_company_profile(symbol)` | Get company profile and fundamentals | 1¢ |
-| `get_company_news(symbol, from, to)` | Get latest company news articles | 2¢ |
+| `get_quote(symbol)` | Real-time stock quote | 2¢ |
+| `get_company_profile(symbol)` | Company profile and fundamentals | 2¢ |
+| `get_company_news(symbol, from, to)` | Latest company news articles | 2¢ |
 
 ## Parameters
 
@@ -34,8 +34,8 @@ npm run dev
 
 ### get_company_news
 - `symbol` (string, required) — Stock ticker
-- `from` (string, required) — Start date YYYY-MM-DD
-- `to` (string, required) — End date YYYY-MM-DD
+- `from` (string, required) — Start date (YYYY-MM-DD)
+- `to` (string, required) — End date (YYYY-MM-DD)
 
 ## Environment Variables
 
@@ -48,7 +48,7 @@ npm run dev
 
 - **Provider**: Finnhub
 - **Base URL**: https://finnhub.io/api/v1
-- **Auth**: API key (query)
+- **Auth**: API key required
 - **Docs**: https://finnhub.io/docs/api
 
 ## Deploy
@@ -57,7 +57,7 @@ npm run dev
 
 ```bash
 docker build -t settlegrid-finnhub .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e FINNHUB_API_KEY=xxx -p 3000:3000 settlegrid-finnhub
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-finnhub
 ```
 
 ### Vercel

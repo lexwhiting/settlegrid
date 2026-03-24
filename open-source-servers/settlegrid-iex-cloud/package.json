@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-iex-cloud",
   "version": "1.0.0",
-  "description": "MCP server for IEX Cloud with SettleGrid billing. Stock market data, financials, and company information from IEX",
+  "description": "MCP server for IEX Cloud with SettleGrid billing. Stock data, company info, and market statistics via IEX Cloud.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
     "stocks",
-    "market",
     "iex",
-    "quotes",
-    "financials"
+    "market-data"
   ],
   "license": "MIT",
   "repository": {

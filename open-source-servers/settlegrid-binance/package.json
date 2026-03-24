@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-binance",
   "version": "1.0.0",
-  "description": "MCP server for Binance with SettleGrid billing. Cryptocurrency exchange data including prices, order books, and trades",
+  "description": "MCP server for Binance with SettleGrid billing. Crypto trading data, order books, and ticker prices via the public Binance API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
     "crypto",
-    "exchange",
+    "binance",
     "trading",
-    "bitcoin",
     "orderbook"
   ],
   "license": "MIT",

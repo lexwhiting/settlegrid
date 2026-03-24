@@ -2,62 +2,42 @@
  * settlegrid-coinmarketcap — CoinMarketCap MCP Server
  *
  * Wraps the CoinMarketCap API with SettleGrid billing.
- * Requires COINMARKETCAP_API_KEY environment variable.
+ * Requires CMC_API_KEY (header: X-CMC_PRO_API_KEY).
  *
  * Methods:
- *   get_listings()                           (2¢)
- *   get_quotes(symbol)                       (1¢)
+ *   get_listings(limit?)       — Top cryptos by market cap  (2¢)
+ *   get_quotes(symbol)         — Quote for specific coins   (2¢)
+ *   get_metadata(symbol)       — Coin metadata              (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetListingsInput {
-  limit?: number
-  sort?: string
-}
-
-interface GetQuotesInput {
-  symbol: string
-}
+interface ListingsInput { limit?: number }
+interface QuotesInput { symbol: string }
+interface MetadataInput { symbol: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://pro-api.coinmarketcap.com/v1'
-const USER_AGENT = 'settlegrid-coinmarketcap/1.0 (contact@settlegrid.ai)'
+const BASE = 'https://pro-api.coinmarketcap.com/v1'
 
-function getApiKey(): string {
-  const key = process.env.COINMARKETCAP_API_KEY
-  if (!key) throw new Error('COINMARKETCAP_API_KEY environment variable is required')
-  return key
+function getKey(): string {
+  const k = process.env.CMC_API_KEY
+  if (!k) throw new Error('CMC_API_KEY environment variable is required')
+  return k
 }
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    'X-CMC_PRO_API_KEY': `${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function cmcFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`${BASE}${path}`)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const res = await fetch(url.toString(), {
+    headers: {
+      'X-CMC_PRO_API_KEY': getKey(),
+      Accept: 'application/json',
+      'User-Agent': 'settlegrid-coinmarketcap/1.0 (contact@settlegrid.ai)',
+    },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`CoinMarketCap API ${res.status}: ${body.slice(0, 200)}`)
@@ -70,48 +50,51 @@ async function apiFetch<T>(path: string, options: {
 const sg = settlegrid.init({
   toolSlug: 'coinmarketcap',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      get_listings: { costCents: 2, displayName: 'Get latest cryptocurrency listings with market dat' },
-      get_quotes: { costCents: 1, displayName: 'Get price quotes for specific cryptocurrencies' },
+      get_listings: { costCents: 2, displayName: 'Crypto Listings' },
+      get_quotes: { costCents: 2, displayName: 'Crypto Quotes' },
+      get_metadata: { costCents: 2, displayName: 'Coin Metadata' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getListings = sg.wrap(async (args: GetListingsInput) => {
-
-  const params: Record<string, string> = {}
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-  if (args.sort !== undefined) params['sort'] = String(args.sort)
-
-  const data = await apiFetch<Record<string, unknown>>('/cryptocurrency/listings/latest', {
-    params,
+const getListings = sg.wrap(async (args: ListingsInput) => {
+  const limit = Math.min(Math.max(args.limit ?? 20, 1), 100)
+  const data = await cmcFetch<{ data: Array<Record<string, unknown>> }>('/cryptocurrency/listings/latest', {
+    limit: String(limit),
+    convert: 'USD',
   })
-
-  return data
+  return { count: data.data.length, listings: data.data }
 }, { method: 'get_listings' })
 
-const getQuotes = sg.wrap(async (args: GetQuotesInput) => {
+const getQuotes = sg.wrap(async (args: QuotesInput) => {
   if (!args.symbol || typeof args.symbol !== 'string') {
-    throw new Error('symbol is required (comma-separated symbols (e.g. btc,eth))')
+    throw new Error('symbol is required (e.g. "BTC" or "BTC,ETH")')
   }
-
-  const params: Record<string, string> = {}
-  params['symbol'] = args.symbol
-
-  const data = await apiFetch<Record<string, unknown>>('/cryptocurrency/quotes/latest', {
-    params,
+  const data = await cmcFetch<{ data: Record<string, unknown> }>('/cryptocurrency/quotes/latest', {
+    symbol: args.symbol.toUpperCase().trim(),
+    convert: 'USD',
   })
-
-  return data
+  return data.data
 }, { method: 'get_quotes' })
+
+const getMetadata = sg.wrap(async (args: MetadataInput) => {
+  if (!args.symbol || typeof args.symbol !== 'string') {
+    throw new Error('symbol is required (e.g. "BTC")')
+  }
+  const data = await cmcFetch<{ data: Record<string, unknown> }>('/cryptocurrency/info', {
+    symbol: args.symbol.toUpperCase().trim(),
+  })
+  return data.data
+}, { method: 'get_metadata' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getListings, getQuotes }
+export { getListings, getQuotes, getMetadata }
 
 console.log('settlegrid-coinmarketcap MCP server ready')
-console.log('Methods: get_listings, get_quotes')
-console.log('Pricing: 1-2¢ per call | Powered by SettleGrid')
+console.log('Methods: get_listings, get_quotes, get_metadata')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

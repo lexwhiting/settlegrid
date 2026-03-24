@@ -6,7 +6,7 @@ Kraken MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-kraken)
 
-Cryptocurrency exchange data including tickers, OHLC, and order books
+Crypto market data, OHLC, and ticker info via the public Kraken API.
 
 ## Quick Start
 
@@ -20,9 +20,9 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_ticker(pair)` | Get ticker information for a trading pair | 1¢ |
-| `get_ohlc(pair)` | Get OHLC candle data | 2¢ |
-| `get_assets()` | Get list of tradable assets | 1¢ |
+| `get_ticker(pair)` | Ticker info for trading pair | 1¢ |
+| `get_ohlc(pair, interval)` | OHLC candlestick data | 1¢ |
+| `get_assets()` | List available assets | 1¢ |
 
 ## Parameters
 
@@ -30,8 +30,8 @@ npm run dev
 - `pair` (string, required) — Trading pair (e.g. XBTUSD)
 
 ### get_ohlc
-- `pair` (string, required) — Trading pair
-- `interval` (number, optional) — Interval in minutes (1,5,15,30,60,240,1440) (default: 60)
+- `pair` (string, required) — Trading pair (e.g. XBTUSD)
+- `interval` (number) — Interval in minutes (1, 5, 15, 30, 60, 240, 1440, default 60)
 
 ### get_assets
 
@@ -41,7 +41,7 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Kraken API.
+No API key needed for the upstream Kraken API — it is completely free.
 
 ## Upstream API
 

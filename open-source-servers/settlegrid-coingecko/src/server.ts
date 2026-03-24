@@ -1,65 +1,32 @@
 /**
- * settlegrid-coingecko — CoinGecko MCP Server
+ * settlegrid-coingecko — CoinGecko Crypto MCP Server
  *
- * Wraps the CoinGecko API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the free CoinGecko API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   get_price(ids)                           (1¢)
- *   get_coin(id)                             (2¢)
- *   get_trending()                           (1¢)
- *   search_coins(query)                      (1¢)
+ *   get_price(ids, currency)   — Current prices          (1¢)
+ *   get_coin(id)               — Detailed coin data      (1¢)
+ *   get_trending()             — Trending coins           (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetPriceInput {
-  ids: string
-  vs_currencies?: string
-}
-
-interface GetCoinInput {
-  id: string
-}
-
-interface GetTrendingInput {
-}
-
-interface SearchCoinsInput {
-  query: string
-}
+interface PriceInput { ids: string; currency: string }
+interface CoinInput { id: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.coingecko.com/api/v3'
-const USER_AGENT = 'settlegrid-coingecko/1.0 (contact@settlegrid.ai)'
+const BASE = 'https://api.coingecko.com/api/v3'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function cgFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`${BASE}${path}`)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const res = await fetch(url.toString(), {
+    headers: { 'User-Agent': 'settlegrid-coingecko/1.0 (contact@settlegrid.ai)', Accept: 'application/json' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`CoinGecko API ${res.status}: ${body.slice(0, 200)}`)
@@ -74,77 +41,55 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_price: { costCents: 1, displayName: 'Get current price for cryptocurrencies' },
-      get_coin: { costCents: 2, displayName: 'Get detailed coin data including description and l' },
-      get_trending: { costCents: 1, displayName: 'Get trending coins in the last 24 hours' },
-      search_coins: { costCents: 1, displayName: 'Search for coins by name or symbol' },
+      get_price: { costCents: 1, displayName: 'Coin Prices' },
+      get_coin: { costCents: 1, displayName: 'Coin Details' },
+      get_trending: { costCents: 1, displayName: 'Trending Coins' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getPrice = sg.wrap(async (args: GetPriceInput) => {
+const getPrice = sg.wrap(async (args: PriceInput) => {
   if (!args.ids || typeof args.ids !== 'string') {
-    throw new Error('ids is required (coin ids comma-separated (e.g. bitcoin,ethereum))')
+    throw new Error('ids is required (comma-separated coin IDs, e.g. "bitcoin,ethereum")')
   }
-
-  const params: Record<string, string> = {}
-  params['ids'] = args.ids
-  if (args.vs_currencies !== undefined) params['vs_currencies'] = String(args.vs_currencies)
-
-  const data = await apiFetch<Record<string, unknown>>('/simple/price', {
-    params,
+  if (!args.currency || typeof args.currency !== 'string') {
+    throw new Error('currency is required (e.g. "usd")')
+  }
+  const data = await cgFetch<Record<string, Record<string, number>>>('/simple/price', {
+    ids: args.ids.toLowerCase().trim(),
+    vs_currencies: args.currency.toLowerCase().trim(),
+    include_24hr_change: 'true',
+    include_market_cap: 'true',
   })
-
-  return data
+  return { currency: args.currency.toLowerCase(), prices: data }
 }, { method: 'get_price' })
 
-const getCoin = sg.wrap(async (args: GetCoinInput) => {
+const getCoin = sg.wrap(async (args: CoinInput) => {
   if (!args.id || typeof args.id !== 'string') {
-    throw new Error('id is required (coin id (e.g. bitcoin))')
+    throw new Error('id is required (e.g. "bitcoin")')
   }
-
-  const params: Record<string, string> = {}
-  params['id'] = String(args.id)
-
-  const data = await apiFetch<Record<string, unknown>>(`/coins/${encodeURIComponent(String(args.id))}`, {
-    params,
+  const data = await cgFetch<Record<string, unknown>>(`/coins/${encodeURIComponent(args.id.toLowerCase().trim())}`, {
+    localization: 'false',
+    tickers: 'false',
+    community_data: 'false',
+    developer_data: 'false',
   })
-
   return data
 }, { method: 'get_coin' })
 
-const getTrending = sg.wrap(async (args: GetTrendingInput) => {
-
-  const params: Record<string, string> = {}
-
-  const data = await apiFetch<Record<string, unknown>>('/search/trending', {
-    params,
-  })
-
-  return data
-}, { method: 'get_trending' })
-
-const searchCoins = sg.wrap(async (args: SearchCoinsInput) => {
-  if (!args.query || typeof args.query !== 'string') {
-    throw new Error('query is required (search query)')
+const getTrending = sg.wrap(async () => {
+  const data = await cgFetch<{ coins: Array<{ item: Record<string, unknown> }> }>('/search/trending')
+  return {
+    coins: (data.coins ?? []).map((c) => c.item),
   }
-
-  const params: Record<string, string> = {}
-  params['query'] = args.query
-
-  const data = await apiFetch<Record<string, unknown>>('/search', {
-    params,
-  })
-
-  return data
-}, { method: 'search_coins' })
+}, { method: 'get_trending' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getPrice, getCoin, getTrending, searchCoins }
+export { getPrice, getCoin, getTrending }
 
 console.log('settlegrid-coingecko MCP server ready')
-console.log('Methods: get_price, get_coin, get_trending, search_coins')
-console.log('Pricing: 1-2¢ per call | Powered by SettleGrid')
+console.log('Methods: get_price, get_coin, get_trending')
+console.log('Pricing: 1¢ per call | Powered by SettleGrid')

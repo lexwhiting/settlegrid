@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-coingecko",
   "version": "1.0.0",
-  "description": "MCP server for CoinGecko with SettleGrid billing. Cryptocurrency prices, market data, and exchange info for 10,000+ coins",
+  "description": "MCP server for CoinGecko with SettleGrid billing. Cryptocurrency prices, market data, and exchange info via the free CoinGecko API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,11 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
     "crypto",
+    "coingecko",
     "bitcoin",
-    "ethereum",
-    "market",
-    "prices"
+    "ethereum"
   ],
   "license": "MIT",
   "repository": {

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-alpha-vantage",
   "version": "1.0.0",
-  "description": "MCP server for Alpha Vantage with SettleGrid billing. Stock prices, forex, crypto, and technical indicators with 25+ years of data",
+  "description": "MCP server for Alpha Vantage with SettleGrid billing. Stock quotes, time series, and fundamentals via the Alpha Vantage API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "stocks",
     "finance",
-    "market",
-    "quotes",
-    "trading"
+    "stocks",
+    "alpha-vantage",
+    "time-series"
   ],
   "license": "MIT",
   "repository": {

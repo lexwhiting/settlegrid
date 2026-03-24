@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-etherscan",
   "version": "1.0.0",
-  "description": "MCP server for Etherscan with SettleGrid billing. Ethereum blockchain data including balances, transactions, and token info",
+  "description": "MCP server for Etherscan with SettleGrid billing. Ethereum blockchain data, balances, and transactions via Etherscan.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,11 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
+    "crypto",
     "ethereum",
     "blockchain",
-    "crypto",
-    "web3",
-    "defi"
+    "etherscan"
   ],
   "license": "MIT",
   "repository": {

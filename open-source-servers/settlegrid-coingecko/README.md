@@ -6,7 +6,7 @@ CoinGecko MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-coingecko)
 
-Cryptocurrency prices, market data, and exchange info for 10,000+ coins
+Cryptocurrency prices, market data, and exchange info via the free CoinGecko API.
 
 ## Quick Start
 
@@ -20,24 +20,20 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_price(ids)` | Get current price for cryptocurrencies | 1¢ |
-| `get_coin(id)` | Get detailed coin data including description and links | 2¢ |
-| `get_trending()` | Get trending coins in the last 24 hours | 1¢ |
-| `search_coins(query)` | Search for coins by name or symbol | 1¢ |
+| `get_price(ids, currency)` | Current price for coins | 1¢ |
+| `get_coin(id)` | Detailed coin data | 1¢ |
+| `get_trending()` | Trending coins | 1¢ |
 
 ## Parameters
 
 ### get_price
-- `ids` (string, required) — Coin IDs comma-separated (e.g. bitcoin,ethereum)
-- `vs_currencies` (string, optional) — Target currencies (e.g. usd,eur) (default: "usd")
+- `ids` (string, required) — Comma-separated coin IDs (e.g. bitcoin,ethereum)
+- `currency` (string, required) — Target currency (e.g. usd)
 
 ### get_coin
 - `id` (string, required) — Coin ID (e.g. bitcoin)
 
 ### get_trending
-
-### search_coins
-- `query` (string, required) — Search query
 
 ## Environment Variables
 
@@ -45,7 +41,7 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream CoinGecko API.
+No API key needed for the upstream CoinGecko API — it is completely free.
 
 ## Upstream API
 

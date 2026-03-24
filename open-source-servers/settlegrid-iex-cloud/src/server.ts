@@ -1,62 +1,37 @@
 /**
- * settlegrid-iex-cloud — IEX Cloud MCP Server
+ * settlegrid-iex-cloud — IEX Cloud Stock Data MCP Server
  *
  * Wraps the IEX Cloud API with SettleGrid billing.
- * Requires IEX_CLOUD_API_KEY environment variable.
+ * Requires IEX_TOKEN environment variable.
  *
  * Methods:
- *   get_quote(symbol)                        (1¢)
- *   get_stats(symbol)                        (1¢)
+ *   get_quote(symbol)      — Real-time quote     (2¢)
+ *   get_company(symbol)    — Company info         (2¢)
+ *   get_stats(symbol)      — Key statistics       (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetQuoteInput {
-  symbol: string
-}
-
-interface GetStatsInput {
-  symbol: string
-}
+interface SymbolInput { symbol: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://cloud.iexapis.com/stable'
-const USER_AGENT = 'settlegrid-iex-cloud/1.0 (contact@settlegrid.ai)'
+const BASE = 'https://cloud.iexapis.com/stable'
 
-function getApiKey(): string {
-  const key = process.env.IEX_CLOUD_API_KEY
-  if (!key) throw new Error('IEX_CLOUD_API_KEY environment variable is required')
-  return key
+function getKey(): string {
+  const k = process.env.IEX_TOKEN
+  if (!k) throw new Error('IEX_TOKEN environment variable is required')
+  return k
 }
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  url.searchParams.set('token', getApiKey())
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function iexFetch<T>(path: string): Promise<T> {
+  const url = new URL(`${BASE}${path}`)
+  url.searchParams.set('token', getKey())
+  const res = await fetch(url.toString(), {
+    headers: { 'User-Agent': 'settlegrid-iex-cloud/1.0 (contact@settlegrid.ai)' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`IEX Cloud API ${res.status}: ${body.slice(0, 200)}`)
@@ -69,50 +44,48 @@ async function apiFetch<T>(path: string, options: {
 const sg = settlegrid.init({
   toolSlug: 'iex-cloud',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      get_quote: { costCents: 1, displayName: 'Get real-time stock quote' },
-      get_stats: { costCents: 1, displayName: 'Get key financial stats for a company' },
+      get_quote: { costCents: 2, displayName: 'Stock Quote' },
+      get_company: { costCents: 2, displayName: 'Company Info' },
+      get_stats: { costCents: 2, displayName: 'Key Stats' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getQuote = sg.wrap(async (args: GetQuoteInput) => {
+const getQuote = sg.wrap(async (args: SymbolInput) => {
   if (!args.symbol || typeof args.symbol !== 'string') {
-    throw new Error('symbol is required (stock ticker)')
+    throw new Error('symbol is required (e.g. "AAPL")')
   }
-
-  const params: Record<string, string> = {}
-  params['symbol'] = String(args.symbol)
-
-  const data = await apiFetch<Record<string, unknown>>(`/stock/${encodeURIComponent(String(args.symbol))}/quote`, {
-    params,
-  })
-
+  const sym = encodeURIComponent(args.symbol.toUpperCase().trim())
+  const data = await iexFetch<Record<string, unknown>>(`/stock/${sym}/quote`)
   return data
 }, { method: 'get_quote' })
 
-const getStats = sg.wrap(async (args: GetStatsInput) => {
+const getCompany = sg.wrap(async (args: SymbolInput) => {
   if (!args.symbol || typeof args.symbol !== 'string') {
-    throw new Error('symbol is required (stock ticker)')
+    throw new Error('symbol is required (e.g. "AAPL")')
   }
+  const sym = encodeURIComponent(args.symbol.toUpperCase().trim())
+  const data = await iexFetch<Record<string, unknown>>(`/stock/${sym}/company`)
+  return data
+}, { method: 'get_company' })
 
-  const params: Record<string, string> = {}
-  params['symbol'] = String(args.symbol)
-
-  const data = await apiFetch<Record<string, unknown>>(`/stock/${encodeURIComponent(String(args.symbol))}/stats`, {
-    params,
-  })
-
+const getStats = sg.wrap(async (args: SymbolInput) => {
+  if (!args.symbol || typeof args.symbol !== 'string') {
+    throw new Error('symbol is required (e.g. "AAPL")')
+  }
+  const sym = encodeURIComponent(args.symbol.toUpperCase().trim())
+  const data = await iexFetch<Record<string, unknown>>(`/stock/${sym}/stats`)
   return data
 }, { method: 'get_stats' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getQuote, getStats }
+export { getQuote, getCompany, getStats }
 
 console.log('settlegrid-iex-cloud MCP server ready')
-console.log('Methods: get_quote, get_stats')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Methods: get_quote, get_company, get_stats')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

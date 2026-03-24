@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-kraken",
   "version": "1.0.0",
-  "description": "MCP server for Kraken with SettleGrid billing. Cryptocurrency exchange data including tickers, OHLC, and order books",
+  "description": "MCP server for Kraken with SettleGrid billing. Crypto market data, OHLC, and ticker info via the public Kraken API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,11 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
     "crypto",
-    "exchange",
+    "kraken",
     "trading",
-    "bitcoin"
+    "ohlc"
   ],
   "license": "MIT",
   "repository": {

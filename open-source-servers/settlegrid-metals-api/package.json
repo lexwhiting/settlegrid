@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-metals-api",
+  "version": "1.0.0",
+  "description": "MCP server for Metals API with SettleGrid billing. Precious metal and commodity prices with real-time and historical rates.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "finance",
+    "commodities",
+    "metals",
+    "gold",
+    "silver"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-metals-api"
+  }
+}

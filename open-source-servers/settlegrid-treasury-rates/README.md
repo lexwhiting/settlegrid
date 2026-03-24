@@ -6,7 +6,7 @@ US Treasury Rates MCP Server with per-call billing via [SettleGrid](https://sett
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-treasury-rates)
 
-US Treasury interest rates, yield curves, and daily treasury data
+US Treasury yields and interest rate data from the Fiscal Data API.
 
 ## Quick Start
 
@@ -20,18 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_rates()` | Get daily Treasury interest rates | 1¢ |
-| `get_debt()` | Get US public debt data | 1¢ |
+| `get_treasury_rates()` | Current treasury yield rates | 1¢ |
+| `get_debt_to_penny()` | National debt total | 1¢ |
+| `get_avg_interest_rates()` | Average interest rates on debt | 1¢ |
 
 ## Parameters
 
-### get_rates
-- `sort` (string, optional) — Sort field (e.g. -record_date) (default: "-record_date")
-- `page_size` (number, optional) — Results per page (default: 20)
+### get_treasury_rates
 
-### get_debt
-- `sort` (string, optional) — Sort field (default: "-record_date")
-- `page_size` (number, optional) — Results per page (default: 10)
+### get_debt_to_penny
+
+### get_avg_interest_rates
 
 ## Environment Variables
 
@@ -39,11 +38,11 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream US Treasury Rates API.
+No API key needed for the upstream US Treasury Fiscal Data API — it is completely free.
 
 ## Upstream API
 
-- **Provider**: US Treasury Rates
+- **Provider**: US Treasury Fiscal Data
 - **Base URL**: https://api.fiscaldata.treasury.gov/services/api/fiscal_service
 - **Auth**: None required
 - **Docs**: https://fiscaldata.treasury.gov/api-documentation/

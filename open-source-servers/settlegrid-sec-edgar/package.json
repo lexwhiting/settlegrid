@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-sec-edgar",
   "version": "1.0.0",
-  "description": "MCP server for SEC EDGAR with SettleGrid billing. SEC filings, company submissions, and CIK lookups from EDGAR",
+  "description": "MCP server for SEC EDGAR with SettleGrid billing. SEC filings, company submissions, and full-text search via EDGAR.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
     "sec",
-    "filings",
     "edgar",
-    "10-k",
+    "filings",
     "regulatory"
   ],
   "license": "MIT",

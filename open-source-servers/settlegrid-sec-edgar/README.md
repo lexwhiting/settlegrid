@@ -6,7 +6,7 @@ SEC EDGAR MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-sec-edgar)
 
-SEC filings, company submissions, and CIK lookups from EDGAR
+SEC filings, company submissions, and full-text search via EDGAR.
 
 ## Quick Start
 
@@ -20,18 +20,21 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_filings(q)` | Full-text search SEC filings | 2¢ |
-| `get_company_filings(cik)` | Get all filings for a company by CIK | 2¢ |
+| `search_filings(query, dateRange)` | Full-text search of SEC filings | 1¢ |
+| `get_submissions(cik)` | Company filing submissions by CIK | 1¢ |
+| `get_company_facts(cik)` | XBRL facts for a company | 1¢ |
 
 ## Parameters
 
 ### search_filings
-- `q` (string, required) — Search query
-- `dateRange` (string, optional) — Date range filter
-- `forms` (string, optional) — Form types (e.g. 10-K,10-Q)
+- `query` (string, required) — Search query
+- `dateRange` (string) — Date range (e.g. "2024-01-01,2024-12-31")
 
-### get_company_filings
-- `cik` (string, required) — Company CIK number (e.g. 0000320193 for Apple)
+### get_submissions
+- `cik` (string, required) — SEC CIK number (e.g. "0000320193" for Apple)
+
+### get_company_facts
+- `cik` (string, required) — SEC CIK number
 
 ## Environment Variables
 
@@ -39,14 +42,14 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream SEC EDGAR API.
+No API key needed for the upstream SEC EDGAR API — it is completely free.
 
 ## Upstream API
 
 - **Provider**: SEC EDGAR
 - **Base URL**: https://efts.sec.gov/LATEST
 - **Auth**: None required
-- **Docs**: https://efts.sec.gov/LATEST/search-index?q=about
+- **Docs**: https://efts.sec.gov/LATEST/search-index?q=%22API%22
 
 ## Deploy
 

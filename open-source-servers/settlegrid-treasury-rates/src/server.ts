@@ -1,60 +1,35 @@
 /**
  * settlegrid-treasury-rates — US Treasury Rates MCP Server
  *
- * Wraps the US Treasury Rates API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the US Treasury Fiscal Data API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   get_rates()                              (1¢)
- *   get_debt()                               (1¢)
+ *   get_treasury_rates()        — Treasury yield rates      (1¢)
+ *   get_debt_to_penny()         — National debt total       (1¢)
+ *   get_avg_interest_rates()    — Avg interest on debt      (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetRatesInput {
-  sort?: string
-  page_size?: number
-}
-
-interface GetDebtInput {
-  sort?: string
-  page_size?: number
-}
+// (no input types — all are parameterless or simple)
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service'
-const USER_AGENT = 'settlegrid-treasury-rates/1.0 (contact@settlegrid.ai)'
+const BASE = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service'
+const UA = 'settlegrid-treasury-rates/1.0 (contact@settlegrid.ai)'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function trFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`${BASE}${path}`)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  const res = await fetch(url.toString(), {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`US Treasury Rates API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Treasury API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -66,44 +41,43 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_rates: { costCents: 1, displayName: 'Get daily Treasury interest rates' },
-      get_debt: { costCents: 1, displayName: 'Get US public debt data' },
+      get_treasury_rates: { costCents: 1, displayName: 'Treasury Yields' },
+      get_debt_to_penny: { costCents: 1, displayName: 'National Debt' },
+      get_avg_interest_rates: { costCents: 1, displayName: 'Avg Interest Rates' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getRates = sg.wrap(async (args: GetRatesInput) => {
+const getTreasuryRates = sg.wrap(async () => {
+  const data = await trFetch<{ data: Array<Record<string, string>> }>(
+    '/v2/accounting/od/avg_interest_rates',
+    { sort: '-record_date', 'page[size]': '20' }
+  )
+  return { count: data.data.length, rates: data.data }
+}, { method: 'get_treasury_rates' })
 
-  const params: Record<string, string> = {}
-  if (args.sort !== undefined) params['sort'] = String(args.sort)
-  if (args.page_size !== undefined) params['page[size]'] = String(args.page_size)
+const getDebtToPenny = sg.wrap(async () => {
+  const data = await trFetch<{ data: Array<Record<string, string>> }>(
+    '/v2/accounting/od/debt_to_penny',
+    { sort: '-record_date', 'page[size]': '5' }
+  )
+  return { count: data.data.length, records: data.data }
+}, { method: 'get_debt_to_penny' })
 
-  const data = await apiFetch<Record<string, unknown>>('/v2/accounting/od/avg_interest_rates', {
-    params,
-  })
-
-  return data
-}, { method: 'get_rates' })
-
-const getDebt = sg.wrap(async (args: GetDebtInput) => {
-
-  const params: Record<string, string> = {}
-  if (args.sort !== undefined) params['sort'] = String(args.sort)
-  if (args.page_size !== undefined) params['page[size]'] = String(args.page_size)
-
-  const data = await apiFetch<Record<string, unknown>>('/v2/accounting/od/debt_to_penny', {
-    params,
-  })
-
-  return data
-}, { method: 'get_debt' })
+const getAvgInterestRates = sg.wrap(async () => {
+  const data = await trFetch<{ data: Array<Record<string, string>> }>(
+    '/v2/accounting/od/avg_interest_rates',
+    { sort: '-record_date', 'page[size]': '20', 'filter': 'security_type_desc:eq:Treasury Bills' }
+  )
+  return { count: data.data.length, rates: data.data }
+}, { method: 'get_avg_interest_rates' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getRates, getDebt }
+export { getTreasuryRates, getDebtToPenny, getAvgInterestRates }
 
 console.log('settlegrid-treasury-rates MCP server ready')
-console.log('Methods: get_rates, get_debt')
+console.log('Methods: get_treasury_rates, get_debt_to_penny, get_avg_interest_rates')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

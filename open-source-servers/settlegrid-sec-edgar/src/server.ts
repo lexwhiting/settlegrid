@@ -1,62 +1,42 @@
 /**
- * settlegrid-sec-edgar — SEC EDGAR MCP Server
+ * settlegrid-sec-edgar — SEC EDGAR Filing Search MCP Server
  *
- * Wraps the SEC EDGAR API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the SEC EDGAR full-text search and submissions APIs.
+ * No API key needed. User-Agent header required by SEC.
  *
  * Methods:
- *   search_filings(q)                        (2¢)
- *   get_company_filings(cik)                 (2¢)
+ *   search_filings(query, dateRange?)   — Full-text search   (1¢)
+ *   get_submissions(cik)                — Company filings    (1¢)
+ *   get_company_facts(cik)              — XBRL facts         (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchFilingsInput {
-  q: string
-  dateRange?: string
-  forms?: string
-}
-
-interface GetCompanyFilingsInput {
-  cik: string
-}
+interface SearchInput { query: string; dateRange?: string }
+interface CikInput { cik: string }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://efts.sec.gov/LATEST'
-const USER_AGENT = 'settlegrid-sec-edgar/1.0 contact@settlegrid.ai'
+const EFTS_BASE = 'https://efts.sec.gov/LATEST'
+const DATA_BASE = 'https://data.sec.gov'
+const UA = 'settlegrid-sec-edgar/1.0 (contact@settlegrid.ai)'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function secFetch<T>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`SEC EDGAR API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`SEC API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
+}
+
+function padCik(cik: string): string {
+  const digits = cik.replace(/\D/g, '')
+  return digits.padStart(10, '0')
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -66,50 +46,50 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search_filings: { costCents: 2, displayName: 'Full-text search SEC filings' },
-      get_company_filings: { costCents: 2, displayName: 'Get all filings for a company by CIK' },
+      search_filings: { costCents: 1, displayName: 'Search Filings' },
+      get_submissions: { costCents: 1, displayName: 'Company Submissions' },
+      get_company_facts: { costCents: 1, displayName: 'Company XBRL Facts' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchFilings = sg.wrap(async (args: SearchFilingsInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (search query)')
+const searchFilings = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.dateRange !== undefined) params['dateRange'] = String(args.dateRange)
-  if (args.forms !== undefined) params['forms'] = String(args.forms)
-
-  const data = await apiFetch<Record<string, unknown>>('/search-index', {
-    params,
-  })
-
+  const url = new URL(`${EFTS_BASE}/search-index`)
+  url.searchParams.set('q', args.query.trim())
+  if (args.dateRange) url.searchParams.set('dateRange', args.dateRange)
+  url.searchParams.set('from', '0')
+  url.searchParams.set('size', '20')
+  const data = await secFetch<Record<string, unknown>>(url.toString())
   return data
 }, { method: 'search_filings' })
 
-const getCompanyFilings = sg.wrap(async (args: GetCompanyFilingsInput) => {
+const getSubmissions = sg.wrap(async (args: CikInput) => {
   if (!args.cik || typeof args.cik !== 'string') {
-    throw new Error('cik is required (company cik number (e.g. 0000320193 for apple))')
+    throw new Error('cik is required (e.g. "0000320193")')
   }
-
-  const params: Record<string, string> = {}
-  params['cik'] = String(args.cik)
-
-  const data = await apiFetch<Record<string, unknown>>('', {
-    params,
-  })
-
+  const cik = padCik(args.cik)
+  const data = await secFetch<Record<string, unknown>>(`${DATA_BASE}/submissions/CIK${cik}.json`)
   return data
-}, { method: 'get_company_filings' })
+}, { method: 'get_submissions' })
+
+const getCompanyFacts = sg.wrap(async (args: CikInput) => {
+  if (!args.cik || typeof args.cik !== 'string') {
+    throw new Error('cik is required (e.g. "0000320193")')
+  }
+  const cik = padCik(args.cik)
+  const data = await secFetch<Record<string, unknown>>(`${DATA_BASE}/api/xbrl/companyfacts/CIK${cik}.json`)
+  return data
+}, { method: 'get_company_facts' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { searchFilings, getCompanyFilings }
+export { searchFilings, getSubmissions, getCompanyFacts }
 
 console.log('settlegrid-sec-edgar MCP server ready')
-console.log('Methods: search_filings, get_company_filings')
-console.log('Pricing: 2¢ per call | Powered by SettleGrid')
+console.log('Methods: search_filings, get_submissions, get_company_facts')
+console.log('Pricing: 1¢ per call | Powered by SettleGrid')

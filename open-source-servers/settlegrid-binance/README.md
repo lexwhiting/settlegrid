@@ -6,7 +6,7 @@ Binance MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-binance)
 
-Cryptocurrency exchange data including prices, order books, and trades
+Crypto trading data, order books, and ticker prices via the public Binance API.
 
 ## Quick Start
 
@@ -20,23 +20,22 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_ticker(symbol)` | Get 24hr price change statistics | 1¢ |
-| `get_klines(symbol, interval)` | Get candlestick/kline data | 2¢ |
-| `get_orderbook(symbol)` | Get current order book depth | 1¢ |
+| `get_ticker(symbol)` | 24hr ticker price change | 1¢ |
+| `get_depth(symbol, limit)` | Order book depth | 1¢ |
+| `get_klines(symbol, interval)` | Candlestick/kline data | 1¢ |
 
 ## Parameters
 
 ### get_ticker
 - `symbol` (string, required) — Trading pair (e.g. BTCUSDT)
 
-### get_klines
-- `symbol` (string, required) — Trading pair (e.g. BTCUSDT)
-- `interval` (string, required) — Interval: 1m,5m,1h,1d,1w
-- `limit` (number, optional) — Number of candles (1-1000) (default: 100)
+### get_depth
+- `symbol` (string, required) — Trading pair (e.g. ETHUSDT)
+- `limit` (number) — Depth limit (5, 10, 20, 50, default 20)
 
-### get_orderbook
+### get_klines
 - `symbol` (string, required) — Trading pair
-- `limit` (number, optional) — Depth limit (5,10,20,50,100) (default: 20)
+- `interval` (string, required) — Interval (1m, 5m, 1h, 1d, etc.)
 
 ## Environment Variables
 
@@ -44,7 +43,7 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Binance API.
+No API key needed for the upstream Binance API — it is completely free.
 
 ## Upstream API
 

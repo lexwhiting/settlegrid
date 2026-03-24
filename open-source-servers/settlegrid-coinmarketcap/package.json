@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-coinmarketcap",
   "version": "1.0.0",
-  "description": "MCP server for CoinMarketCap with SettleGrid billing. Cryptocurrency market data, rankings, and metadata",
+  "description": "MCP server for CoinMarketCap with SettleGrid billing. Cryptocurrency rankings, market cap, and metadata via CoinMarketCap.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "finance",
     "crypto",
-    "bitcoin",
-    "market-cap",
-    "rankings"
+    "coinmarketcap",
+    "market-cap"
   ],
   "license": "MIT",
   "repository": {

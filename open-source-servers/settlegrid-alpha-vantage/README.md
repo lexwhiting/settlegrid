@@ -6,13 +6,13 @@ Alpha Vantage MCP Server with per-call billing via [SettleGrid](https://settlegr
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-alpha-vantage)
 
-Stock prices, forex, crypto, and technical indicators with 25+ years of data
+Stock quotes, time series, and fundamentals via the Alpha Vantage API.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key + ALPHA_VANTAGE_API_KEY
+cp .env.example .env   # Add your SettleGrid API key
 npm run dev
 ```
 
@@ -20,21 +20,20 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_quote(symbol)` | Get real-time stock quote | 1¢ |
-| `get_daily(symbol)` | Get daily price time series | 2¢ |
-| `search_symbol(keywords)` | Search for stock symbols by name | 1¢ |
+| `get_quote(symbol)` | Real-time stock quote | 2¢ |
+| `get_daily(symbol)` | Daily time series prices | 2¢ |
+| `search_symbol(keywords)` | Search ticker symbols by keyword | 2¢ |
 
 ## Parameters
 
 ### get_quote
-- `symbol` (string, required) — Stock ticker (e.g. AAPL, MSFT)
+- `symbol` (string, required) — Stock ticker (e.g. AAPL)
 
 ### get_daily
 - `symbol` (string, required) — Stock ticker
-- `outputsize` (string, optional) — compact (100 days) or full (default: "compact")
 
 ### search_symbol
-- `keywords` (string, required) — Search keywords (e.g. Apple, Tesla)
+- `keywords` (string, required) — Search keywords (e.g. apple)
 
 ## Environment Variables
 
@@ -47,7 +46,7 @@ npm run dev
 
 - **Provider**: Alpha Vantage
 - **Base URL**: https://www.alphavantage.co/query
-- **Auth**: API key (query)
+- **Auth**: API key required
 - **Docs**: https://www.alphavantage.co/documentation/
 
 ## Deploy
@@ -56,7 +55,7 @@ npm run dev
 
 ```bash
 docker build -t settlegrid-alpha-vantage .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e ALPHA_VANTAGE_API_KEY=xxx -p 3000:3000 settlegrid-alpha-vantage
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-alpha-vantage
 ```
 
 ### Vercel
