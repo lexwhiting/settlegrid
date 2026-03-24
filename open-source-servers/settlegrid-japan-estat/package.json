@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-japan-estat",
+  "version": "1.0.0",
+  "description": "Japanese government statistics from the e-Stat portal.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "japan",
+    "statistics",
+    "government",
+    "demographics",
+    "economics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-japan-estat"
+  }
+}

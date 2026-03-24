@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-huggingface-datasets",
+  "version": "1.0.0",
+  "description": "Search and browse ML datasets on Hugging Face Hub.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "ml",
+    "datasets",
+    "ai",
+    "huggingface",
+    "data"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-huggingface-datasets"
+  }
+}

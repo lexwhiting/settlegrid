@@ -1,0 +1,73 @@
+# settlegrid-usa-spending
+
+USAspending MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+
+[![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-usa-spending)
+
+Federal government spending data from USAspending.gov.
+
+## Quick Start
+
+```bash
+npm install
+cp .env.example .env   # Add your SettleGrid API key
+npm run dev
+```
+
+## Methods
+
+| Method | Description | Cost |
+|--------|-------------|------|
+| `search_spending(keyword)` | Search federal spending awards by keyword | 1¢ |
+| `get_agency(code)` | Get spending totals for a federal agency by toptier code | 1¢ |
+
+## Parameters
+
+### search_spending
+- `keyword` (string, required)
+
+### get_agency
+- `code` (string, required)
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
+
+
+## Upstream API
+
+- **Provider**: US Treasury
+- **Base URL**: https://api.usaspending.gov
+- **Auth**: None required
+- **Rate Limits**: No published limit (no key)
+- **Docs**: https://api.usaspending.gov/docs/endpoints
+
+## Deploy
+
+### Docker
+
+```bash
+docker build -t settlegrid-usa-spending .
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-usa-spending
+```
+
+### Vercel
+
+Click the "Deploy with Vercel" button above, or:
+
+```bash
+npm run build
+vercel --prod
+```
+
+## License
+
+MIT - see [LICENSE](LICENSE)
+
+---
+
+Built with [SettleGrid](https://settlegrid.ai) — The Settlement Layer for the AI Economy
