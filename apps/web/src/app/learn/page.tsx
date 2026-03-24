@@ -104,6 +104,18 @@ const SECTIONS: SectionCard[] = [
       </svg>
     ),
   },
+  {
+    title: 'Discovery & Distribution',
+    description:
+      'How to maximize your tool visibility on SettleGrid. Public profiles, README badges, the Discovery API, MCP Discovery Server, reputation tiers, and strategies for getting found by consumers and AI agents.',
+    href: '/learn/discovery',
+    badge: '6-step guide',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+      </svg>
+    ),
+  },
 ]
 
 /* -------------------------------------------------------------------------- */

@@ -20,6 +20,8 @@ interface DeveloperStats {
 
 interface DeveloperProfile {
   stripeConnectStatus: string
+  slug: string | null
+  publicProfile: boolean
 }
 
 interface ToolSummary {
@@ -65,6 +67,135 @@ function formatCents(cents: number): string {
 }
 
 type Period = '7' | '30' | '90'
+
+// ─── Discovery Card ───────────────────────────────────────────────────────────
+
+function DiscoveryCard({ slug, publicProfile }: { slug: string | null; publicProfile: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const [badgeCopied, setBadgeCopied] = useState(false)
+
+  const profileUrl = slug ? `settlegrid.ai/dev/${slug}` : null
+  const badgeMarkdown = slug
+    ? `[![SettleGrid](https://settlegrid.ai/api/badge/dev/${slug})](https://${profileUrl})`
+    : null
+
+  function copyBadge() {
+    if (!badgeMarkdown) return
+    navigator.clipboard.writeText(badgeMarkdown).then(() => {
+      setBadgeCopied(true)
+      setTimeout(() => setBadgeCopied(false), 2000)
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center justify-between w-full text-left"
+          aria-expanded={expanded}
+        >
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+            </svg>
+            <CardTitle className="text-lg">Discovery &amp; Profile</CardTitle>
+          </div>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      </CardHeader>
+      {expanded && (
+        <CardContent className="pt-0 space-y-4">
+          {/* Profile Status */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Profile status:</span>
+            {publicProfile && slug ? (
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Public
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                Not public
+                <Link href="/dashboard/settings#profile" className="text-brand hover:text-brand/80 font-medium transition-colors">
+                  Enable in Settings
+                </Link>
+              </span>
+            )}
+          </div>
+
+          {/* Profile URL */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Profile URL:</span>
+            {profileUrl ? (
+              <a
+                href={`/dev/${slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-brand hover:text-brand/80 transition-colors inline-flex items-center gap-1"
+              >
+                {profileUrl}
+                <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </a>
+            ) : (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                <Link href="/dashboard/settings#profile" className="text-brand hover:text-brand/80 font-medium transition-colors">
+                  Set your slug in Settings
+                </Link>
+              </span>
+            )}
+          </div>
+
+          {/* Badge Snippet */}
+          {badgeMarkdown && (
+            <div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1.5">
+                Powered-by badge (Markdown):
+              </span>
+              <div className="flex items-center gap-2">
+                <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300 max-w-md truncate block">
+                  {badgeMarkdown}
+                </code>
+                <button
+                  onClick={copyBadge}
+                  className="shrink-0 text-gray-400 hover:text-brand transition-colors"
+                  aria-label="Copy badge markdown"
+                >
+                  {badgeCopied ? (
+                    <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Showcase reminder */}
+          <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+            </svg>
+            Your tools appear in the Showcase when active and your profile is public.
+          </p>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
 
 export default function DeveloperDashboardPage() {
   const [stats, setStats] = useState<DeveloperStats | null>(null)
@@ -140,6 +271,7 @@ export default function DeveloperDashboardPage() {
   const hasInvocations = (stats?.totalInvocations ?? 0) > 0
   const hasActiveTool = toolList.some((t) => t.status === 'active')
   const sdkInstalled = sdkStepDismissed
+  const hasPublicProfile = !!profile?.publicProfile && !!profile?.slug
 
   const checklistSteps = [
     { key: 'create-tool', label: 'Create your first tool', description: 'Register an MCP tool to start metering usage and collecting payments.', done: hasTools, href: '/dashboard/tools', cta: 'Create Tool' },
@@ -147,6 +279,7 @@ export default function DeveloperDashboardPage() {
     { key: 'install-sdk', label: 'Install the SDK', description: 'Add the SettleGrid SDK to your project.', done: sdkInstalled, href: null, cta: null },
     { key: 'test-invocation', label: 'Make a test invocation', description: 'Send a test call to verify metering is working.', done: hasInvocations, href: '/docs', cta: 'View Docs' },
     { key: 'go-live', label: 'Go live', description: 'Activate a tool to start accepting production traffic.', done: hasActiveTool, href: '/dashboard/tools', cta: 'Manage Tools' },
+    { key: 'public-profile', label: 'Set up your public profile', description: 'Enable your profile and choose a slug so consumers and AI agents can discover you.', done: hasPublicProfile, href: '/dashboard/settings#profile', cta: 'Edit Profile' },
   ]
 
   const completedCount = checklistSteps.filter((s) => s.done).length
@@ -288,6 +421,14 @@ export default function DeveloperDashboardPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Discovery & Profile */}
+      {!loading && (
+        <DiscoveryCard
+          slug={profile?.slug ?? null}
+          publicProfile={profile?.publicProfile ?? false}
+        />
       )}
 
       {/* Top Stats */}

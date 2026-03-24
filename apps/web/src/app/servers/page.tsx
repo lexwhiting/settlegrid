@@ -8,9 +8,9 @@ import catalogData from '../../../public/server-catalog.json'
 /* ── Metadata ──────────────────────────────────────────────────────────────── */
 
 export const metadata: Metadata = {
-  title: '1,017 Open-Source MCP Servers | SettleGrid',
+  title: '1,017 Open-Source MCP Templates | SettleGrid',
   description:
-    'Browse 1,017 ready-to-deploy MCP servers with SettleGrid billing. Fork, customize, and start earning.',
+    'Browse 1,017 open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, and start earning.',
   alternates: { canonical: 'https://settlegrid.ai/servers' },
   keywords: [
     'MCP servers',
@@ -21,17 +21,17 @@ export const metadata: Metadata = {
     'AI monetization',
   ],
   openGraph: {
-    title: '1,017 Open-Source MCP Servers | SettleGrid',
+    title: '1,017 Open-Source MCP Templates | SettleGrid',
     description:
-      'Browse 1,017 ready-to-deploy MCP servers with SettleGrid billing. Fork, customize, and start earning.',
+      'Browse 1,017 open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, and start earning.',
     type: 'website',
     siteName: 'SettleGrid',
   },
   twitter: {
     card: 'summary_large_image',
-    title: '1,017 Open-Source MCP Servers | SettleGrid',
+    title: '1,017 Open-Source MCP Templates | SettleGrid',
     description:
-      'Browse 1,017 ready-to-deploy MCP servers with SettleGrid billing. Fork, customize, and start earning.',
+      'Browse 1,017 open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, and start earning.',
   },
 }
 
@@ -60,7 +60,13 @@ export default function ServersPage() {
               className="hidden sm:inline text-sm font-medium text-emerald-400 transition-colors"
               aria-current="page"
             >
-              Servers
+              Templates
+            </Link>
+            <Link
+              href="/developers"
+              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
+            >
+              Developers
             </Link>
             <Link
               href="/docs"
@@ -95,12 +101,12 @@ export default function ServersPage() {
           {/* ── Hero ───────────────────────────────────────────────── */}
           <div className="text-center mb-14">
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4">
-              1,017 Open-Source MCP Servers
+              1,017 Open-Source MCP Templates
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Fork any server, add your API key, deploy to Vercel.
+              Fork any template, add your API key, deploy to Vercel.
               Settle<span className="text-emerald-400">Grid</span> billing is
-              pre-wired.
+              pre-wired &mdash; start earning on every call.
             </p>
           </div>
 
@@ -143,7 +149,10 @@ export default function ServersPage() {
               Showcase
             </Link>
             <Link href="/servers" className="hover:text-gray-100 transition-colors">
-              Servers
+              Templates
+            </Link>
+            <Link href="/developers" className="hover:text-gray-100 transition-colors">
+              Developers
             </Link>
             <Link href="/docs" className="hover:text-gray-100 transition-colors">
               Docs

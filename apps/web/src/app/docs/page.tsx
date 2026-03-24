@@ -771,6 +771,7 @@ export default function DocsPage() {
               { href: '#api-reference', label: 'API Reference' },
               { href: '#pricing', label: 'Pricing Model' },
               { href: '#templates', label: 'Templates' },
+              { href: '#discovery', label: 'Discovery' },
               { href: '#faq', label: 'FAQ' },
             ].map((item) => (
               <a
@@ -1120,6 +1121,406 @@ try {
               <a href="/templates/" className="text-brand-text hover:text-brand-dark font-medium">settlegrid.ai/templates</a>.
             </p>
           </Section>
+
+          {/* ── Discovery & Distribution ─────────────────────────── */}
+          <section id="discovery" className="mb-12">
+            <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-2">Discovery &amp; Distribution</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              Public APIs for discovering tools, an MCP Discovery Server for AI clients, badge endpoints for README embeds, and developer profiles.
+            </p>
+
+            {/* ── Discovery API ─────────────────────────── */}
+            <div className="mb-10">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-1">Discovery API</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Public endpoints — no authentication required. Base URL:{' '}
+                <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs font-mono">https://settlegrid.ai</code>
+              </p>
+
+              {/* GET /api/v1/discover */}
+              <div className="mb-8">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/v1/discover" desc="Search & browse tools" />
+                </div>
+                <div className="ml-0 text-sm text-gray-400 space-y-2">
+                  <p className="text-gray-300 font-medium">Query parameters</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-[#2E3148]">
+                          <th className="text-left py-2 pr-4 text-gray-400 font-medium">Param</th>
+                          <th className="text-left py-2 pr-4 text-gray-400 font-medium">Type</th>
+                          <th className="text-left py-2 text-gray-400 font-medium">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-400">
+                        <tr className="border-b border-[#252836]">
+                          <td className="py-2 pr-4"><code className="text-brand-text">q</code></td>
+                          <td className="py-2 pr-4">string</td>
+                          <td className="py-2">Free-text search (name, description, tags)</td>
+                        </tr>
+                        <tr className="border-b border-[#252836]">
+                          <td className="py-2 pr-4"><code className="text-brand-text">category</code></td>
+                          <td className="py-2 pr-4">string</td>
+                          <td className="py-2">Filter by category slug (e.g. <code className="bg-[#252836] px-1 rounded">data</code>, <code className="bg-[#252836] px-1 rounded">nlp</code>, <code className="bg-[#252836] px-1 rounded">finance</code>)</td>
+                        </tr>
+                        <tr className="border-b border-[#252836]">
+                          <td className="py-2 pr-4"><code className="text-brand-text">limit</code></td>
+                          <td className="py-2 pr-4">number</td>
+                          <td className="py-2">Results per page, 1-100 (default: 20)</td>
+                        </tr>
+                        <tr className="border-b border-[#252836]">
+                          <td className="py-2 pr-4"><code className="text-brand-text">offset</code></td>
+                          <td className="py-2 pr-4">number</td>
+                          <td className="py-2">Pagination offset (default: 0)</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 pr-4"><code className="text-brand-text">sort</code></td>
+                          <td className="py-2 pr-4">string</td>
+                          <td className="py-2"><code className="bg-[#252836] px-1 rounded">popular</code> | <code className="bg-[#252836] px-1 rounded">newest</code> | <code className="bg-[#252836] px-1 rounded">name</code> (default: popular)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p className="text-gray-300 font-medium mt-4">Response shape</p>
+                  <CopyableCodeBlock code={`{
+  "tools": [
+    {
+      "slug": "scrutera-sanctions",
+      "name": "Scrutera Sanctions Screening",
+      "description": "Screen entities against OFAC, EU, UN, and UK sanctions lists",
+      "category": "finance",
+      "priceCents": 5,
+      "developer": { "slug": "fieldbrief", "name": "Fieldbrief" },
+      "rating": 4.8,
+      "reviewCount": 42,
+      "totalInvocations": 128500,
+      "status": "active"
+    }
+  ],
+  "total": 156,
+  "limit": 20,
+  "offset": 0,
+  "hasMore": true
+}`} />
+
+                  <p className="text-gray-300 font-medium mt-4">Examples</p>
+                  <CopyableCodeBlock title="cURL" code={`# Search for "sanctions" tools, sorted by popularity
+curl "https://settlegrid.ai/api/v1/discover?q=sanctions&sort=popular&limit=10"
+
+# Browse all finance tools
+curl "https://settlegrid.ai/api/v1/discover?category=finance&limit=50"`} />
+
+                  <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch(
+  'https://settlegrid.ai/api/v1/discover?q=sanctions&sort=popular&limit=10'
+)
+const { tools, total, hasMore } = await res.json()
+console.log(\`Found \${total} tools, showing \${tools.length}\`)`} />
+                </div>
+              </div>
+
+              {/* GET /api/v1/discover/{slug} */}
+              <div className="mb-8">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/v1/discover/{slug}" desc="Get full tool details" />
+                </div>
+                <div className="ml-0 text-sm text-gray-400 space-y-2">
+                  <p>Returns tool info, reviews, changelog, and a ready-to-use quickStart code snippet.</p>
+                  <CopyableCodeBlock code={`{
+  "tool": {
+    "slug": "scrutera-sanctions",
+    "name": "Scrutera Sanctions Screening",
+    "description": "...",
+    "category": "finance",
+    "priceCents": 5,
+    "methods": {
+      "screen": { "costCents": 5 },
+      "batch-screen": { "costCents": 25 }
+    },
+    "developer": { "slug": "fieldbrief", "name": "Fieldbrief", "reputation": 92 },
+    "rating": 4.8,
+    "reviewCount": 42,
+    "currentVersion": "2.1.0",
+    "status": "active",
+    "createdAt": "2026-01-15T00:00:00Z"
+  },
+  "reviews": [
+    { "rating": 5, "comment": "Fast and accurate", "createdAt": "2026-03-10T00:00:00Z" }
+  ],
+  "changelog": [
+    { "version": "2.1.0", "type": "minor", "notes": "Added batch screening", "date": "2026-03-01" }
+  ],
+  "quickStart": "import { settlegrid } from '@settlegrid/mcp'\\n\\nconst sg = settlegrid.init({\\n  toolSlug: 'scrutera-sanctions',\\n  pricing: { defaultCostCents: 5 },\\n})\\n\\nconst screen = sg.wrap(async (args) => {\\n  // Your screening logic\\n})"
+}`} />
+
+                  <CopyableCodeBlock title="cURL" code={`curl "https://settlegrid.ai/api/v1/discover/scrutera-sanctions"`} />
+
+                  <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch('https://settlegrid.ai/api/v1/discover/scrutera-sanctions')
+const { tool, reviews, changelog, quickStart } = await res.json()
+console.log(tool.name, '—', tool.rating, 'stars')`} />
+                </div>
+              </div>
+
+              {/* GET /api/v1/discover/categories */}
+              <div className="mb-8">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/v1/discover/categories" desc="List categories with tool counts" />
+                </div>
+                <div className="ml-0 text-sm text-gray-400 space-y-2">
+                  <CopyableCodeBlock code={`{
+  "categories": [
+    { "slug": "finance", "name": "Finance & Compliance", "count": 34 },
+    { "slug": "data", "name": "Data & Enrichment", "count": 28 },
+    { "slug": "nlp", "name": "NLP & Text", "count": 22 },
+    { "slug": "code", "name": "Code & Dev Tools", "count": 19 },
+    { "slug": "search", "name": "Search & Discovery", "count": 15 },
+    { "slug": "image", "name": "Image & Vision", "count": 12 }
+  ]
+}`} />
+
+                  <CopyableCodeBlock title="cURL" code={`curl "https://settlegrid.ai/api/v1/discover/categories"`} />
+
+                  <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch('https://settlegrid.ai/api/v1/discover/categories')
+const { categories } = await res.json()
+categories.forEach(c => console.log(\`\${c.name}: \${c.count} tools\`))`} />
+                </div>
+              </div>
+
+              {/* GET /api/v1/discover/developers/{slug} */}
+              <div className="mb-8">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/v1/discover/developers/{slug}" desc="Developer profile & tools" />
+                </div>
+                <div className="ml-0 text-sm text-gray-400 space-y-2">
+                  <CopyableCodeBlock code={`{
+  "developer": {
+    "slug": "fieldbrief",
+    "name": "Fieldbrief",
+    "bio": "Building AI infrastructure for regulated industries",
+    "avatarUrl": "https://settlegrid.ai/avatars/fieldbrief.png",
+    "reputation": 92,
+    "tier": "Platinum",
+    "totalTools": 6,
+    "totalConsumers": 1840,
+    "joinedAt": "2026-01-10T00:00:00Z"
+  },
+  "tools": [
+    { "slug": "scrutera-sanctions", "name": "Scrutera Sanctions Screening", "rating": 4.8, "priceCents": 5 },
+    { "slug": "gradara-risk", "name": "Gradara Country Risk", "rating": 4.7, "priceCents": 10 }
+  ]
+}`} />
+
+                  <CopyableCodeBlock title="cURL" code={`curl "https://settlegrid.ai/api/v1/discover/developers/fieldbrief"`} />
+
+                  <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch('https://settlegrid.ai/api/v1/discover/developers/fieldbrief')
+const { developer, tools } = await res.json()
+console.log(\`\${developer.name} (\${developer.tier}) — \${tools.length} tools\`)`} />
+                </div>
+              </div>
+            </div>
+
+            {/* ── MCP Discovery Server ─────────────────────────── */}
+            <div className="mb-10">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-1">MCP Discovery Server</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Let AI clients discover and evaluate SettleGrid tools via the Model Context Protocol.
+                Package: <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs font-mono">@settlegrid/discovery</code>
+              </p>
+
+              <p className="text-gray-300 text-sm font-medium mb-2">Install</p>
+              <CopyableCodeBlock title="Terminal" code={`# Run directly (no install)
+npx @settlegrid/discovery
+
+# Or install globally
+npm install -g @settlegrid/discovery`} />
+
+              <p className="text-gray-300 text-sm font-medium mt-6 mb-2">Claude Desktop configuration</p>
+              <p className="text-sm text-gray-400 mb-2">
+                Add to <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs font-mono">~/Library/Application Support/Claude/claude_desktop_config.json</code>:
+              </p>
+              <CopyableCodeBlock title="claude_desktop_config.json" code={`{
+  "mcpServers": {
+    "settlegrid-discovery": {
+      "command": "npx",
+      "args": ["-y", "@settlegrid/discovery"],
+      "env": {
+        "SETTLEGRID_API_URL": "https://settlegrid.ai"
+      }
+    }
+  }
+}`} />
+
+              <p className="text-gray-300 text-sm font-medium mt-6 mb-2">Available MCP tools</p>
+              <div className="space-y-3 mb-4">
+                {[
+                  {
+                    name: 'search_tools',
+                    desc: 'Search the SettleGrid marketplace by keyword, category, or sort order. Returns tool names, slugs, ratings, and pricing.',
+                    params: 'q, category, limit, offset, sort',
+                  },
+                  {
+                    name: 'get_tool',
+                    desc: 'Get full details for a tool by slug, including reviews, changelog, and a quickStart code snippet ready to copy into a project.',
+                    params: 'slug',
+                  },
+                  {
+                    name: 'list_categories',
+                    desc: 'List all tool categories with the number of active tools in each. Useful for browsing the marketplace.',
+                    params: '(none)',
+                  },
+                  {
+                    name: 'get_developer',
+                    desc: 'Get a developer profile including reputation tier, bio, and published tools.',
+                    params: 'slug',
+                  },
+                ].map((tool) => (
+                  <div key={tool.name} className="p-3 rounded-lg border border-[#2E3148] bg-[#1A1D2E]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <code className="text-sm font-mono text-brand-text">{tool.name}</code>
+                      <span className="text-xs text-gray-500">params: {tool.params}</span>
+                    </div>
+                    <p className="text-xs text-gray-400">{tool.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-gray-300 text-sm font-medium mt-6 mb-2">Environment variables</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs mb-2">
+                  <thead>
+                    <tr className="border-b border-[#2E3148]">
+                      <th className="text-left py-2 pr-4 text-gray-400 font-medium">Variable</th>
+                      <th className="text-left py-2 pr-4 text-gray-400 font-medium">Default</th>
+                      <th className="text-left py-2 text-gray-400 font-medium">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-400">
+                    <tr>
+                      <td className="py-2 pr-4"><code className="text-brand-text">SETTLEGRID_API_URL</code></td>
+                      <td className="py-2 pr-4"><code className="bg-[#252836] px-1 rounded">https://settlegrid.ai</code></td>
+                      <td className="py-2">Base URL for the Discovery API. Override for self-hosted or staging.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ── Badge API ─────────────────────────── */}
+            <div className="mb-10">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-1">Badge API</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                SVG badges for READMEs, docs, and marketing pages. All endpoints return <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">image/svg+xml</code> and are CDN-cacheable.
+              </p>
+
+              {/* Powered by badge */}
+              <div className="mb-6">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/badge/powered-by" desc="Generic 'Powered by SettleGrid' badge" />
+                </div>
+                <div className="text-sm text-gray-400 space-y-2">
+                  <p>Embed in any Markdown file:</p>
+                  <CopyableCodeBlock title="Markdown" code={`![Powered by SettleGrid](https://settlegrid.ai/api/badge/powered-by)`} />
+                  <CopyableCodeBlock title="HTML" code={`<a href="https://settlegrid.ai">
+  <img src="https://settlegrid.ai/api/badge/powered-by" alt="Powered by SettleGrid" />
+</a>`} />
+                </div>
+              </div>
+
+              {/* Tool badge */}
+              <div className="mb-6">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/badge/tool/{slug}" desc="Tool-specific status badge" />
+                </div>
+                <div className="text-sm text-gray-400 space-y-2">
+                  <p>
+                    Shows tool name and status. Color reflects status:{' '}
+                    <span className="text-emerald-400">green</span> for active,{' '}
+                    <span className="text-gray-500">gray</span> for draft.
+                  </p>
+                  <CopyableCodeBlock title="Markdown" code={`![Scrutera Sanctions](https://settlegrid.ai/api/badge/tool/scrutera-sanctions)`} />
+                </div>
+              </div>
+
+              {/* Developer badge */}
+              <div className="mb-6">
+                <div className="space-y-1 mb-3">
+                  <ApiEndpointRow method="GET" path="/api/badge/dev/{slug}" desc="Developer reputation badge" />
+                </div>
+                <div className="text-sm text-gray-400 space-y-2">
+                  <p>
+                    Shows developer name and reputation tier. Tier colors:{' '}
+                    <span className="text-amber-700">Bronze</span>,{' '}
+                    <span className="text-gray-300">Silver</span>,{' '}
+                    <span className="text-yellow-400">Gold</span>,{' '}
+                    <span className="text-purple-300">Platinum</span>.
+                  </p>
+                  <CopyableCodeBlock title="Markdown" code={`![Fieldbrief on SettleGrid](https://settlegrid.ai/api/badge/dev/fieldbrief)`} />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Developer Profiles ─────────────────────────── */}
+            <div className="mb-2">
+              <h3 className="text-xl font-semibold text-indigo dark:text-gray-100 mb-1">Developer Profiles</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Public profiles at{' '}
+                <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs font-mono">settlegrid.ai/dev/{'{'}<span className="text-brand-text">slug</span>{'}'}</code>{' '}
+                showcase your tools, reputation, and track record.
+              </p>
+
+              <p className="text-gray-300 text-sm font-medium mb-2">How to enable</p>
+              <ol className="list-decimal list-inside text-sm text-gray-400 space-y-1 mb-6">
+                <li>Go to <strong className="text-gray-300">Dashboard &gt; Settings &gt; Profile</strong></li>
+                <li>Toggle <strong className="text-gray-300">Public Profile</strong> on</li>
+                <li>Set a unique <strong className="text-gray-300">slug</strong> (lowercase, hyphens allowed)</li>
+                <li>Your profile is live at <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">settlegrid.ai/dev/your-slug</code></li>
+              </ol>
+
+              <p className="text-gray-300 text-sm font-medium mb-2">Reputation tiers</p>
+              <div className="overflow-x-auto mb-6">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-[#2E3148]">
+                      <th className="text-left py-2 pr-4 text-gray-400 font-medium">Tier</th>
+                      <th className="text-left py-2 pr-4 text-gray-400 font-medium">Score range</th>
+                      <th className="text-left py-2 text-gray-400 font-medium">Badge color</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-400">
+                    <tr className="border-b border-[#252836]">
+                      <td className="py-2 pr-4 font-medium text-amber-700">Bronze</td>
+                      <td className="py-2 pr-4">0 &ndash; 39</td>
+                      <td className="py-2"><span className="inline-block w-3 h-3 rounded-full bg-amber-700 mr-1 align-middle" /> Amber</td>
+                    </tr>
+                    <tr className="border-b border-[#252836]">
+                      <td className="py-2 pr-4 font-medium text-gray-300">Silver</td>
+                      <td className="py-2 pr-4">40 &ndash; 59</td>
+                      <td className="py-2"><span className="inline-block w-3 h-3 rounded-full bg-gray-400 mr-1 align-middle" /> Gray</td>
+                    </tr>
+                    <tr className="border-b border-[#252836]">
+                      <td className="py-2 pr-4 font-medium text-yellow-400">Gold</td>
+                      <td className="py-2 pr-4">60 &ndash; 79</td>
+                      <td className="py-2"><span className="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1 align-middle" /> Yellow</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 pr-4 font-medium text-purple-300">Platinum</td>
+                      <td className="py-2 pr-4">80 &ndash; 100</td>
+                      <td className="py-2"><span className="inline-block w-3 h-3 rounded-full bg-purple-400 mr-1 align-middle" /> Purple</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-gray-300 text-sm font-medium mb-2">How reputation affects discovery</p>
+              <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
+                <li>Tools from higher-reputation developers rank higher in search results when sorted by <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">popular</code></li>
+                <li>Platinum and Gold developers receive a verified badge on their tool storefronts</li>
+                <li>Reputation is calculated from tool uptime, average review rating, response time, and payout consistency</li>
+                <li>New developers start at 0 and earn points organically — reputation cannot be purchased</li>
+              </ul>
+            </div>
+          </section>
 
           <Section title="FAQ" id="faq">
             <FaqAccordion categories={faqCategories} />

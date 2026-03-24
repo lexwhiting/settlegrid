@@ -483,7 +483,10 @@ export default function HomePage() {
               Showcase
             </Link>
             <Link href="/servers" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
-              Servers
+              Templates
+            </Link>
+            <Link href="/developers" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
+              Developers
             </Link>
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Docs
@@ -555,7 +558,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-6 text-sm">
                 <span className="text-brand-light font-semibold">Free forever</span>
                 <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">servers</span></span>
+                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">starter templates</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
@@ -728,11 +731,11 @@ export default function HomePage() {
                 1,017
               </p>
               <p className="text-xl sm:text-2xl font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                Open-Source MCP Servers Ready to Monetize
+                Open-Source MCP Server Templates
               </p>
               <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-6">
-                We cataloged every open-source MCP server in the ecosystem. Fewer than 5% have any form of billing.
-                Each one is a business waiting to be built.
+                Fork any template, add your API key, and deploy. SettleGrid billing is pre-wired
+                &mdash; every template is a monetizable tool waiting to launch.
               </p>
               <div className="flex flex-wrap justify-center items-center gap-4">
                 <Link href="/servers" className="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
@@ -1014,7 +1017,8 @@ assert signature == request.headers[
             </div>
             <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
               <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Showcase</Link>
-              <Link href="/servers" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Servers</Link>
+              <Link href="/servers" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Templates</Link>
+              <Link href="/developers" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Developers</Link>
               <Link href="/docs" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Docs</Link>
               <Link href="/learn/handbook" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Handbook</Link>
               <Link href="/learn" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Learn</Link>

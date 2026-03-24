@@ -217,9 +217,9 @@ export default function ToolsPage() {
             <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4 space-y-1">
               <p>
                 Need a head start?{' '}
-                <Link href="/servers" className="text-brand hover:underline">Browse 1,017 open-source servers</Link>{' '}
+                <Link href="/servers" className="text-brand hover:underline">Browse 1,017 open-source templates</Link>{' '}
                 or try{' '}
-                <Link href="/templates/" className="text-brand hover:underline">17 starter templates</Link>.
+                <Link href="/templates/" className="text-brand hover:underline">17 quickstart guides</Link>.
               </p>
               <p>
                 Or scaffold one instantly:{' '}

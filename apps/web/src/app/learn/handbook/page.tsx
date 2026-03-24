@@ -525,6 +525,36 @@ export async function POST(request: Request) {
                 Build a network of complementary tools that recommend each other.
               </p>
             </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-gray-100 mb-3">SettleGrid&apos;s Discovery Ecosystem</h3>
+              <p className="text-gray-300 leading-relaxed mb-3">
+                Your tools are automatically discoverable by AI agents and consumers through
+                SettleGrid&apos;s built-in discovery infrastructure. The{' '}
+                <Link href="/tools" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                  Showcase
+                </Link>
+                {' '}is the public catalog where consumers browse and search for tools.
+                The <strong className="text-gray-100">Discovery API</strong> lets third-party directories
+                and integrations embed your tools programmatically. The{' '}
+                <strong className="text-gray-100">MCP Discovery Server</strong> enables AI agents to find
+                and invoke your tools by capability, meaning agents can discover your tool without
+                any human in the loop.
+              </p>
+              <p className="text-gray-300 leading-relaxed">
+                Combined with{' '}
+                <Link href="/dev" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                  developer profiles
+                </Link>
+                , README badges, and reputation tiers (Bronze through Platinum), these channels
+                form a distribution engine that grows your visibility as you build trust.
+                Read the full{' '}
+                <Link href="/learn/discovery" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                  How to Get Discovered
+                </Link>
+                {' '}guide for step-by-step instructions on maximizing your tool&apos;s reach.
+              </p>
+            </div>
           </div>
 
           {/* ================================================================ */}

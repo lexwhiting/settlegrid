@@ -228,6 +228,35 @@ function CopyableField({ value, label }: { value: string; label: string }) {
   )
 }
 
+// ─── Profile Badge Copy Field ──────────────────────────────────────────────────
+
+function ProfileBadgeCopyField({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false)
+  const badgeMarkdown = `[![SettleGrid](https://settlegrid.ai/api/badge/dev/${slug})](https://settlegrid.ai/dev/${slug})`
+
+  function handleCopy() {
+    navigator.clipboard.writeText(badgeMarkdown).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300 max-w-lg truncate block">
+        {badgeMarkdown}
+      </code>
+      <button
+        onClick={handleCopy}
+        className="shrink-0 text-gray-400 hover:text-brand transition-colors"
+        aria-label="Copy badge markdown"
+      >
+        {copied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <CopyIcon className="w-4 h-4" />}
+      </button>
+    </div>
+  )
+}
+
 // ─── Main Settings Page ─────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -975,6 +1004,36 @@ export default function SettingsPage() {
                   </button>
                   <span className="text-sm text-gray-700 dark:text-gray-300">Public profile</span>
                 </div>
+
+                {/* Public Profile Preview & Badge */}
+                {publicProfile && profileSlug && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug) && profileSlug.length >= 3 && (
+                  <div className="rounded-lg border border-brand/20 bg-brand/5 dark:bg-brand/10 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Your public profile is visible at{' '}
+                        <span className="font-medium text-brand dark:text-emerald-400">settlegrid.ai/dev/{profileSlug}</span>.
+                        Consumers and AI agents can discover you and your tools here.
+                      </p>
+                      <Link
+                        href={`/dev/${profileSlug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 ml-4 inline-flex items-center gap-1 text-sm font-medium text-brand hover:text-brand/80 transition-colors"
+                      >
+                        Preview your public profile
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                      </Link>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        Badge embed (Markdown)
+                      </label>
+                      <ProfileBadgeCopyField slug={profileSlug} />
+                    </div>
+                  </div>
+                )}
 
                 {/* Read-only fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-[#2E3148]">
