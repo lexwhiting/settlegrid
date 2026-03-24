@@ -19,7 +19,6 @@ const pages = [
   { name: 'Consumer Dashboard', href: '/consumer', group: 'Navigation' },
   { name: 'Showcase', href: '/tools', group: 'Navigation' },
   { name: 'Templates', href: '/servers', group: 'Navigation' },
-  { name: 'Developer Directory', href: '/developers', group: 'Navigation' },
   { name: 'Documentation', href: '/docs', group: 'Navigation' },
   { name: 'Learn', href: '/learn', group: 'Navigation' },
   { name: 'FAQ', href: '/faq', group: 'Navigation' },

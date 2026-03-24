@@ -55,9 +55,6 @@ export default async function ShowcasePage() {
             <Link href="/servers" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Templates
             </Link>
-            <Link href="/developers" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Developers
-            </Link>
             <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Docs
             </Link>
@@ -143,7 +140,6 @@ export default async function ShowcasePage() {
           <SettleGridLogo variant="compact" size={24} />
           <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
             <Link href="/tools" className="hover:text-indigo dark:text-gray-100 transition-colors">Showcase</Link>
-            <Link href="/developers" className="hover:text-indigo dark:text-gray-100 transition-colors">Developers</Link>
             <Link href="/docs" className="hover:text-indigo dark:text-gray-100 transition-colors">Documentation</Link>
             <Link href="/learn" className="hover:text-indigo dark:text-gray-100 transition-colors">Learn</Link>
             <Link href="/faq" className="hover:text-indigo dark:text-gray-100 transition-colors">FAQ</Link>

@@ -63,12 +63,6 @@ export default function ServersPage() {
               Templates
             </Link>
             <Link
-              href="/developers"
-              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
-            >
-              Developers
-            </Link>
-            <Link
               href="/docs"
               className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
             >
@@ -150,9 +144,6 @@ export default function ServersPage() {
             </Link>
             <Link href="/servers" className="hover:text-gray-100 transition-colors">
               Templates
-            </Link>
-            <Link href="/developers" className="hover:text-gray-100 transition-colors">
-              Developers
             </Link>
             <Link href="/docs" className="hover:text-gray-100 transition-colors">
               Docs
