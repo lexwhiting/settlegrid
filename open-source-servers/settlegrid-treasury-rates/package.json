@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-treasury-rates",
+  "version": "1.0.0",
+  "description": "MCP server for US Treasury Rates with SettleGrid billing. US Treasury interest rates, yield curves, and daily treasury data",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "treasury",
+    "rates",
+    "bonds",
+    "yield",
+    "debt"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-treasury-rates"
+  }
+}

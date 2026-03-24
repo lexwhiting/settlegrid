@@ -1,0 +1,5021 @@
+[
+  {
+    "name": "settlegrid-openweathermap",
+    "displayName": "OpenWeatherMap",
+    "description": "Current weather, forecasts, and historical weather data for any location worldwide",
+    "category": "weather",
+    "baseUrl": "https://api.openweathermap.org/data/2.5",
+    "auth": { "type": "query", "paramName": "appid", "envVar": "OPENWEATHERMAP_API_KEY" },
+    "methods": [
+      {
+        "name": "get_weather",
+        "description": "Get current weather for a city",
+        "endpoint": "/weather",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "city", "type": "string", "required": true, "description": "City name" },
+          { "name": "units", "type": "string", "required": false, "description": "Units: metric, imperial, standard", "default": "metric" }
+        ],
+        "queryMapping": { "q": "city", "units": "units" },
+        "costCents": 1
+      },
+      {
+        "name": "get_forecast",
+        "description": "Get 5-day/3-hour weather forecast",
+        "endpoint": "/forecast",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "city", "type": "string", "required": true, "description": "City name" },
+          { "name": "units", "type": "string", "required": false, "description": "Units: metric, imperial, standard", "default": "metric" }
+        ],
+        "queryMapping": { "q": "city", "units": "units" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "forecast", "temperature", "climate"],
+    "freeApiKeyUrl": "https://openweathermap.org/api",
+    "docsUrl": "https://openweathermap.org/api"
+  },
+  {
+    "name": "settlegrid-open-meteo",
+    "displayName": "Open-Meteo",
+    "description": "Free weather API with hourly and daily forecasts, no API key required",
+    "category": "weather",
+    "baseUrl": "https://api.open-meteo.com/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_forecast",
+        "description": "Get weather forecast by coordinates",
+        "endpoint": "/forecast",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "latitude", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "longitude", "type": "number", "required": true, "description": "Longitude" },
+          { "name": "daily", "type": "string", "required": false, "description": "Daily vars: temperature_2m_max,precipitation_sum" }
+        ],
+        "queryMapping": { "latitude": "latitude", "longitude": "longitude", "daily": "daily", "timezone": "auto" },
+        "costCents": 1
+      },
+      {
+        "name": "get_historical",
+        "description": "Get historical weather data",
+        "endpoint": "/archive",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "latitude", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "longitude", "type": "number", "required": true, "description": "Longitude" },
+          { "name": "start_date", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "end_date", "type": "string", "required": true, "description": "End date YYYY-MM-DD" }
+        ],
+        "queryMapping": { "latitude": "latitude", "longitude": "longitude", "start_date": "start_date", "end_date": "end_date" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "forecast", "climate", "open-source"],
+    "docsUrl": "https://open-meteo.com/en/docs"
+  },
+  {
+    "name": "settlegrid-weatherapi",
+    "displayName": "WeatherAPI",
+    "description": "Real-time weather, forecast, astronomy, and time zone data for any location",
+    "category": "weather",
+    "baseUrl": "https://api.weatherapi.com/v1",
+    "auth": { "type": "query", "paramName": "key", "envVar": "WEATHERAPI_KEY" },
+    "methods": [
+      {
+        "name": "get_current",
+        "description": "Get current weather conditions",
+        "endpoint": "/current.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "City name, zip, IP, or lat,lon" }
+        ],
+        "queryMapping": { "q": "query" },
+        "costCents": 1
+      },
+      {
+        "name": "get_forecast",
+        "description": "Get weather forecast up to 3 days",
+        "endpoint": "/forecast.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "City name, zip, IP, or lat,lon" },
+          { "name": "days", "type": "number", "required": false, "description": "Number of forecast days (1-3)", "default": 3 }
+        ],
+        "queryMapping": { "q": "query", "days": "days" },
+        "costCents": 2
+      },
+      {
+        "name": "get_astronomy",
+        "description": "Get sunrise, sunset, moonrise, and moon phase",
+        "endpoint": "/astronomy.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "City name, zip, IP, or lat,lon" }
+        ],
+        "queryMapping": { "q": "query" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["weather", "forecast", "astronomy", "timezone"],
+    "freeApiKeyUrl": "https://www.weatherapi.com/signup.aspx",
+    "docsUrl": "https://www.weatherapi.com/docs/"
+  },
+  {
+    "name": "settlegrid-visual-crossing",
+    "displayName": "Visual Crossing Weather",
+    "description": "Historical, forecast, and current weather data with 50+ weather metrics",
+    "category": "weather",
+    "baseUrl": "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline",
+    "auth": { "type": "query", "paramName": "key", "envVar": "VISUAL_CROSSING_API_KEY" },
+    "methods": [
+      {
+        "name": "get_timeline",
+        "description": "Get weather timeline for a location",
+        "endpoint": "/{location}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "location", "type": "string", "required": true, "description": "City name or lat,lon" }
+        ],
+        "pathMapping": { "location": "location" },
+        "queryMapping": { "unitGroup": "metric" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "forecast", "historical", "climate"],
+    "freeApiKeyUrl": "https://www.visualcrossing.com/sign-up",
+    "docsUrl": "https://www.visualcrossing.com/resources/documentation/weather-api/timeline-weather-api/"
+  },
+  {
+    "name": "settlegrid-tomorrow-io",
+    "displayName": "Tomorrow.io",
+    "description": "Hyper-local weather intelligence with real-time and forecast data",
+    "category": "weather",
+    "baseUrl": "https://api.tomorrow.io/v4",
+    "auth": { "type": "query", "paramName": "apikey", "envVar": "TOMORROW_IO_API_KEY" },
+    "methods": [
+      {
+        "name": "get_realtime",
+        "description": "Get real-time weather conditions",
+        "endpoint": "/weather/realtime",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "location", "type": "string", "required": true, "description": "lat,lon or city name" }
+        ],
+        "queryMapping": { "location": "location" },
+        "costCents": 1
+      },
+      {
+        "name": "get_forecast",
+        "description": "Get hourly or daily forecast",
+        "endpoint": "/weather/forecast",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "location", "type": "string", "required": true, "description": "lat,lon or city name" },
+          { "name": "timesteps", "type": "string", "required": false, "description": "1h or 1d", "default": "1d" }
+        ],
+        "queryMapping": { "location": "location", "timesteps": "timesteps" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "forecast", "climate", "realtime"],
+    "freeApiKeyUrl": "https://www.tomorrow.io/weather-api/",
+    "docsUrl": "https://docs.tomorrow.io/"
+  },
+  {
+    "name": "settlegrid-weatherbit",
+    "displayName": "Weatherbit",
+    "description": "Current weather, forecasts, and severe weather alerts worldwide",
+    "category": "weather",
+    "baseUrl": "https://api.weatherbit.io/v2.0",
+    "auth": { "type": "query", "paramName": "key", "envVar": "WEATHERBIT_API_KEY" },
+    "methods": [
+      {
+        "name": "get_current",
+        "description": "Get current weather data",
+        "endpoint": "/current",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "city", "type": "string", "required": true, "description": "City name" }
+        ],
+        "queryMapping": { "city": "city" },
+        "costCents": 1
+      },
+      {
+        "name": "get_forecast_daily",
+        "description": "Get 16-day daily forecast",
+        "endpoint": "/forecast/daily",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "city", "type": "string", "required": true, "description": "City name" },
+          { "name": "days", "type": "number", "required": false, "description": "Number of days (1-16)", "default": 7 }
+        ],
+        "queryMapping": { "city": "city", "days": "days" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "forecast", "alerts", "climate"],
+    "freeApiKeyUrl": "https://www.weatherbit.io/account/create",
+    "docsUrl": "https://www.weatherbit.io/api"
+  },
+  {
+    "name": "settlegrid-stormglass",
+    "displayName": "Storm Glass",
+    "description": "Marine weather data including waves, tides, and ocean conditions",
+    "category": "weather",
+    "baseUrl": "https://api.stormglass.io/v2",
+    "auth": { "type": "header", "headerName": "Authorization", "envVar": "STORMGLASS_API_KEY" },
+    "methods": [
+      {
+        "name": "get_weather",
+        "description": "Get point-based marine weather data",
+        "endpoint": "/weather/point",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lng", "type": "number", "required": true, "description": "Longitude" },
+          { "name": "params", "type": "string", "required": false, "description": "Comma-separated: waveHeight,windSpeed,waterTemperature" }
+        ],
+        "queryMapping": { "lat": "lat", "lng": "lng", "params": "params" },
+        "costCents": 2
+      },
+      {
+        "name": "get_tide",
+        "description": "Get tide extremes (highs and lows)",
+        "endpoint": "/tide/extremes/point",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lng", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lng": "lng" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "marine", "ocean", "waves", "tides"],
+    "freeApiKeyUrl": "https://stormglass.io/",
+    "docsUrl": "https://docs.stormglass.io/"
+  },
+  {
+    "name": "settlegrid-airvisual",
+    "displayName": "IQAir AirVisual",
+    "description": "Real-time and forecast air quality data for cities worldwide",
+    "category": "weather",
+    "baseUrl": "https://api.airvisual.com/v2",
+    "auth": { "type": "query", "paramName": "key", "envVar": "AIRVISUAL_API_KEY" },
+    "methods": [
+      {
+        "name": "get_city",
+        "description": "Get air quality for a specific city",
+        "endpoint": "/city",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "city", "type": "string", "required": true, "description": "City name" },
+          { "name": "state", "type": "string", "required": true, "description": "State name" },
+          { "name": "country", "type": "string", "required": true, "description": "Country name" }
+        ],
+        "queryMapping": { "city": "city", "state": "state", "country": "country" },
+        "costCents": 1
+      },
+      {
+        "name": "get_nearest",
+        "description": "Get air quality for nearest station by coordinates",
+        "endpoint": "/nearest_city",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lon", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lon": "lon" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["air-quality", "pollution", "aqi", "health"],
+    "freeApiKeyUrl": "https://www.iqair.com/air-pollution-data-api",
+    "docsUrl": "https://api-docs.iqair.com/"
+  },
+  {
+    "name": "settlegrid-uv-index",
+    "displayName": "OpenUV",
+    "description": "Real-time UV index data and safe sun exposure times",
+    "category": "weather",
+    "baseUrl": "https://api.openuv.io/api/v1",
+    "auth": { "type": "header", "headerName": "x-access-token", "envVar": "OPENUV_API_KEY" },
+    "methods": [
+      {
+        "name": "get_uv",
+        "description": "Get real-time UV index for coordinates",
+        "endpoint": "/uv",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lng", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lng": "lng" },
+        "costCents": 1
+      },
+      {
+        "name": "get_protection",
+        "description": "Get sun protection window times",
+        "endpoint": "/protection",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lng", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lng": "lng" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["uv", "sun", "protection", "health"],
+    "freeApiKeyUrl": "https://www.openuv.io/",
+    "docsUrl": "https://www.openuv.io/uvindex"
+  },
+  {
+    "name": "settlegrid-nws-alerts",
+    "displayName": "NWS Alerts",
+    "description": "NOAA National Weather Service severe weather alerts and warnings for the US",
+    "category": "weather",
+    "baseUrl": "https://api.weather.gov",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_active_alerts",
+        "description": "Get all active weather alerts for a state",
+        "endpoint": "/alerts/active",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "area", "type": "string", "required": true, "description": "2-letter state code (e.g. CA, TX)" }
+        ],
+        "queryMapping": { "area": "area" },
+        "costCents": 1
+      },
+      {
+        "name": "get_alert_types",
+        "description": "Get all alert types and counts",
+        "endpoint": "/alerts/types",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["weather", "alerts", "noaa", "warnings", "severe"],
+    "docsUrl": "https://www.weather.gov/documentation/services-web-api"
+  },
+  {
+    "name": "settlegrid-noaa-climate",
+    "displayName": "NOAA Climate Data",
+    "description": "Historical climate datasets, normals, and extremes from NOAA NCDC",
+    "category": "weather",
+    "baseUrl": "https://www.ncdc.noaa.gov/cdo-web/api/v2",
+    "auth": { "type": "header", "headerName": "token", "envVar": "NOAA_CDO_TOKEN" },
+    "methods": [
+      {
+        "name": "get_datasets",
+        "description": "List available climate datasets",
+        "endpoint": "/datasets",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_data",
+        "description": "Get climate data observations",
+        "endpoint": "/data",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "datasetid", "type": "string", "required": true, "description": "Dataset ID (e.g. GHCND)" },
+          { "name": "startdate", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "enddate", "type": "string", "required": true, "description": "End date YYYY-MM-DD" },
+          { "name": "locationid", "type": "string", "required": false, "description": "Location ID (e.g. FIPS:06)" }
+        ],
+        "queryMapping": { "datasetid": "datasetid", "startdate": "startdate", "enddate": "enddate", "locationid": "locationid" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["climate", "historical", "noaa", "temperature", "precipitation"],
+    "freeApiKeyUrl": "https://www.ncdc.noaa.gov/cdo-web/token",
+    "docsUrl": "https://www.ncdc.noaa.gov/cdo-web/webservices/v2"
+  },
+  {
+    "name": "settlegrid-windy",
+    "displayName": "Windy",
+    "description": "Point weather forecast with multiple global weather models",
+    "category": "weather",
+    "baseUrl": "https://api.windy.com/api/point-forecast/v2",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_point_forecast",
+        "description": "Get point forecast from GFS/ECMWF models",
+        "endpoint": "",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lon", "type": "number", "required": true, "description": "Longitude" },
+          { "name": "model", "type": "string", "required": false, "description": "Model: gfs, ecmwf, iconEu", "default": "gfs" },
+          { "name": "key", "type": "string", "required": true, "description": "Windy API key" }
+        ],
+        "costCents": 2
+      }
+    ],
+    "keywords": ["weather", "wind", "forecast", "models"],
+    "freeApiKeyUrl": "https://api.windy.com/",
+    "docsUrl": "https://api.windy.com/point-forecast/docs"
+  },
+  {
+    "name": "settlegrid-open-meteo-air",
+    "displayName": "Open-Meteo Air Quality",
+    "description": "Free air quality forecast API with PM2.5, PM10, ozone, and pollen data",
+    "category": "weather",
+    "baseUrl": "https://air-quality-api.open-meteo.com/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_air_quality",
+        "description": "Get air quality forecast by coordinates",
+        "endpoint": "/air-quality",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "latitude", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "longitude", "type": "number", "required": true, "description": "Longitude" },
+          { "name": "hourly", "type": "string", "required": false, "description": "Hourly vars: pm10,pm2_5,european_aqi" }
+        ],
+        "queryMapping": { "latitude": "latitude", "longitude": "longitude", "hourly": "hourly" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["air-quality", "pollution", "pollen", "ozone"],
+    "docsUrl": "https://open-meteo.com/en/docs/air-quality-api"
+  },
+  {
+    "name": "settlegrid-open-meteo-geocoding",
+    "displayName": "Open-Meteo Geocoding",
+    "description": "Free geocoding API to resolve city names to coordinates",
+    "category": "weather",
+    "baseUrl": "https://geocoding-api.open-meteo.com/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for locations by name",
+        "endpoint": "/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "City or location name" },
+          { "name": "count", "type": "number", "required": false, "description": "Number of results (1-100)", "default": 10 }
+        ],
+        "queryMapping": { "name": "name", "count": "count" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["geocoding", "location", "coordinates", "cities"],
+    "docsUrl": "https://open-meteo.com/en/docs/geocoding-api"
+  },
+  {
+    "name": "settlegrid-alpha-vantage",
+    "displayName": "Alpha Vantage",
+    "description": "Stock prices, forex, crypto, and technical indicators with 25+ years of data",
+    "category": "finance",
+    "baseUrl": "https://www.alphavantage.co/query",
+    "auth": { "type": "query", "paramName": "apikey", "envVar": "ALPHA_VANTAGE_API_KEY" },
+    "methods": [
+      {
+        "name": "get_quote",
+        "description": "Get real-time stock quote",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker (e.g. AAPL, MSFT)" }
+        ],
+        "queryMapping": { "function": "GLOBAL_QUOTE", "symbol": "symbol" },
+        "costCents": 1
+      },
+      {
+        "name": "get_daily",
+        "description": "Get daily price time series",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker" },
+          { "name": "outputsize", "type": "string", "required": false, "description": "compact (100 days) or full", "default": "compact" }
+        ],
+        "queryMapping": { "function": "TIME_SERIES_DAILY", "symbol": "symbol", "outputsize": "outputsize" },
+        "costCents": 2
+      },
+      {
+        "name": "search_symbol",
+        "description": "Search for stock symbols by name",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "keywords", "type": "string", "required": true, "description": "Search keywords (e.g. Apple, Tesla)" }
+        ],
+        "queryMapping": { "function": "SYMBOL_SEARCH", "keywords": "keywords" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["stocks", "finance", "market", "quotes", "trading"],
+    "freeApiKeyUrl": "https://www.alphavantage.co/support/#api-key",
+    "docsUrl": "https://www.alphavantage.co/documentation/"
+  },
+  {
+    "name": "settlegrid-finnhub",
+    "displayName": "Finnhub",
+    "description": "Real-time stock data, company fundamentals, and financial news",
+    "category": "finance",
+    "baseUrl": "https://finnhub.io/api/v1",
+    "auth": { "type": "query", "paramName": "token", "envVar": "FINNHUB_API_KEY" },
+    "methods": [
+      {
+        "name": "get_quote",
+        "description": "Get real-time stock quote",
+        "endpoint": "/quote",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker (e.g. AAPL)" }
+        ],
+        "queryMapping": { "symbol": "symbol" },
+        "costCents": 1
+      },
+      {
+        "name": "get_company_profile",
+        "description": "Get company profile and fundamentals",
+        "endpoint": "/stock/profile2",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker" }
+        ],
+        "queryMapping": { "symbol": "symbol" },
+        "costCents": 1
+      },
+      {
+        "name": "get_company_news",
+        "description": "Get latest company news articles",
+        "endpoint": "/company-news",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker" },
+          { "name": "from", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "to", "type": "string", "required": true, "description": "End date YYYY-MM-DD" }
+        ],
+        "queryMapping": { "symbol": "symbol", "from": "from", "to": "to" },
+        "costCents": 2,
+        "responseIsArray": true,
+        "responseArraySlice": 20
+      }
+    ],
+    "keywords": ["stocks", "finance", "news", "fundamentals", "market"],
+    "freeApiKeyUrl": "https://finnhub.io/register",
+    "docsUrl": "https://finnhub.io/docs/api"
+  },
+  {
+    "name": "settlegrid-coingecko",
+    "displayName": "CoinGecko",
+    "description": "Cryptocurrency prices, market data, and exchange info for 10,000+ coins",
+    "category": "finance",
+    "baseUrl": "https://api.coingecko.com/api/v3",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_price",
+        "description": "Get current price for cryptocurrencies",
+        "endpoint": "/simple/price",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "ids", "type": "string", "required": true, "description": "Coin IDs comma-separated (e.g. bitcoin,ethereum)" },
+          { "name": "vs_currencies", "type": "string", "required": false, "description": "Target currencies (e.g. usd,eur)", "default": "usd" }
+        ],
+        "queryMapping": { "ids": "ids", "vs_currencies": "vs_currencies" },
+        "costCents": 1
+      },
+      {
+        "name": "get_coin",
+        "description": "Get detailed coin data including description and links",
+        "endpoint": "/coins/{id}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "string", "required": true, "description": "Coin ID (e.g. bitcoin)" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 2
+      },
+      {
+        "name": "get_trending",
+        "description": "Get trending coins in the last 24 hours",
+        "endpoint": "/search/trending",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "search_coins",
+        "description": "Search for coins by name or symbol",
+        "endpoint": "/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" }
+        ],
+        "queryMapping": { "query": "query" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "bitcoin", "ethereum", "market", "prices"],
+    "docsUrl": "https://www.coingecko.com/en/api/documentation"
+  },
+  {
+    "name": "settlegrid-coinmarketcap",
+    "displayName": "CoinMarketCap",
+    "description": "Cryptocurrency market data, rankings, and metadata",
+    "category": "finance",
+    "baseUrl": "https://pro-api.coinmarketcap.com/v1",
+    "auth": { "type": "header", "headerName": "X-CMC_PRO_API_KEY", "envVar": "COINMARKETCAP_API_KEY" },
+    "methods": [
+      {
+        "name": "get_listings",
+        "description": "Get latest cryptocurrency listings with market data",
+        "endpoint": "/cryptocurrency/listings/latest",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Number of results (1-5000)", "default": 20 },
+          { "name": "sort", "type": "string", "required": false, "description": "Sort by: market_cap, volume_24h, price", "default": "market_cap" }
+        ],
+        "queryMapping": { "limit": "limit", "sort": "sort" },
+        "costCents": 2
+      },
+      {
+        "name": "get_quotes",
+        "description": "Get price quotes for specific cryptocurrencies",
+        "endpoint": "/cryptocurrency/quotes/latest",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Comma-separated symbols (e.g. BTC,ETH)" }
+        ],
+        "queryMapping": { "symbol": "symbol" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "bitcoin", "market-cap", "rankings"],
+    "freeApiKeyUrl": "https://coinmarketcap.com/api/",
+    "docsUrl": "https://coinmarketcap.com/api/documentation/v1/"
+  },
+  {
+    "name": "settlegrid-ecb-exchange",
+    "displayName": "ECB Exchange Rates",
+    "description": "Official European Central Bank reference exchange rates updated daily",
+    "category": "finance",
+    "baseUrl": "https://api.frankfurter.app",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_latest",
+        "description": "Get latest ECB exchange rates",
+        "endpoint": "/latest",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "from", "type": "string", "required": false, "description": "Base currency (default EUR)" },
+          { "name": "to", "type": "string", "required": false, "description": "Target currencies comma-separated" }
+        ],
+        "queryMapping": { "from": "from", "to": "to" },
+        "costCents": 1
+      },
+      {
+        "name": "get_historical",
+        "description": "Get historical exchange rates for a date",
+        "endpoint": "/{date}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "date", "type": "string", "required": true, "description": "Date in YYYY-MM-DD format" },
+          { "name": "from", "type": "string", "required": false, "description": "Base currency" }
+        ],
+        "pathMapping": { "date": "date" },
+        "queryMapping": { "from": "from" },
+        "costCents": 1
+      },
+      {
+        "name": "get_time_series",
+        "description": "Get exchange rate time series",
+        "endpoint": "/{start}..{end}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "start", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "end", "type": "string", "required": true, "description": "End date YYYY-MM-DD" },
+          { "name": "from", "type": "string", "required": false, "description": "Base currency" },
+          { "name": "to", "type": "string", "required": false, "description": "Target currencies" }
+        ],
+        "pathMapping": { "start": "start", "end": "end" },
+        "queryMapping": { "from": "from", "to": "to" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["forex", "exchange-rates", "ecb", "currency"],
+    "docsUrl": "https://www.frankfurter.app/docs/"
+  },
+  {
+    "name": "settlegrid-binance",
+    "displayName": "Binance",
+    "description": "Cryptocurrency exchange data including prices, order books, and trades",
+    "category": "finance",
+    "baseUrl": "https://api.binance.com/api/v3",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_ticker",
+        "description": "Get 24hr price change statistics",
+        "endpoint": "/ticker/24hr",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Trading pair (e.g. BTCUSDT)" }
+        ],
+        "queryMapping": { "symbol": "symbol" },
+        "costCents": 1
+      },
+      {
+        "name": "get_klines",
+        "description": "Get candlestick/kline data",
+        "endpoint": "/klines",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Trading pair (e.g. BTCUSDT)" },
+          { "name": "interval", "type": "string", "required": true, "description": "Interval: 1m,5m,1h,1d,1w" },
+          { "name": "limit", "type": "number", "required": false, "description": "Number of candles (1-1000)", "default": 100 }
+        ],
+        "queryMapping": { "symbol": "symbol", "interval": "interval", "limit": "limit" },
+        "costCents": 2
+      },
+      {
+        "name": "get_orderbook",
+        "description": "Get current order book depth",
+        "endpoint": "/depth",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Trading pair" },
+          { "name": "limit", "type": "number", "required": false, "description": "Depth limit (5,10,20,50,100)", "default": 20 }
+        ],
+        "queryMapping": { "symbol": "symbol", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "exchange", "trading", "bitcoin", "orderbook"],
+    "docsUrl": "https://binance-docs.github.io/apidocs/spot/en/"
+  },
+  {
+    "name": "settlegrid-kraken",
+    "displayName": "Kraken",
+    "description": "Cryptocurrency exchange data including tickers, OHLC, and order books",
+    "category": "finance",
+    "baseUrl": "https://api.kraken.com/0/public",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_ticker",
+        "description": "Get ticker information for a trading pair",
+        "endpoint": "/Ticker",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "pair", "type": "string", "required": true, "description": "Trading pair (e.g. XBTUSD)" }
+        ],
+        "queryMapping": { "pair": "pair" },
+        "costCents": 1
+      },
+      {
+        "name": "get_ohlc",
+        "description": "Get OHLC candle data",
+        "endpoint": "/OHLC",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "pair", "type": "string", "required": true, "description": "Trading pair" },
+          { "name": "interval", "type": "number", "required": false, "description": "Interval in minutes (1,5,15,30,60,240,1440)", "default": 60 }
+        ],
+        "queryMapping": { "pair": "pair", "interval": "interval" },
+        "costCents": 2
+      },
+      {
+        "name": "get_assets",
+        "description": "Get list of tradable assets",
+        "endpoint": "/Assets",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "exchange", "trading", "bitcoin"],
+    "docsUrl": "https://docs.kraken.com/rest/"
+  },
+  {
+    "name": "settlegrid-etherscan",
+    "displayName": "Etherscan",
+    "description": "Ethereum blockchain data including balances, transactions, and token info",
+    "category": "finance",
+    "baseUrl": "https://api.etherscan.io/api",
+    "auth": { "type": "query", "paramName": "apikey", "envVar": "ETHERSCAN_API_KEY" },
+    "methods": [
+      {
+        "name": "get_balance",
+        "description": "Get ETH balance for an address",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "address", "type": "string", "required": true, "description": "Ethereum address" }
+        ],
+        "queryMapping": { "module": "account", "action": "balance", "address": "address", "tag": "latest" },
+        "costCents": 1
+      },
+      {
+        "name": "get_transactions",
+        "description": "Get transaction list for an address",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "address", "type": "string", "required": true, "description": "Ethereum address" },
+          { "name": "page", "type": "number", "required": false, "description": "Page number", "default": 1 },
+          { "name": "offset", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "module": "account", "action": "txlist", "address": "address", "page": "page", "offset": "offset", "sort": "desc" },
+        "costCents": 2
+      },
+      {
+        "name": "get_gas_price",
+        "description": "Get current gas price oracle",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [],
+        "queryMapping": { "module": "gastracker", "action": "gasoracle" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["ethereum", "blockchain", "crypto", "web3", "defi"],
+    "freeApiKeyUrl": "https://etherscan.io/apis",
+    "docsUrl": "https://docs.etherscan.io/"
+  },
+  {
+    "name": "settlegrid-open-exchange",
+    "displayName": "Open Exchange Rates",
+    "description": "Real-time and historical exchange rates for 170+ currencies",
+    "category": "finance",
+    "baseUrl": "https://openexchangerates.org/api",
+    "auth": { "type": "query", "paramName": "app_id", "envVar": "OPEN_EXCHANGE_APP_ID" },
+    "methods": [
+      {
+        "name": "get_latest",
+        "description": "Get latest exchange rates",
+        "endpoint": "/latest.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "base", "type": "string", "required": false, "description": "Base currency (default USD)" }
+        ],
+        "queryMapping": { "base": "base" },
+        "costCents": 1
+      },
+      {
+        "name": "get_currencies",
+        "description": "Get list of all supported currencies",
+        "endpoint": "/currencies.json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["forex", "exchange-rates", "currency", "conversion"],
+    "freeApiKeyUrl": "https://openexchangerates.org/signup/free",
+    "docsUrl": "https://docs.openexchangerates.org/"
+  },
+  {
+    "name": "settlegrid-financial-modeling-prep",
+    "displayName": "Financial Modeling Prep",
+    "description": "Stock financials, SEC filings, earnings, and company data",
+    "category": "finance",
+    "baseUrl": "https://financialmodelingprep.com/api/v3",
+    "auth": { "type": "query", "paramName": "apikey", "envVar": "FMP_API_KEY" },
+    "methods": [
+      {
+        "name": "get_profile",
+        "description": "Get company financial profile",
+        "endpoint": "/profile/{symbol}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker (e.g. AAPL)" }
+        ],
+        "pathMapping": { "symbol": "symbol" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 1
+      },
+      {
+        "name": "get_income_statement",
+        "description": "Get annual income statement",
+        "endpoint": "/income-statement/{symbol}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker" },
+          { "name": "limit", "type": "number", "required": false, "description": "Number of years", "default": 5 }
+        ],
+        "pathMapping": { "symbol": "symbol" },
+        "queryMapping": { "limit": "limit" },
+        "costCents": 2,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_gainers_losers",
+        "description": "Get top gainers and losers today",
+        "endpoint": "/stock_market/gainers",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 20
+      }
+    ],
+    "keywords": ["stocks", "financials", "sec", "earnings", "company"],
+    "freeApiKeyUrl": "https://financialmodelingprep.com/developer/docs/",
+    "docsUrl": "https://financialmodelingprep.com/developer/docs/"
+  },
+  {
+    "name": "settlegrid-sec-edgar",
+    "displayName": "SEC EDGAR",
+    "description": "SEC filings, company submissions, and CIK lookups from EDGAR",
+    "category": "finance",
+    "baseUrl": "https://efts.sec.gov/LATEST",
+    "auth": { "type": "none" },
+    "userAgent": "settlegrid-sec-edgar/1.0 contact@settlegrid.ai",
+    "methods": [
+      {
+        "name": "search_filings",
+        "description": "Full-text search SEC filings",
+        "endpoint": "/search-index",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "dateRange", "type": "string", "required": false, "description": "Date range filter" },
+          { "name": "forms", "type": "string", "required": false, "description": "Form types (e.g. 10-K,10-Q)" }
+        ],
+        "queryMapping": { "q": "q", "dateRange": "dateRange", "forms": "forms" },
+        "costCents": 2
+      },
+      {
+        "name": "get_company_filings",
+        "description": "Get all filings for a company by CIK",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "cik", "type": "string", "required": true, "description": "Company CIK number (e.g. 0000320193 for Apple)" }
+        ],
+        "costCents": 2
+      }
+    ],
+    "keywords": ["sec", "filings", "edgar", "10-k", "regulatory"],
+    "docsUrl": "https://efts.sec.gov/LATEST/search-index?q=about"
+  },
+  {
+    "name": "settlegrid-treasury-rates",
+    "displayName": "US Treasury Rates",
+    "description": "US Treasury interest rates, yield curves, and daily treasury data",
+    "category": "finance",
+    "baseUrl": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_rates",
+        "description": "Get daily Treasury interest rates",
+        "endpoint": "/v2/accounting/od/avg_interest_rates",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "sort", "type": "string", "required": false, "description": "Sort field (e.g. -record_date)", "default": "-record_date" },
+          { "name": "page_size", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "sort": "sort", "page[size]": "page_size" },
+        "costCents": 1
+      },
+      {
+        "name": "get_debt",
+        "description": "Get US public debt data",
+        "endpoint": "/v2/accounting/od/debt_to_penny",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "sort", "type": "string", "required": false, "description": "Sort field", "default": "-record_date" },
+          { "name": "page_size", "type": "number", "required": false, "description": "Results per page", "default": 10 }
+        ],
+        "queryMapping": { "sort": "sort", "page[size]": "page_size" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["treasury", "rates", "bonds", "yield", "debt"],
+    "docsUrl": "https://fiscaldata.treasury.gov/api-documentation/"
+  },
+  {
+    "name": "settlegrid-bea",
+    "displayName": "BEA (Bureau of Economic Analysis)",
+    "description": "US GDP, personal income, trade, and industry economic statistics",
+    "category": "finance",
+    "baseUrl": "https://apps.bea.gov/api/data",
+    "auth": { "type": "query", "paramName": "UserID", "envVar": "BEA_API_KEY" },
+    "methods": [
+      {
+        "name": "get_data",
+        "description": "Get economic data from BEA datasets",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "DatasetName", "type": "string", "required": true, "description": "Dataset (e.g. NIPA, Regional)" },
+          { "name": "TableName", "type": "string", "required": true, "description": "Table name (e.g. T10101 for GDP)" },
+          { "name": "Year", "type": "string", "required": false, "description": "Year or ALL", "default": "ALL" },
+          { "name": "Frequency", "type": "string", "required": false, "description": "Q (quarterly) or A (annual)", "default": "Q" }
+        ],
+        "queryMapping": { "method": "GetData", "DatasetName": "DatasetName", "TableName": "TableName", "Year": "Year", "Frequency": "Frequency", "ResultFormat": "JSON" },
+        "costCents": 2
+      },
+      {
+        "name": "get_datasets",
+        "description": "List available BEA datasets",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [],
+        "queryMapping": { "method": "GetDataSetList", "ResultFormat": "JSON" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["gdp", "economics", "bea", "income", "trade"],
+    "freeApiKeyUrl": "https://apps.bea.gov/api/signup/",
+    "docsUrl": "https://apps.bea.gov/api/"
+  },
+  {
+    "name": "settlegrid-fdic",
+    "displayName": "FDIC Bank Data",
+    "description": "FDIC bank financial data, institution search, and failure records",
+    "category": "finance",
+    "baseUrl": "https://banks.data.fdic.gov/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_institutions",
+        "description": "Search for FDIC-insured institutions",
+        "endpoint": "/financials",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "filters", "type": "string", "required": false, "description": "Filter expression (e.g. STNAME:California)" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "filters": "filters", "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_failures",
+        "description": "Get list of bank failures",
+        "endpoint": "/failures",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 },
+          { "name": "sort_by", "type": "string", "required": false, "description": "Sort field", "default": "FAILDATE" },
+          { "name": "sort_order", "type": "string", "required": false, "description": "ASC or DESC", "default": "DESC" }
+        ],
+        "queryMapping": { "limit": "limit", "sort_by": "sort_by", "sort_order": "sort_order" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["banking", "fdic", "finance", "regulation", "failures"],
+    "docsUrl": "https://banks.data.fdic.gov/docs/"
+  },
+  {
+    "name": "settlegrid-polygon",
+    "displayName": "Polygon.io",
+    "description": "Real-time and historical stock, options, and crypto market data",
+    "category": "finance",
+    "baseUrl": "https://api.polygon.io",
+    "auth": { "type": "query", "paramName": "apiKey", "envVar": "POLYGON_API_KEY" },
+    "methods": [
+      {
+        "name": "get_ticker_details",
+        "description": "Get detailed info about a ticker",
+        "endpoint": "/v3/reference/tickers/{ticker}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "ticker", "type": "string", "required": true, "description": "Stock ticker (e.g. AAPL)" }
+        ],
+        "pathMapping": { "ticker": "ticker" },
+        "costCents": 1
+      },
+      {
+        "name": "get_aggregates",
+        "description": "Get aggregate bars for a ticker",
+        "endpoint": "/v2/aggs/ticker/{ticker}/range/1/day/{from}/{to}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "ticker", "type": "string", "required": true, "description": "Stock ticker" },
+          { "name": "from", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "to", "type": "string", "required": true, "description": "End date YYYY-MM-DD" }
+        ],
+        "pathMapping": { "ticker": "ticker", "from": "from", "to": "to" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["stocks", "market", "options", "crypto", "trading"],
+    "freeApiKeyUrl": "https://polygon.io/",
+    "docsUrl": "https://polygon.io/docs/"
+  },
+  {
+    "name": "settlegrid-nasdaq-data",
+    "displayName": "Nasdaq Data Link",
+    "description": "Financial, economic, and alternative datasets from Nasdaq (formerly Quandl)",
+    "category": "finance",
+    "baseUrl": "https://data.nasdaq.com/api/v3",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "NASDAQ_API_KEY" },
+    "methods": [
+      {
+        "name": "get_dataset",
+        "description": "Get a dataset by code",
+        "endpoint": "/datasets/{database_code}/{dataset_code}.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "database_code", "type": "string", "required": true, "description": "Database code (e.g. WIKI, FRED)" },
+          { "name": "dataset_code", "type": "string", "required": true, "description": "Dataset code (e.g. AAPL, GDP)" },
+          { "name": "limit", "type": "number", "required": false, "description": "Row limit", "default": 100 }
+        ],
+        "pathMapping": { "database_code": "database_code", "dataset_code": "dataset_code" },
+        "queryMapping": { "limit": "limit" },
+        "costCents": 2
+      },
+      {
+        "name": "search_datasets",
+        "description": "Search for datasets",
+        "endpoint": "/datasets.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" }
+        ],
+        "queryMapping": { "query": "query" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["datasets", "economic", "financial", "quandl"],
+    "freeApiKeyUrl": "https://data.nasdaq.com/sign-up",
+    "docsUrl": "https://docs.data.nasdaq.com/"
+  },
+  {
+    "name": "settlegrid-iex-cloud",
+    "displayName": "IEX Cloud",
+    "description": "Stock market data, financials, and company information from IEX",
+    "category": "finance",
+    "baseUrl": "https://cloud.iexapis.com/stable",
+    "auth": { "type": "query", "paramName": "token", "envVar": "IEX_CLOUD_API_KEY" },
+    "methods": [
+      {
+        "name": "get_quote",
+        "description": "Get real-time stock quote",
+        "endpoint": "/stock/{symbol}/quote",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker" }
+        ],
+        "pathMapping": { "symbol": "symbol" },
+        "costCents": 1
+      },
+      {
+        "name": "get_stats",
+        "description": "Get key financial stats for a company",
+        "endpoint": "/stock/{symbol}/stats",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker" }
+        ],
+        "pathMapping": { "symbol": "symbol" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["stocks", "market", "iex", "quotes", "financials"],
+    "freeApiKeyUrl": "https://iexcloud.io/",
+    "docsUrl": "https://iexcloud.io/docs/"
+  },
+  {
+    "name": "settlegrid-bls-stats",
+    "displayName": "BLS Statistics",
+    "description": "US Bureau of Labor Statistics data including employment, CPI, and wages",
+    "category": "finance",
+    "baseUrl": "https://api.bls.gov/publicAPI/v2",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_series",
+        "description": "Get time series data by series ID",
+        "endpoint": "/timeseries/data/{seriesId}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "seriesId", "type": "string", "required": true, "description": "BLS series ID (e.g. LNS14000000 for unemployment)" }
+        ],
+        "pathMapping": { "seriesId": "seriesId" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["employment", "wages", "cpi", "inflation", "labor"],
+    "docsUrl": "https://www.bls.gov/developers/"
+  },
+  {
+    "name": "settlegrid-exchangerate-api",
+    "displayName": "ExchangeRate-API",
+    "description": "Free currency exchange rate API with 160+ currencies",
+    "category": "finance",
+    "baseUrl": "https://open.er-api.com/v6",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_latest",
+        "description": "Get latest exchange rates for a base currency",
+        "endpoint": "/latest/{base}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "base", "type": "string", "required": true, "description": "Base currency code (e.g. USD)" }
+        ],
+        "pathMapping": { "base": "base" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["forex", "exchange-rates", "currency"],
+    "docsUrl": "https://www.exchangerate-api.com/docs/free"
+  },
+  {
+    "name": "settlegrid-fec",
+    "displayName": "FEC Campaign Finance",
+    "description": "US Federal Election Commission campaign finance and candidate data",
+    "category": "finance",
+    "baseUrl": "https://api.open.fec.gov/v1",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "FEC_API_KEY", "defaultValue": "DEMO_KEY" },
+    "methods": [
+      {
+        "name": "search_candidates",
+        "description": "Search for political candidates",
+        "endpoint": "/candidates/search/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "Candidate name" },
+          { "name": "office", "type": "string", "required": false, "description": "Office: H(ouse), S(enate), P(resident)" }
+        ],
+        "queryMapping": { "name": "name", "office": "office" },
+        "costCents": 1
+      },
+      {
+        "name": "get_totals",
+        "description": "Get campaign finance totals by candidate ID",
+        "endpoint": "/candidate/{candidate_id}/totals/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "candidate_id", "type": "string", "required": true, "description": "FEC candidate ID" }
+        ],
+        "pathMapping": { "candidate_id": "candidate_id" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["elections", "campaign-finance", "politics", "fec"],
+    "freeApiKeyUrl": "https://api.open.fec.gov/developers/",
+    "docsUrl": "https://api.open.fec.gov/developers/"
+  },
+  {
+    "name": "settlegrid-sba",
+    "displayName": "SBA (Small Business)",
+    "description": "US Small Business Administration size standards and business data",
+    "category": "finance",
+    "baseUrl": "https://data.sba.gov/api/views",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_data",
+        "description": "Get SBA dataset by view ID",
+        "endpoint": "/{viewId}/rows.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "viewId", "type": "string", "required": true, "description": "SBA dataset view ID" }
+        ],
+        "pathMapping": { "viewId": "viewId" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["small-business", "sba", "loans", "government"],
+    "docsUrl": "https://data.sba.gov/"
+  },
+  {
+    "name": "settlegrid-yahoo-finance",
+    "displayName": "Yahoo Finance",
+    "description": "Stock quotes, charts, and market data via Yahoo Finance query API",
+    "category": "finance",
+    "baseUrl": "https://query1.finance.yahoo.com/v8/finance",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_chart",
+        "description": "Get price chart data for a ticker",
+        "endpoint": "/chart/{symbol}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "symbol", "type": "string", "required": true, "description": "Stock ticker (e.g. AAPL)" },
+          { "name": "range", "type": "string", "required": false, "description": "Time range: 1d,5d,1mo,3mo,6mo,1y,5y,max", "default": "1mo" },
+          { "name": "interval", "type": "string", "required": false, "description": "Data interval: 1m,5m,1h,1d,1wk", "default": "1d" }
+        ],
+        "pathMapping": { "symbol": "symbol" },
+        "queryMapping": { "range": "range", "interval": "interval" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["stocks", "yahoo", "charts", "market"],
+    "docsUrl": "https://finance.yahoo.com/"
+  },
+  {
+    "name": "settlegrid-dex-screener",
+    "displayName": "DEX Screener",
+    "description": "Decentralized exchange token prices, pairs, and liquidity data",
+    "category": "finance",
+    "baseUrl": "https://api.dexscreener.com/latest/dex",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_pairs",
+        "description": "Search for trading pairs by token name or address",
+        "endpoint": "/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query (token name or address)" }
+        ],
+        "queryMapping": { "q": "q" },
+        "costCents": 1
+      },
+      {
+        "name": "get_token_pairs",
+        "description": "Get all pairs for a specific token address",
+        "endpoint": "/tokens/{address}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "address", "type": "string", "required": true, "description": "Token contract address" }
+        ],
+        "pathMapping": { "address": "address" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["defi", "dex", "crypto", "liquidity", "tokens"],
+    "docsUrl": "https://docs.dexscreener.com/"
+  },
+  {
+    "name": "settlegrid-github",
+    "displayName": "GitHub",
+    "description": "GitHub repositories, users, issues, and code search via REST API v3",
+    "category": "developer",
+    "baseUrl": "https://api.github.com",
+    "auth": { "type": "bearer", "envVar": "GITHUB_TOKEN" },
+    "methods": [
+      {
+        "name": "get_repo",
+        "description": "Get repository details",
+        "endpoint": "/repos/{owner}/{repo}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "owner", "type": "string", "required": true, "description": "Repository owner" },
+          { "name": "repo", "type": "string", "required": true, "description": "Repository name" }
+        ],
+        "pathMapping": { "owner": "owner", "repo": "repo" },
+        "costCents": 1
+      },
+      {
+        "name": "search_repos",
+        "description": "Search for repositories",
+        "endpoint": "/search/repositories",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "sort", "type": "string", "required": false, "description": "Sort: stars, forks, updated", "default": "stars" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "sort": "sort", "per_page": "per_page" },
+        "costCents": 2
+      },
+      {
+        "name": "get_user",
+        "description": "Get user profile information",
+        "endpoint": "/users/{username}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "username", "type": "string", "required": true, "description": "GitHub username" }
+        ],
+        "pathMapping": { "username": "username" },
+        "costCents": 1
+      },
+      {
+        "name": "list_issues",
+        "description": "List issues for a repository",
+        "endpoint": "/repos/{owner}/{repo}/issues",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "owner", "type": "string", "required": true, "description": "Repository owner" },
+          { "name": "repo", "type": "string", "required": true, "description": "Repository name" },
+          { "name": "state", "type": "string", "required": false, "description": "State: open, closed, all", "default": "open" }
+        ],
+        "pathMapping": { "owner": "owner", "repo": "repo" },
+        "queryMapping": { "state": "state" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 30
+      }
+    ],
+    "keywords": ["github", "git", "repositories", "code", "developer"],
+    "freeApiKeyUrl": "https://github.com/settings/tokens",
+    "docsUrl": "https://docs.github.com/en/rest"
+  },
+  {
+    "name": "settlegrid-gitlab",
+    "displayName": "GitLab",
+    "description": "GitLab projects, users, and merge requests via REST API",
+    "category": "developer",
+    "baseUrl": "https://gitlab.com/api/v4",
+    "auth": { "type": "header", "headerName": "PRIVATE-TOKEN", "envVar": "GITLAB_TOKEN" },
+    "methods": [
+      {
+        "name": "search_projects",
+        "description": "Search for GitLab projects",
+        "endpoint": "/projects",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "search", "type": "string", "required": true, "description": "Search query" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "search": "search", "per_page": "per_page", "order_by": "stars" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_project",
+        "description": "Get project details by ID",
+        "endpoint": "/projects/{id}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "string", "required": true, "description": "Project ID or URL-encoded path" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["gitlab", "git", "devops", "ci-cd"],
+    "freeApiKeyUrl": "https://gitlab.com/-/user_settings/personal_access_tokens",
+    "docsUrl": "https://docs.gitlab.com/ee/api/"
+  },
+  {
+    "name": "settlegrid-npm-registry",
+    "displayName": "npm Registry",
+    "description": "npm package metadata, download counts, and search",
+    "category": "developer",
+    "baseUrl": "https://registry.npmjs.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_package",
+        "description": "Get package metadata",
+        "endpoint": "/{name}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "Package name (e.g. react, express)" }
+        ],
+        "pathMapping": { "name": "name" },
+        "costCents": 1
+      },
+      {
+        "name": "search",
+        "description": "Search npm packages",
+        "endpoint": "/-/v1/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "text", "type": "string", "required": true, "description": "Search query" },
+          { "name": "size", "type": "number", "required": false, "description": "Results count", "default": 20 }
+        ],
+        "queryMapping": { "text": "text", "size": "size" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["npm", "javascript", "packages", "nodejs"],
+    "docsUrl": "https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md"
+  },
+  {
+    "name": "settlegrid-pypi",
+    "displayName": "PyPI",
+    "description": "Python package metadata and release information from the Python Package Index",
+    "category": "developer",
+    "baseUrl": "https://pypi.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_package",
+        "description": "Get Python package info",
+        "endpoint": "/pypi/{name}/json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "Package name (e.g. requests, flask)" }
+        ],
+        "pathMapping": { "name": "name" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["python", "pypi", "packages", "pip"],
+    "docsUrl": "https://warehouse.pypa.io/api-reference/"
+  },
+  {
+    "name": "settlegrid-crates-io",
+    "displayName": "crates.io",
+    "description": "Rust package metadata, downloads, and search from the crates.io registry",
+    "category": "developer",
+    "baseUrl": "https://crates.io/api/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_crate",
+        "description": "Get Rust crate information",
+        "endpoint": "/crates/{name}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "Crate name (e.g. serde, tokio)" }
+        ],
+        "pathMapping": { "name": "name" },
+        "costCents": 1
+      },
+      {
+        "name": "search",
+        "description": "Search Rust crates",
+        "endpoint": "/crates",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "per_page": "per_page" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["rust", "crates", "packages", "cargo"],
+    "docsUrl": "https://crates.io/"
+  },
+  {
+    "name": "settlegrid-docker-hub",
+    "displayName": "Docker Hub",
+    "description": "Docker image metadata, tags, and search from Docker Hub",
+    "category": "developer",
+    "baseUrl": "https://hub.docker.com/v2",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search Docker images",
+        "endpoint": "/search/repositories/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" },
+          { "name": "page_size", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "query": "query", "page_size": "page_size" },
+        "costCents": 1
+      },
+      {
+        "name": "get_tags",
+        "description": "Get image tags for a repository",
+        "endpoint": "/repositories/{namespace}/{repository}/tags/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "namespace", "type": "string", "required": true, "description": "Namespace (e.g. library)" },
+          { "name": "repository", "type": "string", "required": true, "description": "Repository name (e.g. node)" }
+        ],
+        "pathMapping": { "namespace": "namespace", "repository": "repository" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["docker", "containers", "images", "devops"],
+    "docsUrl": "https://docs.docker.com/docker-hub/api/latest/"
+  },
+  {
+    "name": "settlegrid-can-i-use",
+    "displayName": "Can I Use",
+    "description": "Browser compatibility data for web technologies and APIs",
+    "category": "developer",
+    "baseUrl": "https://raw.githubusercontent.com/nicedoc/browserl/main",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_feature",
+        "description": "Get browser compatibility for a feature",
+        "endpoint": "/data/features/{feature}.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "feature", "type": "string", "required": true, "description": "Feature name (e.g. css-grid, flexbox, webgl)" }
+        ],
+        "pathMapping": { "feature": "feature" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["browser", "compatibility", "web", "css", "html"],
+    "docsUrl": "https://caniuse.com/"
+  },
+  {
+    "name": "settlegrid-shields-io",
+    "displayName": "Shields.io",
+    "description": "Generate SVG badges for projects, builds, coverage, and more",
+    "category": "developer",
+    "baseUrl": "https://img.shields.io",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "create_badge",
+        "description": "Create a custom SVG badge",
+        "endpoint": "/badge/{label}-{message}-{color}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "label", "type": "string", "required": true, "description": "Badge label text" },
+          { "name": "message", "type": "string", "required": true, "description": "Badge message text" },
+          { "name": "color", "type": "string", "required": true, "description": "Badge color (green, red, blue, hex)" }
+        ],
+        "pathMapping": { "label": "label", "message": "message", "color": "color" },
+        "costCents": 1
+      },
+      {
+        "name": "get_npm_version",
+        "description": "Get npm package version badge URL",
+        "endpoint": "/npm/v/{package}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "package", "type": "string", "required": true, "description": "npm package name" }
+        ],
+        "pathMapping": { "package": "package" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["badges", "svg", "ci-cd", "status"],
+    "docsUrl": "https://shields.io/"
+  },
+  {
+    "name": "settlegrid-httpbin",
+    "displayName": "HTTPBin",
+    "description": "HTTP request and response testing service",
+    "category": "developer",
+    "baseUrl": "https://httpbin.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_ip",
+        "description": "Get your origin IP address",
+        "endpoint": "/ip",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_headers",
+        "description": "Get request headers",
+        "endpoint": "/headers",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_user_agent",
+        "description": "Get user agent string",
+        "endpoint": "/user-agent",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["http", "testing", "debug", "api"],
+    "docsUrl": "https://httpbin.org/"
+  },
+  {
+    "name": "settlegrid-jsonplaceholder",
+    "displayName": "JSONPlaceholder",
+    "description": "Fake REST API for testing with posts, comments, users, and todos",
+    "category": "developer",
+    "baseUrl": "https://jsonplaceholder.typicode.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_posts",
+        "description": "Get sample blog posts",
+        "endpoint": "/posts",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "userId", "type": "number", "required": false, "description": "Filter by user ID" }
+        ],
+        "queryMapping": { "userId": "userId" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 20
+      },
+      {
+        "name": "get_users",
+        "description": "Get sample user data",
+        "endpoint": "/users",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_todos",
+        "description": "Get sample todo items",
+        "endpoint": "/todos",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "userId", "type": "number", "required": false, "description": "Filter by user ID" }
+        ],
+        "queryMapping": { "userId": "userId" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 30
+      }
+    ],
+    "keywords": ["testing", "mock", "fake", "rest", "json"],
+    "docsUrl": "https://jsonplaceholder.typicode.com/"
+  },
+  {
+    "name": "settlegrid-reqres",
+    "displayName": "ReqRes",
+    "description": "Hosted REST API for front-end testing with fake user data",
+    "category": "developer",
+    "baseUrl": "https://reqres.in/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "list_users",
+        "description": "List users with pagination",
+        "endpoint": "/users",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "page", "type": "number", "required": false, "description": "Page number", "default": 1 }
+        ],
+        "queryMapping": { "page": "page" },
+        "costCents": 1
+      },
+      {
+        "name": "get_user",
+        "description": "Get a single user by ID",
+        "endpoint": "/users/{id}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "number", "required": true, "description": "User ID" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["testing", "mock", "users", "rest"],
+    "docsUrl": "https://reqres.in/"
+  },
+  {
+    "name": "settlegrid-dummyjson",
+    "displayName": "DummyJSON",
+    "description": "Fake REST API with products, users, carts, and authentication for testing",
+    "category": "developer",
+    "baseUrl": "https://dummyjson.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_products",
+        "description": "Get list of products",
+        "endpoint": "/products",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 },
+          { "name": "skip", "type": "number", "required": false, "description": "Results to skip", "default": 0 }
+        ],
+        "queryMapping": { "limit": "limit", "skip": "skip" },
+        "costCents": 1
+      },
+      {
+        "name": "search_products",
+        "description": "Search products by query",
+        "endpoint": "/products/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" }
+        ],
+        "queryMapping": { "q": "q" },
+        "costCents": 1
+      },
+      {
+        "name": "get_quotes",
+        "description": "Get random quotes",
+        "endpoint": "/quotes",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Number of quotes", "default": 10 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["testing", "mock", "products", "ecommerce", "json"],
+    "docsUrl": "https://dummyjson.com/docs"
+  },
+  {
+    "name": "settlegrid-randomuser",
+    "displayName": "Random User",
+    "description": "Generate random user data including names, addresses, and photos",
+    "category": "developer",
+    "baseUrl": "https://randomuser.me/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "generate",
+        "description": "Generate random user profiles",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "results", "type": "number", "required": false, "description": "Number of users (1-5000)", "default": 5 },
+          { "name": "nat", "type": "string", "required": false, "description": "Nationality filter (e.g. us,gb,fr)" }
+        ],
+        "queryMapping": { "results": "results", "nat": "nat" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["testing", "mock", "users", "fake-data", "generator"],
+    "docsUrl": "https://randomuser.me/documentation"
+  },
+  {
+    "name": "settlegrid-picsum",
+    "displayName": "Lorem Picsum",
+    "description": "Random placeholder images for design and development",
+    "category": "developer",
+    "baseUrl": "https://picsum.photos",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "list_images",
+        "description": "Get list of available images",
+        "endpoint": "/v2/list",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "page", "type": "number", "required": false, "description": "Page number", "default": 1 },
+          { "name": "limit", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "page": "page", "limit": "limit" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_image_info",
+        "description": "Get image details by ID",
+        "endpoint": "/id/{id}/info",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "number", "required": true, "description": "Image ID" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["images", "placeholder", "design", "photos"],
+    "docsUrl": "https://picsum.photos/"
+  },
+  {
+    "name": "settlegrid-qrcode",
+    "displayName": "QR Code Generator",
+    "description": "Generate QR codes for URLs, text, and other data",
+    "category": "developer",
+    "baseUrl": "https://api.qrserver.com/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "create_qr",
+        "description": "Generate a QR code image URL",
+        "endpoint": "/create-qr-code/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "data", "type": "string", "required": true, "description": "Data to encode (URL, text, etc.)" },
+          { "name": "size", "type": "string", "required": false, "description": "Image size (e.g. 200x200)", "default": "200x200" }
+        ],
+        "queryMapping": { "data": "data", "size": "size" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["qr-code", "barcode", "generator", "encoding"],
+    "docsUrl": "https://goqr.me/api/"
+  },
+  {
+    "name": "settlegrid-lorem-ipsum",
+    "displayName": "Lorem Ipsum",
+    "description": "Generate placeholder text in paragraphs, sentences, or words",
+    "category": "developer",
+    "baseUrl": "https://loripsum.net/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "generate",
+        "description": "Generate lorem ipsum text",
+        "endpoint": "/{paragraphs}/plaintext",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "paragraphs", "type": "number", "required": false, "description": "Number of paragraphs", "default": 3 }
+        ],
+        "pathMapping": { "paragraphs": "paragraphs" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["lorem-ipsum", "placeholder", "text", "generator"],
+    "docsUrl": "https://loripsum.net/"
+  },
+  {
+    "name": "settlegrid-devdocs",
+    "displayName": "DevDocs",
+    "description": "Programming documentation search across 400+ API docs",
+    "category": "developer",
+    "baseUrl": "https://devdocs.io/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "list_docs",
+        "description": "List all available documentation sets",
+        "endpoint": "/docs",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 50
+      }
+    ],
+    "keywords": ["documentation", "api-docs", "reference", "programming"],
+    "docsUrl": "https://devdocs.io/"
+  },
+  {
+    "name": "settlegrid-npm-downloads",
+    "displayName": "npm Downloads",
+    "description": "npm package download counts and statistics",
+    "category": "developer",
+    "baseUrl": "https://api.npmjs.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_downloads",
+        "description": "Get download counts for a package",
+        "endpoint": "/downloads/point/last-month/{package}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "package", "type": "string", "required": true, "description": "npm package name" }
+        ],
+        "pathMapping": { "package": "package" },
+        "costCents": 1
+      },
+      {
+        "name": "get_range",
+        "description": "Get daily download counts over a date range",
+        "endpoint": "/downloads/range/{start}:{end}/{package}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "package", "type": "string", "required": true, "description": "npm package name" },
+          { "name": "start", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "end", "type": "string", "required": true, "description": "End date YYYY-MM-DD" }
+        ],
+        "pathMapping": { "start": "start", "end": "end", "package": "package" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["npm", "downloads", "statistics", "packages"],
+    "docsUrl": "https://github.com/npm/registry/blob/master/docs/download-counts.md"
+  },
+  {
+    "name": "settlegrid-bitbucket",
+    "displayName": "Bitbucket",
+    "description": "Bitbucket repositories, pull requests, and workspace data",
+    "category": "developer",
+    "baseUrl": "https://api.bitbucket.org/2.0",
+    "auth": { "type": "bearer", "envVar": "BITBUCKET_TOKEN" },
+    "methods": [
+      {
+        "name": "search_repos",
+        "description": "Search public repositories",
+        "endpoint": "/repositories",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "pagelen", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "pagelen": "pagelen" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["bitbucket", "git", "repositories", "code"],
+    "freeApiKeyUrl": "https://bitbucket.org/account/settings/app-passwords/",
+    "docsUrl": "https://developer.atlassian.com/cloud/bitbucket/rest/"
+  },
+  {
+    "name": "settlegrid-gorest",
+    "displayName": "GoRest",
+    "description": "Fake REST API for testing with users, posts, comments, and todos",
+    "category": "developer",
+    "baseUrl": "https://gorest.co.in/public/v2",
+    "auth": { "type": "bearer", "envVar": "GOREST_TOKEN" },
+    "methods": [
+      {
+        "name": "get_users",
+        "description": "Get list of users",
+        "endpoint": "/users",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "page", "type": "number", "required": false, "description": "Page number", "default": 1 }
+        ],
+        "queryMapping": { "page": "page" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 20
+      },
+      {
+        "name": "get_posts",
+        "description": "Get list of posts",
+        "endpoint": "/posts",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "page", "type": "number", "required": false, "description": "Page number", "default": 1 }
+        ],
+        "queryMapping": { "page": "page" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 20
+      }
+    ],
+    "keywords": ["testing", "mock", "rest", "api"],
+    "freeApiKeyUrl": "https://gorest.co.in/consumer/login",
+    "docsUrl": "https://gorest.co.in/"
+  },
+  {
+    "name": "settlegrid-is-it-down",
+    "displayName": "IsItDown",
+    "description": "Check if a website or service is currently down or unreachable",
+    "category": "developer",
+    "baseUrl": "https://isitdown.site/api/v3",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "check",
+        "description": "Check if a website is down",
+        "endpoint": "/{domain}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "domain", "type": "string", "required": true, "description": "Domain name (e.g. google.com)" }
+        ],
+        "pathMapping": { "domain": "domain" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["uptime", "monitoring", "status", "website"],
+    "docsUrl": "https://isitdown.site/"
+  },
+  {
+    "name": "settlegrid-openai",
+    "displayName": "OpenAI",
+    "description": "GPT chat completions, embeddings, and moderation via OpenAI API",
+    "category": "ai",
+    "baseUrl": "https://api.openai.com/v1",
+    "auth": { "type": "bearer", "envVar": "OPENAI_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Send a chat completion request",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "gpt-4o-mini" },
+          { "name": "max_tokens", "type": "number", "required": false, "description": "Max tokens", "default": 1000 }
+        ],
+        "bodyMapping": { "messages": "message", "model": "model", "max_tokens": "max_tokens" },
+        "costCents": 5
+      },
+      {
+        "name": "create_embedding",
+        "description": "Create text embeddings",
+        "endpoint": "/embeddings",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "input", "type": "string", "required": true, "description": "Text to embed" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "text-embedding-3-small" }
+        ],
+        "bodyMapping": { "input": "input", "model": "model" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["openai", "gpt", "ai", "chatgpt", "llm"],
+    "freeApiKeyUrl": "https://platform.openai.com/api-keys",
+    "docsUrl": "https://platform.openai.com/docs/"
+  },
+  {
+    "name": "settlegrid-anthropic",
+    "displayName": "Anthropic",
+    "description": "Claude AI chat completions via Anthropic Messages API",
+    "category": "ai",
+    "baseUrl": "https://api.anthropic.com/v1",
+    "auth": { "type": "header", "headerName": "x-api-key", "envVar": "ANTHROPIC_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Send a message to Claude",
+        "endpoint": "/messages",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "claude-sonnet-4-20250514" },
+          { "name": "max_tokens", "type": "number", "required": false, "description": "Max tokens", "default": 1000 }
+        ],
+        "headers": { "anthropic-version": "2023-06-01" },
+        "costCents": 5
+      }
+    ],
+    "keywords": ["anthropic", "claude", "ai", "llm", "chatbot"],
+    "freeApiKeyUrl": "https://console.anthropic.com/",
+    "docsUrl": "https://docs.anthropic.com/"
+  },
+  {
+    "name": "settlegrid-huggingface",
+    "displayName": "Hugging Face",
+    "description": "Run ML model inference via Hugging Face Inference API",
+    "category": "ai",
+    "baseUrl": "https://api-inference.huggingface.co/models",
+    "auth": { "type": "bearer", "envVar": "HUGGINGFACE_API_KEY" },
+    "methods": [
+      {
+        "name": "infer",
+        "description": "Run inference on a Hugging Face model",
+        "endpoint": "/{model}",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "model", "type": "string", "required": true, "description": "Model ID (e.g. gpt2, bert-base-uncased)" },
+          { "name": "inputs", "type": "string", "required": true, "description": "Input text" }
+        ],
+        "pathMapping": { "model": "model" },
+        "costCents": 3
+      }
+    ],
+    "keywords": ["huggingface", "ml", "ai", "inference", "models"],
+    "freeApiKeyUrl": "https://huggingface.co/settings/tokens",
+    "docsUrl": "https://huggingface.co/docs/api-inference/"
+  },
+  {
+    "name": "settlegrid-replicate",
+    "displayName": "Replicate",
+    "description": "Run open-source ML models in the cloud via Replicate API",
+    "category": "ai",
+    "baseUrl": "https://api.replicate.com/v1",
+    "auth": { "type": "bearer", "envVar": "REPLICATE_API_TOKEN" },
+    "methods": [
+      {
+        "name": "create_prediction",
+        "description": "Create a prediction with a model",
+        "endpoint": "/predictions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "version", "type": "string", "required": true, "description": "Model version hash" },
+          { "name": "prompt", "type": "string", "required": true, "description": "Input prompt" }
+        ],
+        "costCents": 5
+      },
+      {
+        "name": "get_prediction",
+        "description": "Get prediction status and output",
+        "endpoint": "/predictions/{id}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "string", "required": true, "description": "Prediction ID" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["replicate", "ml", "ai", "models", "inference"],
+    "freeApiKeyUrl": "https://replicate.com/account/api-tokens",
+    "docsUrl": "https://replicate.com/docs/"
+  },
+  {
+    "name": "settlegrid-stability-ai",
+    "displayName": "Stability AI",
+    "description": "Generate images using Stable Diffusion models via Stability AI API",
+    "category": "ai",
+    "baseUrl": "https://api.stability.ai/v1",
+    "auth": { "type": "bearer", "envVar": "STABILITY_API_KEY" },
+    "methods": [
+      {
+        "name": "list_engines",
+        "description": "List available Stable Diffusion engines",
+        "endpoint": "/engines/list",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      }
+    ],
+    "keywords": ["stable-diffusion", "image-generation", "ai", "art"],
+    "freeApiKeyUrl": "https://platform.stability.ai/account/keys",
+    "docsUrl": "https://platform.stability.ai/docs/api-reference"
+  },
+  {
+    "name": "settlegrid-cohere",
+    "displayName": "Cohere",
+    "description": "Text generation, embeddings, and reranking via Cohere API",
+    "category": "ai",
+    "baseUrl": "https://api.cohere.ai/v1",
+    "auth": { "type": "bearer", "envVar": "COHERE_API_KEY" },
+    "methods": [
+      {
+        "name": "generate",
+        "description": "Generate text with Cohere models",
+        "endpoint": "/generate",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "prompt", "type": "string", "required": true, "description": "Input prompt" },
+          { "name": "max_tokens", "type": "number", "required": false, "description": "Max output tokens", "default": 500 }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "embed",
+        "description": "Create text embeddings",
+        "endpoint": "/embed",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "texts", "type": "string[]", "required": true, "description": "Array of texts to embed" }
+        ],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["cohere", "nlp", "ai", "embeddings", "generation"],
+    "freeApiKeyUrl": "https://dashboard.cohere.com/api-keys",
+    "docsUrl": "https://docs.cohere.com/"
+  },
+  {
+    "name": "settlegrid-deepl",
+    "displayName": "DeepL",
+    "description": "Neural machine translation for 30+ languages with high accuracy",
+    "category": "ai",
+    "baseUrl": "https://api-free.deepl.com/v2",
+    "auth": { "type": "header", "headerName": "Authorization", "prefix": "DeepL-Auth-Key", "envVar": "DEEPL_API_KEY" },
+    "methods": [
+      {
+        "name": "translate",
+        "description": "Translate text between languages",
+        "endpoint": "/translate",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "text", "type": "string", "required": true, "description": "Text to translate" },
+          { "name": "target_lang", "type": "string", "required": true, "description": "Target language (e.g. DE, FR, ES)" },
+          { "name": "source_lang", "type": "string", "required": false, "description": "Source language (auto-detected if omitted)" }
+        ],
+        "costCents": 2
+      },
+      {
+        "name": "get_languages",
+        "description": "Get supported languages",
+        "endpoint": "/languages",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      }
+    ],
+    "keywords": ["translation", "language", "deepl", "ai", "nlp"],
+    "freeApiKeyUrl": "https://www.deepl.com/pro-api",
+    "docsUrl": "https://www.deepl.com/docs-api/"
+  },
+  {
+    "name": "settlegrid-openrouter",
+    "displayName": "OpenRouter",
+    "description": "Unified API for 100+ AI models (GPT-4, Claude, Llama, Mistral, etc.)",
+    "category": "ai",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "auth": { "type": "bearer", "envVar": "OPENROUTER_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Send a chat completion to any supported model",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model ID", "default": "openai/gpt-4o-mini" },
+          { "name": "max_tokens", "type": "number", "required": false, "description": "Max tokens", "default": 1000 }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "list_models",
+        "description": "List all available models and pricing",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["openrouter", "llm", "ai", "multi-model", "gpt", "claude"],
+    "freeApiKeyUrl": "https://openrouter.ai/keys",
+    "docsUrl": "https://openrouter.ai/docs"
+  },
+  {
+    "name": "settlegrid-together-ai",
+    "displayName": "Together AI",
+    "description": "Fast inference for open-source models including Llama, Mistral, and more",
+    "category": "ai",
+    "baseUrl": "https://api.together.xyz/v1",
+    "auth": { "type": "bearer", "envVar": "TOGETHER_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Chat completion with open-source models",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model ID", "default": "meta-llama/Llama-3-8b-chat-hf" }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "list_models",
+        "description": "List available models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["together", "llama", "ai", "open-source", "inference"],
+    "freeApiKeyUrl": "https://api.together.xyz/settings/api-keys",
+    "docsUrl": "https://docs.together.ai/"
+  },
+  {
+    "name": "settlegrid-groq",
+    "displayName": "Groq",
+    "description": "Ultra-fast LLM inference on Groq LPUs for Llama, Mixtral, and Gemma",
+    "category": "ai",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "auth": { "type": "bearer", "envVar": "GROQ_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Chat completion with ultra-fast inference",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "llama3-8b-8192" },
+          { "name": "max_tokens", "type": "number", "required": false, "description": "Max tokens", "default": 1000 }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "list_models",
+        "description": "List available models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["groq", "llama", "ai", "fast", "inference"],
+    "freeApiKeyUrl": "https://console.groq.com/keys",
+    "docsUrl": "https://console.groq.com/docs/"
+  },
+  {
+    "name": "settlegrid-mistral",
+    "displayName": "Mistral AI",
+    "description": "Mistral and Mixtral model inference via Mistral AI API",
+    "category": "ai",
+    "baseUrl": "https://api.mistral.ai/v1",
+    "auth": { "type": "bearer", "envVar": "MISTRAL_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Chat completion with Mistral models",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "mistral-small-latest" },
+          { "name": "max_tokens", "type": "number", "required": false, "description": "Max tokens", "default": 1000 }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "list_models",
+        "description": "List available Mistral models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["mistral", "mixtral", "ai", "llm", "french-ai"],
+    "freeApiKeyUrl": "https://console.mistral.ai/api-keys/",
+    "docsUrl": "https://docs.mistral.ai/"
+  },
+  {
+    "name": "settlegrid-perplexity",
+    "displayName": "Perplexity",
+    "description": "AI-powered search and chat with real-time web knowledge",
+    "category": "ai",
+    "baseUrl": "https://api.perplexity.ai",
+    "auth": { "type": "bearer", "envVar": "PERPLEXITY_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Chat completion with web-augmented AI",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "sonar-small-online" }
+        ],
+        "costCents": 5
+      }
+    ],
+    "keywords": ["perplexity", "search", "ai", "web", "rag"],
+    "freeApiKeyUrl": "https://www.perplexity.ai/settings/api",
+    "docsUrl": "https://docs.perplexity.ai/"
+  },
+  {
+    "name": "settlegrid-elevenlabs",
+    "displayName": "ElevenLabs",
+    "description": "Text-to-speech with realistic AI voices and voice cloning",
+    "category": "ai",
+    "baseUrl": "https://api.elevenlabs.io/v1",
+    "auth": { "type": "header", "headerName": "xi-api-key", "envVar": "ELEVENLABS_API_KEY" },
+    "methods": [
+      {
+        "name": "list_voices",
+        "description": "Get list of available voices",
+        "endpoint": "/voices",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_models",
+        "description": "Get available TTS models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      }
+    ],
+    "keywords": ["tts", "voice", "speech", "ai", "audio"],
+    "freeApiKeyUrl": "https://elevenlabs.io/",
+    "docsUrl": "https://docs.elevenlabs.io/"
+  },
+  {
+    "name": "settlegrid-assemblyai",
+    "displayName": "AssemblyAI",
+    "description": "Speech-to-text transcription with speaker labels and sentiment",
+    "category": "ai",
+    "baseUrl": "https://api.assemblyai.com/v2",
+    "auth": { "type": "header", "headerName": "authorization", "envVar": "ASSEMBLYAI_API_KEY" },
+    "methods": [
+      {
+        "name": "create_transcript",
+        "description": "Submit audio URL for transcription",
+        "endpoint": "/transcript",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "audio_url", "type": "string", "required": true, "description": "URL of audio file to transcribe" },
+          { "name": "language_code", "type": "string", "required": false, "description": "Language code (e.g. en)", "default": "en" }
+        ],
+        "costCents": 5
+      },
+      {
+        "name": "get_transcript",
+        "description": "Get transcription result",
+        "endpoint": "/transcript/{id}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "string", "required": true, "description": "Transcript ID" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["speech-to-text", "transcription", "ai", "audio"],
+    "freeApiKeyUrl": "https://www.assemblyai.com/",
+    "docsUrl": "https://www.assemblyai.com/docs/"
+  },
+  {
+    "name": "settlegrid-deepgram",
+    "displayName": "Deepgram",
+    "description": "AI-powered speech recognition and language understanding",
+    "category": "ai",
+    "baseUrl": "https://api.deepgram.com/v1",
+    "auth": { "type": "bearer", "envVar": "DEEPGRAM_API_KEY" },
+    "methods": [
+      {
+        "name": "list_models",
+        "description": "Get available speech recognition models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["speech-to-text", "asr", "ai", "voice"],
+    "freeApiKeyUrl": "https://console.deepgram.com/",
+    "docsUrl": "https://developers.deepgram.com/"
+  },
+  {
+    "name": "settlegrid-ai21",
+    "displayName": "AI21",
+    "description": "Jamba and Jurassic language model inference via AI21 Studio",
+    "category": "ai",
+    "baseUrl": "https://api.ai21.com/studio/v1",
+    "auth": { "type": "bearer", "envVar": "AI21_API_KEY" },
+    "methods": [
+      {
+        "name": "chat",
+        "description": "Chat with Jamba models",
+        "endpoint": "/chat/completions",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "message", "type": "string", "required": true, "description": "User message" },
+          { "name": "model", "type": "string", "required": false, "description": "Model name", "default": "jamba-instruct" }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "paraphrase",
+        "description": "Rewrite text with alternative phrasing",
+        "endpoint": "/paraphrase",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "text", "type": "string", "required": true, "description": "Text to paraphrase" }
+        ],
+        "costCents": 2
+      }
+    ],
+    "keywords": ["ai21", "jamba", "jurassic", "ai", "llm"],
+    "freeApiKeyUrl": "https://studio.ai21.com/account/api-key",
+    "docsUrl": "https://docs.ai21.com/"
+  },
+  {
+    "name": "settlegrid-google-gemini",
+    "displayName": "Google Gemini",
+    "description": "Google Gemini AI model inference for text and multimodal tasks",
+    "category": "ai",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "auth": { "type": "query", "paramName": "key", "envVar": "GOOGLE_GEMINI_API_KEY" },
+    "methods": [
+      {
+        "name": "generate",
+        "description": "Generate content with Gemini",
+        "endpoint": "/models/gemini-pro:generateContent",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "text", "type": "string", "required": true, "description": "Input text prompt" }
+        ],
+        "costCents": 3
+      },
+      {
+        "name": "list_models",
+        "description": "List available Gemini models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["gemini", "google", "ai", "llm", "multimodal"],
+    "freeApiKeyUrl": "https://aistudio.google.com/apikey",
+    "docsUrl": "https://ai.google.dev/docs"
+  },
+  {
+    "name": "settlegrid-clarifai",
+    "displayName": "Clarifai",
+    "description": "AI-powered image and video recognition, NLP, and generative AI",
+    "category": "ai",
+    "baseUrl": "https://api.clarifai.com/v2",
+    "auth": { "type": "bearer", "envVar": "CLARIFAI_PAT" },
+    "methods": [
+      {
+        "name": "list_models",
+        "description": "List available AI models",
+        "endpoint": "/models",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "per_page": "per_page" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["clarifai", "vision", "image", "ai", "recognition"],
+    "freeApiKeyUrl": "https://clarifai.com/settings/security",
+    "docsUrl": "https://docs.clarifai.com/"
+  },
+  {
+    "name": "settlegrid-us-census",
+    "displayName": "US Census",
+    "description": "US Census Bureau population, demographics, and economic data",
+    "category": "government",
+    "baseUrl": "https://api.census.gov/data",
+    "auth": { "type": "query", "paramName": "key", "envVar": "CENSUS_API_KEY" },
+    "methods": [
+      {
+        "name": "get_population",
+        "description": "Get population data by state",
+        "endpoint": "/2020/acs/acs5",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "get", "type": "string", "required": true, "description": "Variables (e.g. B01003_001E for population)" },
+          { "name": "for", "type": "string", "required": true, "description": "Geography (e.g. state:* for all states)" }
+        ],
+        "queryMapping": { "get": "get", "for": "for" },
+        "costCents": 2
+      },
+      {
+        "name": "list_datasets",
+        "description": "List available Census datasets",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 30
+      }
+    ],
+    "keywords": ["census", "population", "demographics", "government"],
+    "freeApiKeyUrl": "https://api.census.gov/data/key_signup.html",
+    "docsUrl": "https://www.census.gov/data/developers/data-sets.html"
+  },
+  {
+    "name": "settlegrid-congress",
+    "displayName": "Congress API",
+    "description": "US Congress bills, members, votes, and committees from congress.gov",
+    "category": "government",
+    "baseUrl": "https://api.congress.gov/v3",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "CONGRESS_API_KEY" },
+    "methods": [
+      {
+        "name": "search_bills",
+        "description": "Search for bills in Congress",
+        "endpoint": "/bill",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "offset", "type": "number", "required": false, "description": "Pagination offset", "default": 0 },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "offset": "offset", "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_members",
+        "description": "Get current members of Congress",
+        "endpoint": "/member",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["congress", "bills", "legislation", "government", "politics"],
+    "freeApiKeyUrl": "https://api.congress.gov/sign-up/",
+    "docsUrl": "https://api.congress.gov/"
+  },
+  {
+    "name": "settlegrid-regulations-gov",
+    "displayName": "Regulations.gov",
+    "description": "US federal rulemaking documents, comments, and dockets",
+    "category": "government",
+    "baseUrl": "https://api.regulations.gov/v4",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "REGULATIONS_GOV_API_KEY" },
+    "methods": [
+      {
+        "name": "search_documents",
+        "description": "Search federal regulatory documents",
+        "endpoint": "/documents",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "filter[searchTerm]", "type": "string", "required": true, "description": "Search term" },
+          { "name": "page[size]", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "filter[searchTerm]": "filter[searchTerm]", "page[size]": "page[size]" },
+        "costCents": 2
+      },
+      {
+        "name": "get_document",
+        "description": "Get a specific regulatory document",
+        "endpoint": "/documents/{documentId}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "documentId", "type": "string", "required": true, "description": "Document ID" }
+        ],
+        "pathMapping": { "documentId": "documentId" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["regulations", "federal", "rulemaking", "government"],
+    "freeApiKeyUrl": "https://api.data.gov/signup/",
+    "docsUrl": "https://open.gsa.gov/api/regulationsgov/"
+  },
+  {
+    "name": "settlegrid-fbi-crime",
+    "displayName": "FBI Crime Data",
+    "description": "FBI Uniform Crime Reporting (UCR) crime statistics and data",
+    "category": "government",
+    "baseUrl": "https://api.usa.gov/crime/fbi/sapi",
+    "auth": { "type": "query", "paramName": "API_KEY", "envVar": "FBI_CRIME_API_KEY", "defaultValue": "DEMO_KEY" },
+    "methods": [
+      {
+        "name": "get_state_offenses",
+        "description": "Get offense counts by state",
+        "endpoint": "/api/summarized/state/{stateAbbr}/offenses/{since}/{until}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "stateAbbr", "type": "string", "required": true, "description": "State abbreviation (e.g. CA, TX)" },
+          { "name": "since", "type": "number", "required": true, "description": "Start year" },
+          { "name": "until", "type": "number", "required": true, "description": "End year" }
+        ],
+        "pathMapping": { "stateAbbr": "stateAbbr", "since": "since", "until": "until" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["crime", "fbi", "statistics", "law-enforcement", "government"],
+    "freeApiKeyUrl": "https://api.data.gov/signup/",
+    "docsUrl": "https://crime-data-explorer.fr.cloud.gov/pages/docApi"
+  },
+  {
+    "name": "settlegrid-epa-airnow",
+    "displayName": "EPA AirNow",
+    "description": "US air quality index (AQI) observations and forecasts from EPA",
+    "category": "government",
+    "baseUrl": "https://www.airnowapi.org",
+    "auth": { "type": "query", "paramName": "API_KEY", "envVar": "AIRNOW_API_KEY" },
+    "methods": [
+      {
+        "name": "get_current",
+        "description": "Get current AQI by zip code",
+        "endpoint": "/aq/observation/zipCode/current/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "zipCode", "type": "string", "required": true, "description": "US zip code" },
+          { "name": "distance", "type": "number", "required": false, "description": "Search radius in miles", "default": 25 }
+        ],
+        "queryMapping": { "zipCode": "zipCode", "distance": "distance", "format": "application/json" },
+        "costCents": 1
+      },
+      {
+        "name": "get_forecast",
+        "description": "Get AQI forecast by zip code",
+        "endpoint": "/aq/forecast/zipCode/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "zipCode", "type": "string", "required": true, "description": "US zip code" }
+        ],
+        "queryMapping": { "zipCode": "zipCode", "format": "application/json" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["air-quality", "aqi", "epa", "pollution", "environment"],
+    "freeApiKeyUrl": "https://docs.airnowapi.org/account/request/",
+    "docsUrl": "https://docs.airnowapi.org/"
+  },
+  {
+    "name": "settlegrid-usaspending",
+    "displayName": "USASpending",
+    "description": "US federal government spending, awards, contracts, and agency budgets",
+    "category": "government",
+    "baseUrl": "https://api.usaspending.gov/api/v2",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_spending",
+        "description": "Search federal spending records",
+        "endpoint": "/search/spending_by_award/",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "keyword", "type": "string", "required": true, "description": "Search keyword" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "costCents": 2
+      },
+      {
+        "name": "get_agency",
+        "description": "Get agency budget overview",
+        "endpoint": "/agency/{toptier_code}/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "toptier_code", "type": "string", "required": true, "description": "Agency code (e.g. 012 for USDA)" }
+        ],
+        "pathMapping": { "toptier_code": "toptier_code" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["spending", "budget", "government", "contracts", "federal"],
+    "docsUrl": "https://api.usaspending.gov/docs/"
+  },
+  {
+    "name": "settlegrid-uk-parliament",
+    "displayName": "UK Parliament",
+    "description": "UK Parliament bills, members, and debates data",
+    "category": "government",
+    "baseUrl": "https://members-api.parliament.uk/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_members",
+        "description": "Search for members of Parliament",
+        "endpoint": "/Members/Search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "Name", "type": "string", "required": true, "description": "Member name to search" },
+          { "name": "take", "type": "number", "required": false, "description": "Results count", "default": 20 }
+        ],
+        "queryMapping": { "Name": "Name", "take": "take" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["parliament", "uk", "politics", "government", "legislation"],
+    "docsUrl": "https://members-api.parliament.uk/index.html"
+  },
+  {
+    "name": "settlegrid-uk-companies-house",
+    "displayName": "UK Companies House",
+    "description": "UK company registration data, officers, and filing history",
+    "category": "government",
+    "baseUrl": "https://api.company-information.service.gov.uk",
+    "auth": { "type": "header", "headerName": "Authorization", "prefix": "Basic", "envVar": "COMPANIES_HOUSE_API_KEY" },
+    "methods": [
+      {
+        "name": "search_companies",
+        "description": "Search for UK companies",
+        "endpoint": "/search/companies",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Company name search" }
+        ],
+        "queryMapping": { "q": "q" },
+        "costCents": 1
+      },
+      {
+        "name": "get_company",
+        "description": "Get company details by number",
+        "endpoint": "/company/{company_number}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "company_number", "type": "string", "required": true, "description": "Company number (e.g. 00445790)" }
+        ],
+        "pathMapping": { "company_number": "company_number" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["companies", "uk", "registry", "business", "officers"],
+    "freeApiKeyUrl": "https://developer.company-information.service.gov.uk/",
+    "docsUrl": "https://developer.company-information.service.gov.uk/api/docs/"
+  },
+  {
+    "name": "settlegrid-eu-open-data",
+    "displayName": "EU Open Data Portal",
+    "description": "European Union open datasets from all EU institutions",
+    "category": "government",
+    "baseUrl": "https://data.europa.eu/api/hub/search",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_datasets",
+        "description": "Search EU open datasets",
+        "endpoint": "/datasets",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["eu", "europe", "open-data", "government", "datasets"],
+    "docsUrl": "https://data.europa.eu/api/hub/search/docs/"
+  },
+  {
+    "name": "settlegrid-canada-open-data",
+    "displayName": "Canada Open Data",
+    "description": "Canadian government open datasets and APIs",
+    "category": "government",
+    "baseUrl": "https://open.canada.ca/data/api/3",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_datasets",
+        "description": "Search Canadian open datasets",
+        "endpoint": "/action/package_search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "rows", "type": "number", "required": false, "description": "Results count", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "rows": "rows" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["canada", "open-data", "government", "datasets"],
+    "docsUrl": "https://open.canada.ca/data/en/dataset"
+  },
+  {
+    "name": "settlegrid-australia-data",
+    "displayName": "Australia Open Data",
+    "description": "Australian government open datasets from data.gov.au",
+    "category": "government",
+    "baseUrl": "https://data.gov.au/api/v0",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_datasets",
+        "description": "Search Australian government datasets",
+        "endpoint": "/search/datasets",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "query": "query", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["australia", "open-data", "government", "datasets"],
+    "docsUrl": "https://data.gov.au/"
+  },
+  {
+    "name": "settlegrid-india-data",
+    "displayName": "India Open Data",
+    "description": "Indian government open data from data.gov.in",
+    "category": "government",
+    "baseUrl": "https://api.data.gov.in/resource",
+    "auth": { "type": "query", "paramName": "api-key", "envVar": "INDIA_DATA_API_KEY" },
+    "methods": [
+      {
+        "name": "get_resource",
+        "description": "Get data from a specific resource",
+        "endpoint": "/{resourceId}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "resourceId", "type": "string", "required": true, "description": "Resource ID from data.gov.in" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "pathMapping": { "resourceId": "resourceId" },
+        "queryMapping": { "format": "json", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["india", "open-data", "government", "datasets"],
+    "freeApiKeyUrl": "https://data.gov.in/",
+    "docsUrl": "https://data.gov.in/help/apis"
+  },
+  {
+    "name": "settlegrid-brazil-ibge",
+    "displayName": "Brazil IBGE",
+    "description": "Brazilian Institute of Geography and Statistics data and demographics",
+    "category": "government",
+    "baseUrl": "https://servicodados.ibge.gov.br/api/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_states",
+        "description": "Get list of Brazilian states",
+        "endpoint": "/localidades/estados",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_news",
+        "description": "Get latest IBGE news/statistics",
+        "endpoint": "/noticias",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "qtd", "type": "number", "required": false, "description": "Number of results", "default": 10 }
+        ],
+        "queryMapping": { "qtd": "qtd" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["brazil", "ibge", "demographics", "statistics", "government"],
+    "docsUrl": "https://servicodados.ibge.gov.br/api/docs"
+  },
+  {
+    "name": "settlegrid-mexico-inegi",
+    "displayName": "Mexico INEGI",
+    "description": "Mexican National Institute of Statistics data and indicators",
+    "category": "government",
+    "baseUrl": "https://www.inegi.org.mx/app/api/indicadores/desarrolladores/jsonxml/INDICATOR",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_indicator",
+        "description": "Get economic indicator data",
+        "endpoint": "/{indicatorId}/es/0700/false/BIE/2.0/{token}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "indicatorId", "type": "string", "required": true, "description": "INEGI indicator ID" },
+          { "name": "token", "type": "string", "required": true, "description": "INEGI API token" }
+        ],
+        "pathMapping": { "indicatorId": "indicatorId", "token": "token" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["mexico", "inegi", "statistics", "economics", "government"],
+    "freeApiKeyUrl": "https://www.inegi.org.mx/app/api/indicadores/interna_v1_1/InfoServicios/Servicio/0/4",
+    "docsUrl": "https://www.inegi.org.mx/servicios/api_indicadores.html"
+  },
+  {
+    "name": "settlegrid-sec-company-search",
+    "displayName": "SEC Company Search",
+    "description": "Search SEC EDGAR for company information and CIK numbers",
+    "category": "government",
+    "baseUrl": "https://efts.sec.gov/LATEST",
+    "auth": { "type": "none" },
+    "userAgent": "settlegrid-sec-company-search/1.0 contact@settlegrid.ai",
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for companies in EDGAR",
+        "endpoint": "/search-index",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Company name or ticker" },
+          { "name": "forms", "type": "string", "required": false, "description": "Form type filter (e.g. 10-K)" }
+        ],
+        "queryMapping": { "q": "q", "forms": "forms" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["sec", "edgar", "companies", "filings", "government"],
+    "docsUrl": "https://efts.sec.gov/LATEST/search-index"
+  },
+  {
+    "name": "settlegrid-nasa-apod",
+    "displayName": "NASA APOD",
+    "description": "NASA Astronomy Picture of the Day with high-resolution images",
+    "category": "science",
+    "baseUrl": "https://api.nasa.gov",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "NASA_API_KEY", "defaultValue": "DEMO_KEY" },
+    "methods": [
+      {
+        "name": "get_today",
+        "description": "Get today's Astronomy Picture of the Day",
+        "endpoint": "/planetary/apod",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_by_date",
+        "description": "Get APOD for a specific date",
+        "endpoint": "/planetary/apod",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "date", "type": "string", "required": true, "description": "Date in YYYY-MM-DD format" }
+        ],
+        "queryMapping": { "date": "date" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["nasa", "astronomy", "space", "photos", "science"],
+    "freeApiKeyUrl": "https://api.nasa.gov/",
+    "docsUrl": "https://api.nasa.gov/"
+  },
+  {
+    "name": "settlegrid-nasa-neo",
+    "displayName": "NASA Near-Earth Objects",
+    "description": "Track asteroids and near-Earth objects with approach data from NASA",
+    "category": "science",
+    "baseUrl": "https://api.nasa.gov",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "NASA_API_KEY", "defaultValue": "DEMO_KEY" },
+    "methods": [
+      {
+        "name": "get_feed",
+        "description": "Get near-Earth objects for a date range",
+        "endpoint": "/neo/rest/v1/feed",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "start_date", "type": "string", "required": true, "description": "Start date YYYY-MM-DD" },
+          { "name": "end_date", "type": "string", "required": false, "description": "End date YYYY-MM-DD (max 7 days)" }
+        ],
+        "queryMapping": { "start_date": "start_date", "end_date": "end_date" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["nasa", "asteroids", "neo", "space", "tracking"],
+    "freeApiKeyUrl": "https://api.nasa.gov/",
+    "docsUrl": "https://api.nasa.gov/"
+  },
+  {
+    "name": "settlegrid-nasa-mars",
+    "displayName": "NASA Mars Rover Photos",
+    "description": "Photos from NASA Mars rovers (Curiosity, Opportunity, Spirit)",
+    "category": "science",
+    "baseUrl": "https://api.nasa.gov",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "NASA_API_KEY", "defaultValue": "DEMO_KEY" },
+    "methods": [
+      {
+        "name": "get_photos",
+        "description": "Get Mars rover photos by sol or date",
+        "endpoint": "/mars-photos/api/v1/rovers/{rover}/photos",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "rover", "type": "string", "required": true, "description": "Rover name: curiosity, opportunity, spirit" },
+          { "name": "sol", "type": "number", "required": true, "description": "Martian sol (day) number" }
+        ],
+        "pathMapping": { "rover": "rover" },
+        "queryMapping": { "sol": "sol" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["nasa", "mars", "rover", "photos", "space"],
+    "freeApiKeyUrl": "https://api.nasa.gov/",
+    "docsUrl": "https://api.nasa.gov/"
+  },
+  {
+    "name": "settlegrid-nasa-epic",
+    "displayName": "NASA EPIC",
+    "description": "Earth imagery from NASA DSCOVR satellite's EPIC camera",
+    "category": "science",
+    "baseUrl": "https://epic.gsfc.nasa.gov/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_natural",
+        "description": "Get latest natural color Earth images",
+        "endpoint": "/natural",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 10
+      },
+      {
+        "name": "get_by_date",
+        "description": "Get Earth images for a specific date",
+        "endpoint": "/natural/date/{date}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "date", "type": "string", "required": true, "description": "Date in YYYY-MM-DD format" }
+        ],
+        "pathMapping": { "date": "date" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 10
+      }
+    ],
+    "keywords": ["nasa", "earth", "satellite", "imagery", "dscovr"],
+    "docsUrl": "https://epic.gsfc.nasa.gov/about/api"
+  },
+  {
+    "name": "settlegrid-nasa-donki",
+    "displayName": "NASA DONKI",
+    "description": "Space weather events including solar flares, CMEs, and geomagnetic storms",
+    "category": "science",
+    "baseUrl": "https://api.nasa.gov/DONKI",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "NASA_API_KEY", "defaultValue": "DEMO_KEY" },
+    "methods": [
+      {
+        "name": "get_cme",
+        "description": "Get coronal mass ejection events",
+        "endpoint": "/CME",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "startDate", "type": "string", "required": false, "description": "Start date YYYY-MM-DD" },
+          { "name": "endDate", "type": "string", "required": false, "description": "End date YYYY-MM-DD" }
+        ],
+        "queryMapping": { "startDate": "startDate", "endDate": "endDate" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_solar_flare",
+        "description": "Get solar flare events",
+        "endpoint": "/FLR",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "startDate", "type": "string", "required": false, "description": "Start date YYYY-MM-DD" },
+          { "name": "endDate", "type": "string", "required": false, "description": "End date YYYY-MM-DD" }
+        ],
+        "queryMapping": { "startDate": "startDate", "endDate": "endDate" },
+        "costCents": 1,
+        "responseIsArray": true
+      }
+    ],
+    "keywords": ["space-weather", "solar", "nasa", "cme", "flares"],
+    "freeApiKeyUrl": "https://api.nasa.gov/",
+    "docsUrl": "https://api.nasa.gov/"
+  },
+  {
+    "name": "settlegrid-usgs-earthquakes",
+    "displayName": "USGS Earthquakes",
+    "description": "Real-time earthquake data from the USGS seismic network",
+    "category": "science",
+    "baseUrl": "https://earthquake.usgs.gov/fdsnws/event/1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_recent",
+        "description": "Get recent earthquakes by magnitude",
+        "endpoint": "/query",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "minmagnitude", "type": "number", "required": false, "description": "Minimum magnitude", "default": 4.0 },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 },
+          { "name": "orderby", "type": "string", "required": false, "description": "Order: time, magnitude", "default": "time" }
+        ],
+        "queryMapping": { "format": "geojson", "minmagnitude": "minmagnitude", "limit": "limit", "orderby": "orderby" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["earthquakes", "seismic", "usgs", "geology", "science"],
+    "docsUrl": "https://earthquake.usgs.gov/fdsnws/event/1/"
+  },
+  {
+    "name": "settlegrid-arxiv",
+    "displayName": "arXiv",
+    "description": "Search scientific preprints from arXiv in physics, math, CS, and more",
+    "category": "science",
+    "baseUrl": "https://export.arxiv.org/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search arXiv papers",
+        "endpoint": "/query",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "search_query", "type": "string", "required": true, "description": "Search query (e.g. all:electron)" },
+          { "name": "max_results", "type": "number", "required": false, "description": "Max results", "default": 20 }
+        ],
+        "queryMapping": { "search_query": "search_query", "max_results": "max_results" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["arxiv", "papers", "research", "science", "preprints"],
+    "docsUrl": "https://info.arxiv.org/help/api/"
+  },
+  {
+    "name": "settlegrid-pubmed",
+    "displayName": "PubMed/NCBI",
+    "description": "Search biomedical literature from PubMed/NCBI database",
+    "category": "science",
+    "baseUrl": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search PubMed articles",
+        "endpoint": "/esearch.fcgi",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "term", "type": "string", "required": true, "description": "Search term" },
+          { "name": "retmax", "type": "number", "required": false, "description": "Max results", "default": 20 }
+        ],
+        "queryMapping": { "db": "pubmed", "term": "term", "retmax": "retmax", "retmode": "json" },
+        "costCents": 1
+      },
+      {
+        "name": "get_summary",
+        "description": "Get article summaries by PubMed IDs",
+        "endpoint": "/esummary.fcgi",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "string", "required": true, "description": "Comma-separated PubMed IDs" }
+        ],
+        "queryMapping": { "db": "pubmed", "id": "id", "retmode": "json" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["pubmed", "biomedical", "research", "medicine", "science"],
+    "docsUrl": "https://www.ncbi.nlm.nih.gov/books/NBK25497/"
+  },
+  {
+    "name": "settlegrid-crossref",
+    "displayName": "Crossref",
+    "description": "Scholarly metadata for 130M+ works with DOI resolution",
+    "category": "science",
+    "baseUrl": "https://api.crossref.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_works",
+        "description": "Search scholarly works",
+        "endpoint": "/works",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" },
+          { "name": "rows", "type": "number", "required": false, "description": "Results count", "default": 20 }
+        ],
+        "queryMapping": { "query": "query", "rows": "rows" },
+        "costCents": 1
+      },
+      {
+        "name": "get_work",
+        "description": "Get work metadata by DOI",
+        "endpoint": "/works/{doi}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "doi", "type": "string", "required": true, "description": "DOI (e.g. 10.1038/nature12373)" }
+        ],
+        "pathMapping": { "doi": "doi" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crossref", "doi", "scholarly", "citations", "research"],
+    "docsUrl": "https://api.crossref.org/swagger-ui/index.html"
+  },
+  {
+    "name": "settlegrid-semantic-scholar",
+    "displayName": "Semantic Scholar",
+    "description": "AI-powered academic paper search with citation graphs from S2",
+    "category": "science",
+    "baseUrl": "https://api.semanticscholar.org/graph/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_papers",
+        "description": "Search academic papers",
+        "endpoint": "/paper/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" },
+          { "name": "limit", "type": "number", "required": false, "description": "Max results", "default": 20 },
+          { "name": "fields", "type": "string", "required": false, "description": "Fields to return", "default": "title,year,abstract,citationCount,authors" }
+        ],
+        "queryMapping": { "query": "query", "limit": "limit", "fields": "fields" },
+        "costCents": 1
+      },
+      {
+        "name": "get_paper",
+        "description": "Get paper details by ID",
+        "endpoint": "/paper/{paperId}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "paperId", "type": "string", "required": true, "description": "Semantic Scholar paper ID or DOI" },
+          { "name": "fields", "type": "string", "required": false, "description": "Fields to return", "default": "title,year,abstract,citationCount,authors,references" }
+        ],
+        "pathMapping": { "paperId": "paperId" },
+        "queryMapping": { "fields": "fields" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["semantic-scholar", "papers", "citations", "research", "ai"],
+    "docsUrl": "https://api.semanticscholar.org/"
+  },
+  {
+    "name": "settlegrid-open-notify",
+    "displayName": "Open Notify (ISS)",
+    "description": "International Space Station current location and astronauts in space",
+    "category": "science",
+    "baseUrl": "http://api.open-notify.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_iss_position",
+        "description": "Get current ISS position",
+        "endpoint": "/iss-now.json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_astronauts",
+        "description": "Get astronauts currently in space",
+        "endpoint": "/astros.json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["iss", "space", "astronauts", "nasa", "tracking"],
+    "docsUrl": "http://open-notify.org/Open-Notify-API/"
+  },
+  {
+    "name": "settlegrid-spacex",
+    "displayName": "SpaceX",
+    "description": "SpaceX launches, rockets, capsules, and mission data",
+    "category": "science",
+    "baseUrl": "https://api.spacexdata.com/v4",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_launches",
+        "description": "Get latest SpaceX launches",
+        "endpoint": "/launches/latest",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_upcoming",
+        "description": "Get upcoming SpaceX launches",
+        "endpoint": "/launches/upcoming",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 10
+      },
+      {
+        "name": "get_rockets",
+        "description": "Get all SpaceX rockets",
+        "endpoint": "/rockets",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      }
+    ],
+    "keywords": ["spacex", "rockets", "launches", "space", "elon-musk"],
+    "docsUrl": "https://github.com/r-spacex/SpaceX-API"
+  },
+  {
+    "name": "settlegrid-launch-library",
+    "displayName": "Launch Library",
+    "description": "Upcoming and past space launches from all agencies worldwide",
+    "category": "science",
+    "baseUrl": "https://ll.thespacedevs.com/2.2.0",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_upcoming",
+        "description": "Get upcoming space launches",
+        "endpoint": "/launch/upcoming/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 10 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_astronauts",
+        "description": "List astronauts",
+        "endpoint": "/astronaut/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "search", "type": "string", "required": false, "description": "Search by name" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 10 }
+        ],
+        "queryMapping": { "search": "search", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["space", "launches", "rockets", "astronauts"],
+    "docsUrl": "https://ll.thespacedevs.com/docs/"
+  },
+  {
+    "name": "settlegrid-gbif",
+    "displayName": "GBIF (Biodiversity)",
+    "description": "Global Biodiversity Information Facility with 2B+ species occurrences",
+    "category": "science",
+    "baseUrl": "https://api.gbif.org/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_species",
+        "description": "Search for species by name",
+        "endpoint": "/species/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Species name" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_occurrences",
+        "description": "Search species occurrence records",
+        "endpoint": "/occurrence/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "scientificName", "type": "string", "required": true, "description": "Scientific species name" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "scientificName": "scientificName", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["biodiversity", "species", "nature", "ecology", "science"],
+    "docsUrl": "https://www.gbif.org/developer/summary"
+  },
+  {
+    "name": "settlegrid-inaturalist",
+    "displayName": "iNaturalist",
+    "description": "Citizen science biodiversity observations and species identification",
+    "category": "science",
+    "baseUrl": "https://api.inaturalist.org/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_observations",
+        "description": "Search biodiversity observations",
+        "endpoint": "/observations",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": false, "description": "Search query" },
+          { "name": "taxon_name", "type": "string", "required": false, "description": "Species or taxon name" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "taxon_name": "taxon_name", "per_page": "per_page" },
+        "costCents": 1
+      },
+      {
+        "name": "search_taxa",
+        "description": "Search taxonomic names",
+        "endpoint": "/taxa",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Taxon name to search" }
+        ],
+        "queryMapping": { "q": "q" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["inaturalist", "biodiversity", "nature", "species", "citizen-science"],
+    "docsUrl": "https://api.inaturalist.org/v1/docs/"
+  },
+  {
+    "name": "settlegrid-reddit",
+    "displayName": "Reddit",
+    "description": "Reddit posts, comments, and subreddit data via public JSON API",
+    "category": "social",
+    "baseUrl": "https://www.reddit.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_subreddit",
+        "description": "Get hot posts from a subreddit",
+        "endpoint": "/r/{subreddit}/hot.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "subreddit", "type": "string", "required": true, "description": "Subreddit name (e.g. programming)" },
+          { "name": "limit", "type": "number", "required": false, "description": "Number of posts", "default": 20 }
+        ],
+        "pathMapping": { "subreddit": "subreddit" },
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "search",
+        "description": "Search Reddit posts",
+        "endpoint": "/search.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "sort", "type": "string", "required": false, "description": "Sort: relevance, hot, top, new", "default": "relevance" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "sort": "sort", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["reddit", "social", "posts", "communities", "discussions"],
+    "docsUrl": "https://www.reddit.com/dev/api/"
+  },
+  {
+    "name": "settlegrid-hacker-news",
+    "displayName": "Hacker News",
+    "description": "Hacker News top stories, comments, and user data via Firebase API",
+    "category": "social",
+    "baseUrl": "https://hacker-news.firebaseio.com/v0",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_top_stories",
+        "description": "Get IDs of current top stories",
+        "endpoint": "/topstories.json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 30
+      },
+      {
+        "name": "get_item",
+        "description": "Get a story, comment, or poll by ID",
+        "endpoint": "/item/{id}.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "number", "required": true, "description": "Item ID" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      },
+      {
+        "name": "get_user",
+        "description": "Get user profile",
+        "endpoint": "/user/{username}.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "username", "type": "string", "required": true, "description": "HN username" }
+        ],
+        "pathMapping": { "username": "username" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["hacker-news", "tech", "startups", "programming", "news"],
+    "docsUrl": "https://github.com/HackerNews/API"
+  },
+  {
+    "name": "settlegrid-stack-exchange",
+    "displayName": "Stack Exchange",
+    "description": "Stack Overflow and Stack Exchange questions, answers, and users",
+    "category": "social",
+    "baseUrl": "https://api.stackexchange.com/2.3",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search questions across Stack Exchange sites",
+        "endpoint": "/search/advanced",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "site", "type": "string", "required": false, "description": "Site name (e.g. stackoverflow)", "default": "stackoverflow" },
+          { "name": "pagesize", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "site": "site", "pagesize": "pagesize" },
+        "costCents": 1
+      },
+      {
+        "name": "get_answers",
+        "description": "Get answers for a question by ID",
+        "endpoint": "/questions/{id}/answers",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "number", "required": true, "description": "Question ID" },
+          { "name": "site", "type": "string", "required": false, "description": "Site name", "default": "stackoverflow" }
+        ],
+        "pathMapping": { "id": "id" },
+        "queryMapping": { "site": "site", "order": "desc", "sort": "votes" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["stackoverflow", "questions", "answers", "programming", "qa"],
+    "docsUrl": "https://api.stackexchange.com/docs"
+  },
+  {
+    "name": "settlegrid-dev-to",
+    "displayName": "DEV.to",
+    "description": "DEV.to community articles, users, and tags",
+    "category": "social",
+    "baseUrl": "https://dev.to/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_articles",
+        "description": "Get published articles",
+        "endpoint": "/articles",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "tag", "type": "string", "required": false, "description": "Filter by tag" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "tag": "tag", "per_page": "per_page" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_article",
+        "description": "Get article by ID",
+        "endpoint": "/articles/{id}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "id", "type": "number", "required": true, "description": "Article ID" }
+        ],
+        "pathMapping": { "id": "id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["dev-to", "blog", "tech", "programming", "community"],
+    "docsUrl": "https://developers.forem.com/api/"
+  },
+  {
+    "name": "settlegrid-mastodon",
+    "displayName": "Mastodon",
+    "description": "Mastodon federated social network timelines, search, and instance info",
+    "category": "social",
+    "baseUrl": "https://mastodon.social/api/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_public_timeline",
+        "description": "Get public timeline posts",
+        "endpoint": "/timelines/public",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Number of posts", "default": 20 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "search",
+        "description": "Search for accounts, statuses, or hashtags",
+        "endpoint": "/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "type", "type": "string", "required": false, "description": "Filter: accounts, hashtags, statuses" }
+        ],
+        "queryMapping": { "q": "q", "type": "type" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["mastodon", "fediverse", "social", "microblog"],
+    "docsUrl": "https://docs.joinmastodon.org/methods/"
+  },
+  {
+    "name": "settlegrid-lobsters",
+    "displayName": "Lobsters",
+    "description": "Lobsters computing-focused link aggregator stories and tags",
+    "category": "social",
+    "baseUrl": "https://lobste.rs",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_hottest",
+        "description": "Get hottest stories",
+        "endpoint": "/hottest.json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 25
+      },
+      {
+        "name": "get_newest",
+        "description": "Get newest stories",
+        "endpoint": "/newest.json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 25
+      }
+    ],
+    "keywords": ["lobsters", "tech", "news", "programming"],
+    "docsUrl": "https://lobste.rs/about"
+  },
+  {
+    "name": "settlegrid-product-hunt",
+    "displayName": "Product Hunt",
+    "description": "Trending tech products and startup launches from Product Hunt",
+    "category": "social",
+    "baseUrl": "https://api.producthunt.com/v2/api",
+    "auth": { "type": "bearer", "envVar": "PRODUCTHUNT_TOKEN" },
+    "methods": [
+      {
+        "name": "get_posts",
+        "description": "Get today's featured products",
+        "endpoint": "/graphql",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "order", "type": "string", "required": false, "description": "Order: RANKING, VOTES", "default": "RANKING" }
+        ],
+        "costCents": 2
+      }
+    ],
+    "keywords": ["product-hunt", "startups", "tech", "launches"],
+    "freeApiKeyUrl": "https://api.producthunt.com/v2/docs",
+    "docsUrl": "https://api.producthunt.com/v2/docs"
+  },
+  {
+    "name": "settlegrid-giphy",
+    "displayName": "Giphy",
+    "description": "Search and get trending GIFs and stickers from Giphy",
+    "category": "social",
+    "baseUrl": "https://api.giphy.com/v1",
+    "auth": { "type": "query", "paramName": "api_key", "envVar": "GIPHY_API_KEY" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for GIFs",
+        "endpoint": "/gifs/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_trending",
+        "description": "Get trending GIFs",
+        "endpoint": "/gifs/trending",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["gifs", "giphy", "images", "social", "memes"],
+    "freeApiKeyUrl": "https://developers.giphy.com/",
+    "docsUrl": "https://developers.giphy.com/docs/api/"
+  },
+  {
+    "name": "settlegrid-unsplash",
+    "displayName": "Unsplash",
+    "description": "Free high-resolution photos and image search from Unsplash",
+    "category": "social",
+    "baseUrl": "https://api.unsplash.com",
+    "auth": { "type": "header", "headerName": "Authorization", "prefix": "Client-ID", "envVar": "UNSPLASH_ACCESS_KEY" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for photos",
+        "endpoint": "/search/photos",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "query": "query", "per_page": "per_page" },
+        "costCents": 1
+      },
+      {
+        "name": "get_random",
+        "description": "Get a random photo",
+        "endpoint": "/photos/random",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": false, "description": "Topic filter" }
+        ],
+        "queryMapping": { "query": "query" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["unsplash", "photos", "images", "stock", "free"],
+    "freeApiKeyUrl": "https://unsplash.com/developers",
+    "docsUrl": "https://unsplash.com/documentation"
+  },
+  {
+    "name": "settlegrid-pexels",
+    "displayName": "Pexels",
+    "description": "Free stock photos and videos from Pexels",
+    "category": "social",
+    "baseUrl": "https://api.pexels.com/v1",
+    "auth": { "type": "header", "headerName": "Authorization", "envVar": "PEXELS_API_KEY" },
+    "methods": [
+      {
+        "name": "search_photos",
+        "description": "Search for photos",
+        "endpoint": "/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search query" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "query": "query", "per_page": "per_page" },
+        "costCents": 1
+      },
+      {
+        "name": "get_curated",
+        "description": "Get curated photos",
+        "endpoint": "/curated",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "per_page": "per_page" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["pexels", "photos", "stock", "images", "free"],
+    "freeApiKeyUrl": "https://www.pexels.com/api/",
+    "docsUrl": "https://www.pexels.com/api/documentation/"
+  },
+  {
+    "name": "settlegrid-pixabay",
+    "displayName": "Pixabay",
+    "description": "Free stock photos, illustrations, and vectors from Pixabay",
+    "category": "social",
+    "baseUrl": "https://pixabay.com/api",
+    "auth": { "type": "query", "paramName": "key", "envVar": "PIXABAY_API_KEY" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for images",
+        "endpoint": "/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "image_type", "type": "string", "required": false, "description": "Type: all, photo, illustration, vector", "default": "all" },
+          { "name": "per_page", "type": "number", "required": false, "description": "Results per page", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "image_type": "image_type", "per_page": "per_page" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["pixabay", "photos", "stock", "illustrations", "vectors"],
+    "freeApiKeyUrl": "https://pixabay.com/api/docs/",
+    "docsUrl": "https://pixabay.com/api/docs/"
+  },
+  {
+    "name": "settlegrid-hashnode",
+    "displayName": "Hashnode",
+    "description": "Hashnode developer blog articles and community content",
+    "category": "social",
+    "baseUrl": "https://gql.hashnode.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_feed",
+        "description": "Get featured articles from Hashnode",
+        "endpoint": "",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "first", "type": "number", "required": false, "description": "Number of articles", "default": 20 }
+        ],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["hashnode", "blog", "tech", "developer", "community"],
+    "docsUrl": "https://api.hashnode.com/"
+  },
+  {
+    "name": "settlegrid-bluesky",
+    "displayName": "Bluesky",
+    "description": "Bluesky AT Protocol social network posts and profiles",
+    "category": "social",
+    "baseUrl": "https://public.api.bsky.app/xrpc",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_profile",
+        "description": "Get a user profile",
+        "endpoint": "/app.bsky.actor.getProfile",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "actor", "type": "string", "required": true, "description": "Handle or DID (e.g. user.bsky.social)" }
+        ],
+        "queryMapping": { "actor": "actor" },
+        "costCents": 1
+      },
+      {
+        "name": "get_feed",
+        "description": "Get a user's post feed",
+        "endpoint": "/app.bsky.feed.getAuthorFeed",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "actor", "type": "string", "required": true, "description": "Handle or DID" },
+          { "name": "limit", "type": "number", "required": false, "description": "Number of posts", "default": 20 }
+        ],
+        "queryMapping": { "actor": "actor", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["bluesky", "social", "atproto", "microblog", "decentralized"],
+    "docsUrl": "https://docs.bsky.app/"
+  },
+  {
+    "name": "settlegrid-nominatim",
+    "displayName": "OpenStreetMap Nominatim",
+    "description": "Geocoding and reverse geocoding using OpenStreetMap data",
+    "category": "maps",
+    "baseUrl": "https://nominatim.openstreetmap.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Geocode an address or place name",
+        "endpoint": "/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Address or place name" },
+          { "name": "limit", "type": "number", "required": false, "description": "Max results", "default": 5 }
+        ],
+        "queryMapping": { "q": "q", "limit": "limit", "format": "json" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "reverse",
+        "description": "Reverse geocode coordinates to address",
+        "endpoint": "/reverse",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lon", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lon": "lon", "format": "json" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["geocoding", "maps", "openstreetmap", "address", "coordinates"],
+    "docsUrl": "https://nominatim.org/release-docs/latest/api/Overview/"
+  },
+  {
+    "name": "settlegrid-geonames",
+    "displayName": "GeoNames",
+    "description": "Geographical database with 11M+ place names, elevations, and postal codes",
+    "category": "maps",
+    "baseUrl": "http://api.geonames.org",
+    "auth": { "type": "query", "paramName": "username", "envVar": "GEONAMES_USERNAME" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for place names",
+        "endpoint": "/searchJSON",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Place name query" },
+          { "name": "maxRows", "type": "number", "required": false, "description": "Max results", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "maxRows": "maxRows" },
+        "costCents": 1
+      },
+      {
+        "name": "get_nearby",
+        "description": "Find nearby places by coordinates",
+        "endpoint": "/findNearbyPlaceNameJSON",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lng", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lng": "lng" },
+        "costCents": 1
+      },
+      {
+        "name": "get_timezone",
+        "description": "Get timezone for coordinates",
+        "endpoint": "/timezoneJSON",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "lat", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "lng", "type": "number", "required": true, "description": "Longitude" }
+        ],
+        "queryMapping": { "lat": "lat", "lng": "lng" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["geonames", "places", "geography", "timezone", "coordinates"],
+    "freeApiKeyUrl": "https://www.geonames.org/login",
+    "docsUrl": "https://www.geonames.org/export/web-services.html"
+  },
+  {
+    "name": "settlegrid-ipinfo",
+    "displayName": "ipinfo",
+    "description": "IP address geolocation, ASN, company, and privacy detection",
+    "category": "maps",
+    "baseUrl": "https://ipinfo.io",
+    "auth": { "type": "bearer", "envVar": "IPINFO_TOKEN" },
+    "methods": [
+      {
+        "name": "lookup",
+        "description": "Get geolocation data for an IP",
+        "endpoint": "/{ip}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "ip", "type": "string", "required": true, "description": "IP address to lookup" }
+        ],
+        "pathMapping": { "ip": "ip" },
+        "costCents": 1
+      },
+      {
+        "name": "get_my_ip",
+        "description": "Get your own IP info",
+        "endpoint": "/json",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["ip", "geolocation", "asn", "network", "privacy"],
+    "freeApiKeyUrl": "https://ipinfo.io/signup",
+    "docsUrl": "https://ipinfo.io/developers"
+  },
+  {
+    "name": "settlegrid-what3words",
+    "displayName": "what3words",
+    "description": "Convert between 3-word addresses and GPS coordinates",
+    "category": "maps",
+    "baseUrl": "https://api.what3words.com/v3",
+    "auth": { "type": "query", "paramName": "key", "envVar": "WHAT3WORDS_API_KEY" },
+    "methods": [
+      {
+        "name": "convert_to_coords",
+        "description": "Convert 3-word address to coordinates",
+        "endpoint": "/convert-to-coordinates",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "words", "type": "string", "required": true, "description": "3-word address (e.g. filled.count.soap)" }
+        ],
+        "queryMapping": { "words": "words" },
+        "costCents": 1
+      },
+      {
+        "name": "convert_to_words",
+        "description": "Convert coordinates to 3-word address",
+        "endpoint": "/convert-to-3wa",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "coordinates", "type": "string", "required": true, "description": "Coordinates as lat,lng" }
+        ],
+        "queryMapping": { "coordinates": "coordinates" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["what3words", "geocoding", "location", "addressing"],
+    "freeApiKeyUrl": "https://developer.what3words.com/public-api",
+    "docsUrl": "https://developer.what3words.com/public-api/docs"
+  },
+  {
+    "name": "settlegrid-opencage",
+    "displayName": "OpenCage",
+    "description": "Forward and reverse geocoding using OpenStreetMap and other sources",
+    "category": "maps",
+    "baseUrl": "https://api.opencagedata.com/geocode/v1",
+    "auth": { "type": "query", "paramName": "key", "envVar": "OPENCAGE_API_KEY" },
+    "methods": [
+      {
+        "name": "geocode",
+        "description": "Geocode an address to coordinates",
+        "endpoint": "/json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Address or place name" },
+          { "name": "limit", "type": "number", "required": false, "description": "Max results", "default": 5 }
+        ],
+        "queryMapping": { "q": "q", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["geocoding", "maps", "address", "coordinates", "location"],
+    "freeApiKeyUrl": "https://opencagedata.com/api",
+    "docsUrl": "https://opencagedata.com/api"
+  },
+  {
+    "name": "settlegrid-openrouteservice",
+    "displayName": "OpenRouteService",
+    "description": "Directions, isochrones, and geocoding using OpenStreetMap data",
+    "category": "maps",
+    "baseUrl": "https://api.openrouteservice.org",
+    "auth": { "type": "header", "headerName": "Authorization", "envVar": "ORS_API_KEY" },
+    "methods": [
+      {
+        "name": "get_directions",
+        "description": "Get driving/walking/cycling directions",
+        "endpoint": "/v2/directions/{profile}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "profile", "type": "string", "required": true, "description": "Profile: driving-car, foot-walking, cycling-regular" },
+          { "name": "start", "type": "string", "required": true, "description": "Start coordinates as lon,lat" },
+          { "name": "end", "type": "string", "required": true, "description": "End coordinates as lon,lat" }
+        ],
+        "pathMapping": { "profile": "profile" },
+        "queryMapping": { "start": "start", "end": "end" },
+        "costCents": 2
+      },
+      {
+        "name": "geocode",
+        "description": "Geocode an address",
+        "endpoint": "/geocode/search",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "text", "type": "string", "required": true, "description": "Address to geocode" }
+        ],
+        "queryMapping": { "text": "text" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["routing", "directions", "maps", "openstreetmap", "navigation"],
+    "freeApiKeyUrl": "https://openrouteservice.org/dev/#/signup",
+    "docsUrl": "https://openrouteservice.org/dev/#/api-docs"
+  },
+  {
+    "name": "settlegrid-mapbox",
+    "displayName": "Mapbox",
+    "description": "Geocoding, directions, and static maps from Mapbox",
+    "category": "maps",
+    "baseUrl": "https://api.mapbox.com",
+    "auth": { "type": "query", "paramName": "access_token", "envVar": "MAPBOX_TOKEN" },
+    "methods": [
+      {
+        "name": "geocode",
+        "description": "Forward geocode an address",
+        "endpoint": "/geocoding/v5/mapbox.places/{query}.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Address or place name" },
+          { "name": "limit", "type": "number", "required": false, "description": "Max results", "default": 5 }
+        ],
+        "pathMapping": { "query": "query" },
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_directions",
+        "description": "Get driving directions between points",
+        "endpoint": "/directions/v5/mapbox/driving/{coordinates}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "coordinates", "type": "string", "required": true, "description": "Semicolon-separated lon,lat pairs" }
+        ],
+        "pathMapping": { "coordinates": "coordinates" },
+        "costCents": 2
+      }
+    ],
+    "keywords": ["mapbox", "maps", "geocoding", "directions", "navigation"],
+    "freeApiKeyUrl": "https://account.mapbox.com/",
+    "docsUrl": "https://docs.mapbox.com/"
+  },
+  {
+    "name": "settlegrid-here",
+    "displayName": "HERE Maps",
+    "description": "Geocoding, routing, and place search from HERE Technologies",
+    "category": "maps",
+    "baseUrl": "https://geocode.search.hereapi.com/v1",
+    "auth": { "type": "query", "paramName": "apiKey", "envVar": "HERE_API_KEY" },
+    "methods": [
+      {
+        "name": "geocode",
+        "description": "Geocode an address",
+        "endpoint": "/geocode",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Address to geocode" }
+        ],
+        "queryMapping": { "q": "q" },
+        "costCents": 1
+      },
+      {
+        "name": "reverse_geocode",
+        "description": "Reverse geocode coordinates",
+        "endpoint": "/revgeocode",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "at", "type": "string", "required": true, "description": "Coordinates as lat,lng" }
+        ],
+        "queryMapping": { "at": "at" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["here", "maps", "geocoding", "routing", "navigation"],
+    "freeApiKeyUrl": "https://developer.here.com/sign-up",
+    "docsUrl": "https://developer.here.com/documentation"
+  },
+  {
+    "name": "settlegrid-rest-countries",
+    "displayName": "REST Countries",
+    "description": "Detailed country data including population, languages, currencies, and flags",
+    "category": "maps",
+    "baseUrl": "https://restcountries.com/v3.1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_all",
+        "description": "Get data for all countries",
+        "endpoint": "/all",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "fields", "type": "string", "required": false, "description": "Comma-separated fields to return" }
+        ],
+        "queryMapping": { "fields": "fields" },
+        "costCents": 1,
+        "responseIsArray": true
+      },
+      {
+        "name": "get_by_name",
+        "description": "Get country by name",
+        "endpoint": "/name/{name}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "Country name" }
+        ],
+        "pathMapping": { "name": "name" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 5
+      }
+    ],
+    "keywords": ["countries", "geography", "population", "flags"],
+    "docsUrl": "https://restcountries.com/"
+  },
+  {
+    "name": "settlegrid-exchangerate-host",
+    "displayName": "ExchangeRate.host",
+    "description": "Free foreign exchange rates, crypto rates, and currency conversion",
+    "category": "finance",
+    "baseUrl": "https://api.exchangerate.host",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_latest",
+        "description": "Get latest exchange rates",
+        "endpoint": "/latest",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "base", "type": "string", "required": false, "description": "Base currency (default USD)", "default": "USD" },
+          { "name": "symbols", "type": "string", "required": false, "description": "Target currencies comma-separated" }
+        ],
+        "queryMapping": { "base": "base", "symbols": "symbols" },
+        "costCents": 1
+      },
+      {
+        "name": "convert",
+        "description": "Convert between currencies",
+        "endpoint": "/convert",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "from", "type": "string", "required": true, "description": "Source currency" },
+          { "name": "to", "type": "string", "required": true, "description": "Target currency" },
+          { "name": "amount", "type": "number", "required": true, "description": "Amount to convert" }
+        ],
+        "queryMapping": { "from": "from", "to": "to", "amount": "amount" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["forex", "exchange-rates", "currency", "conversion", "crypto"],
+    "docsUrl": "https://exchangerate.host/#/"
+  },
+  {
+    "name": "settlegrid-coinbase",
+    "displayName": "Coinbase",
+    "description": "Cryptocurrency prices, exchange rates, and currency info from Coinbase",
+    "category": "finance",
+    "baseUrl": "https://api.coinbase.com/v2",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_price",
+        "description": "Get current buy/sell price for a crypto pair",
+        "endpoint": "/prices/{pair}/spot",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "pair", "type": "string", "required": true, "description": "Currency pair (e.g. BTC-USD)" }
+        ],
+        "pathMapping": { "pair": "pair" },
+        "costCents": 1
+      },
+      {
+        "name": "get_currencies",
+        "description": "List supported currencies",
+        "endpoint": "/currencies",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_exchange_rates",
+        "description": "Get exchange rates for a currency",
+        "endpoint": "/exchange-rates",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "currency", "type": "string", "required": false, "description": "Base currency", "default": "USD" }
+        ],
+        "queryMapping": { "currency": "currency" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["coinbase", "crypto", "bitcoin", "exchange-rates", "prices"],
+    "docsUrl": "https://docs.cloud.coinbase.com/"
+  },
+  {
+    "name": "settlegrid-fear-greed",
+    "displayName": "Fear & Greed Index",
+    "description": "Crypto Fear & Greed Index measuring market sentiment",
+    "category": "finance",
+    "baseUrl": "https://api.alternative.me",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_index",
+        "description": "Get current Fear & Greed Index",
+        "endpoint": "/fng/",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Number of days of data", "default": 10 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "sentiment", "fear-greed", "market"],
+    "docsUrl": "https://alternative.me/crypto/fear-and-greed-index/"
+  },
+  {
+    "name": "settlegrid-messari",
+    "displayName": "Messari",
+    "description": "Crypto asset metrics, profiles, and market data from Messari",
+    "category": "finance",
+    "baseUrl": "https://data.messari.io/api/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_asset",
+        "description": "Get asset profile and metrics",
+        "endpoint": "/assets/{assetKey}/metrics",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "assetKey", "type": "string", "required": true, "description": "Asset key (e.g. bitcoin, ethereum)" }
+        ],
+        "pathMapping": { "assetKey": "assetKey" },
+        "costCents": 1
+      },
+      {
+        "name": "list_assets",
+        "description": "List all crypto assets",
+        "endpoint": "/assets",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "metrics", "messari", "market-data"],
+    "docsUrl": "https://messari.io/api"
+  },
+  {
+    "name": "settlegrid-coinstats",
+    "displayName": "CoinStats",
+    "description": "Cryptocurrency prices, portfolios, and DeFi data from CoinStats",
+    "category": "finance",
+    "baseUrl": "https://api.coinstats.app/public/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_coins",
+        "description": "Get list of cryptocurrencies with prices",
+        "endpoint": "/coins",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 },
+          { "name": "currency", "type": "string", "required": false, "description": "Fiat currency", "default": "USD" }
+        ],
+        "queryMapping": { "limit": "limit", "currency": "currency" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["crypto", "portfolio", "prices", "defi"],
+    "docsUrl": "https://documenter.getpostman.com/view/5734027/RzZ6Hzr3"
+  },
+  {
+    "name": "settlegrid-carbon",
+    "displayName": "Carbon",
+    "description": "Create beautiful code snippet images for sharing and documentation",
+    "category": "developer",
+    "baseUrl": "https://carbonara-42.herokuapp.com/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "create_image",
+        "description": "Generate a code snippet image",
+        "endpoint": "/cook",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "code", "type": "string", "required": true, "description": "Code to render" },
+          { "name": "language", "type": "string", "required": false, "description": "Programming language", "default": "auto" },
+          { "name": "theme", "type": "string", "required": false, "description": "Theme: dracula, monokai, night-owl", "default": "dracula" }
+        ],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["carbon", "code", "screenshot", "images", "developer"],
+    "docsUrl": "https://carbon.now.sh/"
+  },
+  {
+    "name": "settlegrid-github-trending",
+    "displayName": "GitHub Trending",
+    "description": "Trending repositories and developers on GitHub",
+    "category": "developer",
+    "baseUrl": "https://api.gitterapp.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_trending_repos",
+        "description": "Get trending repositories",
+        "endpoint": "/repositories",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "language", "type": "string", "required": false, "description": "Programming language filter" },
+          { "name": "since", "type": "string", "required": false, "description": "Period: daily, weekly, monthly", "default": "daily" }
+        ],
+        "queryMapping": { "language": "language", "since": "since" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 25
+      },
+      {
+        "name": "get_trending_developers",
+        "description": "Get trending developers",
+        "endpoint": "/developers",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "language", "type": "string", "required": false, "description": "Programming language filter" },
+          { "name": "since", "type": "string", "required": false, "description": "Period: daily, weekly, monthly", "default": "daily" }
+        ],
+        "queryMapping": { "language": "language", "since": "since" },
+        "costCents": 1,
+        "responseIsArray": true,
+        "responseArraySlice": 25
+      }
+    ],
+    "keywords": ["github", "trending", "repositories", "developers"],
+    "docsUrl": "https://github.com/trending"
+  },
+  {
+    "name": "settlegrid-wakatime",
+    "displayName": "WakaTime",
+    "description": "Developer coding activity metrics and language statistics",
+    "category": "developer",
+    "baseUrl": "https://wakatime.com/api/v1",
+    "auth": { "type": "header", "headerName": "Authorization", "prefix": "Basic", "envVar": "WAKATIME_API_KEY" },
+    "methods": [
+      {
+        "name": "get_stats",
+        "description": "Get coding activity stats",
+        "endpoint": "/users/current/stats/last_7_days",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_leaders",
+        "description": "Get public leaderboard",
+        "endpoint": "/leaders",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "page", "type": "number", "required": false, "description": "Page number", "default": 1 }
+        ],
+        "queryMapping": { "page": "page" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["wakatime", "coding", "productivity", "metrics", "developer"],
+    "freeApiKeyUrl": "https://wakatime.com/api-key",
+    "docsUrl": "https://wakatime.com/developers"
+  },
+  {
+    "name": "settlegrid-worldtime",
+    "displayName": "World Time API",
+    "description": "Current time and timezone data for locations worldwide",
+    "category": "maps",
+    "baseUrl": "http://worldtimeapi.org/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_by_timezone",
+        "description": "Get current time for a timezone",
+        "endpoint": "/timezone/{area}/{location}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "area", "type": "string", "required": true, "description": "Timezone area (e.g. America)" },
+          { "name": "location", "type": "string", "required": true, "description": "Timezone location (e.g. New_York)" }
+        ],
+        "pathMapping": { "area": "area", "location": "location" },
+        "costCents": 1
+      },
+      {
+        "name": "get_by_ip",
+        "description": "Get current time based on IP address",
+        "endpoint": "/ip/{ip}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "ip", "type": "string", "required": true, "description": "IP address" }
+        ],
+        "pathMapping": { "ip": "ip" },
+        "costCents": 1
+      },
+      {
+        "name": "list_timezones",
+        "description": "List all available timezones",
+        "endpoint": "/timezone",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1,
+        "responseIsArray": true
+      }
+    ],
+    "keywords": ["time", "timezone", "clock", "world-time"],
+    "docsUrl": "http://worldtimeapi.org/"
+  },
+  {
+    "name": "settlegrid-protein-data-bank",
+    "displayName": "Protein Data Bank",
+    "description": "3D structural data for proteins and nucleic acids from RCSB PDB",
+    "category": "science",
+    "baseUrl": "https://data.rcsb.org/rest/v1/core",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_entry",
+        "description": "Get PDB entry details by ID",
+        "endpoint": "/entry/{entryId}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "entryId", "type": "string", "required": true, "description": "PDB entry ID (e.g. 4HHB)" }
+        ],
+        "pathMapping": { "entryId": "entryId" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["pdb", "protein", "biology", "structure", "science"],
+    "docsUrl": "https://data.rcsb.org/"
+  },
+  {
+    "name": "settlegrid-chemspider",
+    "displayName": "ChemSpider",
+    "description": "Chemical compound search and molecular data from ChemSpider",
+    "category": "science",
+    "baseUrl": "https://api.rsc.org",
+    "auth": { "type": "header", "headerName": "apikey", "envVar": "CHEMSPIDER_API_KEY" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search for chemical compounds",
+        "endpoint": "/compounds/v1/filter/name",
+        "httpMethod": "POST",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "Chemical compound name" }
+        ],
+        "costCents": 2
+      },
+      {
+        "name": "get_details",
+        "description": "Get compound details by record ID",
+        "endpoint": "/compounds/v1/records/{recordId}/details",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "recordId", "type": "number", "required": true, "description": "ChemSpider record ID" }
+        ],
+        "pathMapping": { "recordId": "recordId" },
+        "queryMapping": { "fields": "CommonName,SMILES,Formula,MolecularWeight" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["chemistry", "compounds", "molecular", "science"],
+    "freeApiKeyUrl": "https://developer.rsc.org/",
+    "docsUrl": "https://developer.rsc.org/compounds-v1/apis"
+  },
+  {
+    "name": "settlegrid-numbersapi",
+    "displayName": "Numbers API",
+    "description": "Interesting facts about numbers, dates, and mathematical concepts",
+    "category": "science",
+    "baseUrl": "http://numbersapi.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_number_fact",
+        "description": "Get a fact about a number",
+        "endpoint": "/{number}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "number", "type": "number", "required": true, "description": "Any integer" }
+        ],
+        "pathMapping": { "number": "number" },
+        "queryMapping": { "json": "true" },
+        "costCents": 1
+      },
+      {
+        "name": "get_date_fact",
+        "description": "Get a fact about a date",
+        "endpoint": "/{month}/{day}/date",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "month", "type": "number", "required": true, "description": "Month number (1-12)" },
+          { "name": "day", "type": "number", "required": true, "description": "Day number (1-31)" }
+        ],
+        "pathMapping": { "month": "month", "day": "day" },
+        "queryMapping": { "json": "true" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["numbers", "facts", "math", "trivia", "science"],
+    "docsUrl": "http://numbersapi.com/"
+  },
+  {
+    "name": "settlegrid-usps-zipcode",
+    "displayName": "Zippopotamus",
+    "description": "Free zip code lookup with city, state, country, and coordinates",
+    "category": "government",
+    "baseUrl": "https://api.zippopotam.us",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "lookup_zip",
+        "description": "Get location info for a zip/postal code",
+        "endpoint": "/{country}/{code}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "country", "type": "string", "required": true, "description": "Country code (e.g. us, de, fr)" },
+          { "name": "code", "type": "string", "required": true, "description": "Zip/postal code" }
+        ],
+        "pathMapping": { "country": "country", "code": "code" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["zipcode", "postal", "address", "location", "government"],
+    "docsUrl": "https://www.zippopotam.us/"
+  },
+  {
+    "name": "settlegrid-openfda",
+    "displayName": "OpenFDA",
+    "description": "FDA drug adverse events, recalls, and product labeling data",
+    "category": "government",
+    "baseUrl": "https://api.fda.gov",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_drugs",
+        "description": "Search drug adverse event reports",
+        "endpoint": "/drug/event.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "search", "type": "string", "required": true, "description": "Search query (e.g. patient.drug.medicinalproduct:aspirin)" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 10 }
+        ],
+        "queryMapping": { "search": "search", "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_recalls",
+        "description": "Search food and drug recalls",
+        "endpoint": "/drug/enforcement.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "search", "type": "string", "required": true, "description": "Search query" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 10 }
+        ],
+        "queryMapping": { "search": "search", "limit": "limit" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["fda", "drugs", "recalls", "health", "government"],
+    "docsUrl": "https://open.fda.gov/apis/"
+  },
+  {
+    "name": "settlegrid-openlib",
+    "displayName": "Open Library",
+    "description": "Book data, search, and covers from the Internet Archive Open Library",
+    "category": "social",
+    "baseUrl": "https://openlibrary.org",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search_books",
+        "description": "Search for books by title, author, or subject",
+        "endpoint": "/search.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "q", "type": "string", "required": true, "description": "Search query" },
+          { "name": "limit", "type": "number", "required": false, "description": "Results limit", "default": 20 }
+        ],
+        "queryMapping": { "q": "q", "limit": "limit" },
+        "costCents": 1
+      },
+      {
+        "name": "get_book",
+        "description": "Get book details by ISBN",
+        "endpoint": "/isbn/{isbn}.json",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "isbn", "type": "string", "required": true, "description": "ISBN number" }
+        ],
+        "pathMapping": { "isbn": "isbn" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["books", "library", "isbn", "reading", "literature"],
+    "docsUrl": "https://openlibrary.org/developers/api"
+  },
+  {
+    "name": "settlegrid-openmeteo-marine",
+    "displayName": "Open-Meteo Marine",
+    "description": "Marine weather forecast with wave heights, periods, and ocean data",
+    "category": "weather",
+    "baseUrl": "https://marine-api.open-meteo.com/v1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_marine",
+        "description": "Get marine weather forecast",
+        "endpoint": "/marine",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "latitude", "type": "number", "required": true, "description": "Latitude" },
+          { "name": "longitude", "type": "number", "required": true, "description": "Longitude" },
+          { "name": "hourly", "type": "string", "required": false, "description": "Hourly vars: wave_height,wave_period,wave_direction" }
+        ],
+        "queryMapping": { "latitude": "latitude", "longitude": "longitude", "hourly": "hourly" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["marine", "ocean", "waves", "weather", "sailing"],
+    "docsUrl": "https://open-meteo.com/en/docs/marine-weather-api"
+  },
+  {
+    "name": "settlegrid-cocktaildb",
+    "displayName": "TheCocktailDB",
+    "description": "Cocktail recipes, ingredients, and drink search database",
+    "category": "social",
+    "baseUrl": "https://www.thecocktaildb.com/api/json/v1/1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search cocktails by name",
+        "endpoint": "/search.php",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "s", "type": "string", "required": true, "description": "Cocktail name to search" }
+        ],
+        "queryMapping": { "s": "s" },
+        "costCents": 1
+      },
+      {
+        "name": "get_random",
+        "description": "Get a random cocktail recipe",
+        "endpoint": "/random.php",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_by_ingredient",
+        "description": "Filter cocktails by ingredient",
+        "endpoint": "/filter.php",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "i", "type": "string", "required": true, "description": "Ingredient name (e.g. Vodka, Gin)" }
+        ],
+        "queryMapping": { "i": "i" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["cocktails", "drinks", "recipes", "bartending"],
+    "docsUrl": "https://www.thecocktaildb.com/api.php"
+  },
+  {
+    "name": "settlegrid-mealdb",
+    "displayName": "TheMealDB",
+    "description": "Meal recipes, ingredients, and cooking instructions database",
+    "category": "social",
+    "baseUrl": "https://www.themealdb.com/api/json/v1/1",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "search",
+        "description": "Search meals by name",
+        "endpoint": "/search.php",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "s", "type": "string", "required": true, "description": "Meal name to search" }
+        ],
+        "queryMapping": { "s": "s" },
+        "costCents": 1
+      },
+      {
+        "name": "get_random",
+        "description": "Get a random meal recipe",
+        "endpoint": "/random.php",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_categories",
+        "description": "Get all meal categories",
+        "endpoint": "/categories.php",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      }
+    ],
+    "keywords": ["meals", "recipes", "cooking", "food"],
+    "docsUrl": "https://www.themealdb.com/api.php"
+  },
+  {
+    "name": "settlegrid-pokeapi",
+    "displayName": "PokeAPI",
+    "description": "Pokemon data including species, moves, abilities, and types",
+    "category": "social",
+    "baseUrl": "https://pokeapi.co/api/v2",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_pokemon",
+        "description": "Get Pokemon data by name or ID",
+        "endpoint": "/pokemon/{nameOrId}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "nameOrId", "type": "string", "required": true, "description": "Pokemon name or ID (e.g. pikachu, 25)" }
+        ],
+        "pathMapping": { "nameOrId": "nameOrId" },
+        "costCents": 1
+      },
+      {
+        "name": "list_pokemon",
+        "description": "List Pokemon with pagination",
+        "endpoint": "/pokemon",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "limit", "type": "number", "required": false, "description": "Results per page", "default": 20 },
+          { "name": "offset", "type": "number", "required": false, "description": "Offset for pagination", "default": 0 }
+        ],
+        "queryMapping": { "limit": "limit", "offset": "offset" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["pokemon", "games", "anime", "data"],
+    "docsUrl": "https://pokeapi.co/docs/v2"
+  },
+  {
+    "name": "settlegrid-dog-api",
+    "displayName": "Dog CEO API",
+    "description": "Random dog images and breed information",
+    "category": "social",
+    "baseUrl": "https://dog.ceo/api",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_random",
+        "description": "Get a random dog image",
+        "endpoint": "/breeds/image/random",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "list_breeds",
+        "description": "List all dog breeds",
+        "endpoint": "/breeds/list/all",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "get_breed_images",
+        "description": "Get images for a specific breed",
+        "endpoint": "/breed/{breed}/images/random/3",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "breed", "type": "string", "required": true, "description": "Breed name (e.g. labrador, poodle)" }
+        ],
+        "pathMapping": { "breed": "breed" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["dogs", "images", "breeds", "pets"],
+    "docsUrl": "https://dog.ceo/dog-api/"
+  },
+  {
+    "name": "settlegrid-advice-slip",
+    "displayName": "Advice Slip",
+    "description": "Random advice quotes and wisdom with search",
+    "category": "social",
+    "baseUrl": "https://api.adviceslip.com",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "get_random",
+        "description": "Get random advice",
+        "endpoint": "/advice",
+        "httpMethod": "GET",
+        "params": [],
+        "costCents": 1
+      },
+      {
+        "name": "search",
+        "description": "Search for advice by keyword",
+        "endpoint": "/advice/search/{query}",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "query", "type": "string", "required": true, "description": "Search keyword" }
+        ],
+        "pathMapping": { "query": "query" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["advice", "quotes", "wisdom", "random"],
+    "docsUrl": "https://api.adviceslip.com/"
+  },
+  {
+    "name": "settlegrid-agify",
+    "displayName": "Agify",
+    "description": "Predict age from a first name using machine learning",
+    "category": "ai",
+    "baseUrl": "https://api.agify.io",
+    "auth": { "type": "none" },
+    "methods": [
+      {
+        "name": "predict",
+        "description": "Predict age from a name",
+        "endpoint": "",
+        "httpMethod": "GET",
+        "params": [
+          { "name": "name", "type": "string", "required": true, "description": "First name to predict age for" },
+          { "name": "country_id", "type": "string", "required": false, "description": "Country code for localization (e.g. US, GB)" }
+        ],
+        "queryMapping": { "name": "name", "country_id": "country_id" },
+        "costCents": 1
+      }
+    ],
+    "keywords": ["age", "prediction", "name", "ml", "demographics"],
+    "docsUrl": "https://agify.io/"
+  }
+]

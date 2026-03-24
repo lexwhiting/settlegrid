@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-dex-screener",
+  "version": "1.0.0",
+  "description": "MCP server for DEX Screener with SettleGrid billing. Decentralized exchange token prices, pairs, and liquidity data",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "defi",
+    "dex",
+    "crypto",
+    "liquidity",
+    "tokens"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-dex-screener"
+  }
+}

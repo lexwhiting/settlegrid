@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-stack-exchange",
+  "version": "1.0.0",
+  "description": "MCP server for Stack Exchange with SettleGrid billing. Stack Overflow and Stack Exchange questions, answers, and users",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "stackoverflow",
+    "questions",
+    "answers",
+    "programming",
+    "qa"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-stack-exchange"
+  }
+}

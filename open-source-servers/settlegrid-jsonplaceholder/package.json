@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-jsonplaceholder",
+  "version": "1.0.0",
+  "description": "MCP server for JSONPlaceholder with SettleGrid billing. Fake REST API for testing with posts, comments, users, and todos",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "testing",
+    "mock",
+    "fake",
+    "rest",
+    "json"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-jsonplaceholder"
+  }
+}

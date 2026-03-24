@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-crates-io",
+  "version": "1.0.0",
+  "description": "MCP server for crates.io with SettleGrid billing. Rust package metadata, downloads, and search from the crates.io registry",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "rust",
+    "crates",
+    "packages",
+    "cargo"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-crates-io"
+  }
+}

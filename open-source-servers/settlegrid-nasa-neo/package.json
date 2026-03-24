@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-nasa-neo",
+  "version": "1.0.0",
+  "description": "MCP server for NASA Near-Earth Objects with SettleGrid billing. Track asteroids and near-Earth objects with approach data from NASA",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "nasa",
+    "asteroids",
+    "neo",
+    "space",
+    "tracking"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nasa-neo"
+  }
+}

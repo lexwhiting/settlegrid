@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-bls-stats",
+  "version": "1.0.0",
+  "description": "MCP server for BLS Statistics with SettleGrid billing. US Bureau of Labor Statistics data including employment, CPI, and wages",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "employment",
+    "wages",
+    "cpi",
+    "inflation",
+    "labor"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-bls-stats"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-nasa-mars",
+  "version": "1.0.0",
+  "description": "MCP server for NASA Mars Rover Photos with SettleGrid billing. Photos from NASA Mars rovers (Curiosity, Opportunity, Spirit)",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "nasa",
+    "mars",
+    "rover",
+    "photos",
+    "space"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nasa-mars"
+  }
+}

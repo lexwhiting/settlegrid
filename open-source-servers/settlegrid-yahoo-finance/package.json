@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-yahoo-finance",
+  "version": "1.0.0",
+  "description": "MCP server for Yahoo Finance with SettleGrid billing. Stock quotes, charts, and market data via Yahoo Finance query API",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "stocks",
+    "yahoo",
+    "charts",
+    "market"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-yahoo-finance"
+  }
+}

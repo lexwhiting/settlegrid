@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-eu-open-data",
+  "version": "1.0.0",
+  "description": "MCP server for EU Open Data Portal with SettleGrid billing. European Union open datasets from all EU institutions",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "eu",
+    "europe",
+    "open-data",
+    "government",
+    "datasets"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-eu-open-data"
+  }
+}

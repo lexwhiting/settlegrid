@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-congress",
+  "version": "1.0.0",
+  "description": "MCP server for Congress API with SettleGrid billing. US Congress bills, members, votes, and committees from congress.gov",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "congress",
+    "bills",
+    "legislation",
+    "government",
+    "politics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-congress"
+  }
+}

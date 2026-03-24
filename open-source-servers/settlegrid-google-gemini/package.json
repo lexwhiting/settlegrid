@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-google-gemini",
+  "version": "1.0.0",
+  "description": "MCP server for Google Gemini with SettleGrid billing. Google Gemini AI model inference for text and multimodal tasks",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "gemini",
+    "google",
+    "ai",
+    "llm",
+    "multimodal"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-google-gemini"
+  }
+}

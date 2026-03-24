@@ -1,0 +1,24 @@
+{
+  "name": "settlegrid-layer2-data",
+  "version": "1.0.0",
+  "description": "MCP server for L2 scaling data with SettleGrid billing. Get TVL, fees, and stats for Layer 2 networks.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["settlegrid", "mcp", "ai", "layer2", "l2", "rollup", "scaling", "blockchain"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-layer2-data"
+  }
+}

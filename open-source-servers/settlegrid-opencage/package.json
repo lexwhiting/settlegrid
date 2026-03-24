@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-opencage",
+  "version": "1.0.0",
+  "description": "MCP server for OpenCage with SettleGrid billing. Forward and reverse geocoding using OpenStreetMap and other sources",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "geocoding",
+    "maps",
+    "address",
+    "coordinates",
+    "location"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-opencage"
+  }
+}

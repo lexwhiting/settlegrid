@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-india-data",
+  "version": "1.0.0",
+  "description": "MCP server for India Open Data with SettleGrid billing. Indian government open data from data.gov.in",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "india",
+    "open-data",
+    "government",
+    "datasets"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-india-data"
+  }
+}

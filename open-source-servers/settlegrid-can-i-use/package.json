@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-can-i-use",
+  "version": "1.0.0",
+  "description": "MCP server for Can I Use with SettleGrid billing. Browser compatibility data for web technologies and APIs",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "browser",
+    "compatibility",
+    "web",
+    "css",
+    "html"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-can-i-use"
+  }
+}

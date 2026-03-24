@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-fear-greed",
+  "version": "1.0.0",
+  "description": "MCP server for Fear & Greed Index with SettleGrid billing. Crypto Fear & Greed Index measuring market sentiment",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "crypto",
+    "sentiment",
+    "fear-greed",
+    "market"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fear-greed"
+  }
+}

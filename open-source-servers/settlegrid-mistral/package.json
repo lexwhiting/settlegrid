@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-mistral",
+  "version": "1.0.0",
+  "description": "MCP server for Mistral AI with SettleGrid billing. Mistral and Mixtral model inference via Mistral AI API",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "mistral",
+    "mixtral",
+    "ai",
+    "llm",
+    "french-ai"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-mistral"
+  }
+}

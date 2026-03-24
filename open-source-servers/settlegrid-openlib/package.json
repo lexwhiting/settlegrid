@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-openlib",
+  "version": "1.0.0",
+  "description": "MCP server for Open Library with SettleGrid billing. Book data, search, and covers from the Internet Archive Open Library",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "books",
+    "library",
+    "isbn",
+    "reading",
+    "literature"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-openlib"
+  }
+}

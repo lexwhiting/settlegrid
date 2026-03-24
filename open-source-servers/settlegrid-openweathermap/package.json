@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-openweathermap",
+  "version": "1.0.0",
+  "description": "MCP server for OpenWeatherMap with SettleGrid billing. Current weather, forecasts, and historical weather data for any location worldwide",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "weather",
+    "forecast",
+    "temperature",
+    "climate"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-openweathermap"
+  }
+}

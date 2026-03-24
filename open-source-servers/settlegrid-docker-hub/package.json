@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-docker-hub",
+  "version": "1.0.0",
+  "description": "MCP server for Docker Hub with SettleGrid billing. Docker image metadata, tags, and search from Docker Hub",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "docker",
+    "containers",
+    "images",
+    "devops"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-docker-hub"
+  }
+}

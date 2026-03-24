@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-perplexity",
+  "version": "1.0.0",
+  "description": "MCP server for Perplexity with SettleGrid billing. AI-powered search and chat with real-time web knowledge",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "perplexity",
+    "search",
+    "ai",
+    "web",
+    "rag"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-perplexity"
+  }
+}

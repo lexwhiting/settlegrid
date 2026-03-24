@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-fbi-crime",
+  "version": "1.0.0",
+  "description": "MCP server for FBI Crime Data with SettleGrid billing. FBI Uniform Crime Reporting (UCR) crime statistics and data",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "crime",
+    "fbi",
+    "statistics",
+    "law-enforcement",
+    "government"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fbi-crime"
+  }
+}

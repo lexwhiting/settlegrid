@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-together-ai",
+  "version": "1.0.0",
+  "description": "MCP server for Together AI with SettleGrid billing. Fast inference for open-source models including Llama, Mistral, and more",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "together",
+    "llama",
+    "ai",
+    "open-source",
+    "inference"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-together-ai"
+  }
+}

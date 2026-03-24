@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-airvisual",
+  "version": "1.0.0",
+  "description": "MCP server for IQAir AirVisual with SettleGrid billing. Real-time and forecast air quality data for cities worldwide",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "air-quality",
+    "pollution",
+    "aqi",
+    "health"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-airvisual"
+  }
+}

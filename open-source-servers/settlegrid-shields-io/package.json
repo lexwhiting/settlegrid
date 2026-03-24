@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-shields-io",
+  "version": "1.0.0",
+  "description": "MCP server for Shields.io with SettleGrid billing. Generate SVG badges for projects, builds, coverage, and more",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "badges",
+    "svg",
+    "ci-cd",
+    "status"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-shields-io"
+  }
+}

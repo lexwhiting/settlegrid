@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-here",
+  "version": "1.0.0",
+  "description": "MCP server for HERE Maps with SettleGrid billing. Geocoding, routing, and place search from HERE Technologies",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "here",
+    "maps",
+    "geocoding",
+    "routing",
+    "navigation"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-here"
+  }
+}

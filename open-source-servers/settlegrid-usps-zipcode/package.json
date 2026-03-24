@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-usps-zipcode",
+  "version": "1.0.0",
+  "description": "MCP server for Zippopotamus with SettleGrid billing. Free zip code lookup with city, state, country, and coordinates",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "zipcode",
+    "postal",
+    "address",
+    "location",
+    "government"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-usps-zipcode"
+  }
+}
