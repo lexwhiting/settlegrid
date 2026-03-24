@@ -6,7 +6,7 @@ Reddit MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-reddit)
 
-Reddit posts, comments, and subreddit data via public JSON API
+Fetch Reddit posts, comments, and subreddit data via public JSON API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,19 +20,18 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_subreddit(subreddit)` | Get hot posts from a subreddit | 1¢ |
-| `search(q)` | Search Reddit posts | 1¢ |
+| `get_subreddit(subreddit, limit)` | Get hot posts from a subreddit | 1¢ |
+| `search_posts(query, subreddit)` | Search Reddit posts | 1¢ |
 
 ## Parameters
 
 ### get_subreddit
-- `subreddit` (string, required) — Subreddit name (e.g. programming)
-- `limit` (number, optional) — Number of posts (default: 20)
+- `subreddit` (string, required) — Subreddit name (without r/)
+- `limit` (number, optional) — Max posts (1-25, default 10)
 
-### search
-- `q` (string, required) — Search query
-- `sort` (string, optional) — Sort: relevance, hot, top, new (default: "relevance")
-- `limit` (number, optional) — Results limit (default: 20)
+### search_posts
+- `query` (string, required) — Search query
+- `subreddit` (string, optional) — Limit to subreddit
 
 ## Environment Variables
 
@@ -40,13 +39,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Reddit API.
 
 ## Upstream API
 
 - **Provider**: Reddit
 - **Base URL**: https://www.reddit.com
 - **Auth**: None required
+- **Rate Limits**: 10 req/min unauthenticated
 - **Docs**: https://www.reddit.com/dev/api/
 
 ## Deploy

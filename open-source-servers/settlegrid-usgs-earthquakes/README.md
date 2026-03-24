@@ -6,7 +6,7 @@ USGS Earthquakes MCP Server with per-call billing via [SettleGrid](https://settl
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-usgs-earthquakes)
 
-Real-time earthquake data from the USGS seismic network
+Query real-time earthquake data from USGS with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,14 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_recent()` | Get recent earthquakes by magnitude | 1¢ |
+| `get_recent_earthquakes(min_magnitude, limit)` | Get recent significant earthquakes | 1¢ |
+| `get_earthquake(event_id)` | Get earthquake details by event ID | 1¢ |
 
 ## Parameters
 
-### get_recent
-- `minmagnitude` (number, optional) — Minimum magnitude (default: 4)
-- `limit` (number, optional) — Results limit (default: 20)
-- `orderby` (string, optional) — Order: time, magnitude (default: "time")
+### get_recent_earthquakes
+- `min_magnitude` (number, optional) — Minimum magnitude (default 4.5)
+- `limit` (number, optional) — Max results (1-20, default 10)
+
+### get_earthquake
+- `event_id` (string, required) — USGS event ID
 
 ## Environment Variables
 
@@ -35,13 +38,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream USGS Earthquakes API.
 
 ## Upstream API
 
-- **Provider**: USGS Earthquakes
+- **Provider**: USGS
 - **Base URL**: https://earthquake.usgs.gov/fdsnws/event/1
 - **Auth**: None required
+- **Rate Limits**: Reasonable use
 - **Docs**: https://earthquake.usgs.gov/fdsnws/event/1/
 
 ## Deploy

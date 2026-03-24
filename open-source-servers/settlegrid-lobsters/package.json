@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-lobsters",
   "version": "1.0.0",
-  "description": "MCP server for Lobsters with SettleGrid billing. Lobsters computing-focused link aggregator stories and tags",
+  "description": "Fetch Lobste.rs tech community stories via JSON API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "social",
     "lobsters",
     "tech",
-    "news",
-    "programming"
+    "news"
   ],
   "license": "MIT",
   "repository": {

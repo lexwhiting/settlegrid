@@ -6,7 +6,7 @@ iNaturalist MCP Server with per-call billing via [SettleGrid](https://settlegrid
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-inaturalist)
 
-Citizen science biodiversity observations and species identification
+Search nature observations and species data from iNaturalist with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,18 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_observations()` | Search biodiversity observations | 1¢ |
-| `search_taxa(q)` | Search taxonomic names | 1¢ |
+| `search_observations(taxon_name, per_page)` | Search nature observations | 1¢ |
+| `search_taxa(query)` | Search for taxa/species info | 1¢ |
 
 ## Parameters
 
 ### search_observations
-- `q` (string, optional) — Search query
-- `taxon_name` (string, optional) — Species or taxon name
-- `per_page` (number, optional) — Results per page (default: 20)
+- `taxon_name` (string, required) — Species or taxon name
+- `per_page` (number, optional) — Results (1-20, default 10)
 
 ### search_taxa
-- `q` (string, required) — Taxon name to search
+- `query` (string, required) — Taxon name to search
 
 ## Environment Variables
 
@@ -39,13 +38,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream iNaturalist API.
 
 ## Upstream API
 
 - **Provider**: iNaturalist
 - **Base URL**: https://api.inaturalist.org/v1
 - **Auth**: None required
+- **Rate Limits**: 100 req/min
 - **Docs**: https://api.inaturalist.org/v1/docs/
 
 ## Deploy

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-geonames",
   "version": "1.0.0",
-  "description": "MCP server for GeoNames with SettleGrid billing. Geographical database with 11M+ place names, elevations, and postal codes",
+  "description": "Search geographic place names and features from GeoNames with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "geonames",
+    "geo",
     "places",
-    "geography",
-    "timezone",
-    "coordinates"
+    "geonames",
+    "geography"
   ],
   "license": "MIT",
   "repository": {

@@ -1,12 +1,12 @@
 # settlegrid-nominatim
 
-OpenStreetMap Nominatim MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Nominatim MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-nominatim)
 
-Geocoding and reverse geocoding using OpenStreetMap data
+Geocode addresses and reverse-geocode coordinates via OpenStreetMap Nominatim with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,16 +20,15 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(q)` | Geocode an address or place name | 1¢ |
-| `reverse(lat, lon)` | Reverse geocode coordinates to address | 1¢ |
+| `geocode(query)` | Geocode an address to coordinates | 1¢ |
+| `reverse_geocode(lat, lon)` | Reverse geocode coordinates to address | 1¢ |
 
 ## Parameters
 
-### search
-- `q` (string, required) — Address or place name
-- `limit` (number, optional) — Max results (default: 5)
+### geocode
+- `query` (string, required) — Address or place name
 
-### reverse
+### reverse_geocode
 - `lat` (number, required) — Latitude
 - `lon` (number, required) — Longitude
 
@@ -39,13 +38,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream OpenStreetMap Nominatim API.
 
 ## Upstream API
 
-- **Provider**: OpenStreetMap Nominatim
+- **Provider**: OpenStreetMap
 - **Base URL**: https://nominatim.openstreetmap.org
 - **Auth**: None required
+- **Rate Limits**: 1 req/s
 - **Docs**: https://nominatim.org/release-docs/latest/api/Overview/
 
 ## Deploy

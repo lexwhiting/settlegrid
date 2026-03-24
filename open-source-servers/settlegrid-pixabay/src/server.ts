@@ -1,11 +1,12 @@
 /**
- * settlegrid-pixabay — Pixabay MCP Server
+ * settlegrid-pixabay — Pixabay Images & Videos MCP Server
  *
  * Wraps the Pixabay API with SettleGrid billing.
- * Requires PIXABAY_API_KEY environment variable.
+ * Requires a free Pixabay API key.
  *
  * Methods:
- *   search(q)                                (1¢)
+ *   search_images(query, per_page)  — Search images   (2¢)
+ *   search_videos(query, per_page)  — Search videos   (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -13,47 +14,19 @@ import { settlegrid } from '@settlegrid/mcp'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface SearchInput {
-  q: string
-  image_type?: string
+  query: string
   per_page?: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://pixabay.com/api'
-const USER_AGENT = 'settlegrid-pixabay/1.0 (contact@settlegrid.ai)'
+const PIX_BASE = 'https://pixabay.com/api'
+const API_KEY = process.env.PIXABAY_API_KEY || ''
 
-function getApiKey(): string {
-  const key = process.env.PIXABAY_API_KEY
-  if (!key) throw new Error('PIXABAY_API_KEY environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  url.searchParams.set('key', getApiKey())
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function pixFetch<T>(path: string): Promise<T> {
+  if (!API_KEY) throw new Error('PIXABAY_API_KEY environment variable is required')
+  const sep = path.includes('?') ? '&' : '?'
+  const res = await fetch(`${PIX_BASE}${path}${sep}key=${API_KEY}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Pixabay API ${res.status}: ${body.slice(0, 200)}`)
@@ -66,36 +39,74 @@ async function apiFetch<T>(path: string, options: {
 const sg = settlegrid.init({
   toolSlug: 'pixabay',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      search: { costCents: 1, displayName: 'Search for images' },
+      search_images: { costCents: 2, displayName: 'Search Images' },
+      search_videos: { costCents: 2, displayName: 'Search Videos' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (search query)')
+const searchImages = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
+  const perPage = Math.min(Math.max(args.per_page ?? 10, 3), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await pixFetch<{ totalHits: number; hits: any[] }>(
+    `/?q=${q}&per_page=${perPage}&safesearch=true`
+  )
+  return {
+    query: args.query,
+    totalHits: data.totalHits,
+    images: data.hits.map((h: any) => ({
+      id: h.id,
+      tags: h.tags,
+      previewUrl: h.previewURL,
+      webformatUrl: h.webformatURL,
+      largeImageUrl: h.largeImageURL,
+      imageWidth: h.imageWidth,
+      imageHeight: h.imageHeight,
+      views: h.views,
+      downloads: h.downloads,
+      likes: h.likes,
+      user: h.user,
+    })),
+  }
+}, { method: 'search_images' })
 
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.image_type !== undefined) params['image_type'] = String(args.image_type)
-  if (args.per_page !== undefined) params['per_page'] = String(args.per_page)
-
-  const data = await apiFetch<Record<string, unknown>>('/', {
-    params,
-  })
-
-  return data
-}, { method: 'search' })
+const searchVideos = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
+  }
+  const perPage = Math.min(Math.max(args.per_page ?? 10, 3), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await pixFetch<{ totalHits: number; hits: any[] }>(
+    `/videos/?q=${q}&per_page=${perPage}&safesearch=true`
+  )
+  return {
+    query: args.query,
+    totalHits: data.totalHits,
+    videos: data.hits.map((h: any) => ({
+      id: h.id,
+      tags: h.tags,
+      duration: h.duration,
+      previewUrl: h.videos?.tiny?.url,
+      fullUrl: h.videos?.medium?.url,
+      views: h.views,
+      downloads: h.downloads,
+      likes: h.likes,
+      user: h.user,
+    })),
+  }
+}, { method: 'search_videos' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search }
+export { searchImages, searchVideos }
 
 console.log('settlegrid-pixabay MCP server ready')
-console.log('Methods: search')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Methods: search_images, search_videos')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

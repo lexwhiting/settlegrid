@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-open-notify",
   "version": "1.0.0",
-  "description": "MCP server for Open Notify (ISS) with SettleGrid billing. International Space Station current location and astronauts in space",
+  "description": "Track the International Space Station location and astronauts in space with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "iss",
+    "science",
     "space",
-    "astronauts",
-    "nasa",
-    "tracking"
+    "iss",
+    "astronauts"
   ],
   "license": "MIT",
   "repository": {

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-launch-library",
   "version": "1.0.0",
-  "description": "MCP server for Launch Library with SettleGrid billing. Upcoming and past space launches from all agencies worldwide",
+  "description": "Track rocket launches from all space agencies via Launch Library 2 API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "science",
     "space",
-    "launches",
     "rockets",
-    "astronauts"
+    "launches"
   ],
   "license": "MIT",
   "repository": {

@@ -1,57 +1,53 @@
 /**
- * settlegrid-usgs-earthquakes — USGS Earthquakes MCP Server
+ * settlegrid-usgs-earthquakes — USGS Earthquake Data MCP Server
  *
- * Wraps the USGS Earthquakes API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the USGS Earthquake Hazards API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   get_recent()                             (1¢)
+ *   get_recent_earthquakes(min_magnitude, limit)  — Recent quakes    (1¢)
+ *   get_earthquake(event_id)                      — Quake details    (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetRecentInput {
-  minmagnitude?: number
+interface RecentInput {
+  min_magnitude?: number
   limit?: number
-  orderby?: string
+}
+
+interface EventInput {
+  event_id: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://earthquake.usgs.gov/fdsnws/event/1'
-const USER_AGENT = 'settlegrid-usgs-earthquakes/1.0 (contact@settlegrid.ai)'
+const USGS_BASE = 'https://earthquake.usgs.gov/fdsnws/event/1'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function usgsFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${USGS_BASE}${path}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`USGS Earthquakes API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`USGS API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
+}
+
+function formatQuake(f: any): Record<string, unknown> {
+  return {
+    id: f.id,
+    magnitude: f.properties.mag,
+    place: f.properties.place,
+    time: new Date(f.properties.time).toISOString(),
+    tsunami: f.properties.tsunami === 1,
+    type: f.properties.type,
+    longitude: f.geometry.coordinates[0],
+    latitude: f.geometry.coordinates[1],
+    depth: f.geometry.coordinates[2],
+    url: f.properties.url,
+  }
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -61,31 +57,44 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_recent: { costCents: 1, displayName: 'Get recent earthquakes by magnitude' },
+      get_recent_earthquakes: { costCents: 1, displayName: 'Recent Earthquakes' },
+      get_earthquake: { costCents: 1, displayName: 'Get Earthquake' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getRecent = sg.wrap(async (args: GetRecentInput) => {
+const getRecentEarthquakes = sg.wrap(async (args: RecentInput) => {
+  const minMag = Math.max(args.min_magnitude ?? 4.5, 0)
+  const limit = Math.min(Math.max(args.limit ?? 10, 1), 20)
+  const data = await usgsFetch<{ features: any[]; metadata: { count: number } }>(
+    `/query?format=geojson&minmagnitude=${minMag}&limit=${limit}&orderby=time`
+  )
+  return {
+    count: data.features.length,
+    minMagnitude: minMag,
+    earthquakes: data.features.map(formatQuake),
+  }
+}, { method: 'get_recent_earthquakes' })
 
-  const params: Record<string, string> = {}
-  if (args.minmagnitude !== undefined) params['minmagnitude'] = String(args.minmagnitude)
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-  if (args.orderby !== undefined) params['orderby'] = String(args.orderby)
-
-  const data = await apiFetch<Record<string, unknown>>('/query', {
-    params,
-  })
-
-  return data
-}, { method: 'get_recent' })
+const getEarthquake = sg.wrap(async (args: EventInput) => {
+  if (!args.event_id || typeof args.event_id !== 'string') {
+    throw new Error('event_id is required')
+  }
+  const data = await usgsFetch<any>(
+    `/query?format=geojson&eventid=${encodeURIComponent(args.event_id)}`
+  )
+  if (!data.features?.length) {
+    throw new Error(`Earthquake not found: ${args.event_id}`)
+  }
+  return formatQuake(data.features[0])
+}, { method: 'get_earthquake' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getRecent }
+export { getRecentEarthquakes, getEarthquake }
 
 console.log('settlegrid-usgs-earthquakes MCP server ready')
-console.log('Methods: get_recent')
+console.log('Methods: get_recent_earthquakes, get_earthquake')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

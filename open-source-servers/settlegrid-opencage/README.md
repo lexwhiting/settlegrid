@@ -6,7 +6,7 @@ OpenCage MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-opencage)
 
-Forward and reverse geocoding using OpenStreetMap and other sources
+Geocode and reverse-geocode with OpenCage worldwide geocoding API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,26 +20,32 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `geocode(q)` | Geocode an address to coordinates | 1¢ |
+| `geocode(query)` | Geocode an address | 2¢ |
+| `reverse_geocode(lat, lon)` | Reverse geocode coordinates | 2¢ |
 
 ## Parameters
 
 ### geocode
-- `q` (string, required) — Address or place name
-- `limit` (number, optional) — Max results (default: 5)
+- `query` (string, required) — Address or place name
+
+### reverse_geocode
+- `lat` (number, required) — Latitude
+- `lon` (number, required) — Longitude
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `OPENCAGE_API_KEY` | Yes | OpenCage API key from [https://opencagedata.com/api](https://opencagedata.com/api) |
+| `OPENCAGE_API_KEY` | Yes | OpenCage API key |
+
 
 ## Upstream API
 
 - **Provider**: OpenCage
 - **Base URL**: https://api.opencagedata.com/geocode/v1
-- **Auth**: API key (query)
+- **Auth**: Free API key required
+- **Rate Limits**: 2,500 req/day
 - **Docs**: https://opencagedata.com/api
 
 ## Deploy

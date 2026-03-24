@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-usgs-earthquakes",
   "version": "1.0.0",
-  "description": "MCP server for USGS Earthquakes with SettleGrid billing. Real-time earthquake data from the USGS seismic network",
+  "description": "Query real-time earthquake data from USGS with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "science",
     "earthquakes",
-    "seismic",
-    "usgs",
-    "geology",
-    "science"
+    "seismology",
+    "usgs"
   ],
   "license": "MIT",
   "repository": {

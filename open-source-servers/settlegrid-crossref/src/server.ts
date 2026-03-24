@@ -1,56 +1,37 @@
 /**
- * settlegrid-crossref — Crossref MCP Server
+ * settlegrid-crossref — Crossref DOI/Citation MCP Server
  *
- * Wraps the Crossref API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the Crossref REST API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   search_works(query)                      (1¢)
- *   get_work(doi)                            (1¢)
+ *   search_works(query, rows)  — Search works          (1¢)
+ *   get_doi(doi)               — Get DOI metadata      (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchWorksInput {
+interface SearchInput {
   query: string
   rows?: number
 }
 
-interface GetWorkInput {
+interface DoiInput {
   doi: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.crossref.org'
-const USER_AGENT = 'settlegrid-crossref/1.0 (contact@settlegrid.ai)'
+const CR_BASE = 'https://api.crossref.org'
+const MAILTO = 'mailto=contact@settlegrid.ai'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function crFetch<T>(path: string): Promise<T> {
+  const sep = path.includes('?') ? '&' : '?'
+  const res = await fetch(`${CR_BASE}${path}${sep}${MAILTO}`, {
+    headers: { 'User-Agent': 'settlegrid-crossref/1.0 (contact@settlegrid.ai)' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Crossref API ${res.status}: ${body.slice(0, 200)}`)
@@ -65,49 +46,59 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search_works: { costCents: 1, displayName: 'Search scholarly works' },
-      get_work: { costCents: 1, displayName: 'Get work metadata by DOI' },
+      search_works: { costCents: 1, displayName: 'Search Works' },
+      get_doi: { costCents: 1, displayName: 'Get DOI' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchWorks = sg.wrap(async (args: SearchWorksInput) => {
+const searchWorks = sg.wrap(async (args: SearchInput) => {
   if (!args.query || typeof args.query !== 'string') {
-    throw new Error('query is required (search query)')
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['query'] = args.query
-  if (args.rows !== undefined) params['rows'] = String(args.rows)
-
-  const data = await apiFetch<Record<string, unknown>>('/works', {
-    params,
-  })
-
-  return data
+  const rows = Math.min(Math.max(args.rows ?? 10, 1), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await crFetch<{ message: { items: any[]; 'total-results': number } }>(
+    `/works?query=${q}&rows=${rows}`
+  )
+  return {
+    query: args.query,
+    totalResults: data.message['total-results'],
+    items: data.message.items.map((w: any) => ({
+      doi: w.DOI,
+      title: w.title?.[0] || '',
+      type: w.type,
+      published: w.published?.['date-parts']?.[0]?.join('-'),
+      citationCount: w['is-referenced-by-count'],
+      publisher: w.publisher,
+    })),
+  }
 }, { method: 'search_works' })
 
-const getWork = sg.wrap(async (args: GetWorkInput) => {
+const getDoi = sg.wrap(async (args: DoiInput) => {
   if (!args.doi || typeof args.doi !== 'string') {
-    throw new Error('doi is required (doi (e.g. 10.1038/nature12373))')
+    throw new Error('doi is required (e.g. "10.1038/nature12373")')
   }
-
-  const params: Record<string, string> = {}
-  params['doi'] = String(args.doi)
-
-  const data = await apiFetch<Record<string, unknown>>(`/works/${encodeURIComponent(String(args.doi))}`, {
-    params,
-  })
-
-  return data
-}, { method: 'get_work' })
+  const data = await crFetch<{ message: any }>(`/works/${encodeURIComponent(args.doi)}`)
+  const w = data.message
+  return {
+    doi: w.DOI,
+    title: w.title?.[0] || '',
+    authors: w.author?.map((a: any) => `${a.given || ''} ${a.family || ''}`.trim()) || [],
+    type: w.type,
+    published: w.published?.['date-parts']?.[0]?.join('-'),
+    citationCount: w['is-referenced-by-count'],
+    publisher: w.publisher,
+    abstract: w.abstract?.slice(0, 1000),
+  }
+}, { method: 'get_doi' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { searchWorks, getWork }
+export { searchWorks, getDoi }
 
 console.log('settlegrid-crossref MCP server ready')
-console.log('Methods: search_works, get_work')
+console.log('Methods: search_works, get_doi')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

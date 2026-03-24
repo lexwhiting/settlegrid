@@ -6,7 +6,7 @@ Hashnode MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-hashnode)
 
-Hashnode developer blog articles and community content
+Search and read Hashnode blog posts via GraphQL API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,12 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_feed()` | Get featured articles from Hashnode | 1¢ |
+| `search_posts(query, first)` | Search Hashnode posts | 1¢ |
+| `get_publication(host)` | Get a Hashnode publication by host | 1¢ |
 
 ## Parameters
 
-### get_feed
-- `first` (number, optional) — Number of articles (default: 20)
+### search_posts
+- `query` (string, required) — Search query
+- `first` (number, optional) — Max results (1-20, default 10)
+
+### get_publication
+- `host` (string, required) — Publication host (e.g. "blog.example.com")
 
 ## Environment Variables
 
@@ -33,14 +38,14 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Hashnode API.
 
 ## Upstream API
 
 - **Provider**: Hashnode
 - **Base URL**: https://gql.hashnode.com
 - **Auth**: None required
-- **Docs**: https://api.hashnode.com/
+- **Rate Limits**: Reasonable use
+- **Docs**: https://apidocs.hashnode.com/
 
 ## Deploy
 

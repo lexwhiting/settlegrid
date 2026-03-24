@@ -1,61 +1,42 @@
 /**
- * settlegrid-mastodon — Mastodon MCP Server
+ * settlegrid-mastodon — Mastodon Public Timeline MCP Server
  *
- * Wraps the Mastodon API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the Mastodon API (mastodon.social) with SettleGrid billing.
+ * No API key needed for public endpoints.
  *
  * Methods:
- *   get_public_timeline()                    (1¢)
- *   search(q)                                (1¢)
+ *   get_public_timeline(limit)   — Public timeline    (1¢)
+ *   search(query, type)          — Search Mastodon    (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetPublicTimelineInput {
+interface TimelineInput {
   limit?: number
 }
 
 interface SearchInput {
-  q: string
+  query: string
   type?: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://mastodon.social/api/v1'
-const USER_AGENT = 'settlegrid-mastodon/1.0 (contact@settlegrid.ai)'
+const MASTO_BASE = 'https://mastodon.social/api'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function mastoFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${MASTO_BASE}${path}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Mastodon API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').slice(0, 500)
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -65,42 +46,55 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_public_timeline: { costCents: 1, displayName: 'Get public timeline posts' },
-      search: { costCents: 1, displayName: 'Search for accounts, statuses, or hashtags' },
+      get_public_timeline: { costCents: 1, displayName: 'Public Timeline' },
+      search: { costCents: 1, displayName: 'Search' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getPublicTimeline = sg.wrap(async (args: GetPublicTimelineInput) => {
-
-  const params: Record<string, string> = {}
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/timelines/public', {
-    params,
-  })
-
-  const items = Array.isArray(data) ? data.slice(0, 50) : [data]
-
-  return { count: items.length, results: items }
+const getPublicTimeline = sg.wrap(async (args: TimelineInput) => {
+  const limit = Math.min(Math.max(args.limit ?? 10, 1), 20)
+  const data = await mastoFetch<any[]>(`/v1/timelines/public?limit=${limit}`)
+  return {
+    count: data.length,
+    statuses: data.map((s: any) => ({
+      id: s.id,
+      content: stripHtml(s.content),
+      account: s.account?.acct,
+      displayName: s.account?.display_name,
+      createdAt: s.created_at,
+      favourites: s.favourites_count,
+      reblogs: s.reblogs_count,
+      replies: s.replies_count,
+      language: s.language,
+    })),
+  }
 }, { method: 'get_public_timeline' })
 
 const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (search query)')
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.type !== undefined) params['type'] = String(args.type)
-
-  const data = await apiFetch<Record<string, unknown>>('/search', {
-    params,
-  })
-
-  return data
+  const q = encodeURIComponent(args.query)
+  let url = `/v2/search?q=${q}&limit=10`
+  if (args.type && ['accounts', 'hashtags', 'statuses'].includes(args.type)) {
+    url += `&type=${args.type}`
+  }
+  const data = await mastoFetch<{ accounts: any[]; statuses: any[]; hashtags: any[] }>(url)
+  return {
+    query: args.query,
+    accounts: data.accounts?.slice(0, 5).map((a: any) => ({
+      id: a.id, acct: a.acct, displayName: a.display_name, followersCount: a.followers_count,
+    })) || [],
+    statuses: data.statuses?.slice(0, 5).map((s: any) => ({
+      id: s.id, content: stripHtml(s.content), account: s.account?.acct, createdAt: s.created_at,
+    })) || [],
+    hashtags: data.hashtags?.slice(0, 5).map((h: any) => ({
+      name: h.name, url: h.url,
+    })) || [],
+  }
 }, { method: 'search' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

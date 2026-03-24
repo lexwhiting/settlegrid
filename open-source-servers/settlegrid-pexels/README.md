@@ -6,7 +6,7 @@ Pexels MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-pexels)
 
-Free stock photos and videos from Pexels
+Search free stock photos and videos from Pexels with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,30 +20,32 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_photos(query)` | Search for photos | 1¢ |
-| `get_curated()` | Get curated photos | 1¢ |
+| `search_photos(query, per_page)` | Search Pexels photos | 2¢ |
+| `get_curated(per_page)` | Get curated editor picks | 2¢ |
 
 ## Parameters
 
 ### search_photos
 - `query` (string, required) — Search query
-- `per_page` (number, optional) — Results per page (default: 20)
+- `per_page` (number, optional) — Results (1-20, default 10)
 
 ### get_curated
-- `per_page` (number, optional) — Results per page (default: 20)
+- `per_page` (number, optional) — Results (1-20, default 10)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `PEXELS_API_KEY` | Yes | Pexels API key from [https://www.pexels.com/api/](https://www.pexels.com/api/) |
+| `PEXELS_API_KEY` | Yes | Pexels API key |
+
 
 ## Upstream API
 
 - **Provider**: Pexels
 - **Base URL**: https://api.pexels.com/v1
-- **Auth**: API key (header)
+- **Auth**: Free API key required
+- **Rate Limits**: 200 req/hr
 - **Docs**: https://www.pexels.com/api/documentation/
 
 ## Deploy

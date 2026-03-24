@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-nominatim",
   "version": "1.0.0",
-  "description": "MCP server for OpenStreetMap Nominatim with SettleGrid billing. Geocoding and reverse geocoding using OpenStreetMap data",
+  "description": "Geocode addresses and reverse-geocode coordinates via OpenStreetMap Nominatim with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "geo",
     "geocoding",
-    "maps",
-    "openstreetmap",
-    "address",
-    "coordinates"
+    "osm",
+    "nominatim"
   ],
   "license": "MIT",
   "repository": {

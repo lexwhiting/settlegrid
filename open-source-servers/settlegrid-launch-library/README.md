@@ -6,7 +6,7 @@ Launch Library MCP Server with per-call billing via [SettleGrid](https://settleg
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-launch-library)
 
-Upcoming and past space launches from all agencies worldwide
+Track rocket launches from all space agencies via Launch Library 2 API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,17 +20,16 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_upcoming()` | Get upcoming space launches | 1¢ |
-| `get_astronauts()` | List astronauts | 1¢ |
+| `get_upcoming_launches(limit)` | Get upcoming rocket launches globally | 1¢ |
+| `get_previous_launches(limit)` | Get recent past launches | 1¢ |
 
 ## Parameters
 
-### get_upcoming
-- `limit` (number, optional) — Results limit (default: 10)
+### get_upcoming_launches
+- `limit` (number, optional) — Max results (1-10, default 5)
 
-### get_astronauts
-- `search` (string, optional) — Search by name
-- `limit` (number, optional) — Results limit (default: 10)
+### get_previous_launches
+- `limit` (number, optional) — Max results (1-10, default 5)
 
 ## Environment Variables
 
@@ -38,14 +37,14 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Launch Library API.
 
 ## Upstream API
 
-- **Provider**: Launch Library
+- **Provider**: The Space Devs
 - **Base URL**: https://ll.thespacedevs.com/2.2.0
 - **Auth**: None required
-- **Docs**: https://ll.thespacedevs.com/docs/
+- **Rate Limits**: 15 req/hr (free tier)
+- **Docs**: https://thespacedevs.com/llapi
 
 ## Deploy
 

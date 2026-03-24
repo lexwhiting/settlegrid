@@ -1,63 +1,37 @@
 /**
- * settlegrid-pexels — Pexels MCP Server
+ * settlegrid-pexels — Pexels Stock Photos MCP Server
  *
  * Wraps the Pexels API with SettleGrid billing.
- * Requires PEXELS_API_KEY environment variable.
+ * Requires a free Pexels API key.
  *
  * Methods:
- *   search_photos(query)                     (1¢)
- *   get_curated()                            (1¢)
+ *   search_photos(query, per_page)  — Search photos     (2¢)
+ *   get_curated(per_page)           — Curated picks     (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchPhotosInput {
+interface SearchInput {
   query: string
   per_page?: number
 }
 
-interface GetCuratedInput {
+interface CuratedInput {
   per_page?: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.pexels.com/v1'
-const USER_AGENT = 'settlegrid-pexels/1.0 (contact@settlegrid.ai)'
+const PEXELS_BASE = 'https://api.pexels.com/v1'
+const API_KEY = process.env.PEXELS_API_KEY || ''
 
-function getApiKey(): string {
-  const key = process.env.PEXELS_API_KEY
-  if (!key) throw new Error('PEXELS_API_KEY environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    'Authorization': `${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function pexelsFetch<T>(path: string): Promise<T> {
+  if (!API_KEY) throw new Error('PEXELS_API_KEY environment variable is required')
+  const res = await fetch(`${PEXELS_BASE}${path}`, {
+    headers: { Authorization: API_KEY },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Pexels API ${res.status}: ${body.slice(0, 200)}`)
@@ -65,47 +39,57 @@ async function apiFetch<T>(path: string, options: {
   return res.json() as Promise<T>
 }
 
+function formatPhoto(p: any): Record<string, unknown> {
+  return {
+    id: p.id,
+    width: p.width,
+    height: p.height,
+    photographer: p.photographer,
+    photographerUrl: p.photographer_url,
+    alt: p.alt,
+    src: { original: p.src?.original, large: p.src?.large, medium: p.src?.medium, small: p.src?.small },
+    url: p.url,
+  }
+}
+
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
 const sg = settlegrid.init({
   toolSlug: 'pexels',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      search_photos: { costCents: 1, displayName: 'Search for photos' },
-      get_curated: { costCents: 1, displayName: 'Get curated photos' },
+      search_photos: { costCents: 2, displayName: 'Search Photos' },
+      get_curated: { costCents: 2, displayName: 'Curated Photos' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchPhotos = sg.wrap(async (args: SearchPhotosInput) => {
+const searchPhotos = sg.wrap(async (args: SearchInput) => {
   if (!args.query || typeof args.query !== 'string') {
-    throw new Error('query is required (search query)')
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['query'] = args.query
-  if (args.per_page !== undefined) params['per_page'] = String(args.per_page)
-
-  const data = await apiFetch<Record<string, unknown>>('/search', {
-    params,
-  })
-
-  return data
+  const perPage = Math.min(Math.max(args.per_page ?? 10, 1), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await pexelsFetch<{ total_results: number; photos: any[] }>(
+    `/search?query=${q}&per_page=${perPage}`
+  )
+  return {
+    query: args.query,
+    totalResults: data.total_results,
+    photos: data.photos.map(formatPhoto),
+  }
 }, { method: 'search_photos' })
 
-const getCurated = sg.wrap(async (args: GetCuratedInput) => {
-
-  const params: Record<string, string> = {}
-  if (args.per_page !== undefined) params['per_page'] = String(args.per_page)
-
-  const data = await apiFetch<Record<string, unknown>>('/curated', {
-    params,
-  })
-
-  return data
+const getCurated = sg.wrap(async (args: CuratedInput) => {
+  const perPage = Math.min(Math.max(args.per_page ?? 10, 1), 20)
+  const data = await pexelsFetch<{ photos: any[] }>(`/curated?per_page=${perPage}`)
+  return {
+    count: data.photos.length,
+    photos: data.photos.map(formatPhoto),
+  }
 }, { method: 'get_curated' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
@@ -114,4 +98,4 @@ export { searchPhotos, getCurated }
 
 console.log('settlegrid-pexels MCP server ready')
 console.log('Methods: search_photos, get_curated')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

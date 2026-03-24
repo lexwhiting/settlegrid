@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-mastodon",
   "version": "1.0.0",
-  "description": "MCP server for Mastodon with SettleGrid billing. Mastodon federated social network timelines, search, and instance info",
+  "description": "Fetch public Mastodon timelines and search posts via mastodon.social API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,9 +19,9 @@
     "settlegrid",
     "mcp",
     "ai",
+    "social",
     "mastodon",
     "fediverse",
-    "social",
     "microblog"
   ],
   "license": "MIT",

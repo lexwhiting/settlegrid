@@ -6,7 +6,7 @@ SpaceX MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-spacex)
 
-SpaceX launches, rockets, capsules, and mission data
+Query SpaceX launch data, rockets, and missions with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,17 +20,14 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_launches()` | Get latest SpaceX launches | 1¢ |
-| `get_upcoming()` | Get upcoming SpaceX launches | 1¢ |
-| `get_rockets()` | Get all SpaceX rockets | 1¢ |
+| `get_latest_launch()` | Get the latest SpaceX launch | 1¢ |
+| `get_upcoming_launches(limit)` | Get upcoming SpaceX launches | 1¢ |
+| `get_rockets()` | List all SpaceX rockets | 1¢ |
 
 ## Parameters
 
-### get_launches
-
-### get_upcoming
-
-### get_rockets
+### get_upcoming_launches
+- `limit` (number, optional) — Max results (1-10, default 5)
 
 ## Environment Variables
 
@@ -38,13 +35,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream SpaceX API.
 
 ## Upstream API
 
-- **Provider**: SpaceX
+- **Provider**: r/SpaceX
 - **Base URL**: https://api.spacexdata.com/v4
 - **Auth**: None required
+- **Rate Limits**: Reasonable use
 - **Docs**: https://github.com/r-spacex/SpaceX-API
 
 ## Deploy

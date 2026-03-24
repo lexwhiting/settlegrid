@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-tenor",
+  "version": "1.0.0",
+  "description": "Search GIFs and stickers from Google Tenor API with SettleGrid billing.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "content",
+    "tenor",
+    "gifs",
+    "stickers"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-tenor"
+  }
+}

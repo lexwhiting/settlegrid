@@ -1,12 +1,12 @@
 # settlegrid-ipinfo
 
-ipinfo MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+IPinfo MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-ipinfo)
 
-IP address geolocation, ASN, company, and privacy detection
+Look up IP address geolocation and network data from IPinfo with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,28 +20,28 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `lookup(ip)` | Get geolocation data for an IP | 1¢ |
-| `get_my_ip()` | Get your own IP info | 1¢ |
+| `lookup_ip(ip)` | Get geolocation data for an IP | 1¢ |
+| `get_my_ip()` | Get geolocation for current IP | 1¢ |
 
 ## Parameters
 
-### lookup
-- `ip` (string, required) — IP address to lookup
-
-### get_my_ip
+### lookup_ip
+- `ip` (string, required) — IP address (IPv4 or IPv6)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `IPINFO_TOKEN` | Yes | ipinfo API key from [https://ipinfo.io/signup](https://ipinfo.io/signup) |
+| `IPINFO_TOKEN` | Yes | IPinfo bearer token (optional for basic) |
+
 
 ## Upstream API
 
-- **Provider**: ipinfo
+- **Provider**: IPinfo
 - **Base URL**: https://ipinfo.io
-- **Auth**: API key (bearer)
+- **Auth**: Free tier (50k/month)
+- **Rate Limits**: 50,000 req/month
 - **Docs**: https://ipinfo.io/developers
 
 ## Deploy

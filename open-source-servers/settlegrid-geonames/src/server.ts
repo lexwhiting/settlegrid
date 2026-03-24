@@ -1,13 +1,12 @@
 /**
- * settlegrid-geonames — GeoNames MCP Server
+ * settlegrid-geonames — GeoNames Geographic Data MCP Server
  *
  * Wraps the GeoNames API with SettleGrid billing.
- * Requires GEONAMES_USERNAME environment variable.
+ * Requires a free GeoNames username.
  *
  * Methods:
- *   search(q)                                (1¢)
- *   get_nearby(lat, lng)                     (1¢)
- *   get_timezone(lat, lng)                   (1¢)
+ *   search_places(query, max_rows)  — Search places     (1¢)
+ *   get_nearby(lat, lon)            — Nearby places     (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -15,56 +14,24 @@ import { settlegrid } from '@settlegrid/mcp'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface SearchInput {
-  q: string
-  maxRows?: number
+  query: string
+  max_rows?: number
 }
 
-interface GetNearbyInput {
+interface NearbyInput {
   lat: number
-  lng: number
-}
-
-interface GetTimezoneInput {
-  lat: number
-  lng: number
+  lon: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'http://api.geonames.org'
-const USER_AGENT = 'settlegrid-geonames/1.0 (contact@settlegrid.ai)'
+const GN_BASE = 'https://api.geonames.org'
+const USERNAME = process.env.GEONAMES_USERNAME || ''
 
-function getApiKey(): string {
-  const key = process.env.GEONAMES_USERNAME
-  if (!key) throw new Error('GEONAMES_USERNAME environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  url.searchParams.set('username', getApiKey())
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function gnFetch<T>(path: string): Promise<T> {
+  if (!USERNAME) throw new Error('GEONAMES_USERNAME environment variable is required')
+  const sep = path.includes('?') ? '&' : '?'
+  const res = await fetch(`${GN_BASE}${path}${sep}username=${USERNAME}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`GeoNames API ${res.status}: ${body.slice(0, 200)}`)
@@ -79,73 +46,68 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search: { costCents: 1, displayName: 'Search for place names' },
-      get_nearby: { costCents: 1, displayName: 'Find nearby places by coordinates' },
-      get_timezone: { costCents: 1, displayName: 'Get timezone for coordinates' },
+      search_places: { costCents: 1, displayName: 'Search Places' },
+      get_nearby: { costCents: 1, displayName: 'Get Nearby' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (place name query)')
+const searchPlaces = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.maxRows !== undefined) params['maxRows'] = String(args.maxRows)
-
-  const data = await apiFetch<Record<string, unknown>>('/searchJSON', {
-    params,
-  })
-
-  return data
-}, { method: 'search' })
-
-const getNearby = sg.wrap(async (args: GetNearbyInput) => {
-  if (typeof args.lat !== 'number' || isNaN(args.lat)) {
-    throw new Error('lat must be a number')
+  const maxRows = Math.min(Math.max(args.max_rows ?? 10, 1), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await gnFetch<{ totalResultsCount: number; geonames: any[] }>(
+    `/searchJSON?q=${q}&maxRows=${maxRows}`
+  )
+  return {
+    query: args.query,
+    totalResults: data.totalResultsCount,
+    places: (data.geonames || []).map((g: any) => ({
+      geonameId: g.geonameId,
+      name: g.name,
+      countryName: g.countryName,
+      countryCode: g.countryCode,
+      lat: parseFloat(g.lat),
+      lng: parseFloat(g.lng),
+      population: g.population,
+      featureClass: g.fcl,
+      featureCode: g.fcode,
+    })),
   }
-  if (typeof args.lng !== 'number' || isNaN(args.lng)) {
-    throw new Error('lng must be a number')
+}, { method: 'search_places' })
+
+const getNearby = sg.wrap(async (args: NearbyInput) => {
+  if (typeof args.lat !== 'number' || typeof args.lon !== 'number') {
+    throw new Error('lat and lon must be numbers')
   }
-
-  const params: Record<string, string> = {}
-  params['lat'] = String(args.lat)
-  params['lng'] = String(args.lng)
-
-  const data = await apiFetch<Record<string, unknown>>('/findNearbyPlaceNameJSON', {
-    params,
-  })
-
-  return data
+  if (args.lat < -90 || args.lat > 90 || args.lon < -180 || args.lon > 180) {
+    throw new Error('lat must be -90..90, lon must be -180..180')
+  }
+  const data = await gnFetch<{ geonames: any[] }>(
+    `/findNearbyJSON?lat=${args.lat}&lng=${args.lon}&maxRows=10`
+  )
+  return {
+    lat: args.lat,
+    lon: args.lon,
+    places: (data.geonames || []).map((g: any) => ({
+      geonameId: g.geonameId,
+      name: g.name,
+      distance: g.distance,
+      countryName: g.countryName,
+      lat: parseFloat(g.lat),
+      lng: parseFloat(g.lng),
+    })),
+  }
 }, { method: 'get_nearby' })
-
-const getTimezone = sg.wrap(async (args: GetTimezoneInput) => {
-  if (typeof args.lat !== 'number' || isNaN(args.lat)) {
-    throw new Error('lat must be a number')
-  }
-  if (typeof args.lng !== 'number' || isNaN(args.lng)) {
-    throw new Error('lng must be a number')
-  }
-
-  const params: Record<string, string> = {}
-  params['lat'] = String(args.lat)
-  params['lng'] = String(args.lng)
-
-  const data = await apiFetch<Record<string, unknown>>('/timezoneJSON', {
-    params,
-  })
-
-  return data
-}, { method: 'get_timezone' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search, getNearby, getTimezone }
+export { searchPlaces, getNearby }
 
 console.log('settlegrid-geonames MCP server ready')
-console.log('Methods: search, get_nearby, get_timezone')
+console.log('Methods: search_places, get_nearby')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

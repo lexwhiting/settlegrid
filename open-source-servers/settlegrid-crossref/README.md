@@ -6,7 +6,7 @@ Crossref MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-crossref)
 
-Scholarly metadata for 130M+ works with DOI resolution
+Query DOI metadata and citation data from the Crossref API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,17 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_works(query)` | Search scholarly works | 1¢ |
-| `get_work(doi)` | Get work metadata by DOI | 1¢ |
+| `search_works(query, rows)` | Search Crossref works by query | 1¢ |
+| `get_doi(doi)` | Get metadata for a specific DOI | 1¢ |
 
 ## Parameters
 
 ### search_works
 - `query` (string, required) — Search query
-- `rows` (number, optional) — Results count (default: 20)
+- `rows` (number, optional) — Results per page (1-20, default 10)
 
-### get_work
-- `doi` (string, required) — DOI (e.g. 10.1038/nature12373)
+### get_doi
+- `doi` (string, required) — DOI (e.g. "10.1038/nature12373")
 
 ## Environment Variables
 
@@ -38,13 +38,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Crossref API.
 
 ## Upstream API
 
 - **Provider**: Crossref
-- **Base URL**: https://api.crossref.org
+- **Base URL**: https://api.crossref.org/works
 - **Auth**: None required
+- **Rate Limits**: 50 req/s polite pool
 - **Docs**: https://api.crossref.org/swagger-ui/index.html
 
 ## Deploy

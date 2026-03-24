@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-stack-exchange",
   "version": "1.0.0",
-  "description": "MCP server for Stack Exchange with SettleGrid billing. Stack Overflow and Stack Exchange questions, answers, and users",
+  "description": "Search Stack Overflow questions and answers via the Stack Exchange API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "social",
     "stackoverflow",
-    "questions",
-    "answers",
-    "programming",
-    "qa"
+    "qa",
+    "programming"
   ],
   "license": "MIT",
   "repository": {

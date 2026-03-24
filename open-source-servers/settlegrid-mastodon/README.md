@@ -6,7 +6,7 @@ Mastodon MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-mastodon)
 
-Mastodon federated social network timelines, search, and instance info
+Fetch public Mastodon timelines and search posts via mastodon.social API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,17 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_public_timeline()` | Get public timeline posts | 1¢ |
-| `search(q)` | Search for accounts, statuses, or hashtags | 1¢ |
+| `get_public_timeline(limit)` | Get public timeline posts | 1¢ |
+| `search(query, type)` | Search accounts, hashtags, and statuses | 1¢ |
 
 ## Parameters
 
 ### get_public_timeline
-- `limit` (number, optional) — Number of posts (default: 20)
+- `limit` (number, optional) — Max posts (1-20, default 10)
 
 ### search
-- `q` (string, required) — Search query
-- `type` (string, optional) — Filter: accounts, hashtags, statuses
+- `query` (string, required) — Search query
+- `type` (string, optional) — Filter: accounts, hashtags, or statuses
 
 ## Environment Variables
 
@@ -38,14 +38,14 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Mastodon API.
 
 ## Upstream API
 
 - **Provider**: Mastodon
 - **Base URL**: https://mastodon.social/api/v1
 - **Auth**: None required
-- **Docs**: https://docs.joinmastodon.org/methods/
+- **Rate Limits**: 300 req/5min
+- **Docs**: https://docs.joinmastodon.org/api/
 
 ## Deploy
 

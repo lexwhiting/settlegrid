@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-openrouteservice",
   "version": "1.0.0",
-  "description": "MCP server for OpenRouteService with SettleGrid billing. Directions, isochrones, and geocoding using OpenStreetMap data",
+  "description": "Get driving/walking/cycling directions from OpenRouteService with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "geo",
     "routing",
     "directions",
-    "maps",
-    "openstreetmap",
-    "navigation"
+    "openrouteservice"
   ],
   "license": "MIT",
   "repository": {

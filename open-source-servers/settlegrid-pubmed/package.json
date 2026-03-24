@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-pubmed",
   "version": "1.0.0",
-  "description": "MCP server for PubMed/NCBI with SettleGrid billing. Search biomedical literature from PubMed/NCBI database",
+  "description": "Search biomedical literature on PubMed/NCBI with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "science",
+    "medical",
     "pubmed",
-    "biomedical",
-    "research",
-    "medicine",
-    "science"
+    "ncbi"
   ],
   "license": "MIT",
   "repository": {

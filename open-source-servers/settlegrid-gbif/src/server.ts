@@ -1,60 +1,37 @@
 /**
- * settlegrid-gbif — GBIF (Biodiversity) MCP Server
+ * settlegrid-gbif — GBIF Biodiversity Data MCP Server
  *
- * Wraps the GBIF (Biodiversity) API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the GBIF REST API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   search_species(q)                        (1¢)
- *   get_occurrences(scientificName)          (1¢)
+ *   search_species(query, limit)        — Search species    (1¢)
+ *   get_occurrences(taxon_key, limit)   — Get occurrences   (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchSpeciesInput {
-  q: string
+interface SpeciesSearchInput {
+  query: string
   limit?: number
 }
 
-interface GetOccurrencesInput {
-  scientificName: string
+interface OccurrenceInput {
+  taxon_key: number
   limit?: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.gbif.org/v1'
-const USER_AGENT = 'settlegrid-gbif/1.0 (contact@settlegrid.ai)'
+const GBIF_BASE = 'https://api.gbif.org/v1'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function gbifFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${GBIF_BASE}${path}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`GBIF (Biodiversity) API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`GBIF API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -66,44 +43,59 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search_species: { costCents: 1, displayName: 'Search for species by name' },
-      get_occurrences: { costCents: 1, displayName: 'Search species occurrence records' },
+      search_species: { costCents: 1, displayName: 'Search Species' },
+      get_occurrences: { costCents: 1, displayName: 'Get Occurrences' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchSpecies = sg.wrap(async (args: SearchSpeciesInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (species name)')
+const searchSpecies = sg.wrap(async (args: SpeciesSearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/species/search', {
-    params,
-  })
-
-  return data
+  const limit = Math.min(Math.max(args.limit ?? 10, 1), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await gbifFetch<{ results: any[] }>(`/species/search?q=${q}&limit=${limit}`)
+  return {
+    query: args.query,
+    count: data.results.length,
+    species: data.results.map((s: any) => ({
+      key: s.key,
+      scientificName: s.scientificName,
+      commonName: s.vernacularNames?.[0]?.vernacularName || '',
+      kingdom: s.kingdom,
+      phylum: s.phylum,
+      class: s.class,
+      order: s.order,
+      family: s.family,
+      rank: s.rank,
+    })),
+  }
 }, { method: 'search_species' })
 
-const getOccurrences = sg.wrap(async (args: GetOccurrencesInput) => {
-  if (!args.scientificName || typeof args.scientificName !== 'string') {
-    throw new Error('scientificName is required (scientific species name)')
+const getOccurrences = sg.wrap(async (args: OccurrenceInput) => {
+  if (typeof args.taxon_key !== 'number' || !Number.isFinite(args.taxon_key)) {
+    throw new Error('taxon_key must be a number')
   }
-
-  const params: Record<string, string> = {}
-  params['scientificName'] = args.scientificName
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/occurrence/search', {
-    params,
-  })
-
-  return data
+  const limit = Math.min(Math.max(args.limit ?? 10, 1), 20)
+  const data = await gbifFetch<{ results: any[] }>(
+    `/occurrence/search?taxonKey=${args.taxon_key}&limit=${limit}`
+  )
+  return {
+    taxonKey: args.taxon_key,
+    count: data.results.length,
+    occurrences: data.results.map((o: any) => ({
+      key: o.key,
+      species: o.species,
+      country: o.country,
+      decimalLatitude: o.decimalLatitude,
+      decimalLongitude: o.decimalLongitude,
+      eventDate: o.eventDate,
+      basisOfRecord: o.basisOfRecord,
+    })),
+  }
 }, { method: 'get_occurrences' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

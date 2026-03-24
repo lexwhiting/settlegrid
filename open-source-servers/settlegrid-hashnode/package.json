@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-hashnode",
   "version": "1.0.0",
-  "description": "MCP server for Hashnode with SettleGrid billing. Hashnode developer blog articles and community content",
+  "description": "Search and read Hashnode blog posts via GraphQL API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "social",
     "hashnode",
     "blog",
-    "tech",
-    "developer",
-    "community"
+    "developer"
   ],
   "license": "MIT",
   "repository": {

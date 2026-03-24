@@ -6,7 +6,7 @@ Giphy MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-giphy)
 
-Search and get trending GIFs and stickers from Giphy
+Search and browse GIFs from the Giphy API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,30 +20,32 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(q)` | Search for GIFs | 1¢ |
-| `get_trending()` | Get trending GIFs | 1¢ |
+| `search_gifs(query, limit)` | Search for GIFs | 2¢ |
+| `get_trending(limit)` | Get trending GIFs | 2¢ |
 
 ## Parameters
 
-### search
-- `q` (string, required) — Search query
-- `limit` (number, optional) — Results limit (default: 20)
+### search_gifs
+- `query` (string, required) — Search query
+- `limit` (number, optional) — Max results (1-25, default 10)
 
 ### get_trending
-- `limit` (number, optional) — Results limit (default: 20)
+- `limit` (number, optional) — Max results (1-25, default 10)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `GIPHY_API_KEY` | Yes | Giphy API key from [https://developers.giphy.com/](https://developers.giphy.com/) |
+| `GIPHY_API_KEY` | Yes | Giphy API key |
+
 
 ## Upstream API
 
 - **Provider**: Giphy
 - **Base URL**: https://api.giphy.com/v1
-- **Auth**: API key (query)
+- **Auth**: Free API key required
+- **Rate Limits**: 42 req/hr (beta key)
 - **Docs**: https://developers.giphy.com/docs/api/
 
 ## Deploy

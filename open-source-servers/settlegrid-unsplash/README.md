@@ -6,7 +6,7 @@ Unsplash MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-unsplash)
 
-Free high-resolution photos and image search from Unsplash
+Search free high-quality photos from Unsplash with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,30 +20,32 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(query)` | Search for photos | 1¢ |
-| `get_random()` | Get a random photo | 1¢ |
+| `search_photos(query, per_page)` | Search Unsplash photos | 2¢ |
+| `get_random(query)` | Get a random photo | 2¢ |
 
 ## Parameters
 
-### search
+### search_photos
 - `query` (string, required) — Search query
-- `per_page` (number, optional) — Results per page (default: 20)
+- `per_page` (number, optional) — Results (1-20, default 10)
 
 ### get_random
-- `query` (string, optional) — Topic filter
+- `query` (string, optional) — Optional topic filter
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `UNSPLASH_ACCESS_KEY` | Yes | Unsplash API key from [https://unsplash.com/developers](https://unsplash.com/developers) |
+| `UNSPLASH_ACCESS_KEY` | Yes | Unsplash Access Key |
+
 
 ## Upstream API
 
 - **Provider**: Unsplash
 - **Base URL**: https://api.unsplash.com
-- **Auth**: API key (header)
+- **Auth**: Free API key required
+- **Rate Limits**: 50 req/hr
 - **Docs**: https://unsplash.com/documentation
 
 ## Deploy

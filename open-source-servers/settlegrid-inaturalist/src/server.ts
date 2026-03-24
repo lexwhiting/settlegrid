@@ -1,57 +1,33 @@
 /**
- * settlegrid-inaturalist — iNaturalist MCP Server
+ * settlegrid-inaturalist — iNaturalist Nature Observations MCP Server
  *
  * Wraps the iNaturalist API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * No API key needed.
  *
  * Methods:
- *   search_observations()                    (1¢)
- *   search_taxa(q)                           (1¢)
+ *   search_observations(taxon_name, per_page)  — Search observations  (1¢)
+ *   search_taxa(query)                          — Search taxa info     (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchObservationsInput {
-  q?: string
-  taxon_name?: string
+interface ObservationInput {
+  taxon_name: string
   per_page?: number
 }
 
-interface SearchTaxaInput {
-  q: string
+interface TaxaInput {
+  query: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.inaturalist.org/v1'
-const USER_AGENT = 'settlegrid-inaturalist/1.0 (contact@settlegrid.ai)'
+const INAT_BASE = 'https://api.inaturalist.org/v1'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function inatFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${INAT_BASE}${path}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`iNaturalist API ${res.status}: ${body.slice(0, 200)}`)
@@ -66,41 +42,59 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search_observations: { costCents: 1, displayName: 'Search biodiversity observations' },
-      search_taxa: { costCents: 1, displayName: 'Search taxonomic names' },
+      search_observations: { costCents: 1, displayName: 'Search Observations' },
+      search_taxa: { costCents: 1, displayName: 'Search Taxa' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchObservations = sg.wrap(async (args: SearchObservationsInput) => {
-
-  const params: Record<string, string> = {}
-  if (args.q !== undefined) params['q'] = String(args.q)
-  if (args.taxon_name !== undefined) params['taxon_name'] = String(args.taxon_name)
-  if (args.per_page !== undefined) params['per_page'] = String(args.per_page)
-
-  const data = await apiFetch<Record<string, unknown>>('/observations', {
-    params,
-  })
-
-  return data
+const searchObservations = sg.wrap(async (args: ObservationInput) => {
+  if (!args.taxon_name || typeof args.taxon_name !== 'string') {
+    throw new Error('taxon_name is required')
+  }
+  const perPage = Math.min(Math.max(args.per_page ?? 10, 1), 20)
+  const q = encodeURIComponent(args.taxon_name)
+  const data = await inatFetch<{ total_results: number; results: any[] }>(
+    `/observations?taxon_name=${q}&per_page=${perPage}&order=desc&order_by=created_at`
+  )
+  return {
+    taxonName: args.taxon_name,
+    totalResults: data.total_results,
+    observations: data.results.map((o: any) => ({
+      id: o.id,
+      species: o.taxon?.name || '',
+      commonName: o.taxon?.preferred_common_name || '',
+      location: o.place_guess,
+      latitude: o.geojson?.coordinates?.[1],
+      longitude: o.geojson?.coordinates?.[0],
+      observedOn: o.observed_on,
+      qualityGrade: o.quality_grade,
+      photoUrl: o.photos?.[0]?.url || '',
+    })),
+  }
 }, { method: 'search_observations' })
 
-const searchTaxa = sg.wrap(async (args: SearchTaxaInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (taxon name to search)')
+const searchTaxa = sg.wrap(async (args: TaxaInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-
-  const data = await apiFetch<Record<string, unknown>>('/taxa', {
-    params,
-  })
-
-  return data
+  const q = encodeURIComponent(args.query)
+  const data = await inatFetch<{ results: any[] }>(`/taxa?q=${q}&per_page=10`)
+  return {
+    query: args.query,
+    count: data.results.length,
+    taxa: data.results.map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      commonName: t.preferred_common_name || '',
+      rank: t.rank,
+      observationsCount: t.observations_count,
+      wikipediaSummary: t.wikipedia_summary?.slice(0, 500) || '',
+      photoUrl: t.default_photo?.medium_url || '',
+    })),
+  }
 }, { method: 'search_taxa' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

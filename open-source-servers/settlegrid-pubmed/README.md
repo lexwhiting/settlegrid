@@ -1,18 +1,18 @@
 # settlegrid-pubmed
 
-PubMed/NCBI MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+PubMed MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-pubmed)
 
-Search biomedical literature from PubMed/NCBI database
+Search biomedical literature on PubMed/NCBI with SettleGrid billing.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your SettleGrid API key + NCBI_API_KEY
 npm run dev
 ```
 
@@ -20,32 +20,33 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(term)` | Search PubMed articles | 1¢ |
-| `get_summary(id)` | Get article summaries by PubMed IDs | 1¢ |
+| `search_articles(query, max_results)` | Search PubMed articles | 1¢ |
+| `get_abstract(pmid)` | Get article abstract by PMID | 1¢ |
 
 ## Parameters
 
-### search
-- `term` (string, required) — Search term
-- `retmax` (number, optional) — Max results (default: 20)
+### search_articles
+- `query` (string, required) — Search query
+- `max_results` (number, optional) — Max results (1-20, default 10)
 
-### get_summary
-- `id` (string, required) — Comma-separated PubMed IDs
+### get_abstract
+- `pmid` (string, required) — PubMed ID
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
+| `NCBI_API_KEY` | Yes | NCBI API key (optional, increases rate limit) |
 
-No API key needed for the upstream PubMed/NCBI API.
 
 ## Upstream API
 
-- **Provider**: PubMed/NCBI
+- **Provider**: NCBI
 - **Base URL**: https://eutils.ncbi.nlm.nih.gov/entrez/eutils
-- **Auth**: None required
-- **Docs**: https://www.ncbi.nlm.nih.gov/books/NBK25497/
+- **Auth**: Free API key recommended
+- **Rate Limits**: 3 req/s without key, 10 with
+- **Docs**: https://www.ncbi.nlm.nih.gov/books/NBK25501/
 
 ## Deploy
 
@@ -53,7 +54,7 @@ No API key needed for the upstream PubMed/NCBI API.
 
 ```bash
 docker build -t settlegrid-pubmed .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-pubmed
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e NCBI_API_KEY=xxx -p 3000:3000 settlegrid-pubmed
 ```
 
 ### Vercel

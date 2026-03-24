@@ -6,7 +6,7 @@ GeoNames MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-geonames)
 
-Geographical database with 11M+ place names, elevations, and postal codes
+Search geographic place names and features from GeoNames with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,36 +20,33 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(q)` | Search for place names | 1¢ |
-| `get_nearby(lat, lng)` | Find nearby places by coordinates | 1¢ |
-| `get_timezone(lat, lng)` | Get timezone for coordinates | 1¢ |
+| `search_places(query, max_rows)` | Search for geographic places | 1¢ |
+| `get_nearby(lat, lon)` | Find nearby places by coordinates | 1¢ |
 
 ## Parameters
 
-### search
-- `q` (string, required) — Place name query
-- `maxRows` (number, optional) — Max results (default: 20)
+### search_places
+- `query` (string, required) — Place name to search
+- `max_rows` (number, optional) — Max results (1-20, default 10)
 
 ### get_nearby
 - `lat` (number, required) — Latitude
-- `lng` (number, required) — Longitude
-
-### get_timezone
-- `lat` (number, required) — Latitude
-- `lng` (number, required) — Longitude
+- `lon` (number, required) — Longitude
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `GEONAMES_USERNAME` | Yes | GeoNames API key from [https://www.geonames.org/login](https://www.geonames.org/login) |
+| `GEONAMES_USERNAME` | Yes | GeoNames username (free registration) |
+
 
 ## Upstream API
 
 - **Provider**: GeoNames
-- **Base URL**: http://api.geonames.org
-- **Auth**: API key (query)
+- **Base URL**: https://api.geonames.org
+- **Auth**: Free username required
+- **Rate Limits**: 2000 credits/hr
 - **Docs**: https://www.geonames.org/export/web-services.html
 
 ## Deploy

@@ -6,7 +6,7 @@ Pixabay MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-pixabay)
 
-Free stock photos, illustrations, and vectors from Pixabay
+Search free images and videos from Pixabay with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,27 +20,33 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(q)` | Search for images | 1¢ |
+| `search_images(query, per_page)` | Search Pixabay images | 2¢ |
+| `search_videos(query, per_page)` | Search Pixabay videos | 2¢ |
 
 ## Parameters
 
-### search
-- `q` (string, required) — Search query
-- `image_type` (string, optional) — Type: all, photo, illustration, vector (default: "all")
-- `per_page` (number, optional) — Results per page (default: 20)
+### search_images
+- `query` (string, required) — Search query
+- `per_page` (number, optional) — Results (3-20, default 10)
+
+### search_videos
+- `query` (string, required) — Search query
+- `per_page` (number, optional) — Results (3-20, default 10)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `PIXABAY_API_KEY` | Yes | Pixabay API key from [https://pixabay.com/api/docs/](https://pixabay.com/api/docs/) |
+| `PIXABAY_API_KEY` | Yes | Pixabay API key |
+
 
 ## Upstream API
 
 - **Provider**: Pixabay
 - **Base URL**: https://pixabay.com/api
-- **Auth**: API key (query)
+- **Auth**: Free API key required
+- **Rate Limits**: 100 req/min
 - **Docs**: https://pixabay.com/api/docs/
 
 ## Deploy

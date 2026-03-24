@@ -1,55 +1,46 @@
 /**
- * settlegrid-hashnode — Hashnode MCP Server
+ * settlegrid-hashnode — Hashnode Blog Posts MCP Server
  *
- * Wraps the Hashnode API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the Hashnode GraphQL API with SettleGrid billing.
+ * No API key needed for public reads.
  *
  * Methods:
- *   get_feed()                               (1¢)
+ *   search_posts(query, first)    — Search posts            (1¢)
+ *   get_publication(host)         — Get publication info     (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetFeedInput {
+interface SearchInput {
+  query: string
   first?: number
+}
+
+interface PublicationInput {
+  host: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://gql.hashnode.com'
-const USER_AGENT = 'settlegrid-hashnode/1.0 (contact@settlegrid.ai)'
+const GQL_URL = 'https://gql.hashnode.com'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function gqlFetch<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  const res = await fetch(GQL_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Hashnode API ${res.status}: ${body.slice(0, 200)}`)
   }
-  return res.json() as Promise<T>
+  const json = await res.json() as { data: T; errors?: any[] }
+  if (json.errors?.length) {
+    throw new Error(`Hashnode GQL Error: ${json.errors[0].message}`)
+  }
+  return json.data
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -59,30 +50,96 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_feed: { costCents: 1, displayName: 'Get featured articles from Hashnode' },
+      search_posts: { costCents: 1, displayName: 'Search Posts' },
+      get_publication: { costCents: 1, displayName: 'Get Publication' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getFeed = sg.wrap(async (args: GetFeedInput) => {
+const searchPosts = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
+  }
+  const first = Math.min(Math.max(args.first ?? 10, 1), 20)
+  const data = await gqlFetch<{ searchPostsOfPublication: { edges: any[] } }>(
+    `query SearchPosts($query: String!, $first: Int!) {
+      searchPostsOfPublication(first: $first, filter: { query: $query }) {
+        edges {
+          node {
+            id
+            title
+            brief
+            url
+            publishedAt
+            reactionCount
+            author { name username }
+            tags { name }
+          }
+        }
+      }
+    }`,
+    { query: args.query, first }
+  )
+  const edges = data.searchPostsOfPublication?.edges || []
+  return {
+    query: args.query,
+    count: edges.length,
+    posts: edges.map((e: any) => ({
+      id: e.node.id,
+      title: e.node.title,
+      brief: e.node.brief?.slice(0, 300),
+      url: e.node.url,
+      publishedAt: e.node.publishedAt,
+      reactions: e.node.reactionCount,
+      author: e.node.author?.name,
+      tags: e.node.tags?.map((t: any) => t.name) || [],
+    })),
+  }
+}, { method: 'search_posts' })
 
-  const body: Record<string, unknown> = {}
-  if (args.first !== undefined) body['first'] = args.first
-
-  const data = await apiFetch<Record<string, unknown>>('', {
-    method: 'POST',
-    body,
-  })
-
-  return data
-}, { method: 'get_feed' })
+const getPublication = sg.wrap(async (args: PublicationInput) => {
+  if (!args.host || typeof args.host !== 'string') {
+    throw new Error('host is required (e.g. "blog.example.com")')
+  }
+  const data = await gqlFetch<{ publication: any }>(
+    `query GetPub($host: String!) {
+      publication(host: $host) {
+        id
+        title
+        displayTitle
+        descriptionSEO
+        url
+        posts(first: 5) {
+          edges {
+            node { title brief url publishedAt }
+          }
+        }
+      }
+    }`,
+    { host: args.host }
+  )
+  const pub = data.publication
+  if (!pub) throw new Error(`Publication not found: ${args.host}`)
+  return {
+    id: pub.id,
+    title: pub.title || pub.displayTitle,
+    description: pub.descriptionSEO,
+    url: pub.url,
+    recentPosts: pub.posts?.edges?.map((e: any) => ({
+      title: e.node.title,
+      brief: e.node.brief?.slice(0, 200),
+      url: e.node.url,
+      publishedAt: e.node.publishedAt,
+    })) || [],
+  }
+}, { method: 'get_publication' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getFeed }
+export { searchPosts, getPublication }
 
 console.log('settlegrid-hashnode MCP server ready')
-console.log('Methods: get_feed')
+console.log('Methods: search_posts, get_publication')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

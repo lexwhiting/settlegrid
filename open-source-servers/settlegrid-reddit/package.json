@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-reddit",
   "version": "1.0.0",
-  "description": "MCP server for Reddit with SettleGrid billing. Reddit posts, comments, and subreddit data via public JSON API",
+  "description": "Fetch Reddit posts, comments, and subreddit data via public JSON API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "reddit",
     "social",
+    "reddit",
     "posts",
-    "communities",
-    "discussions"
+    "comments"
   ],
   "license": "MIT",
   "repository": {

@@ -1,62 +1,36 @@
 /**
- * settlegrid-what3words — what3words MCP Server
+ * settlegrid-what3words — what3words Address MCP Server
  *
  * Wraps the what3words API with SettleGrid billing.
- * Requires WHAT3WORDS_API_KEY environment variable.
+ * Requires a what3words API key.
  *
  * Methods:
- *   convert_to_coords(words)                 (1¢)
- *   convert_to_words(coordinates)            (1¢)
+ *   convert_to_coordinates(words)   — Words to lat/lng    (2¢)
+ *   convert_to_words(lat, lon)      — Lat/lng to words    (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface ConvertToCoordsInput {
+interface WordsInput {
   words: string
 }
 
-interface ConvertToWordsInput {
-  coordinates: string
+interface CoordsInput {
+  lat: number
+  lon: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.what3words.com/v3'
-const USER_AGENT = 'settlegrid-what3words/1.0 (contact@settlegrid.ai)'
+const W3W_BASE = 'https://api.what3words.com/v3'
+const API_KEY = process.env.W3W_API_KEY || ''
 
-function getApiKey(): string {
-  const key = process.env.WHAT3WORDS_API_KEY
-  if (!key) throw new Error('WHAT3WORDS_API_KEY environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  url.searchParams.set('key', getApiKey())
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function w3wFetch<T>(path: string): Promise<T> {
+  if (!API_KEY) throw new Error('W3W_API_KEY environment variable is required')
+  const sep = path.includes('?') ? '&' : '?'
+  const res = await fetch(`${W3W_BASE}${path}${sep}key=${API_KEY}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`what3words API ${res.status}: ${body.slice(0, 200)}`)
@@ -69,50 +43,57 @@ async function apiFetch<T>(path: string, options: {
 const sg = settlegrid.init({
   toolSlug: 'what3words',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      convert_to_coords: { costCents: 1, displayName: 'Convert 3-word address to coordinates' },
-      convert_to_words: { costCents: 1, displayName: 'Convert coordinates to 3-word address' },
+      convert_to_coordinates: { costCents: 2, displayName: 'Words to Coordinates' },
+      convert_to_words: { costCents: 2, displayName: 'Coordinates to Words' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const convertToCoords = sg.wrap(async (args: ConvertToCoordsInput) => {
+const convertToCoordinates = sg.wrap(async (args: WordsInput) => {
   if (!args.words || typeof args.words !== 'string') {
-    throw new Error('words is required (3-word address (e.g. filled.count.soap))')
+    throw new Error('words is required (e.g. "filled.count.soap")')
   }
-
-  const params: Record<string, string> = {}
-  params['words'] = args.words
-
-  const data = await apiFetch<Record<string, unknown>>('/convert-to-coordinates', {
-    params,
-  })
-
-  return data
-}, { method: 'convert_to_coords' })
-
-const convertToWords = sg.wrap(async (args: ConvertToWordsInput) => {
-  if (!args.coordinates || typeof args.coordinates !== 'string') {
-    throw new Error('coordinates is required (coordinates as lat,lng)')
+  const words = args.words.trim()
+  if (!/^[a-zA-Z]+\.[a-zA-Z]+\.[a-zA-Z]+$/.test(words)) {
+    throw new Error('words must be a valid 3-word address (e.g. "filled.count.soap")')
   }
+  const data = await w3wFetch<any>(`/convert-to-coordinates?words=${encodeURIComponent(words)}`)
+  return {
+    words: data.words,
+    lat: data.coordinates?.lat,
+    lng: data.coordinates?.lng,
+    country: data.country,
+    nearestPlace: data.nearestPlace,
+    language: data.language,
+  }
+}, { method: 'convert_to_coordinates' })
 
-  const params: Record<string, string> = {}
-  params['coordinates'] = args.coordinates
-
-  const data = await apiFetch<Record<string, unknown>>('/convert-to-3wa', {
-    params,
-  })
-
-  return data
+const convertToWords = sg.wrap(async (args: CoordsInput) => {
+  if (typeof args.lat !== 'number' || typeof args.lon !== 'number') {
+    throw new Error('lat and lon must be numbers')
+  }
+  if (args.lat < -90 || args.lat > 90 || args.lon < -180 || args.lon > 180) {
+    throw new Error('lat must be -90..90, lon must be -180..180')
+  }
+  const data = await w3wFetch<any>(`/convert-to-3wa?coordinates=${args.lat},${args.lon}`)
+  return {
+    words: data.words,
+    lat: data.coordinates?.lat,
+    lng: data.coordinates?.lng,
+    country: data.country,
+    nearestPlace: data.nearestPlace,
+    language: data.language,
+  }
 }, { method: 'convert_to_words' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { convertToCoords, convertToWords }
+export { convertToCoordinates, convertToWords }
 
 console.log('settlegrid-what3words MCP server ready')
-console.log('Methods: convert_to_coords, convert_to_words')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Methods: convert_to_coordinates, convert_to_words')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

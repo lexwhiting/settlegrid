@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-unsplash",
   "version": "1.0.0",
-  "description": "MCP server for Unsplash with SettleGrid billing. Free high-resolution photos and image search from Unsplash",
+  "description": "Search free high-quality photos from Unsplash with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "content",
     "unsplash",
     "photos",
-    "images",
-    "stock",
-    "free"
+    "images"
   ],
   "license": "MIT",
   "repository": {

@@ -1,12 +1,12 @@
 /**
- * settlegrid-unsplash — Unsplash MCP Server
+ * settlegrid-unsplash — Unsplash Photo Search MCP Server
  *
  * Wraps the Unsplash API with SettleGrid billing.
- * Requires UNSPLASH_ACCESS_KEY environment variable.
+ * Requires a free Unsplash Access Key.
  *
  * Methods:
- *   search(query)                            (1¢)
- *   get_random()                             (1¢)
+ *   search_photos(query, per_page)  — Search photos      (2¢)
+ *   get_random(query)               — Random photo       (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -18,46 +18,20 @@ interface SearchInput {
   per_page?: number
 }
 
-interface GetRandomInput {
+interface RandomInput {
   query?: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.unsplash.com'
-const USER_AGENT = 'settlegrid-unsplash/1.0 (contact@settlegrid.ai)'
+const UNSPLASH_BASE = 'https://api.unsplash.com'
+const ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || ''
 
-function getApiKey(): string {
-  const key = process.env.UNSPLASH_ACCESS_KEY
-  if (!key) throw new Error('UNSPLASH_ACCESS_KEY environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    'Authorization': `Client-ID ${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function unsplashFetch<T>(path: string): Promise<T> {
+  if (!ACCESS_KEY) throw new Error('UNSPLASH_ACCESS_KEY environment variable is required')
+  const res = await fetch(`${UNSPLASH_BASE}${path}`, {
+    headers: { Authorization: `Client-ID ${ACCESS_KEY}` },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Unsplash API ${res.status}: ${body.slice(0, 200)}`)
@@ -65,53 +39,63 @@ async function apiFetch<T>(path: string, options: {
   return res.json() as Promise<T>
 }
 
+function formatPhoto(p: any): Record<string, unknown> {
+  return {
+    id: p.id,
+    description: p.description || p.alt_description,
+    width: p.width,
+    height: p.height,
+    color: p.color,
+    urls: { regular: p.urls?.regular, small: p.urls?.small, thumb: p.urls?.thumb },
+    photographer: p.user?.name,
+    photographerUrl: p.user?.links?.html,
+    likes: p.likes,
+    downloadUrl: p.links?.download,
+  }
+}
+
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
 const sg = settlegrid.init({
   toolSlug: 'unsplash',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      search: { costCents: 1, displayName: 'Search for photos' },
-      get_random: { costCents: 1, displayName: 'Get a random photo' },
+      search_photos: { costCents: 2, displayName: 'Search Photos' },
+      get_random: { costCents: 2, displayName: 'Random Photo' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
+const searchPhotos = sg.wrap(async (args: SearchInput) => {
   if (!args.query || typeof args.query !== 'string') {
-    throw new Error('query is required (search query)')
+    throw new Error('query is required')
   }
+  const perPage = Math.min(Math.max(args.per_page ?? 10, 1), 20)
+  const q = encodeURIComponent(args.query)
+  const data = await unsplashFetch<{ total: number; results: any[] }>(
+    `/search/photos?query=${q}&per_page=${perPage}`
+  )
+  return {
+    query: args.query,
+    total: data.total,
+    photos: data.results.map(formatPhoto),
+  }
+}, { method: 'search_photos' })
 
-  const params: Record<string, string> = {}
-  params['query'] = args.query
-  if (args.per_page !== undefined) params['per_page'] = String(args.per_page)
-
-  const data = await apiFetch<Record<string, unknown>>('/search/photos', {
-    params,
-  })
-
-  return data
-}, { method: 'search' })
-
-const getRandom = sg.wrap(async (args: GetRandomInput) => {
-
-  const params: Record<string, string> = {}
-  if (args.query !== undefined) params['query'] = String(args.query)
-
-  const data = await apiFetch<Record<string, unknown>>('/photos/random', {
-    params,
-  })
-
-  return data
+const getRandom = sg.wrap(async (args: RandomInput) => {
+  let url = '/photos/random'
+  if (args.query) url += `?query=${encodeURIComponent(args.query)}`
+  const data = await unsplashFetch<any>(url)
+  return formatPhoto(data)
 }, { method: 'get_random' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search, getRandom }
+export { searchPhotos, getRandom }
 
 console.log('settlegrid-unsplash MCP server ready')
-console.log('Methods: search, get_random')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Methods: search_photos, get_random')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

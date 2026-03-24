@@ -6,7 +6,7 @@ ChemSpider MCP Server with per-call billing via [SettleGrid](https://settlegrid.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-chemspider)
 
-Chemical compound search and molecular data from ChemSpider
+Search chemical compounds and molecular data via ChemSpider/RSC with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,29 +20,31 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(name)` | Search for chemical compounds | 2¢ |
-| `get_details(recordId)` | Get compound details by record ID | 1¢ |
+| `search_compounds(query)` | Search compounds by name or formula | 2¢ |
+| `get_compound(csid)` | Get compound details by ChemSpider ID | 2¢ |
 
 ## Parameters
 
-### search
-- `name` (string, required) — Chemical compound name
+### search_compounds
+- `query` (string, required) — Compound name or formula
 
-### get_details
-- `recordId` (number, required) — ChemSpider record ID
+### get_compound
+- `csid` (number, required) — ChemSpider compound ID
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `CHEMSPIDER_API_KEY` | Yes | ChemSpider API key from [https://developer.rsc.org/](https://developer.rsc.org/) |
+| `CHEMSPIDER_API_KEY` | Yes | ChemSpider / RSC API key |
+
 
 ## Upstream API
 
-- **Provider**: ChemSpider
-- **Base URL**: https://api.rsc.org
-- **Auth**: API key (header)
+- **Provider**: Royal Society of Chemistry
+- **Base URL**: https://api.rsc.org/compounds/v1
+- **Auth**: Free API key required
+- **Rate Limits**: 15 req/min
 - **Docs**: https://developer.rsc.org/compounds-v1/apis
 
 ## Deploy

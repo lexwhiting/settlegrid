@@ -6,7 +6,7 @@ Bluesky MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-bluesky)
 
-Bluesky AT Protocol social network posts and profiles
+Fetch Bluesky posts and profiles from the AT Protocol public API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,17 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_profile(actor)` | Get a user profile | 1¢ |
-| `get_feed(actor)` | Get a user's post feed | 1¢ |
+| `get_profile(handle)` | Get a Bluesky user profile | 1¢ |
+| `get_author_feed(handle, limit)` | Get recent posts by a user | 1¢ |
 
 ## Parameters
 
 ### get_profile
-- `actor` (string, required) — Handle or DID (e.g. user.bsky.social)
+- `handle` (string, required) — Bluesky handle (e.g. "user.bsky.social")
 
-### get_feed
-- `actor` (string, required) — Handle or DID
-- `limit` (number, optional) — Number of posts (default: 20)
+### get_author_feed
+- `handle` (string, required) — Bluesky handle
+- `limit` (number, optional) — Max posts (1-20, default 10)
 
 ## Environment Variables
 
@@ -38,13 +38,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Bluesky API.
 
 ## Upstream API
 
 - **Provider**: Bluesky
 - **Base URL**: https://public.api.bsky.app/xrpc
 - **Auth**: None required
+- **Rate Limits**: 3000 req/5min
 - **Docs**: https://docs.bsky.app/
 
 ## Deploy

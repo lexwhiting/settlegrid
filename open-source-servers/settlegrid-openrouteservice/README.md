@@ -6,7 +6,7 @@ OpenRouteService MCP Server with per-call billing via [SettleGrid](https://settl
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-openrouteservice)
 
-Directions, isochrones, and geocoding using OpenStreetMap data
+Get driving/walking/cycling directions from OpenRouteService with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,31 +20,35 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_directions(profile, start, end)` | Get driving/walking/cycling directions | 2¢ |
-| `geocode(text)` | Geocode an address | 1¢ |
+| `get_directions(start_lon, start_lat, end_lon, end_lat, profile)` | Get route between two points | 2¢ |
+| `geocode_search(query)` | Search for places by name | 2¢ |
 
 ## Parameters
 
 ### get_directions
-- `profile` (string, required) — Profile: driving-car, foot-walking, cycling-regular
-- `start` (string, required) — Start coordinates as lon,lat
-- `end` (string, required) — End coordinates as lon,lat
+- `start_lon` (number, required) — Start longitude
+- `start_lat` (number, required) — Start latitude
+- `end_lon` (number, required) — End longitude
+- `end_lat` (number, required) — End latitude
+- `profile` (string, optional) — driving-car, cycling-regular, or foot-walking (default driving-car)
 
-### geocode
-- `text` (string, required) — Address to geocode
+### geocode_search
+- `query` (string, required) — Place name to search
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `ORS_API_KEY` | Yes | OpenRouteService API key from [https://openrouteservice.org/dev/#/signup](https://openrouteservice.org/dev/#/signup) |
+| `ORS_API_KEY` | Yes | OpenRouteService API key |
+
 
 ## Upstream API
 
 - **Provider**: OpenRouteService
-- **Base URL**: https://api.openrouteservice.org
-- **Auth**: API key (header)
+- **Base URL**: https://api.openrouteservice.org/v2
+- **Auth**: Free API key required
+- **Rate Limits**: 40 req/min
 - **Docs**: https://openrouteservice.org/dev/#/api-docs
 
 ## Deploy

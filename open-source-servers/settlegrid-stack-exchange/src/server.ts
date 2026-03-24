@@ -1,12 +1,12 @@
 /**
- * settlegrid-stack-exchange — Stack Exchange MCP Server
+ * settlegrid-stack-exchange — Stack Overflow Q&A MCP Server
  *
  * Wraps the Stack Exchange API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * No API key needed for basic usage.
  *
  * Methods:
- *   search(q)                                (1¢)
- *   get_answers(id)                          (1¢)
+ *   search_questions(query, tagged, pagesize)  — Search questions  (1¢)
+ *   get_answers(question_id)                   — Get answers       (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -14,50 +14,30 @@ import { settlegrid } from '@settlegrid/mcp'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface SearchInput {
-  q: string
-  site?: string
+  query: string
+  tagged?: string
   pagesize?: number
 }
 
-interface GetAnswersInput {
-  id: number
-  site?: string
+interface AnswersInput {
+  question_id: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.stackexchange.com/2.3'
-const USER_AGENT = 'settlegrid-stack-exchange/1.0 (contact@settlegrid.ai)'
+const SE_BASE = 'https://api.stackexchange.com/2.3'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function seFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${SE_BASE}${path}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Stack Exchange API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').slice(0, 500)
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -67,50 +47,66 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search: { costCents: 1, displayName: 'Search questions across Stack Exchange sites' },
-      get_answers: { costCents: 1, displayName: 'Get answers for a question by ID' },
+      search_questions: { costCents: 1, displayName: 'Search Questions' },
+      get_answers: { costCents: 1, displayName: 'Get Answers' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (search query)')
+const searchQuestions = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
+  const pagesize = Math.min(Math.max(args.pagesize ?? 10, 1), 20)
+  const q = encodeURIComponent(args.query)
+  let url = `/search/advanced?order=desc&sort=relevance&q=${q}&site=stackoverflow&pagesize=${pagesize}&filter=withbody`
+  if (args.tagged) url += `&tagged=${encodeURIComponent(args.tagged)}`
 
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.site !== undefined) params['site'] = String(args.site)
-  if (args.pagesize !== undefined) params['pagesize'] = String(args.pagesize)
-
-  const data = await apiFetch<Record<string, unknown>>('/search/advanced', {
-    params,
-  })
-
-  return data
-}, { method: 'search' })
-
-const getAnswers = sg.wrap(async (args: GetAnswersInput) => {
-  if (typeof args.id !== 'number' || isNaN(args.id)) {
-    throw new Error('id must be a number')
+  const data = await seFetch<{ items: any[]; has_more: boolean }>(url)
+  return {
+    query: args.query,
+    count: data.items.length,
+    hasMore: data.has_more,
+    questions: data.items.map((q: any) => ({
+      questionId: q.question_id,
+      title: q.title,
+      score: q.score,
+      answerCount: q.answer_count,
+      isAnswered: q.is_answered,
+      tags: q.tags,
+      link: q.link,
+      body: stripHtml(q.body || ''),
+      creationDate: new Date(q.creation_date * 1000).toISOString(),
+    })),
   }
+}, { method: 'search_questions' })
 
-  const params: Record<string, string> = {}
-  if (args.site !== undefined) params['site'] = String(args.site)
-
-  const data = await apiFetch<Record<string, unknown>>(`/questions/${encodeURIComponent(String(args.id))}/answers`, {
-    params,
-  })
-
-  return data
+const getAnswers = sg.wrap(async (args: AnswersInput) => {
+  if (typeof args.question_id !== 'number' || !Number.isFinite(args.question_id)) {
+    throw new Error('question_id must be a number')
+  }
+  const data = await seFetch<{ items: any[] }>(
+    `/questions/${args.question_id}/answers?order=desc&sort=votes&site=stackoverflow&filter=withbody`
+  )
+  return {
+    questionId: args.question_id,
+    count: data.items.length,
+    answers: data.items.map((a: any) => ({
+      answerId: a.answer_id,
+      score: a.score,
+      isAccepted: a.is_accepted,
+      body: stripHtml(a.body || ''),
+      creationDate: new Date(a.creation_date * 1000).toISOString(),
+    })),
+  }
 }, { method: 'get_answers' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search, getAnswers }
+export { searchQuestions, getAnswers }
 
 console.log('settlegrid-stack-exchange MCP server ready')
-console.log('Methods: search, get_answers')
+console.log('Methods: search_questions, get_answers')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

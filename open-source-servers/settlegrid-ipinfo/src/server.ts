@@ -1,12 +1,12 @@
 /**
- * settlegrid-ipinfo — ipinfo MCP Server
+ * settlegrid-ipinfo — IP Geolocation MCP Server
  *
- * Wraps the ipinfo API with SettleGrid billing.
- * Requires IPINFO_TOKEN environment variable.
+ * Wraps the IPinfo API with SettleGrid billing.
+ * Optional token for higher limits.
  *
  * Methods:
- *   lookup(ip)                               (1¢)
- *   get_my_ip()                              (1¢)
+ *   lookup_ip(ip)    — Geolocate an IP address  (1¢)
+ *   get_my_ip()      — Geolocate current IP     (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -17,48 +17,18 @@ interface LookupInput {
   ip: string
 }
 
-interface GetMyIpInput {
-}
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://ipinfo.io'
-const USER_AGENT = 'settlegrid-ipinfo/1.0 (contact@settlegrid.ai)'
+const IPINFO_BASE = 'https://ipinfo.io'
+const TOKEN = process.env.IPINFO_TOKEN || ''
 
-function getApiKey(): string {
-  const key = process.env.IPINFO_TOKEN
-  if (!key) throw new Error('IPINFO_TOKEN environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    Authorization: `Bearer ${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function ipFetch<T>(path: string): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`
+  const res = await fetch(`${IPINFO_BASE}${path}`, { headers })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`ipinfo API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`IPinfo API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -70,44 +40,53 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      lookup: { costCents: 1, displayName: 'Get geolocation data for an IP' },
-      get_my_ip: { costCents: 1, displayName: 'Get your own IP info' },
+      lookup_ip: { costCents: 1, displayName: 'Lookup IP' },
+      get_my_ip: { costCents: 1, displayName: 'Get My IP' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const lookup = sg.wrap(async (args: LookupInput) => {
+const lookupIp = sg.wrap(async (args: LookupInput) => {
   if (!args.ip || typeof args.ip !== 'string') {
-    throw new Error('ip is required (ip address to lookup)')
+    throw new Error('ip is required (IPv4 or IPv6 address)')
   }
+  const ip = args.ip.trim()
+  if (!/^[\d.:a-fA-F]+$/.test(ip)) {
+    throw new Error('Invalid IP address format')
+  }
+  const data = await ipFetch<any>(`/${ip}/json`)
+  return {
+    ip: data.ip,
+    city: data.city,
+    region: data.region,
+    country: data.country,
+    loc: data.loc,
+    org: data.org,
+    postal: data.postal,
+    timezone: data.timezone,
+    hostname: data.hostname,
+  }
+}, { method: 'lookup_ip' })
 
-  const params: Record<string, string> = {}
-  params['ip'] = String(args.ip)
-
-  const data = await apiFetch<Record<string, unknown>>(`/${encodeURIComponent(String(args.ip))}`, {
-    params,
-  })
-
-  return data
-}, { method: 'lookup' })
-
-const getMyIp = sg.wrap(async (args: GetMyIpInput) => {
-
-  const params: Record<string, string> = {}
-
-  const data = await apiFetch<Record<string, unknown>>('/json', {
-    params,
-  })
-
-  return data
+const getMyIp = sg.wrap(async () => {
+  const data = await ipFetch<any>('/json')
+  return {
+    ip: data.ip,
+    city: data.city,
+    region: data.region,
+    country: data.country,
+    loc: data.loc,
+    org: data.org,
+    timezone: data.timezone,
+  }
 }, { method: 'get_my_ip' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { lookup, getMyIp }
+export { lookupIp, getMyIp }
 
 console.log('settlegrid-ipinfo MCP server ready')
-console.log('Methods: lookup, get_my_ip')
+console.log('Methods: lookup_ip, get_my_ip')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

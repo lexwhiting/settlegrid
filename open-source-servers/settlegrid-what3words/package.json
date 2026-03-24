@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-what3words",
   "version": "1.0.0",
-  "description": "MCP server for what3words with SettleGrid billing. Convert between 3-word addresses and GPS coordinates",
+  "description": "Convert between 3-word addresses and coordinates via what3words API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "geo",
     "what3words",
-    "geocoding",
-    "location",
-    "addressing"
+    "addressing",
+    "location"
   ],
   "license": "MIT",
   "repository": {

@@ -1,56 +1,39 @@
 /**
- * settlegrid-open-notify — Open Notify (ISS) MCP Server
+ * settlegrid-open-notify — ISS Tracker MCP Server
  *
- * Wraps the Open Notify (ISS) API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the Open Notify API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   get_iss_position()                       (1¢)
- *   get_astronauts()                         (1¢)
+ *   get_iss_position()     — Current ISS coordinates   (1¢)
+ *   get_people_in_space()  — People currently in space  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetIssPositionInput {
+interface IssPositionResponse {
+  message: string
+  iss_position: { latitude: string; longitude: string }
+  timestamp: number
 }
 
-interface GetAstronautsInput {
+interface PeopleResponse {
+  message: string
+  number: number
+  people: Array<{ name: string; craft: string }>
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const API_BASE = 'http://api.open-notify.org'
-const USER_AGENT = 'settlegrid-open-notify/1.0 (contact@settlegrid.ai)'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function notifyFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Open Notify (ISS) API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Open Notify API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -62,40 +45,39 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_iss_position: { costCents: 1, displayName: 'Get current ISS position' },
-      get_astronauts: { costCents: 1, displayName: 'Get astronauts currently in space' },
+      get_iss_position: { costCents: 1, displayName: 'ISS Position' },
+      get_people_in_space: { costCents: 1, displayName: 'People in Space' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getIssPosition = sg.wrap(async (args: GetIssPositionInput) => {
-
-  const params: Record<string, string> = {}
-
-  const data = await apiFetch<Record<string, unknown>>('/iss-now.json', {
-    params,
-  })
-
-  return data
+const getIssPosition = sg.wrap(async () => {
+  const data = await notifyFetch<IssPositionResponse>('/iss-now.json')
+  return {
+    latitude: parseFloat(data.iss_position.latitude),
+    longitude: parseFloat(data.iss_position.longitude),
+    timestamp: data.timestamp,
+    timestampISO: new Date(data.timestamp * 1000).toISOString(),
+  }
 }, { method: 'get_iss_position' })
 
-const getAstronauts = sg.wrap(async (args: GetAstronautsInput) => {
-
-  const params: Record<string, string> = {}
-
-  const data = await apiFetch<Record<string, unknown>>('/astros.json', {
-    params,
-  })
-
-  return data
-}, { method: 'get_astronauts' })
+const getPeopleInSpace = sg.wrap(async () => {
+  const data = await notifyFetch<PeopleResponse>('/astros.json')
+  return {
+    count: data.number,
+    people: data.people.map((p) => ({
+      name: p.name,
+      craft: p.craft,
+    })),
+  }
+}, { method: 'get_people_in_space' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getIssPosition, getAstronauts }
+export { getIssPosition, getPeopleInSpace }
 
 console.log('settlegrid-open-notify MCP server ready')
-console.log('Methods: get_iss_position, get_astronauts')
+console.log('Methods: get_iss_position, get_people_in_space')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

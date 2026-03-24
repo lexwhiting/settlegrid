@@ -6,7 +6,7 @@ Stack Exchange MCP Server with per-call billing via [SettleGrid](https://settleg
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-stack-exchange)
 
-Stack Overflow and Stack Exchange questions, answers, and users
+Search Stack Overflow questions and answers via the Stack Exchange API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,19 +20,18 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(q)` | Search questions across Stack Exchange sites | 1¢ |
-| `get_answers(id)` | Get answers for a question by ID | 1¢ |
+| `search_questions(query, tagged, pagesize)` | Search Stack Overflow questions | 1¢ |
+| `get_answers(question_id)` | Get answers for a question | 1¢ |
 
 ## Parameters
 
-### search
-- `q` (string, required) — Search query
-- `site` (string, optional) — Site name (e.g. stackoverflow) (default: "stackoverflow")
-- `pagesize` (number, optional) — Results per page (default: 20)
+### search_questions
+- `query` (string, required) — Search query
+- `tagged` (string, optional) — Tag filter (semicolon-separated)
+- `pagesize` (number, optional) — Results (1-20, default 10)
 
 ### get_answers
-- `id` (number, required) — Question ID
-- `site` (string, optional) — Site name (default: "stackoverflow")
+- `question_id` (number, required) — Question ID
 
 ## Environment Variables
 
@@ -40,13 +39,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Stack Exchange API.
 
 ## Upstream API
 
 - **Provider**: Stack Exchange
 - **Base URL**: https://api.stackexchange.com/2.3
 - **Auth**: None required
+- **Rate Limits**: 300 req/day without key
 - **Docs**: https://api.stackexchange.com/docs
 
 ## Deploy

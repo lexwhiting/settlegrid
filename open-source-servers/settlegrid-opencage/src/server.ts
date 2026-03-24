@@ -1,11 +1,12 @@
 /**
- * settlegrid-opencage — OpenCage MCP Server
+ * settlegrid-opencage — OpenCage Geocoding MCP Server
  *
- * Wraps the OpenCage API with SettleGrid billing.
- * Requires OPENCAGE_API_KEY environment variable.
+ * Wraps the OpenCage Geocoder API with SettleGrid billing.
+ * Requires a free OpenCage API key.
  *
  * Methods:
- *   geocode(q)                               (1¢)
+ *   geocode(query)              — Forward geocode    (2¢)
+ *   reverse_geocode(lat, lon)   — Reverse geocode    (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -13,46 +14,22 @@ import { settlegrid } from '@settlegrid/mcp'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface GeocodeInput {
-  q: string
-  limit?: number
+  query: string
+}
+
+interface ReverseInput {
+  lat: number
+  lon: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.opencagedata.com/geocode/v1'
-const USER_AGENT = 'settlegrid-opencage/1.0 (contact@settlegrid.ai)'
+const OC_BASE = 'https://api.opencagedata.com/geocode/v1'
+const API_KEY = process.env.OPENCAGE_API_KEY || ''
 
-function getApiKey(): string {
-  const key = process.env.OPENCAGE_API_KEY
-  if (!key) throw new Error('OPENCAGE_API_KEY environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  url.searchParams.set('key', getApiKey())
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function ocFetch<T>(params: string): Promise<T> {
+  if (!API_KEY) throw new Error('OPENCAGE_API_KEY environment variable is required')
+  const res = await fetch(`${OC_BASE}/json?${params}&key=${API_KEY}&no_annotations=0`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`OpenCage API ${res.status}: ${body.slice(0, 200)}`)
@@ -65,9 +42,10 @@ async function apiFetch<T>(path: string, options: {
 const sg = settlegrid.init({
   toolSlug: 'opencage',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      geocode: { costCents: 1, displayName: 'Geocode an address to coordinates' },
+      geocode: { costCents: 2, displayName: 'Geocode' },
+      reverse_geocode: { costCents: 2, displayName: 'Reverse Geocode' },
     },
   },
 })
@@ -75,25 +53,50 @@ const sg = settlegrid.init({
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
 const geocode = sg.wrap(async (args: GeocodeInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (address or place name)')
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/json', {
-    params,
-  })
-
-  return data
+  const q = encodeURIComponent(args.query)
+  const data = await ocFetch<{ total_results: number; results: any[] }>(`q=${q}&limit=5`)
+  return {
+    query: args.query,
+    totalResults: data.total_results,
+    results: data.results.map((r: any) => ({
+      formatted: r.formatted,
+      lat: r.geometry.lat,
+      lng: r.geometry.lng,
+      confidence: r.confidence,
+      components: r.components,
+      timezone: r.annotations?.timezone?.name,
+      currency: r.annotations?.currency?.name,
+    })),
+  }
 }, { method: 'geocode' })
+
+const reverseGeocode = sg.wrap(async (args: ReverseInput) => {
+  if (typeof args.lat !== 'number' || typeof args.lon !== 'number') {
+    throw new Error('lat and lon must be numbers')
+  }
+  if (args.lat < -90 || args.lat > 90 || args.lon < -180 || args.lon > 180) {
+    throw new Error('lat must be -90..90, lon must be -180..180')
+  }
+  const data = await ocFetch<{ results: any[] }>(`q=${args.lat}+${args.lon}&limit=1`)
+  const r = data.results[0]
+  if (!r) throw new Error('No results found for these coordinates')
+  return {
+    lat: args.lat,
+    lon: args.lon,
+    formatted: r.formatted,
+    components: r.components,
+    timezone: r.annotations?.timezone?.name,
+    currency: r.annotations?.currency?.name,
+  }
+}, { method: 'reverse_geocode' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { geocode }
+export { geocode, reverseGeocode }
 
 console.log('settlegrid-opencage MCP server ready')
-console.log('Methods: geocode')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Methods: geocode, reverse_geocode')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

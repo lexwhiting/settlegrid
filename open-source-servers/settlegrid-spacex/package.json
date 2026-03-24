@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-spacex",
   "version": "1.0.0",
-  "description": "MCP server for SpaceX with SettleGrid billing. SpaceX launches, rockets, capsules, and mission data",
+  "description": "Query SpaceX launch data, rockets, and missions with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "spacex",
-    "rockets",
-    "launches",
+    "science",
     "space",
-    "elon-musk"
+    "spacex",
+    "rockets"
   ],
   "license": "MIT",
   "repository": {

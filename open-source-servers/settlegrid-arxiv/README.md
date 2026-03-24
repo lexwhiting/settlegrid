@@ -6,7 +6,7 @@ arXiv MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-arxiv)
 
-Search scientific preprints from arXiv in physics, math, CS, and more
+Search academic preprints on arXiv via the Atom/XML API with SettleGrid billing.
 
 ## Quick Start
 
@@ -20,13 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search(search_query)` | Search arXiv papers | 1¢ |
+| `search_papers(query, max_results)` | Search arXiv papers by query | 1¢ |
+| `get_paper(id)` | Get paper details by arXiv ID | 1¢ |
 
 ## Parameters
 
-### search
-- `search_query` (string, required) — Search query (e.g. all:electron)
-- `max_results` (number, optional) — Max results (default: 20)
+### search_papers
+- `query` (string, required) — Search query (e.g. "quantum computing")
+- `max_results` (number, optional) — Max results (1-50, default 10)
+
+### get_paper
+- `id` (string, required) — arXiv paper ID (e.g. "2301.07041")
 
 ## Environment Variables
 
@@ -34,14 +38,14 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream arXiv API.
 
 ## Upstream API
 
 - **Provider**: arXiv
-- **Base URL**: https://export.arxiv.org/api
+- **Base URL**: https://export.arxiv.org/api/query
 - **Auth**: None required
-- **Docs**: https://info.arxiv.org/help/api/
+- **Rate Limits**: 3 req/s
+- **Docs**: https://info.arxiv.org/help/api/index.html
 
 ## Deploy
 

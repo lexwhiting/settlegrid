@@ -1,12 +1,12 @@
 /**
- * settlegrid-chemspider — ChemSpider MCP Server
+ * settlegrid-chemspider — ChemSpider Chemical Compounds MCP Server
  *
- * Wraps the ChemSpider API with SettleGrid billing.
- * Requires CHEMSPIDER_API_KEY environment variable.
+ * Wraps the RSC Compounds API with SettleGrid billing.
+ * Requires a free ChemSpider API key.
  *
  * Methods:
- *   search(name)                             (2¢)
- *   get_details(recordId)                    (1¢)
+ *   search_compounds(query)  — Search compounds    (2¢)
+ *   get_compound(csid)       — Get compound info   (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -14,49 +14,30 @@ import { settlegrid } from '@settlegrid/mcp'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface SearchInput {
-  name: string
+  query: string
 }
 
-interface GetDetailsInput {
-  recordId: number
+interface CompoundInput {
+  csid: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.rsc.org'
-const USER_AGENT = 'settlegrid-chemspider/1.0 (contact@settlegrid.ai)'
+const RSC_BASE = 'https://api.rsc.org/compounds/v1'
+const API_KEY = process.env.CHEMSPIDER_API_KEY || ''
 
-function getApiKey(): string {
-  const key = process.env.CHEMSPIDER_API_KEY
-  if (!key) throw new Error('CHEMSPIDER_API_KEY environment variable is required')
-  return key
-}
-
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
+async function rscFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  if (!API_KEY) {
+    throw new Error('CHEMSPIDER_API_KEY environment variable is required')
   }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    'apikey': `${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+  const res = await fetch(`${RSC_BASE}${path}`, {
+    ...options,
+    headers: {
+      apikey: API_KEY,
+      'Content-Type': 'application/json',
+      ...(options?.headers || {}),
+    },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`ChemSpider API ${res.status}: ${body.slice(0, 200)}`)
@@ -69,50 +50,53 @@ async function apiFetch<T>(path: string, options: {
 const sg = settlegrid.init({
   toolSlug: 'chemspider',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      search: { costCents: 2, displayName: 'Search for chemical compounds' },
-      get_details: { costCents: 1, displayName: 'Get compound details by record ID' },
+      search_compounds: { costCents: 2, displayName: 'Search Compounds' },
+      get_compound: { costCents: 2, displayName: 'Get Compound' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.name || typeof args.name !== 'string') {
-    throw new Error('name is required (chemical compound name)')
+const searchCompounds = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required (compound name or formula)')
   }
-
-  const body: Record<string, unknown> = {}
-  body['name'] = args.name
-
-  const data = await apiFetch<Record<string, unknown>>('/compounds/v1/filter/name', {
+  const data = await rscFetch<{ queryId: string }>('/filter/name', {
     method: 'POST',
-    body,
+    body: JSON.stringify({ name: args.query, orderBy: 'recordId', orderDirection: 'ascending' }),
   })
-
-  return data
-}, { method: 'search' })
-
-const getDetails = sg.wrap(async (args: GetDetailsInput) => {
-  if (typeof args.recordId !== 'number' || isNaN(args.recordId)) {
-    throw new Error('recordId must be a number')
+  const results = await rscFetch<{ results: number[] }>(
+    `/filter/${data.queryId}/results?start=0&count=10`
+  )
+  return {
+    query: args.query,
+    count: results.results.length,
+    compoundIds: results.results,
   }
+}, { method: 'search_compounds' })
 
-  const params: Record<string, string> = {}
-
-  const data = await apiFetch<Record<string, unknown>>(`/compounds/v1/records/${encodeURIComponent(String(args.recordId))}/details`, {
-    params,
-  })
-
-  return data
-}, { method: 'get_details' })
+const getCompound = sg.wrap(async (args: CompoundInput) => {
+  if (typeof args.csid !== 'number' || !Number.isFinite(args.csid)) {
+    throw new Error('csid must be a valid ChemSpider compound ID number')
+  }
+  const data = await rscFetch<any>(`/records/${args.csid}/details?fields=SMILES,Formula,CommonName,MolecularWeight,MonoisotopicMass`)
+  return {
+    csid: args.csid,
+    commonName: data.commonName,
+    formula: data.formula,
+    molecularWeight: data.molecularWeight,
+    monoisotopicMass: data.monoisotopicMass,
+    smiles: data.smiles,
+  }
+}, { method: 'get_compound' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search, getDetails }
+export { searchCompounds, getCompound }
 
 console.log('settlegrid-chemspider MCP server ready')
-console.log('Methods: search, get_details')
-console.log('Pricing: 1-2¢ per call | Powered by SettleGrid')
+console.log('Methods: search_compounds, get_compound')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

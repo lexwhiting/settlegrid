@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-semantic-scholar",
   "version": "1.0.0",
-  "description": "MCP server for Semantic Scholar with SettleGrid billing. AI-powered academic paper search with citation graphs from S2",
+  "description": "Search AI and computer science papers via Semantic Scholar API with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "semantic-scholar",
+    "science",
+    "ai",
     "papers",
-    "citations",
-    "research",
-    "ai"
+    "semantic-scholar"
   ],
   "license": "MIT",
   "repository": {

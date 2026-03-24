@@ -1,12 +1,12 @@
 # settlegrid-lobsters
 
-Lobsters MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Lobste.rs MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-lobsters)
 
-Lobsters computing-focused link aggregator stories and tags
+Fetch Lobste.rs tech community stories via JSON API with SettleGrid billing.
 
 ## Quick Start
 
@@ -25,9 +25,7 @@ npm run dev
 
 ## Parameters
 
-### get_hottest
 
-### get_newest
 
 ## Environment Variables
 
@@ -35,13 +33,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Lobsters API.
 
 ## Upstream API
 
-- **Provider**: Lobsters
+- **Provider**: Lobste.rs
 - **Base URL**: https://lobste.rs
 - **Auth**: None required
+- **Rate Limits**: Reasonable use
 - **Docs**: https://lobste.rs/about
 
 ## Deploy

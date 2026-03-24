@@ -1,11 +1,12 @@
 /**
- * settlegrid-arxiv — arXiv MCP Server
+ * settlegrid-arxiv — arXiv Academic Paper Search MCP Server
  *
- * Wraps the arXiv API with SettleGrid billing.
+ * Wraps the arXiv API (export.arxiv.org) with SettleGrid billing.
  * No API key needed for the upstream service.
  *
  * Methods:
- *   search(search_query)                     (1¢)
+ *   search_papers(query, max_results)  — Search arXiv papers   (1¢)
+ *   get_paper(id)                      — Get paper by arXiv ID (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
@@ -13,44 +14,46 @@ import { settlegrid } from '@settlegrid/mcp'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface SearchInput {
-  search_query: string
+  query: string
   max_results?: number
+}
+
+interface GetPaperInput {
+  id: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://export.arxiv.org/api'
-const USER_AGENT = 'settlegrid-arxiv/1.0 (contact@settlegrid.ai)'
+const ARXIV_BASE = 'https://export.arxiv.org/api/query'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function arxivFetch(params: string): Promise<string> {
+  const res = await fetch(`${ARXIV_BASE}?${params}`)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`arXiv API ${res.status}: ${body.slice(0, 200)}`)
   }
-  return res.json() as Promise<T>
+  return res.text()
+}
+
+function parseEntries(xml: string): Array<Record<string, string>> {
+  const entries: Array<Record<string, string>> = []
+  const entryRegex = /<entry>(.*?)<\/entry>/gs
+  let match: RegExpExecArray | null
+  while ((match = entryRegex.exec(xml)) !== null) {
+    const block = match[1]
+    const get = (tag: string): string => {
+      const m = new RegExp(`<${tag}[^>]*>(.*?)</${tag}>`, 's').exec(block)
+      return m ? m[1].trim() : ''
+    }
+    entries.push({
+      id: get('id'),
+      title: get('title').replace(/\s+/g, ' '),
+      summary: get('summary').replace(/\s+/g, ' ').slice(0, 500),
+      published: get('published'),
+      updated: get('updated'),
+    })
+  }
+  return entries
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -60,33 +63,41 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search: { costCents: 1, displayName: 'Search arXiv papers' },
+      search_papers: { costCents: 1, displayName: 'Search Papers' },
+      get_paper: { costCents: 1, displayName: 'Get Paper' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.search_query || typeof args.search_query !== 'string') {
-    throw new Error('search_query is required (search query (e.g. all:electron))')
+const searchPapers = sg.wrap(async (args: SearchInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
+  const maxResults = Math.min(Math.max(args.max_results ?? 10, 1), 50)
+  const q = encodeURIComponent(args.query)
+  const xml = await arxivFetch(`search_query=all:${q}&start=0&max_results=${maxResults}`)
+  const entries = parseEntries(xml)
+  return { query: args.query, count: entries.length, papers: entries }
+}, { method: 'search_papers' })
 
-  const params: Record<string, string> = {}
-  params['search_query'] = args.search_query
-  if (args.max_results !== undefined) params['max_results'] = String(args.max_results)
-
-  const data = await apiFetch<Record<string, unknown>>('/query', {
-    params,
-  })
-
-  return data
-}, { method: 'search' })
+const getPaper = sg.wrap(async (args: GetPaperInput) => {
+  if (!args.id || typeof args.id !== 'string') {
+    throw new Error('id is required (e.g. "2301.07041")')
+  }
+  const xml = await arxivFetch(`id_list=${encodeURIComponent(args.id)}`)
+  const entries = parseEntries(xml)
+  if (entries.length === 0) {
+    throw new Error(`Paper not found: ${args.id}`)
+  }
+  return entries[0]
+}, { method: 'get_paper' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search }
+export { searchPapers, getPaper }
 
 console.log('settlegrid-arxiv MCP server ready')
-console.log('Methods: search')
+console.log('Methods: search_papers, get_paper')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

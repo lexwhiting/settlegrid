@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-pexels",
   "version": "1.0.0",
-  "description": "MCP server for Pexels with SettleGrid billing. Free stock photos and videos from Pexels",
+  "description": "Search free stock photos and videos from Pexels with SettleGrid billing.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
+    "content",
     "pexels",
     "photos",
-    "stock",
-    "images",
-    "free"
+    "stock"
   ],
   "license": "MIT",
   "repository": {

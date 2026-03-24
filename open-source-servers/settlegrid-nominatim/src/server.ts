@@ -1,21 +1,20 @@
 /**
- * settlegrid-nominatim — OpenStreetMap Nominatim MCP Server
+ * settlegrid-nominatim — OpenStreetMap Geocoding MCP Server
  *
- * Wraps the OpenStreetMap Nominatim API with SettleGrid billing.
- * No API key needed for the upstream service.
+ * Wraps the Nominatim API with SettleGrid billing.
+ * No API key needed. Max 1 req/s.
  *
  * Methods:
- *   search(q)                                (1¢)
- *   reverse(lat, lon)                        (1¢)
+ *   geocode(query)              — Address to coordinates   (1¢)
+ *   reverse_geocode(lat, lon)   — Coordinates to address   (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchInput {
-  q: string
-  limit?: number
+interface GeocodeInput {
+  query: string
 }
 
 interface ReverseInput {
@@ -25,36 +24,15 @@ interface ReverseInput {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://nominatim.openstreetmap.org'
-const USER_AGENT = 'settlegrid-nominatim/1.0 (contact@settlegrid.ai)'
+const NOM_BASE = 'https://nominatim.openstreetmap.org'
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function nomFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${NOM_BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-nominatim/1.0 (contact@settlegrid.ai)' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`OpenStreetMap Nominatim API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Nominatim API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -66,55 +44,57 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search: { costCents: 1, displayName: 'Geocode an address or place name' },
-      reverse: { costCents: 1, displayName: 'Reverse geocode coordinates to address' },
+      geocode: { costCents: 1, displayName: 'Geocode' },
+      reverse_geocode: { costCents: 1, displayName: 'Reverse Geocode' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const search = sg.wrap(async (args: SearchInput) => {
-  if (!args.q || typeof args.q !== 'string') {
-    throw new Error('q is required (address or place name)')
+const geocode = sg.wrap(async (args: GeocodeInput) => {
+  if (!args.query || typeof args.query !== 'string') {
+    throw new Error('query is required')
   }
-
-  const params: Record<string, string> = {}
-  params['q'] = args.q
-  if (args.limit !== undefined) params['limit'] = String(args.limit)
-
-  const data = await apiFetch<Record<string, unknown>>('/search', {
-    params,
-  })
-
-  const items = Array.isArray(data) ? data.slice(0, 50) : [data]
-
-  return { q: args.q, count: items.length, results: items }
-}, { method: 'search' })
-
-const reverse = sg.wrap(async (args: ReverseInput) => {
-  if (typeof args.lat !== 'number' || isNaN(args.lat)) {
-    throw new Error('lat must be a number')
+  const q = encodeURIComponent(args.query)
+  const data = await nomFetch<any[]>(`/search?q=${q}&format=json&limit=5&addressdetails=1`)
+  if (data.length === 0) return { query: args.query, results: [] }
+  return {
+    query: args.query,
+    results: data.map((r: any) => ({
+      lat: parseFloat(r.lat),
+      lon: parseFloat(r.lon),
+      displayName: r.display_name,
+      type: r.type,
+      importance: r.importance,
+      address: r.address,
+    })),
   }
-  if (typeof args.lon !== 'number' || isNaN(args.lon)) {
-    throw new Error('lon must be a number')
+}, { method: 'geocode' })
+
+const reverseGeocode = sg.wrap(async (args: ReverseInput) => {
+  if (typeof args.lat !== 'number' || typeof args.lon !== 'number') {
+    throw new Error('lat and lon must be numbers')
   }
-
-  const params: Record<string, string> = {}
-  params['lat'] = String(args.lat)
-  params['lon'] = String(args.lon)
-
-  const data = await apiFetch<Record<string, unknown>>('/reverse', {
-    params,
-  })
-
-  return data
-}, { method: 'reverse' })
+  if (args.lat < -90 || args.lat > 90 || args.lon < -180 || args.lon > 180) {
+    throw new Error('lat must be -90..90, lon must be -180..180')
+  }
+  const data = await nomFetch<any>(
+    `/reverse?lat=${args.lat}&lon=${args.lon}&format=json&addressdetails=1`
+  )
+  return {
+    lat: args.lat,
+    lon: args.lon,
+    displayName: data.display_name,
+    address: data.address,
+    type: data.type,
+  }
+}, { method: 'reverse_geocode' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { search, reverse }
+export { geocode, reverseGeocode }
 
 console.log('settlegrid-nominatim MCP server ready')
-console.log('Methods: search, reverse')
+console.log('Methods: geocode, reverse_geocode')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')
