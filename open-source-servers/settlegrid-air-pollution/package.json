@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-air-pollution",
+  "version": "1.0.0",
+  "description": "Global air quality measurements from OpenAQ monitoring network.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "air",
+    "pollution",
+    "pm25",
+    "aqi",
+    "environment",
+    "health"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-air-pollution"
+  }
+}

@@ -6,7 +6,7 @@ Password Generator MCP Server with per-call billing via [SettleGrid](https://set
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-password-gen)
 
-Generate secure random passwords — local processing.
+Generate cryptographically secure passwords and passphrases.
 
 ## Quick Start
 
@@ -20,15 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `generate_password(length?, uppercase?, numbers?, symbols?)` | Generate a secure password | 1¢ |
+| `generate(length, options)` | Generate a secure random password | 1¢ |
+| `generate_passphrase(words)` | Generate a random word passphrase | 1¢ |
 
 ## Parameters
 
-### generate_password
-- `length` (number) — Password length (8-128, default 16)
-- `uppercase` (boolean) — Include uppercase (default true)
-- `numbers` (boolean) — Include numbers (default true)
-- `symbols` (boolean) — Include symbols (default true)
+### generate
+- `length` (number, optional)
+- `options` (string, optional)
+
+### generate_passphrase
+- `words` (number, optional)
 
 ## Environment Variables
 
@@ -36,14 +38,14 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream Node.js Crypto API — it is completely free.
 
 ## Upstream API
 
-- **Provider**: Node.js Crypto
-- **Base URL**: https://local
+- **Provider**: Local (crypto)
+- **Base URL**: 
 - **Auth**: None required
-- **Docs**: https://nodejs.org/api/crypto.html
+- **Rate Limits**: N/A (local)
+- **Docs**: 
 
 ## Deploy
 

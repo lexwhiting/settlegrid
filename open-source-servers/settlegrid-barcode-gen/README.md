@@ -6,7 +6,7 @@ Barcode Generator MCP Server with per-call billing via [SettleGrid](https://sett
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-barcode-gen)
 
-Generate barcode image URLs for EAN, UPC, Code128, and QR codes.
+Generate barcodes and QR codes via barcodeapi.org.
 
 ## Quick Start
 
@@ -20,13 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `generate_barcode(data, type?)` | Generate barcode image URL | 1¢ |
+| `generate(data, type)` | Generate a barcode image URL | 1¢ |
+| `generate_qr(data)` | Generate a QR code image URL | 1¢ |
 
 ## Parameters
 
-### generate_barcode
-- `data` (string, required) — Data to encode
-- `type` (string) — Type: 128, ean13, upc, qr (default 128)
+### generate
+- `data` (string, required)
+- `type` (string, optional)
+
+### generate_qr
+- `data` (string, required)
 
 ## Environment Variables
 
@@ -34,13 +38,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
-No API key needed for the upstream BarcodeAPI API — it is completely free.
 
 ## Upstream API
 
-- **Provider**: BarcodeAPI
+- **Provider**: barcodeapi.org
 - **Base URL**: https://barcodeapi.org/api
 - **Auth**: None required
+- **Rate Limits**: Unlimited
 - **Docs**: https://barcodeapi.org/
 
 ## Deploy

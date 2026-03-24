@@ -6,13 +6,13 @@ Electricity Maps MCP Server with per-call billing via [SettleGrid](https://settl
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-electricity-maps)
 
-Global electricity grid CO2 emissions and renewable energy data.
+Real-time carbon intensity and power breakdown by zone via Electricity Maps.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your SettleGrid API key + ELECTRICITYMAP_TOKEN
 npm run dev
 ```
 
@@ -20,25 +20,31 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_zone_carbon(zone)` | Get carbon intensity for zone | 2¢ |
+| `get_carbon_intensity(zone)` | Get real-time carbon intensity for a zone | 2¢ |
+| `get_power_breakdown(zone)` | Get power generation breakdown by source for a zone | 2¢ |
 
 ## Parameters
 
-### get_zone_carbon
-- `zone` (string, required) — Zone code (e.g. US-CAL-CISO, DE, FR)
+### get_carbon_intensity
+- `zone` (string, required)
+
+### get_power_breakdown
+- `zone` (string, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `ELECTRICITYMAPS_API_KEY` | Yes | Electricity Maps API key from [https://api-portal.electricitymaps.com/](https://api-portal.electricitymaps.com/) |
+| `ELECTRICITYMAP_TOKEN` | Yes | Free token from electricitymaps.com |
+
 
 ## Upstream API
 
 - **Provider**: Electricity Maps
 - **Base URL**: https://api.electricitymap.org/v3
-- **Auth**: API key required
+- **Auth**: Free API key required
+- **Rate Limits**: 30 req/hr (free)
 - **Docs**: https://static.electricitymaps.com/api/docs/index.html
 
 ## Deploy
@@ -47,7 +53,7 @@ npm run dev
 
 ```bash
 docker build -t settlegrid-electricity-maps .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-electricity-maps
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e ELECTRICITYMAP_TOKEN=xxx -p 3000:3000 settlegrid-electricity-maps
 ```
 
 ### Vercel

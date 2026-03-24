@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-forest-data",
+  "version": "1.0.0",
+  "description": "Deforestation and forest cover data from Global Forest Watch.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "environment",
+    "forest",
+    "deforestation",
+    "trees",
+    "land-use"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-forest-data"
+  }
+}

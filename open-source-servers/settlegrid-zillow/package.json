@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-zillow",
+  "version": "1.0.0",
+  "description": "Home values and property listings via the Bridge Interactive API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "real-estate",
+    "zillow",
+    "property",
+    "home-value",
+    "housing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-zillow"
+  }
+}

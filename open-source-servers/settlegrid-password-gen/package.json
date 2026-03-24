@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-password-gen",
   "version": "1.0.0",
-  "description": "MCP server for Password Generator with SettleGrid billing. Generate secure random passwords — local processing.",
+  "description": "Generate cryptographically secure passwords and passphrases.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,10 @@
     "settlegrid",
     "mcp",
     "ai",
-    "utility",
     "password",
     "security",
-    "generator"
+    "generator",
+    "crypto"
   ],
   "license": "MIT",
   "repository": {

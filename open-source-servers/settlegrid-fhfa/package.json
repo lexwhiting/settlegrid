@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-fhfa",
+  "version": "1.0.0",
+  "description": "Housing price index data via the FRED API (Federal Reserve).",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "housing",
+    "price-index",
+    "fhfa",
+    "fred",
+    "real-estate",
+    "economics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fhfa"
+  }
+}

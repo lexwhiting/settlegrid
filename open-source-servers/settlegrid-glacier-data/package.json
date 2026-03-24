@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-glacier-data",
+  "version": "1.0.0",
+  "description": "Global glacier monitoring data from NOAA NCEI.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "glacier",
+    "ice",
+    "climate",
+    "noaa",
+    "cryosphere"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-glacier-data"
+  }
+}

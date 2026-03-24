@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-property-tax",
+  "version": "1.0.0",
+  "description": "Property tax and housing affordability data from HUD.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "property-tax",
+    "housing",
+    "affordability",
+    "hud",
+    "government"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-property-tax"
+  }
+}

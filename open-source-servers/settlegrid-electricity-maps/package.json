@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-electricity-maps",
   "version": "1.0.0",
-  "description": "MCP server for Electricity Maps with SettleGrid billing. Global electricity grid CO2 emissions and renewable energy data.",
+  "description": "Real-time carbon intensity and power breakdown by zone via Electricity Maps.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,11 @@
     "settlegrid",
     "mcp",
     "ai",
-    "sustainability",
+    "environment",
+    "energy",
+    "carbon",
     "electricity",
-    "co2",
-    "renewable",
-    "grid"
+    "emissions"
   ],
   "license": "MIT",
   "repository": {

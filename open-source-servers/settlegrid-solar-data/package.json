@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-solar-data",
+  "version": "1.0.0",
+  "description": "Solar irradiance and photovoltaic resource data from NREL.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "solar",
+    "energy",
+    "irradiance",
+    "renewable",
+    "nrel",
+    "photovoltaic"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-solar-data"
+  }
+}

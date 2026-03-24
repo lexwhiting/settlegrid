@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-hash",
+  "version": "1.0.0",
+  "description": "Hash text with SHA-256, SHA-512, MD5, and more.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "hash",
+    "sha256",
+    "md5",
+    "crypto",
+    "utility"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-hash"
+  }
+}

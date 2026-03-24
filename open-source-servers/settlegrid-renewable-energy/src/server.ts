@@ -1,57 +1,90 @@
 /**
- * settlegrid-renewable-energy — Renewable Energy Stats MCP Server
+ * settlegrid-renewable-energy — US EIA Energy Data MCP Server
  *
- * Wraps Open-Meteo solar/wind data with SettleGrid billing.
- * No API key needed.
+ * US Energy Information Administration data on renewable and conventional energy.
  *
  * Methods:
- *   get_solar_potential(lat, lon, days?) — solar data (1¢)
- *   get_wind_potential(lat, lon, days?) — wind data (1¢)
+ *   get_electricity(fuel_type)    — Get electricity generation data by source  (2¢)
+ *   get_total_energy(series)      — Get total energy production and consumption stats  (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
-interface PotentialInput { lat: number; lon: number; days?: number }
+// ─── Types ──────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.open-meteo.com/v1/forecast'
+interface GetElectricityInput {
+  fuel_type?: string
+}
+
+interface GetTotalEnergyInput {
+  series?: string
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const BASE = 'https://api.eia.gov/v2'
+const API_KEY = process.env.EIA_API_KEY ?? ''
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
-  const res = await fetch(url)
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-renewable-energy/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`US EIA Energy Data API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
 
+// ─── SettleGrid Init ────────────────────────────────────────────────────────
+
 const sg = settlegrid.init({
   toolSlug: 'renewable-energy',
   pricing: {
-    defaultCostCents: 1,
+    defaultCostCents: 2,
     methods: {
-      get_solar_potential: { costCents: 1, displayName: 'Solar Potential' },
-      get_wind_potential: { costCents: 1, displayName: 'Wind Potential' },
+      get_electricity: { costCents: 2, displayName: 'Get Electricity Data' },
+      get_total_energy: { costCents: 2, displayName: 'Get Total Energy' },
     },
   },
 })
 
-const getSolarPotential = sg.wrap(async (args: PotentialInput) => {
-  if (typeof args.lat !== 'number' || typeof args.lon !== 'number') throw new Error('lat and lon required')
-  const days = args.days ?? 7
-  const data = await apiFetch<any>(`?latitude=${args.lat}&longitude=${args.lon}&daily=shortwave_radiation_sum,sunshine_duration&hourly=direct_radiation,diffuse_radiation,direct_normal_irradiance&forecast_days=${days}&timezone=auto`)
-  return { location: { lat: data.latitude, lon: data.longitude }, daily: data.daily, hourly_sample: { time: data.hourly?.time?.slice(0, 24), direct: data.hourly?.direct_radiation?.slice(0, 24) } }
-}, { method: 'get_solar_potential' })
+// ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getWindPotential = sg.wrap(async (args: PotentialInput) => {
-  if (typeof args.lat !== 'number' || typeof args.lon !== 'number') throw new Error('lat and lon required')
-  const days = args.days ?? 7
-  const data = await apiFetch<any>(`?latitude=${args.lat}&longitude=${args.lon}&daily=windspeed_10m_max,windgusts_10m_max,winddirection_10m_dominant&hourly=windspeed_10m,windspeed_80m,windspeed_120m,winddirection_10m&forecast_days=${days}&timezone=auto`)
-  return { location: { lat: data.latitude, lon: data.longitude }, daily: data.daily, hourly_sample: { time: data.hourly?.time?.slice(0, 24), speed_80m: data.hourly?.windspeed_80m?.slice(0, 24), speed_120m: data.hourly?.windspeed_120m?.slice(0, 24) } }
-}, { method: 'get_wind_potential' })
+const getElectricity = sg.wrap(async (args: GetElectricityInput) => {
+  const fuel_type = typeof args.fuel_type === 'string' ? args.fuel_type.trim() : ''
+  const data = await apiFetch<any>(`/electricity/electric-power-operational-data/data/?frequency=monthly&data[0]=generation&sort[0][column]=period&sort[0][direction]=desc&length=10&offset=0${fuel_type ? "&facets[fueltypeid][]=" + fuel_type : ""}&api_key=${API_KEY}`)
+  const items = (data.response.data ?? []).slice(0, 10)
+  return {
+    count: items.length,
+    results: items.map((item: any) => ({
+        period: item.period,
+        fueltypeid: item.fueltypeid,
+        generation: item.generation,
+        generation-units: item.generation-units,
+    })),
+  }
+}, { method: 'get_electricity' })
 
-export { getSolarPotential, getWindPotential }
+const getTotalEnergy = sg.wrap(async (args: GetTotalEnergyInput) => {
+  const series = typeof args.series === 'string' ? args.series.trim() : ''
+  const data = await apiFetch<any>(`/total-energy/data/?frequency=monthly&data[0]=value&sort[0][column]=period&sort[0][direction]=desc&length=10${series ? "&facets[msn][]=" + series : ""}&api_key=${API_KEY}`)
+  const items = (data.response.data ?? []).slice(0, 10)
+  return {
+    count: items.length,
+    results: items.map((item: any) => ({
+        period: item.period,
+        msn: item.msn,
+        value: item.value,
+        unit: item.unit,
+    })),
+  }
+}, { method: 'get_total_energy' })
+
+// ─── Exports ────────────────────────────────────────────────────────────────
+
+export { getElectricity, getTotalEnergy }
 
 console.log('settlegrid-renewable-energy MCP server ready')
-console.log('Methods: get_solar_potential, get_wind_potential')
-console.log('Pricing: 1¢ per call | Powered by SettleGrid')
+console.log('Methods: get_electricity, get_total_energy')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')
