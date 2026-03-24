@@ -16,6 +16,7 @@
   "files": [],
   "references": [
     { "path": "apps/web" },
-    { "path": "packages/mcp" }
+    { "path": "packages/mcp" },
+    { "path": "packages/create-settlegrid-tool" }
   ]
 }
