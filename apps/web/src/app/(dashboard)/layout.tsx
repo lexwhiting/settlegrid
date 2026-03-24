@@ -98,6 +98,21 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{email}</p>
             </div>
           )}
+          <Link
+            href="/dashboard/settings"
+            onClick={() => setOpen(false)}
+            className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
+          >
+            Settings
+          </Link>
+          <Link
+            href="/dashboard/discovery"
+            onClick={() => setOpen(false)}
+            className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
+          >
+            Discovery
+          </Link>
+          <div className="border-t border-gray-100 dark:border-[#2E3148]" />
           <button
             type="button"
             onClick={handleSignOut}
@@ -135,7 +150,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 bg-indigo text-white transform transition-all duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto',
+          'fixed inset-y-0 left-0 z-50 bg-indigo text-white transform transition-all duration-200 lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           collapsed ? 'lg:w-16 w-64' : 'w-64'
         )}
@@ -169,8 +184,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
 
-        {/* Nav items */}
-        <nav className="px-2 py-4 space-y-1 pb-24">
+        {/* Nav items — scrollable */}
+        <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
           {devNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
             return (
@@ -269,8 +284,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* Bottom area: collapse toggle + user menu */}
-        <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 bg-indigo">
+        {/* Bottom area: collapse toggle + user menu — fixed at bottom via flex */}
+        <div className="shrink-0 border-t border-white/10">
           {/* Collapse toggle (desktop only) */}
           <div className="hidden lg:block px-2 py-2">
             <button
