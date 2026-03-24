@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -287,10 +288,10 @@ export default function SettingsPage() {
   const [savingNotifications, setSavingNotifications] = useState(false)
 
   // Security form state
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingSecurity, setSavingSecurity] = useState(false)
+  const [authProvider, setAuthProvider] = useState<string | null>(null) // 'email' | 'google' | 'github' etc.
 
   // MFA state
   const [mfaEnrolled, setMfaEnrolled] = useState(false)
@@ -381,6 +382,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchProfile()
+    // Detect auth provider (email vs OAuth)
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const provider = user.app_metadata?.provider ?? user.identities?.[0]?.provider ?? 'email'
+        setAuthProvider(provider)
+      }
+    })
   }, [fetchProfile])
 
   // ─── Subscription result toast ───────────────────────────────────────────────
@@ -648,9 +657,9 @@ export default function SettingsPage() {
     }
   }
 
-  function handleChangePassword() {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast('All password fields are required', 'error')
+  async function handleChangePassword() {
+    if (!newPassword || !confirmPassword) {
+      toast('Please enter and confirm your new password', 'error')
       return
     }
     if (newPassword.length < 8) {
@@ -662,14 +671,21 @@ export default function SettingsPage() {
       return
     }
     setSavingSecurity(true)
-    // Password change handled via Supabase Auth
-    setTimeout(() => {
-      setSavingSecurity(false)
-      setCurrentPassword('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) {
+        toast(error.message || 'Failed to update password', 'error')
+        return
+      }
       setNewPassword('')
       setConfirmPassword('')
-      toast('Password change is handled via Supabase Auth. Use the reset password flow.', 'info')
-    }, 500)
+      toast('Password updated successfully', 'success')
+    } catch {
+      toast('Network error — please try again', 'error')
+    } finally {
+      setSavingSecurity(false)
+    }
   }
 
   async function handleExportData() {
@@ -1247,48 +1263,43 @@ export default function SettingsPage() {
                 {/* Change Password */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Change Password</h4>
-                  <div className="max-w-sm space-y-3">
-                    <div>
-                      <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Current Password
-                      </label>
-                      <Input
-                        id="current-password"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        autoComplete="current-password"
-                      />
+                  {authProvider && authProvider !== 'email' ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      You signed in with <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">{authProvider}</span>. Password management is handled by your OAuth provider.
+                    </p>
+                  ) : (
+                    <div className="max-w-sm space-y-3">
+                      <div>
+                        <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          New Password
+                        </label>
+                        <Input
+                          id="new-password"
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          autoComplete="new-password"
+                          minLength={8}
+                          placeholder="At least 8 characters"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Confirm New Password
+                        </label>
+                        <Input
+                          id="confirm-password"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <Button onClick={handleChangePassword} disabled={savingSecurity} variant="outline">
+                        {savingSecurity ? 'Updating...' : 'Update Password'}
+                      </Button>
                     </div>
-                    <div>
-                      <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        New Password
-                      </label>
-                      <Input
-                        id="new-password"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        autoComplete="new-password"
-                        minLength={8}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Confirm New Password
-                      </label>
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    <Button onClick={handleChangePassword} disabled={savingSecurity} variant="outline">
-                      {savingSecurity ? 'Updating...' : 'Update Password'}
-                    </Button>
-                  </div>
+                  )}
                 </div>
 
                 {/* 2FA */}
