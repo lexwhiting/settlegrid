@@ -14,19 +14,107 @@ export const maxDuration = 60
 
 const SEMVER_RE = /^\d+\.\d+\.\d+$/
 
-const pricingConfigSchema = z.object({
-  model: z.enum(['per_call', 'tiered', 'flat']),
-  perCallCents: z.number().int().min(0).optional(),
-  tiers: z
-    .array(
-      z.object({
-        upTo: z.number().int().min(1),
-        centsPerCall: z.number().int().min(0),
+const VALID_PRICING_MODELS = [
+  'per-invocation',
+  'per-token',
+  'per-byte',
+  'per-second',
+  'tiered',
+  'outcome',
+] as const
+
+const pricingConfigSchema = z
+  .object({
+    model: z.enum(VALID_PRICING_MODELS),
+    defaultCostCents: z.number().int().min(0).optional(),
+    currencyCode: z.string().max(10).default('USD'),
+    costPerToken: z.number().min(0).optional(),
+    costPerMB: z.number().min(0).optional(),
+    costPerSecond: z.number().min(0).optional(),
+    methods: z
+      .record(
+        z.string(),
+        z.object({
+          costCents: z.number().int().min(0),
+          unitType: z.string().max(50).optional(),
+          displayName: z.string().max(200).optional(),
+        })
+      )
+      .optional(),
+    tiers: z
+      .array(
+        z.object({
+          upTo: z.number().int().min(1),
+          costCents: z.number().int().min(0),
+        })
+      )
+      .optional(),
+    outcomeConfig: z
+      .object({
+        successCostCents: z.number().int().min(0),
+        failureCostCents: z.number().int().min(0).default(0),
+        successCondition: z.string().max(500).optional(),
       })
-    )
-    .optional(),
-  flatMonthlyCents: z.number().int().min(0).optional(),
-})
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    switch (data.model) {
+      case 'per-invocation':
+        if (data.defaultCostCents === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'per-invocation model requires defaultCostCents',
+            path: ['defaultCostCents'],
+          })
+        }
+        break
+      case 'per-token':
+        if (data.costPerToken === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'per-token model requires costPerToken',
+            path: ['costPerToken'],
+          })
+        }
+        break
+      case 'per-byte':
+        if (data.costPerMB === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'per-byte model requires costPerMB',
+            path: ['costPerMB'],
+          })
+        }
+        break
+      case 'per-second':
+        if (data.costPerSecond === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'per-second model requires costPerSecond',
+            path: ['costPerSecond'],
+          })
+        }
+        break
+      case 'tiered':
+        if (!data.methods || Object.keys(data.methods).length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'tiered model requires methods object with at least one method',
+            path: ['methods'],
+          })
+        }
+        break
+      case 'outcome':
+        if (!data.outcomeConfig || data.outcomeConfig.successCostCents === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'outcome model requires outcomeConfig with successCostCents',
+            path: ['outcomeConfig'],
+          })
+        }
+        break
+    }
+  })
 
 const createToolSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name too long'),

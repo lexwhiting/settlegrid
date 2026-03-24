@@ -14,10 +14,15 @@ interface ToolData {
   category: string
   currentVersion: string
   pricingConfig: {
+    model?: string
     defaultCostCents?: number
     perCallCents?: number
-    model?: string
-    methods?: Record<string, { costCents: number; displayName?: string }>
+    costPerToken?: number
+    costPerMB?: number
+    costPerSecond?: number
+    methods?: Record<string, { costCents: number; displayName?: string; unitType?: string }>
+    tiers?: { upTo: number; costCents: number }[]
+    outcomeConfig?: { successCostCents: number; failureCostCents?: number; successCondition?: string }
   }
   reviews: {
     id: string
@@ -40,6 +45,18 @@ function formatCents(cents: number): string {
   return cents < 100
     ? `${cents}\u00A2`
     : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+}
+
+function pricingModelLabel(model?: string): string {
+  switch (model) {
+    case 'per-invocation': return 'Per Invocation'
+    case 'per-token': return 'Per Token'
+    case 'per-byte': return 'Per Byte'
+    case 'per-second': return 'Per Second'
+    case 'tiered': return 'Tiered (Per Method)'
+    case 'outcome': return 'Outcome-Based'
+    default: return 'Per Call'
+  }
 }
 
 function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
@@ -136,6 +153,7 @@ export default async function ToolStorefrontPage({
     )
   }
 
+  const pricingModel = tool.pricingConfig.model ?? 'per-invocation'
   const methods = tool.pricingConfig.methods ?? {}
   const methodEntries = Object.entries(methods)
   const reviews = tool.reviews ?? []
@@ -208,21 +226,91 @@ export default async function ToolStorefrontPage({
             {/* Pricing */}
             <div className="md:col-span-2">
               <div className="bg-white dark:bg-[#1A1D2E] rounded-xl border border-gray-200 dark:border-[#2E3148] p-6">
-                <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Pricing</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-indigo dark:text-gray-100">Pricing</h2>
+                  <span className="inline-flex items-center rounded-full bg-brand/10 text-brand-text px-2.5 py-0.5 text-xs font-medium">
+                    {pricingModelLabel(pricingModel)}
+                  </span>
+                </div>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
-                    <span className="text-gray-600 dark:text-gray-400">Default (per call)</span>
-                    <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.defaultCostCents ?? tool.pricingConfig.perCallCents ?? 0)}</span>
-                  </div>
-                  {methodEntries.map(([method, config]) => (
-                    <div key={method} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{method}</code>
-                        {config.displayName && <span className="ml-2 text-gray-500 dark:text-gray-400">{config.displayName}</span>}
-                      </span>
-                      <span className="font-semibold text-brand-text">{formatCents(config.costCents)}</span>
+                  {/* per-invocation */}
+                  {pricingModel === 'per-invocation' && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                      <span className="text-gray-600 dark:text-gray-400">Per call</span>
+                      <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.defaultCostCents ?? 0)}</span>
                     </div>
-                  ))}
+                  )}
+
+                  {/* per-token */}
+                  {pricingModel === 'per-token' && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                      <span className="text-gray-600 dark:text-gray-400">Per 1K tokens</span>
+                      <span className="font-semibold text-brand-text">${((tool.pricingConfig.costPerToken ?? 0) * 1000).toFixed(3)}</span>
+                    </div>
+                  )}
+
+                  {/* per-byte */}
+                  {pricingModel === 'per-byte' && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                      <span className="text-gray-600 dark:text-gray-400">Per MB transferred</span>
+                      <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.costPerMB ?? 0)}</span>
+                    </div>
+                  )}
+
+                  {/* per-second */}
+                  {pricingModel === 'per-second' && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                      <span className="text-gray-600 dark:text-gray-400">Per second of compute</span>
+                      <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.costPerSecond ?? 0)}</span>
+                    </div>
+                  )}
+
+                  {/* tiered — show all methods */}
+                  {pricingModel === 'tiered' && methodEntries.length > 0 && (
+                    <>
+                      {methodEntries.map(([method, config]) => (
+                        <div key={method} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                          <span className="text-gray-600 dark:text-gray-400">
+                            <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{method}</code>
+                            {config.displayName && <span className="ml-2 text-gray-500 dark:text-gray-400">{config.displayName}</span>}
+                          </span>
+                          <span className="font-semibold text-brand-text">{formatCents(config.costCents)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {/* outcome — show success/failure */}
+                  {pricingModel === 'outcome' && tool.pricingConfig.outcomeConfig && (
+                    <>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                        <span className="text-gray-600 dark:text-gray-400">On success</span>
+                        <span className="font-semibold text-brand-text">{formatCents(tool.pricingConfig.outcomeConfig.successCostCents)}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                        <span className="text-gray-600 dark:text-gray-400">On failure</span>
+                        <span className="font-semibold text-gray-500 dark:text-gray-400">{formatCents(tool.pricingConfig.outcomeConfig.failureCostCents ?? 0)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Fallback: show methods for any model that has them (non-tiered) */}
+                  {pricingModel !== 'tiered' && methodEntries.length > 0 && (
+                    <>
+                      <div className="pt-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium uppercase tracking-wider">Method overrides</p>
+                      </div>
+                      {methodEntries.map(([method, config]) => (
+                        <div key={method} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-[#252836]">
+                          <span className="text-gray-600 dark:text-gray-400">
+                            <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{method}</code>
+                            {config.displayName && <span className="ml-2 text-gray-500 dark:text-gray-400">{config.displayName}</span>}
+                          </span>
+                          <span className="font-semibold text-brand-text">{formatCents(config.costCents)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
 

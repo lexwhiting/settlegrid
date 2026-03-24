@@ -19,6 +19,7 @@ export default async function ShowcasePage() {
         tags: tools.tags,
         totalInvocations: tools.totalInvocations,
         currentVersion: tools.currentVersion,
+        pricingConfig: tools.pricingConfig,
         developerName: developers.name,
         developerSlug: developers.slug,
       })
@@ -35,6 +36,7 @@ export default async function ShowcasePage() {
       tags: Array.isArray(r.tags) ? (r.tags as string[]) : null,
       totalInvocations: r.totalInvocations,
       currentVersion: r.currentVersion,
+      pricingConfig: r.pricingConfig as ShowcaseTool['pricingConfig'],
       developerName: r.developerName,
       developerSlug: r.developerSlug ?? null,
     }))

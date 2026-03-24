@@ -5,6 +5,16 @@ import Link from 'next/link'
 
 /* -- Types ----------------------------------------------------------------- */
 
+interface PricingConfig {
+  model?: string
+  defaultCostCents?: number
+  costPerToken?: number
+  costPerMB?: number
+  costPerSecond?: number
+  methods?: Record<string, { costCents: number; displayName?: string }>
+  outcomeConfig?: { successCostCents: number; failureCostCents?: number }
+}
+
 export interface ShowcaseTool {
   name: string
   slug: string
@@ -15,6 +25,7 @@ export interface ShowcaseTool {
   currentVersion: string
   developerName: string | null
   developerSlug: string | null
+  pricingConfig?: PricingConfig | null
 }
 
 /* -- Category labels + colors ---------------------------------------------- */
@@ -41,6 +52,40 @@ function formatInvocations(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return n.toLocaleString()
+}
+
+function formatPricing(pricingConfig?: PricingConfig | null): string | null {
+  if (!pricingConfig || !pricingConfig.model) return null
+  switch (pricingConfig.model) {
+    case 'per-invocation': {
+      const cents = pricingConfig.defaultCostCents ?? 0
+      return cents < 100 ? `${cents}\u00A2/call` : `$${(cents / 100).toFixed(2)}/call`
+    }
+    case 'per-token': {
+      const rate = pricingConfig.costPerToken ?? 0
+      return `$${(rate * 1000).toFixed(3)}/1K tokens`
+    }
+    case 'per-byte': {
+      const cents = pricingConfig.costPerMB ?? 0
+      return cents < 100 ? `${cents}\u00A2/MB` : `$${(cents / 100).toFixed(2)}/MB`
+    }
+    case 'per-second': {
+      const cents = pricingConfig.costPerSecond ?? 0
+      return cents < 100 ? `${cents}\u00A2/sec` : `$${(cents / 100).toFixed(2)}/sec`
+    }
+    case 'tiered': {
+      const methods = pricingConfig.methods
+      if (!methods) return 'Tiered pricing'
+      const lowestCents = Math.min(...Object.values(methods).map((m) => m.costCents))
+      return lowestCents < 100 ? `From ${lowestCents}\u00A2/call` : `From $${(lowestCents / 100).toFixed(2)}/call`
+    }
+    case 'outcome': {
+      const cents = pricingConfig.outcomeConfig?.successCostCents ?? 0
+      return cents < 100 ? `${cents}\u00A2 on success` : `$${(cents / 100).toFixed(2)} on success`
+    }
+    default:
+      return null
+  }
 }
 
 const FEATURED_THRESHOLD = 1_000
@@ -148,6 +193,11 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                       <span className="text-[11px] text-emerald-400/70">
                         {formatInvocations(tool.totalInvocations)} calls
                       </span>
+                      {formatPricing(tool.pricingConfig) && (
+                        <span className="text-[11px] text-amber-400/80 font-medium">
+                          {formatPricing(tool.pricingConfig)}
+                        </span>
+                      )}
                     </div>
                     <span className="text-[11px] text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       View storefront &rarr;
@@ -304,6 +354,11 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                       {tool.totalInvocations > 0 && (
                         <span className="text-[11px] text-gray-500">
                           {formatInvocations(tool.totalInvocations)} calls
+                        </span>
+                      )}
+                      {formatPricing(tool.pricingConfig) && (
+                        <span className="text-[11px] text-amber-400/80 font-medium">
+                          {formatPricing(tool.pricingConfig)}
                         </span>
                       )}
                     </div>
