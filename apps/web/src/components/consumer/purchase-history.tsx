@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,7 +21,8 @@ interface Purchase {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatCents(cents: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+  const safe = Number.isFinite(cents) ? cents : 0
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(safe / 100)
 }
 
 function formatDate(iso: string): string {
@@ -88,12 +90,12 @@ export function PurchaseHistory() {
 
         {purchases.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#252836] flex items-center justify-center mb-3 text-gray-400">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#252836] flex items-center justify-center mb-3 text-gray-400" aria-hidden="true">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
               </svg>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">No purchases yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No purchases yet. Browse the <Link href="/tools" className="text-brand-text hover:underline focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none rounded">tool marketplace</Link> to get started.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -117,7 +119,7 @@ export function PurchaseHistory() {
                       {formatDate(purchase.createdAt)}
                     </td>
                     <td className="py-3 pr-4 font-medium text-indigo dark:text-gray-100">
-                      {purchase.toolName}
+                      {purchase.toolName || 'Unknown Tool'}
                     </td>
                     <td className="py-3 pr-4 text-right tabular-nums text-gray-900 dark:text-gray-100">
                       {formatCents(purchase.amountCents)}
@@ -133,7 +135,8 @@ export function PurchaseHistory() {
                           href={`https://dashboard.stripe.com/payments/${purchase.stripePaymentIntentId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-brand-text hover:underline"
+                          className="text-xs text-brand-text hover:underline focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none rounded"
+                          aria-label={`View receipt for ${purchase.toolName || 'purchase'}`}
                         >
                           View
                         </a>

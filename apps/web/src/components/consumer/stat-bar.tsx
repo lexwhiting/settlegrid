@@ -25,10 +25,11 @@ interface StatBarProps {
 }
 
 function formatCents(cents: number): string {
+  const safe = Number.isFinite(cents) ? cents : 0
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(cents / 100)
+  }).format(safe / 100)
 }
 
 /** Wallet icon */
@@ -187,13 +188,15 @@ export function ConsumerStatBar({ balances, keys }: StatBarProps) {
   ]
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" role="region" aria-label="Consumer dashboard statistics">
       {stats.map((stat) => (
         <div
           key={stat.label}
           className="bg-white dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-5 flex items-start gap-4"
+          role="group"
+          aria-label={`${stat.label}: ${stat.value}`}
         >
-          <div className={`${stat.bgColor} ${stat.color} rounded-lg p-2.5 shrink-0`}>
+          <div className={`${stat.bgColor} ${stat.color} rounded-lg p-2.5 shrink-0`} aria-hidden="true">
             {stat.icon}
           </div>
           <div className="min-w-0">

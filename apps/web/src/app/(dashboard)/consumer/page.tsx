@@ -57,7 +57,8 @@ interface UsageInvocation {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatCents(cents: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+  const safe = Number.isFinite(cents) ? cents : 0
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(safe / 100)
 }
 
 // ─── Chevron Icon ───────────────────────────────────────────────────────────
@@ -396,7 +397,7 @@ export default function ConsumerDashboardPage() {
     return (
       <div className="mt-3 border-t border-gray-100 dark:border-[#252836] pt-3">
         {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div className="bg-gray-50 dark:bg-[#252836]/50 rounded-lg p-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">Total Spend (7d)</p>
             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{formatCents(totalSpendCents)}</p>
@@ -508,15 +509,15 @@ export default function ConsumerDashboardPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => toggleToolExpansion(b.toolId)}
-                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[#252836] transition-colors text-gray-500 dark:text-gray-400"
-                          aria-label={isExpanded ? `Collapse ${b.toolName} details` : `Expand ${b.toolName} details`}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[#252836] transition-colors text-gray-500 dark:text-gray-400 focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none"
+                          aria-label={isExpanded ? `Collapse ${b.toolName || 'tool'} details` : `Expand ${b.toolName || 'tool'} details`}
                           aria-expanded={isExpanded}
                         >
                           <ChevronIcon expanded={isExpanded} />
                         </button>
                         <div>
-                          <span className="font-medium text-indigo dark:text-gray-100">{b.toolName}</span>
-                          <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
+                          <span className="font-medium text-indigo dark:text-gray-100">{b.toolName || 'Unnamed Tool'}</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug || '—'}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -524,7 +525,8 @@ export default function ConsumerDashboardPage() {
                         <span className="font-semibold text-brand-text">{formatCents(b.balanceCents)}</span>
                         <a
                           href={`/tools/${b.toolSlug}`}
-                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors"
+                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:outline-none"
+                          aria-label={`Add credits for ${b.toolName || 'this tool'}`}
                         >
                           Add Credits
                         </a>
@@ -599,7 +601,7 @@ export default function ConsumerDashboardPage() {
               {budgets.map((budget) => (
                 <div key={budget.toolId} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-medium text-indigo dark:text-gray-100">{budget.toolName}</span>
+                    <span className="font-medium text-indigo dark:text-gray-100">{budget.toolName || 'Unnamed Tool'}</span>
                     <Button
                       variant="outline"
                       size="sm"
@@ -620,7 +622,7 @@ export default function ConsumerDashboardPage() {
                             min="0"
                             value={budgetForm.spendingLimitCents}
                             onChange={(e) => setBudgetForm({ ...budgetForm, spendingLimitCents: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                           />
                         </div>
                         <div>
@@ -629,7 +631,7 @@ export default function ConsumerDashboardPage() {
                             id={`period-${budget.toolId}`}
                             value={budgetForm.period}
                             onChange={(e) => setBudgetForm({ ...budgetForm, period: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                           >
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
@@ -645,7 +647,7 @@ export default function ConsumerDashboardPage() {
                             max="100"
                             value={budgetForm.alertThresholdPercent}
                             onChange={(e) => setBudgetForm({ ...budgetForm, alertThresholdPercent: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                           />
                         </div>
                       </div>
@@ -669,7 +671,7 @@ export default function ConsumerDashboardPage() {
                       </div>
                       <div>
                         <dt className="text-xs text-gray-500 dark:text-gray-400">Current Spend</dt>
-                        <dd className={`font-medium ${budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                        <dd className={`font-medium ${budget.spendingLimitCents > 0 && budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                           {formatCents(budget.currentSpendCents)}
                         </dd>
                       </div>
@@ -679,10 +681,10 @@ export default function ConsumerDashboardPage() {
                   {/* Spend progress bar */}
                   {editingBudget !== budget.toolId && budget.spendingLimitCents > 0 && (
                     <div className="mt-3">
-                      <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2">
+                      <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2" role="progressbar" aria-valuenow={Math.min(100, Math.round((budget.currentSpendCents / budget.spendingLimitCents) * 100))} aria-valuemin={0} aria-valuemax={100} aria-label={`Budget usage: ${Math.min(100, Math.round((budget.currentSpendCents / budget.spendingLimitCents) * 100))}%`}>
                         <div
                           className={`h-2 rounded-full transition-all ${
-                            budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'bg-red-50 dark:bg-red-900/200' : 'bg-brand'
+                            budget.currentSpendCents / budget.spendingLimitCents > 0.8 ? 'bg-red-500 dark:bg-red-500' : 'bg-brand'
                           }`}
                           style={{ width: `${Math.min(100, (budget.currentSpendCents / budget.spendingLimitCents) * 100)}%` }}
                         />
@@ -717,7 +719,7 @@ export default function ConsumerDashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {key.status === 'active' && (
-                          <Button variant="destructive" size="sm" onClick={() => revokeKey(key.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => revokeKey(key.id)} aria-label={`Revoke API key ${key.keyPrefix}`}>
                             Revoke
                           </Button>
                         )}
@@ -738,6 +740,7 @@ export default function ConsumerDashboardPage() {
                             size="sm"
                             onClick={() => setAddingIpForKey(addingIpForKey === key.id ? null : key.id)}
                             className="text-xs h-7 px-2"
+                            aria-label={addingIpForKey === key.id ? 'Cancel adding IP' : `Add IP restriction for key ${key.keyPrefix}`}
                           >
                             {addingIpForKey === key.id ? 'Cancel' : '+ Add IP'}
                           </Button>
@@ -750,7 +753,7 @@ export default function ConsumerDashboardPage() {
                               placeholder="e.g. 192.168.1.0/24"
                               value={newIp}
                               onChange={(e) => setNewIp(e.target.value)}
-                              className="flex h-8 flex-1 rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-2 py-1 text-xs focus:ring-2 focus:ring-brand"
+                              className="flex h-8 flex-1 rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-2 py-1 text-xs text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                               aria-label="IP address or CIDR range"
                             />
                             <Button size="sm" className="h-8 text-xs" onClick={() => addIp(key.id)} disabled={savingIp}>
@@ -766,7 +769,7 @@ export default function ConsumerDashboardPage() {
                                 {ip}
                                 <button
                                   onClick={() => removeIp(key.id, ip)}
-                                  className="text-gray-500 dark:text-gray-400 hover:text-red-500 ml-0.5"
+                                  className="text-gray-500 dark:text-gray-400 hover:text-red-500 ml-0.5 rounded focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none"
                                   aria-label={`Remove IP ${ip}`}
                                 >
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

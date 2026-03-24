@@ -27,10 +27,11 @@ interface AnalyticsData {
 }
 
 function formatCents(cents: number): string {
+  const safe = Number.isFinite(cents) ? cents : 0
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(cents / 100)
+  }).format(safe / 100)
 }
 
 function formatDateShort(dateStr: string): string {
@@ -163,12 +164,14 @@ export function UsageAnalytics() {
   return (
     <div className="space-y-6">
       {/* Period selector */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" role="group" aria-label="Select analytics time period">
         {(['7d', '30d', '90d'] as const).map((p) => (
           <button
             key={p}
             onClick={() => handlePeriodChange(p)}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+            aria-pressed={period === p}
+            aria-label={`Show ${p === '7d' ? '7 day' : p === '30d' ? '30 day' : '90 day'} analytics`}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none ${
               period === p
                 ? 'bg-emerald-600 text-white'
                 : 'bg-gray-100 dark:bg-[#252836] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#2E3148]'
@@ -207,7 +210,15 @@ export function UsageAnalytics() {
             </CardContent>
           </Card>
         </div>
-      ) : data ? (
+      ) : !data ? (
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+              No analytics data available. Usage data will appear here after your first API call.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
         <>
           {/* Daily Spend Chart */}
           <Card>
@@ -220,7 +231,7 @@ export function UsageAnalytics() {
                   No usage data for this period.
                 </p>
               ) : (
-                <div className="relative">
+                <div className="relative" role="img" aria-label="Daily spend bar chart">
                   {/* Bar chart */}
                   <div className="flex items-end gap-px" style={{ height: 200 }}>
                     {data.dailyTrend.map((day, idx) => {
@@ -363,7 +374,7 @@ export function UsageAnalytics() {
             </CardContent>
           </Card>
         </>
-      ) : null}
+      )}
     </div>
   )
 }
