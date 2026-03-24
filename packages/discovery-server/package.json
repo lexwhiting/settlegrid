@@ -1,0 +1,60 @@
+{
+  "name": "@settlegrid/discovery",
+  "version": "1.0.0",
+  "description": "MCP Discovery Server — AI agents connect to discover and evaluate monetized tools on the SettleGrid marketplace.",
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "discovery",
+    "ai-tools",
+    "model-context-protocol",
+    "mcp-server",
+    "tool-discovery",
+    "ai-marketplace"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/discovery-server"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "settlegrid-discovery": "./dist/server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

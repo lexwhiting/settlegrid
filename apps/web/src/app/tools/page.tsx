@@ -1,32 +1,43 @@
 import Link from 'next/link'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { ShowcaseSearch } from '@/components/showcase-search'
+import type { ShowcaseTool } from '@/components/showcase-search'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 
 export default async function ShowcasePage() {
-  let activeTools: {
-    name: string
-    slug: string
-    description: string | null
-    category: string | null
-    developerName: string | null
-  }[] = []
+  let activeTools: ShowcaseTool[] = []
 
   try {
-    activeTools = await db
+    const rows = await db
       .select({
         name: tools.name,
         slug: tools.slug,
         description: tools.description,
         category: tools.category,
+        tags: tools.tags,
+        totalInvocations: tools.totalInvocations,
+        currentVersion: tools.currentVersion,
         developerName: developers.name,
+        developerSlug: developers.slug,
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
       .where(eq(tools.status, 'active'))
       .orderBy(desc(tools.createdAt))
-      .limit(20)
+
+    activeTools = rows.map((r) => ({
+      name: r.name,
+      slug: r.slug,
+      description: r.description,
+      category: r.category,
+      tags: Array.isArray(r.tags) ? (r.tags as string[]) : null,
+      totalInvocations: r.totalInvocations,
+      currentVersion: r.currentVersion,
+      developerName: r.developerName,
+      developerSlug: r.developerSlug ?? null,
+    }))
   } catch {
     // DB unavailable — show empty state gracefully
   }
@@ -41,6 +52,9 @@ export default async function ShowcasePage() {
           <div className="flex items-center gap-4">
             <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Docs
+            </Link>
+            <Link href="/servers" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
+              Servers
             </Link>
             <Link href="/learn" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Learn
@@ -70,41 +84,9 @@ export default async function ShowcasePage() {
             </p>
           </div>
 
-          {/* Showcase Grid */}
+          {/* Showcase: search + filter + featured + grid (client component) */}
           {activeTools.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-              {activeTools.map((tool) => (
-                <Link
-                  key={tool.slug}
-                  href={`/tools/${tool.slug}`}
-                  className="group rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-6 hover:border-emerald-500/40 transition-all"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors">
-                      {tool.name}
-                    </h3>
-                    {tool.category && (
-                      <span className="inline-flex items-center rounded-full bg-brand/10 text-brand-text px-2 py-0.5 text-xs font-semibold shrink-0 ml-2">
-                        {tool.category}
-                      </span>
-                    )}
-                  </div>
-                  {/* Developer name hidden until multiple creators are on the platform */}
-                  {tool.description && (
-                    <p className="text-sm text-gray-400 leading-relaxed mb-4 line-clamp-2">
-                      {tool.description.length > 100
-                        ? `${tool.description.slice(0, 100)}...`
-                        : tool.description}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-end pt-3 border-t border-[#252836]">
-                    <span className="text-xs text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      View storefront &rarr;
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <ShowcaseSearch tools={activeTools} />
           ) : (
             <div className="rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-12 text-center mb-20">
               <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">

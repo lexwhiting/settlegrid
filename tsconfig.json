@@ -17,6 +17,7 @@
   "references": [
     { "path": "apps/web" },
     { "path": "packages/mcp" },
-    { "path": "packages/create-settlegrid-tool" }
+    { "path": "packages/create-settlegrid-tool" },
+    { "path": "packages/discovery-server" }
   ]
 }

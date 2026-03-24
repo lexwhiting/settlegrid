@@ -129,5 +129,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly',
       priority: 0.4,
     },
+
+    // ── Discovery API (public, no auth) ────────────────────────────────────
+    {
+      url: `${BASE_URL}/api/v1/discover`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/api/v1/discover/categories`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.5,
+    },
   ]
 }

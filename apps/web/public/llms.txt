@@ -57,9 +57,36 @@ const billedHandler = sg.wrap(myHandler, { method: 'search' })
 - **Scale**: $79/month — 2,000,000 ops/month, fraud detection, audit logging
 - Need higher limits? Email support@settlegrid.ai
 
+## Discovery API (Public, No Auth)
+
+AI agents and directories can discover SettleGrid-powered tools programmatically:
+
+- `GET https://settlegrid.ai/api/v1/discover?q=weather&category=data&limit=20` — Search tools
+- `GET https://settlegrid.ai/api/v1/discover/{slug}` — Get tool details (pricing, reviews, changelog, quick start)
+- `GET https://settlegrid.ai/api/v1/discover/categories` — List categories with counts
+- `GET https://settlegrid.ai/api/v1/discover/developers/{slug}` — Developer profile + tools
+
+### MCP Discovery Server
+
+Connect the SettleGrid Discovery Server in your MCP client to discover monetized tools:
+
+```json
+{
+  "mcpServers": {
+    "settlegrid-discovery": {
+      "command": "npx",
+      "args": ["@settlegrid/discovery"]
+    }
+  }
+}
+```
+
+Available tools: `search_tools`, `get_tool`, `list_categories`, `get_developer`
+
 ## Links
 
 - [Documentation](https://settlegrid.ai/docs)
+- [Discovery API](https://settlegrid.ai/api/v1/discover)
 - [API Reference](https://settlegrid.ai/api/openapi.json)
 - [npm](https://www.npmjs.com/package/@settlegrid/mcp)
 - [GitHub](https://github.com/lexwhiting/settlegrid)
