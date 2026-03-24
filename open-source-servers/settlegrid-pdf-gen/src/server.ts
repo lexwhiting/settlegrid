@@ -22,18 +22,7 @@ interface FromHtmlInput {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://api.html2pdf.app/v1/generate'
-
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': 'settlegrid-pdf-gen/1.0' },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`PDF Generator API ${res.status}: ${body.slice(0, 200)}`)
-  }
-  return res.json() as Promise<T>
-}
+const PDF_BASE = 'https://api.html2pdf.app/v1/generate'
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
@@ -53,19 +42,17 @@ const sg = settlegrid.init({
 const fromUrl = sg.wrap(async (args: FromUrlInput) => {
   if (!args.url || typeof args.url !== 'string') throw new Error('url is required')
   const url = args.url.trim()
-  const data = await apiFetch<any>(`?url=${encodeURIComponent(url)}&apiKey=free`)
-  return {
-    pdfUrl: data.pdfUrl,
-  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) throw new Error('url must start with http:// or https://')
+  const pdfUrl = `${PDF_BASE}?url=${encodeURIComponent(url)}&apiKey=free`
+  return { pdfUrl, sourceUrl: url, format: 'pdf' }
 }, { method: 'from_url' })
 
 const fromHtml = sg.wrap(async (args: FromHtmlInput) => {
   if (!args.html || typeof args.html !== 'string') throw new Error('html is required')
   const html = args.html.trim()
-  const data = await apiFetch<any>(`?html=${encodeURIComponent(html)}&apiKey=free`)
-  return {
-    pdfUrl: data.pdfUrl,
-  }
+  if (html.length > 50000) throw new Error('html must be under 50,000 characters')
+  const pdfUrl = `${PDF_BASE}?html=${encodeURIComponent(html)}&apiKey=free`
+  return { pdfUrl, htmlLength: html.length, format: 'pdf' }
 }, { method: 'from_html' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

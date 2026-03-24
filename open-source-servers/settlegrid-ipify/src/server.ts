@@ -12,27 +12,21 @@ import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface GetIpv4Input {
+interface GetIpv4Input {}
 
-}
-
-interface GetIpv6Input {
-
-}
+interface GetIpv6Input {}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://api.ipify.org'
-
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+async function ipFetch(url: string): Promise<{ ip: string }> {
+  const res = await fetch(url, {
     headers: { 'User-Agent': 'settlegrid-ipify/1.0' },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`ipify API ${res.status}: ${body.slice(0, 200)}`)
   }
-  return res.json() as Promise<T>
+  return res.json() as Promise<{ ip: string }>
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -50,20 +44,14 @@ const sg = settlegrid.init({
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getIpv4 = sg.wrap(async (args: GetIpv4Input) => {
-
-  const data = await apiFetch<any>(`/?format=json`)
-  return {
-    ip: data.ip,
-  }
+const getIpv4 = sg.wrap(async (_args: GetIpv4Input) => {
+  const data = await ipFetch('https://api.ipify.org?format=json')
+  return { ip: data.ip, version: 'ipv4' }
 }, { method: 'get_ipv4' })
 
-const getIpv6 = sg.wrap(async (args: GetIpv6Input) => {
-
-  const data = await apiFetch<any>(`/__ipv6__`)
-  return {
-    ip: data.ip,
-  }
+const getIpv6 = sg.wrap(async (_args: GetIpv6Input) => {
+  const data = await ipFetch('https://api64.ipify.org?format=json')
+  return { ip: data.ip, version: 'ipv6' }
 }, { method: 'get_ipv6' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

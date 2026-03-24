@@ -28,17 +28,11 @@ interface GetSvgInput {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://placehold.co'
+const PLACEHOLD_BASE = 'https://placehold.co'
+const MAX_DIM = 4000
 
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': 'settlegrid-placeholder/1.0' },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Placeholder Images API ${res.status}: ${body.slice(0, 200)}`)
-  }
-  return res.json() as Promise<T>
+function clampDim(v: number): number {
+  return Math.min(Math.max(Math.round(v), 1), MAX_DIM)
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -58,32 +52,28 @@ const sg = settlegrid.init({
 
 const getImage = sg.wrap(async (args: GetImageInput) => {
   if (typeof args.width !== 'number') throw new Error('width is required and must be a number')
-  const width = args.width
   if (typeof args.height !== 'number') throw new Error('height is required and must be a number')
-  const height = args.height
+  const w = clampDim(args.width)
+  const h = clampDim(args.height)
+  const bg = typeof args.bg === 'string' ? args.bg.trim().replace(/[^a-fA-F0-9]/g, '') : ''
+  const color = typeof args.color === 'string' ? args.color.trim().replace(/[^a-fA-F0-9]/g, '') : ''
   const text = typeof args.text === 'string' ? args.text.trim() : ''
-  const bg = typeof args.bg === 'string' ? args.bg.trim() : ''
-  const color = typeof args.color === 'string' ? args.color.trim() : ''
-  const data = await apiFetch<any>(`/${width}x${height}/${encodeURIComponent(bg)}/${encodeURIComponent(color)}?text=${encodeURIComponent(text)}`)
-  return {
-    url: data.url,
-    width: data.width,
-    height: data.height,
-  }
+  let url = `${PLACEHOLD_BASE}/${w}x${h}`
+  if (bg) url += `/${bg}`
+  if (bg && color) url += `/${color}`
+  if (text) url += `?text=${encodeURIComponent(text)}`
+  return { url, width: w, height: h, format: 'png' }
 }, { method: 'get_image' })
 
 const getSvg = sg.wrap(async (args: GetSvgInput) => {
   if (typeof args.width !== 'number') throw new Error('width is required and must be a number')
-  const width = args.width
   if (typeof args.height !== 'number') throw new Error('height is required and must be a number')
-  const height = args.height
+  const w = clampDim(args.width)
+  const h = clampDim(args.height)
   const text = typeof args.text === 'string' ? args.text.trim() : ''
-  const data = await apiFetch<any>(`/${width}x${height}.svg?text=${encodeURIComponent(text)}`)
-  return {
-    url: data.url,
-    width: data.width,
-    height: data.height,
-  }
+  let url = `${PLACEHOLD_BASE}/${w}x${h}.svg`
+  if (text) url += `?text=${encodeURIComponent(text)}`
+  return { url, width: w, height: h, format: 'svg' }
 }, { method: 'get_svg' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

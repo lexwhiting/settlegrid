@@ -17,24 +17,21 @@ interface GenerateInput {
   style?: string
 }
 
-interface GetStylesInput {
-
-}
+interface GetStylesInput {}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://api.dicebear.com/7.x'
+const DICEBEAR_BASE = 'https://api.dicebear.com/7.x'
 
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': 'settlegrid-avatar/1.0' },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`DiceBear Avatars API ${res.status}: ${body.slice(0, 200)}`)
-  }
-  return res.json() as Promise<T>
-}
+const AVAILABLE_STYLES = [
+  'adventurer', 'adventurer-neutral', 'avataaars', 'avataaars-neutral',
+  'big-ears', 'big-ears-neutral', 'big-smile', 'bottts', 'bottts-neutral',
+  'croodles', 'croodles-neutral', 'dylan', 'fun-emoji', 'glass',
+  'icons', 'identicon', 'initials', 'lorelei', 'lorelei-neutral',
+  'micah', 'miniavs', 'notionists', 'notionists-neutral',
+  'open-peeps', 'personas', 'pixel-art', 'pixel-art-neutral',
+  'rings', 'shapes', 'thumbs',
+]
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
@@ -54,21 +51,15 @@ const sg = settlegrid.init({
 const generate = sg.wrap(async (args: GenerateInput) => {
   if (!args.seed || typeof args.seed !== 'string') throw new Error('seed is required')
   const seed = args.seed.trim()
-  const style = typeof args.style === 'string' ? args.style.trim() : ''
-  const data = await apiFetch<any>(`/${encodeURIComponent(style)}/svg?seed=${encodeURIComponent(seed)}`)
-  return {
-    url: data.url,
-    seed: data.seed,
-    style: data.style,
-  }
+  const style = typeof args.style === 'string' && AVAILABLE_STYLES.includes(args.style.trim())
+    ? args.style.trim()
+    : 'identicon'
+  const url = `${DICEBEAR_BASE}/${style}/svg?seed=${encodeURIComponent(seed)}`
+  return { url, seed, style, format: 'svg' }
 }, { method: 'generate' })
 
-const getStyles = sg.wrap(async (args: GetStylesInput) => {
-
-  const data = await apiFetch<any>(`/__local__/get_styles`)
-  return {
-    styles: data.styles,
-  }
+const getStyles = sg.wrap(async (_args: GetStylesInput) => {
+  return { styles: AVAILABLE_STYLES, count: AVAILABLE_STYLES.length }
 }, { method: 'get_styles' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

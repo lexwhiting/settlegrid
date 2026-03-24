@@ -29,16 +29,31 @@ interface SearchSubredditInput {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://www.reddit.com'
+const VALID_SORTS = ['hot', 'new', 'top', 'rising']
 
-async function apiFetch<T>(path: string): Promise<T> {
+async function redditFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': 'settlegrid-reddit-news/1.0' },
+    headers: { 'User-Agent': 'settlegrid-reddit-news/1.0 (contact@settlegrid.ai)' },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Reddit News API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Reddit API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
+}
+
+function mapPost(child: any) {
+  const d = child.data
+  return {
+    title: d.title,
+    url: d.url,
+    permalink: `https://www.reddit.com${d.permalink}`,
+    score: d.score,
+    num_comments: d.num_comments,
+    author: d.author,
+    created_utc: d.created_utc,
+    subreddit: d.subreddit,
+  }
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -58,42 +73,27 @@ const sg = settlegrid.init({
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
 const getNews = sg.wrap(async (args: GetNewsInput) => {
-  const sort = typeof args.sort === 'string' ? args.sort.trim() : ''
-  const data = await apiFetch<any>(`/r/news/${encodeURIComponent(sort)}.json?limit=15`)
-  const items = (data.data.children ?? []).slice(0, 15)
-  return {
-    count: items.length,
-    results: items.map((item: any) => ({
-        data: item.data,
-    })),
-  }
+  const sort = typeof args.sort === 'string' && VALID_SORTS.includes(args.sort.trim()) ? args.sort.trim() : 'hot'
+  const data = await redditFetch<any>(`/r/news/${sort}.json?limit=15`)
+  const posts = (data.data?.children ?? []).slice(0, 15).map(mapPost)
+  return { subreddit: 'news', sort, count: posts.length, posts }
 }, { method: 'get_news' })
 
 const getWorldnews = sg.wrap(async (args: GetWorldnewsInput) => {
-  const sort = typeof args.sort === 'string' ? args.sort.trim() : ''
-  const data = await apiFetch<any>(`/r/worldnews/${encodeURIComponent(sort)}.json?limit=15`)
-  const items = (data.data.children ?? []).slice(0, 15)
-  return {
-    count: items.length,
-    results: items.map((item: any) => ({
-        data: item.data,
-    })),
-  }
+  const sort = typeof args.sort === 'string' && VALID_SORTS.includes(args.sort.trim()) ? args.sort.trim() : 'hot'
+  const data = await redditFetch<any>(`/r/worldnews/${sort}.json?limit=15`)
+  const posts = (data.data?.children ?? []).slice(0, 15).map(mapPost)
+  return { subreddit: 'worldnews', sort, count: posts.length, posts }
 }, { method: 'get_worldnews' })
 
 const searchSubreddit = sg.wrap(async (args: SearchSubredditInput) => {
   if (!args.subreddit || typeof args.subreddit !== 'string') throw new Error('subreddit is required')
-  const subreddit = args.subreddit.trim()
   if (!args.q || typeof args.q !== 'string') throw new Error('q is required')
+  const subreddit = args.subreddit.trim().replace(/[^a-zA-Z0-9_]/g, '')
   const q = args.q.trim()
-  const data = await apiFetch<any>(`/r/${encodeURIComponent(subreddit)}/search.json?q=${encodeURIComponent(q)}&restrict_sr=1&limit=10`)
-  const items = (data.data.children ?? []).slice(0, 10)
-  return {
-    count: items.length,
-    results: items.map((item: any) => ({
-        data: item.data,
-    })),
-  }
+  const data = await redditFetch<any>(`/r/${subreddit}/search.json?q=${encodeURIComponent(q)}&restrict_sr=1&limit=10`)
+  const posts = (data.data?.children ?? []).slice(0, 10).map(mapPost)
+  return { subreddit, query: q, count: posts.length, posts }
 }, { method: 'search_subreddit' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

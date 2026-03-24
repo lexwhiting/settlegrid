@@ -23,18 +23,8 @@ interface GenerateQrInput {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://barcodeapi.org/api'
-
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': 'settlegrid-barcode-gen/1.0' },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Barcode Generator API ${res.status}: ${body.slice(0, 200)}`)
-  }
-  return res.json() as Promise<T>
-}
+const BARCODE_BASE = 'https://barcodeapi.org/api'
+const VALID_TYPES = ['128', '39', 'ean13', 'ean8', 'upca', 'upce', 'itf', 'codabar', 'qr', 'datamatrix', 'pdf417']
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
@@ -53,24 +43,19 @@ const sg = settlegrid.init({
 
 const generate = sg.wrap(async (args: GenerateInput) => {
   if (!args.data || typeof args.data !== 'string') throw new Error('data is required')
-  const data = args.data.trim()
-  const type = typeof args.type === 'string' ? args.type.trim() : ''
-  const data = await apiFetch<any>(`/${encodeURIComponent(type)}/${encodeURIComponent(data)}`)
-  return {
-    url: data.url,
-    type: data.type,
-    data: data.data,
-  }
+  const barcodeData = args.data.trim()
+  const barcodeType = typeof args.type === 'string' && VALID_TYPES.includes(args.type.trim().toLowerCase())
+    ? args.type.trim().toLowerCase()
+    : '128'
+  const url = `${BARCODE_BASE}/${barcodeType}/${encodeURIComponent(barcodeData)}`
+  return { url, type: barcodeType, data: barcodeData, format: 'png' }
 }, { method: 'generate' })
 
 const generateQr = sg.wrap(async (args: GenerateQrInput) => {
   if (!args.data || typeof args.data !== 'string') throw new Error('data is required')
-  const data = args.data.trim()
-  const data = await apiFetch<any>(`/qr/${encodeURIComponent(data)}`)
-  return {
-    url: data.url,
-    data: data.data,
-  }
+  const qrData = args.data.trim()
+  const url = `${BARCODE_BASE}/qr/${encodeURIComponent(qrData)}`
+  return { url, data: qrData, format: 'png' }
 }, { method: 'generate_qr' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

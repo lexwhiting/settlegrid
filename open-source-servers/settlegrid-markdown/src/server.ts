@@ -22,18 +22,7 @@ interface RenderRawInput {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://api.github.com'
-
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'User-Agent': 'settlegrid-markdown/1.0' },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Markdown Renderer API ${res.status}: ${body.slice(0, 200)}`)
-  }
-  return res.json() as Promise<T>
-}
+const GH_BASE = 'https://api.github.com'
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
@@ -52,20 +41,40 @@ const sg = settlegrid.init({
 
 const render = sg.wrap(async (args: RenderInput) => {
   if (!args.text || typeof args.text !== 'string') throw new Error('text is required')
-  const text = args.text.trim()
-  const data = await apiFetch<any>(`/markdown`)
-  return {
-    html: data.html,
+  const res = await fetch(`${GH_BASE}/markdown`, {
+    method: 'POST',
+    headers: {
+      'User-Agent': 'settlegrid-markdown/1.0',
+      'Content-Type': 'application/json',
+      Accept: 'application/vnd.github+json',
+    },
+    body: JSON.stringify({ text: args.text, mode: 'markdown' }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`GitHub Markdown API ${res.status}: ${body.slice(0, 200)}`)
   }
+  const html = await res.text()
+  return { html, length: html.length }
 }, { method: 'render' })
 
 const renderRaw = sg.wrap(async (args: RenderRawInput) => {
   if (!args.text || typeof args.text !== 'string') throw new Error('text is required')
-  const text = args.text.trim()
-  const data = await apiFetch<any>(`/markdown/raw`)
-  return {
-    html: data.html,
+  const res = await fetch(`${GH_BASE}/markdown/raw`, {
+    method: 'POST',
+    headers: {
+      'User-Agent': 'settlegrid-markdown/1.0',
+      'Content-Type': 'text/plain',
+      Accept: 'application/vnd.github+json',
+    },
+    body: args.text,
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`GitHub Markdown API ${res.status}: ${body.slice(0, 200)}`)
   }
+  const html = await res.text()
+  return { html, length: html.length }
 }, { method: 'render_raw' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
