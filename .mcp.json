@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "settlegrid-discovery": {
+      "command": "npx",
+      "args": ["@settlegrid/discovery"],
+      "description": "Discover monetized AI tools on SettleGrid. Search by category, get pricing, find developers.",
+      "env": {
+        "SETTLEGRID_API_URL": "https://settlegrid.ai"
+      }
+    }
+  }
+}
