@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 import path from 'path'
 
 const nextConfig: NextConfig = {
@@ -7,4 +8,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['postgres'],
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  // Suppresses all Sentry SDK build logs
+  silent: true,
+  // Disable source map uploads when no DSN is configured
+  sourcemaps: {
+    disable: !process.env.SENTRY_DSN,
+  },
+})

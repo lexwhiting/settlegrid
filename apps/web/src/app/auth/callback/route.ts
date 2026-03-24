@@ -3,9 +3,20 @@ import { createServerClient } from '@supabase/ssr'
 import { db } from '@/lib/db'
 import { developers, consumers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { welcomeDeveloperEmail, welcomeConsumerEmail, sendEmail } from '@/lib/email'
+import { welcomeDeveloperEmail, welcomeConsumerEmail, newSignupNotificationEmail, sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
+
+const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
+
+function notifyAdminsOfSignup(type: 'developer' | 'consumer', email: string, name: string | null) {
+  const template = newSignupNotificationEmail(type, email, name, new Date().toISOString())
+  ADMIN_EMAILS.forEach((adminEmail) => {
+    sendEmail({ to: adminEmail, subject: template.subject, html: template.html }).catch((err) => {
+      logger.error('auth.admin_notify_failed', { adminEmail, signupEmail: email, type }, err)
+    })
+  })
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
@@ -86,6 +97,9 @@ export async function GET(request: NextRequest) {
           sendEmail({ to: email, subject: template.subject, html: template.html }).catch((err) => {
             logger.error('auth.welcome_email_failed', { email }, err)
           })
+
+          // Notify admins of new developer signup
+          notifyAdminsOfSignup('developer', email, name)
         }
       } else {
         developerId = existing.id
@@ -136,6 +150,9 @@ export async function GET(request: NextRequest) {
           sendEmail({ to: email, subject: consumerTemplate.subject, html: consumerTemplate.html }).catch((err) => {
             logger.error('auth.welcome_consumer_email_failed', { email }, err)
           })
+
+          // Notify admins of new consumer signup
+          notifyAdminsOfSignup('consumer', email, null)
         }
       }
     } catch (dbErr) {

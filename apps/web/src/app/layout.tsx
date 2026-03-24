@@ -3,6 +3,8 @@ import { Outfit } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { SonnerToaster } from '@/components/sonner-toaster'
 import { HelpChatWidget } from '@/components/help-chat/help-chat-widget'
+import { PostHogProvider } from '@/components/posthog-provider'
+import { PostHogPageView } from '@/components/posthog-pageview'
 import './globals.css'
 
 const outfit = Outfit({
@@ -65,11 +67,14 @@ export default function RootLayout({
         <meta name="ai.keywords" content="MCP monetization, AI agent payments, settlement layer, per-call billing, Model Context Protocol, budget enforcement, usage metering, AI commerce, x402, AP2" />
       </head>
       <body className="font-sans antialiased bg-white text-indigo dark:bg-[#0F1117] dark:text-gray-100">
-        <ThemeProvider>
-          {children}
-          <SonnerToaster />
-          <HelpChatWidget />
-        </ThemeProvider>
+        <PostHogProvider>
+          <ThemeProvider>
+            <PostHogPageView />
+            {children}
+            <SonnerToaster />
+            <HelpChatWidget />
+          </ThemeProvider>
+        </PostHogProvider>
       </body>
     </html>
   )

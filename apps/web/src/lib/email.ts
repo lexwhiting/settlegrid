@@ -308,6 +308,38 @@ ${ctaButton('Explore Tools', 'https://settlegrid.ai/consumer')}
   }
 }
 
+export function newSignupNotificationEmail(
+  type: 'developer' | 'consumer',
+  email: string,
+  name: string | null,
+  createdAt: string,
+): EmailTemplate {
+  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1)
+  const displayName = name ? escapeHtml(name) : 'N/A'
+  const formattedDate = new Date(createdAt).toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+
+  return {
+    subject: sanitizeSubject(`New ${type} signup: ${email}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">New ${typeLabel} Signup</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A new ${type} just signed up on SettleGrid.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">Email</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK};font-weight:600">${escapeHtml(email)}</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">Name</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">${displayName}</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">Type</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">${statusBadge(type === 'developer' ? 'active' : 'pending', typeLabel)}</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">Signed up</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;font-family:${FONT_STACK}">${escapeHtml(formattedDate)}</td></tr>
+</table>
+${ctaButton('View Admin Dashboard', 'https://settlegrid.ai/admin')}
+`,
+      { preheader: `New ${type} signup: ${email}` }
+    ),
+  }
+}
+
 export function stripeConnectCompleteEmail(
   name: string,
   options?: { preheader?: string; revenueSharePct?: number }

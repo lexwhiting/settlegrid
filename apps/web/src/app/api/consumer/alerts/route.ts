@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { consumerAlerts, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
