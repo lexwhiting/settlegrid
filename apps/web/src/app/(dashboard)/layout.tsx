@@ -269,32 +269,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* Collapse toggle (desktop only) */}
-        <div className="absolute bottom-14 left-0 right-0 px-2 hidden lg:block">
-          <button
-            onClick={toggleCollapsed}
-            className="flex items-center justify-center w-full py-2 text-white/40 hover:text-white/80 transition-colors"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <svg
-              className={cn('w-4 h-4 transition-transform', collapsed && 'rotate-180')}
-              fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"
+        {/* Bottom area: collapse toggle + user menu */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 bg-indigo">
+          {/* Collapse toggle (desktop only) */}
+          <div className="hidden lg:block px-2 py-2">
+            <button
+              onClick={toggleCollapsed}
+              className="flex items-center justify-center w-full py-1.5 rounded-md text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </button>
-        </div>
-
-        {/* User menu */}
-        <div className={cn(
-          'absolute bottom-4 left-0 right-0 flex items-center gap-3',
-          collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'
-        )}>
-          <UserMenu collapsed={collapsed} />
-          {/* Show ThemeToggle in sidebar only on mobile (moved to top bar on desktop) */}
-          <span className="lg:hidden">
-            <ThemeToggle />
-          </span>
+              <svg
+                className={cn('w-4 h-4 transition-transform', collapsed && 'rotate-180')}
+                fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+          </div>
+          {/* User menu */}
+          <div className={cn(
+            'flex items-center gap-3 py-3',
+            collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'
+          )}>
+            <UserMenu collapsed={collapsed} />
+            <span className="lg:hidden">
+              <ThemeToggle />
+            </span>
+          </div>
         </div>
       </aside>
 
