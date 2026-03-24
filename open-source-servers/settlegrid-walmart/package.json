@@ -1,0 +1,12 @@
+{
+  "name": "settlegrid-walmart",
+  "version": "1.0.0",
+  "description": "MCP server for Walmart product search with SettleGrid billing",
+  "type": "module",
+  "scripts": {"dev": "tsx src/server.ts", "build": "tsc", "start": "node dist/server.js"},
+  "dependencies": {"@settlegrid/mcp": "^0.1.1"},
+  "devDependencies": {"tsx": "^4.0.0", "typescript": "^5.0.0"},
+  "keywords": ["settlegrid","mcp","ai","walmart","products","ecommerce","retail"],
+  "license": "MIT",
+  "repository": {"type": "git", "url": "https://github.com/settlegrid/settlegrid-walmart"}
+}

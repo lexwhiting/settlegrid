@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-v-dem",
+  "version": "1.0.0",
+  "description": "MCP server for Democracy Indices with SettleGrid billing. Access democracy indices and governance data via World Bank governance indicators.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "vdem",
+    "democracy",
+    "governance",
+    "elections",
+    "political"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-v-dem"
+  }
+}

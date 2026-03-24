@@ -1,0 +1,24 @@
+{
+  "name": "settlegrid-threat-feeds",
+  "version": "1.0.0",
+  "description": "MCP server for open threat intelligence feeds with SettleGrid billing. Aggregate threat data from multiple open sources",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["settlegrid","mcp","ai","threat","intelligence","security","osint"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-threat-feeds"
+  }
+}

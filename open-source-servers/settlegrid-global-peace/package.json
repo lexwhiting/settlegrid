@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-global-peace",
+  "version": "1.0.0",
+  "description": "MCP server for Global Peace Index with SettleGrid billing. Access Global Peace Index data via World Bank political stability indicators.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "peace",
+    "conflict",
+    "security",
+    "violence",
+    "stability"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-global-peace"
+  }
+}

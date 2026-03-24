@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-transparency-intl",
+  "version": "1.0.0",
+  "description": "MCP server for Corruption Perceptions Index with SettleGrid billing. Access Corruption Perceptions Index data via World Bank governance indicators.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "transparency",
+    "corruption",
+    "cpi",
+    "governance",
+    "integrity"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-transparency-intl"
+  }
+}

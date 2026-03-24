@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-uk-gov-data",
+  "version": "1.0.0",
+  "description": "MCP server for UK Government Datasets with SettleGrid billing. Access UK government open datasets via CKAN API. Search, browse and retrieve public sector data.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "government",
+    "open-data",
+    "datasets",
+    "uk"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-uk-gov-data"
+  }
+}

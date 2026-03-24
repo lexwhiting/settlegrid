@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-turkey-data",
+  "version": "1.0.0",
+  "description": "MCP server for Turkish Statistics with SettleGrid billing. Access Turkish economic and demographic data via World Bank API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "turkey",
+    "statistics",
+    "world-bank",
+    "economics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-turkey-data"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-imf-weo",
+  "version": "1.0.0",
+  "description": "MCP server for IMF World Economic Outlook with SettleGrid billing. Access IMF World Economic Outlook data including GDP, inflation, and economic forecasts.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "imf",
+    "economy",
+    "gdp",
+    "inflation",
+    "forecast",
+    "weo"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-imf-weo"
+  }
+}

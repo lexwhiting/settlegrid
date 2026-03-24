@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-finland-stat",
+  "version": "1.0.0",
+  "description": "MCP server for Finnish Statistics with SettleGrid billing. Access Finnish official statistics from Statistics Finland (PXWeb).",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "finland",
+    "statistics",
+    "pxweb",
+    "economics",
+    "demographics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-finland-stat"
+  }
+}

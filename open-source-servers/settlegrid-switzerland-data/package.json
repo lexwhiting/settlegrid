@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-switzerland-data",
+  "version": "1.0.0",
+  "description": "MCP server for Swiss Open Data with SettleGrid billing. Access Swiss government open datasets from opendata.swiss via CKAN API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "government",
+    "open-data",
+    "datasets",
+    "switzerland"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-switzerland-data"
+  }
+}

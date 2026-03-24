@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-freedom-house",
+  "version": "1.0.0",
+  "description": "MCP server for Freedom Index Data with SettleGrid billing. Access freedom and democracy index data via World Bank governance indicators.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "freedom",
+    "democracy",
+    "civil-liberties",
+    "political-rights",
+    "governance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-freedom-house"
+  }
+}

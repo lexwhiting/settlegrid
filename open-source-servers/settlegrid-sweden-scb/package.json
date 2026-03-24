@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-sweden-scb",
+  "version": "1.0.0",
+  "description": "MCP server for Swedish Statistics (SCB) with SettleGrid billing. Access Swedish official statistics from SCB (Statistics Sweden).",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sweden",
+    "statistics",
+    "scb",
+    "economics",
+    "demographics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-sweden-scb"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-argentina-data",
+  "version": "1.0.0",
+  "description": "MCP server for Argentine Data with SettleGrid billing. Access Argentine economic data and inflation indicators via World Bank API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "government",
+    "statistics",
+    "world-bank",
+    "economics",
+    "argentina"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-argentina-data"
+  }
+}

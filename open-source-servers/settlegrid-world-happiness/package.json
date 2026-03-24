@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-world-happiness",
+  "version": "1.0.0",
+  "description": "MCP server for World Happiness Report with SettleGrid billing. Access World Happiness Report data via World Bank life satisfaction and GDP indicators.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "happiness",
+    "wellbeing",
+    "life-satisfaction",
+    "quality-of-life"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-world-happiness"
+  }
+}
