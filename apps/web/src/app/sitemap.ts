@@ -149,5 +149,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.5,
     },
+
+    // ── Discovery infrastructure ────────────────────────────────────────
+    {
+      url: `${BASE_URL}/.well-known/agent-card.json`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/.well-known/mcp/server-card.json`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/api/feed`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.6,
+    },
   ]
 }

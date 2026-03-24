@@ -65,6 +65,7 @@ export default function RootLayout({
       <head>
         <meta name="ai.description" content="SettleGrid is the settlement layer for AI agent payments. SDK: @settlegrid/mcp. Per-call billing, usage metering, budget enforcement for MCP servers, REST APIs, AI agents, and model endpoints." />
         <meta name="ai.keywords" content="MCP monetization, AI agent payments, settlement layer, per-call billing, Model Context Protocol, budget enforcement, usage metering, AI commerce, x402, AP2" />
+        <link rel="alternate" type="application/rss+xml" title="SettleGrid — New AI Tools" href="/api/feed" />
       </head>
       <body className="font-sans antialiased bg-white text-indigo dark:bg-[#0F1117] dark:text-gray-100">
         <PostHogProvider>
