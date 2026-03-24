@@ -1,0 +1,24 @@
+{
+  "name": "settlegrid-nasa-data",
+  "version": "1.0.0",
+  "description": "MCP server for NASA Open APIs with SettleGrid billing. Astronomy photos, near-Earth objects, and image search.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["settlegrid", "mcp", "ai", "nasa", "space", "astronomy", "science"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nasa-data"
+  }
+}

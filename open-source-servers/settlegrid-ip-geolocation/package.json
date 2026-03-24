@@ -1,0 +1,24 @@
+{
+  "name": "settlegrid-ip-geolocation",
+  "version": "1.0.0",
+  "description": "MCP server for IP geolocation with SettleGrid billing. Locate any IP address with city, region, country, ISP, and coordinates.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["settlegrid", "mcp", "ai", "ip", "geolocation", "security", "analytics"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-ip-geolocation"
+  }
+}
