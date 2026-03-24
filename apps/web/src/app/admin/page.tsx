@@ -101,22 +101,13 @@ export default function AdminDashboardPage() {
   }, [fetchStats])
 
   if (error) {
+    // Show a generic 404-style page — don't reveal /admin exists
     return (
       <div className="min-h-screen bg-[#0F1117] flex items-center justify-center px-4">
-        <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-8 max-w-md w-full text-center">
-          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-semibold text-gray-100 mb-2">Access Denied</h2>
-          <p className="text-sm text-gray-400 mb-6">{error}</p>
-          <a
-            href="/dashboard"
-            className="inline-block text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
-          >
-            Go to Dashboard
-          </a>
+        <div className="text-center">
+          <p className="text-7xl font-bold text-gray-700 mb-4">404</p>
+          <p className="text-gray-500 mb-6">This page could not be found.</p>
+          <a href="/" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">Go home</a>
         </div>
       </div>
     )
