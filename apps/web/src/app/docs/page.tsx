@@ -1080,7 +1080,7 @@ try {
           <Section title="API Reference" id="api-reference">
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               The SettleGrid REST API is available at{' '}
-              <a href="https://settlegrid.ai/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#252836] px-2 py-0.5 rounded text-xs font-mono text-brand hover:text-brand-dark dark:text-brand-light dark:hover:text-brand transition-colors">https://settlegrid.ai/api<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>.
+              <a href="https://settlegrid.ai/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#252836] px-2 py-0.5 rounded text-xs font-mono text-brand hover:text-brand-dark dark:text-brand-light dark:hover:text-brand transition-colors">https://settlegrid.ai/api<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>.
             </p>
             <div className="space-y-4">
               {[
@@ -1181,7 +1181,7 @@ try {
 
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Browse all 17 templates at{' '}
-              <a href="/templates/" className="text-brand-text hover:text-brand-dark font-medium">settlegrid.ai/templates</a>.
+              <Link href="/servers" className="text-brand-text hover:text-brand-dark font-medium">settlegrid.ai/servers</Link>.
             </p>
           </Section>
 
@@ -1208,7 +1208,7 @@ try {
                 <div className="ml-0 text-sm text-gray-400 space-y-2">
                   <p className="text-gray-300 font-medium">Query parameters</p>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
+                    <table className="w-full text-xs" aria-label="Discovery API query parameters">
                       <thead>
                         <tr className="border-b border-[#2E3148]">
                           <th className="text-left py-2 pr-4 text-gray-400 font-medium">Param</th>
@@ -1450,7 +1450,7 @@ npm install -g @settlegrid/discovery`} />
 
               <p className="text-gray-300 text-sm font-medium mt-6 mb-2">Environment variables</p>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs mb-2">
+                <table className="w-full text-xs mb-2" aria-label="MCP Discovery Server environment variables">
                   <thead>
                     <tr className="border-b border-[#2E3148]">
                       <th className="text-left py-2 pr-4 text-gray-400 font-medium">Variable</th>
@@ -1542,7 +1542,7 @@ npm install -g @settlegrid/discovery`} />
 
               <p className="text-gray-300 text-sm font-medium mb-2">Reputation tiers</p>
               <div className="overflow-x-auto mb-6">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs" aria-label="Developer reputation tiers">
                   <thead>
                     <tr className="border-b border-[#2E3148]">
                       <th className="text-left py-2 pr-4 text-gray-400 font-medium">Tier</th>

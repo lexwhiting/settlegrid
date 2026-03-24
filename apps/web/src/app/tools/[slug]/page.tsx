@@ -70,6 +70,7 @@ function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg
           className={`${iconSize} ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-200 dark:text-gray-600'}`}
           fill="currentColor"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
         </svg>
@@ -134,7 +135,7 @@ export default async function ToolStorefrontPage({
         <main className="flex-1 flex items-center justify-center px-6">
           <div className="text-center max-w-md">
             <div className="w-14 h-14 rounded-full bg-[#1A1D2E] border border-[#2E3148] flex items-center justify-center mx-auto mb-6">
-              <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+              <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-100 mb-3">Tool Not Available</h1>
             <p className="text-gray-400 mb-6">
@@ -332,7 +333,7 @@ export default async function ToolStorefrontPage({
                 <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Quick Start</h2>
                 <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
                   <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
-                  <p><strong className="text-gray-900 dark:text-gray-200">2. Get your API key</strong> — After purchasing, go to your <a href="/consumer" className="text-brand hover:underline">Consumer Dashboard</a> to generate an API key.</p>
+                  <p><strong className="text-gray-900 dark:text-gray-200">2. Get your API key</strong> — After purchasing, go to your <Link href="/consumer" className="text-brand hover:underline">Consumer Dashboard</Link> to generate an API key.</p>
                   <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
                 </div>
                 <CopyableCodeBlock
