@@ -66,11 +66,11 @@ export async function POST(request: NextRequest) {
 
     const body = await parseBody(request, createAlertSchema)
 
-    // Verify tool exists and is active
+    // Verify tool exists (allow alerts on any tool the consumer has interacted with)
     const [tool] = await db
       .select({ id: tools.id })
       .from(tools)
-      .where(and(eq(tools.id, body.toolId), eq(tools.status, 'active')))
+      .where(eq(tools.id, body.toolId))
       .limit(1)
 
     if (!tool) {
