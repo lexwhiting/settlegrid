@@ -1,10 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
+import { ConsumerStatBar } from '@/components/consumer/stat-bar'
+import { UsageAnalytics } from '@/components/consumer/usage-analytics'
+import { AlertsManager } from '@/components/consumer/alerts-manager'
+import { PurchaseHistory } from '@/components/consumer/purchase-history'
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface ToolBalance {
   toolId: string
@@ -37,9 +44,40 @@ interface IpRestriction {
   allowedIps: string[]
 }
 
+interface UsageInvocation {
+  id: string
+  toolId: string
+  method: string
+  costCents: number
+  latencyMs: number
+  status: string
+  createdAt: string
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
+
+// ─── Chevron Icon ───────────────────────────────────────────────────────────
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+    </svg>
+  )
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function ConsumerDashboardPage() {
   const [balances, setBalances] = useState<ToolBalance[]>([])
@@ -62,6 +100,11 @@ export default function ConsumerDashboardPage() {
   const [addingIpForKey, setAddingIpForKey] = useState<string | null>(null)
   const [newIp, setNewIp] = useState('')
   const [savingIp, setSavingIp] = useState(false)
+
+  // Expandable tool detail state
+  const [expandedToolId, setExpandedToolId] = useState<string | null>(null)
+  const [toolUsageData, setToolUsageData] = useState<Record<string, UsageInvocation[]>>({})
+  const [toolUsageLoading, setToolUsageLoading] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -100,6 +143,32 @@ export default function ConsumerDashboardPage() {
     }
     fetchData()
   }, [])
+
+  // Fetch tool-specific usage when expanding a balance card
+  const fetchToolUsage = useCallback(async (toolId: string) => {
+    if (toolUsageData[toolId]) return // Already fetched
+    setToolUsageLoading(toolId)
+    try {
+      const res = await fetch(`/api/consumer/usage?toolId=${toolId}&days=7`)
+      if (res.ok) {
+        const data = await res.json()
+        setToolUsageData((prev) => ({ ...prev, [toolId]: data.invocations ?? [] }))
+      }
+    } catch {
+      // Silently fail -- detail section will show empty
+    } finally {
+      setToolUsageLoading(null)
+    }
+  }, [toolUsageData])
+
+  function toggleToolExpansion(toolId: string) {
+    if (expandedToolId === toolId) {
+      setExpandedToolId(null)
+    } else {
+      setExpandedToolId(toolId)
+      fetchToolUsage(toolId)
+    }
+  }
 
   async function revokeKey(keyId: string) {
     try {
@@ -225,26 +294,199 @@ export default function ConsumerDashboardPage() {
     }
   }
 
+  // ─── Loading Skeleton ─────────────────────────────────────────────────────
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Consumer Dashboard</h1>
+      <div className="space-y-8">
+        <div>
+          <Skeleton className="h-4 w-40 mb-3" />
+          <Skeleton className="h-8 w-64" />
+        </div>
+        {/* StatBar skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
+        {/* Balances skeleton */}
         <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-4 w-48" />
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+        {/* Usage analytics skeleton */}
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
+        {/* Alerts skeleton */}
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </CardContent>
+        </Card>
+        {/* Purchase history skeleton */}
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+        {/* Budget skeleton */}
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+        {/* Keys skeleton */}
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-16 w-full" />
           </CardContent>
         </Card>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Consumer Dashboard</h1>
+  // ─── Compute expanded tool details ────────────────────────────────────────
 
+  function renderExpandedToolDetail(toolId: string) {
+    const invocations = toolUsageData[toolId] ?? []
+    const isLoading = toolUsageLoading === toolId
+
+    if (isLoading) {
+      return (
+        <div className="mt-3 border-t border-gray-100 dark:border-[#252836] pt-3 space-y-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+        </div>
+      )
+    }
+
+    const recentInvocations = invocations.slice(0, 10)
+    const totalSpendCents = invocations.reduce((sum, inv) => sum + inv.costCents, 0)
+    const totalCount = invocations.length
+    const avgCostCents = totalCount > 0 ? Math.round(totalSpendCents / totalCount) : 0
+
+    // Method-level cost breakdown
+    const methodBreakdown = new Map<string, { count: number; totalCostCents: number }>()
+    for (const inv of invocations) {
+      const entry = methodBreakdown.get(inv.method)
+      if (entry) {
+        entry.count += 1
+        entry.totalCostCents += inv.costCents
+      } else {
+        methodBreakdown.set(inv.method, { count: 1, totalCostCents: inv.costCents })
+      }
+    }
+    const methods = Array.from(methodBreakdown.entries()).sort((a, b) => b[1].totalCostCents - a[1].totalCostCents)
+
+    return (
+      <div className="mt-3 border-t border-gray-100 dark:border-[#252836] pt-3">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-gray-50 dark:bg-[#252836]/50 rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Spend (7d)</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{formatCents(totalSpendCents)}</p>
+          </div>
+          <div className="bg-gray-50 dark:bg-[#252836]/50 rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Invocations (7d)</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{totalCount}</p>
+          </div>
+          <div className="bg-gray-50 dark:bg-[#252836]/50 rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Avg Cost / Call</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{formatCents(avgCostCents)}</p>
+          </div>
+        </div>
+
+        {/* Method Breakdown */}
+        {methods.length > 0 && (
+          <div className="mb-4">
+            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Method Breakdown</h4>
+            <div className="space-y-1.5">
+              {methods.map(([method, data]) => (
+                <div key={method} className="flex items-center justify-between text-sm">
+                  <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{method}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {data.count} calls &middot; {formatCents(data.totalCostCents)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Invocations */}
+        {recentInvocations.length > 0 ? (
+          <div>
+            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Recent Invocations</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs" aria-label="Recent invocations">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <th className="text-left py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Method</th>
+                    <th className="text-right py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Cost</th>
+                    <th className="text-right py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Latency</th>
+                    <th className="text-center py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Status</th>
+                    <th className="text-right py-1.5 font-medium text-gray-500 dark:text-gray-400">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentInvocations.map((inv) => (
+                    <tr key={inv.id} className="border-b border-gray-50 dark:border-[#252836] last:border-0">
+                      <td className="py-1.5 pr-3 font-mono text-gray-700 dark:text-gray-300">{inv.method}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{formatCents(inv.costCents)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{inv.latencyMs}ms</td>
+                      <td className="py-1.5 pr-3 text-center">
+                        <Badge variant={inv.status === 'success' ? 'success' : 'destructive'} className="text-[10px] px-1.5 py-0">
+                          {inv.status}
+                        </Badge>
+                      </td>
+                      <td className="py-1.5 text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {new Date(inv.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 dark:text-gray-400">No invocations in the last 7 days.</p>
+        )}
+      </div>
+    )
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  return (
+    <div className="space-y-8">
+      {/* Breadcrumbs & Title */}
+      <div>
+        <Breadcrumbs items={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Consumer' }]} />
+        <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Consumer Dashboard</h1>
+      </div>
+
+      {/* Error Banner */}
       {error && (
         <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
+
+      {/* Stat Bar */}
+      <ConsumerStatBar balances={balances} keys={keys} />
 
       {/* Credit Balances */}
       <Card>
@@ -259,12 +501,23 @@ export default function ConsumerDashboardPage() {
               {balances.map((b) => {
                 const hasActiveKey = keys.some((k) => k.toolId === b.toolId && k.status === 'active')
                 const newKey = newlyCreatedKeys[b.toolId]
+                const isExpanded = expandedToolId === b.toolId
                 return (
                   <div key={b.toolId} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <span className="font-medium text-indigo dark:text-gray-100">{b.toolName}</span>
-                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleToolExpansion(b.toolId)}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[#252836] transition-colors text-gray-500 dark:text-gray-400"
+                          aria-label={isExpanded ? `Collapse ${b.toolName} details` : `Expand ${b.toolName} details`}
+                          aria-expanded={isExpanded}
+                        >
+                          <ChevronIcon expanded={isExpanded} />
+                        </button>
+                        <div>
+                          <span className="font-medium text-indigo dark:text-gray-100">{b.toolName}</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">/{b.toolSlug}</span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {b.autoRefill && <Badge variant="secondary">Auto-refill</Badge>}
@@ -312,6 +565,9 @@ export default function ConsumerDashboardPage() {
                         </Button>
                       </div>
                     ) : null}
+
+                    {/* Expandable Detail */}
+                    {isExpanded && renderExpandedToolDetail(b.toolId)}
                   </div>
                 )
               })}
@@ -319,6 +575,15 @@ export default function ConsumerDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Usage Analytics */}
+      <UsageAnalytics />
+
+      {/* Alerts Manager */}
+      <AlertsManager tools={balances.map((b) => ({ toolId: b.toolId, toolName: b.toolName }))} />
+
+      {/* Purchase History */}
+      <PurchaseHistory />
 
       {/* Budget Controls */}
       <Card>
