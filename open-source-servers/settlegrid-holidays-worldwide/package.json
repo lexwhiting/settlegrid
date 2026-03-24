@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-holidays-worldwide",
+  "version": "1.0.0",
+  "description": "Get public holidays, long weekends, and available countries via the Nager.Date API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "education",
+    "holidays",
+    "countries",
+    "calendar",
+    "public-holidays"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-holidays-worldwide"
+  }
+}

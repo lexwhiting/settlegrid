@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-abstract-api",
+  "version": "1.0.0",
+  "description": "Enrich company data, validate emails, and geolocate IPs via Abstract API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "business",
+    "company",
+    "email",
+    "ip",
+    "enrichment"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-abstract-api"
+  }
+}

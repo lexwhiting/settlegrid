@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-calendar-api",
+  "version": "1.0.0",
+  "description": "Get calendar data, date calculations, and day-of-year information.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "education",
+    "calendar",
+    "dates",
+    "time",
+    "holidays"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-calendar-api"
+  }
+}

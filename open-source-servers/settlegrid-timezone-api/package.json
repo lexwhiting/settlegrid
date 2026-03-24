@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-timezone-api",
+  "version": "1.0.0",
+  "description": "Get current time, timezone data, and UTC offsets for any timezone worldwide.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "education",
+    "timezone",
+    "time",
+    "utc",
+    "world-clock"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-timezone-api"
+  }
+}
