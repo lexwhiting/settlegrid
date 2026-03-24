@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-aurora",
+  "version": "1.0.0",
+  "description": "MCP server for Aurora Forecast Data with SettleGrid billing. Access aurora borealis forecast data via NOAA SWPC. Get aurora forecasts, Kp index, and OVATION aurora maps.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "aurora",
+    "northern-lights",
+    "space-weather",
+    "noaa",
+    "geomagnetic"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-aurora"
+  }
+}

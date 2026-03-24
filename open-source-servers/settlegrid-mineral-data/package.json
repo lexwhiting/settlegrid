@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-mineral-data",
+  "version": "1.0.0",
+  "description": "MCP server for Mineral Database with SettleGrid billing. Access mineral data via Mindat API. Search minerals, get details, and list chemical groups.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "minerals",
+    "geology",
+    "mineralogy",
+    "rocks",
+    "geoscience"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-mineral-data"
+  }
+}

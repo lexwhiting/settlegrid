@@ -1,0 +1,35 @@
+{
+  "name": "settlegrid-wave-data",
+  "version": "1.0.0",
+  "description": "MCP server for Ocean Wave Data with SettleGrid billing. Access ocean buoy and wave data via NOAA NDBC. Get real-time observations, list stations, and retrieve latest readings.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "waves",
+    "ocean",
+    "buoy",
+    "ndbc",
+    "noaa",
+    "surf",
+    "maritime"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-wave-data"
+  }
+}

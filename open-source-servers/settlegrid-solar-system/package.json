@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-solar-system",
+  "version": "1.0.0",
+  "description": "MCP server for Solar System Data with SettleGrid billing. Access solar system body data via Le Systeme Solaire API. List celestial bodies, get details, and filter planets.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "solar-system",
+    "planets",
+    "astronomy",
+    "space",
+    "celestial-bodies"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-solar-system"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-linguistics",
+  "version": "1.0.0",
+  "description": "MCP server for Language Data with SettleGrid billing. Access language and linguistic data via Glottolog. Search languages, get language details, and list language families.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "linguistics",
+    "language",
+    "glottolog",
+    "typology",
+    "language-families"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-linguistics"
+  }
+}

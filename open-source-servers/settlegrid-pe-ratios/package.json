@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-pe-ratios",
+  "version": "1.0.0",
+  "description": "MCP server for P/E Ratio Data with SettleGrid billing. Historical price-to-earnings ratios for S&P 500, Shiller CAPE, and individual stocks.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "pe-ratio",
+    "valuation",
+    "shiller",
+    "cape",
+    "earnings",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-pe-ratios"
+  }
+}

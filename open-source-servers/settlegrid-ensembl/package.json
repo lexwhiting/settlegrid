@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-ensembl",
+  "version": "1.0.0",
+  "description": "MCP server for Ensembl Genome Browser with SettleGrid billing. Access Ensembl genome browser data via REST API. Look up genes, retrieve sequences, and search across species.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "ensembl",
+    "genome",
+    "gene",
+    "genomics",
+    "dna",
+    "bioinformatics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-ensembl"
+  }
+}

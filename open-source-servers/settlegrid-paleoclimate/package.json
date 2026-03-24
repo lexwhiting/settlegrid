@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-paleoclimate",
+  "version": "1.0.0",
+  "description": "MCP server for Paleoclimate Data with SettleGrid billing. Access historical climate data via NOAA Paleoclimatology API. Search datasets, get dataset details, and list data types.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "paleoclimate",
+    "climate-history",
+    "ice-cores",
+    "noaa",
+    "earth-science"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-paleoclimate"
+  }
+}

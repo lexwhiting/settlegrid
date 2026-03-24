@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-banking-rates",
+  "version": "1.0.0",
+  "description": "MCP server for Banking & Treasury Rates with SettleGrid billing. Treasury bill rates, Fed Funds rate, and historical interest rate data via US Treasury FiscalData.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "banking",
+    "rates",
+    "treasury",
+    "fed",
+    "interest",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-banking-rates"
+  }
+}

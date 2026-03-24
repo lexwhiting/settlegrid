@@ -23,6 +23,14 @@ interface GetIndicatorInput {
 
 const API_BASE = 'https://www.imf.org/external/datamapper/api/v1'
 
+/** Common WEO indicator codes for reference */
+const COMMON_INDICATORS: Record<string, string> = {
+  NGDP_RPCH: 'Real GDP growth (%)',
+  PCPIPCH: 'Inflation, consumer prices (%)',
+  LUR: 'Unemployment rate (%)',
+  BCA_NGDPD: 'Current account balance (% GDP)',
+}
+
 async function apiFetch<T>(path: string): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`
   const res = await fetch(url, {

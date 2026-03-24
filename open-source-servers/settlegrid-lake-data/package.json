@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-lake-data",
+  "version": "1.0.0",
+  "description": "MCP server for Lake & Reservoir Data with SettleGrid billing. Access lake and reservoir water level data via USGS Water Services. Get levels, search reservoirs, and view statistics.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "lake",
+    "reservoir",
+    "water-level",
+    "hydrology",
+    "usgs"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-lake-data"
+  }
+}

@@ -1,0 +1,77 @@
+# settlegrid-snow-data
+
+Snowfall & Snowpack Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+
+[![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-snow-data)
+
+Access SNOTEL snowpack data via NRCS AWDB Web Service. Get snowpack measurements, list stations, and view forecasts.
+
+## Quick Start
+
+```bash
+npm install
+cp .env.example .env   # Add your SettleGrid API key
+npm run dev
+```
+
+## Methods
+
+| Method | Description | Cost |
+|--------|-------------|------|
+| `get_snowpack(station)` | Get current snowpack for a station | 1¢ |
+| `list_stations(state?)` | List SNOTEL stations | 1¢ |
+| `get_forecast(station)` | Get water supply forecast for a station | 2¢ |
+
+## Parameters
+
+### get_snowpack
+- `station` (string, required) — SNOTEL station triplet (e.g. 669:CO:SNTL)
+
+### list_stations
+- `state` (string) — Two-letter state code (e.g. CO, UT)
+
+### get_forecast
+- `station` (string, required) — SNOTEL station triplet
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
+
+No API key needed for the upstream NRCS SNOTEL AWDB API — it is completely free.
+
+## Upstream API
+
+- **Provider**: NRCS SNOTEL AWDB
+- **Base URL**: https://wcc.sc.egov.usda.gov/awdbWebService/services
+- **Auth**: None required
+- **Docs**: https://www.nrcs.usda.gov/wps/portal/wcc/home/dataAccessHelp/webService/
+
+## Deploy
+
+### Docker
+
+```bash
+docker build -t settlegrid-snow-data .
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-snow-data
+```
+
+### Vercel
+
+Click the "Deploy with Vercel" button above, or:
+
+```bash
+npm run build
+vercel --prod
+```
+
+## License
+
+MIT - see [LICENSE](LICENSE)
+
+---
+
+Built with [SettleGrid](https://settlegrid.ai) — The Settlement Layer for the AI Economy

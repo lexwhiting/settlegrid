@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-marine-biology",
+  "version": "1.0.0",
+  "description": "MCP server for Marine Species Data with SettleGrid billing. Access marine species data via WoRMS (World Register of Marine Species). Search species, get details, and view classification.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "marine",
+    "ocean",
+    "species",
+    "biology",
+    "taxonomy",
+    "worms"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-marine-biology"
+  }
+}

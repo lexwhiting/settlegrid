@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-star-catalog",
+  "version": "1.0.0",
+  "description": "MCP server for Star & Constellation Data with SettleGrid billing. Access star and constellation data via Le Systeme Solaire API. List constellations, search stars, and get constellation details.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "stars",
+    "constellations",
+    "astronomy",
+    "celestial",
+    "catalog"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-star-catalog"
+  }
+}

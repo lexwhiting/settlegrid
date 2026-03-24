@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-clinicaltrials",
+  "version": "1.0.0",
+  "description": "MCP server for Clinical Trials Data with SettleGrid billing. Access ClinicalTrials.gov v2 API for clinical trial data. Search trials, get study details, and view condition statistics.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "clinical-trials",
+    "medical",
+    "research",
+    "fda",
+    "healthcare"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-clinicaltrials"
+  }
+}

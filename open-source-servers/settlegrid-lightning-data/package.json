@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-lightning-data",
+  "version": "1.0.0",
+  "description": "MCP server for Lightning & Severe Weather with SettleGrid billing. Access severe weather alerts and lightning-related data via NWS API. Get active alerts, search by state, and check density.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "lightning",
+    "severe-weather",
+    "storms",
+    "nws",
+    "alerts",
+    "meteorology"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-lightning-data"
+  }
+}

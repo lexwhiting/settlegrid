@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-venture-capital",
+  "version": "1.0.0",
+  "description": "MCP server for Venture Capital & Startups with SettleGrid billing. Search startup/VC data using GitHub as a proxy for tech startups. Explore trending tech projects.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "venture-capital",
+    "startups",
+    "funding",
+    "tech",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-venture-capital"
+  }
+}

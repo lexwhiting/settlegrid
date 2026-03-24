@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-space-weather",
+  "version": "1.0.0",
+  "description": "MCP server for Space Weather Alerts with SettleGrid billing. Access space weather alerts and data via NOAA SWPC. Get alerts, solar wind data, and geomagnetic forecasts.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "space-weather",
+    "solar",
+    "geomagnetic",
+    "noaa",
+    "swpc"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-space-weather"
+  }
+}

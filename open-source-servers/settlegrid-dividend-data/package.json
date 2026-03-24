@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-dividend-data",
+  "version": "1.0.0",
+  "description": "MCP server for Dividend Data with SettleGrid billing. Dividend history, yields, and calendar via Financial Modeling Prep. Track dividend payments and ex-dates.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "dividends",
+    "yield",
+    "income",
+    "stocks",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-dividend-data"
+  }
+}

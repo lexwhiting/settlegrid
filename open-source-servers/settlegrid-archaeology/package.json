@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-archaeology",
+  "version": "1.0.0",
+  "description": "MCP server for Archaeological Site Data with SettleGrid billing. Access archaeological site data via Open Context. Search sites, get item details, and list research projects.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "archaeology",
+    "sites",
+    "artifacts",
+    "history",
+    "anthropology"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-archaeology"
+  }
+}

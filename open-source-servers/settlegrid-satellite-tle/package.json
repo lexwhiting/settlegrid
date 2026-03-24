@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-satellite-tle",
+  "version": "1.0.0",
+  "description": "MCP server for Satellite TLE Tracking with SettleGrid billing. Access satellite Two-Line Element set data via TLE API. Search satellites, get details, and retrieve TLE data for orbit tracking.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "satellite",
+    "tle",
+    "orbit",
+    "space",
+    "tracking",
+    "norad"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-satellite-tle"
+  }
+}

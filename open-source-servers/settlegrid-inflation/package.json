@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-inflation",
+  "version": "1.0.0",
+  "description": "MCP server for Inflation Rate Data with SettleGrid billing. Consumer price inflation rates worldwide via World Bank CPI indicator. Compare inflation across countries.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "inflation",
+    "cpi",
+    "consumer-prices",
+    "macro",
+    "economics",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-inflation"
+  }
+}

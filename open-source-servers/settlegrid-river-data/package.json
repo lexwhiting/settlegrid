@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-river-data",
+  "version": "1.0.0",
+  "description": "MCP server for River Flow & Level Data with SettleGrid billing. Access river flow and water level data via USGS Water Services. Get real-time streamflow, search monitoring sites, and view statistics.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "river",
+    "water",
+    "streamflow",
+    "hydrology",
+    "usgs"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-river-data"
+  }
+}

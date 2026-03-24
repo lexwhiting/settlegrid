@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-cds-spreads",
+  "version": "1.0.0",
+  "description": "MCP server for Credit Default Swap Spreads with SettleGrid billing. Sovereign credit risk indicators via World Bank financial data. Track country credit default swap spreads.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "cds",
+    "credit-risk",
+    "sovereign",
+    "spreads",
+    "bonds",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-cds-spreads"
+  }
+}

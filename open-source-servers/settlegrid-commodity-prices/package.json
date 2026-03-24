@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-commodity-prices",
+  "version": "1.0.0",
+  "description": "MCP server for Commodity Prices with SettleGrid billing. Metal and commodity prices via Metals.dev and GoldAPI. Get spot prices for gold, silver, platinum, and oil.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "commodities",
+    "gold",
+    "silver",
+    "oil",
+    "metals",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-commodity-prices"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-insurance-rates",
+  "version": "1.0.0",
+  "description": "MCP server for Insurance & Provider Data with SettleGrid billing. Healthcare insurance plan and provider data via CMS.gov. Search plans, providers, and stats by state.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "insurance",
+    "healthcare",
+    "cms",
+    "plans",
+    "providers",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-insurance-rates"
+  }
+}

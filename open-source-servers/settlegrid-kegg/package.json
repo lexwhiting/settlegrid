@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-kegg",
+  "version": "1.0.0",
+  "description": "MCP server for KEGG Pathway Database with SettleGrid billing. Access KEGG pathway and genome database via REST API. Search metabolic pathways, get pathway details, and list organisms.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "kegg",
+    "pathway",
+    "metabolism",
+    "genome",
+    "bioinformatics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-kegg"
+  }
+}

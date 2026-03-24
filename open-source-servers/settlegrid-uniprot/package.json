@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-uniprot",
+  "version": "1.0.0",
+  "description": "MCP server for UniProt Protein Data with SettleGrid billing. Access UniProt protein sequence and functional information. Search proteins, retrieve entries, and get feature annotations.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "uniprot",
+    "protein",
+    "proteomics",
+    "bioinformatics",
+    "sequence"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-uniprot"
+  }
+}

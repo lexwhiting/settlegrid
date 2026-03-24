@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-etf-data",
+  "version": "1.0.0",
+  "description": "MCP server for ETF Data with SettleGrid billing. ETF holdings, profiles, and performance data via Financial Modeling Prep. Search and analyze ETFs.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "etf",
+    "holdings",
+    "passive",
+    "index-fund",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-etf-data"
+  }
+}

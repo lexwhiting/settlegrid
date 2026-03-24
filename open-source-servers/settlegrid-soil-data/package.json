@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-soil-data",
+  "version": "1.0.0",
+  "description": "MCP server for Soil Composition Data with SettleGrid billing. Access soil property data via ISRIC SoilGrids REST API. Get soil properties, list available properties, and get classification.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "soil",
+    "agriculture",
+    "geoscience",
+    "earth-science",
+    "soilgrids"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-soil-data"
+  }
+}

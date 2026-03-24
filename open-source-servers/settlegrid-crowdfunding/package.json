@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-crowdfunding",
+  "version": "1.0.0",
+  "description": "MCP server for Crowdfunding Data with SettleGrid billing. Kickstarter and crowdfunding project data. Search projects, view stats, and discover trending campaigns.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "crowdfunding",
+    "kickstarter",
+    "campaigns",
+    "funding",
+    "finance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-crowdfunding"
+  }
+}
