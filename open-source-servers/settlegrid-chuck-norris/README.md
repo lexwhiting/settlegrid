@@ -6,7 +6,7 @@ Chuck Norris Jokes MCP Server with per-call billing via [SettleGrid](https://set
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-chuck-norris)
 
-Get random Chuck Norris jokes and search by keyword from the Chuck Norris API.
+Get random Chuck Norris jokes from the Chuck Norris API.
 
 ## Quick Start
 
@@ -20,17 +20,13 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_random(category)` | Get a random Chuck Norris joke | 1¢ |
+| `get_random()` | Get a random Chuck Norris joke | 1¢ |
 | `search_jokes(query)` | Search jokes by keyword | 1¢ |
-| `get_categories()` | List all joke categories | 1¢ |
 
 ## Parameters
 
-### get_random
-- `category` (string, optional) — Joke category (e.g. "dev", "science")
-
 ### search_jokes
-- `query` (string, required) — Search keyword
+- `query` (string, required)
 
 ## Environment Variables
 
@@ -41,7 +37,7 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: Chuck Norris API
+- **Provider**: chucknorris.io
 - **Base URL**: https://api.chucknorris.io
 - **Auth**: None required
 - **Rate Limits**: Unlimited

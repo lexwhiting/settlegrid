@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-ssl-labs",
+  "version": "1.0.0",
+  "description": "SSL/TLS certificate testing and grading via Qualys SSL Labs.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "ssl",
+    "tls",
+    "security",
+    "certificate",
+    "https"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-ssl-labs"
+  }
+}

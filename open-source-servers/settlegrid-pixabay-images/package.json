@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-pixabay-images",
+  "version": "1.0.0",
+  "description": "MCP server for Pixabay Images with SettleGrid billing. Free stock photos and videos search from Pixabay.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "photography",
+    "images",
+    "stock-photos",
+    "free"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-pixabay-images"
+  }
+}

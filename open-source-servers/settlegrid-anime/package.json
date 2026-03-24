@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-anime",
   "version": "1.0.0",
-  "description": "Search anime, manga, and character data via the Jikan/MyAnimeList API.",
+  "description": "Search anime and manga data via the Jikan MyAnimeList API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "anime",
-    "manga",
-    "jikan"
+    "manga"
   ],
   "license": "MIT",
   "repository": {

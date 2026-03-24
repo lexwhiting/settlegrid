@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-balldontlie",
   "version": "1.0.0",
-  "description": "NBA player season averages and detailed game stats from BallDontLie.",
+  "description": "NBA player stats, season averages, and game data.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "basketball",
-    "nba",
-    "player-stats"
+    "nba"
   ],
   "license": "MIT",
   "repository": {

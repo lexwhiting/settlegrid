@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-nvd-cve",
+  "version": "1.0.0",
+  "description": "MCP server for NIST NVD CVE with SettleGrid billing. CVE vulnerability data from NIST National Vulnerability Database.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "cybersecurity",
+    "cve",
+    "vulnerability",
+    "nvd",
+    "nist"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nvd-cve"
+  }
+}

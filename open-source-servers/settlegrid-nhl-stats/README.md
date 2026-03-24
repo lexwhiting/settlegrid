@@ -6,7 +6,7 @@ NHL Stats MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-nhl-stats)
 
-NHL hockey teams, standings, and schedule from the NHL Web API.
+National Hockey League data — teams, standings, and schedules.
 
 ## Quick Start
 
@@ -20,20 +20,13 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_standings(date)` | Get current NHL standings | 1¢ |
-| `get_schedule(date)` | Get games for a date | 1¢ |
-| `get_roster(team)` | Get team roster | 1¢ |
+| `get_standings()` | Get current NHL standings | 1¢ |
+| `get_scores(date)` | Get scores for a specific date | 1¢ |
 
 ## Parameters
 
-### get_standings
-- `date` (string, optional) — Date for standings (YYYY-MM-DD)
-
-### get_schedule
-- `date` (string, required) — Date in YYYY-MM-DD format
-
-### get_roster
-- `team` (string, required) — Team abbreviation (e.g. "TOR", "BOS")
+### get_scores
+- `date` (string, required)
 
 ## Environment Variables
 
@@ -44,7 +37,7 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: NHL
+- **Provider**: NHL Web API
 - **Base URL**: https://api-web.nhle.com/v1
 - **Auth**: None required
 - **Rate Limits**: Reasonable use

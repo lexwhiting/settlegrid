@@ -1,12 +1,12 @@
 # settlegrid-tennis
 
-Tennis Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Tennis MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-tennis)
 
-Tennis scores, rankings, and tournament data from ESPN.
+ATP/WTA tennis scores, rankings, and schedules via ESPN.
 
 ## Quick Start
 
@@ -20,16 +20,20 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_scoreboard(tour)` | Get current tennis scores and results | 1¢ |
-| `get_rankings(tour)` | Get tennis rankings | 1¢ |
+| `search_players(query)` | Search tennis players by name | 1¢ |
+| `get_scoreboard(league)` | Get current tennis scores | 1¢ |
+| `get_rankings(league)` | Get current ATP/WTA rankings | 1¢ |
 
 ## Parameters
 
+### search_players
+- `query` (string, required)
+
 ### get_scoreboard
-- `tour` (string, optional) — "atp" or "wta" (default: "atp")
+- `league` (string, optional)
 
 ### get_rankings
-- `tour` (string, optional) — "atp" or "wta" (default: "atp")
+- `league` (string, optional)
 
 ## Environment Variables
 
@@ -41,9 +45,9 @@ npm run dev
 ## Upstream API
 
 - **Provider**: ESPN
-- **Base URL**: https://site.api.espn.com/apis/site/v2/sports/tennis
+- **Base URL**: https://site.api.espn.com
 - **Auth**: None required
-- **Rate Limits**: Reasonable use
+- **Rate Limits**: ~30 req/min
 - **Docs**: https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b
 
 ## Deploy

@@ -1,12 +1,12 @@
 # settlegrid-cycling
 
-Cycling Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Cycling MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-cycling)
 
-Professional cycling race results and rankings from ESPN.
+Professional cycling race results and rankings via ESPN.
 
 ## Quick Start
 
@@ -20,12 +20,13 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_scoreboard()` | Get current cycling race results | 1¢ |
-| `get_rankings()` | Get UCI world rankings | 1¢ |
+| `get_scoreboard()` | Get current cycling event scores | 1¢ |
+| `get_event(event_id)` | Get cycling event details | 1¢ |
 
 ## Parameters
 
-
+### get_event
+- `event_id` (string, required)
 
 ## Environment Variables
 
@@ -37,9 +38,9 @@ npm run dev
 ## Upstream API
 
 - **Provider**: ESPN
-- **Base URL**: https://site.api.espn.com/apis/site/v2/sports/racing/cycling
+- **Base URL**: https://site.api.espn.com
 - **Auth**: None required
-- **Rate Limits**: Reasonable use
+- **Rate Limits**: ~30 req/min
 - **Docs**: https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b
 
 ## Deploy

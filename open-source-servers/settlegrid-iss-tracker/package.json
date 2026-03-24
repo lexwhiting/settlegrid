@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-iss-tracker",
+  "version": "1.0.0",
+  "description": "MCP server for ISS Tracker with SettleGrid billing. Track the International Space Station position, crew, and overhead passes. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "iss",
+    "space",
+    "satellite",
+    "tracking",
+    "nasa"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-iss-tracker"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-ssrn",
+  "version": "1.0.0",
+  "description": "MCP server for SSRN Social Science Papers with SettleGrid billing. Search social science research papers, authors, and metadata via Semantic Scholar proxy. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "ssrn",
+    "social-science",
+    "economics",
+    "law",
+    "papers"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-ssrn"
+  }
+}

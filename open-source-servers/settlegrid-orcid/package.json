@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-orcid",
+  "version": "1.0.0",
+  "description": "MCP server for ORCID Researcher Profiles with SettleGrid billing. Search and retrieve researcher profiles, works, and affiliations from the ORCID registry. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "orcid",
+    "researchers",
+    "profiles",
+    "academic",
+    "identity"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-orcid"
+  }
+}

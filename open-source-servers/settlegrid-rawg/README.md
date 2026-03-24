@@ -1,12 +1,12 @@
 # settlegrid-rawg
 
-RAWG Video Games Database MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+RAWG Video Games MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-rawg)
 
-Search and explore 500,000+ video games from the RAWG database.
+Search and browse video game data from the RAWG database.
 
 ## Quick Start
 
@@ -20,32 +20,31 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_games(query)` | Search video games | 2¢ |
-| `get_game(id)` | Get game details by slug or ID | 2¢ |
-| `get_genres()` | List all game genres | 1¢ |
+| `search_games(query)` | Search video games by name | 2¢ |
+| `get_game(id)` | Get game details by ID or slug | 2¢ |
 
 ## Parameters
 
 ### search_games
-- `query` (string, required) — Game title to search
+- `query` (string, required)
 
 ### get_game
-- `id` (string, required) — Game ID or slug
+- `id` (string, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `RAWG_API_KEY` | Yes | RAWG API key (free at rawg.io) |
+| `RAWG_API_KEY` | Yes | Free key from rawg.io/apidocs |
 
 
 ## Upstream API
 
 - **Provider**: RAWG
 - **Base URL**: https://api.rawg.io/api
-- **Auth**: API key (query param)
-- **Rate Limits**: 20,000/mo free
+- **Auth**: Free API key required
+- **Rate Limits**: 20 req/sec
 - **Docs**: https://rawg.io/apidocs
 
 ## Deploy

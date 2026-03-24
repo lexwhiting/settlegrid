@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-font-data",
+  "version": "1.0.0",
+  "description": "MCP server for Google Fonts Metadata with SettleGrid billing. Browse, search, and retrieve metadata for Google Fonts including families, categories, and variants.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "fonts",
+    "google",
+    "typography",
+    "design",
+    "css"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-font-data"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-food-prices",
+  "version": "1.0.0",
+  "description": "MCP server for Global Food Prices with SettleGrid billing. Access global food price indices and commodity prices from the World Bank. Free, no API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "food",
+    "prices",
+    "global",
+    "worldbank",
+    "commodities",
+    "inflation"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-food-prices"
+  }
+}

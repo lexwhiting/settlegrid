@@ -1,24 +1,32 @@
 /**
  * settlegrid-dad-jokes — Dad Jokes MCP Server
  *
+ * Get dad jokes from the icanhazdadjoke API.
+ *
  * Methods:
- *   get_random()           — Random dad joke     (1¢)
- *   search_jokes(query)    — Search jokes        (1¢)
+ *   get_random()                  — Get a random dad joke  (1¢)
+ *   search_jokes(term)            — Search dad jokes by term  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchInput { query: string }
+interface GetRandomInput {
+
+}
+
+interface SearchJokesInput {
+  term: string
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://icanhazdadjoke.com'
 
-async function dadFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { Accept: 'application/json', 'User-Agent': 'settlegrid-dad-jokes/1.0 (contact@settlegrid.ai)' },
+    headers: { 'User-Agent': 'settlegrid-dad-jokes/1.0' },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
@@ -34,7 +42,7 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_random: { costCents: 1, displayName: 'Random Dad Joke' },
+      get_random: { costCents: 1, displayName: 'Random Joke' },
       search_jokes: { costCents: 1, displayName: 'Search Jokes' },
     },
   },
@@ -42,19 +50,27 @@ const sg = settlegrid.init({
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getRandom = sg.wrap(async () => {
-  const data = await dadFetch<{ id: string; joke: string }>('/')
-  return { id: data.id, joke: data.joke }
+const getRandom = sg.wrap(async (args: GetRandomInput) => {
+
+  const data = await apiFetch<any>(`/`)
+  return {
+    id: data.id,
+    joke: data.joke,
+    status: data.status,
+  }
 }, { method: 'get_random' })
 
-const searchJokes = sg.wrap(async (args: SearchInput) => {
-  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await dadFetch<{ results: Array<{ id: string; joke: string }>; total_jokes: number }>(`/search?term=${q}&limit=10`)
+const searchJokes = sg.wrap(async (args: SearchJokesInput) => {
+  if (!args.term || typeof args.term !== 'string') throw new Error('term is required')
+  const term = args.term.trim()
+  const data = await apiFetch<any>(`/search?term=${encodeURIComponent(term)}&limit=10`)
+  const items = (data.results ?? []).slice(0, 10)
   return {
-    query: args.query,
-    total: data.total_jokes,
-    jokes: data.results.map((j) => ({ id: j.id, joke: j.joke })),
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        joke: item.joke,
+    })),
   }
 }, { method: 'search_jokes' })
 

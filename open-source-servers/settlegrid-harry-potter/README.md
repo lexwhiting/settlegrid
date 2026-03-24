@@ -6,7 +6,7 @@ Harry Potter API MCP Server with per-call billing via [SettleGrid](https://settl
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-harry-potter)
 
-Access Harry Potter characters, spells, and house data.
+Get Harry Potter character data from the HP API.
 
 ## Quick Start
 
@@ -20,17 +20,13 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_characters(house)` | Get all Harry Potter characters | 1¢ |
-| `get_character(id)` | Get a specific character by ID | 1¢ |
-| `get_spells()` | Get all Harry Potter spells | 1¢ |
+| `get_characters()` | Get all Harry Potter characters | 1¢ |
+| `get_students()` | Get Hogwarts students only | 1¢ |
+| `get_staff()` | Get Hogwarts staff only | 1¢ |
 
 ## Parameters
 
-### get_characters
-- `house` (string, optional) — Filter by house: gryffindor, slytherin, hufflepuff, ravenclaw
 
-### get_character
-- `id` (string, required) — Character ID
 
 ## Environment Variables
 

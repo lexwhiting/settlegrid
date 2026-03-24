@@ -6,7 +6,7 @@ Open Trivia Database MCP Server with per-call billing via [SettleGrid](https://s
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-opentdb)
 
-Get trivia questions across categories from the Open Trivia Database.
+Get random trivia questions from the Open Trivia Database.
 
 ## Quick Start
 
@@ -20,15 +20,14 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_questions(amount, category, difficulty)` | Get trivia questions | 1¢ |
+| `get_questions(amount, difficulty)` | Get random trivia questions | 1¢ |
 | `get_categories()` | List all trivia categories | 1¢ |
 
 ## Parameters
 
 ### get_questions
-- `amount` (number, optional) — Number of questions (1-50, default 10)
-- `category` (number, optional) — Category ID (9-32)
-- `difficulty` (string, optional) — "easy", "medium", or "hard"
+- `amount` (number, optional)
+- `difficulty` (string, optional)
 
 ## Environment Variables
 

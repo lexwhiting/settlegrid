@@ -1,25 +1,37 @@
 /**
- * settlegrid-cricket — Cricket Data MCP Server
+ * settlegrid-cricket — Cricket API MCP Server
+ *
+ * Cricket data — live scores, matches, and player stats.
  *
  * Methods:
- *   get_matches()   — Current matches    (2¢)
- *   get_series()    — Series list        (2¢)
+ *   get_matches()                 — Get current and recent cricket matches  (2¢)
+ *   search_players(query)         — Search cricket players by name  (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface GetMatchesInput {
+
+}
+
+interface SearchPlayersInput {
+  query: string
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://api.cricapi.com/v1'
-const API_KEY = process.env.CRICAPI_KEY || ''
+const API_KEY = process.env.CRICKET_API_KEY ?? ''
 
-async function cricFetch<T>(path: string): Promise<T> {
-  if (!API_KEY) throw new Error('CRICAPI_KEY environment variable is required')
-  const sep = path.includes('?') ? '&' : '?'
-  const res = await fetch(`${BASE}${path}${sep}apikey=${API_KEY}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-cricket/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`CricAPI ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Cricket API API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -31,50 +43,51 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 2,
     methods: {
-      get_matches: { costCents: 2, displayName: 'Current Matches' },
-      get_series: { costCents: 2, displayName: 'Get Series' },
+      get_matches: { costCents: 2, displayName: 'Get Matches' },
+      search_players: { costCents: 2, displayName: 'Search Players' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getMatches = sg.wrap(async () => {
-  const data = await cricFetch<{ data: Array<{ id: string; name: string; status: string; venue: string; date: string; teams: string[]; score: Array<{ r: number; w: number; o: number; inning: string }> }> }>('/currentMatches')
+const getMatches = sg.wrap(async (args: GetMatchesInput) => {
+
+  const data = await apiFetch<any>(`/currentMatches?apikey=${API_KEY}`)
+  const items = (data.data ?? []).slice(0, 10)
   return {
-    count: data.data?.length || 0,
-    matches: (data.data || []).slice(0, 15).map((m) => ({
-      id: m.id,
-      name: m.name,
-      status: m.status,
-      venue: m.venue,
-      date: m.date,
-      teams: m.teams,
-      score: m.score,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        matchType: item.matchType,
+        status: item.status,
+        venue: item.venue,
+        teams: item.teams,
+        score: item.score,
     })),
   }
 }, { method: 'get_matches' })
 
-const getSeries = sg.wrap(async () => {
-  const data = await cricFetch<{ data: Array<{ id: string; name: string; startDate: string; endDate: string; odi: number; t20: number; test: number }> }>('/series')
+const searchPlayers = sg.wrap(async (args: SearchPlayersInput) => {
+  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/players?search=${encodeURIComponent(query)}&apikey=${API_KEY}`)
+  const items = (data.data ?? []).slice(0, 10)
   return {
-    count: data.data?.length || 0,
-    series: (data.data || []).slice(0, 20).map((s) => ({
-      id: s.id,
-      name: s.name,
-      startDate: s.startDate,
-      endDate: s.endDate,
-      odi: s.odi,
-      t20: s.t20,
-      test: s.test,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        country: item.country,
     })),
   }
-}, { method: 'get_series' })
+}, { method: 'search_players' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getMatches, getSeries }
+export { getMatches, searchPlayers }
 
 console.log('settlegrid-cricket MCP server ready')
-console.log('Methods: get_matches, get_series')
+console.log('Methods: get_matches, search_players')
 console.log('Pricing: 2¢ per call | Powered by SettleGrid')

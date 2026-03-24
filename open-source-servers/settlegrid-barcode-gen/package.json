@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-barcode-gen",
+  "version": "1.0.0",
+  "description": "MCP server for Barcode Generator with SettleGrid billing. Generate barcode image URLs for EAN, UPC, Code128, and QR codes.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "utility",
+    "barcode",
+    "ean",
+    "upc",
+    "generator"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-barcode-gen"
+  }
+}

@@ -6,7 +6,7 @@ NBA Stats MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-nba-stats)
 
-NBA player stats, teams, and game data from BallDontLie.
+NBA player and team statistics from the BallDontLie API.
 
 ## Quick Start
 
@@ -22,15 +22,11 @@ npm run dev
 |--------|-------------|------|
 | `search_players(query)` | Search NBA players by name | 1¢ |
 | `get_teams()` | List all NBA teams | 1¢ |
-| `get_games(date)` | Get NBA games by date | 1¢ |
 
 ## Parameters
 
 ### search_players
-- `query` (string, required) — Player name
-
-### get_games
-- `date` (string, required) — Date in YYYY-MM-DD format
+- `query` (string, required)
 
 ## Environment Variables
 
@@ -42,10 +38,10 @@ npm run dev
 ## Upstream API
 
 - **Provider**: BallDontLie
-- **Base URL**: https://api.balldontlie.io/v1
+- **Base URL**: https://www.balldontlie.io
 - **Auth**: None required
 - **Rate Limits**: 30 req/min
-- **Docs**: https://www.balldontlie.io/
+- **Docs**: https://www.balldontlie.io/home.html#introduction
 
 ## Deploy
 

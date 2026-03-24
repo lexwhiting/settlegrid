@@ -6,7 +6,7 @@ TVMaze MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-tvmaze)
 
-Search TV shows, get episode guides, and schedule data from TVMaze.
+Search TV shows, get episode guides, and scheduling data.
 
 ## Quick Start
 
@@ -21,20 +21,19 @@ npm run dev
 | Method | Description | Cost |
 |--------|-------------|------|
 | `search_shows(query)` | Search TV shows by name | 1¢ |
-| `get_episodes(show_id)` | Get episode list for a show | 1¢ |
-| `get_schedule(country, date)` | Get TV schedule for a date/country | 1¢ |
+| `get_show(id)` | Get TV show details by ID | 1¢ |
+| `get_episodes(show_id)` | Get all episodes for a show | 1¢ |
 
 ## Parameters
 
 ### search_shows
-- `query` (string, required) — Show name to search for
+- `query` (string, required)
+
+### get_show
+- `id` (number, required)
 
 ### get_episodes
-- `show_id` (number, required) — TVMaze show ID
-
-### get_schedule
-- `country` (string, optional) — ISO country code (default: "US")
-- `date` (string, optional) — Date in YYYY-MM-DD format
+- `show_id` (number, required)
 
 ## Environment Variables
 

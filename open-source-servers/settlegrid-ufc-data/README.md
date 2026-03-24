@@ -1,12 +1,12 @@
 # settlegrid-ufc-data
 
-UFC / MMA Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+UFC Data (ESPN) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-ufc-data)
 
-UFC fight data, events, and fighter info from ESPN.
+UFC mixed martial arts data — events, fighters, and results via ESPN API.
 
 ## Quick Start
 
@@ -20,8 +20,8 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_scoreboard()` | Get recent/upcoming UFC events and results | 1¢ |
-| `get_rankings()` | Get UFC fighter rankings by division | 1¢ |
+| `get_scoreboard()` | Get current/recent UFC event scores | 1¢ |
+| `get_news()` | Get latest UFC news headlines | 1¢ |
 
 ## Parameters
 
@@ -37,7 +37,7 @@ npm run dev
 ## Upstream API
 
 - **Provider**: ESPN
-- **Base URL**: https://site.api.espn.com/apis/site/v2/sports/mma/ufc
+- **Base URL**: https://site.api.espn.com
 - **Auth**: None required
 - **Rate Limits**: Reasonable use
 - **Docs**: https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b

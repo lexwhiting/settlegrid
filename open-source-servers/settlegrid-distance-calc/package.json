@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-distance-calc",
+  "version": "1.0.0",
+  "description": "MCP server for Distance Calculator with SettleGrid billing. Calculate distances between coordinates using the Haversine formula.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "travel",
+    "distance",
+    "coordinates",
+    "geography"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-distance-calc"
+  }
+}

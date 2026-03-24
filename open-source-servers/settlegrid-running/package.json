@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-running",
   "version": "1.0.0",
-  "description": "Marathon and running race data, event schedules from ESPN.",
+  "description": "Marathon and running race data via RunSignUp API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -22,7 +22,7 @@
     "sports",
     "running",
     "marathon",
-    "athletics"
+    "races"
   ],
   "license": "MIT",
   "repository": {

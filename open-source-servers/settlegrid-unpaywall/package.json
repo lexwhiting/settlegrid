@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-unpaywall",
+  "version": "1.0.0",
+  "description": "MCP server for Unpaywall Open Access Finder with SettleGrid billing. Find free, legal open access versions of research papers by DOI via the Unpaywall API. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "unpaywall",
+    "open-access",
+    "oa",
+    "free-papers",
+    "research"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-unpaywall"
+  }
+}

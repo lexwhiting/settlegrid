@@ -1,38 +1,45 @@
 /**
  * settlegrid-football-data — Football-Data.org MCP Server
  *
+ * Soccer data — leagues, standings, fixtures, and scorers.
+ *
  * Methods:
- *   get_standings(competition)             — League standings     (2¢)
- *   get_matches(competition, matchday?)    — Matches              (2¢)
- *   get_team(team_id)                      — Team details         (2¢)
+ *   get_competitions()            — List available soccer competitions  (2¢)
+ *   get_standings(competition)    — Get league standings by competition code  (2¢)
+ *   get_matches(competition)      — Get matches for a competition  (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface StandingsInput { competition: string }
-interface MatchesInput { competition: string; matchday?: number }
-interface TeamInput { team_id: number }
+interface GetCompetitionsInput {
+
+}
+
+interface GetStandingsInput {
+  competition: string
+}
+
+interface GetMatchesInput {
+  competition: string
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://api.football-data.org/v4'
-const API_KEY = process.env.FOOTBALL_DATA_API_KEY || ''
+const API_KEY = process.env.FOOTBALL_DATA_KEY ?? ''
 
-async function fdFetch<T>(path: string): Promise<T> {
-  if (!API_KEY) throw new Error('FOOTBALL_DATA_API_KEY environment variable is required')
+async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'X-Auth-Token': API_KEY },
+    headers: { 'User-Agent': 'settlegrid-football-data/1.0', 'X-Auth-Token': API_KEY },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Football-Data API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Football-Data.org API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
-
-const VALID_COMPETITIONS = new Set(['PL', 'BL1', 'SA', 'PD', 'FL1', 'ELC', 'DED', 'PPL', 'BSA', 'CL', 'EC', 'WC'])
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
 
@@ -41,84 +48,68 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 2,
     methods: {
+      get_competitions: { costCents: 2, displayName: 'Get Competitions' },
       get_standings: { costCents: 2, displayName: 'Get Standings' },
       get_matches: { costCents: 2, displayName: 'Get Matches' },
-      get_team: { costCents: 2, displayName: 'Get Team' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getStandings = sg.wrap(async (args: StandingsInput) => {
-  if (!args.competition || typeof args.competition !== 'string') throw new Error('competition code is required')
-  const code = args.competition.toUpperCase().trim()
-  if (!VALID_COMPETITIONS.has(code)) throw new Error(`Invalid competition. Valid: ${[...VALID_COMPETITIONS].join(', ')}`)
-  const data = await fdFetch<{ competition: { name: string }; standings: Array<{ table: Array<{ position: number; team: { name: string; id: number }; playedGames: number; won: number; draw: number; lost: number; points: number; goalsFor: number; goalsAgainst: number; goalDifference: number }> }> }>(`/competitions/${code}/standings`)
-  const table = data.standings?.[0]?.table || []
+const getCompetitions = sg.wrap(async (args: GetCompetitionsInput) => {
+
+  const data = await apiFetch<any>(`/competitions`)
+  const items = (data.competitions ?? []).slice(0, 15)
   return {
-    competition: data.competition?.name,
-    standings: table.map((t) => ({
-      position: t.position,
-      team: t.team.name,
-      teamId: t.team.id,
-      played: t.playedGames,
-      won: t.won,
-      drawn: t.draw,
-      lost: t.lost,
-      points: t.points,
-      gf: t.goalsFor,
-      ga: t.goalsAgainst,
-      gd: t.goalDifference,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        code: item.code,
+        area: item.area,
+        currentSeason: item.currentSeason,
+    })),
+  }
+}, { method: 'get_competitions' })
+
+const getStandings = sg.wrap(async (args: GetStandingsInput) => {
+  if (!args.competition || typeof args.competition !== 'string') throw new Error('competition is required')
+  const competition = args.competition.trim()
+  const data = await apiFetch<any>(`/competitions/${encodeURIComponent(competition)}/standings`)
+  const items = (data.standings ?? []).slice(0, 5)
+  return {
+    count: items.length,
+    results: items.map((item: any) => ({
+        stage: item.stage,
+        type: item.type,
+        table: item.table,
     })),
   }
 }, { method: 'get_standings' })
 
-const getMatches = sg.wrap(async (args: MatchesInput) => {
-  if (!args.competition || typeof args.competition !== 'string') throw new Error('competition code is required')
-  const code = args.competition.toUpperCase().trim()
-  const mdParam = args.matchday ? `?matchday=${args.matchday}` : ''
-  const data = await fdFetch<{ matches: Array<{ id: number; utcDate: string; status: string; matchday: number; homeTeam: { name: string }; awayTeam: { name: string }; score: { fullTime: { home: number | null; away: number | null } } }> }>(`/competitions/${code}/matches${mdParam}`)
+const getMatches = sg.wrap(async (args: GetMatchesInput) => {
+  if (!args.competition || typeof args.competition !== 'string') throw new Error('competition is required')
+  const competition = args.competition.trim()
+  const data = await apiFetch<any>(`/competitions/${encodeURIComponent(competition)}/matches?limit=10`)
+  const items = (data.matches ?? []).slice(0, 10)
   return {
-    competition: code,
-    count: data.matches?.length || 0,
-    matches: (data.matches || []).slice(0, 20).map((m) => ({
-      id: m.id,
-      date: m.utcDate,
-      status: m.status,
-      matchday: m.matchday,
-      homeTeam: m.homeTeam.name,
-      awayTeam: m.awayTeam.name,
-      homeScore: m.score?.fullTime?.home,
-      awayScore: m.score?.fullTime?.away,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        utcDate: item.utcDate,
+        status: item.status,
+        homeTeam: item.homeTeam,
+        awayTeam: item.awayTeam,
+        score: item.score,
     })),
   }
 }, { method: 'get_matches' })
 
-const getTeam = sg.wrap(async (args: TeamInput) => {
-  if (typeof args.team_id !== 'number' || args.team_id <= 0) throw new Error('team_id must be a positive number')
-  const data = await fdFetch<{ id: number; name: string; shortName: string; crest: string; venue: string; founded: number; clubColors: string; squad: Array<{ id: number; name: string; position: string; nationality: string }> }>(`/teams/${args.team_id}`)
-  return {
-    id: data.id,
-    name: data.name,
-    shortName: data.shortName,
-    crest: data.crest,
-    venue: data.venue,
-    founded: data.founded,
-    colors: data.clubColors,
-    squad: data.squad?.slice(0, 30).map((p) => ({
-      id: p.id,
-      name: p.name,
-      position: p.position,
-      nationality: p.nationality,
-    })),
-  }
-}, { method: 'get_team' })
-
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getStandings, getMatches, getTeam }
+export { getCompetitions, getStandings, getMatches }
 
 console.log('settlegrid-football-data MCP server ready')
-console.log('Methods: get_standings, get_matches, get_team')
+console.log('Methods: get_competitions, get_standings, get_matches')
 console.log('Pricing: 2¢ per call | Powered by SettleGrid')

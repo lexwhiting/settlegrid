@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-nfl-data",
   "version": "1.0.0",
-  "description": "NFL teams, scores, and standings from the ESPN public API.",
+  "description": "NFL football data — teams, scores, and standings via ESPN API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "football",
-    "nfl",
-    "american-football"
+    "nfl"
   ],
   "license": "MIT",
   "repository": {

@@ -6,7 +6,7 @@ Superhero API MCP Server with per-call billing via [SettleGrid](https://settlegr
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-superhero)
 
-Look up superhero stats, powers, and biographies from the Superhero API.
+Browse superhero data — powerstats, biography, and images.
 
 ## Quick Start
 
@@ -20,16 +20,13 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_heroes(query)` | Search superheroes by name | 1¢ |
-| `get_hero(id)` | Get hero details by ID | 1¢ |
+| `get_all()` | Get full list of superheroes | 1¢ |
+| `get_hero(id)` | Get superhero details by ID | 1¢ |
 
 ## Parameters
 
-### search_heroes
-- `query` (string, required) — Hero name
-
 ### get_hero
-- `id` (number, required) — Superhero ID
+- `id` (number, required)
 
 ## Environment Variables
 
@@ -40,11 +37,11 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: Akabab Superhero API
-- **Base URL**: https://akabab.github.io/superhero-api/api
+- **Provider**: Superhero API
+- **Base URL**: https://akabab.github.io/superhero-api
 - **Auth**: None required
-- **Rate Limits**: Unlimited (static CDN)
-- **Docs**: https://akabab.github.io/superhero-api/
+- **Rate Limits**: Unlimited (static JSON)
+- **Docs**: https://akabab.github.io/superhero-api/api
 
 ## Deploy
 

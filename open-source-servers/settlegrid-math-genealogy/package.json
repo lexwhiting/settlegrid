@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-math-genealogy",
+  "version": "1.0.0",
+  "description": "MCP server for Mathematics Genealogy with SettleGrid billing. Search mathematicians, their works, and academic lineage via OpenAlex API. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "mathematics",
+    "genealogy",
+    "mathematicians",
+    "academic",
+    "research"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-math-genealogy"
+  }
+}

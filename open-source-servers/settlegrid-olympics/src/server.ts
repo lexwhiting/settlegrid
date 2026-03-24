@@ -1,22 +1,36 @@
 /**
  * settlegrid-olympics — Olympic Games MCP Server
  *
+ * Olympic Games data — events, athletes, countries, and disciplines.
+ *
  * Methods:
- *   get_events()       — Olympic events       (1¢)
- *   get_countries()    — Countries & medals   (1¢)
+ *   get_events()                  — Get Olympic events  (1¢)
+ *   get_countries()               — Get participating countries and medal counts  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface GetEventsInput {
+
+}
+
+interface GetCountriesInput {
+
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://apis.codante.io/olympic-games'
 
-async function olympicFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-olympics/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Olympic API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Olympic Games API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -36,32 +50,37 @@ const sg = settlegrid.init({
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getEvents = sg.wrap(async () => {
-  const data = await olympicFetch<{ data: Array<{ id: number; discipline: string; event: string; venue: string; date: string; status: string }> }>('/events')
+const getEvents = sg.wrap(async (args: GetEventsInput) => {
+
+  const data = await apiFetch<any>(`/events`)
+  const items = (data.data ?? []).slice(0, 20)
   return {
-    count: data.data?.length || 0,
-    events: (data.data || []).slice(0, 25).map((e) => ({
-      id: e.id,
-      discipline: e.discipline,
-      event: e.event,
-      venue: e.venue,
-      date: e.date,
-      status: e.status,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        sport: item.sport,
+        discipline: item.discipline,
+        event: item.event,
+        venue: item.venue,
+        date: item.date,
     })),
   }
 }, { method: 'get_events' })
 
-const getCountries = sg.wrap(async () => {
-  const data = await olympicFetch<{ data: Array<{ id: string; name: string; gold: number; silver: number; bronze: number; total: number }> }>('/countries')
+const getCountries = sg.wrap(async (args: GetCountriesInput) => {
+
+  const data = await apiFetch<any>(`/countries`)
+  const items = (data.data ?? []).slice(0, 30)
   return {
-    count: data.data?.length || 0,
-    countries: (data.data || []).slice(0, 30).map((c) => ({
-      code: c.id,
-      name: c.name,
-      gold: c.gold,
-      silver: c.silver,
-      bronze: c.bronze,
-      total: c.total,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        continent: item.continent,
+        gold: item.gold,
+        silver: item.silver,
+        bronze: item.bronze,
+        total: item.total,
     })),
   }
 }, { method: 'get_countries' })

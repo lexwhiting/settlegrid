@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-hackernews-top",
+  "version": "1.0.0",
+  "description": "MCP server for Hacker News Top Stories with SettleGrid billing. Top and best stories from Hacker News Firebase API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "misc",
+    "hackernews",
+    "tech",
+    "news",
+    "stories"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-hackernews-top"
+  }
+}

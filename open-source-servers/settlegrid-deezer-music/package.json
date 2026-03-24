@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-deezer-music",
+  "version": "1.0.0",
+  "description": "MCP server for Deezer Music with SettleGrid billing. Music search, track info, and chart data from Deezer public API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "music",
+    "streaming",
+    "tracks",
+    "charts",
+    "deezer"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-deezer-music"
+  }
+}

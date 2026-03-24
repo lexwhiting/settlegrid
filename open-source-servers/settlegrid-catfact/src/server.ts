@@ -1,27 +1,36 @@
 /**
  * settlegrid-catfact — Cat Facts MCP Server
  *
+ * Get random cat facts from the Cat Fact API.
+ *
  * Methods:
- *   get_fact()            — Random cat fact    (1¢)
- *   get_facts(limit?)     — List cat facts     (1¢)
- *   get_breeds(limit?)    — List cat breeds    (1¢)
+ *   get_fact()                    — Get a random cat fact  (1¢)
+ *   get_breeds()                  — List cat breeds  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface ListInput { limit?: number }
+interface GetFactInput {
+
+}
+
+interface GetBreedsInput {
+
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://catfact.ninja'
 
-async function catFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-catfact/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Cat Fact API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Cat Facts API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -33,36 +42,43 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_fact: { costCents: 1, displayName: 'Random Cat Fact' },
-      get_facts: { costCents: 1, displayName: 'Cat Facts List' },
-      get_breeds: { costCents: 1, displayName: 'Cat Breeds' },
+      get_fact: { costCents: 1, displayName: 'Random Fact' },
+      get_breeds: { costCents: 1, displayName: 'Get Breeds' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getFact = sg.wrap(async () => {
-  const data = await catFetch<{ fact: string; length: number }>('/fact')
-  return { fact: data.fact, length: data.length }
+const getFact = sg.wrap(async (args: GetFactInput) => {
+
+  const data = await apiFetch<any>(`/fact`)
+  return {
+    fact: data.fact,
+    length: data.length,
+  }
 }, { method: 'get_fact' })
 
-const getFacts = sg.wrap(async (args: ListInput) => {
-  const limit = Math.min(Math.max(args.limit || 10, 1), 50)
-  const data = await catFetch<{ data: Array<{ fact: string; length: number }> }>(`/facts?limit=${limit}`)
-  return { count: data.data.length, facts: data.data }
-}, { method: 'get_facts' })
+const getBreeds = sg.wrap(async (args: GetBreedsInput) => {
 
-const getBreeds = sg.wrap(async (args: ListInput) => {
-  const limit = Math.min(Math.max(args.limit || 10, 1), 50)
-  const data = await catFetch<{ data: Array<{ breed: string; country: string; origin: string; coat: string; pattern: string }> }>(`/breeds?limit=${limit}`)
-  return { count: data.data.length, breeds: data.data }
+  const data = await apiFetch<any>(`/breeds?limit=10`)
+  const items = (data.data ?? []).slice(0, 10)
+  return {
+    count: items.length,
+    results: items.map((item: any) => ({
+        breed: item.breed,
+        country: item.country,
+        origin: item.origin,
+        coat: item.coat,
+        pattern: item.pattern,
+    })),
+  }
 }, { method: 'get_breeds' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getFact, getFacts, getBreeds }
+export { getFact, getBreeds }
 
 console.log('settlegrid-catfact MCP server ready')
-console.log('Methods: get_fact, get_facts, get_breeds')
+console.log('Methods: get_fact, get_breeds')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

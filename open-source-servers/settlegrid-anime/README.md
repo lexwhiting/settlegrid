@@ -1,12 +1,12 @@
 # settlegrid-anime
 
-Anime & Manga (Jikan) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Jikan (Anime/Manga) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-anime)
 
-Search anime, manga, and character data via the Jikan/MyAnimeList API.
+Search anime and manga data via the Jikan MyAnimeList API.
 
 ## Quick Start
 
@@ -22,18 +22,18 @@ npm run dev
 |--------|-------------|------|
 | `search_anime(query)` | Search anime by title | 1¢ |
 | `search_manga(query)` | Search manga by title | 1¢ |
-| `get_top_anime(type)` | Get top-rated anime | 1¢ |
+| `get_anime(id)` | Get anime details by MyAnimeList ID | 1¢ |
 
 ## Parameters
 
 ### search_anime
-- `query` (string, required) — Anime title
+- `query` (string, required)
 
 ### search_manga
-- `query` (string, required) — Manga title
+- `query` (string, required)
 
-### get_top_anime
-- `type` (string, optional) — "tv", "movie", "ova", "special" (default: all)
+### get_anime
+- `id` (number, required)
 
 ## Environment Variables
 
@@ -44,7 +44,7 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: Jikan (MyAnimeList)
+- **Provider**: Jikan / MyAnimeList
 - **Base URL**: https://api.jikan.moe/v4
 - **Auth**: None required
 - **Rate Limits**: 3 req/sec

@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-sanctions-lists",
+  "version": "1.0.0",
+  "description": "MCP server for Global Sanctions Lists with SettleGrid billing. Search the US Consolidated Screening List for sanctioned entities, denied persons, and blocked parties. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sanctions",
+    "screening",
+    "compliance",
+    "trade",
+    "denied-parties",
+    "legal"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-sanctions-lists"
+  }
+}

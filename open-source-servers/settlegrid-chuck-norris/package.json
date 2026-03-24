@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-chuck-norris",
   "version": "1.0.0",
-  "description": "Get random Chuck Norris jokes and search by keyword from the Chuck Norris API.",
+  "description": "Get random Chuck Norris jokes from the Chuck Norris API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "jokes",
-    "humor",
-    "chuck-norris"
+    "humor"
   ],
   "license": "MIT",
   "repository": {

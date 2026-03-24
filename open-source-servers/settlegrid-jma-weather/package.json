@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-jma-weather",
+  "version": "1.0.0",
+  "description": "MCP server for JMA Japan Weather with SettleGrid billing. Japan Meteorological Agency weather forecasts and warnings via Open-Meteo JMA model.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "weather",
+    "japan",
+    "jma",
+    "forecast"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-jma-weather"
+  }
+}

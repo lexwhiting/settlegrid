@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-altmetric",
+  "version": "1.0.0",
+  "description": "MCP server for Altmetric Research Impact with SettleGrid billing. Retrieve research impact and attention data including social media mentions, news, and policy citations via Altmetric.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "altmetric",
+    "impact",
+    "citations",
+    "social-media",
+    "research"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-altmetric"
+  }
+}

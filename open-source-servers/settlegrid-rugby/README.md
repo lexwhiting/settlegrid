@@ -1,12 +1,12 @@
 # settlegrid-rugby
 
-Rugby Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Rugby MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-rugby)
 
-Rugby scores, standings, and team data from ESPN.
+Rugby union scores, teams, and schedules via ESPN.
 
 ## Quick Start
 
@@ -20,16 +20,14 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_scoreboard(league)` | Get current rugby scores | 1¢ |
-| `get_teams(league)` | List rugby teams | 1¢ |
+| `get_scoreboard()` | Get current rugby match scores | 1¢ |
+| `get_teams()` | Get rugby teams list | 1¢ |
+| `get_team(team_id)` | Get details for a specific rugby team | 1¢ |
 
 ## Parameters
 
-### get_scoreboard
-- `league` (string, optional) — League slug (default: "world-rugby")
-
-### get_teams
-- `league` (string, optional) — League slug
+### get_team
+- `team_id` (string, required)
 
 ## Environment Variables
 
@@ -41,9 +39,9 @@ npm run dev
 ## Upstream API
 
 - **Provider**: ESPN
-- **Base URL**: https://site.api.espn.com/apis/site/v2/sports/rugby
+- **Base URL**: https://site.api.espn.com
 - **Auth**: None required
-- **Rate Limits**: Reasonable use
+- **Rate Limits**: ~30 req/min
 - **Docs**: https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b
 
 ## Deploy

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-thesportsdb",
   "version": "1.0.0",
-  "description": "Multi-sport data: teams, players, events, and leagues from TheSportsDB.",
+  "description": "Multi-sport data — teams, players, events across all major sports.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,7 @@
     "mcp",
     "ai",
     "sports",
-    "multi-sport",
-    "teams",
-    "events"
+    "multi-sport"
   ],
   "license": "MIT",
   "repository": {

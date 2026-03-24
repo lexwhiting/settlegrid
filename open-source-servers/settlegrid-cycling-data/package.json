@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-cycling-data",
+  "version": "1.0.0",
+  "description": "MCP server for Cycling Data with SettleGrid billing. Cycling race and team data from TheSportsDB.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sports",
+    "cycling",
+    "tour-de-france",
+    "racing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-cycling-data"
+  }
+}

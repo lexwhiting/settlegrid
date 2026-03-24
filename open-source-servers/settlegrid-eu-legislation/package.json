@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-eu-legislation",
+  "version": "1.0.0",
+  "description": "MCP server for EU Legislation with SettleGrid billing. Search and retrieve EU legislation from EUR-Lex. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "eu",
+    "legislation",
+    "eurlex",
+    "european-union",
+    "legal",
+    "compliance"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-eu-legislation"
+  }
+}

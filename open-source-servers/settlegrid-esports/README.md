@@ -1,12 +1,12 @@
 # settlegrid-esports
 
-Esports Data (PandaScore) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Esports MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-esports)
 
-Esports tournaments, matches, and teams from PandaScore.
+Esports match data, teams, and tournaments via PandaScore.
 
 ## Quick Start
 
@@ -20,33 +20,36 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_matches(game, status)` | Get upcoming/recent esports matches | 2¢ |
-| `get_tournaments(game)` | Get esports tournaments | 2¢ |
+| `list_matches(game)` | List upcoming or recent esports matches | 2¢ |
+| `search_teams(query)` | Search esports teams by name | 2¢ |
+| `list_tournaments(game)` | List current esports tournaments | 2¢ |
 
 ## Parameters
 
-### get_matches
-- `game` (string, optional) — Game slug: "lol", "dota2", "csgo", "valorant"
-- `status` (string, optional) — "upcoming", "running", or "past"
+### list_matches
+- `game` (string, optional)
 
-### get_tournaments
-- `game` (string, optional) — Game slug
+### search_teams
+- `query` (string, required)
+
+### list_tournaments
+- `game` (string, optional)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `PANDASCORE_TOKEN` | Yes | PandaScore API token (free at pandascore.co) |
+| `PANDASCORE_TOKEN` | Yes | PandaScore API token from pandascore.co |
 
 
 ## Upstream API
 
 - **Provider**: PandaScore
 - **Base URL**: https://api.pandascore.co
-- **Auth**: Bearer token
+- **Auth**: Free API key required
 - **Rate Limits**: 1000 req/hr (free)
-- **Docs**: https://developers.pandascore.co/
+- **Docs**: https://developers.pandascore.co/docs
 
 ## Deploy
 

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-api-football",
   "version": "1.0.0",
-  "description": "Football/soccer leagues, fixtures, and team data from API-Sports.",
+  "description": "Comprehensive football/soccer data — fixtures, standings, and statistics.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "soccer",
-    "football",
-    "fixtures"
+    "football"
   ],
   "license": "MIT",
   "repository": {

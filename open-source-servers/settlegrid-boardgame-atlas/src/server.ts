@@ -1,26 +1,34 @@
 /**
  * settlegrid-boardgame-atlas — Board Game Atlas MCP Server
  *
+ * Search board games, mechanics, and categories from Board Game Atlas.
+ *
  * Methods:
- *   search_games(query)  — Search board games    (2¢)
- *   get_mechanics()      — List mechanics        (1¢)
+ *   search_games(query)           — Search board games by name  (2¢)
+ *   get_game(id)                  — Get board game details by ID  (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchInput { query: string }
+interface SearchGamesInput {
+  query: string
+}
+
+interface GetGameInput {
+  id: string
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://api.boardgameatlas.com/api'
-const CLIENT_ID = process.env.BGA_CLIENT_ID || ''
+const API_KEY = process.env.BGA_CLIENT_ID ?? ''
 
-async function bgaFetch<T>(path: string): Promise<T> {
-  if (!CLIENT_ID) throw new Error('BGA_CLIENT_ID environment variable is required')
-  const sep = path.includes('?') ? '&' : '?'
-  const res = await fetch(`${BASE}${path}${sep}client_id=${CLIENT_ID}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-boardgame-atlas/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Board Game Atlas API ${res.status}: ${body.slice(0, 200)}`)
@@ -35,43 +43,57 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 2,
     methods: {
-      search_games: { costCents: 2, displayName: 'Search Board Games' },
-      get_mechanics: { costCents: 1, displayName: 'Get Mechanics' },
+      search_games: { costCents: 2, displayName: 'Search Games' },
+      get_game: { costCents: 2, displayName: 'Get Game' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchGames = sg.wrap(async (args: SearchInput) => {
+const searchGames = sg.wrap(async (args: SearchGamesInput) => {
   if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await bgaFetch<{ games: Array<{ id: string; name: string; year_published: number; min_players: number; max_players: number; min_playtime: number; max_playtime: number; average_user_rating: number; description_preview: string; image_url: string }> }>(`/search?name=${q}&limit=10`)
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/search?name=${encodeURIComponent(query)}&limit=10&client_id=${API_KEY}`)
+  const items = (data.games ?? []).slice(0, 10)
   return {
-    query: args.query,
-    count: data.games?.length || 0,
-    games: (data.games || []).map((g) => ({
-      id: g.id,
-      name: g.name,
-      yearPublished: g.year_published,
-      players: `${g.min_players}-${g.max_players}`,
-      playtime: `${g.min_playtime}-${g.max_playtime} min`,
-      rating: g.average_user_rating ? Math.round(g.average_user_rating * 100) / 100 : null,
-      description: g.description_preview?.slice(0, 300),
-      image: g.image_url,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        year_published: item.year_published,
+        min_players: item.min_players,
+        max_players: item.max_players,
+        average_user_rating: item.average_user_rating,
+        description_preview: item.description_preview,
     })),
   }
 }, { method: 'search_games' })
 
-const getMechanics = sg.wrap(async () => {
-  const data = await bgaFetch<{ mechanics: Array<{ id: string; name: string }> }>('/game/mechanics')
-  return { mechanics: data.mechanics || [] }
-}, { method: 'get_mechanics' })
+const getGame = sg.wrap(async (args: GetGameInput) => {
+  if (!args.id || typeof args.id !== 'string') throw new Error('id is required')
+  const id = args.id.trim()
+  const data = await apiFetch<any>(`/search?ids=${encodeURIComponent(id)}&client_id=${API_KEY}`)
+  const items = (data.games ?? []).slice(0, 1)
+  return {
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        year_published: item.year_published,
+        min_players: item.min_players,
+        max_players: item.max_players,
+        average_user_rating: item.average_user_rating,
+        description_preview: item.description_preview,
+        mechanics: item.mechanics,
+    })),
+  }
+}, { method: 'get_game' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { searchGames, getMechanics }
+export { searchGames, getGame }
 
 console.log('settlegrid-boardgame-atlas MCP server ready')
-console.log('Methods: search_games, get_mechanics')
-console.log('Pricing: 1-2¢ per call | Powered by SettleGrid')
+console.log('Methods: search_games, get_game')
+console.log('Pricing: 2¢ per call | Powered by SettleGrid')

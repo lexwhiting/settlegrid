@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-purpleair",
+  "version": "1.0.0",
+  "description": "MCP server for PurpleAir Sensors with SettleGrid billing. Access PurpleAir air quality sensor network data with real-time PM2.5, temperature, and humidity. Free API key required.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "air-quality",
+    "purpleair",
+    "pm25",
+    "sensors",
+    "environment"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-purpleair"
+  }
+}

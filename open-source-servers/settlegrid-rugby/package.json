@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-rugby",
   "version": "1.0.0",
-  "description": "Rugby scores, standings, and team data from ESPN.",
+  "description": "Rugby union scores, teams, and schedules via ESPN.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "rugby",
-    "six-nations",
-    "world-cup"
+    "union"
   ],
   "license": "MIT",
   "repository": {

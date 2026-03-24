@@ -1,26 +1,41 @@
 /**
- * settlegrid-rugby — Rugby Data MCP Server
+ * settlegrid-rugby — Rugby MCP Server
+ *
+ * Rugby union scores, teams, and schedules via ESPN.
  *
  * Methods:
- *   get_scoreboard(league?)   — Rugby scores     (1¢)
- *   get_teams(league?)        — List teams       (1¢)
+ *   get_scoreboard()              — Get current rugby match scores  (1¢)
+ *   get_teams()                   — Get rugby teams list  (1¢)
+ *   get_team(team_id)             — Get details for a specific rugby team  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface LeagueInput { league?: string }
+interface GetScoreboardInput {
+
+}
+
+interface GetTeamsInput {
+
+}
+
+interface GetTeamInput {
+  team_id: string
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/rugby'
 
-async function rugbyFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-rugby/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`ESPN Rugby API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Rugby API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -32,53 +47,60 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_scoreboard: { costCents: 1, displayName: 'Rugby Scoreboard' },
+      get_scoreboard: { costCents: 1, displayName: 'Get Scoreboard' },
       get_teams: { costCents: 1, displayName: 'Get Teams' },
+      get_team: { costCents: 1, displayName: 'Get Team' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getScoreboard = sg.wrap(async (args: LeagueInput) => {
-  const league = args.league || 'world-rugby'
-  const data = await rugbyFetch<{ events: Array<{ id: string; name: string; date: string; status: { type: { description: string } }; competitions: Array<{ competitors: Array<{ team: { displayName: string }; score: string }> }> }> }>(`/${league}/scoreboard`)
+const getScoreboard = sg.wrap(async (args: GetScoreboardInput) => {
+
+  const data = await apiFetch<any>(`/scoreboard`)
+  const items = (data.events ?? []).slice(0, 10)
   return {
-    league,
-    count: data.events?.length || 0,
-    matches: (data.events || []).slice(0, 15).map((e) => ({
-      id: e.id,
-      name: e.name,
-      date: e.date,
-      status: e.status?.type?.description,
-      team1: e.competitions?.[0]?.competitors?.[0]?.team?.displayName,
-      team2: e.competitions?.[0]?.competitors?.[1]?.team?.displayName,
-      score1: e.competitions?.[0]?.competitors?.[0]?.score,
-      score2: e.competitions?.[0]?.competitors?.[1]?.score,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        date: item.date,
+        status: item.status,
     })),
   }
 }, { method: 'get_scoreboard' })
 
-const getTeams = sg.wrap(async (args: LeagueInput) => {
-  const league = args.league || 'world-rugby'
-  const data = await rugbyFetch<{ sports: Array<{ leagues: Array<{ teams: Array<{ team: { id: string; displayName: string; abbreviation: string; location: string } }> }> }> }>(`/${league}/teams`)
-  const teams = data.sports?.[0]?.leagues?.[0]?.teams || []
+const getTeams = sg.wrap(async (args: GetTeamsInput) => {
+
+  const data = await apiFetch<any>(`/teams`)
+  const items = (data.teams ?? []).slice(0, 20)
   return {
-    league,
-    count: teams.length,
-    teams: teams.map((t) => ({
-      id: t.team.id,
-      name: t.team.displayName,
-      abbreviation: t.team.abbreviation,
-      location: t.team.location,
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        displayName: item.displayName,
+        abbreviation: item.abbreviation,
     })),
   }
 }, { method: 'get_teams' })
 
+const getTeam = sg.wrap(async (args: GetTeamInput) => {
+  if (!args.team_id || typeof args.team_id !== 'string') throw new Error('team_id is required')
+  const team_id = args.team_id.trim()
+  const data = await apiFetch<any>(`/teams/${encodeURIComponent(team_id)}`)
+  return {
+    id: data.id,
+    displayName: data.displayName,
+    abbreviation: data.abbreviation,
+    record: data.record,
+  }
+}, { method: 'get_team' })
+
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getScoreboard, getTeams }
+export { getScoreboard, getTeams, getTeam }
 
 console.log('settlegrid-rugby MCP server ready')
-console.log('Methods: get_scoreboard, get_teams')
+console.log('Methods: get_scoreboard, get_teams, get_team')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

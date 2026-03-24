@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-gcp-pricing",
+  "version": "1.0.0",
+  "description": "MCP server for GCP Service Pricing with SettleGrid billing. Google Cloud Platform pricing data — compute, storage, networking, and managed services.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "gcp",
+    "google",
+    "cloud",
+    "pricing",
+    "compute",
+    "billing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-gcp-pricing"
+  }
+}

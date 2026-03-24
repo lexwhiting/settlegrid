@@ -1,12 +1,12 @@
 # settlegrid-chess
 
-Chess Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Chess MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-chess)
 
-Chess player profiles, games, and stats from Chess.com and Lichess.
+Chess player stats and games via Chess.com and Lichess APIs.
 
 ## Quick Start
 
@@ -20,20 +20,20 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_player(username)` | Get Chess.com player profile and stats | 1¢ |
-| `get_player_games(username)` | Get recent games for a Chess.com player | 1¢ |
-| `get_lichess_player(username)` | Get Lichess player profile | 1¢ |
+| `get_player(username)` | Get Chess.com player profile | 1¢ |
+| `get_player_stats(username)` | Get Chess.com player rating stats | 1¢ |
+| `get_lichess_user(username)` | Get Lichess player profile and ratings | 1¢ |
 
 ## Parameters
 
 ### get_player
-- `username` (string, required) — Chess.com username
+- `username` (string, required)
 
-### get_player_games
-- `username` (string, required) — Chess.com username
+### get_player_stats
+- `username` (string, required)
 
-### get_lichess_player
-- `username` (string, required) — Lichess username
+### get_lichess_user
+- `username` (string, required)
 
 ## Environment Variables
 
@@ -44,10 +44,10 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: Chess.com + Lichess
+- **Provider**: Chess.com / Lichess
 - **Base URL**: https://api.chess.com/pub
 - **Auth**: None required
-- **Rate Limits**: 100 req/min
+- **Rate Limits**: ~30 req/min
 - **Docs**: https://www.chess.com/news/view/published-data-api
 
 ## Deploy

@@ -1,1 +1,33 @@
-{"name":"settlegrid-carbon-intensity","version":"1.0.0","description":"MCP server for electricity grid carbon intensity with SettleGrid billing","type":"module","scripts":{"dev":"tsx src/server.ts","build":"tsc","start":"node dist/server.js"},"dependencies":{"@settlegrid/mcp":"^0.1.1"},"devDependencies":{"tsx":"^4.0.0","typescript":"^5.0.0"},"keywords":["settlegrid","mcp","ai","carbon","energy","grid","climate"],"license":"MIT","repository":{"type":"git","url":"https://github.com/settlegrid/settlegrid-carbon-intensity"}}
+{
+  "name": "settlegrid-carbon-intensity",
+  "version": "1.0.0",
+  "description": "MCP server for UK Carbon Intensity with SettleGrid billing. UK electricity grid carbon intensity data from National Grid ESO.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sustainability",
+    "carbon",
+    "energy",
+    "uk",
+    "emissions"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-carbon-intensity"
+  }
+}

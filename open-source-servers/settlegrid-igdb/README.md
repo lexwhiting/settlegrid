@@ -6,13 +6,13 @@ IGDB (Internet Game Database) MCP Server with per-call billing via [SettleGrid](
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-igdb)
 
-Search video games, get details and reviews from IGDB (Twitch-owned).
+Search video game data — titles, ratings, platforms via the IGDB API.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key + TWITCH_CLIENT_ID
+cp .env.example .env   # Add your SettleGrid API key + IGDB_BEARER_TOKEN
 npm run dev
 ```
 
@@ -21,29 +21,29 @@ npm run dev
 | Method | Description | Cost |
 |--------|-------------|------|
 | `search_games(query)` | Search video games by name | 2¢ |
-| `get_game(game_id)` | Get detailed game info by ID | 2¢ |
+| `get_game(id)` | Get game details by ID | 2¢ |
 
 ## Parameters
 
 ### search_games
-- `query` (string, required) — Game title to search
+- `query` (string, required)
 
 ### get_game
-- `game_id` (number, required) — IGDB game ID
+- `id` (number, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `TWITCH_CLIENT_ID` | Yes | Twitch Client ID + TWITCH_CLIENT_SECRET for IGDB access |
+| `IGDB_BEARER_TOKEN` | Yes | Twitch Client Credentials OAuth token for IGDB |
 
 
 ## Upstream API
 
 - **Provider**: IGDB / Twitch
 - **Base URL**: https://api.igdb.com/v4
-- **Auth**: Twitch Client ID + Bearer token
+- **Auth**: Free API key required
 - **Rate Limits**: 4 req/sec
 - **Docs**: https://api-docs.igdb.com/
 
@@ -53,7 +53,7 @@ npm run dev
 
 ```bash
 docker build -t settlegrid-igdb .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e TWITCH_CLIENT_ID=xxx -p 3000:3000 settlegrid-igdb
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e IGDB_BEARER_TOKEN=xxx -p 3000:3000 settlegrid-igdb
 ```
 
 ### Vercel

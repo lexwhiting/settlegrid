@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-cycling",
   "version": "1.0.0",
-  "description": "Professional cycling race results and rankings from ESPN.",
+  "description": "Professional cycling race results and rankings via ESPN.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "cycling",
-    "tour-de-france",
-    "racing"
+    "tour"
   ],
   "license": "MIT",
   "repository": {

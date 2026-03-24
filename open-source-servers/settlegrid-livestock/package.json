@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-livestock",
+  "version": "1.0.0",
+  "description": "MCP server for Global Livestock Statistics with SettleGrid billing. Access global livestock production, trade, and headcount data from FAOSTAT. Free, no API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "livestock",
+    "cattle",
+    "poultry",
+    "meat",
+    "agriculture",
+    "faostat"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-livestock"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-openiot",
+  "version": "1.0.0",
+  "description": "MCP server for Open IoT Platform with SettleGrid billing. Access ThingsBoard demo IoT platform for device telemetry, attributes, and management. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "iot",
+    "thingsboard",
+    "telemetry",
+    "devices",
+    "open-source"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-openiot"
+  }
+}

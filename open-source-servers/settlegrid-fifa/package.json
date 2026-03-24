@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-fifa",
   "version": "1.0.0",
-  "description": "FIFA world rankings, competitions, and international football data.",
+  "description": "FIFA world football rankings and competition data via Football-Data.org.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,10 +20,10 @@
     "mcp",
     "ai",
     "sports",
-    "soccer",
     "football",
+    "soccer",
     "fifa",
-    "rankings"
+    "world-cup"
   ],
   "license": "MIT",
   "repository": {

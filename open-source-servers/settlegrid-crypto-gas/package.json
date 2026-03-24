@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-crypto-gas",
+  "version": "1.0.0",
+  "description": "MCP server for Crypto Gas Prices with SettleGrid billing. Ethereum and L2 gas price data from Blocknative and public RPCs.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "crypto",
+    "gas",
+    "ethereum",
+    "fees",
+    "blockchain"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-crypto-gas"
+  }
+}

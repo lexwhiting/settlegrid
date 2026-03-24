@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-harry-potter",
   "version": "1.0.0",
-  "description": "Access Harry Potter characters, spells, and house data.",
+  "description": "Get Harry Potter character data from the HP API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,8 +20,7 @@
     "mcp",
     "ai",
     "entertainment",
-    "harry-potter",
-    "movies",
+    "harrypotter",
     "books"
   ],
   "license": "MIT",

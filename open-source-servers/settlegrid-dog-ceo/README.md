@@ -6,7 +6,7 @@ Dog CEO MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-dog-ceo)
 
-Get random dog images and browse breeds from the Dog CEO API.
+Get random dog images and breed lists from the Dog CEO API.
 
 ## Quick Start
 
@@ -20,17 +20,14 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_random_image(count)` | Get a random dog image URL | 1¢ |
-| `get_breed_image(breed)` | Get a random image of a specific breed | 1¢ |
+| `random_image()` | Get a random dog image URL | 1¢ |
 | `list_breeds()` | List all dog breeds | 1¢ |
+| `breed_images(breed)` | Get random images for a specific breed | 1¢ |
 
 ## Parameters
 
-### get_random_image
-- `count` (number, optional) — Number of images (1-50, default 1)
-
-### get_breed_image
-- `breed` (string, required) — Dog breed (e.g. "labrador", "poodle")
+### breed_images
+- `breed` (string, required)
 
 ## Environment Variables
 

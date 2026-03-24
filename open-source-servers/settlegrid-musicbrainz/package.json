@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-musicbrainz",
   "version": "1.0.0",
-  "description": "Search artists, releases, and recordings via the MusicBrainz open music encyclopedia.",
+  "description": "MCP server for MusicBrainz with SettleGrid billing. Music metadata — artists, albums, recordings from MusicBrainz.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,11 @@
     "settlegrid",
     "mcp",
     "ai",
-    "entertainment",
     "music",
     "metadata",
-    "musicbrainz"
+    "artists",
+    "albums",
+    "recordings"
   ],
   "license": "MIT",
   "repository": {

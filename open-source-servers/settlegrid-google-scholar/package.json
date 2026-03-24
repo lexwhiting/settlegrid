@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-google-scholar",
+  "version": "1.0.0",
+  "description": "MCP server for Google Scholar Search with SettleGrid billing. Search academic papers, retrieve metadata, and find citations via Semantic Scholar API. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "scholar",
+    "papers",
+    "academic",
+    "research",
+    "citations"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-google-scholar"
+  }
+}

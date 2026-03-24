@@ -6,7 +6,7 @@ Cat Facts MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-catfact)
 
-Get random cat facts and browse the cat facts database.
+Get random cat facts from the Cat Fact API.
 
 ## Quick Start
 
@@ -21,16 +21,11 @@ npm run dev
 | Method | Description | Cost |
 |--------|-------------|------|
 | `get_fact()` | Get a random cat fact | 1¢ |
-| `get_facts(limit)` | Get a list of cat facts | 1¢ |
-| `get_breeds(limit)` | List cat breeds | 1¢ |
+| `get_breeds()` | List cat breeds | 1¢ |
 
 ## Parameters
 
-### get_facts
-- `limit` (number, optional) — Number of facts (1-50, default 10)
 
-### get_breeds
-- `limit` (number, optional) — Number of breeds (default 10)
 
 ## Environment Variables
 

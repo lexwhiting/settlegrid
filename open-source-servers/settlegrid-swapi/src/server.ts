@@ -1,33 +1,27 @@
 /**
- * settlegrid-swapi — Star Wars API MCP Server
+ * settlegrid-swapi — SWAPI Star Wars MCP Server
+ *
+ * Wraps SWAPI with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   search_people(query)    — Search characters    (1¢)
- *   search_planets(query)   — Search planets       (1¢)
- *   get_film(episode)       — Get film details     (1¢)
+ *   search_people(name) — Star Wars characters (1¢)
+ *   search_planets(name) — Star Wars planets (1¢)
+ *   search_starships(name) — Star Wars starships (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+interface SearchInput { name: string }
 
-interface SearchInput { query: string }
-interface FilmInput { episode: number }
+const API_BASE = 'https://swapi.dev/api'
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-const BASE = 'https://swapi.dev/api'
-
-async function swapiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`SWAPI ${res.status}: ${body.slice(0, 200)}`)
-  }
+async function apiFetch<T>(path: string): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`API ${res.status}`)
   return res.json() as Promise<T>
 }
-
-// ─── SettleGrid Init ────────────────────────────────────────────────────────
 
 const sg = settlegrid.init({
   toolSlug: 'swapi',
@@ -36,70 +30,51 @@ const sg = settlegrid.init({
     methods: {
       search_people: { costCents: 1, displayName: 'Search People' },
       search_planets: { costCents: 1, displayName: 'Search Planets' },
-      get_film: { costCents: 1, displayName: 'Get Film' },
+      search_starships: { costCents: 1, displayName: 'Search Starships' },
     },
   },
 })
 
-// ─── Handlers ───────────────────────────────────────────────────────────────
-
 const searchPeople = sg.wrap(async (args: SearchInput) => {
-  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await swapiFetch<{ count: number; results: Array<{ name: string; height: string; mass: string; hair_color: string; birth_year: string; gender: string; homeworld: string }> }>(`/people/?search=${q}`)
+  if (!args.name) throw new Error('name is required')
+  const data = await apiFetch<any>(`/people/?search=${encodeURIComponent(args.name)}`)
   return {
-    query: args.query,
     count: data.count,
-    people: data.results.map((p) => ({
-      name: p.name,
-      height: p.height,
-      mass: p.mass,
-      hairColor: p.hair_color,
-      birthYear: p.birth_year,
-      gender: p.gender,
+    results: (data.results || []).map((p: any) => ({
+      name: p.name, height: p.height, mass: p.mass, hair_color: p.hair_color,
+      eye_color: p.eye_color, birth_year: p.birth_year, gender: p.gender,
     })),
   }
 }, { method: 'search_people' })
 
 const searchPlanets = sg.wrap(async (args: SearchInput) => {
-  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await swapiFetch<{ count: number; results: Array<{ name: string; climate: string; terrain: string; population: string; diameter: string; gravity: string }> }>(`/planets/?search=${q}`)
+  if (!args.name) throw new Error('name is required')
+  const data = await apiFetch<any>(`/planets/?search=${encodeURIComponent(args.name)}`)
   return {
-    query: args.query,
     count: data.count,
-    planets: data.results.map((p) => ({
-      name: p.name,
-      climate: p.climate,
-      terrain: p.terrain,
-      population: p.population,
-      diameter: p.diameter,
-      gravity: p.gravity,
+    results: (data.results || []).map((p: any) => ({
+      name: p.name, climate: p.climate, terrain: p.terrain, population: p.population,
+      diameter: p.diameter, gravity: p.gravity, orbital_period: p.orbital_period,
     })),
   }
 }, { method: 'search_planets' })
 
-const getFilm = sg.wrap(async (args: FilmInput) => {
-  if (typeof args.episode !== 'number' || args.episode < 1 || args.episode > 6) {
-    throw new Error('episode must be 1-6')
-  }
-  const data = await swapiFetch<{ results: Array<{ title: string; episode_id: number; opening_crawl: string; director: string; producer: string; release_date: string }> }>('/films/')
-  const film = data.results.find((f) => f.episode_id === args.episode)
-  if (!film) throw new Error(`Film not found for episode ${args.episode}`)
+const searchStarships = sg.wrap(async (args: SearchInput) => {
+  if (!args.name) throw new Error('name is required')
+  const data = await apiFetch<any>(`/starships/?search=${encodeURIComponent(args.name)}`)
   return {
-    title: film.title,
-    episode: film.episode_id,
-    openingCrawl: film.opening_crawl?.slice(0, 500),
-    director: film.director,
-    producer: film.producer,
-    releaseDate: film.release_date,
+    count: data.count,
+    results: (data.results || []).map((s: any) => ({
+      name: s.name, model: s.model, manufacturer: s.manufacturer,
+      cost: s.cost_in_credits, length: s.length, crew: s.crew,
+      passengers: s.passengers, hyperdrive_rating: s.hyperdrive_rating,
+      starship_class: s.starship_class,
+    })),
   }
-}, { method: 'get_film' })
+}, { method: 'search_starships' })
 
-// ─── Exports ────────────────────────────────────────────────────────────────
-
-export { searchPeople, searchPlanets, getFilm }
+export { searchPeople, searchPlanets, searchStarships }
 
 console.log('settlegrid-swapi MCP server ready')
-console.log('Methods: search_people, search_planets, get_film')
+console.log('Methods: search_people, search_planets, search_starships')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

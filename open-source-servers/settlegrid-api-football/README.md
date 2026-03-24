@@ -6,7 +6,7 @@ API-Football MCP Server with per-call billing via [SettleGrid](https://settlegri
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-api-football)
 
-Football/soccer leagues, fixtures, and team data from API-Sports.
+Comprehensive football/soccer data — fixtures, standings, and statistics.
 
 ## Quick Start
 
@@ -20,31 +20,33 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_leagues(country)` | Get available football leagues | 2¢ |
-| `get_fixtures(league, season)` | Get fixtures/matches for a league | 2¢ |
+| `get_leagues()` | List available football leagues | 2¢ |
+| `get_standings(league, season)` | Get league standings by league and season | 2¢ |
+| `get_fixtures(league, season)` | Get fixtures for a league and season | 2¢ |
 
 ## Parameters
 
-### get_leagues
-- `country` (string, optional) — Filter by country name
+### get_standings
+- `league` (number, required)
+- `season` (number, required)
 
 ### get_fixtures
-- `league` (number, required) — League ID
-- `season` (number, required) — Season year (e.g. 2024)
+- `league` (number, required)
+- `season` (number, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `API_FOOTBALL_KEY` | Yes | API-Football key from api-sports.io (free tier) |
+| `API_FOOTBALL_KEY` | Yes | Free key from api-sports.io (100 req/day) |
 
 
 ## Upstream API
 
 - **Provider**: API-Sports
 - **Base URL**: https://v3.football.api-sports.io
-- **Auth**: API key (header: x-apisports-key)
+- **Auth**: Free API key required
 - **Rate Limits**: 100 req/day (free)
 - **Docs**: https://www.api-football.com/documentation-v3
 

@@ -1,104 +1,89 @@
 /**
  * settlegrid-musicbrainz — MusicBrainz MCP Server
  *
+ * Wraps MusicBrainz API with SettleGrid billing.
+ * No API key needed — rate limited to 1 req/sec.
+ *
  * Methods:
- *   search_artists(query)    — Search artists        (1¢)
- *   search_releases(query)   — Search releases       (1¢)
- *   get_artist(mbid)         — Get artist details    (1¢)
+ *   search_artist(query, limit?) — search artists (1¢)
+ *   search_release(query, limit?) — search releases (1¢)
+ *   get_artist_releases(artist_id) — artist releases (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+interface SearchInput { query: string; limit?: number }
+interface ArtistReleasesInput { artist_id: string }
 
-interface SearchInput { query: string }
-interface GetArtistInput { mbid: string }
+const API_BASE = 'https://musicbrainz.org/ws/2'
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-const BASE = 'https://musicbrainz.org/ws/2'
-const UA = 'settlegrid-musicbrainz/1.0 (contact@settlegrid.ai)'
-
-async function mbFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(path: string): Promise<T> {
+  const url = `${API_BASE}${path}`
   const sep = path.includes('?') ? '&' : '?'
-  const res = await fetch(`${BASE}${path}${sep}fmt=json`, {
-    headers: { 'User-Agent': UA, Accept: 'application/json' },
+  const res = await fetch(`${url}${sep}fmt=json`, {
+    headers: { 'User-Agent': 'SettleGrid-MCP/1.0 (contact@settlegrid.ai)' },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`MusicBrainz API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
-
-// ─── SettleGrid Init ────────────────────────────────────────────────────────
 
 const sg = settlegrid.init({
   toolSlug: 'musicbrainz',
   pricing: {
     defaultCostCents: 1,
     methods: {
-      search_artists: { costCents: 1, displayName: 'Search Artists' },
-      search_releases: { costCents: 1, displayName: 'Search Releases' },
-      get_artist: { costCents: 1, displayName: 'Get Artist Details' },
+      search_artist: { costCents: 1, displayName: 'Search Artist' },
+      search_release: { costCents: 1, displayName: 'Search Release' },
+      get_artist_releases: { costCents: 1, displayName: 'Artist Releases' },
     },
   },
 })
 
-// ─── Handlers ───────────────────────────────────────────────────────────────
-
-const searchArtists = sg.wrap(async (args: SearchInput) => {
-  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await mbFetch<{ artists: Array<{ id: string; name: string; type: string; country: string; 'life-span': { begin: string; end: string | null } }> }>(`/artist?query=${q}&limit=10`)
+const searchArtist = sg.wrap(async (args: SearchInput) => {
+  if (!args.query) throw new Error('query is required')
+  const limit = args.limit ?? 10
+  const data = await apiFetch<any>(`/artist?query=${encodeURIComponent(args.query)}&limit=${limit}`)
   return {
-    query: args.query,
-    artists: (data.artists || []).map((a) => ({
-      mbid: a.id,
-      name: a.name,
-      type: a.type,
-      country: a.country,
-      lifeSpan: a['life-span'],
+    count: data.count,
+    artists: (data.artists || []).map((a: any) => ({
+      id: a.id, name: a.name, sort_name: a['sort-name'],
+      type: a.type, country: a.country, score: a.score,
+      begin: a['life-span']?.begin, end: a['life-span']?.end,
+      tags: a.tags?.slice(0, 5).map((t: any) => t.name),
     })),
   }
-}, { method: 'search_artists' })
+}, { method: 'search_artist' })
 
-const searchReleases = sg.wrap(async (args: SearchInput) => {
-  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await mbFetch<{ releases: Array<{ id: string; title: string; date: string; country: string; 'artist-credit': Array<{ name: string }> }> }>(`/release?query=${q}&limit=10`)
+const searchRelease = sg.wrap(async (args: SearchInput) => {
+  if (!args.query) throw new Error('query is required')
+  const limit = args.limit ?? 10
+  const data = await apiFetch<any>(`/release?query=${encodeURIComponent(args.query)}&limit=${limit}`)
   return {
-    query: args.query,
-    releases: (data.releases || []).map((r) => ({
-      mbid: r.id,
-      title: r.title,
-      date: r.date,
-      country: r.country,
-      artists: r['artist-credit']?.map((a) => a.name),
+    count: data.count,
+    releases: (data.releases || []).map((r: any) => ({
+      id: r.id, title: r.title, status: r.status, date: r.date,
+      country: r.country, artist: r['artist-credit']?.[0]?.name, score: r.score,
+      track_count: r['track-count'],
     })),
   }
-}, { method: 'search_releases' })
+}, { method: 'search_release' })
 
-const getArtist = sg.wrap(async (args: GetArtistInput) => {
-  if (!args.mbid || typeof args.mbid !== 'string') throw new Error('mbid is required')
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.mbid)) {
-    throw new Error('mbid must be a valid UUID')
-  }
-  const data = await mbFetch<{ id: string; name: string; type: string; country: string; 'life-span': { begin: string; end: string | null; ended: boolean }; 'begin-area': { name: string } }>(`/artist/${args.mbid}?inc=url-rels`)
+const getArtistReleases = sg.wrap(async (args: ArtistReleasesInput) => {
+  if (!args.artist_id) throw new Error('artist_id is required')
+  const data = await apiFetch<any>(`/release?artist=${args.artist_id}&limit=50`)
   return {
-    mbid: data.id,
-    name: data.name,
-    type: data.type,
-    country: data.country,
-    lifeSpan: data['life-span'],
-    beginArea: data['begin-area']?.name,
+    count: data['release-count'],
+    releases: (data.releases || []).map((r: any) => ({
+      id: r.id, title: r.title, date: r.date, status: r.status, country: r.country,
+    })),
   }
-}, { method: 'get_artist' })
+}, { method: 'get_artist_releases' })
 
-// ─── Exports ────────────────────────────────────────────────────────────────
-
-export { searchArtists, searchReleases, getArtist }
+export { searchArtist, searchRelease, getArtistReleases }
 
 console.log('settlegrid-musicbrainz MCP server ready')
-console.log('Methods: search_artists, search_releases, get_artist')
+console.log('Methods: search_artist, search_release, get_artist_releases')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

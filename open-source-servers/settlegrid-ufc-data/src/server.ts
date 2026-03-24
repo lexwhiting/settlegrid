@@ -1,22 +1,36 @@
 /**
- * settlegrid-ufc-data — UFC / MMA Data MCP Server
+ * settlegrid-ufc-data — UFC Data (ESPN) MCP Server
+ *
+ * UFC mixed martial arts data — events, fighters, and results via ESPN API.
  *
  * Methods:
- *   get_scoreboard()   — UFC events/results    (1¢)
- *   get_rankings()     — Fighter rankings      (1¢)
+ *   get_scoreboard()              — Get current/recent UFC event scores  (1¢)
+ *   get_news()                    — Get latest UFC news headlines  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface GetScoreboardInput {
+
+}
+
+interface GetNewsInput {
+
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/mma/ufc'
 
-async function ufcFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-ufc-data/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`ESPN UFC API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`UFC Data (ESPN) API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -28,52 +42,50 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_scoreboard: { costCents: 1, displayName: 'UFC Scoreboard' },
-      get_rankings: { costCents: 1, displayName: 'UFC Rankings' },
+      get_scoreboard: { costCents: 1, displayName: 'Get Scoreboard' },
+      get_news: { costCents: 1, displayName: 'Get News' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getScoreboard = sg.wrap(async () => {
-  const data = await ufcFetch<{ events: Array<{ id: string; name: string; date: string; status: { type: { description: string } }; competitions: Array<{ competitors: Array<{ athlete: { displayName: string }; score: string; winner: boolean }> }> }> }>('/scoreboard')
+const getScoreboard = sg.wrap(async (args: GetScoreboardInput) => {
+
+  const data = await apiFetch<any>(`/scoreboard`)
+  const items = (data.events ?? []).slice(0, 10)
   return {
-    count: data.events?.length || 0,
-    events: (data.events || []).slice(0, 15).map((e) => ({
-      id: e.id,
-      name: e.name,
-      date: e.date,
-      status: e.status?.type?.description,
-      fights: (e.competitions || []).slice(0, 5).map((c) => ({
-        fighter1: c.competitors?.[0]?.athlete?.displayName,
-        fighter2: c.competitors?.[1]?.athlete?.displayName,
-        score1: c.competitors?.[0]?.score,
-        score2: c.competitors?.[1]?.score,
-        winner: c.competitors?.find((f) => f.winner)?.athlete?.displayName,
-      })),
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        shortName: item.shortName,
+        date: item.date,
+        status: item.status,
+        competitions: item.competitions,
     })),
   }
 }, { method: 'get_scoreboard' })
 
-const getRankings = sg.wrap(async () => {
-  const data = await ufcFetch<{ rankings: Array<{ name: string; ranks: Array<{ current: number; athlete: { displayName: string }; record: { displayValue: string } }> }> | null }>('/rankings')
+const getNews = sg.wrap(async (args: GetNewsInput) => {
+
+  const data = await apiFetch<any>(`/news`)
+  const items = (data.articles ?? []).slice(0, 10)
   return {
-    divisions: (data.rankings || []).map((d) => ({
-      division: d.name,
-      fighters: (d.ranks || []).slice(0, 15).map((r) => ({
-        rank: r.current,
-        name: r.athlete?.displayName,
-        record: r.record?.displayValue,
-      })),
+    count: items.length,
+    results: items.map((item: any) => ({
+        headline: item.headline,
+        description: item.description,
+        published: item.published,
+        links: item.links,
     })),
   }
-}, { method: 'get_rankings' })
+}, { method: 'get_news' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getScoreboard, getRankings }
+export { getScoreboard, getNews }
 
 console.log('settlegrid-ufc-data MCP server ready')
-console.log('Methods: get_scoreboard, get_rankings')
+console.log('Methods: get_scoreboard, get_news')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

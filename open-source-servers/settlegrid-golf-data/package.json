@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-golf-data",
+  "version": "1.0.0",
+  "description": "MCP server for Golf Data with SettleGrid billing. Golf tournament and player data from TheSportsDB.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sports",
+    "golf",
+    "pga",
+    "tournaments"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-golf-data"
+  }
+}

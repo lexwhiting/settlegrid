@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-british-museum",
+  "version": "1.0.0",
+  "description": "MCP server for British Museum Collection with SettleGrid billing. Search and explore the British Museum collection of over 4.5 million objects spanning human history.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "museum",
+    "british",
+    "history",
+    "archaeology",
+    "culture"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-british-museum"
+  }
+}

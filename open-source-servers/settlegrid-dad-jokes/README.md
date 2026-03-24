@@ -6,7 +6,7 @@ Dad Jokes MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-dad-jokes)
 
-Get random dad jokes and search the dad joke database.
+Get dad jokes from the icanhazdadjoke API.
 
 ## Quick Start
 
@@ -21,12 +21,12 @@ npm run dev
 | Method | Description | Cost |
 |--------|-------------|------|
 | `get_random()` | Get a random dad joke | 1¢ |
-| `search_jokes(query)` | Search dad jokes by keyword | 1¢ |
+| `search_jokes(term)` | Search dad jokes by term | 1¢ |
 
 ## Parameters
 
 ### search_jokes
-- `query` (string, required) — Search term
+- `term` (string, required)
 
 ## Environment Variables
 

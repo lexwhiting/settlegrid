@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-smithsonian",
+  "version": "1.0.0",
+  "description": "MCP server for Smithsonian Open Access with SettleGrid billing. Search the Smithsonian Institution open-access collection spanning 20+ museums and research centers.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "museum",
+    "smithsonian",
+    "culture",
+    "science",
+    "history"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-smithsonian"
+  }
+}

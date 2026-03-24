@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-nba-stats",
   "version": "1.0.0",
-  "description": "NBA player stats, teams, and game data from BallDontLie.",
+  "description": "NBA player and team statistics from the BallDontLie API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "basketball",
-    "nba",
-    "stats"
+    "nba"
   ],
   "license": "MIT",
   "repository": {

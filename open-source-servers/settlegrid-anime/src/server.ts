@@ -1,28 +1,41 @@
 /**
- * settlegrid-anime — Anime & Manga (Jikan) MCP Server
+ * settlegrid-anime — Jikan (Anime/Manga) MCP Server
+ *
+ * Search anime and manga data via the Jikan MyAnimeList API.
  *
  * Methods:
- *   search_anime(query)   — Search anime      (1¢)
- *   search_manga(query)   — Search manga      (1¢)
- *   get_top_anime(type?)  — Top-rated anime   (1¢)
+ *   search_anime(query)           — Search anime by title  (1¢)
+ *   search_manga(query)           — Search manga by title  (1¢)
+ *   get_anime(id)                 — Get anime details by MyAnimeList ID  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchInput { query: string }
-interface TopInput { type?: string }
+interface SearchAnimeInput {
+  query: string
+}
+
+interface SearchMangaInput {
+  query: string
+}
+
+interface GetAnimeInput {
+  id: number
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://api.jikan.moe/v4'
 
-async function jikanFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-anime/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`Jikan API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Jikan (Anime/Manga) API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -36,74 +49,72 @@ const sg = settlegrid.init({
     methods: {
       search_anime: { costCents: 1, displayName: 'Search Anime' },
       search_manga: { costCents: 1, displayName: 'Search Manga' },
-      get_top_anime: { costCents: 1, displayName: 'Top Anime' },
+      get_anime: { costCents: 1, displayName: 'Get Anime' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchAnime = sg.wrap(async (args: SearchInput) => {
+const searchAnime = sg.wrap(async (args: SearchAnimeInput) => {
   if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await jikanFetch<{ data: Array<{ mal_id: number; title: string; title_english: string; episodes: number; score: number; year: number; genres: Array<{ name: string }>; synopsis: string }> }>(`/anime?q=${q}&limit=10`)
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/anime?q=${encodeURIComponent(query)}&limit=10`)
+  const items = (data.data ?? []).slice(0, 10)
   return {
-    query: args.query,
-    count: data.data.length,
-    anime: data.data.map((a) => ({
-      malId: a.mal_id,
-      title: a.title,
-      titleEnglish: a.title_english,
-      episodes: a.episodes,
-      score: a.score,
-      year: a.year,
-      genres: a.genres?.map((g) => g.name),
-      synopsis: a.synopsis?.slice(0, 300),
+    count: items.length,
+    results: items.map((item: any) => ({
+        mal_id: item.mal_id,
+        title: item.title,
+        score: item.score,
+        episodes: item.episodes,
+        status: item.status,
+        synopsis: item.synopsis,
     })),
   }
 }, { method: 'search_anime' })
 
-const searchManga = sg.wrap(async (args: SearchInput) => {
+const searchManga = sg.wrap(async (args: SearchMangaInput) => {
   if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await jikanFetch<{ data: Array<{ mal_id: number; title: string; title_english: string; chapters: number; volumes: number; score: number; genres: Array<{ name: string }>; synopsis: string }> }>(`/manga?q=${q}&limit=10`)
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/manga?q=${encodeURIComponent(query)}&limit=10`)
+  const items = (data.data ?? []).slice(0, 10)
   return {
-    query: args.query,
-    count: data.data.length,
-    manga: data.data.map((m) => ({
-      malId: m.mal_id,
-      title: m.title,
-      titleEnglish: m.title_english,
-      chapters: m.chapters,
-      volumes: m.volumes,
-      score: m.score,
-      genres: m.genres?.map((g) => g.name),
-      synopsis: m.synopsis?.slice(0, 300),
+    count: items.length,
+    results: items.map((item: any) => ({
+        mal_id: item.mal_id,
+        title: item.title,
+        score: item.score,
+        chapters: item.chapters,
+        status: item.status,
+        synopsis: item.synopsis,
     })),
   }
 }, { method: 'search_manga' })
 
-const getTopAnime = sg.wrap(async (args: TopInput) => {
-  const validTypes = ['tv', 'movie', 'ova', 'special']
-  const typeParam = args.type && validTypes.includes(args.type) ? `?type=${args.type}` : ''
-  const data = await jikanFetch<{ data: Array<{ mal_id: number; title: string; score: number; episodes: number; year: number; rank: number }> }>(`/top/anime${typeParam}`)
+const getAnime = sg.wrap(async (args: GetAnimeInput) => {
+  if (typeof args.id !== 'number') throw new Error('id is required and must be a number')
+  const id = args.id
+  const data = await apiFetch<any>(`/anime/${id}`)
+  const items = (data.data ?? []).slice(0, 10)
   return {
-    type: args.type || 'all',
-    anime: data.data.slice(0, 25).map((a) => ({
-      rank: a.rank,
-      malId: a.mal_id,
-      title: a.title,
-      score: a.score,
-      episodes: a.episodes,
-      year: a.year,
+    count: items.length,
+    results: items.map((item: any) => ({
+        mal_id: item.mal_id,
+        title: item.title,
+        score: item.score,
+        episodes: item.episodes,
+        status: item.status,
+        synopsis: item.synopsis,
+        genres: item.genres,
     })),
   }
-}, { method: 'get_top_anime' })
+}, { method: 'get_anime' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { searchAnime, searchManga, getTopAnime }
+export { searchAnime, searchManga, getAnime }
 
 console.log('settlegrid-anime MCP server ready')
-console.log('Methods: search_anime, search_manga, get_top_anime')
+console.log('Methods: search_anime, search_manga, get_anime')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

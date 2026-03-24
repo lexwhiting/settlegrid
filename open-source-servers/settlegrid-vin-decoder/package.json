@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-vin-decoder",
+  "version": "1.0.0",
+  "description": "Decode Vehicle Identification Numbers via the NHTSA VPIC API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "vin",
+    "vehicles",
+    "decoder",
+    "nhtsa"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-vin-decoder"
+  }
+}

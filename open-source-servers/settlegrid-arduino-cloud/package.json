@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-arduino-cloud",
+  "version": "1.0.0",
+  "description": "MCP server for Arduino IoT Cloud with SettleGrid billing. Access Arduino IoT Cloud things, properties, and device data. Free account with API access.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "arduino",
+    "iot",
+    "cloud",
+    "devices",
+    "hardware"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-arduino-cloud"
+  }
+}

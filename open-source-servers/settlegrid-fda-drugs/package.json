@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-fda-drugs",
+  "version": "1.0.0",
+  "description": "MCP server for FDA Drug Data with SettleGrid billing. FDA drug information, adverse events, and labeling from openFDA.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "legal",
+    "fda",
+    "drugs",
+    "pharmaceutical",
+    "health"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fda-drugs"
+  }
+}

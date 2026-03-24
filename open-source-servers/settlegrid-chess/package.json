@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-chess",
   "version": "1.0.0",
-  "description": "Chess player profiles, games, and stats from Chess.com and Lichess.",
+  "description": "Chess player stats and games via Chess.com and Lichess APIs.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "chess",
-    "chess-com",
-    "lichess"
+    "games"
   ],
   "license": "MIT",
   "repository": {

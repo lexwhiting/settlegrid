@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-defillama",
+  "version": "1.0.0",
+  "description": "MCP server for DeFi Llama with SettleGrid billing. DeFi TVL data, protocol stats, and chain analytics from DefiLlama.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "defi",
+    "tvl",
+    "crypto",
+    "blockchain",
+    "analytics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-defillama"
+  }
+}

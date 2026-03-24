@@ -1,12 +1,12 @@
 # settlegrid-running
 
-Running / Marathon Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Running MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-running)
 
-Marathon and running race data, event schedules from ESPN.
+Marathon and running race data via RunSignUp API.
 
 ## Quick Start
 
@@ -20,12 +20,16 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_scoreboard()` | Get current running/marathon events | 1¢ |
-| `get_track_events()` | Get track & field results from ESPN | 1¢ |
+| `search_races(query)` | Search for running races by name or location | 1¢ |
+| `get_race(race_id)` | Get details for a specific race | 1¢ |
 
 ## Parameters
 
+### search_races
+- `query` (string, required)
 
+### get_race
+- `race_id` (number, required)
 
 ## Environment Variables
 
@@ -36,11 +40,11 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: ESPN
-- **Base URL**: https://site.api.espn.com/apis/site/v2/sports/racing/marathon
+- **Provider**: RunSignUp
+- **Base URL**: https://runsignup.com/API
 - **Auth**: None required
 - **Rate Limits**: Reasonable use
-- **Docs**: https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b
+- **Docs**: https://runsignup.com/API
 
 ## Deploy
 

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-tvmaze",
   "version": "1.0.0",
-  "description": "Search TV shows, get episode guides, and schedule data from TVMaze.",
+  "description": "Search TV shows, get episode guides, and scheduling data.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "tv",
-    "shows",
-    "episodes"
+    "tvmaze"
   ],
   "license": "MIT",
   "repository": {

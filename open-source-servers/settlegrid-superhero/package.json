@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-superhero",
   "version": "1.0.0",
-  "description": "Look up superhero stats, powers, and biographies from the Superhero API.",
+  "description": "Browse superhero data — powerstats, biography, and images.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,9 +21,7 @@
     "ai",
     "entertainment",
     "superheroes",
-    "comics",
-    "marvel",
-    "dc"
+    "comics"
   ],
   "license": "MIT",
   "repository": {

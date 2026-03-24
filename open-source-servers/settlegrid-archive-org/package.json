@@ -1,1 +1,33 @@
-{"name":"settlegrid-archive-org","version":"1.0.0","description":"MCP server for Internet Archive search with SettleGrid billing","type":"module","scripts":{"dev":"tsx src/server.ts","build":"tsc","start":"node dist/server.js"},"dependencies":{"@settlegrid/mcp":"^0.1.1"},"devDependencies":{"tsx":"^4.0.0","typescript":"^5.0.0"},"keywords":["settlegrid","mcp","ai","archive","internet","books","media"],"license":"MIT","repository":{"type":"git","url":"https://github.com/settlegrid/settlegrid-archive-org"}}
+{
+  "name": "settlegrid-archive-org",
+  "version": "1.0.0",
+  "description": "MCP server for Archive.org Search with SettleGrid billing. Search the Internet Archive for books, media, and web archives.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "misc",
+    "archive",
+    "books",
+    "media",
+    "web"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-archive-org"
+  }
+}

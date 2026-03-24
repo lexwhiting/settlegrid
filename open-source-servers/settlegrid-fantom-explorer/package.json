@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-fantom-explorer",
+  "version": "1.0.0",
+  "description": "MCP server for Fantom Blockchain Explorer with SettleGrid billing. Query Fantom blockchain data via FTMScan API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "blockchain",
+    "fantom",
+    "crypto",
+    "ftm",
+    "defi"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fantom-explorer"
+  }
+}

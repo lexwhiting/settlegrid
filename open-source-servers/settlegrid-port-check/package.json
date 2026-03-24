@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-port-check",
+  "version": "1.0.0",
+  "description": "MCP server for Port Availability Check with SettleGrid billing. Check open ports, scan common ports, and retrieve HTTP headers via HackerTarget.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "port",
+    "scan",
+    "network",
+    "security",
+    "headers",
+    "tcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-port-check"
+  }
+}

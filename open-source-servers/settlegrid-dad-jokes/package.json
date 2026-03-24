@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-dad-jokes",
   "version": "1.0.0",
-  "description": "Get random dad jokes and search the dad joke database.",
+  "description": "Get dad jokes from the icanhazdadjoke API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "jokes",
-    "humor",
-    "dad-jokes"
+    "humor"
   ],
   "license": "MIT",
   "repository": {

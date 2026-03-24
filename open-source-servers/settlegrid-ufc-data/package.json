@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-ufc-data",
   "version": "1.0.0",
-  "description": "UFC fight data, events, and fighter info from ESPN.",
+  "description": "UFC mixed martial arts data — events, fighters, and results via ESPN API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,8 @@
     "mcp",
     "ai",
     "sports",
-    "ufc",
     "mma",
-    "fighting"
+    "ufc"
   ],
   "license": "MIT",
   "repository": {

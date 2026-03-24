@@ -1,18 +1,18 @@
 # settlegrid-cricket
 
-Cricket Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Cricket API MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-cricket)
 
-Cricket match data, scores, and series information from CricAPI.
+Cricket data — live scores, matches, and player stats.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key + CRICAPI_KEY
+cp .env.example .env   # Add your SettleGrid API key + CRICKET_API_KEY
 npm run dev
 ```
 
@@ -20,26 +20,27 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_matches()` | Get current/recent cricket matches | 2¢ |
-| `get_series()` | Get cricket series list | 2¢ |
+| `get_matches()` | Get current and recent cricket matches | 2¢ |
+| `search_players(query)` | Search cricket players by name | 2¢ |
 
 ## Parameters
 
-
+### search_players
+- `query` (string, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `CRICAPI_KEY` | Yes | CricAPI key (free at cricapi.com) |
+| `CRICKET_API_KEY` | Yes | Free key from cricapi.com (100 req/day) |
 
 
 ## Upstream API
 
 - **Provider**: CricAPI
 - **Base URL**: https://api.cricapi.com/v1
-- **Auth**: API key (query param)
+- **Auth**: Free API key required
 - **Rate Limits**: 100 req/day (free)
 - **Docs**: https://cricapi.com/
 
@@ -49,7 +50,7 @@ npm run dev
 
 ```bash
 docker build -t settlegrid-cricket .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e CRICAPI_KEY=xxx -p 3000:3000 settlegrid-cricket
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e CRICKET_API_KEY=xxx -p 3000:3000 settlegrid-cricket
 ```
 
 ### Vercel

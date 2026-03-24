@@ -1,12 +1,12 @@
 # settlegrid-jservice
 
-JService (Jeopardy) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+jService (Jeopardy) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-jservice)
 
-Access Jeopardy trivia clues, categories, and random questions from JService.
+Get Jeopardy-style trivia clues from the jService API.
 
 ## Quick Start
 
@@ -21,15 +21,15 @@ npm run dev
 | Method | Description | Cost |
 |--------|-------------|------|
 | `get_random(count)` | Get random Jeopardy clues | 1¢ |
-| `get_categories(count)` | List Jeopardy categories | 1¢ |
+| `get_clues(category)` | Get clues by category ID | 1¢ |
 
 ## Parameters
 
 ### get_random
-- `count` (number, optional) — Number of clues (1-100, default 5)
+- `count` (number, optional)
 
-### get_categories
-- `count` (number, optional) — Number of categories (default 10)
+### get_clues
+- `category` (number, required)
 
 ## Environment Variables
 
@@ -40,10 +40,10 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: JService
-- **Base URL**: https://jservice.io/api
+- **Provider**: jService
+- **Base URL**: https://jservice.io
 - **Auth**: None required
-- **Rate Limits**: Unlimited
+- **Rate Limits**: Reasonable use
 - **Docs**: https://jservice.io/
 
 ## Deploy

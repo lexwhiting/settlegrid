@@ -1,0 +1,34 @@
+{
+  "name": "settlegrid-usda-nass",
+  "version": "1.0.0",
+  "description": "MCP server for USDA NASS Crop Statistics with SettleGrid billing. Access USDA National Agricultural Statistics Service QuickStats data for crop production, acreage, yield, and more.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "usda",
+    "nass",
+    "agriculture",
+    "crops",
+    "statistics",
+    "farming"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-usda-nass"
+  }
+}

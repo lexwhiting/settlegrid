@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-tennis",
   "version": "1.0.0",
-  "description": "Tennis scores, rankings, and tournament data from ESPN.",
+  "description": "ATP/WTA tennis scores, rankings, and schedules via ESPN.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",

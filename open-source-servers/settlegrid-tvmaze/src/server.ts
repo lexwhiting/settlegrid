@@ -1,26 +1,38 @@
 /**
  * settlegrid-tvmaze — TVMaze MCP Server
  *
+ * Search TV shows, get episode guides, and scheduling data.
+ *
  * Methods:
- *   search_shows(query)              — Search TV shows       (1¢)
- *   get_episodes(show_id)            — Get episode list      (1¢)
- *   get_schedule(country?, date?)    — Get TV schedule       (1¢)
+ *   search_shows(query)           — Search TV shows by name  (1¢)
+ *   get_show(id)                  — Get TV show details by ID  (1¢)
+ *   get_episodes(show_id)         — Get all episodes for a show  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchInput { query: string }
-interface EpisodesInput { show_id: number }
-interface ScheduleInput { country?: string; date?: string }
+interface SearchShowsInput {
+  query: string
+}
+
+interface GetShowInput {
+  id: number
+}
+
+interface GetEpisodesInput {
+  show_id: number
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://api.tvmaze.com'
 
-async function tvFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-tvmaze/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`TVMaze API ${res.status}: ${body.slice(0, 200)}`)
@@ -36,80 +48,56 @@ const sg = settlegrid.init({
     defaultCostCents: 1,
     methods: {
       search_shows: { costCents: 1, displayName: 'Search Shows' },
+      get_show: { costCents: 1, displayName: 'Get Show' },
       get_episodes: { costCents: 1, displayName: 'Get Episodes' },
-      get_schedule: { costCents: 1, displayName: 'Get Schedule' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchShows = sg.wrap(async (args: SearchInput) => {
-  if (!args.query || typeof args.query !== 'string') {
-    throw new Error('query is required')
-  }
-  const q = encodeURIComponent(args.query.trim())
-  const data = await tvFetch<Array<{ score: number; show: { id: number; name: string; language: string; genres: string[]; premiered: string; rating: { average: number | null }; summary: string | null } }>>(`/search/shows?q=${q}`)
+const searchShows = sg.wrap(async (args: SearchShowsInput) => {
+  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/search/shows?q=${encodeURIComponent(query)}`)
   return {
-    query: args.query,
-    count: data.length,
-    shows: data.slice(0, 10).map((r) => ({
-      id: r.show.id,
-      name: r.show.name,
-      language: r.show.language,
-      genres: r.show.genres,
-      premiered: r.show.premiered,
-      rating: r.show.rating?.average,
-      summary: r.show.summary?.replace(/<[^>]*>/g, '').slice(0, 300),
-    })),
+    score: data.score,
+    show: data.show,
   }
 }, { method: 'search_shows' })
 
-const getEpisodes = sg.wrap(async (args: EpisodesInput) => {
-  if (typeof args.show_id !== 'number' || args.show_id <= 0) {
-    throw new Error('show_id must be a positive number')
-  }
-  const data = await tvFetch<Array<{ id: number; name: string; season: number; number: number; airdate: string; summary: string | null }>>(`/shows/${args.show_id}/episodes`)
+const getShow = sg.wrap(async (args: GetShowInput) => {
+  if (typeof args.id !== 'number') throw new Error('id is required and must be a number')
+  const id = args.id
+  const data = await apiFetch<any>(`/shows/${id}`)
   return {
-    showId: args.show_id,
-    totalEpisodes: data.length,
-    episodes: data.slice(0, 50).map((e) => ({
-      id: e.id,
-      name: e.name,
-      season: e.season,
-      episode: e.number,
-      airdate: e.airdate,
-      summary: e.summary?.replace(/<[^>]*>/g, '').slice(0, 200),
-    })),
+    id: data.id,
+    name: data.name,
+    language: data.language,
+    genres: data.genres,
+    status: data.status,
+    rating: data.rating,
+    premiered: data.premiered,
+  }
+}, { method: 'get_show' })
+
+const getEpisodes = sg.wrap(async (args: GetEpisodesInput) => {
+  if (typeof args.show_id !== 'number') throw new Error('show_id is required and must be a number')
+  const show_id = args.show_id
+  const data = await apiFetch<any>(`/shows/${show_id}/episodes`)
+  return {
+    id: data.id,
+    name: data.name,
+    season: data.season,
+    number: data.number,
+    airdate: data.airdate,
   }
 }, { method: 'get_episodes' })
 
-const getSchedule = sg.wrap(async (args: ScheduleInput) => {
-  const country = args.country?.toUpperCase().trim() || 'US'
-  if (!/^[A-Z]{2}$/.test(country)) {
-    throw new Error('country must be a 2-letter ISO code')
-  }
-  const dateParam = args.date ? `&date=${args.date}` : ''
-  const data = await tvFetch<Array<{ id: number; airdate: string; airtime: string; show: { id: number; name: string }; name: string; season: number; number: number }>>(`/schedule?country=${country}${dateParam}`)
-  return {
-    country,
-    date: args.date || 'today',
-    count: data.length,
-    schedule: data.slice(0, 25).map((e) => ({
-      showName: e.show.name,
-      episodeName: e.name,
-      season: e.season,
-      episode: e.number,
-      airdate: e.airdate,
-      airtime: e.airtime,
-    })),
-  }
-}, { method: 'get_schedule' })
-
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { searchShows, getEpisodes, getSchedule }
+export { searchShows, getShow, getEpisodes }
 
 console.log('settlegrid-tvmaze MCP server ready')
-console.log('Methods: search_shows, get_episodes, get_schedule')
+console.log('Methods: search_shows, get_show, get_episodes')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

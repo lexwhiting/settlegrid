@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-ip-whois",
+  "version": "1.0.0",
+  "description": "MCP server for IP Whois Lookup with SettleGrid billing. IP address WHOIS data from ipwhois.io.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "utility",
+    "ip",
+    "whois",
+    "network"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-ip-whois"
+  }
+}

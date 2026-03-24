@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-omdb",
   "version": "1.0.0",
-  "description": "Search and retrieve detailed movie and TV show information from OMDb.",
+  "description": "Search and retrieve movie data from the Open Movie Database.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,7 +21,6 @@
     "ai",
     "entertainment",
     "movies",
-    "tv",
     "omdb"
   ],
   "license": "MIT",

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-mlb-stats",
   "version": "1.0.0",
-  "description": "MLB baseball teams, players, schedules, and standings from the official MLB Stats API.",
+  "description": "Major League Baseball data — teams, rosters, and schedules.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "baseball",
-    "mlb",
-    "stats"
+    "mlb"
   ],
   "license": "MIT",
   "repository": {

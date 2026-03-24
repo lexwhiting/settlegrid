@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-wayback-machine",
+  "version": "1.0.0",
+  "description": "Check if URLs are archived in the Internet Archive Wayback Machine.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "archive",
+    "wayback",
+    "history",
+    "web",
+    "snapshot"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-wayback-machine"
+  }
+}

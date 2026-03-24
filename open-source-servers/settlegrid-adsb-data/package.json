@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-adsb-data",
+  "version": "1.0.0",
+  "description": "MCP server for Aircraft ADS-B Data with SettleGrid billing. Access real-time aircraft tracking data via the OpenSky Network. No API key needed for basic access.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "adsb",
+    "aircraft",
+    "aviation",
+    "flight-tracking",
+    "opensky"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-adsb-data"
+  }
+}

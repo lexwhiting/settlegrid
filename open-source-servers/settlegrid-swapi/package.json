@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-swapi",
   "version": "1.0.0",
-  "description": "Access Star Wars universe data: people, planets, starships, and films from SWAPI.",
+  "description": "MCP server for SWAPI Star Wars with SettleGrid billing. Star Wars universe data — characters, planets, starships from SWAPI.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,11 @@
     "settlegrid",
     "mcp",
     "ai",
-    "entertainment",
-    "star-wars",
+    "misc",
+    "starwars",
+    "characters",
     "movies",
-    "swapi"
+    "sci-fi"
   ],
   "license": "MIT",
   "repository": {

@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-rawg",
   "version": "1.0.0",
-  "description": "Search and explore 500,000+ video games from the RAWG database.",
+  "description": "Search and browse video game data from the RAWG database.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,7 +21,6 @@
     "ai",
     "entertainment",
     "games",
-    "video-games",
     "rawg"
   ],
   "license": "MIT",

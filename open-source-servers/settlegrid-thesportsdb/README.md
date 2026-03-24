@@ -6,7 +6,7 @@ TheSportsDB MCP Server with per-call billing via [SettleGrid](https://settlegrid
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-thesportsdb)
 
-Multi-sport data: teams, players, events, and leagues from TheSportsDB.
+Multi-sport data — teams, players, events across all major sports.
 
 ## Quick Start
 
@@ -20,21 +20,21 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_teams(query)` | Search teams by name | 1¢ |
+| `search_teams(query)` | Search sports teams by name | 1¢ |
 | `search_players(query)` | Search players by name | 1¢ |
-| `get_events(team_id, type)` | Get last/next events for a team | 1¢ |
+| `get_events(league_id, round)` | Get past events for a league by round | 1¢ |
 
 ## Parameters
 
 ### search_teams
-- `query` (string, required) — Team name
+- `query` (string, required)
 
 ### search_players
-- `query` (string, required) — Player name
+- `query` (string, required)
 
 ### get_events
-- `team_id` (string, required) — Team ID
-- `type` (string, optional) — "last" or "next" (default: "next")
+- `league_id` (string, required)
+- `round` (string, required)
 
 ## Environment Variables
 
@@ -46,9 +46,9 @@ npm run dev
 ## Upstream API
 
 - **Provider**: TheSportsDB
-- **Base URL**: https://www.thesportsdb.com/api/v1/json/3
+- **Base URL**: https://www.thesportsdb.com
 - **Auth**: None required
-- **Rate Limits**: Reasonable use
+- **Rate Limits**: 30 req/min (free)
 - **Docs**: https://www.thesportsdb.com/api.php
 
 ## Deploy

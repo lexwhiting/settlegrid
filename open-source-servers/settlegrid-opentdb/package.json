@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-opentdb",
   "version": "1.0.0",
-  "description": "Get trivia questions across categories from the Open Trivia Database.",
+  "description": "Get random trivia questions from the Open Trivia Database.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "trivia",
-    "quiz",
-    "questions"
+    "quiz"
   ],
   "license": "MIT",
   "repository": {

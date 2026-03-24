@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-boardgame-atlas",
   "version": "1.0.0",
-  "description": "Search and explore board games, mechanics, and categories from Board Game Atlas.",
+  "description": "Search board games, mechanics, and categories from Board Game Atlas.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,8 +20,7 @@
     "mcp",
     "ai",
     "entertainment",
-    "board-games",
-    "tabletop"
+    "boardgames"
   ],
   "license": "MIT",
   "repository": {

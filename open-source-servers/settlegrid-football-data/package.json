@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-football-data",
   "version": "1.0.0",
-  "description": "Soccer/football competitions, standings, and match data from Football-Data.org.",
+  "description": "Soccer data — leagues, standings, fixtures, and scorers.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "soccer",
-    "football",
-    "premier-league"
+    "football"
   ],
   "license": "MIT",
   "repository": {

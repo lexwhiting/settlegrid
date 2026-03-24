@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-nhl-stats",
   "version": "1.0.0",
-  "description": "NHL hockey teams, standings, and schedule from the NHL Web API.",
+  "description": "National Hockey League data — teams, standings, and schedules.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "hockey",
-    "nhl",
-    "stats"
+    "nhl"
   ],
   "license": "MIT",
   "repository": {

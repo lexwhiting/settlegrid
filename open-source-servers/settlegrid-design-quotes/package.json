@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-design-quotes",
+  "version": "1.0.0",
+  "description": "MCP server for Design Quotes with SettleGrid billing. Fetch inspiring design and creativity quotes with search, random selection, and tag filtering.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "quotes",
+    "design",
+    "inspiration",
+    "creativity",
+    "culture"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-design-quotes"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-uuid-generator",
+  "version": "1.0.0",
+  "description": "MCP server for UUID Generator with SettleGrid billing. Generate UUIDs (v4, v7) and parse UUID metadata — no external API needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "utility",
+    "uuid",
+    "generator",
+    "id"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-uuid-generator"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-smart-citizen",
+  "version": "1.0.0",
+  "description": "MCP server for Smart Citizen Sensors with SettleGrid billing. Access Smart Citizen Kit sensor data for environmental monitoring. Open API, no key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sensors",
+    "smart-citizen",
+    "environment",
+    "citizen-science",
+    "air-quality"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-smart-citizen"
+  }
+}

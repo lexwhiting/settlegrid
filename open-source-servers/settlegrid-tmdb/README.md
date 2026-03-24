@@ -20,36 +20,34 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_movies(query, year)` | Search for movies by title | 2¢ |
-| `search_tv(query)` | Search for TV shows by name | 2¢ |
-| `get_trending(media_type, time_window)` | Get trending movies or TV shows | 2¢ |
+| `search_movies(query)` | Search movies by title | 2¢ |
+| `get_movie(id)` | Get movie details by ID | 2¢ |
+| `search_tv(query)` | Search TV shows by name | 2¢ |
 
 ## Parameters
 
 ### search_movies
-- `query` (string, required) — Movie title to search for
-- `year` (number, optional) — Filter by release year
+- `query` (string, required)
+
+### get_movie
+- `id` (number, required)
 
 ### search_tv
-- `query` (string, required) — TV show name to search for
-
-### get_trending
-- `media_type` (string, required) — "movie" or "tv"
-- `time_window` (string, optional) — "day" or "week" (default: "week")
+- `query` (string, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `TMDB_API_KEY` | Yes | TMDB API key (free at themoviedb.org) |
+| `TMDB_API_KEY` | Yes | Free key from themoviedb.org |
 
 
 ## Upstream API
 
 - **Provider**: TMDB
 - **Base URL**: https://api.themoviedb.org/3
-- **Auth**: API key (query param)
+- **Auth**: Free API key required
 - **Rate Limits**: ~40 req/10s
 - **Docs**: https://developer.themoviedb.org/docs
 

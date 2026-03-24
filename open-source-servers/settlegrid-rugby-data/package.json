@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-rugby-data",
+  "version": "1.0.0",
+  "description": "MCP server for Rugby Data with SettleGrid billing. Rugby team and match data from TheSportsDB.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sports",
+    "rugby",
+    "six-nations",
+    "world-cup"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-rugby-data"
+  }
+}

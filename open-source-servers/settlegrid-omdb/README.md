@@ -6,7 +6,7 @@ OMDb (Open Movie Database) MCP Server with per-call billing via [SettleGrid](htt
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-omdb)
 
-Search and retrieve detailed movie and TV show information from OMDb.
+Search and retrieve movie data from the Open Movie Database.
 
 ## Quick Start
 
@@ -20,32 +20,31 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_title(query, type)` | Search movies/shows by title | 2¢ |
-| `get_by_id(imdb_id)` | Get detailed info by IMDb ID | 2¢ |
+| `search_movies(query)` | Search movies by title | 2¢ |
+| `get_movie(query)` | Get movie details by IMDb ID or title | 2¢ |
 
 ## Parameters
 
-### search_title
-- `query` (string, required) — Title to search for
-- `type` (string, optional) — "movie", "series", or "episode"
+### search_movies
+- `query` (string, required)
 
-### get_by_id
-- `imdb_id` (string, required) — IMDb ID (e.g. "tt1375666")
+### get_movie
+- `query` (string, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `OMDB_API_KEY` | Yes | OMDb API key (free at omdbapi.com) |
+| `OMDB_API_KEY` | Yes | Free key from omdbapi.com (1000 req/day) |
 
 
 ## Upstream API
 
 - **Provider**: OMDb
 - **Base URL**: https://www.omdbapi.com
-- **Auth**: API key (query param)
-- **Rate Limits**: 1000/day (free tier)
+- **Auth**: Free API key required
+- **Rate Limits**: 1000 req/day (free)
 - **Docs**: https://www.omdbapi.com/
 
 ## Deploy

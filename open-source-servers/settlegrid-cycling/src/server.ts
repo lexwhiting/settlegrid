@@ -1,22 +1,36 @@
 /**
- * settlegrid-cycling — Cycling Data MCP Server
+ * settlegrid-cycling — Cycling MCP Server
+ *
+ * Professional cycling race results and rankings via ESPN.
  *
  * Methods:
- *   get_scoreboard()   — Race results     (1¢)
- *   get_rankings()     — UCI rankings     (1¢)
+ *   get_scoreboard()              — Get current cycling event scores  (1¢)
+ *   get_event(event_id)           — Get cycling event details  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface GetScoreboardInput {
+
+}
+
+interface GetEventInput {
+  event_id: string
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const BASE = 'https://site.api.espn.com/apis/site/v2/sports/racing/cycling'
+const BASE = 'https://site.api.espn.com/apis/site/v2/sports/cycling'
 
-async function cyclingFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-cycling/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`ESPN Cycling API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Cycling API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -28,48 +42,45 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_scoreboard: { costCents: 1, displayName: 'Cycling Scoreboard' },
-      get_rankings: { costCents: 1, displayName: 'Cycling Rankings' },
+      get_scoreboard: { costCents: 1, displayName: 'Get Scoreboard' },
+      get_event: { costCents: 1, displayName: 'Get Event' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getScoreboard = sg.wrap(async () => {
-  const data = await cyclingFetch<{ events: Array<{ id: string; name: string; date: string; status: { type: { description: string } }; competitions: Array<{ competitors: Array<{ athlete: { displayName: string }; status: { displayValue: string } }> }> }> }>('/scoreboard')
+const getScoreboard = sg.wrap(async (args: GetScoreboardInput) => {
+
+  const data = await apiFetch<any>(`/scoreboard`)
+  const items = (data.events ?? []).slice(0, 10)
   return {
-    count: data.events?.length || 0,
-    races: (data.events || []).slice(0, 10).map((e) => ({
-      id: e.id,
-      name: e.name,
-      date: e.date,
-      status: e.status?.type?.description,
-      results: (e.competitions?.[0]?.competitors || []).slice(0, 15).map((c) => ({
-        rider: c.athlete?.displayName,
-        result: c.status?.displayValue,
-      })),
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        date: item.date,
+        status: item.status,
     })),
   }
 }, { method: 'get_scoreboard' })
 
-const getRankings = sg.wrap(async () => {
-  const data = await cyclingFetch<{ rankings: Array<{ name: string; ranks: Array<{ current: number; athlete: { displayName: string; flag: { alt: string } } }> }> | null }>('/rankings')
-  const ranking = data.rankings?.[0]
+const getEvent = sg.wrap(async (args: GetEventInput) => {
+  if (!args.event_id || typeof args.event_id !== 'string') throw new Error('event_id is required')
+  const event_id = args.event_id.trim()
+  const data = await apiFetch<any>(`/summary?event=${encodeURIComponent(event_id)}`)
   return {
-    name: ranking?.name,
-    riders: (ranking?.ranks || []).slice(0, 25).map((r) => ({
-      rank: r.current,
-      name: r.athlete?.displayName,
-      country: r.athlete?.flag?.alt,
-    })),
+    id: data.id,
+    name: data.name,
+    date: data.date,
+    competitions: data.competitions,
   }
-}, { method: 'get_rankings' })
+}, { method: 'get_event' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getScoreboard, getRankings }
+export { getScoreboard, getEvent }
 
 console.log('settlegrid-cycling MCP server ready')
-console.log('Methods: get_scoreboard, get_rankings')
+console.log('Methods: get_scoreboard, get_event')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

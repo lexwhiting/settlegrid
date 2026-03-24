@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-golf",
   "version": "1.0.0",
-  "description": "PGA Tour golf scores, leaderboards, and rankings from ESPN.",
+  "description": "PGA Tour golf scores, leaderboards, and schedules via ESPN.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "sports",
     "golf",
-    "pga",
-    "leaderboard"
+    "pga"
   ],
   "license": "MIT",
   "repository": {

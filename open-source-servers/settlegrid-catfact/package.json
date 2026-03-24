@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-catfact",
   "version": "1.0.0",
-  "description": "Get random cat facts and browse the cat facts database.",
+  "description": "Get random cat facts from the Cat Fact API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,8 @@
     "mcp",
     "ai",
     "entertainment",
-    "cats",
-    "facts",
-    "animals"
+    "animals",
+    "cats"
   ],
   "license": "MIT",
   "repository": {

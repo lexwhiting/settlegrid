@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-igdb",
   "version": "1.0.0",
-  "description": "Search video games, get details and reviews from IGDB (Twitch-owned).",
+  "description": "Search video game data — titles, ratings, platforms via the IGDB API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,7 +21,6 @@
     "ai",
     "entertainment",
     "games",
-    "video-games",
     "igdb"
   ],
   "license": "MIT",

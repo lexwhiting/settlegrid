@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-spotify-metadata",
   "version": "1.0.0",
-  "description": "Search tracks, albums, and artists using the Spotify Web API.",
+  "description": "Search tracks, albums, and artists via the Spotify Web API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "music",
-    "spotify",
-    "tracks"
+    "spotify"
   ],
   "license": "MIT",
   "repository": {

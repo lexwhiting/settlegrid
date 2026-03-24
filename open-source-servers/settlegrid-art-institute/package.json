@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-art-institute",
+  "version": "1.0.0",
+  "description": "MCP server for Art Institute of Chicago with SettleGrid billing. Search and explore artworks and artists from the Art Institute of Chicago open API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "art",
+    "museum",
+    "chicago",
+    "culture",
+    "artworks"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-art-institute"
+  }
+}

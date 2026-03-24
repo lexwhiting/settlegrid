@@ -1,12 +1,12 @@
 # settlegrid-olympics
 
-Olympic Games Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+Olympic Games MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-olympics)
 
-Olympic Games events, athletes, and medal data.
+Olympic Games data — events, athletes, countries, and disciplines.
 
 ## Quick Start
 
@@ -20,8 +20,8 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `get_events()` | Get Olympic events/disciplines | 1¢ |
-| `get_countries()` | Get participating countries and medals | 1¢ |
+| `get_events()` | Get Olympic events | 1¢ |
+| `get_countries()` | Get participating countries and medal counts | 1¢ |
 
 ## Parameters
 
@@ -36,11 +36,11 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: Codante Olympic API
+- **Provider**: Codante
 - **Base URL**: https://apis.codante.io/olympic-games
 - **Auth**: None required
 - **Rate Limits**: Reasonable use
-- **Docs**: https://apis.codante.io/olympic-games
+- **Docs**: https://docs.codante.io/olympic-games
 
 ## Deploy
 

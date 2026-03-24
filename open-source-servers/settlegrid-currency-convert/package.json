@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-currency-convert",
+  "version": "1.0.0",
+  "description": "MCP server for Currency Converter with SettleGrid billing. Currency conversion with live exchange rates from ExchangeRate-API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "misc",
+    "currency",
+    "exchange-rate",
+    "conversion",
+    "forex"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-currency-convert"
+  }
+}

@@ -6,7 +6,7 @@ MusicBrainz MCP Server with per-call billing via [SettleGrid](https://settlegrid
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-musicbrainz)
 
-Search artists, releases, and recordings via the MusicBrainz open music encyclopedia.
+Music metadata — artists, albums, recordings from MusicBrainz.
 
 ## Quick Start
 
@@ -20,20 +20,22 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `search_artists(query)` | Search for music artists | 1¢ |
-| `search_releases(query)` | Search for album/single releases | 1¢ |
-| `get_artist(mbid)` | Get artist details by MBID | 1¢ |
+| `search_artist(query, limit?)` | Search for music artists | 1¢ |
+| `search_release(query, limit?)` | Search for album releases | 1¢ |
+| `get_artist_releases(artist_id)` | Get releases by artist ID | 1¢ |
 
 ## Parameters
 
-### search_artists
+### search_artist
 - `query` (string, required) — Artist name to search
+- `limit` (number) — Max results (default 10)
 
-### search_releases
-- `query` (string, required) — Release title to search
+### search_release
+- `query` (string, required) — Album title to search
+- `limit` (number) — Max results
 
-### get_artist
-- `mbid` (string, required) — MusicBrainz artist ID (UUID)
+### get_artist_releases
+- `artist_id` (string, required) — MusicBrainz artist ID (UUID)
 
 ## Environment Variables
 
@@ -41,13 +43,13 @@ npm run dev
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
 
+No API key needed for the upstream MusicBrainz API — it is completely free.
 
 ## Upstream API
 
 - **Provider**: MusicBrainz
 - **Base URL**: https://musicbrainz.org/ws/2
 - **Auth**: None required
-- **Rate Limits**: 1 req/sec
 - **Docs**: https://musicbrainz.org/doc/MusicBrainz_API
 
 ## Deploy

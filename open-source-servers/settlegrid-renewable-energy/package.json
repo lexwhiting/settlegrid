@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-renewable-energy",
+  "version": "1.0.0",
+  "description": "MCP server for Renewable Energy Stats with SettleGrid billing. Renewable energy generation data via Open-Meteo historical weather for solar/wind potential.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sustainability",
+    "renewable",
+    "solar",
+    "wind",
+    "energy"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-renewable-energy"
+  }
+}

@@ -1,28 +1,42 @@
 /**
  * settlegrid-thesportsdb — TheSportsDB MCP Server
  *
+ * Multi-sport data — teams, players, events across all major sports.
+ *
  * Methods:
- *   search_teams(query)             — Search teams       (1¢)
- *   search_players(query)           — Search players     (1¢)
- *   get_events(team_id, type?)      — Team events        (1¢)
+ *   search_teams(query)           — Search sports teams by name  (1¢)
+ *   search_players(query)         — Search players by name  (1¢)
+ *   get_events(league_id, round)  — Get past events for a league by round  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SearchInput { query: string }
-interface EventsInput { team_id: string; type?: string }
+interface SearchTeamsInput {
+  query: string
+}
+
+interface SearchPlayersInput {
+  query: string
+}
+
+interface GetEventsInput {
+  league_id: string
+  round: string
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://www.thesportsdb.com/api/v1/json/3'
 
-async function sdbFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-thesportsdb/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`TheSportsDB ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`TheSportsDB API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -43,59 +57,59 @@ const sg = settlegrid.init({
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const searchTeams = sg.wrap(async (args: SearchInput) => {
+const searchTeams = sg.wrap(async (args: SearchTeamsInput) => {
   if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await sdbFetch<{ teams: Array<{ idTeam: string; strTeam: string; strSport: string; strLeague: string; strCountry: string; strStadium: string; strDescriptionEN: string }> | null }>(`/searchteams.php?t=${q}`)
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/searchteams.php?t=${encodeURIComponent(query)}`)
+  const items = (data.teams ?? []).slice(0, 10)
   return {
-    query: args.query,
-    teams: (data.teams || []).map((t) => ({
-      id: t.idTeam,
-      name: t.strTeam,
-      sport: t.strSport,
-      league: t.strLeague,
-      country: t.strCountry,
-      stadium: t.strStadium,
-      description: t.strDescriptionEN?.slice(0, 300),
+    count: items.length,
+    results: items.map((item: any) => ({
+        idTeam: item.idTeam,
+        strTeam: item.strTeam,
+        strLeague: item.strLeague,
+        strSport: item.strSport,
+        strCountry: item.strCountry,
+        strStadium: item.strStadium,
     })),
   }
 }, { method: 'search_teams' })
 
-const searchPlayers = sg.wrap(async (args: SearchInput) => {
+const searchPlayers = sg.wrap(async (args: SearchPlayersInput) => {
   if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
-  const q = encodeURIComponent(args.query.trim())
-  const data = await sdbFetch<{ player: Array<{ idPlayer: string; strPlayer: string; strSport: string; strTeam: string; strNationality: string; strPosition: string; dateBorn: string }> | null }>(`/searchplayers.php?p=${q}`)
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/searchplayers.php?p=${encodeURIComponent(query)}`)
+  const items = (data.player ?? []).slice(0, 10)
   return {
-    query: args.query,
-    players: (data.player || []).map((p) => ({
-      id: p.idPlayer,
-      name: p.strPlayer,
-      sport: p.strSport,
-      team: p.strTeam,
-      nationality: p.strNationality,
-      position: p.strPosition,
-      born: p.dateBorn,
+    count: items.length,
+    results: items.map((item: any) => ({
+        idPlayer: item.idPlayer,
+        strPlayer: item.strPlayer,
+        strTeam: item.strTeam,
+        strNationality: item.strNationality,
+        strPosition: item.strPosition,
+        strSport: item.strSport,
     })),
   }
 }, { method: 'search_players' })
 
-const getEvents = sg.wrap(async (args: EventsInput) => {
-  if (!args.team_id || typeof args.team_id !== 'string') throw new Error('team_id is required')
-  const endpoint = args.type === 'last' ? 'eventslast' : 'eventsnext'
-  const data = await sdbFetch<{ results: Array<{ idEvent: string; strEvent: string; strLeague: string; dateEvent: string; strTime: string; strHomeTeam: string; strAwayTeam: string; intHomeScore: string; intAwayScore: string }> | null }>(`/${endpoint}.php?id=${args.team_id}`)
+const getEvents = sg.wrap(async (args: GetEventsInput) => {
+  if (!args.league_id || typeof args.league_id !== 'string') throw new Error('league_id is required')
+  const league_id = args.league_id.trim()
+  if (!args.round || typeof args.round !== 'string') throw new Error('round is required')
+  const round = args.round.trim()
+  const data = await apiFetch<any>(`/eventsround.php?id=${encodeURIComponent(league_id)}&r=${encodeURIComponent(round)}`)
+  const items = (data.events ?? []).slice(0, 15)
   return {
-    teamId: args.team_id,
-    type: args.type || 'next',
-    events: (data.results || []).map((e) => ({
-      id: e.idEvent,
-      name: e.strEvent,
-      league: e.strLeague,
-      date: e.dateEvent,
-      time: e.strTime,
-      homeTeam: e.strHomeTeam,
-      awayTeam: e.strAwayTeam,
-      homeScore: e.intHomeScore,
-      awayScore: e.intAwayScore,
+    count: items.length,
+    results: items.map((item: any) => ({
+        idEvent: item.idEvent,
+        strEvent: item.strEvent,
+        strHomeTeam: item.strHomeTeam,
+        strAwayTeam: item.strAwayTeam,
+        intHomeScore: item.intHomeScore,
+        intAwayScore: item.intAwayScore,
+        dateEvent: item.dateEvent,
     })),
   }
 }, { method: 'get_events' })

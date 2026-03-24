@@ -6,7 +6,7 @@ MLB Stats MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-mlb-stats)
 
-MLB baseball teams, players, schedules, and standings from the official MLB Stats API.
+Major League Baseball data — teams, rosters, and schedules.
 
 ## Quick Start
 
@@ -20,17 +20,17 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
+| `get_teams()` | List MLB teams | 1¢ |
+| `get_schedule(date)` | Get game schedule for a date | 1¢ |
 | `get_standings(league_id)` | Get MLB standings by league | 1¢ |
-| `get_schedule(date)` | Get games for a date | 1¢ |
-| `get_teams()` | List all MLB teams | 1¢ |
 
 ## Parameters
 
-### get_standings
-- `league_id` (number, optional) — League ID: 103 (AL) or 104 (NL). Default: both.
-
 ### get_schedule
-- `date` (string, required) — Date in YYYY-MM-DD format
+- `date` (string, required)
+
+### get_standings
+- `league_id` (string, required)
 
 ## Environment Variables
 
@@ -41,11 +41,11 @@ npm run dev
 
 ## Upstream API
 
-- **Provider**: MLB
+- **Provider**: MLB Stats API
 - **Base URL**: https://statsapi.mlb.com/api/v1
 - **Auth**: None required
 - **Rate Limits**: Reasonable use
-- **Docs**: https://statsapi.mlb.com/
+- **Docs**: https://statsapi.mlb.com/docs/
 
 ## Deploy
 

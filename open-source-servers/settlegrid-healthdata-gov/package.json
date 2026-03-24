@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-healthdata-gov",
+  "version": "1.0.0",
+  "description": "US federal health datasets from HealthData.gov CKAN catalog.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "health",
+    "us-health",
+    "datasets",
+    "government"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-healthdata-gov"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-blockchain-info",
+  "version": "1.0.0",
+  "description": "Bitcoin blockchain data — blocks, transactions, and addresses.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "crypto",
+    "bitcoin",
+    "blockchain",
+    "addresses"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-blockchain-info"
+  }
+}

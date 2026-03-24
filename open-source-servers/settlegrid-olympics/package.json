@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-olympics",
   "version": "1.0.0",
-  "description": "Olympic Games events, athletes, and medal data.",
+  "description": "Olympic Games data — events, athletes, countries, and disciplines.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,7 @@
     "mcp",
     "ai",
     "sports",
-    "olympics",
-    "medals",
-    "athletes"
+    "olympics"
   ],
   "license": "MIT",
   "repository": {

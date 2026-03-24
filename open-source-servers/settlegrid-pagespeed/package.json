@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-pagespeed",
+  "version": "1.0.0",
+  "description": "Website performance analysis via Google PageSpeed Insights.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "pagespeed",
+    "performance",
+    "lighthouse",
+    "seo",
+    "web-vitals"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-pagespeed"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-sensor-community",
+  "version": "1.0.0",
+  "description": "MCP server for Sensor.Community Air Quality with SettleGrid billing. Access citizen-operated air quality sensor data from the Sensor.Community network. No API key needed.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "air-quality",
+    "sensors",
+    "particulate-matter",
+    "environment",
+    "citizen-science"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-sensor-community"
+  }
+}

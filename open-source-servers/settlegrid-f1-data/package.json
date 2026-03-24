@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-f1-data",
   "version": "1.0.0",
-  "description": "Formula 1 race results, driver standings, and constructor data from the Ergast API.",
+  "description": "Formula 1 race data — drivers, constructors, and race results.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,10 +20,8 @@
     "mcp",
     "ai",
     "sports",
-    "f1",
-    "formula-1",
     "racing",
-    "motorsport"
+    "f1"
   ],
   "license": "MIT",
   "repository": {

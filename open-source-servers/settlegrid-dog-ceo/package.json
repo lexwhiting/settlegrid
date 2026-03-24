@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-dog-ceo",
   "version": "1.0.0",
-  "description": "Get random dog images and browse breeds from the Dog CEO API.",
+  "description": "Get random dog images and breed lists from the Dog CEO API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,8 @@
     "mcp",
     "ai",
     "entertainment",
-    "dogs",
-    "images",
-    "animals"
+    "animals",
+    "dogs"
   ],
   "license": "MIT",
   "repository": {

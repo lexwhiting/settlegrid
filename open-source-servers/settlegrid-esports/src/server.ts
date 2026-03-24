@@ -1,31 +1,42 @@
 /**
- * settlegrid-esports — Esports Data MCP Server
+ * settlegrid-esports — Esports MCP Server
+ *
+ * Esports match data, teams, and tournaments via PandaScore.
  *
  * Methods:
- *   get_matches(game?, status?)   — Esports matches       (2¢)
- *   get_tournaments(game?)        — Esports tournaments   (2¢)
+ *   list_matches(game)            — List upcoming or recent esports matches  (2¢)
+ *   search_teams(query)           — Search esports teams by name  (2¢)
+ *   list_tournaments(game)        — List current esports tournaments  (2¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface MatchesInput { game?: string; status?: string }
-interface TournamentsInput { game?: string }
+interface ListMatchesInput {
+  game?: string
+}
+
+interface SearchTeamsInput {
+  query: string
+}
+
+interface ListTournamentsInput {
+  game?: string
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://api.pandascore.co'
-const TOKEN = process.env.PANDASCORE_TOKEN || ''
+const API_KEY = process.env.PANDASCORE_TOKEN ?? ''
 
-async function pandaFetch<T>(path: string): Promise<T> {
-  if (!TOKEN) throw new Error('PANDASCORE_TOKEN environment variable is required')
+async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
+    headers: { 'User-Agent': 'settlegrid-esports/1.0', Authorization: `Bearer ${API_KEY}` },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`PandaScore API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Esports API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -37,61 +48,55 @@ const sg = settlegrid.init({
   pricing: {
     defaultCostCents: 2,
     methods: {
-      get_matches: { costCents: 2, displayName: 'Get Matches' },
-      get_tournaments: { costCents: 2, displayName: 'Get Tournaments' },
+      list_matches: { costCents: 2, displayName: 'List Matches' },
+      search_teams: { costCents: 2, displayName: 'Search Teams' },
+      list_tournaments: { costCents: 2, displayName: 'List Tournaments' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getMatches = sg.wrap(async (args: MatchesInput) => {
-  const validStatus = ['upcoming', 'running', 'past']
-  const status = args.status && validStatus.includes(args.status) ? args.status : 'upcoming'
-  let path = `/matches/${status}?per_page=10`
-  if (args.game) {
-    path = `/${encodeURIComponent(args.game)}/matches/${status}?per_page=10`
-  }
-  const data = await pandaFetch<Array<{ id: number; name: string; begin_at: string; status: string; league: { name: string }; opponents: Array<{ opponent: { name: string } }>; results: Array<{ team_id: number; score: number }> }>>(path)
+const listMatches = sg.wrap(async (args: ListMatchesInput) => {
+  const game = typeof args.game === 'string' ? args.game.trim() : ''
+  const data = await apiFetch<any>(`/matches/upcoming?per_page=10`)
   return {
-    status,
-    game: args.game || 'all',
-    matches: data.map((m) => ({
-      id: m.id,
-      name: m.name,
-      startAt: m.begin_at,
-      status: m.status,
-      league: m.league?.name,
-      opponents: m.opponents?.map((o) => o.opponent?.name),
-      results: m.results,
-    })),
+    id: data.id,
+    name: data.name,
+    scheduled_at: data.scheduled_at,
+    status: data.status,
+    videogame: data.videogame,
   }
-}, { method: 'get_matches' })
+}, { method: 'list_matches' })
 
-const getTournaments = sg.wrap(async (args: TournamentsInput) => {
-  let path = '/tournaments?per_page=10&sort=-begin_at'
-  if (args.game) {
-    path = `/${encodeURIComponent(args.game)}/tournaments?per_page=10&sort=-begin_at`
-  }
-  const data = await pandaFetch<Array<{ id: number; name: string; begin_at: string; end_at: string; league: { name: string }; serie: { full_name: string }; prizepool: string }>>(path)
+const searchTeams = sg.wrap(async (args: SearchTeamsInput) => {
+  if (!args.query || typeof args.query !== 'string') throw new Error('query is required')
+  const query = args.query.trim()
+  const data = await apiFetch<any>(`/teams?search[name]=${encodeURIComponent(query)}&per_page=10`)
   return {
-    game: args.game || 'all',
-    tournaments: data.map((t) => ({
-      id: t.id,
-      name: t.name,
-      startAt: t.begin_at,
-      endAt: t.end_at,
-      league: t.league?.name,
-      series: t.serie?.full_name,
-      prizepool: t.prizepool,
-    })),
+    id: data.id,
+    name: data.name,
+    acronym: data.acronym,
+    slug: data.slug,
   }
-}, { method: 'get_tournaments' })
+}, { method: 'search_teams' })
+
+const listTournaments = sg.wrap(async (args: ListTournamentsInput) => {
+  const game = typeof args.game === 'string' ? args.game.trim() : ''
+  const data = await apiFetch<any>(`/tournaments/running?per_page=10`)
+  return {
+    id: data.id,
+    name: data.name,
+    begin_at: data.begin_at,
+    end_at: data.end_at,
+    league: data.league,
+  }
+}, { method: 'list_tournaments' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getMatches, getTournaments }
+export { listMatches, searchTeams, listTournaments }
 
 console.log('settlegrid-esports MCP server ready')
-console.log('Methods: get_matches, get_tournaments')
+console.log('Methods: list_matches, search_teams, list_tournaments')
 console.log('Pricing: 2¢ per call | Powered by SettleGrid')

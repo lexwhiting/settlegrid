@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-qr-code",
+  "version": "1.0.0",
+  "description": "Generate QR codes from text or URLs.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "qr",
+    "qrcode",
+    "barcode",
+    "generator",
+    "url"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-qr-code"
+  }
+}

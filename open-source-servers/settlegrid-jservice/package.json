@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-jservice",
   "version": "1.0.0",
-  "description": "Access Jeopardy trivia clues, categories, and random questions from JService.",
+  "description": "Get Jeopardy-style trivia clues from the jService API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -21,8 +21,7 @@
     "ai",
     "entertainment",
     "trivia",
-    "jeopardy",
-    "quiz"
+    "jeopardy"
   ],
   "license": "MIT",
   "repository": {

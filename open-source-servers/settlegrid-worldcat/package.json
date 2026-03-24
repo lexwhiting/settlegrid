@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-worldcat",
+  "version": "1.0.0",
+  "description": "MCP server for WorldCat Library Catalog with SettleGrid billing. Search the world's largest library catalog via WorldCat API for books, media, and library holdings.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "library",
+    "worldcat",
+    "books",
+    "catalog",
+    "oclc"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-worldcat"
+  }
+}

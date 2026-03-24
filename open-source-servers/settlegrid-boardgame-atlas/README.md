@@ -6,7 +6,7 @@ Board Game Atlas MCP Server with per-call billing via [SettleGrid](https://settl
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-boardgame-atlas)
 
-Search and explore board games, mechanics, and categories from Board Game Atlas.
+Search board games, mechanics, and categories from Board Game Atlas.
 
 ## Quick Start
 
@@ -21,26 +21,29 @@ npm run dev
 | Method | Description | Cost |
 |--------|-------------|------|
 | `search_games(query)` | Search board games by name | 2¢ |
-| `get_mechanics()` | List game mechanics | 1¢ |
+| `get_game(id)` | Get board game details by ID | 2¢ |
 
 ## Parameters
 
 ### search_games
-- `query` (string, required) — Board game name
+- `query` (string, required)
+
+### get_game
+- `id` (string, required)
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `BGA_CLIENT_ID` | Yes | Board Game Atlas client ID (free at boardgameatlas.com) |
+| `BGA_CLIENT_ID` | Yes | Free client ID from boardgameatlas.com/api/docs |
 
 
 ## Upstream API
 
 - **Provider**: Board Game Atlas
 - **Base URL**: https://api.boardgameatlas.com/api
-- **Auth**: Client ID (query param)
+- **Auth**: Free API key required
 - **Rate Limits**: Reasonable use
 - **Docs**: https://www.boardgameatlas.com/api/docs
 

@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-free-dictionary",
+  "version": "1.0.0",
+  "description": "MCP server for Free Dictionary with SettleGrid billing. English dictionary definitions, phonetics, and examples from Free Dictionary API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "language",
+    "dictionary",
+    "definitions",
+    "english",
+    "words"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-free-dictionary"
+  }
+}

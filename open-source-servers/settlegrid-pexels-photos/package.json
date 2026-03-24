@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-pexels-photos",
+  "version": "1.0.0",
+  "description": "MCP server for Pexels Photos with SettleGrid billing. Free stock photos search from Pexels API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "photography",
+    "images",
+    "stock-photos",
+    "pexels"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-pexels-photos"
+  }
+}

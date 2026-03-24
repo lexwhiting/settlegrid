@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-cricket",
   "version": "1.0.0",
-  "description": "Cricket match data, scores, and series information from CricAPI.",
+  "description": "Cricket data — live scores, matches, and player stats.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,7 @@
     "mcp",
     "ai",
     "sports",
-    "cricket",
-    "scores",
-    "ipl"
+    "cricket"
   ],
   "license": "MIT",
   "repository": {

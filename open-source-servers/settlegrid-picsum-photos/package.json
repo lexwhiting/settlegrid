@@ -1,0 +1,32 @@
+{
+  "name": "settlegrid-picsum-photos",
+  "version": "1.0.0",
+  "description": "MCP server for Lorem Picsum Photos with SettleGrid billing. Random placeholder photos with configurable dimensions from Lorem Picsum.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "photography",
+    "images",
+    "placeholder",
+    "random"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-picsum-photos"
+  }
+}

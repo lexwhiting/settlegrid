@@ -1,36 +1,39 @@
 /**
  * settlegrid-opentdb — Open Trivia Database MCP Server
  *
+ * Get random trivia questions from the Open Trivia Database.
+ *
  * Methods:
- *   get_questions(amount?, category?, difficulty?)  — Get trivia questions  (1¢)
- *   get_categories()                                — List categories       (1¢)
+ *   get_questions(amount, difficulty) — Get random trivia questions  (1¢)
+ *   get_categories()              — List all trivia categories  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface QuestionsInput {
+interface GetQuestionsInput {
   amount?: number
-  category?: number
   difficulty?: string
+}
+
+interface GetCategoriesInput {
+
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://opentdb.com'
 
-async function triviaFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-opentdb/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`OpenTDB API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`Open Trivia Database API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
-}
-
-function decodeHtml(text: string): string {
-  return text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'")
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
@@ -48,34 +51,35 @@ const sg = settlegrid.init({
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getQuestions = sg.wrap(async (args: QuestionsInput) => {
-  const amount = Math.min(Math.max(args.amount || 10, 1), 50)
-  let url = `/api.php?amount=${amount}`
-  if (args.category && args.category >= 9 && args.category <= 32) {
-    url += `&category=${args.category}`
-  }
-  const validDiffs = ['easy', 'medium', 'hard']
-  if (args.difficulty && validDiffs.includes(args.difficulty)) {
-    url += `&difficulty=${args.difficulty}`
-  }
-  const data = await triviaFetch<{ response_code: number; results: Array<{ category: string; type: string; difficulty: string; question: string; correct_answer: string; incorrect_answers: string[] }> }>(url)
-  if (data.response_code !== 0) throw new Error(`OpenTDB response code: ${data.response_code}`)
+const getQuestions = sg.wrap(async (args: GetQuestionsInput) => {
+  const amount = typeof args.amount === 'number' ? args.amount : 0
+  const difficulty = typeof args.difficulty === 'string' ? args.difficulty.trim() : ''
+  const data = await apiFetch<any>(`/api.php?amount=${amount}&difficulty=${encodeURIComponent(difficulty)}`)
+  const items = (data.results ?? []).slice(0, 10)
   return {
-    count: data.results.length,
-    questions: data.results.map((q) => ({
-      category: decodeHtml(q.category),
-      difficulty: q.difficulty,
-      type: q.type,
-      question: decodeHtml(q.question),
-      correctAnswer: decodeHtml(q.correct_answer),
-      incorrectAnswers: q.incorrect_answers.map(decodeHtml),
+    count: items.length,
+    results: items.map((item: any) => ({
+        category: item.category,
+        type: item.type,
+        difficulty: item.difficulty,
+        question: item.question,
+        correct_answer: item.correct_answer,
+        incorrect_answers: item.incorrect_answers,
     })),
   }
 }, { method: 'get_questions' })
 
-const getCategories = sg.wrap(async () => {
-  const data = await triviaFetch<{ trivia_categories: Array<{ id: number; name: string }> }>('/api_category.php')
-  return { categories: data.trivia_categories }
+const getCategories = sg.wrap(async (args: GetCategoriesInput) => {
+
+  const data = await apiFetch<any>(`/api_category.php`)
+  const items = (data.trivia_categories ?? []).slice(0, 50)
+  return {
+    count: items.length,
+    results: items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+    })),
+  }
 }, { method: 'get_categories' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────

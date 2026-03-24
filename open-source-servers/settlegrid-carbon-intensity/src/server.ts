@@ -1,78 +1,81 @@
 /**
- * settlegrid-carbon-intensity — Carbon Intensity MCP Server
+ * settlegrid-carbon-intensity — UK Carbon Intensity MCP Server
  *
- * Wraps the UK Carbon Intensity API with SettleGrid billing.
- * No external API key required.
+ * Wraps Carbon Intensity UK API with SettleGrid billing.
+ * No API key needed.
  *
  * Methods:
- *   get_current()                         (1¢)
- *   get_forecast()                        (1¢)
- *   get_by_date(date)                     (1¢)
- *   get_by_region(region)                 (1¢)
+ *   get_current_intensity() — current intensity (1¢)
+ *   get_intensity_by_date(date) — intensity by date (1¢)
+ *   get_regional_intensity(region_id?) — regional data (1¢)
  */
 
-import { settlegrid } from "@settlegrid/mcp"
+import { settlegrid } from '@settlegrid/mcp'
 
 interface DateInput { date: string }
-interface RegionInput { region: string }
+interface RegionInput { region_id?: number }
 
-const API_BASE = "https://api.carbonintensity.org.uk"
-const USER_AGENT = "settlegrid-carbon-intensity/1.0 (contact@settlegrid.ai)"
+const API_BASE = 'https://api.carbonintensity.org.uk'
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-  })
+  const url = `${API_BASE}${path}`
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
   if (!res.ok) {
-    const body = await res.text().catch(() => "")
-    throw new Error(`Carbon Intensity API ${res.status}: ${body.slice(0, 200)}`)
+    const body = await res.text().catch(() => '')
+    throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
 
 const sg = settlegrid.init({
-  toolSlug: "carbon-intensity",
+  toolSlug: 'carbon-intensity',
   pricing: {
     defaultCostCents: 1,
     methods: {
-      get_current: { costCents: 1, displayName: "Get current carbon intensity" },
-      get_forecast: { costCents: 1, displayName: "Get carbon intensity forecast" },
-      get_by_date: { costCents: 1, displayName: "Get intensity for specific date" },
-      get_by_region: { costCents: 1, displayName: "Get intensity by region" },
+      get_current_intensity: { costCents: 1, displayName: 'Current Intensity' },
+      get_intensity_by_date: { costCents: 1, displayName: 'Intensity By Date' },
+      get_regional_intensity: { costCents: 1, displayName: 'Regional Intensity' },
     },
   },
 })
 
-const getCurrent = sg.wrap(async () => {
-  return apiFetch<Record<string, unknown>>("/intensity")
-}, { method: "get_current" })
-
-const getForecast = sg.wrap(async () => {
-  return apiFetch<Record<string, unknown>>("/intensity/date/fw24h")
-}, { method: "get_forecast" })
-
-const getByDate = sg.wrap(async (args: DateInput) => {
-  if (!args.date || typeof args.date !== "string") throw new Error("date is required (YYYY-MM-DD)")
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date)) throw new Error("date must be YYYY-MM-DD format")
-  return apiFetch<Record<string, unknown>>(`/intensity/date/${args.date}`)
-}, { method: "get_by_date" })
-
-const getByRegion = sg.wrap(async (args: RegionInput) => {
-  if (!args.region || typeof args.region !== "string") throw new Error("region is required")
-  const REGIONS: Record<string, number> = {
-    "north scotland": 1, "south scotland": 2, "north west england": 3,
-    "north east england": 4, "yorkshire": 5, "north wales": 6,
-    "south wales": 7, "west midlands": 8, "east midlands": 9,
-    "east england": 10, "south west england": 11, "south england": 12,
-    "london": 13, "south east england": 14,
+const getCurrentIntensity = sg.wrap(async () => {
+  const data = await apiFetch<any>('/intensity')
+  const d = data.data?.[0]
+  return {
+    from: d?.from, to: d?.to,
+    forecast: d?.intensity?.forecast,
+    actual: d?.intensity?.actual,
+    index: d?.intensity?.index,
   }
-  const regionId = REGIONS[args.region.toLowerCase()]
-  if (!regionId) throw new Error(`Unknown region. Available: ${Object.keys(REGIONS).join(", ")}`)
-  return apiFetch<Record<string, unknown>>(`/regional/regionid/${regionId}`)
-}, { method: "get_by_region" })
+}, { method: 'get_current_intensity' })
 
-export { getCurrent, getForecast, getByDate, getByRegion }
+const getIntensityByDate = sg.wrap(async (args: DateInput) => {
+  if (!args.date) throw new Error('date is required (YYYY-MM-DD)')
+  const data = await apiFetch<any>(`/intensity/date/${args.date}`)
+  return {
+    date: args.date,
+    periods: (data.data || []).map((d: any) => ({
+      from: d.from, to: d.to,
+      forecast: d.intensity?.forecast, actual: d.intensity?.actual, index: d.intensity?.index,
+    })),
+  }
+}, { method: 'get_intensity_by_date' })
 
-console.log("settlegrid-carbon-intensity MCP server ready")
-console.log("Methods: get_current, get_forecast, get_by_date, get_by_region")
-console.log("Pricing: 1¢ per call | Powered by SettleGrid")
+const getRegionalIntensity = sg.wrap(async (args: RegionInput) => {
+  const path = args.region_id ? `/regional/regionid/${args.region_id}` : '/regional'
+  const data = await apiFetch<any>(path)
+  const regions = data.data?.flatMap((d: any) => d.regions || [d]) || []
+  return {
+    regions: regions.slice(0, 20).map((r: any) => ({
+      id: r.regionid, name: r.shortname || r.dnoregion,
+      intensity: r.intensity, generation_mix: r.generationmix?.slice(0, 5),
+    })),
+  }
+}, { method: 'get_regional_intensity' })
+
+export { getCurrentIntensity, getIntensityByDate, getRegionalIntensity }
+
+console.log('settlegrid-carbon-intensity MCP server ready')
+console.log('Methods: get_current_intensity, get_intensity_by_date, get_regional_intensity')
+console.log('Pricing: 1¢ per call | Powered by SettleGrid')

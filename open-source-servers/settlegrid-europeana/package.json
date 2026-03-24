@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-europeana",
+  "version": "1.0.0",
+  "description": "MCP server for Europeana Cultural Heritage with SettleGrid billing. Search European cultural heritage records from museums, galleries, archives, and libraries across Europe.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "culture",
+    "heritage",
+    "europeana",
+    "museum",
+    "european"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-europeana"
+  }
+}

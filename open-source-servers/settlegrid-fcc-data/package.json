@@ -1,0 +1,33 @@
+{
+  "name": "settlegrid-fcc-data",
+  "version": "1.0.0",
+  "description": "MCP server for FCC License Data with SettleGrid billing. FCC license and spectrum data from the Universal Licensing System.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "legal",
+    "fcc",
+    "telecom",
+    "licenses",
+    "spectrum"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fcc-data"
+  }
+}

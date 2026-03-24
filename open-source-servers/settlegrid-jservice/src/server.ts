@@ -1,27 +1,36 @@
 /**
- * settlegrid-jservice — JService Jeopardy MCP Server
+ * settlegrid-jservice — jService (Jeopardy) MCP Server
+ *
+ * Get Jeopardy-style trivia clues from the jService API.
  *
  * Methods:
- *   get_random(count?)       — Random Jeopardy clues    (1¢)
- *   get_categories(count?)   — List categories           (1¢)
+ *   get_random(count)             — Get random Jeopardy clues  (1¢)
+ *   get_clues(category)           — Get clues by category ID  (1¢)
  */
 
 import { settlegrid } from '@settlegrid/mcp'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface RandomInput { count?: number }
-interface CategoriesInput { count?: number }
+interface GetRandomInput {
+  count?: number
+}
+
+interface GetCluesInput {
+  category: number
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const BASE = 'https://jservice.io/api'
 
-async function jFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'User-Agent': 'settlegrid-jservice/1.0' },
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(`JService API ${res.status}: ${body.slice(0, 200)}`)
+    throw new Error(`jService (Jeopardy) API ${res.status}: ${body.slice(0, 200)}`)
   }
   return res.json() as Promise<T>
 }
@@ -34,45 +43,42 @@ const sg = settlegrid.init({
     defaultCostCents: 1,
     methods: {
       get_random: { costCents: 1, displayName: 'Random Clues' },
-      get_categories: { costCents: 1, displayName: 'Get Categories' },
+      get_clues: { costCents: 1, displayName: 'Get Clues' },
     },
   },
 })
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
-const getRandom = sg.wrap(async (args: RandomInput) => {
-  const count = Math.min(Math.max(args.count || 5, 1), 100)
-  const data = await jFetch<Array<{ id: number; question: string; answer: string; value: number; category: { id: number; title: string }; airdate: string }>>(`/random?count=${count}`)
+const getRandom = sg.wrap(async (args: GetRandomInput) => {
+  const count = typeof args.count === 'number' ? args.count : 0
+  const data = await apiFetch<any>(`/random?count=${count}`)
   return {
-    count: data.length,
-    clues: data.map((c) => ({
-      id: c.id,
-      question: c.question,
-      answer: c.answer?.replace(/<[^>]*>/g, ''),
-      value: c.value,
-      category: c.category?.title,
-      airdate: c.airdate,
-    })),
+    id: data.id,
+    answer: data.answer,
+    question: data.question,
+    value: data.value,
+    category: data.category,
   }
 }, { method: 'get_random' })
 
-const getCategories = sg.wrap(async (args: CategoriesInput) => {
-  const count = Math.min(Math.max(args.count || 10, 1), 100)
-  const data = await jFetch<Array<{ id: number; title: string; clues_count: number }>>(`/categories?count=${count}`)
+const getClues = sg.wrap(async (args: GetCluesInput) => {
+  if (typeof args.category !== 'number') throw new Error('category is required and must be a number')
+  const category = args.category
+  const data = await apiFetch<any>(`/clues?category=${category}`)
   return {
-    categories: data.map((c) => ({
-      id: c.id,
-      title: c.title,
-      cluesCount: c.clues_count,
-    })),
+    id: data.id,
+    answer: data.answer,
+    question: data.question,
+    value: data.value,
+    airdate: data.airdate,
   }
-}, { method: 'get_categories' })
+}, { method: 'get_clues' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 
-export { getRandom, getCategories }
+export { getRandom, getClues }
 
 console.log('settlegrid-jservice MCP server ready')
-console.log('Methods: get_random, get_categories')
+console.log('Methods: get_random, get_clues')
 console.log('Pricing: 1¢ per call | Powered by SettleGrid')

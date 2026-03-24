@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-esports",
   "version": "1.0.0",
-  "description": "Esports tournaments, matches, and teams from PandaScore.",
+  "description": "Esports match data, teams, and tournaments via PandaScore.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
