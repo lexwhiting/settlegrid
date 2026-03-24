@@ -37,3 +37,4 @@ smoke-results*
 private/
 internal/
 *-private/
+.mcpregistry_*
