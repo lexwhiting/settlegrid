@@ -1,0 +1,7 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "reinsurance-data", pricing: { defaultCostCents: 2, methods: { get_overview: { costCents: 2, displayName: "Get Market Overview" }, get_cat_events: { costCents: 2, displayName: "Get Catastrophe Events" } } } })
+const getOverview = sg.wrap(async (_a: Record<string, never>) => ({ global_premium_billion_usd: 350, top_reinsurers: [{ name: "Munich Re", premium_b: 42.1 }, { name: "Swiss Re", premium_b: 37.8 }, { name: "Hannover Re", premium_b: 28.4 }, { name: "SCOR", premium_b: 17.2 }, { name: "Berkshire Hathaway Re", premium_b: 16.5 }], cat_bond_market_billion: 45, retrocession_pct: 15, combined_ratio_avg: 95.2, roi_pct: 10.8 }), { method: "get_overview" })
+const events = [{ year: 2023, event: "Turkey-Syria Earthquake", insured_loss_b: 5.5, economic_loss_b: 34 }, { year: 2023, event: "Hawaii Wildfire", insured_loss_b: 5.6, economic_loss_b: 6.0 }, { year: 2022, event: "Hurricane Ian", insured_loss_b: 60, economic_loss_b: 110 }, { year: 2021, event: "European Floods", insured_loss_b: 13, economic_loss_b: 46 }, { year: 2017, event: "Hurricane Harvey", insured_loss_b: 32, economic_loss_b: 125 }]
+const getCatEvents = sg.wrap(async (args: { year?: number }) => { let results = [...events]; if (args.year) results = results.filter(e => e.year === args.year); return { count: results.length, events: results } }, { method: "get_cat_events" })
+export { getOverview, getCatEvents }
+console.log("settlegrid-reinsurance-data MCP server ready | 2c/call | Powered by SettleGrid")

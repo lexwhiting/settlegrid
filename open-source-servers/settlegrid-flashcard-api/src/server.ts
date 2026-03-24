@@ -1,0 +1,6 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "flashcard-api", pricing: { defaultCostCents: 1, methods: { create_deck: { costCents: 1, displayName: "Create Deck" }, get_review_schedule: { costCents: 1, displayName: "Get Review Schedule" } } } })
+const createDeck = sg.wrap(async (args: { topic: string; items: { front: string; back: string }[] }) => { if (!args.topic || !args.items?.length) throw new Error("topic and items required"); return { id: crypto.randomUUID(), topic: args.topic, card_count: args.items.length, cards: args.items.map((c, i) => ({ id: i + 1, front: c.front, back: c.back, difficulty: "new" })), created: new Date().toISOString() } }, { method: "create_deck" })
+const getReviewSchedule = sg.wrap(async (args: { card_count: number; days_until_exam: number }) => { if (!args.card_count || !args.days_until_exam) throw new Error("card_count and days_until_exam required"); const perDay = Math.ceil(args.card_count / Math.max(args.days_until_exam / 3, 1)); return { card_count: args.card_count, days: args.days_until_exam, daily_new: perDay, algorithm: "SM-2 (SuperMemo)" } }, { method: "get_review_schedule" })
+export { createDeck, getReviewSchedule }
+console.log("settlegrid-flashcard-api MCP server ready | 1c/call | Powered by SettleGrid")

@@ -1,0 +1,7 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "carbon-credits", pricing: { defaultCostCents: 2, methods: { get_price: { costCents: 2, displayName: "Get Carbon Price" }, get_market: { costCents: 2, displayName: "Get Market Overview" } } } })
+const markets: Record<string, { price_usd_tonne: number; change_pct: number; volume_mt: number }> = { eu_ets: { price_usd_tonne: 62.30, change_pct: -2.1, volume_mt: 1500 }, uk_ets: { price_usd_tonne: 48.50, change_pct: 0.8, volume_mt: 120 }, california: { price_usd_tonne: 34.20, change_pct: 1.2, volume_mt: 350 }, voluntary: { price_usd_tonne: 8.50, change_pct: -5.3, volume_mt: 250 }, china: { price_usd_tonne: 9.80, change_pct: 3.4, volume_mt: 2000 } }
+const getPrice = sg.wrap(async (args: { market: string }) => { if (!args.market) throw new Error("market required"); const m = markets[args.market.toLowerCase().replace(/ /g, "_")]; if (!m) throw new Error(`Unknown. Available: ${Object.keys(markets).join(", ")}`); return { market: args.market, ...m } }, { method: "get_price" })
+const getMarket = sg.wrap(async (_a: Record<string, never>) => ({ total_market_value_billion_usd: 909, global_emissions_gt: 37.4, markets: Object.entries(markets).map(([k, v]) => ({ name: k, ...v })) }), { method: "get_market" })
+export { getPrice, getMarket }
+console.log("settlegrid-carbon-credits MCP server ready | 2c/call | Powered by SettleGrid")

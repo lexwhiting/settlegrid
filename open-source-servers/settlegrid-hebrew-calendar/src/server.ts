@@ -1,0 +1,8 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "hebrew-calendar", pricing: { defaultCostCents: 1, methods: { convert: { costCents: 1, displayName: "Convert Date" }, get_holidays: { costCents: 1, displayName: "Get Holidays" } } } })
+const months = ["Tishrei","Cheshvan","Kislev","Tevet","Shevat","Adar","Nisan","Iyar","Sivan","Tammuz","Av","Elul"]
+const convert = sg.wrap(async (args: { gregorian_date: string }) => { if (!args.gregorian_date) throw new Error("gregorian_date required (YYYY-MM-DD)"); const d = new Date(args.gregorian_date); const year = d.getFullYear() + 3760 + (d.getMonth() >= 9 ? 1 : 0); return { gregorian: args.gregorian_date, hebrew_year: year, note: "Approximate — Hebrew calendar is lunisolar" } }, { method: "convert" })
+const holidays = [ { name: "Rosh Hashanah", month: "Tishrei", days: "1-2", type: "High Holy Day" }, { name: "Yom Kippur", month: "Tishrei", days: "10", type: "High Holy Day" }, { name: "Sukkot", month: "Tishrei", days: "15-21", type: "Pilgrimage Festival" }, { name: "Hanukkah", month: "Kislev", days: "25-32", type: "Festival of Lights" }, { name: "Purim", month: "Adar", days: "14", type: "Festival" }, { name: "Passover", month: "Nisan", days: "15-22", type: "Pilgrimage Festival" }, { name: "Shavuot", month: "Sivan", days: "6-7", type: "Pilgrimage Festival" } ]
+const getHolidays = sg.wrap(async (args: { month?: string }) => { let result = [...holidays]; if (args.month) result = result.filter(h => h.month.toLowerCase() === args.month!.toLowerCase()); return { count: result.length, holidays: result } }, { method: "get_holidays" })
+export { convert, getHolidays }
+console.log("settlegrid-hebrew-calendar MCP server ready | 1c/call | Powered by SettleGrid")

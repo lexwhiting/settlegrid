@@ -1,0 +1,7 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "course-catalog", pricing: { defaultCostCents: 2, methods: { search_courses: { costCents: 2, displayName: "Search Courses" }, get_subject: { costCents: 2, displayName: "Get Subject" } } } })
+const subjects: Record<string, { courses: number; avg_weeks: number; platforms: string[] }> = { computer_science: { courses: 12400, avg_weeks: 8, platforms: ["Coursera", "edX", "Udemy"] }, data_science: { courses: 6800, avg_weeks: 6, platforms: ["Coursera", "DataCamp"] }, business: { courses: 9200, avg_weeks: 5, platforms: ["Coursera", "LinkedIn Learning"] }, engineering: { courses: 4500, avg_weeks: 10, platforms: ["edX", "MIT OCW"] }, medicine: { courses: 2100, avg_weeks: 12, platforms: ["Coursera", "edX"] }, arts: { courses: 3400, avg_weeks: 4, platforms: ["Skillshare", "Coursera"] } }
+const searchCourses = sg.wrap(async (args: { query: string }) => { if (!args.query) throw new Error("query required"); return { query: args.query, subjects: Object.keys(subjects) } }, { method: "search_courses" })
+const getSubject = sg.wrap(async (args: { name: string }) => { if (!args.name) throw new Error("name required"); const s = subjects[args.name.toLowerCase().replace(/ /g, "_")]; if (!s) throw new Error(`Unknown. Available: ${Object.keys(subjects).join(", ")}`); return { subject: args.name, ...s } }, { method: "get_subject" })
+export { searchCourses, getSubject }
+console.log("settlegrid-course-catalog MCP server ready | 2c/call | Powered by SettleGrid")

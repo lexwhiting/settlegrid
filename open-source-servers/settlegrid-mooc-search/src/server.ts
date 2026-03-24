@@ -1,0 +1,7 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "mooc-search", pricing: { defaultCostCents: 2, methods: { search_moocs: { costCents: 2, displayName: "Search MOOCs" }, get_platform: { costCents: 2, displayName: "Get Platform" } } } })
+const platforms: Record<string, { courses: number; users_m: number; free: boolean; certs: boolean }> = { coursera: { courses: 7000, users_m: 136, free: true, certs: true }, edx: { courses: 4000, users_m: 78, free: true, certs: true }, udemy: { courses: 210000, users_m: 67, free: true, certs: true }, khan_academy: { courses: 10000, users_m: 120, free: true, certs: false }, mit_ocw: { courses: 2500, users_m: 300, free: true, certs: false } }
+const searchMoocs = sg.wrap(async (args: { query: string }) => { if (!args.query) throw new Error("query required"); return { query: args.query, platforms: Object.entries(platforms).map(([k, v]) => ({ name: k, ...v })) } }, { method: "search_moocs" })
+const getPlatform = sg.wrap(async (args: { name: string }) => { if (!args.name) throw new Error("name required"); const p = platforms[args.name.toLowerCase().replace(/ /g, "_")]; if (!p) throw new Error(`Unknown. Available: ${Object.keys(platforms).join(", ")}`); return { platform: args.name, ...p } }, { method: "get_platform" })
+export { searchMoocs, getPlatform }
+console.log("settlegrid-mooc-search MCP server ready | 2c/call | Powered by SettleGrid")

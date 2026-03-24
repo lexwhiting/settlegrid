@@ -1,0 +1,8 @@
+import { settlegrid } from "@settlegrid/mcp"
+const sg = settlegrid.init({ toolSlug: "braille-converter", pricing: { defaultCostCents: 1, methods: { to_braille: { costCents: 1, displayName: "Text to Braille" }, from_braille: { costCents: 1, displayName: "Braille to Text" } } } })
+const charMap: Record<string, string> = { a:"\u2801",b:"\u2803",c:"\u2809",d:"\u2819",e:"\u2811",f:"\u280B",g:"\u281B",h:"\u2813",i:"\u280A",j:"\u281A",k:"\u2805",l:"\u2807",m:"\u280D",n:"\u281D",o:"\u2815",p:"\u280F",q:"\u281F",r:"\u2817",s:"\u280E",t:"\u281E",u:"\u2825",v:"\u2827",w:"\u283A",x:"\u282D",y:"\u283D",z:"\u2835"," ":"\u2800","0":"\u281A","1":"\u2801","2":"\u2803","3":"\u2809","4":"\u2819","5":"\u2811","6":"\u280B","7":"\u281B","8":"\u2813","9":"\u280A",".":"\u2832",",":"\u2802","!":"\u2816","?":"\u2826" }
+const reverseMap: Record<string, string> = {}; Object.entries(charMap).forEach(([k, v]) => { if (!reverseMap[v]) reverseMap[v] = k })
+const toBraille = sg.wrap(async (args: { text: string }) => { if (!args.text) throw new Error("text required"); const braille = args.text.toLowerCase().split("").map(c => charMap[c] ?? c).join(""); return { original: args.text, braille, char_count: args.text.length } }, { method: "to_braille" })
+const fromBraille = sg.wrap(async (args: { braille: string }) => { if (!args.braille) throw new Error("braille required"); const text = args.braille.split("").map(c => reverseMap[c] ?? c).join(""); return { braille: args.braille, text, char_count: args.braille.length } }, { method: "from_braille" })
+export { toBraille, fromBraille }
+console.log("settlegrid-braille-converter MCP server ready | 1c/call | Powered by SettleGrid")
