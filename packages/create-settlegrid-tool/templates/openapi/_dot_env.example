@@ -1,0 +1,5 @@
+SETTLEGRID_TOOL_SLUG={{TOOL_SLUG}}
+PORT=3000
+# Your upstream API base URL:
+# UPSTREAM_API_URL=https://api.example.com
+# UPSTREAM_API_KEY=your-key-here

@@ -1,0 +1,4 @@
+SETTLEGRID_TOOL_SLUG={{TOOL_SLUG}}
+PORT=3000
+# Add your API keys here:
+# API_KEY=your-key-here

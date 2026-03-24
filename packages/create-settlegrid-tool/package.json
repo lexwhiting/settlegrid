@@ -1,0 +1,65 @@
+{
+  "name": "create-settlegrid-tool",
+  "version": "1.0.0",
+  "description": "Create a monetized AI tool with SettleGrid in 30 seconds",
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "monetization",
+    "cli",
+    "scaffold",
+    "create",
+    "tool",
+    "ai-economy",
+    "billing"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/create-settlegrid-tool"
+  },
+  "bugs": {
+    "url": "https://github.com/lexwhiting/settlegrid/issues",
+    "email": "support@settlegrid.ai"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-settlegrid-tool": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "fs-extra": "^11.2.0",
+    "picocolors": "^1.1.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.0.0",
+    "@types/prompts": "^2.4.9",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
