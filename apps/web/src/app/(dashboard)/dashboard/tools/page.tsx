@@ -214,10 +214,18 @@ export default function ToolsPage() {
               onAction={() => setShowCreate(true)}
               actionLabel="Create Tool"
             />
-            <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4">
-              Learn how to create and configure tools in the{' '}
-              <Link href="/docs" className="text-brand hover:underline">documentation</Link>.
-            </p>
+            <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-4 space-y-1">
+              <p>
+                Need a head start?{' '}
+                <Link href="/servers" className="text-brand hover:underline">Browse 1,017 open-source servers</Link>{' '}
+                or try{' '}
+                <Link href="/templates/" className="text-brand hover:underline">17 starter templates</Link>.
+              </p>
+              <p>
+                Or scaffold one instantly:{' '}
+                <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-[11px]">npx create-settlegrid-tool</code>
+              </p>
+            </div>
           </CardContent>
         </Card>
       ) : (

@@ -482,6 +482,9 @@ export default function HomePage() {
             <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Showcase
             </Link>
+            <Link href="/servers" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
+              Servers
+            </Link>
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Docs
             </Link>
@@ -1011,6 +1014,7 @@ assert signature == request.headers[
             </div>
             <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
               <Link href="/tools" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Showcase</Link>
+              <Link href="/servers" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Servers</Link>
               <Link href="/docs" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Docs</Link>
               <Link href="/learn/handbook" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Handbook</Link>
               <Link href="/learn" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Learn</Link>
