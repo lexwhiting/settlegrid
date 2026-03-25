@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,18 +27,33 @@ interface Tool {
   id: string
   name: string
   slug: string
-  description: string
+  description: string | null
   status: string
+  category: string | null
+  verified: boolean
   totalInvocations: number
   totalRevenueCents: number
   pricingConfig: ToolPricingConfig
   createdAt: string
 }
 
+interface DeveloperProfile {
+  name: string | null
+  slug: string | null
+}
+
 interface TieredMethodEntry {
   name: string
   costCents: string
 }
+
+interface QualityCheckItem {
+  label: string
+  passed: boolean
+  detail: string | null
+}
+
+const MIN_DESCRIPTION_LENGTH = 50
 
 const PRICING_MODEL_LABELS: Record<PricingModelType, string> = {
   'per-invocation': 'Per Invocation',
@@ -94,6 +109,64 @@ function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
+/** Client-side mirror of the quality gate checks for the UI checklist. */
+function buildQualityChecklist(tool: Tool, profile: DeveloperProfile): QualityCheckItem[] {
+  const descLength = (tool.description ?? '').length
+  const descPassed = descLength >= MIN_DESCRIPTION_LENGTH
+  const pricingPassed = hasPricingConfigured(tool.pricingConfig)
+  const categoryPassed = !!(tool.category && tool.category.trim() !== '')
+  const profilePassed = !!(
+    profile.name && profile.name.trim() !== '' &&
+    profile.slug && profile.slug.trim() !== ''
+  )
+
+  return [
+    {
+      label: `Description at least ${MIN_DESCRIPTION_LENGTH} characters`,
+      passed: descPassed,
+      detail: descPassed ? null : `Currently ${descLength} characters`,
+    },
+    {
+      label: 'Pricing configured with cost > $0',
+      passed: pricingPassed,
+      detail: pricingPassed ? null : 'Set a pricing model with a non-zero cost',
+    },
+    {
+      label: 'Category selected',
+      passed: categoryPassed,
+      detail: categoryPassed ? null : 'Choose a category for your tool',
+    },
+    {
+      label: 'Developer profile complete (name and slug)',
+      passed: profilePassed,
+      detail: profilePassed ? null : 'Go to Settings > Profile to set your name and slug',
+    },
+  ]
+}
+
+function hasPricingConfigured(config: ToolPricingConfig): boolean {
+  if (!config || !config.model) return false
+  switch (config.model) {
+    case 'per-invocation':
+      return (config.defaultCostCents ?? 0) > 0
+    case 'per-token':
+      return (config.costPerToken ?? 0) > 0
+    case 'per-byte':
+      return (config.costPerMB ?? 0) > 0
+    case 'per-second':
+      return (config.costPerSecond ?? 0) > 0
+    case 'tiered': {
+      if (!config.methods) return false
+      const entries = Object.values(config.methods)
+      return entries.length > 0 && entries.some((m) => m.costCents > 0)
+    }
+    case 'outcome':
+      return (config.outcomeConfig?.successCostCents ?? 0) > 0
+    default:
+      return (config.defaultCostCents ?? 0) > 0
+  }
+}
+
 interface ChangelogForm {
   version: string
   changeType: 'feature' | 'fix' | 'breaking' | 'deprecation'
@@ -105,8 +178,10 @@ const EMPTY_CHANGELOG_FORM: ChangelogForm = { version: '', changeType: 'feature'
 export default function ToolsPage() {
   const { toast } = useToast()
   const [tools, setTools] = useState<Tool[]>([])
+  const [developerProfile, setDeveloperProfile] = useState<DeveloperProfile>({ name: null, slug: null })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [qualityFailures, setQualityFailures] = useState<string[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -133,8 +208,11 @@ export default function ToolsPage() {
       if (!res.ok) { setError('Failed to load tools'); return }
       const data = await res.json()
       setTools(data.tools ?? [])
+      if (data.developerProfile) {
+        setDeveloperProfile(data.developerProfile)
+      }
     } catch {
-      setError('Network error')
+      setError('Network error loading tools. Please refresh the page.')
     } finally {
       setLoading(false)
     }
@@ -183,6 +261,7 @@ export default function ToolsPage() {
     e.preventDefault()
     setCreating(true)
     setError('')
+    setQualityFailures([])
     try {
       const res = await fetch('/api/tools', {
         method: 'POST',
@@ -209,7 +288,7 @@ export default function ToolsPage() {
       setTieredMethods([{ name: '', costCents: '1' }])
       fetchTools()
     } catch {
-      setError('Network error')
+      setError('Network error creating tool. Please try again.')
     } finally {
       setCreating(false)
     }
@@ -217,6 +296,8 @@ export default function ToolsPage() {
 
   async function toggleStatus(toolId: string, currentStatus: string) {
     const newStatus = currentStatus === 'active' ? 'draft' : 'active'
+    setError('')
+    setQualityFailures([])
     try {
       const res = await fetch(`/api/tools/${toolId}/status`, {
         method: 'PATCH',
@@ -225,12 +306,18 @@ export default function ToolsPage() {
       })
       if (!res.ok) {
         const data = await res.json()
-        setError(data.error || 'Failed to toggle status')
+        if (data.code === 'QUALITY_GATE_FAILED' && Array.isArray(data.failures)) {
+          setError(data.error || 'Tool does not meet quality requirements')
+          setQualityFailures(data.failures)
+        } else {
+          setError(data.error || 'Failed to toggle status')
+        }
         return
       }
+      setQualityFailures([])
       fetchTools()
     } catch {
-      setError('Failed to toggle status')
+      setError('Network error toggling status. Please try again.')
     }
   }
 
@@ -252,7 +339,7 @@ export default function ToolsPage() {
       setChangelogToolId(null)
       setChangelogForm(EMPTY_CHANGELOG_FORM)
     } catch {
-      setError('Network error')
+      setError('Network error creating changelog entry. Please try again.')
     } finally {
       setSubmittingChangelog(false)
     }
@@ -267,13 +354,23 @@ export default function ToolsPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-indigo dark:text-gray-100">Tools</h1>
-        <Button onClick={() => setShowCreate(!showCreate)}>
+        <Button onClick={() => setShowCreate(!showCreate)} aria-label={showCreate ? 'Cancel tool creation' : 'Create a new tool'}>
           {showCreate ? 'Cancel' : 'New Tool'}
         </Button>
       </div>
 
+      {/* Error banner with quality gate failures */}
       {error && (
-        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">
+          <p className="font-medium">{error}</p>
+          {qualityFailures.length > 0 && (
+            <ul className="mt-2 space-y-1 list-disc list-inside" aria-label="Quality gate failures">
+              {qualityFailures.map((failure, i) => (
+                <li key={i}>{failure}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {showCreate && (
@@ -299,7 +396,7 @@ export default function ToolsPage() {
                 <label htmlFor="tool-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea id="tool-desc" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Describe what your tool does. This is shown to consumers in the showcase.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Describe what your tool does. This is shown to consumers in the showcase. Minimum {MIN_DESCRIPTION_LENGTH} characters to activate.</p>
               </div>
 
               {/* Pricing Model Selector */}
@@ -319,7 +416,7 @@ export default function ToolsPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{PRICING_MODEL_DESCRIPTIONS[form.pricingModel]}</p>
                 </div>
 
-                {/* Default Cost — shown for all models */}
+                {/* Default Cost -- shown for all models */}
                 <div className="w-48">
                   <label htmlFor="tool-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Cost (cents)</label>
                   <input id="tool-cost" type="number" min="0" required value={form.defaultCostCents} onChange={(e) => setForm({ ...form, defaultCostCents: e.target.value })}
@@ -474,7 +571,7 @@ export default function ToolsPage() {
                 </svg>
               }
               title="No tools yet"
-              description="Tools are the core of SettleGrid — each one meters usage and collects revenue for your API or MCP endpoint automatically."
+              description="Tools are the core of SettleGrid -- each one meters usage and collects revenue for your API or MCP endpoint automatically."
               onAction={() => setShowCreate(true)}
               actionLabel="Create Tool"
             />
@@ -511,108 +608,205 @@ export default function ToolsPage() {
       ) : (
         <div className="grid gap-4">
           {tools.map((tool) => (
-            <Card key={tool.id}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-semibold text-lg text-indigo dark:text-gray-100">{tool.name}</h3>
-                      <Badge variant={tool.status === 'active' ? 'success' : 'secondary'}>
-                        {tool.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{tool.description}</p>
-                    <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-                      <span>Slug: <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{tool.slug}</code></span>
-                      <span>{tool.totalInvocations.toLocaleString()} invocations</span>
-                      <span>{formatCents(tool.totalRevenueCents)} revenue</span>
-                      <span>{getToolPricingDisplay(tool.pricingConfig)}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (changelogToolId === tool.id) {
-                          setChangelogToolId(null)
-                          setChangelogForm(EMPTY_CHANGELOG_FORM)
-                        } else {
-                          setChangelogToolId(tool.id)
-                          setChangelogForm(EMPTY_CHANGELOG_FORM)
-                        }
-                      }}
-                    >
-                      {changelogToolId === tool.id ? 'Cancel' : 'Add Changelog'}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => toggleStatus(tool.id, tool.status)}>
-                      {tool.status === 'active' ? 'Deactivate' : 'Activate'}
-                    </Button>
-                    <Link href={`/tools/${tool.slug}`}>
-                      <Button variant="ghost" size="sm">View</Button>
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Changelog creation form */}
-                {changelogToolId === tool.id && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2E3148]">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">New Changelog Entry</h4>
-                    <form onSubmit={(e) => handleChangelogSubmit(e, tool.id)} className="space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label htmlFor={`cl-version-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Version</label>
-                          <input
-                            id={`cl-version-${tool.id}`}
-                            type="text"
-                            required
-                            placeholder="1.2.0"
-                            pattern="\d+\.\d+\.\d+"
-                            value={changelogForm.version}
-                            onChange={(e) => setChangelogForm({ ...changelogForm, version: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor={`cl-type-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Change Type</label>
-                          <select
-                            id={`cl-type-${tool.id}`}
-                            value={changelogForm.changeType}
-                            onChange={(e) => setChangelogForm({ ...changelogForm, changeType: e.target.value as ChangelogForm['changeType'] })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
-                          >
-                            <option value="feature">Feature</option>
-                            <option value="fix">Fix</option>
-                            <option value="breaking">Breaking</option>
-                            <option value="deprecation">Deprecation</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label htmlFor={`cl-summary-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Summary</label>
-                        <textarea
-                          id={`cl-summary-${tool.id}`}
-                          required
-                          maxLength={500}
-                          rows={2}
-                          placeholder="Describe what changed..."
-                          value={changelogForm.summary}
-                          onChange={(e) => setChangelogForm({ ...changelogForm, summary: e.target.value })}
-                          className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand min-h-[56px] resize-none"
-                        />
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">{changelogForm.summary.length}/500</p>
-                      </div>
-                      <Button type="submit" size="sm" disabled={submittingChangelog}>
-                        {submittingChangelog ? 'Saving...' : 'Save Entry'}
-                      </Button>
-                    </form>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ToolCard
+              key={tool.id}
+              tool={tool}
+              developerProfile={developerProfile}
+              changelogToolId={changelogToolId}
+              changelogForm={changelogForm}
+              submittingChangelog={submittingChangelog}
+              onToggleStatus={toggleStatus}
+              onToggleChangelog={(toolId) => {
+                if (changelogToolId === toolId) {
+                  setChangelogToolId(null)
+                  setChangelogForm(EMPTY_CHANGELOG_FORM)
+                } else {
+                  setChangelogToolId(toolId)
+                  setChangelogForm(EMPTY_CHANGELOG_FORM)
+                }
+              }}
+              onChangelogFormChange={setChangelogForm}
+              onChangelogSubmit={handleChangelogSubmit}
+            />
           ))}
         </div>
       )}
     </div>
+  )
+}
+
+/* ── Tool Card Component ─────────────────────────────────────────────────── */
+
+function ToolCard({
+  tool,
+  developerProfile,
+  changelogToolId,
+  changelogForm,
+  submittingChangelog,
+  onToggleStatus,
+  onToggleChangelog,
+  onChangelogFormChange,
+  onChangelogSubmit,
+}: {
+  tool: Tool
+  developerProfile: DeveloperProfile
+  changelogToolId: string | null
+  changelogForm: ChangelogForm
+  submittingChangelog: boolean
+  onToggleStatus: (id: string, status: string) => void
+  onToggleChangelog: (id: string) => void
+  onChangelogFormChange: (form: ChangelogForm) => void
+  onChangelogSubmit: (e: React.FormEvent, toolId: string) => void
+}) {
+  const checklist = useMemo(
+    () => buildQualityChecklist(tool, developerProfile),
+    [tool, developerProfile]
+  )
+  const allPassed = checklist.every((c) => c.passed)
+  const isDraft = tool.status === 'draft'
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3 mb-1">
+              <h3 className="font-semibold text-lg text-indigo dark:text-gray-100">{tool.name}</h3>
+              <Badge variant={tool.status === 'active' ? 'success' : 'secondary'}>
+                {tool.status}
+              </Badge>
+              {tool.verified && (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/25"
+                  title="Verified: this tool has processed real invocations"
+                  aria-label="Verified tool"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M16.403 12.652a3 3 0 0 1 0-5.304 3 3 0 0 0-3.75-3.751 3 3 0 0 1-5.305 0 3 3 0 0 0-3.751 3.75 3 3 0 0 1 0 5.305 3 3 0 0 0 3.75 3.751 3 3 0 0 1 5.305 0 3 3 0 0 0 3.751-3.75Zm-2.546-4.46a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
+                  </svg>
+                  Verified
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{tool.description ?? 'No description'}</p>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+              <span>Slug: <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{tool.slug}</code></span>
+              <span>{tool.totalInvocations.toLocaleString()} invocations</span>
+              <span>{formatCents(tool.totalRevenueCents)} revenue</span>
+              <span>{getToolPricingDisplay(tool.pricingConfig)}</span>
+              {tool.category && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-[#252836] px-2 py-0.5 text-xs">{tool.category}</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onToggleChangelog(tool.id)}
+              aria-label={changelogToolId === tool.id ? 'Cancel changelog creation' : `Add changelog for ${tool.name}`}
+            >
+              {changelogToolId === tool.id ? 'Cancel' : 'Add Changelog'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onToggleStatus(tool.id, tool.status)}
+              aria-label={tool.status === 'active' ? `Deactivate ${tool.name}` : `Activate ${tool.name}`}
+            >
+              {tool.status === 'active' ? 'Deactivate' : 'Activate'}
+            </Button>
+            <Link href={`/tools/${tool.slug}`}>
+              <Button variant="ghost" size="sm" aria-label={`View ${tool.name} storefront`}>View</Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Quality checklist for draft tools */}
+        {isDraft && !allPassed && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2E3148]">
+            <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">
+              Showcase Readiness
+            </h4>
+            <ul className="space-y-1.5" aria-label="Quality checklist for tool activation">
+              {checklist.map((check, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  {check.passed ? (
+                    <svg className="w-4 h-4 text-emerald-500 dark:text-emerald-400 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  <span className={check.passed ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'}>
+                    {check.label}
+                    {check.detail && (
+                      <span className="text-gray-400 dark:text-gray-500 text-xs ml-1">({check.detail})</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Changelog creation form */}
+        {changelogToolId === tool.id && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2E3148]">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">New Changelog Entry</h4>
+            <form onSubmit={(e) => onChangelogSubmit(e, tool.id)} className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`cl-version-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Version</label>
+                  <input
+                    id={`cl-version-${tool.id}`}
+                    type="text"
+                    required
+                    placeholder="1.2.0"
+                    pattern="\d+\.\d+\.\d+"
+                    value={changelogForm.version}
+                    onChange={(e) => onChangelogFormChange({ ...changelogForm, version: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label htmlFor={`cl-type-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Change Type</label>
+                  <select
+                    id={`cl-type-${tool.id}`}
+                    value={changelogForm.changeType}
+                    onChange={(e) => onChangelogFormChange({ ...changelogForm, changeType: e.target.value as ChangelogForm['changeType'] })}
+                    className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                  >
+                    <option value="feature">Feature</option>
+                    <option value="fix">Fix</option>
+                    <option value="breaking">Breaking</option>
+                    <option value="deprecation">Deprecation</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label htmlFor={`cl-summary-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Summary</label>
+                <textarea
+                  id={`cl-summary-${tool.id}`}
+                  required
+                  maxLength={500}
+                  rows={2}
+                  placeholder="Describe what changed..."
+                  value={changelogForm.summary}
+                  onChange={(e) => onChangelogFormChange({ ...changelogForm, summary: e.target.value })}
+                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand min-h-[56px] resize-none"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">{changelogForm.summary.length}/500</p>
+              </div>
+              <Button type="submit" size="sm" disabled={submittingChangelog}>
+                {submittingChangelog ? 'Saving...' : 'Save Entry'}
+              </Button>
+            </form>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
