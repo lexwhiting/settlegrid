@@ -287,6 +287,9 @@ export const POST = withCors(async function POST(request: NextRequest) {
       // Track budget spend
       incrementPeriodSpend(body.consumerId, body.toolId, body.costCents)
 
+      // Fire-and-forget: mark tool as verified after first real invocation
+      markToolVerified(body.toolId)
+
       return successResponse({
         success: true,
         remainingBalanceCents: redisRemaining,
@@ -377,6 +380,9 @@ export const POST = withCors(async function POST(request: NextRequest) {
       creditReferralCommission(body.referralCode, body.costCents)
     }
 
+    // Fire-and-forget: mark tool as verified after first real invocation
+    markToolVerified(body.toolId)
+
     return successResponse({
       success: true,
       remainingBalanceCents: updatedBalance.balanceCents,
@@ -388,3 +394,15 @@ export const POST = withCors(async function POST(request: NextRequest) {
     return internalErrorResponse(error)
   }
 })
+
+/**
+ * Fire-and-forget: set verified = true on a tool after its first real (non-test) invocation.
+ * Uses a conditional update so it only writes once (when verified is still false).
+ */
+function markToolVerified(toolId: string): void {
+  db.update(tools)
+    .set({ verified: true })
+    .where(and(eq(tools.id, toolId), eq(tools.verified, false)))
+    .then(() => {})
+    .catch(() => {})
+}

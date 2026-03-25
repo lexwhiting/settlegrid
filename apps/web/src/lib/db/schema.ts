@@ -79,6 +79,10 @@ export const tools = pgTable(
     currentVersion: text('current_version').notNull().default('1.0.0'),
     // S4: Health Check Endpoint
     healthEndpoint: text('health_endpoint'), // URL to ping for health checks
+    // Quality gate: set to true after first real (non-test) invocation
+    verified: boolean('verified').notNull().default(false),
+    // Manual escalation: timestamp of most recent report
+    reportedAt: timestamp('reported_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

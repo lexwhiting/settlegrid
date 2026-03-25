@@ -24,12 +24,17 @@ export function errorResponse(
   message: string,
   status: number,
   code?: string,
-  requestId?: string
+  requestId?: string,
+  extra?: Record<string, unknown>
 ): NextResponse {
-  const body: { error: string; code?: string } = { error: message }
+  const body: Record<string, unknown> = { error: message }
 
   if (code) {
     body.code = code
+  }
+
+  if (extra) {
+    Object.assign(body, extra)
   }
 
   const response = NextResponse.json(body, { status })
