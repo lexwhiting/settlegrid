@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 function Section({ title, id, children }: { title: string; id: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="mb-12">
+    <section id={id} className="mb-12 scroll-mt-24">
       <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-4">{title}</h2>
       {children}
     </section>
@@ -794,7 +794,7 @@ export default function DocsPage() {
           </p>
 
           {/* ── Getting Started: Zero to Revenue ─────────────────────────── */}
-          <section id="getting-started" className="mb-14">
+          <section id="getting-started" className="mb-14 scroll-mt-24">
             <div className="rounded-xl border-2 border-brand/30 bg-gradient-to-br from-[#10B981]/5 via-transparent to-transparent p-8">
               <h2 className="text-3xl font-bold text-gray-100 mb-2">Getting Started: Zero to Revenue in 5 Minutes</h2>
               <p className="text-gray-400 mb-8">A step-by-step walkthrough from account creation to your first paid invocation.</p>
@@ -914,7 +914,7 @@ app.post('/api/search', settlegridMiddleware({
           </section>
 
           {/* ── CLI Tools ─────────────────────────── */}
-          <section id="cli-tools" className="mb-14">
+          <section id="cli-tools" className="mb-14 scroll-mt-24">
             <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-2">CLI Tools</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-8">
               Three command-line tools to scaffold, discover, and integrate SettleGrid-powered services.
@@ -1186,7 +1186,7 @@ try {
           </Section>
 
           {/* ── Discovery & Distribution ─────────────────────────── */}
-          <section id="discovery" className="mb-12">
+          <section id="discovery" className="mb-12 scroll-mt-24">
             <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-2">Discovery &amp; Distribution</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               SettleGrid tools are automatically discoverable across 8+ registries including the Official MCP Registry, Smithery, Glama, and Cursor Directory.
