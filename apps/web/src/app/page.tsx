@@ -634,6 +634,36 @@ export default function HomePage() {
         </section>
 
         {/* ================================================================ */}
+        {/*  1b. Dashboard screenshot                                        */}
+        {/* ================================================================ */}
+        <section className="px-6 pb-16 -mt-8 bg-gradient-to-b from-indigo dark:from-[#0F1117] to-white dark:to-[#0F1117]">
+          <div className="max-w-5xl mx-auto">
+            <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#2E3148] shadow-2xl shadow-black/20">
+              {/* Browser chrome mockup */}
+              <div className="bg-gray-100 dark:bg-[#1A1D2E] px-4 py-2.5 flex items-center gap-2 border-b border-gray-200 dark:border-[#2E3148]">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-400/80" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
+                  <div className="w-3 h-3 rounded-full bg-green-400/80" />
+                </div>
+                <div className="flex-1 mx-4">
+                  <div className="bg-white dark:bg-[#252836] rounded-md px-3 py-1 text-xs text-gray-400 dark:text-gray-500 text-center">
+                    settlegrid.ai/dashboard
+                  </div>
+                </div>
+              </div>
+              {/* Screenshot */}
+              <img
+                src="/screenshots/Dashboard 1.jpg"
+                alt="SettleGrid developer dashboard showing revenue, invocations, and usage analytics"
+                className="w-full"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ================================================================ */}
         {/*  2. Protocol logo bar                                            */}
         {/* ================================================================ */}
         <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148]">
