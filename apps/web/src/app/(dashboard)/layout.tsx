@@ -106,13 +106,6 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
           >
             Settings
           </Link>
-          <Link
-            href="/dashboard/discovery"
-            onClick={() => setOpen(false)}
-            className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
-          >
-            Discovery
-          </Link>
           <div className="border-t border-gray-100 dark:border-[#2E3148]" />
           <button
             type="button"
