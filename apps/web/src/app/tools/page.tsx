@@ -20,6 +20,7 @@ export default async function ShowcasePage() {
         totalInvocations: tools.totalInvocations,
         currentVersion: tools.currentVersion,
         pricingConfig: tools.pricingConfig,
+        verified: tools.verified,
         developerName: developers.name,
         developerSlug: developers.slug,
       })
@@ -37,6 +38,7 @@ export default async function ShowcasePage() {
       totalInvocations: r.totalInvocations,
       currentVersion: r.currentVersion,
       pricingConfig: r.pricingConfig as ShowcaseTool['pricingConfig'],
+      verified: r.verified,
       developerName: r.developerName,
       developerSlug: r.developerSlug ?? null,
     }))

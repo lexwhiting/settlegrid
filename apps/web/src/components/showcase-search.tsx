@@ -23,6 +23,7 @@ export interface ShowcaseTool {
   tags: string[] | null
   totalInvocations: number
   currentVersion: string
+  verified?: boolean
   developerName: string | null
   developerSlug: string | null
   pricingConfig?: PricingConfig | null
@@ -90,6 +91,23 @@ function formatPricing(pricingConfig?: PricingConfig | null): string | null {
 
 const FEATURED_THRESHOLD = 1_000
 const PAGE_SIZE = 60
+
+/* -- Verified badge -------------------------------------------------------- */
+
+function VerifiedBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/25 shrink-0"
+      title="Verified: this tool has processed real invocations"
+      aria-label="Verified tool"
+    >
+      <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fillRule="evenodd" d="M16.403 12.652a3 3 0 0 1 0-5.304 3 3 0 0 0-3.75-3.751 3 3 0 0 1-5.305 0 3 3 0 0 0-3.751 3.75 3 3 0 0 1 0 5.305 3 3 0 0 0 3.75 3.751 3 3 0 0 1 5.305 0 3 3 0 0 0 3.751-3.75Zm-2.546-4.46a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
+      </svg>
+      Verified
+    </span>
+  )
+}
 
 /* -- Component ------------------------------------------------------------- */
 
@@ -164,9 +182,12 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                   className="group rounded-xl border border-emerald-500/25 bg-gradient-to-br from-[#1A1D2E] to-[#151722] p-5 hover:border-emerald-500/50 transition-all hover:shadow-lg hover:shadow-emerald-500/5"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight">
-                      {tool.name}
-                    </h3>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight truncate">
+                        {tool.name}
+                      </h3>
+                      {tool.verified && <VerifiedBadge />}
+                    </div>
                     {meta && (
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${meta.color}`}>
                         {meta.label}
@@ -300,9 +321,12 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                 >
                   {/* Header row */}
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight">
-                      {tool.name}
-                    </h3>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight truncate">
+                        {tool.name}
+                      </h3>
+                      {tool.verified && <VerifiedBadge />}
+                    </div>
                     {meta && (
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${meta.color}`}>
                         {meta.label}
