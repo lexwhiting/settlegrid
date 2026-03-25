@@ -203,6 +203,11 @@ export default function FaqPage() {
       {/* ---- Main content ---- */}
       <main className="flex-1 px-6 py-16">
         <div className="max-w-3xl mx-auto">
+          <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
+            <Link href="/" className="hover:text-emerald-400 transition-colors">Home</Link>
+            <span className="mx-2 text-gray-600">/</span>
+            <span className="text-gray-300">FAQ</span>
+          </nav>
           {/* Title */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-100 mb-4">

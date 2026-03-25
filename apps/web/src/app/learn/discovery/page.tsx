@@ -146,6 +146,9 @@ export default function DiscoveryGuidePage() {
       {/* ---- Main content ---- */}
       <main className="flex-1 px-6 py-16">
         <article className="max-w-3xl mx-auto">
+          <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
+            <Link href="/learn" className="hover:text-emerald-400 transition-colors">&larr; Back to Learn</Link>
+          </nav>
 
           {/* ================================================================ */}
           {/*  Hero                                                            */}
