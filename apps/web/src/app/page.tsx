@@ -237,7 +237,9 @@ function ComparisonTable() {
     { name: 'Sandbox mode', settlegrid: true, stripe: true, nevermined: false, paid: true },
     { name: 'Open-source SDK', settlegrid: true, stripe: false, nevermined: true, paid: false },
     { name: 'Budget enforcement', settlegrid: true, stripe: false, nevermined: false, paid: false },
-    { name: 'Revenue split (95%+)', settlegrid: true, stripe: false, nevermined: false, paid: false },
+    { name: 'Revenue split (100% free / 95% paid)', settlegrid: true, stripe: false, nevermined: false, paid: false },
+    { name: 'Built-in discovery (8+ registries)', settlegrid: true, stripe: false, nevermined: false, paid: false },
+    { name: 'Quality gates & health monitoring', settlegrid: true, stripe: true, nevermined: false, paid: false },
   ]
 
   function renderCell(val: boolean | string) {
@@ -256,7 +258,7 @@ function ComparisonTable() {
           <tr className="border-b border-gray-200 dark:border-[#2E3148] bg-gray-50 dark:bg-[#1A1D2E]">
             <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Feature</th>
             <th scope="col" className="text-center py-3 px-4 font-bold text-brand-text dark:text-brand-light bg-brand/5 dark:bg-brand/10">SettleGrid</th>
-            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Stripe Billing</th>
+            <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Stripe / MPP</th>
             <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Nevermined</th>
             <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Paid.ai</th>
           </tr>
