@@ -582,7 +582,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Are there overage charges?',
-      a: 'Operations beyond your plan limit are not charged extra — they are simply rate-limited. Upgrade to a higher plan to increase your monthly operation allowance.',
+      a: 'Operations continue working beyond your plan limit — we never cut off your consumers. On the Free tier, a 5% platform fee applies to operations above 25,000/month (you keep 95% instead of 100%). On paid tiers, overage operations are rate-limited. Upgrade anytime to increase your limit.',
     },
     {
       q: 'Can I switch plans at any time?',

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 interface ReviewFormProps {
   toolSlug: string
@@ -40,6 +41,8 @@ export function ReviewForm({ toolSlug }: ReviewFormProps) {
           setError('Already reviewed.')
         } else if (res.status === 403) {
           setError('Use the tool first.')
+        } else if (data.code === 'CONTENT_POLICY_VIOLATION') {
+          setError('Your review violates our content policy. Please remove any profanity, personal information, or spam and try again.')
         } else {
           setError(data.error || 'Failed to submit review.')
         }
@@ -140,13 +143,21 @@ export function ReviewForm({ toolSlug }: ReviewFormProps) {
           <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || rating === 0}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? 'Submitting...' : 'Submit Review'}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            type="submit"
+            disabled={loading || rating === 0}
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Submitting...' : 'Submit Review'}
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-500">
+            By submitting, you agree to our{' '}
+            <Link href="/review-policy" className="text-brand hover:underline">
+              Review Policy
+            </Link>.
+          </p>
+        </div>
       </form>
     </div>
   )

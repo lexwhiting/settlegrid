@@ -13,6 +13,18 @@ interface AdminStats {
   recentSignups: { email: string; name: string | null; type: 'developer' | 'consumer'; createdAt: string }[]
 }
 
+interface FlaggedReview {
+  id: string
+  toolName: string
+  toolSlug: string
+  consumerEmail: string
+  rating: number
+  comment: string | null
+  reportedAt: string | null
+  status: string
+  createdAt: string
+}
+
 function formatCurrency(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
@@ -66,6 +78,50 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [flaggedReviews, setFlaggedReviews] = useState<FlaggedReview[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [reviewActionLoading, setReviewActionLoading] = useState<string | null>(null)
+
+  const fetchFlaggedReviews = useCallback(async () => {
+    setReviewsLoading(true)
+    try {
+      const res = await fetch('/api/admin/reviews?status=flagged')
+      if (res.ok) {
+        const data = await res.json()
+        setFlaggedReviews(data.reviews ?? [])
+      }
+    } catch {
+      // Silently fail — reviews section is supplementary
+    } finally {
+      setReviewsLoading(false)
+    }
+  }, [])
+
+  async function handleReviewAction(reviewId: string, action: 'hide' | 'dismiss') {
+    setReviewActionLoading(reviewId)
+    try {
+      if (action === 'hide') {
+        await fetch(`/api/admin/reviews/${reviewId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'hide', reason: 'abuse' }),
+        })
+      } else {
+        // Dismiss flag = restore (clears reportedAt)
+        await fetch(`/api/admin/reviews/${reviewId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'restore' }),
+        })
+      }
+      // Remove from local list
+      setFlaggedReviews((prev) => prev.filter((r) => r.id !== reviewId))
+    } catch {
+      // Silently fail
+    } finally {
+      setReviewActionLoading(null)
+    }
+  }
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -99,7 +155,8 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchStats()
-  }, [fetchStats])
+    fetchFlaggedReviews()
+  }, [fetchStats, fetchFlaggedReviews])
 
   if (error) {
     // Show a generic 404-style page — don't reveal /admin exists
@@ -271,6 +328,89 @@ export default function AdminDashboardPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+
+            {/* Flagged Reviews */}
+            <div className="mt-8 bg-[#1A1D2E] border border-[#2E3148] rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#2E3148] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium text-gray-300">Flagged Reviews</h3>
+                  {flaggedReviews.length > 0 && (
+                    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400">
+                      {flaggedReviews.length}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={fetchFlaggedReviews}
+                  disabled={reviewsLoading}
+                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+                >
+                  {reviewsLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              {flaggedReviews.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-gray-500">
+                  No flagged reviews. All clear.
+                </div>
+              ) : (
+                <div className="divide-y divide-[#2E3148]">
+                  {flaggedReviews.map((review) => (
+                    <div key={review.id} className="px-5 py-4 hover:bg-[#252836] transition-colors">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Link
+                              href={`/tools/${review.toolSlug}`}
+                              className="text-sm font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                            >
+                              {review.toolName}
+                            </Link>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <svg
+                                  key={star}
+                                  className={`w-3 h-3 ${star <= review.rating ? 'text-yellow-400' : 'text-gray-600'}`}
+                                  fill="currentColor"
+                                  viewBox="0 0 24 24"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                                </svg>
+                              ))}
+                            </div>
+                          </div>
+                          {review.comment && (
+                            <p className="text-sm text-gray-400 mb-1 line-clamp-2">{review.comment}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span>{review.consumerEmail}</span>
+                            {review.reportedAt && (
+                              <span className="text-red-400">Flagged {timeAgo(review.reportedAt)}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleReviewAction(review.id, 'hide')}
+                            disabled={reviewActionLoading === review.id}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                          >
+                            Hide
+                          </button>
+                          <button
+                            onClick={() => handleReviewAction(review.id, 'dismiss')}
+                            disabled={reviewActionLoading === review.id}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 transition-colors disabled:opacity-50"
+                          >
+                            Dismiss Flag
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

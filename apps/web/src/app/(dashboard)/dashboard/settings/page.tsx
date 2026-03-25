@@ -67,6 +67,10 @@ const DEFAULT_NOTIFICATIONS: NotificationEvent[] = [
   { key: 'suspicious_activity', label: 'Suspicious activity detected', category: 'security', critical: true, emailEnabled: true },
   { key: 'webhook_delivery_failed', label: 'Webhook delivery failed', category: 'webhooks', critical: false, emailEnabled: true },
   { key: 'webhook_endpoint_disabled', label: 'Webhook endpoint disabled', category: 'webhooks', critical: true, emailEnabled: true },
+  { key: 'new_review', label: 'New review received', category: 'tools', critical: false, emailEnabled: true },
+  { key: 'monthly_summary', label: 'Monthly earnings summary', category: 'billing', critical: false, emailEnabled: true },
+  { key: 'onboarding_tips', label: 'Onboarding tips & best practices', category: 'tools', critical: false, emailEnabled: true },
+  { key: 'quality_alert', label: 'Tool quality alerts (slow response, errors)', category: 'tools', critical: false, emailEnabled: true },
 ]
 
 // ─── Plan Data ──────────────────────────────────────────────────────────────────
