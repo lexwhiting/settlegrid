@@ -11,7 +11,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       posthog.init(key, {
         api_host: host,
         person_profiles: 'identified_only',
-        capture_pageview: false, // we'll handle this manually for SPA
+        capture_pageview: false,
+        advanced_disable_feature_flags: true,
       })
     }
   }, [])
