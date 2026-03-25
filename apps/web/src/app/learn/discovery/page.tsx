@@ -475,7 +475,7 @@ export default function DiscoveryGuidePage() {
       <footer className="border-t border-[#2E3148] px-6 py-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
-            <SettleGridLogo variant="compact" size={20} />
+            <SettleGridLogo variant="compact" size={32} />
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/learn" className="hover:text-gray-300 transition-colors">Learn</Link>
