@@ -647,25 +647,25 @@ export default function HomePage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
                   { name: 'MCP', backer: 'Anthropic', href: 'https://modelcontextprotocol.io', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/30',
-                    icon: <img src="/icons/protocols/mcp.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/mcp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'MPP', backer: 'Stripe + Tempo', href: 'https://docs.stripe.com/payments/machine/mpp', color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-800/30',
-                    icon: <img src="/icons/protocols/mpp.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/mpp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'x402', backer: 'Coinbase', href: 'https://www.x402.org', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/30',
-                    icon: <img src="/icons/protocols/x402.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/x402.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'AP2', backer: 'Google', href: 'https://ap2-protocol.org', color: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800/30',
-                    icon: <img src="/icons/protocols/ap2.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/ap2.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'Visa TAP', backer: 'Visa', href: 'https://developer.visa.com/capabilities/trusted-agent-protocol', color: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/30',
-                    icon: <img src="/icons/protocols/tap.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/tap.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'UCP', backer: 'Google + Shopify', href: 'https://ucp.dev', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30',
-                    icon: <img src="/icons/protocols/ucp.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/ucp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'ACP', backer: 'OpenAI + Stripe', href: 'https://www.agenticcommerce.dev', color: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800/30',
-                    icon: <img src="/icons/protocols/acp.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/acp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'MC Agent Pay', backer: 'Mastercard', href: 'https://www.mastercard.com/us/en/business/artificial-intelligence/mastercard-agent-pay.html', color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/30',
-                    icon: <img src="/icons/protocols/mastercard.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/mastercard.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'Nanopayments', backer: 'Circle (USDC)', href: 'https://www.circle.com/nanopayments', color: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/30',
-                    icon: <img src="/icons/protocols/circle.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/circle.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'REST', backer: 'Any HTTP API', href: '/docs', color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700/50',
-                    icon: <img src="/icons/protocols/rest.svg" width={36} height={36} alt="" aria-hidden="true" /> },
+                    icon: <img src="/icons/protocols/rest.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                 ].map((proto, i) => (
                   <RevealSection key={proto.name} delay={i * 0.07}>
                     <a
@@ -674,7 +674,7 @@ export default function HomePage() {
                       rel={proto.href.startsWith('/') ? undefined : 'noopener noreferrer'}
                       className={`protocol-card group flex flex-col items-center gap-2 rounded-xl border px-3 py-5 hover:scale-[1.04] ${proto.color}`}
                     >
-                      <span className="mb-1">{proto.icon}</span>
+                      <span className="mb-1 flex items-center justify-center w-10 h-10">{proto.icon}</span>
                       <span className="text-sm sm:text-base font-bold tracking-tight">{proto.name}</span>
                       <span className="text-[10px] sm:text-xs font-semibold opacity-80 text-center leading-tight">{proto.backer}</span>
                     </a>
