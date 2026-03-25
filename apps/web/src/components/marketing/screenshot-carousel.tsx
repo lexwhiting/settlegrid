@@ -80,15 +80,15 @@ export function ScreenshotCarousel() {
           </div>
         </div>
 
-        {/* Screenshot with fade transition */}
-        <div className="relative overflow-hidden bg-[#0F1117]">
+        {/* Screenshot with fade transition — fixed aspect ratio container */}
+        <div className="relative overflow-hidden bg-[#0F1117]" style={{ aspectRatio: '16 / 9' }}>
           {SLIDES.map((s, i) => (
             <img
               key={s.src}
               src={s.src}
               alt={s.alt}
-              className={`w-full transition-opacity duration-500 ${
-                i === active ? 'opacity-100 relative' : 'opacity-0 absolute inset-0'
+              className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-500 ${
+                i === active ? 'opacity-100' : 'opacity-0'
               }`}
               loading={i === 0 ? 'eager' : 'lazy'}
             />
@@ -99,7 +99,7 @@ export function ScreenshotCarousel() {
       {/* Prev/Next arrows — positioned outside the frame for consistency */}
       <button
         onClick={prev}
-        className="absolute -left-5 sm:-left-6 top-[calc(50%+16px)] -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-black/70 hover:border-white/20 transition-all flex items-center justify-center shadow-lg"
+        className="absolute -left-5 sm:-left-6 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-black/70 hover:border-white/20 transition-all flex items-center justify-center shadow-lg"
         aria-label="Previous screenshot"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden="true">
@@ -108,7 +108,7 @@ export function ScreenshotCarousel() {
       </button>
       <button
         onClick={next}
-        className="absolute -right-5 sm:-right-6 top-[calc(50%+16px)] -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-black/70 hover:border-white/20 transition-all flex items-center justify-center shadow-lg"
+        className="absolute -right-5 sm:-right-6 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-black/70 hover:border-white/20 transition-all flex items-center justify-center shadow-lg"
         aria-label="Next screenshot"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden="true">
