@@ -178,15 +178,15 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'How do I use SettleGrid tools with LangChain?',
-      a: 'Use the LangChain Tool base class to wrap any SettleGrid-powered endpoint. Example:\n\nimport { Tool } from \'@langchain/core/tools\'\n\nclass SettleGridTool extends Tool {\n  name = \'sanctions_screening\'\n  description = \'Screen entities against sanctions lists\'\n\n  constructor(private apiKey: string) {\n    super()\n  }\n\n  async _call(query: string): Promise<string> {\n    const response = await fetch(\'https://settlegrid.ai/api/tools/scrutera-sanctions/invoke\', {\n      method: \'POST\',\n      headers: {\n        \'x-api-key\': this.apiKey, // Your SettleGrid consumer API key\n        \'Content-Type\': \'application/json\',\n      },\n      body: JSON.stringify({ query }),\n    })\n    const data = await response.json()\n    return JSON.stringify(data.results)\n  }\n}\n\n// Use in a LangChain agent\nconst tool = new SettleGridTool(\'sg_live_your_key_here\')\nconst agent = await initializeAgent([tool], model, { agentType: \'tool-calling\' })',
+      a: 'Use the LangChain Tool base class to wrap any SettleGrid-powered endpoint. Example:\n\nimport { Tool } from \'@langchain/core/tools\'\n\nclass SettleGridTool extends Tool {\n  name = \'sanctions_screening\'\n  description = \'Screen entities against sanctions lists\'\n\n  constructor(private apiKey: string) {\n    super()\n  }\n\n  async _call(query: string): Promise<string> {\n    const response = await fetch(\'https://settlegrid.ai/api/tools/web-search-pro/invoke\', {\n      method: \'POST\',\n      headers: {\n        \'x-api-key\': this.apiKey, // Your SettleGrid consumer API key\n        \'Content-Type\': \'application/json\',\n      },\n      body: JSON.stringify({ query }),\n    })\n    const data = await response.json()\n    return JSON.stringify(data.results)\n  }\n}\n\n// Use in a LangChain agent\nconst tool = new SettleGridTool(\'sg_live_your_key_here\')\nconst agent = await initializeAgent([tool], model, { agentType: \'tool-calling\' })',
     },
     {
       q: 'How do I use SettleGrid tools with CrewAI?',
-      a: 'Use the CrewAI BaseTool class to call SettleGrid-powered endpoints from your agents. Example:\n\nfrom crewai import Agent, Task, Crew\nfrom crewai_tools import BaseTool\nimport requests\n\nclass SettleGridTool(BaseTool):\n    name: str = \"Country Risk Check\"\n    description: str = \"Get country risk intelligence from Gradara\"\n\n    def _run(self, country_iso3: str) -> str:\n        response = requests.get(\n            f\"https://your-server.com/api/country-risk/{country_iso3}\",\n            headers={\"x-api-key\": \"sg_live_your_key_here\"}\n        )\n        return response.json()\n\nrisk_tool = SettleGridTool()\nanalyst = Agent(\n    role=\"Risk Analyst\",\n    goal=\"Assess country risk for supply chain decisions\",\n    tools=[risk_tool],\n)',
+      a: 'Use the CrewAI BaseTool class to call SettleGrid-powered endpoints from your agents. Example:\n\nfrom crewai import Agent, Task, Crew\nfrom crewai_tools import BaseTool\nimport requests\n\nclass SettleGridTool(BaseTool):\n    name: str = \"Web Search\"\n    description: str = \"Search the web with AI-powered ranking\"\n\n    def _run(self, query: str) -> str:\n        response = requests.get(\n            f\"https://your-server.com/api/search?q={query}\",\n            headers={\"x-api-key\": \"sg_live_your_key_here\"}\n        )\n        return response.json()\n\nrisk_tool = SettleGridTool()\nanalyst = Agent(\n    role=\"Research Assistant\",\n    goal=\"Find and summarize relevant information from the web\",\n    tools=[risk_tool],\n)',
     },
     {
       q: 'How do I use SettleGrid tools with OpenAI function calling?',
-      a: 'Define a function schema and handle tool calls by forwarding to the SettleGrid endpoint. Example:\n\nimport OpenAI from \'openai\'\n\nconst openai = new OpenAI()\n\nconst tools = [{\n  type: \'function\' as const,\n  function: {\n    name: \'screen_sanctions\',\n    description: \'Screen an entity against global sanctions lists\',\n    parameters: {\n      type: \'object\',\n      properties: {\n        query: { type: \'string\', description: \'Entity name to screen\' },\n      },\n      required: [\'query\'],\n    },\n  },\n}]\n\n// When the model calls the function:\nasync function handleToolCall(name: string, args: any) {\n  if (name === \'screen_sanctions\') {\n    const res = await fetch(\'https://your-server.com/api/screen\', {\n      method: \'POST\',\n      headers: { \'x-api-key\': \'sg_live_your_key_here\', \'Content-Type\': \'application/json\' },\n      body: JSON.stringify(args),\n    })\n    return res.json()\n  }\n}',
+      a: 'Define a function schema and handle tool calls by forwarding to the SettleGrid endpoint. Example:\n\nimport OpenAI from \'openai\'\n\nconst openai = new OpenAI()\n\nconst tools = [{\n  type: \'function\' as const,\n  function: {\n    name: \'web_search\',\n    description: \'Search the web and return summarized results\',\n    parameters: {\n      type: \'object\',\n      properties: {\n        query: { type: \'string\', description: \'Search query\' },\n      },\n      required: [\'query\'],\n    },\n  },\n}]\n\n// When the model calls the function:\nasync function handleToolCall(name: string, args: any) {\n  if (name === \'web_search\') {\n    const res = await fetch(\'https://your-server.com/api/search\', {\n      method: \'POST\',\n      headers: { \'x-api-key\': \'sg_live_your_key_here\', \'Content-Type\': \'application/json\' },\n      body: JSON.stringify(args),\n    })\n    return res.json()\n  }\n}',
     },
     {
       q: 'How do I use SettleGrid tools with Anthropic Claude tool use?',
@@ -1253,9 +1253,9 @@ try {
                   <CopyableCodeBlock code={`{
   "tools": [
     {
-      "slug": "scrutera-sanctions",
-      "name": "Scrutera Sanctions Screening",
-      "description": "Screen entities against OFAC, EU, UN, and UK sanctions lists",
+      "slug": "web-search-pro",
+      "name": "Web Search Pro",
+      "description": "Search the web with AI-powered relevance ranking and summarization",
       "category": "finance",
       "priceCents": 5,
       "developer": { "slug": "fieldbrief", "name": "Fieldbrief" },
@@ -1272,14 +1272,14 @@ try {
 }`} />
 
                   <p className="text-gray-300 font-medium mt-4">Examples</p>
-                  <CopyableCodeBlock title="cURL" code={`# Search for "sanctions" tools, sorted by popularity
-curl "https://settlegrid.ai/api/v1/discover?q=sanctions&sort=popular&limit=10"
+                  <CopyableCodeBlock title="cURL" code={`# Search for "weather" tools, sorted by popularity
+curl "https://settlegrid.ai/api/v1/discover?q=weather&sort=popular&limit=10"
 
 # Browse all finance tools
 curl "https://settlegrid.ai/api/v1/discover?category=finance&limit=50"`} />
 
                   <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch(
-  'https://settlegrid.ai/api/v1/discover?q=sanctions&sort=popular&limit=10'
+  'https://settlegrid.ai/api/v1/discover?q=weather&sort=popular&limit=10'
 )
 const { tools, total, hasMore } = await res.json()
 console.log(\`Found \${total} tools, showing \${tools.length}\`)`} />
@@ -1295,8 +1295,8 @@ console.log(\`Found \${total} tools, showing \${tools.length}\`)`} />
                   <p>Returns tool info, reviews, changelog, and a ready-to-use quickStart code snippet.</p>
                   <CopyableCodeBlock code={`{
   "tool": {
-    "slug": "scrutera-sanctions",
-    "name": "Scrutera Sanctions Screening",
+    "slug": "web-search-pro",
+    "name": "Web Search Pro",
     "description": "...",
     "category": "finance",
     "priceCents": 5,
@@ -1315,14 +1315,14 @@ console.log(\`Found \${total} tools, showing \${tools.length}\`)`} />
     { "rating": 5, "comment": "Fast and accurate", "createdAt": "2026-03-10T00:00:00Z" }
   ],
   "changelog": [
-    { "version": "2.1.0", "type": "minor", "notes": "Added batch screening", "date": "2026-03-01" }
+    { "version": "2.1.0", "type": "minor", "notes": "Added image search support", "date": "2026-03-01" }
   ],
-  "quickStart": "import { settlegrid } from '@settlegrid/mcp'\\n\\nconst sg = settlegrid.init({\\n  toolSlug: 'scrutera-sanctions',\\n  pricing: { defaultCostCents: 5 },\\n})\\n\\nconst screen = sg.wrap(async (args) => {\\n  // Your screening logic\\n})"
+  "quickStart": "import { settlegrid } from '@settlegrid/mcp'\\n\\nconst sg = settlegrid.init({\\n  toolSlug: 'web-search-pro',\\n  pricing: { defaultCostCents: 5 },\\n})\\n\\nconst screen = sg.wrap(async (args) => {\\n  // Your search logic\\n})"
 }`} />
 
-                  <CopyableCodeBlock title="cURL" code={`curl "https://settlegrid.ai/api/v1/discover/scrutera-sanctions"`} />
+                  <CopyableCodeBlock title="cURL" code={`curl "https://settlegrid.ai/api/v1/discover/web-search-pro"`} />
 
-                  <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch('https://settlegrid.ai/api/v1/discover/scrutera-sanctions')
+                  <CopyableCodeBlock title="JavaScript" language="TypeScript" code={`const res = await fetch('https://settlegrid.ai/api/v1/discover/web-search-pro')
 const { tool, reviews, changelog, quickStart } = await res.json()
 console.log(tool.name, '—', tool.rating, 'stars')`} />
                 </div>
@@ -1372,8 +1372,8 @@ categories.forEach(c => console.log(\`\${c.name}: \${c.count} tools\`))`} />
     "joinedAt": "2026-01-10T00:00:00Z"
   },
   "tools": [
-    { "slug": "scrutera-sanctions", "name": "Scrutera Sanctions Screening", "rating": 4.8, "priceCents": 5 },
-    { "slug": "gradara-risk", "name": "Gradara Country Risk", "rating": 4.7, "priceCents": 10 }
+    { "slug": "web-search-pro", "name": "Web Search Pro", "rating": 4.8, "priceCents": 5 },
+    { "slug": "data-enrichment", "name": "Data Enrichment API", "rating": 4.7, "priceCents": 10 }
   ]
 }`} />
 
@@ -1504,7 +1504,7 @@ npm install -g @settlegrid/discovery`} />
                     <span className="text-emerald-400">green</span> for active,{' '}
                     <span className="text-gray-500">gray</span> for draft.
                   </p>
-                  <CopyableCodeBlock title="Markdown" code={`![Scrutera Sanctions](https://settlegrid.ai/api/badge/tool/scrutera-sanctions)`} />
+                  <CopyableCodeBlock title="Markdown" code={`![Web Search Pro](https://settlegrid.ai/api/badge/tool/web-search-pro)`} />
                 </div>
               </div>
 
