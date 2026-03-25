@@ -663,7 +663,7 @@ export default function HomePage() {
                   { name: 'MC Agent Pay', backer: 'Mastercard', href: 'https://www.mastercard.com/us/en/business/artificial-intelligence/mastercard-agent-pay.html', color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/30',
                     icon: <img src="/icons/protocols/mastercard.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'Nanopayments', backer: 'Circle (USDC)', href: 'https://www.circle.com/nanopayments', color: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800/30',
-                    icon: <img src="/icons/protocols/circle.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
+                    icon: <img src="/icons/protocols/circle.svg" width={32} height={32} alt="" aria-hidden="true" className="w-8 h-8 object-contain" /> },
                   { name: 'REST', backer: 'Any HTTP API', href: '/docs', color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700/50',
                     icon: <img src="/icons/protocols/rest.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                 ].map((proto, i) => (
