@@ -5,6 +5,7 @@ import { CodeSnippet } from '@/components/marketing/code-snippet'
 import { RevealSection } from '@/components/marketing/home-sections'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
+import { CopyCommand } from '@/components/marketing/copy-command'
 
 export const metadata: Metadata = {
   title: 'SettleGrid — Monetize AI Tools with 2 Lines of Code',
@@ -703,13 +704,13 @@ export default function HomePage() {
                   />
                   <div className="mt-4 text-center">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Or scaffold a complete project instantly:</p>
-                    <code className="inline-block text-sm bg-gray-100 dark:bg-[#252836] px-3 py-1.5 rounded-lg font-mono text-brand dark:text-emerald-400">npx create-settlegrid-tool</code>
+                    <CopyCommand command="npx create-settlegrid-tool" />
                   </div>
                 </div>
                 <StepCard
                   step="2"
                   title="Users Pay Per Call"
-                  description="Consumers pre-fund credits via Stripe or crypto (x402/USDC). Auto-refill keeps usage seamless. You keep 95% of every transaction."
+                  description="Consumers pre-fund credits via Stripe or crypto (x402/USDC). Auto-refill keeps usage seamless. You keep 100% on the Free tier — 95% on paid plans."
                 />
                 <StepCard
                   step="3"
