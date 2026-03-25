@@ -17,12 +17,6 @@ const SLIDES: Slide[] = [
     url: 'settlegrid.ai/dashboard',
   },
   {
-    src: '/screenshots/Reviews.jpg',
-    alt: 'Reviews dashboard with ratings summary, response management, and consumer feedback',
-    label: 'Reviews & Reputation',
-    url: 'settlegrid.ai/dashboard/reviews',
-  },
-  {
     src: '/screenshots/Tools.jpg',
     alt: 'Tools management page with verified badges and quality checklist',
     label: 'Tool Management',
@@ -33,6 +27,12 @@ const SLIDES: Slide[] = [
     alt: 'Analytics page with invocation charts, revenue trends, and method breakdown',
     label: 'Analytics & Insights',
     url: 'settlegrid.ai/dashboard/analytics',
+  },
+  {
+    src: '/screenshots/Reviews.jpg',
+    alt: 'Reviews dashboard with ratings summary, response management, and consumer feedback',
+    label: 'Reviews & Reputation',
+    url: 'settlegrid.ai/dashboard/reviews',
   },
 ]
 
