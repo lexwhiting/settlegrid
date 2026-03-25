@@ -14,6 +14,7 @@ const pages = [
   { name: 'Referrals', href: '/dashboard/referrals', group: 'Navigation' },
   { name: 'Fraud Detection', href: '/dashboard/fraud', group: 'Navigation' },
   { name: 'Reputation', href: '/dashboard/reputation', group: 'Navigation' },
+  { name: 'Reviews', href: '/dashboard/reviews', group: 'Navigation' },
   { name: 'Webhooks', href: '/dashboard/webhooks', group: 'Navigation' },
   { name: 'Audit Log', href: '/dashboard/audit-log', group: 'Navigation' },
   { name: 'Settings', href: '/dashboard/settings', group: 'Navigation' },
