@@ -1,12 +1,34 @@
-# SettleGrid — The Settlement Layer for AI Agent Payments
+<p align="center">
+  <a href="https://settlegrid.ai">
+    <img src="https://img.shields.io/badge/Settle-Grid-10B981?style=for-the-badge&labelColor=1A1F3A&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMxMEI5ODEiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01eiIvPjxwYXRoIGQ9Ik0yIDE3bDEwIDUgMTAtNSIvPjxwYXRoIGQ9Ik0yIDEybDEwIDUgMTAtNSIvPjwvc3ZnPg==" alt="SettleGrid" height="40" />
+  </a>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/@settlegrid/mcp.svg)](https://www.npmjs.com/package/@settlegrid/mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+<h1 align="center">The Settlement Layer for AI Agent Payments</h1>
 
-**Monetize any AI service with one line of code.** Per-call billing, real-time metering, budget enforcement, and automated Stripe payouts for MCP tools, REST APIs, AI agents, and model endpoints.
+<p align="center">
+  <strong>Monetize any AI tool with 2 lines of code. Per-call billing, 10 protocols, built-in discovery.</strong>
+</p>
 
-> **How do I monetize my MCP server?** Install `@settlegrid/mcp`, wrap your handler, set a price. Every call is metered and settled automatically. You keep 95% — or 100% on the Free tier.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@settlegrid/mcp"><img src="https://img.shields.io/npm/v/@settlegrid/mcp.svg?style=flat-square&color=10B981&label=SDK" alt="npm" /></a>
+  <a href="https://www.npmjs.com/package/@settlegrid/discovery"><img src="https://img.shields.io/npm/v/@settlegrid/discovery.svg?style=flat-square&color=10B981&label=Discovery" alt="npm" /></a>
+  <a href="https://registry.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP_Registry-listed-10B981?style=flat-square" alt="MCP Registry" /></a>
+  <a href="https://smithery.ai"><img src="https://img.shields.io/badge/Smithery-listed-10B981?style=flat-square" alt="Smithery" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="MIT" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square" alt="TypeScript" /></a>
+</p>
+
+<p align="center">
+  <a href="https://settlegrid.ai">Website</a> &middot;
+  <a href="https://settlegrid.ai/docs">Docs</a> &middot;
+  <a href="https://settlegrid.ai/tools">Showcase</a> &middot;
+  <a href="https://settlegrid.ai/servers">1,017 Templates</a> &middot;
+  <a href="https://settlegrid.ai/learn/discovery">Discovery Guide</a> &middot;
+  <a href="https://settlegrid.ai/learn/handbook">Handbook</a>
+</p>
+
+---
 
 ## Quick Start
 
@@ -22,50 +44,111 @@ const sg = settlegrid.init({
   pricing: { defaultCostCents: 5 },
 })
 
-// Wrap any handler with billing — MCP tool, REST API, AI agent
 const billedHandler = sg.wrap(myHandler)
 ```
 
-That's it. Every call validates the consumer's API key, checks their credit balance, executes your function, and meters usage — all in under 50ms.
+Every call validates the consumer's API key, checks their credit balance, executes your function, and meters usage — all in under 50ms.
+
+Or scaffold a complete project instantly:
+
+```bash
+npx create-settlegrid-tool
+```
 
 ## Why SettleGrid?
 
-| Feature | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
-|---|---|---|---|---|
-| Protocol support | MCP, x402, AP2, REST | REST only | x402 / DeFi | MCP only |
-| Real-time metering | <50ms Redis | Batch only | On-chain | Per-call |
-| Multi-hop settlement | Yes | No | Yes | No |
-| Agent identity (KYA) | Yes | No | No | No |
-| Budget enforcement | Yes | No | No | No |
-| Outcome-based billing | Yes | No | Yes | No |
-| Open-source SDK | Yes | No | Yes | No |
-| Fraud detection | Yes | Yes | No | No |
+|  | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
+|---|:---:|:---:|:---:|:---:|
+| **Protocol support** | 10 protocols | REST only | x402 / DeFi | MCP only |
+| **Real-time metering** | <50ms Redis | Batch only | On-chain | Per-call |
+| **Built-in discovery** | 8+ registries | None | None | None |
+| **Multi-hop settlement** | Yes | No | Yes | No |
+| **Agent identity (KYA)** | Yes | No | No | No |
+| **Budget enforcement** | Yes | No | No | No |
+| **Outcome-based billing** | Yes | No | Yes | No |
+| **Free tier (0% fees)** | Yes | No | No | No |
+| **$1 minimum payout** | Yes | No | No | No |
+| **Open-source SDK** | Yes | No | Yes | No |
+| **Fraud detection** | Yes | Yes | No | No |
+
+## Discovery — Your Tools, Found Everywhere
+
+SettleGrid doesn't just bill — it distributes. Every active tool is automatically discoverable across:
+
+| Channel | How it works |
+|---------|-------------|
+| **[Showcase](https://settlegrid.ai/tools)** | Consumers browse, search, and purchase credits |
+| **[Discovery API](https://settlegrid.ai/docs#discovery)** | `GET /api/v1/discover` — programmatic search for directories & apps |
+| **[MCP Discovery Server](https://www.npmjs.com/package/@settlegrid/discovery)** | AI agents find tools natively via MCP protocol |
+| **[HTTP MCP Endpoint](https://settlegrid.ai/api/mcp)** | Remote streamable HTTP transport for any MCP client |
+| **[Official MCP Registry](https://registry.modelcontextprotocol.io)** | The canonical MCP server registry |
+| **[Smithery](https://smithery.ai)** | 6,000+ MCP server directory |
+| **[Glama](https://glama.ai)** | 14,000+ MCP server directory |
+| **[RSS Feed](https://settlegrid.ai/api/feed)** | New tools syndicated automatically |
+
+```json
+{
+  "mcpServers": {
+    "settlegrid-discovery": {
+      "command": "npx",
+      "args": ["@settlegrid/discovery"]
+    }
+  }
+}
+```
+
+## 6 Pricing Models
+
+| Model | Best for | Example |
+|-------|----------|---------|
+| **Per-Invocation** | Search, lookups, CRUD | 5&cent;/call |
+| **Per-Token** | LLM wrappers, text processing | $0.001/1K tokens |
+| **Per-Byte** | File conversion, data export | 1&cent;/MB |
+| **Per-Second** | Video processing, ML inference | 2&cent;/second |
+| **Tiered** | Multi-method tools | read 1&cent;, write 5&cent; |
+| **Outcome-Based** | Lead gen, data extraction | 25&cent; on success |
+
+## 10 Payment Protocols
+
+MCP &middot; MPP (Stripe/Tempo) &middot; x402 (Coinbase) &middot; AP2 (Google) &middot; Visa TAP &middot; UCP (Google/Shopify) &middot; ACP (OpenAI) &middot; Mastercard Agent Pay &middot; Circle Nanopayments &middot; REST
 
 ## Features
 
-- **Sub-50ms metering** — Redis DECRBY on the hot path, async database writeback
-- **Per-call billing** — charge per invocation, per token, per byte, per second, tiered, or outcome-based
-- **Budget enforcement** — consumers set spending limits, SDK returns HTTP 402 when exceeded
-- **Auto-refill credits** — automatic Stripe charges when balance drops below threshold
-- **Multi-protocol** — MCP, x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP, any REST API
-- **Multi-hop settlement** — atomic settlement across agent chains (A calls B calls C)
-- **Agent identity (KYA)** — Know Your Agent verification with trust scoring
-- **Fraud detection** — rate spike detection, new-key velocity, duplicate deduplication
-- **IP allowlisting** — lock API keys to specific IP ranges and CIDR blocks
-- **Webhook events** — HMAC-SHA256 signed event payloads
-- **Audit logging** — full audit trail with CSV export for SOC 2 readiness
-- **Sandbox mode** — test integrations without real charges
+**Billing & Metering**
+- Sub-50ms Redis metering on every call
+- Budget enforcement — HTTP 402 when exceeded
+- Auto-refill credits via Stripe
+- Multi-hop atomic settlement across agent chains
 
-## How It Works
+**Security & Compliance**
+- Agent identity (KYA) with trust scoring
+- Fraud detection (12 real-time signals)
+- IP allowlisting (CIDR support)
+- HMAC-SHA256 webhook signatures
+- Audit logging with CSV export (SOC 2 ready)
+- Sandbox/test mode
 
-1. **Developer** registers a tool on [settlegrid.ai](https://settlegrid.ai) and sets per-method pricing
-2. **Consumer** purchases credits via Stripe and receives an API key (`sg_live_...`)
-3. **SDK** wraps your handler — validates key, checks balance, executes, meters
-4. **SettleGrid** splits revenue automatically (developer keeps 95%; 0% fee on Free tier)
+**Developer Experience**
+- `sg.wrap()` — one function, any handler
+- 6 pricing models configurable from dashboard
+- 1,017 open-source templates with billing pre-wired
+- CLI scaffolder: `npx create-settlegrid-tool`
+- Discovery tab with badge generator, checklist, API URLs
+
+## Pricing
+
+| Tier | Price | Ops/month | Take Rate |
+|:---:|:---:|:---:|:---:|
+| **Free** | $0 forever | 25,000 | 0% |
+| **Starter** | $9/mo | 100,000 | 5% |
+| **Growth** | $29/mo | 500,000 | 5% |
+| **Scale** | $79/mo | 2,000,000 | 5% |
+
+$1 minimum payout — the lowest in the industry. Stripe Connect Express for instant payouts.
 
 ## REST API Middleware
 
-For non-MCP services (Express, Next.js API routes, etc.):
+For non-MCP services (Express, Next.js, Hono, etc.):
 
 ```typescript
 import { settlegridMiddleware } from '@settlegrid/mcp'
@@ -75,7 +158,6 @@ const withBilling = settlegridMiddleware({
   costCents: 5,
 })
 
-// Next.js App Router
 export async function GET(request: Request) {
   return withBilling(request, async () => {
     return Response.json({ data: 'hello' })
@@ -83,33 +165,34 @@ export async function GET(request: Request) {
 }
 ```
 
-## Pricing
-
-| Tier | Price | Operations/month | Take Rate |
-|---|---|---|---|
-| Free | $0 | 25,000 | 0% (you keep 100%) |
-| Starter | $9/mo | 100,000 | 5% |
-| Growth | $29/mo | 500,000 | 5% |
-| Scale | $79/mo | 2,000,000 | 5% (negotiable) |
-| Enterprise | Custom | Unlimited | 3-5% |
-
 ## Project Structure
 
 ```
 settlegrid/
-├── apps/web/          # Next.js 15 web platform (settlegrid.ai)
-├── packages/mcp/      # @settlegrid/mcp SDK (npm package)
-└── turbo.json         # Turborepo config
+├── apps/web/                  # Next.js 15 platform (settlegrid.ai)
+├── packages/mcp/              # @settlegrid/mcp SDK
+├── packages/discovery-server/ # @settlegrid/discovery MCP server
+├── packages/create-tool/      # npx create-settlegrid-tool CLI
+├── open-source-servers/       # 1,017 MCP server templates
+└── .mcp.json                  # MCP plugin config (Cursor, Claude)
 ```
 
 ## Links
 
-- **Website**: [settlegrid.ai](https://settlegrid.ai)
-- **Documentation**: [settlegrid.ai/docs](https://settlegrid.ai/docs)
-- **npm**: [@settlegrid/mcp](https://www.npmjs.com/package/@settlegrid/mcp)
-- **API Reference**: [settlegrid.ai/api/openapi.json](https://settlegrid.ai/api/openapi.json)
-- **Support**: support@settlegrid.ai
+| | |
+|---|---|
+| **Website** | [settlegrid.ai](https://settlegrid.ai) |
+| **Documentation** | [settlegrid.ai/docs](https://settlegrid.ai/docs) |
+| **Discovery Guide** | [settlegrid.ai/learn/discovery](https://settlegrid.ai/learn/discovery) |
+| **Handbook** | [settlegrid.ai/learn/handbook](https://settlegrid.ai/learn/handbook) |
+| **API Reference** | [settlegrid.ai/api/openapi.json](https://settlegrid.ai/api/openapi.json) |
+| **Discovery API** | [settlegrid.ai/api/v1/discover](https://settlegrid.ai/api/v1/discover) |
+| **RSS Feed** | [settlegrid.ai/api/feed](https://settlegrid.ai/api/feed) |
+| **npm (SDK)** | [@settlegrid/mcp](https://www.npmjs.com/package/@settlegrid/mcp) |
+| **npm (Discovery)** | [@settlegrid/discovery](https://www.npmjs.com/package/@settlegrid/discovery) |
+| **MCP Registry** | [io.github.lexwhiting/settlegrid-discovery](https://registry.modelcontextprotocol.io) |
+| **Support** | support@settlegrid.ai |
 
 ## License
 
-MIT
+MIT &copy; 2026 [SettleGrid](https://settlegrid.ai)

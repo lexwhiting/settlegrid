@@ -85,8 +85,7 @@ export default async function ShowcasePage() {
               See what developers are building with SettleGrid&apos;s settlement layer.
             </p>
             <p className="text-sm text-gray-500 mt-3 max-w-2xl mx-auto">
-              Tools appear here automatically when developers publish them. AI agents and
-              integrations also discover these tools via the{' '}
+              Tools appear here automatically when developers publish them. They&apos;re also indexed on the Official MCP Registry, Smithery, Glama, and 5+ directories via the{' '}
               <Link href="/docs#discovery" className="text-emerald-400 hover:underline">
                 Discovery API
               </Link>
