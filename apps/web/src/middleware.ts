@@ -72,14 +72,17 @@ const publicRoutePatterns = [
   /^\/login$/,
   /^\/register$/,
   /^\/tools(\/.*)?$/,
+  /^\/servers(\/.*)?$/,
   /^\/docs(\/.*)?$/,
+  /^\/learn(\/.*)?$/,
+  /^\/faq(\/.*)?$/,
+  /^\/privacy(\/.*)?$/,
+  /^\/terms(\/.*)?$/,
+  /^\/dev(\/.*)?$/,
+  /^\/developers(\/.*)?$/,
+  /^\/admin(\/.*)?$/,
   /^\/auth\/callback$/,
-  /^\/api\/webhooks(\/.*)?$/,
-  /^\/api\/cron(\/.*)?$/,
-  /^\/api\/sdk(\/.*)?$/,
-  /^\/api\/hub(\/.*)?$/,
-  /^\/api\/health$/,
-  /^\/api\/ping$/,
+  /^\/api\/(.*)?$/,
 ]
 
 function isPublicRoute(pathname: string): boolean {
@@ -146,9 +149,11 @@ export default async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect non-public routes: redirect unauthenticated users to /login
-  // Skip redirect for API routes — they handle auth themselves and return 401
-  if (!isPublicRoute(pathname) && !pathname.startsWith('/api/') && !user) {
+  // Protect dashboard routes: redirect unauthenticated users to /login
+  // Only dashboard and consumer routes require auth — everything else is public
+  // (API routes handle their own auth and return 401)
+  const isProtectedRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/consumer')
+  if (isProtectedRoute && !user) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)

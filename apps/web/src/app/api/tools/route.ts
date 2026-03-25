@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools } from '@/lib/db/schema'
+import { tools, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
@@ -157,6 +157,8 @@ export async function GET(request: NextRequest) {
         description: tools.description,
         pricingConfig: tools.pricingConfig,
         status: tools.status,
+        category: tools.category,
+        verified: tools.verified,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,
@@ -168,7 +170,17 @@ export async function GET(request: NextRequest) {
       .where(eq(tools.developerId, auth.id))
       .limit(500)
 
-    return successResponse({ tools: developerTools }, 200, requestId)
+    // Fetch developer profile for quality gate checklist
+    const [devProfile] = await db
+      .select({ name: developers.name, slug: developers.slug })
+      .from(developers)
+      .where(eq(developers.id, auth.id))
+      .limit(1)
+
+    return successResponse({
+      tools: developerTools,
+      developerProfile: devProfile ?? { name: null, slug: null },
+    }, 200, requestId)
   } catch (error) {
     return internalErrorResponse(error, requestId)
   }
