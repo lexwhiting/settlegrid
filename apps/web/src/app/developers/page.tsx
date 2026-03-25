@@ -314,7 +314,7 @@ export default async function DeveloperDirectoryPage() {
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer className="border-t border-[#2E3148] px-6 py-6 mt-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={24} />
+          <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-400">
             <Link href="/tools" className="hover:text-gray-100 transition-colors">
               Showcase

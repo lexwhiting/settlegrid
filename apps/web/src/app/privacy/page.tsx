@@ -204,7 +204,7 @@ export default function PrivacyPage() {
       {/* ---- Footer ---- */}
       <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={24} />
+          <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
             <Link href="/tools" className="hover:text-indigo dark:text-gray-100 transition-colors">Showcase</Link>
             <Link href="/docs" className="hover:text-indigo dark:text-gray-100 transition-colors">Documentation</Link>
