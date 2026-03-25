@@ -917,6 +917,55 @@ export default function DiscoveryPage() {
 
       {/* Section 6: Discovery API */}
       <DiscoveryAPISection slug={profile?.slug ?? null} tools={tools} />
+
+      {/* Section 7: Where Your Tools Are Listed */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5a17.92 17.92 0 01-8.716-2.247m0 0A8.966 8.966 0 013 12c0-1.264.26-2.47.732-3.565" />
+            </svg>
+            <CardTitle className="text-lg">Where Your Tools Are Listed</CardTitle>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            SettleGrid is indexed across 8+ registries. Active tools are automatically included.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { name: 'Official MCP Registry', href: 'https://registry.modelcontextprotocol.io', desc: 'The official registry for MCP servers' },
+              { name: 'Smithery', href: 'https://smithery.ai', desc: 'MCP server discovery and hosting' },
+              { name: 'Glama', href: 'https://glama.ai', desc: 'AI tool directory and discovery' },
+              { name: 'PulseMCP', href: 'https://pulsemcp.com', desc: 'MCP ecosystem directory' },
+              { name: 'mcp.so', href: 'https://mcp.so', desc: 'MCP server catalog' },
+              { name: 'Cursor Directory', href: 'https://cursor.directory', desc: 'MCP servers for Cursor IDE' },
+              { name: 'npm', href: 'https://www.npmjs.com/package/@settlegrid/discovery', desc: '@settlegrid/discovery package' },
+              { name: 'GitHub', href: 'https://github.com/lexwhiting/settlegrid', desc: '19 discovery topics' },
+            ].map((registry) => (
+              <a
+                key={registry.name}
+                href={registry.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-4 py-3 hover:border-brand/40 dark:hover:border-brand/40 transition-colors group"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-brand transition-colors">
+                    {registry.name}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {registry.desc}
+                  </p>
+                </div>
+                <svg className="w-4 h-4 text-gray-400 group-hover:text-brand shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </a>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

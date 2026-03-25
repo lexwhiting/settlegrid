@@ -311,6 +311,10 @@ export default function DiscoveryGuidePage() {
             automatic inclusion.
           </p>
 
+          <Callout>
+            <strong className="text-emerald-400">Already listed everywhere:</strong> SettleGrid is already listed on the Official MCP Registry, Smithery, Glama, PulseMCP, mcp.so, and Cursor Directory. Your tools are automatically included when you publish them.
+          </Callout>
+
           <div className="space-y-6 mb-6">
             <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">Discovery API</h3>

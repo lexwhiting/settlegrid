@@ -1188,6 +1188,9 @@ try {
           {/* ── Discovery & Distribution ─────────────────────────── */}
           <section id="discovery" className="mb-12">
             <h2 className="text-2xl font-bold text-indigo dark:text-gray-100 mb-2">Discovery &amp; Distribution</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              SettleGrid tools are automatically discoverable across 8+ registries including the Official MCP Registry, Smithery, Glama, and Cursor Directory.
+            </p>
             <p className="text-gray-600 dark:text-gray-400 mb-8">
               Public APIs for discovering tools, an MCP Discovery Server for AI clients, badge endpoints for README embeds, and developer profiles.
             </p>

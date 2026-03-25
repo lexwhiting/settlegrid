@@ -559,7 +559,7 @@ export default function HomePage() {
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">Built-in <span className="text-gray-400 font-normal">discovery</span></span>
+                <span className="text-white font-semibold">8+ <span className="text-gray-400 font-normal">registries</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">&lt;50ms <span className="text-gray-400 font-normal">metering</span></span>
               </div>
@@ -809,7 +809,7 @@ export default function HomePage() {
                   </div>
                   <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">Discovery API</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
-                    Any directory, integration, or app can query your tools programmatically.
+                    Directories, integrations, and apps query your tools programmatically. Listed on the Official MCP Registry, Smithery, Glama, and 5+ directories &mdash; your tools are indexed everywhere.
                   </p>
                   <code className="block text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded-lg font-mono text-brand dark:text-emerald-400 mb-4">
                     GET /api/v1/discover
@@ -831,7 +831,7 @@ export default function HomePage() {
                   </div>
                   <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">AI Agent Discovery</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
-                    AI agents find your tools natively via the MCP Discovery Server. Add one line to any MCP client and your tools are findable.
+                    AI agents find your tools natively via MCP. The SettleGrid Discovery Server is available on npm, the Official MCP Registry, Smithery, Glama, and Cursor Directory. One config line in any MCP client.
                   </p>
                   <code className="block text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded-lg font-mono text-brand dark:text-emerald-400 mb-4">
                     npx @settlegrid/discovery
@@ -851,7 +851,7 @@ export default function HomePage() {
                   <svg className="w-4 h-4 text-brand shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Every active tool is automatically indexed across all three channels. No extra configuration.
+                  Every active tool is automatically indexed across the Showcase, Discovery API, MCP Discovery Server, and 8+ external registries. No extra configuration.
                 </p>
               </div>
             </div>

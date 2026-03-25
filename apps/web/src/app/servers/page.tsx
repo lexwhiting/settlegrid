@@ -112,7 +112,7 @@ export default function ServersPage() {
               <Link href="/tools" className="text-emerald-400 hover:underline">
                 Showcase
               </Link>{' '}
-              and becomes discoverable by AI agents via the{' '}
+              and is automatically discoverable across 8+ MCP registries via the{' '}
               <Link href="/docs#discovery" className="text-emerald-400 hover:underline">
                 Discovery API
               </Link>
