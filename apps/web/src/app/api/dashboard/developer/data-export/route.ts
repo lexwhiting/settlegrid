@@ -63,21 +63,28 @@ export async function POST(request: NextRequest) {
     const downloadUrl = `${appUrl}/api/dashboard/developer/data-export/${exportId}`
     const template = dataExportReadyEmail(auth.email, downloadUrl)
 
-    sendEmail({ to: auth.email, subject: template.subject, html: template.html }).catch((err) =>
-      logger.error('data_export.email_failed', { exportId, developerId: auth.id }, err)
-    )
+    const emailSent = await sendEmail({ to: auth.email, subject: template.subject, html: template.html })
+
+    if (!emailSent) {
+      logger.error('data_export.email_failed', { exportId, developerId: auth.id, to: auth.email })
+    }
 
     writeAuditLog({
       developerId: auth.id,
       action: 'privacy.data_export_requested',
       resourceType: 'compliance_export',
       resourceId: exportId,
-      details: { exportId, categories: categories ?? ALL_EXPORT_CATEGORIES, days: days ?? 90 },
+      details: { exportId, categories: categories ?? ALL_EXPORT_CATEGORIES, days: days ?? 90, emailSent },
       ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
       userAgent: request.headers.get('user-agent') ?? undefined,
     }).catch(() => {/* fire-and-forget */})
 
-    return successResponse({ success: true, exportId })
+    return successResponse({
+      success: true,
+      exportId,
+      downloadUrl,
+      emailSent,
+    })
   } catch (error) {
     return internalErrorResponse(error)
   }
