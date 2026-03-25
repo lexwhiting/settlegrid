@@ -812,9 +812,9 @@ export default function HomePage() {
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
                     Directories, integrations, and apps query your tools programmatically. Listed on the Official MCP Registry, Smithery, Glama, and 5+ directories &mdash; your tools are indexed everywhere.
                   </p>
-                  <code className="block text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded-lg font-mono text-brand dark:text-emerald-400 mb-4">
-                    GET /api/v1/discover
-                  </code>
+                  <div className="mb-4">
+                    <CopyCommand command="GET /api/v1/discover" />
+                  </div>
                   <Link href="/docs#discovery" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
                     API Docs
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
@@ -834,9 +834,9 @@ export default function HomePage() {
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
                     AI agents find your tools natively via MCP. The SettleGrid Discovery Server is available on npm, the Official MCP Registry, Smithery, Glama, and Cursor Directory. One config line in any MCP client.
                   </p>
-                  <code className="block text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded-lg font-mono text-brand dark:text-emerald-400 mb-4">
-                    npx @settlegrid/discovery
-                  </code>
+                  <div className="mb-4">
+                    <CopyCommand command="npx @settlegrid/discovery" />
+                  </div>
                   <Link href="/learn/discovery" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
                     Learn More
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
