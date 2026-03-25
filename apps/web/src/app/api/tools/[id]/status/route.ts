@@ -7,6 +7,7 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { validateToolForActivation } from '@/lib/quality-gates'
 
 export const maxDuration = 60
 
@@ -57,6 +58,20 @@ export async function PATCH(
 
     if (existing.status === 'deleted') {
       return errorResponse('Cannot change status of a deleted tool.', 400, 'TOOL_DELETED')
+    }
+
+    // ── Quality gate: enforce checks when activating ─────────────────────────
+    if (body.status === 'active') {
+      const gateResult = await validateToolForActivation(id, auth.id)
+      if (!gateResult.passed) {
+        return errorResponse(
+          'Tool does not meet quality requirements for the Showcase',
+          400,
+          'QUALITY_GATE_FAILED',
+          undefined,
+          { failures: gateResult.failures }
+        )
+      }
     }
 
     const [tool] = await db
