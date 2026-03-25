@@ -473,6 +473,15 @@ export async function POST(request: Request) {
             </div>
           </div>
 
+          <div className="mt-6 mb-6 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+            <img
+              src="/screenshots/Dashboard 2.jpg"
+              alt="Developer dashboard showing revenue analytics and payout history"
+              className="w-full"
+              loading="lazy"
+            />
+          </div>
+
           {/* ================================================================ */}
           {/*  Chapter 5: Growing Your Tool Business                           */}
           {/* ================================================================ */}
@@ -557,6 +566,14 @@ export async function POST(request: Request) {
                 </Link>
                 {' '}guide for step-by-step instructions on maximizing your tool&apos;s reach.
               </p>
+              <div className="mt-6 mb-6 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+                <img
+                  src="/screenshots/Tools.jpg"
+                  alt="SettleGrid Showcase with published tools and verified badges"
+                  className="w-full"
+                  loading="lazy"
+                />
+              </div>
             </div>
           </div>
 

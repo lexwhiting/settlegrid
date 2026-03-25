@@ -911,6 +911,16 @@ app.post('/api/search', settlegridMiddleware({
                 </div>
               </div>
             </div>
+
+            <div className="mt-8 mb-8 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Your tools appear in the Showcase after you deploy</p>
+              <img
+                src="/screenshots/Showcase.jpg"
+                alt="SettleGrid Showcase page with published tools"
+                className="w-full"
+                loading="lazy"
+              />
+            </div>
           </section>
 
           {/* ── CLI Tools ─────────────────────────── */}

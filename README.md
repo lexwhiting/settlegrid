@@ -55,6 +55,10 @@ Or scaffold a complete project instantly:
 npx create-settlegrid-tool
 ```
 
+<p align="center">
+  <img src="https://settlegrid.ai/screenshots/Dashboard%201.jpg" alt="SettleGrid Dashboard" width="800" />
+</p>
+
 ## Why SettleGrid?
 
 |  | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
@@ -85,6 +89,10 @@ SettleGrid doesn't just bill — it distributes. Every active tool is automatica
 | **[Smithery](https://smithery.ai)** | 6,000+ MCP server directory |
 | **[Glama](https://glama.ai)** | 14,000+ MCP server directory |
 | **[RSS Feed](https://settlegrid.ai/api/feed)** | New tools syndicated automatically |
+
+<p align="center">
+  <img src="https://settlegrid.ai/screenshots/Showcase.jpg" alt="SettleGrid Showcase" width="800" />
+</p>
 
 ```json
 {
