@@ -2,10 +2,13 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, toolReviews, invocations } from '@/lib/db/schema'
+import { tools, toolReviews, invocations, developers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { newReviewNotificationEmail, sendEmail } from '@/lib/email'
+import { getAppUrl } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -92,9 +95,9 @@ export async function POST(
     const { slug } = await params
     const body = await parseBody(request, createReviewSchema)
 
-    // Look up the tool by slug
+    // Look up the tool by slug (include name + developerId for notification)
     const [tool] = await db
-      .select({ id: tools.id })
+      .select({ id: tools.id, name: tools.name, developerId: tools.developerId })
       .from(tools)
       .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
       .limit(1)
@@ -143,6 +146,30 @@ export async function POST(
         comment: toolReviews.comment,
         createdAt: toolReviews.createdAt,
       })
+
+    // Fire-and-forget: notify the developer about the new review
+    ;(async () => {
+      try {
+        const [dev] = await db
+          .select({ email: developers.email, name: developers.name })
+          .from(developers)
+          .where(eq(developers.id, tool.developerId))
+          .limit(1)
+        if (dev) {
+          const appUrl = getAppUrl()
+          const email = newReviewNotificationEmail(
+            dev.name ?? 'Developer',
+            tool.name,
+            body.rating,
+            body.comment ?? null,
+            `${appUrl}/dashboard/reviews`,
+          )
+          await sendEmail({ to: dev.email, subject: email.subject, html: email.html })
+        }
+      } catch (err) {
+        logger.error('review.notification_failed', {}, err)
+      }
+    })()
 
     return successResponse({ review }, 201)
   } catch (error) {

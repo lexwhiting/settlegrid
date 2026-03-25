@@ -1669,6 +1669,38 @@ ${ctaButton('Upgrade Now', 'https://settlegrid.ai/dashboard/settings#plan', '#ef
   }
 }
 
+export function newReviewNotificationEmail(
+  developerName: string,
+  toolName: string,
+  rating: number,
+  comment: string | null,
+  reviewDashboardUrl: string,
+): EmailTemplate {
+  const stars = Array.from({ length: 5 }, (_, i) => {
+    const color = i < rating ? '#facc15' : '#d1d5db'
+    return `<span style="color:${color};font-size:20px">&#9733;</span>`
+  }).join('')
+
+  const commentHtml = comment
+    ? `<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0;padding:12px 16px;background:#f9fafb;border-radius:8px;border-left:3px solid #10B981;font-style:italic">"${escapeHtml(comment)}"</p>`
+    : `<p class="sg-muted" style="color:#9ca3af;font-size:13px;margin:16px 0;font-style:italic">No comment was left with this review.</p>`
+
+  return {
+    subject: sanitizeSubject(`New ${rating}-star review on ${toolName}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">New Review on ${escapeHtml(toolName)}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 8px">Hi ${escapeHtml(developerName)}, someone just left a review on your tool.</p>
+<div style="text-align:center;margin:16px 0">${stars}</div>
+${commentHtml}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Responding to reviews helps build trust with consumers and improves your tool's reputation score.</p>
+${ctaButton('View & Respond', reviewDashboardUrl)}
+`,
+      { preheader: `${rating}-star review on ${toolName}${comment ? `: "${comment.slice(0, 60)}..."` : ''}` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {

@@ -31,6 +31,8 @@ interface ToolData {
     rating: number
     comment: string
     createdAt: string
+    developerResponse: string | null
+    developerRespondedAt: string | null
   }[]
   changelog: {
     version: string
@@ -400,6 +402,17 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                         <StarRating rating={review.rating} />
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed ml-11">{review.comment}</p>
+                      {review.developerResponse && (
+                        <div className="ml-11 mt-3 pl-4 border-l-2 border-brand/40 bg-brand/5 dark:bg-brand/10 rounded-r-lg p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand mb-1">Developer Response</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{review.developerResponse}</p>
+                          {review.developerRespondedAt && (
+                            <p className="text-[10px] text-gray-400 mt-1.5">
+                              {new Date(review.developerRespondedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

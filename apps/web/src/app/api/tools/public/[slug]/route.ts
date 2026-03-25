@@ -45,7 +45,7 @@ export async function GET(
     const tool = results[0]
 
     // Fetch reviews
-    let reviews: { id: string; rating: number; comment: string | null; createdAt: Date; consumerName: string }[] = []
+    let reviews: { id: string; rating: number; comment: string | null; createdAt: Date; consumerName: string; developerResponse: string | null; developerRespondedAt: Date | null }[] = []
     let averageRating = 0
     let reviewCount = 0
     try {
@@ -54,6 +54,8 @@ export async function GET(
           id: toolReviews.id,
           rating: toolReviews.rating,
           comment: toolReviews.comment,
+          developerResponse: toolReviews.developerResponse,
+          developerRespondedAt: toolReviews.developerRespondedAt,
           createdAt: toolReviews.createdAt,
         })
         .from(toolReviews)
@@ -65,6 +67,8 @@ export async function GET(
         id: r.id,
         rating: r.rating,
         comment: r.comment,
+        developerResponse: r.developerResponse,
+        developerRespondedAt: r.developerRespondedAt,
         createdAt: r.createdAt,
         consumerName: 'Verified User',
       }))
