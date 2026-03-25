@@ -87,7 +87,7 @@ export function ScreenshotCarousel() {
               key={s.src}
               src={s.src}
               alt={s.alt}
-              className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-500 ${
+              className={`absolute inset-0 w-full h-full object-contain object-top transition-opacity duration-500 ${
                 i === active ? 'opacity-100' : 'opacity-0'
               }`}
               loading={i === 0 ? 'eager' : 'lazy'}
