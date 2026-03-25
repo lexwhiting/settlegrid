@@ -1701,6 +1701,285 @@ ${ctaButton('View & Respond', reviewDashboardUrl)}
   }
 }
 
+// ── Onboarding Drip Templates ────────────────────────────────────────────────
+
+/**
+ * D2: Sent ~24h after signup if the developer has not created a tool yet.
+ */
+export function onboardingNudgeToolEmail(devName: string): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Your first tool takes 2 minutes'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Create Your First Tool</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, getting your first tool live on SettleGrid takes about 2 minutes. Here is how:</p>
+<ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Open the dashboard and click <strong>New Tool</strong></li>
+<li>Give it a name, description, and set a per-call price</li>
+<li>Install <code class="sg-code" style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">@settlegrid/mcp</code> and wrap your handler</li>
+</ol>
+${codeBlock(`import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({ apiKey: 'sg_live_...' })
+export default sg.wrap(myHandler)`)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">That is it. Your tool will be live and discoverable in the directory.</p>
+${ctaButton('Create Your Tool', 'https://settlegrid.ai/dashboard/tools/new')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: 'Create your first monetized tool in about 2 minutes.' }
+    ),
+  }
+}
+
+/**
+ * D3: Sent ~2h after tool creation if pricing has not been configured.
+ */
+export function onboardingNudgePricingEmail(devName: string, toolName: string): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Set pricing for ${toolName}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Set Pricing for ${escapeHtml(toolName)}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, your tool <strong>${escapeHtml(toolName)}</strong> is created but does not have pricing set yet. Here are some common patterns:</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Simple API call', '$0.001 - $0.01 per call')}
+${dataRow('AI inference', '$0.01 - $0.10 per call')}
+${dataRow('Heavy compute', '$0.10 - $1.00 per call')}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You can set per-method pricing for fine-grained control, or a flat rate for simplicity.</p>
+${ctaButton('Set Pricing', 'https://settlegrid.ai/dashboard/tools')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `Configure pricing for ${toolName} so consumers can start using it.` }
+    ),
+  }
+}
+
+/**
+ * D4: Sent ~24h after tool creation if Stripe is not connected.
+ */
+export function onboardingNudgeStripeEmail(devName: string): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Connect Stripe to start earning'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Connect Stripe to Get Paid</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, you have a tool on SettleGrid but have not connected your Stripe account yet. Without Stripe, you cannot receive payouts.</p>
+${alertBanner('info', 'Industry-low $1 minimum payout', 'SettleGrid has the lowest minimum payout in the industry. Free-tier developers keep 100% of revenue with a 0% take rate.')}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Connecting takes about 60 seconds through Stripe Connect Express.</p>
+${ctaButton('Connect Stripe', 'https://settlegrid.ai/dashboard/settings#stripe')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: 'Connect Stripe to receive payouts from your SettleGrid tools.' }
+    ),
+  }
+}
+
+/**
+ * D8: Sent ~7 days after signup if the developer has not created any tool.
+ */
+export function onboardingStuckEmail(devName: string): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Need help getting started?'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Need Help Getting Started?</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, we noticed you signed up a week ago but have not created a tool yet. No worries — here are some ideas to get started:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li><strong>Wrap an existing API</strong> — add metering and billing to any REST endpoint</li>
+<li><strong>Build an AI tool</strong> — text generation, image analysis, embeddings</li>
+<li><strong>Create a data service</strong> — weather, financial data, geocoding</li>
+</ul>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Check out our open-source example servers for inspiration, or browse the directory to see what other developers have built.</p>
+${ctaButton('Browse Examples', 'https://settlegrid.ai/directory')}
+<p class="sg-muted" style="color:#9ca3af;font-size:13px;margin:16px 0 0">Need help? Reply to this email and we will get back to you.</p>
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: 'Ideas and examples to help you create your first SettleGrid tool.' }
+    ),
+  }
+}
+
+/**
+ * R4: Sent ~7 days after tool creation if the tool is still in draft status.
+ */
+export function onboardingDraftToolEmail(devName: string, toolName: string, missing: string[]): EmailTemplate {
+  const checklist = missing
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join('')
+
+  return {
+    subject: sanitizeSubject(`${toolName} is almost ready`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">${escapeHtml(toolName)} Is Almost Ready</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, your tool <strong>${escapeHtml(toolName)}</strong> is in draft status. Here is what is still needed to go live:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+${checklist}
+</ul>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Once these are completed, your tool will be discoverable in the SettleGrid directory and consumers can start using it.</p>
+${ctaButton('Complete Setup', 'https://settlegrid.ai/dashboard/tools')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `${toolName} needs ${missing.length} more step${missing.length === 1 ? '' : 's'} to go live.` }
+    ),
+  }
+}
+
+/**
+ * R7: Sent ~48h after Stripe onboarding was started but not completed.
+ */
+export function onboardingStripeIncompleteEmail(devName: string): EmailTemplate {
+  return {
+    subject: sanitizeSubject('Finish connecting Stripe — 60 seconds left'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Finish Connecting Stripe</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, it looks like you started connecting your Stripe account but did not finish. You can pick up right where you left off — it only takes about 60 seconds.</p>
+${alertBanner('warning', 'Payouts are on hold', 'Until Stripe is fully connected, any revenue from your tools cannot be paid out to you.')}
+${ctaButton('Finish Connecting', 'https://settlegrid.ai/dashboard/settings#stripe', '#d97706')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: 'Pick up where you left off — finish connecting Stripe to receive payouts.' }
+    ),
+  }
+}
+
+// ── Quality Check Email Templates ────────────────────────────────────────────
+
+/**
+ * Sent when a tool's average response time exceeds the 2000ms threshold.
+ */
+export function toolSlowResponseEmail(devName: string, toolName: string, avgMs: number): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`Slow responses detected on ${toolName}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Slow Response Times on ${escapeHtml(toolName)}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, your tool <strong>${escapeHtml(toolName)}</strong> has been averaging <strong>${avgMs.toLocaleString()}ms</strong> response times over the last hour. This is above the recommended 2,000ms threshold.</p>
+${alertBanner('warning', 'Performance degradation', `Average response time: ${avgMs.toLocaleString()}ms (threshold: 2,000ms)`)}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Possible causes:</h3>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Upstream API latency or timeouts</li>
+<li>Database query performance</li>
+<li>Cold starts or resource limits on your hosting provider</li>
+</ul>
+${ctaButton('View Tool Dashboard', 'https://settlegrid.ai/dashboard/tools')}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">You will not receive another alert for this tool within 24 hours.</p>
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `${toolName} is averaging ${avgMs.toLocaleString()}ms response times — above the 2,000ms threshold.` }
+    ),
+  }
+}
+
+/**
+ * Sent when a tool's error rate exceeds 10%.
+ */
+export function toolHighErrorRateEmail(devName: string, toolName: string, errorRate: number): EmailTemplate {
+  const pct = errorRate.toFixed(1)
+  return {
+    subject: sanitizeSubject(`High error rate on ${toolName} — ${pct}%`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">High Error Rate on ${escapeHtml(toolName)}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, your tool <strong>${escapeHtml(toolName)}</strong> has a <strong>${pct}%</strong> error rate over the last hour. This exceeds the 10% threshold.</p>
+${alertBanner('error', 'Error rate elevated', `Current error rate: ${pct}% (threshold: 10%)`)}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Recommended actions:</h3>
+<ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Check your invocation logs for recurring error patterns</li>
+<li>Verify your health endpoint is responding correctly</li>
+<li>Review any recent deployment changes</li>
+</ol>
+${ctaButton('View Invocation Logs', 'https://settlegrid.ai/dashboard/tools')}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">You will not receive another alert for this tool within 24 hours.</p>
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `${toolName} has a ${pct}% error rate — exceeding the 10% threshold.` }
+    ),
+  }
+}
+
+/**
+ * Sent when a previously active tool has zero invocations for 7+ days.
+ */
+export function toolNoTrafficEmail(devName: string, toolName: string, lastInvocationDate: string): EmailTemplate {
+  return {
+    subject: sanitizeSubject(`No traffic on ${toolName} for 7 days`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">No Traffic on ${escapeHtml(toolName)}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, your tool <strong>${escapeHtml(toolName)}</strong> has not received any invocations since <strong>${escapeHtml(lastInvocationDate)}</strong>.</p>
+${alertBanner('info', 'Zero invocations for 7+ days', 'Your tool was previously active but has stopped receiving traffic.')}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Things to check:</h3>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Verify your health endpoint is responding</li>
+<li>Check if your pricing is competitive in the directory</li>
+<li>Share your tool listing to attract new consumers</li>
+</ul>
+${ctaButton('View Tool Dashboard', 'https://settlegrid.ai/dashboard/tools')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `${toolName} has had no traffic since ${lastInvocationDate}. Check your tool health.` }
+    ),
+  }
+}
+
+// ── Monthly Developer Summary Template ───────────────────────────────────────
+
+export interface MonthlySummaryData {
+  totalRevenueCents: number
+  totalInvocations: number
+  topToolName: string | null
+  topToolRevenueCents: number
+  momRevenuePct: number | null // null if no previous month data
+  momInvocationPct: number | null
+}
+
+/**
+ * Sent on the 1st of each month to developers with at least 1 active tool.
+ */
+export function monthlyDeveloperSummaryEmail(
+  devName: string,
+  monthName: string,
+  data: MonthlySummaryData
+): EmailTemplate {
+  const revenue = formatCurrency(data.totalRevenueCents)
+  const invocations = data.totalInvocations.toLocaleString()
+
+  const trendLabel = (pct: number | null): string => {
+    if (pct === null) return 'N/A (first month)'
+    const sign = pct >= 0 ? '+' : ''
+    return `${sign}${pct.toFixed(1)}% vs last month`
+  }
+
+  const topToolHtml = data.topToolName
+    ? `${dataRow('Top tool', escapeHtml(data.topToolName))}${dataRow('Top tool revenue', formatCurrency(data.topToolRevenueCents))}`
+    : ''
+
+  return {
+    subject: sanitizeSubject(`Your ${monthName} summary — ${revenue} earned`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your ${escapeHtml(monthName)} Summary</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, here is how your tools performed in ${escapeHtml(monthName)}.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Total revenue', revenue)}
+${dataRow('Total invocations', invocations)}
+${dataRow('Revenue trend', trendLabel(data.momRevenuePct))}
+${dataRow('Invocation trend', trendLabel(data.momInvocationPct))}
+${topToolHtml}
+</table>
+${dividerLine()}
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Keep building great tools. Your next payout will be processed according to your payout schedule.</p>
+${ctaButton('View Dashboard', 'https://settlegrid.ai/dashboard')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: `You earned ${revenue} from ${invocations} invocations in ${escapeHtml(monthName)}.` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {
