@@ -6,6 +6,7 @@ import { RevealSection } from '@/components/marketing/home-sections'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
 import { CopyCommand } from '@/components/marketing/copy-command'
+import { ScreenshotCarousel } from '@/components/marketing/screenshot-carousel'
 
 export const metadata: Metadata = {
   title: 'SettleGrid — Monetize AI Tools with 2 Lines of Code',
@@ -736,26 +737,7 @@ export default function HomePage() {
               <p className="text-gray-600 dark:text-gray-400 text-center mb-10 max-w-xl mx-auto">
                 Revenue tracking, usage analytics, reputation scoring, and discovery tools &mdash; all from one dashboard.
               </p>
-              <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#2E3148] shadow-2xl shadow-black/20">
-                <div className="bg-gray-100 dark:bg-[#1A1D2E] px-4 py-2.5 flex items-center gap-2 border-b border-gray-200 dark:border-[#2E3148]">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-400/80" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
-                    <div className="w-3 h-3 rounded-full bg-green-400/80" />
-                  </div>
-                  <div className="flex-1 mx-4">
-                    <div className="bg-white dark:bg-[#252836] rounded-md px-3 py-1 text-xs text-gray-400 dark:text-gray-500 text-center">
-                      settlegrid.ai/dashboard
-                    </div>
-                  </div>
-                </div>
-                <img
-                  src="/screenshots/Dashboard 1.jpg"
-                  alt="SettleGrid developer dashboard showing revenue, invocations, and usage analytics"
-                  className="w-full"
-                  loading="lazy"
-                />
-              </div>
+              <ScreenshotCarousel />
             </div>
           </RevealSection>
         </section>
