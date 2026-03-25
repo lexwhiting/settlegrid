@@ -634,36 +634,6 @@ export default function HomePage() {
         </section>
 
         {/* ================================================================ */}
-        {/*  1b. Dashboard screenshot                                        */}
-        {/* ================================================================ */}
-        <section className="px-6 pb-16 -mt-8 bg-gradient-to-b from-indigo dark:from-[#0F1117] to-white dark:to-[#0F1117]">
-          <div className="max-w-5xl mx-auto">
-            <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#2E3148] shadow-2xl shadow-black/20">
-              {/* Browser chrome mockup */}
-              <div className="bg-gray-100 dark:bg-[#1A1D2E] px-4 py-2.5 flex items-center gap-2 border-b border-gray-200 dark:border-[#2E3148]">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400/80" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
-                  <div className="w-3 h-3 rounded-full bg-green-400/80" />
-                </div>
-                <div className="flex-1 mx-4">
-                  <div className="bg-white dark:bg-[#252836] rounded-md px-3 py-1 text-xs text-gray-400 dark:text-gray-500 text-center">
-                    settlegrid.ai/dashboard
-                  </div>
-                </div>
-              </div>
-              {/* Screenshot */}
-              <img
-                src="/screenshots/Dashboard 1.jpg"
-                alt="SettleGrid developer dashboard showing revenue, invocations, and usage analytics"
-                className="w-full"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* ================================================================ */}
         {/*  2. Protocol logo bar                                            */}
         {/* ================================================================ */}
         <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148]">
@@ -749,6 +719,41 @@ export default function HomePage() {
                   step="3"
                   title="Get Paid Automatically"
                   description="Every call is metered in real time. Revenue splits across multi-agent chains settle atomically. $1 minimum payout — the lowest of any AI monetization platform."
+                />
+              </div>
+            </div>
+          </RevealSection>
+        </section>
+
+        {/* ================================================================ */}
+        {/*  3a-b. Dashboard screenshot — proof the product is real          */}
+        {/* ================================================================ */}
+        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#0F1117]">
+          <RevealSection>
+            <div className="max-w-5xl mx-auto">
+              <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">See It in Action</p>
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 text-center mb-4">Your dashboard, day one</h2>
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-10 max-w-xl mx-auto">
+                Revenue tracking, usage analytics, reputation scoring, and discovery tools &mdash; all from one dashboard.
+              </p>
+              <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#2E3148] shadow-2xl shadow-black/20">
+                <div className="bg-gray-100 dark:bg-[#1A1D2E] px-4 py-2.5 flex items-center gap-2 border-b border-gray-200 dark:border-[#2E3148]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-400/80" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
+                    <div className="w-3 h-3 rounded-full bg-green-400/80" />
+                  </div>
+                  <div className="flex-1 mx-4">
+                    <div className="bg-white dark:bg-[#252836] rounded-md px-3 py-1 text-xs text-gray-400 dark:text-gray-500 text-center">
+                      settlegrid.ai/dashboard
+                    </div>
+                  </div>
+                </div>
+                <img
+                  src="/screenshots/Dashboard 1.jpg"
+                  alt="SettleGrid developer dashboard showing revenue, invocations, and usage analytics"
+                  className="w-full"
+                  loading="lazy"
                 />
               </div>
             </div>
