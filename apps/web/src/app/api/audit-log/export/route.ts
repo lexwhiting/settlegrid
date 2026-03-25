@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, desc, gte } from 'drizzle-orm'
+import { eq, and, desc, gte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { auditLogs } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const conditions = [
       eq(auditLogs.developerId, auth.id),
-      gte(auditLogs.createdAt, since),
+      gte(auditLogs.createdAt, sql`${since.toISOString()}::timestamptz`),
     ]
 
     const action = url.searchParams.get('action')

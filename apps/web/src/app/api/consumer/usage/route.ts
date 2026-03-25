@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, gte } from 'drizzle-orm'
+import { eq, and, desc, gte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { invocations, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     const conditions = [
       eq(invocations.consumerId, auth.id),
-      gte(invocations.createdAt, cutoff),
+      gte(invocations.createdAt, sql`${cutoff.toISOString()}::timestamptz`),
     ]
 
     if (toolId) {

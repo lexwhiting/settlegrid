@@ -4,7 +4,7 @@ import {
   organizationMembers,
   costAllocations,
 } from '@/lib/db/schema'
-import { eq, and, gte, lte } from 'drizzle-orm'
+import { eq, and, gte, lte, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ---- Types ------------------------------------------------------------------
@@ -191,8 +191,8 @@ export async function getCostAllocations(
     .where(
       and(
         eq(costAllocations.orgId, orgId),
-        gte(costAllocations.periodStart, periodStart),
-        lte(costAllocations.periodEnd, periodEnd)
+        gte(costAllocations.periodStart, sql`${periodStart.toISOString()}::timestamptz`),
+        lte(costAllocations.periodEnd, sql`${periodEnd.toISOString()}::timestamptz`)
       )
     )
     .limit(1000)

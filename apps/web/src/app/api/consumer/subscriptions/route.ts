@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(
-        sql`${invocations.consumerId} = ${auth.id} AND ${invocations.createdAt} >= ${sixMonthsAgo}`
+        sql`${invocations.consumerId} = ${auth.id} AND ${invocations.createdAt} >= ${sixMonthsAgo.toISOString()}::timestamptz`
       )
       .groupBy(sql`to_char(${invocations.createdAt}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${invocations.createdAt}, 'YYYY-MM')`)
