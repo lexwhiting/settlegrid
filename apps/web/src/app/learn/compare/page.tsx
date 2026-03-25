@@ -59,6 +59,9 @@ export default function CompareIndexPage() {
       {/* ---- Main ---- */}
       <main className="flex-1 px-6 py-16">
         <div className="max-w-4xl mx-auto">
+          <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
+            <Link href="/learn" className="hover:text-emerald-400 transition-colors">&larr; Back to Learn</Link>
+          </nav>
           <h1 className="text-4xl font-bold text-gray-100 mb-4">
             How SettleGrid Compares
           </h1>
