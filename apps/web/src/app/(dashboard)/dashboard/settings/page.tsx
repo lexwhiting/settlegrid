@@ -1410,13 +1410,36 @@ export default function SettingsPage() {
                 <CardDescription>Manage your subscription and billing</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {/* Current Plan */}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Plan:</span>
-                  <Badge variant="default">
-                    {PLANS[currentPlanKey === 'standard' ? 'free' : currentPlanKey]?.name ?? 'Free'}
-                  </Badge>
-                </div>
+                {/* Current Plan Summary */}
+                {(() => {
+                  const planKey = currentPlanKey === 'standard' ? 'free' : currentPlanKey
+                  const plan = PLANS[planKey]
+                  const opsLimit = planKey === 'free' ? '25,000' : planKey === 'starter' ? '100,000' : planKey === 'growth' ? '500,000' : '2,000,000'
+                  const takeRate = planKey === 'free' ? '0%' : '5%'
+                  const revenueShare = planKey === 'free' ? '100%' : '95%'
+                  return (
+                    <div className="rounded-lg border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Plan:</span>
+                        <Badge variant="default">{plan?.name ?? 'Free'}</Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{revenueShare}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Revenue Share</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{opsLimit}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Ops/month</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{takeRate}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Platform Fee</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Plan Comparison */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
