@@ -12,7 +12,7 @@ import {
   auditLogs,
   toolReviews,
 } from '@/lib/db/schema'
-import { eq, and, gte, desc, inArray } from 'drizzle-orm'
+import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 // ---- Types ------------------------------------------------------------------
@@ -161,7 +161,7 @@ export async function collectDeveloperData(
         })
         .from(invocations)
         .innerJoin(tools, eq(invocations.toolId, tools.id))
-        .where(and(eq(tools.developerId, developerId), gte(invocations.createdAt, cutoffDate)))
+        .where(and(eq(tools.developerId, developerId), gte(invocations.createdAt, sql`${cutoffDate.toISOString()}::timestamptz`)))
         .orderBy(desc(invocations.createdAt))
         .limit(10000)
     )
@@ -195,7 +195,7 @@ export async function collectDeveloperData(
       db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.developerId, developerId), gte(auditLogs.createdAt, cutoffDate)))
+        .where(and(eq(auditLogs.developerId, developerId), gte(auditLogs.createdAt, sql`${cutoffDate.toISOString()}::timestamptz`)))
         .orderBy(desc(auditLogs.createdAt))
         .limit(5000)
     )
