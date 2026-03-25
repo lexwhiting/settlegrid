@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockRequireDeveloper, mockCheckRateLimit } = vi.hoisted(() => {
+const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -18,6 +18,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit } = vi.hoisted(() => {
     mockDb,
     mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+    mockValidateToolForActivation: vi.fn().mockResolvedValue({ passed: true, failures: [] }),
   }
 })
 
@@ -35,14 +36,20 @@ vi.mock('@/lib/db/schema', () => ({
     description: 'description',
     pricingConfig: 'pricing_config',
     status: 'status',
+    category: 'category',
+    verified: 'verified',
+    reportedAt: 'reported_at',
     totalInvocations: 'total_invocations',
     totalRevenueCents: 'total_revenue_cents',
+    healthEndpoint: 'health_endpoint',
+    currentVersion: 'current_version',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
   developers: {
     id: 'id',
     name: 'name',
+    slug: 'slug',
   },
   toolReviews: {
     id: 'id',
@@ -74,6 +81,10 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
+}))
+
+vi.mock('@/lib/quality-gates', () => ({
+  validateToolForActivation: mockValidateToolForActivation,
 }))
 
 import { GET, POST } from '@/app/api/tools/route'

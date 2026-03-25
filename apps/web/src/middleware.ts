@@ -65,30 +65,6 @@ function isGatePublicPath(pathname: string): boolean {
   return gatePublicPatterns.some((pattern) => pathname.startsWith(pattern))
 }
 
-/** Routes that do NOT require authentication */
-const publicRoutePatterns = [
-  /^\/$/,
-  /^\/gate$/,
-  /^\/login$/,
-  /^\/register$/,
-  /^\/tools(\/.*)?$/,
-  /^\/servers(\/.*)?$/,
-  /^\/docs(\/.*)?$/,
-  /^\/learn(\/.*)?$/,
-  /^\/faq(\/.*)?$/,
-  /^\/privacy(\/.*)?$/,
-  /^\/terms(\/.*)?$/,
-  /^\/dev(\/.*)?$/,
-  /^\/developers(\/.*)?$/,
-  /^\/admin(\/.*)?$/,
-  /^\/auth\/callback$/,
-  /^\/api\/(.*)?$/,
-]
-
-function isPublicRoute(pathname: string): boolean {
-  return publicRoutePatterns.some((pattern) => pattern.test(pathname))
-}
-
 function addSecurityHeaders(response: NextResponse): void {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
