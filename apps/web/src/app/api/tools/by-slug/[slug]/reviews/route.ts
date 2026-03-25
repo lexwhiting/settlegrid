@@ -147,7 +147,7 @@ export async function POST(
         createdAt: toolReviews.createdAt,
       })
 
-    // Fire-and-forget: notify the developer about the new review
+    // Fire-and-forget: notify the developer about the new review + check low rating threshold
     ;(async () => {
       try {
         const [dev] = await db
@@ -166,6 +166,52 @@ export async function POST(
           )
           await sendEmail({ to: dev.email, subject: email.subject, html: email.html })
         }
+
+        // Auto-flag: notify admin if average rating drops below 2.0 with 3+ reviews
+        const LOW_RATING_THRESHOLD = 2.0
+        const MIN_REVIEWS_FOR_FLAG = 3
+        const [ratingStats] = await db
+          .select({
+            avg: sql<number>`coalesce(avg(${toolReviews.rating})::numeric(2,1), 0)`,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(toolReviews)
+          .where(eq(toolReviews.toolId, tool.id))
+
+        if (
+          ratingStats &&
+          Number(ratingStats.count) >= MIN_REVIEWS_FOR_FLAG &&
+          Number(ratingStats.avg) < LOW_RATING_THRESHOLD
+        ) {
+          const avgStr = Number(ratingStats.avg).toFixed(1)
+          const adminEmails = ['lexwhiting365@gmail.com']
+          for (const adminEmail of adminEmails) {
+            await sendEmail({
+              to: adminEmail,
+              subject: `[SettleGrid] Low Rating Alert: ${tool.name} (${avgStr}/5.0)`,
+              html: `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #1A1F3A;">Low Rating Alert</h2>
+                  <p>Tool <strong>${escapeHtml(tool.name)}</strong> has dropped below ${LOW_RATING_THRESHOLD.toFixed(1)} average rating.</p>
+                  <ul>
+                    <li><strong>Average rating:</strong> ${avgStr} / 5.0</li>
+                    <li><strong>Total reviews:</strong> ${ratingStats.count}</li>
+                  </ul>
+                  <p>Consider reviewing this tool for quality issues.</p>
+                  <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">
+                    This is an automated notification from SettleGrid quality gates.
+                  </p>
+                </div>
+              `,
+            })
+          }
+          logger.warn('review.low_rating_flagged', {
+            toolId: tool.id,
+            toolName: tool.name,
+            avg: avgStr,
+            count: ratingStats.count,
+          })
+        }
       } catch (err) {
         logger.error('review.notification_failed', {}, err)
       }
@@ -175,4 +221,14 @@ export async function POST(
   } catch (error) {
     return internalErrorResponse(error)
   }
+}
+
+/** Escapes HTML entities to prevent XSS in emails. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
