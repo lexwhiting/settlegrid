@@ -223,6 +223,15 @@ export default function DiscoveryGuidePage() {
             active tool significantly improves your ranking in search results and the Showcase.
           </Callout>
 
+          <div className="mt-6 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+            <img
+              src="/screenshots/Discovery 1.jpg"
+              alt="Discovery tab showing profile setup and showcase status"
+              className="w-full"
+              loading="lazy"
+            />
+          </div>
+
           {/* ================================================================ */}
           {/*  Step 2: Publish Active Tools                                    */}
           {/* ================================================================ */}
