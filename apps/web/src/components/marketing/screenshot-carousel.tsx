@@ -17,10 +17,10 @@ const SLIDES: Slide[] = [
     url: 'settlegrid.ai/dashboard',
   },
   {
-    src: '/screenshots/Discovery 1.jpg',
-    alt: 'Discovery tab showing profile setup, showcase status, and badge generator',
-    label: 'Discovery & Distribution',
-    url: 'settlegrid.ai/dashboard/discovery',
+    src: '/screenshots/Reviews.jpg',
+    alt: 'Reviews dashboard with ratings summary, response management, and consumer feedback',
+    label: 'Reviews & Reputation',
+    url: 'settlegrid.ai/dashboard/reviews',
   },
   {
     src: '/screenshots/Tools.jpg',
