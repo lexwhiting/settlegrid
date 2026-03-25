@@ -96,22 +96,22 @@ export function ScreenshotCarousel() {
         </div>
       </div>
 
-      {/* Prev/Next arrows */}
+      {/* Prev/Next arrows — positioned outside the frame for consistency */}
       <button
         onClick={prev}
-        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm text-white/80 hover:text-white hover:bg-black/60 transition-all flex items-center justify-center"
+        className="absolute -left-5 sm:-left-6 top-[calc(50%+16px)] -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-black/70 hover:border-white/20 transition-all flex items-center justify-center shadow-lg"
         aria-label="Previous screenshot"
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
       </button>
       <button
         onClick={next}
-        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm text-white/80 hover:text-white hover:bg-black/60 transition-all flex items-center justify-center"
+        className="absolute -right-5 sm:-right-6 top-[calc(50%+16px)] -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-black/70 hover:border-white/20 transition-all flex items-center justify-center shadow-lg"
         aria-label="Next screenshot"
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
       </button>
