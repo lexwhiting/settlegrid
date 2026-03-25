@@ -400,20 +400,6 @@ export default async function ComparisonPage({
             </p>
           </section>
 
-          {/* ---- Prose placeholder for founder to expand ---- */}
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-100 mb-4">
-              Deep Dive
-            </h2>
-            <div className="bg-[#1A1D2E] border border-dashed border-[#2E3148] rounded-xl p-8 text-center text-gray-500">
-              <p className="text-sm">
-                {/* TODO: Founder — expand this section with 500-1000 words of detailed analysis */}
-                Detailed prose content will go here. Cover specific use cases,
-                code examples, migration guides, and customer testimonials.
-              </p>
-            </div>
-          </section>
-
           {/* ---- CTA ---- */}
           <section className="bg-gradient-to-br from-[#1A1D2E] to-[#0F1117] border border-[#2E3148] rounded-xl p-8 md:p-12 text-center">
             <h2 className="text-3xl font-bold text-gray-100 mb-4">
