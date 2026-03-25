@@ -134,6 +134,9 @@ MCP &middot; MPP (Stripe/Tempo) &middot; x402 (Coinbase) &middot; AP2 (Google) &
 - 1,017 open-source templates with billing pre-wired
 - CLI scaffolder: `npx create-settlegrid-tool`
 - Discovery tab with badge generator, checklist, API URLs
+- Consumer reviews with developer responses
+- Quality gates + Verified badge for activated tools
+- Proactive monitoring (onboarding drip, quality alerts, monthly summary)
 
 ## Pricing
 

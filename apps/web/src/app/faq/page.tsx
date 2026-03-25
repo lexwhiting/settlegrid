@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  FAQ Data — top 18 questions across core topics                             */
+/*  FAQ Data — top 28 questions across core topics                             */
 /* -------------------------------------------------------------------------- */
 
 const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }> }> = [
@@ -90,6 +90,14 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     title: 'Pricing Your Tool',
     faqs: [
       {
+        q: 'What pricing models does SettleGrid support?',
+        a: 'Six models: per-invocation (fixed cost per call), per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).',
+      },
+      {
+        q: 'Are there overage charges on the Free tier?',
+        a: 'Your tools keep working beyond 25,000 ops/month — we never cut off consumers. A 5% platform fee applies to overage operations (you keep 95% instead of 100%). Upgrade to any paid plan for higher limits.',
+      },
+      {
         q: 'How much should I charge per invocation?',
         a: "It depends on your tool's value and compute costs. Here are benchmarks by tool type:\n\n- Simple lookups/search: 1-5 cents per call\n- Data enrichment/APIs: 5-25 cents per call\n- AI-powered analysis: 10-50 cents per call\n- Complex multi-step workflows: 25 cents - $1+ per call\n\nStart on the lower end to attract early users, then adjust based on demand and feedback.",
       },
@@ -126,6 +134,45 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       {
         q: 'What is the revenue split?',
         a: 'The Free plan has a 0% take rate — developers keep 100% of revenue. On Starter, Growth, and Scale plans, the take rate is 5% — developers keep 95%. Need higher limits or a custom arrangement? Email support@settlegrid.ai.',
+      },
+    ],
+  },
+  {
+    title: 'Reviews',
+    faqs: [
+      {
+        q: 'Can consumers leave reviews?',
+        a: 'Yes. Consumers who have used a tool at least once can leave a 1-5 star rating with an optional written review (up to 1,000 characters). One review per consumer per tool.',
+      },
+      {
+        q: 'Can developers respond to reviews?',
+        a: "Yes. Developers can view and respond to all reviews from the Reviews tab in the dashboard. Responses appear publicly on the tool's storefront.",
+      },
+    ],
+  },
+  {
+    title: 'Quality & Verification',
+    faqs: [
+      {
+        q: 'What are quality gates?',
+        a: 'Before a tool can be activated and appear in the Showcase, it must meet minimum quality requirements: description of at least 50 characters, pricing configured, category selected, and developer profile complete.',
+      },
+      {
+        q: 'How do I earn the Verified badge?',
+        a: 'Tools earn the Verified badge automatically after receiving their first real (non-test) invocation. It signals to consumers that the tool has been successfully called in production.',
+      },
+    ],
+  },
+  {
+    title: 'Consumer',
+    faqs: [
+      {
+        q: 'How do I create an API key?',
+        a: "Go to the Consumer Dashboard, find the tool you purchased credits for, and click 'Generate API Key'. The full key is shown once — copy it immediately.",
+      },
+      {
+        q: 'Can I set spending limits?',
+        a: 'Yes. The Budget Controls section of the Consumer Dashboard lets you set daily, weekly, or monthly spending limits per tool with alert thresholds.',
       },
     ],
   },

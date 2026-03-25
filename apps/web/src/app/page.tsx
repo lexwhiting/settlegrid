@@ -240,6 +240,7 @@ function ComparisonTable() {
     { name: 'Revenue split (100% free / 95% paid)', settlegrid: true, stripe: false, nevermined: false, paid: false },
     { name: 'Built-in discovery (8+ registries)', settlegrid: true, stripe: false, nevermined: false, paid: false },
     { name: 'Quality gates & health monitoring', settlegrid: true, stripe: true, nevermined: false, paid: false },
+    { name: 'Consumer reviews & responses', settlegrid: true, stripe: false, nevermined: false, paid: false },
   ]
 
   function renderCell(val: boolean | string) {

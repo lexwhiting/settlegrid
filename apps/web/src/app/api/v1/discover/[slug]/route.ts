@@ -49,7 +49,7 @@ export async function GET(
       return errorResponse('Tool not found', 404, 'NOT_FOUND')
     }
 
-    // Fetch recent reviews
+    // Fetch recent reviews (only visible)
     const reviews = await db
       .select({
         rating: toolReviews.rating,
@@ -58,7 +58,7 @@ export async function GET(
       })
       .from(toolReviews)
       .innerJoin(tools, eq(toolReviews.toolId, tools.id))
-      .where(eq(tools.slug, slug))
+      .where(and(eq(tools.slug, slug), eq(toolReviews.status, 'visible')))
       .orderBy(desc(toolReviews.createdAt))
       .limit(10)
 

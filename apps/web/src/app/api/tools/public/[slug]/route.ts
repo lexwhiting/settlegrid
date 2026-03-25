@@ -59,7 +59,7 @@ export async function GET(
           createdAt: toolReviews.createdAt,
         })
         .from(toolReviews)
-        .where(eq(toolReviews.toolId, tool.id))
+        .where(and(eq(toolReviews.toolId, tool.id), eq(toolReviews.status, 'visible')))
         .orderBy(desc(toolReviews.createdAt))
         .limit(20)
 

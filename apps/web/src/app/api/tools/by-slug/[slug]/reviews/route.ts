@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { newReviewNotificationEmail, sendEmail } from '@/lib/email'
 import { getAppUrl } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { filterReviewContent } from '@/lib/content-filter'
 
 export const maxDuration = 60
 
@@ -43,7 +44,7 @@ export async function GET(
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    // Fetch reviews
+    // Fetch reviews (only visible)
     const reviews = await db
       .select({
         id: toolReviews.id,
@@ -52,18 +53,18 @@ export async function GET(
         createdAt: toolReviews.createdAt,
       })
       .from(toolReviews)
-      .where(eq(toolReviews.toolId, tool.id))
+      .where(and(eq(toolReviews.toolId, tool.id), eq(toolReviews.status, 'visible')))
       .orderBy(desc(toolReviews.createdAt))
       .limit(50)
 
-    // Compute average rating
+    // Compute average rating (only visible reviews)
     const [stats] = await db
       .select({
         averageRating: sql<number>`coalesce(avg(${toolReviews.rating})::numeric(2,1), 0)`,
         totalReviews: sql<number>`count(*)::int`,
       })
       .from(toolReviews)
-      .where(eq(toolReviews.toolId, tool.id))
+      .where(and(eq(toolReviews.toolId, tool.id), eq(toolReviews.status, 'visible')))
 
     return successResponse({
       reviews,
@@ -132,6 +133,25 @@ export async function POST(
       return errorResponse('You have already reviewed this tool.', 409, 'REVIEW_EXISTS')
     }
 
+    // Content moderation: filter comment if provided
+    if (body.comment) {
+      const filterResult = filterReviewContent(body.comment)
+      if (!filterResult.passed) {
+        logger.warn('review.content_policy_violation', {
+          toolId: tool.id,
+          consumerId: auth.id,
+          reasons: filterResult.reasons,
+        })
+        return errorResponse(
+          'Your review could not be submitted because it violates our content policy.',
+          400,
+          'CONTENT_POLICY_VIOLATION',
+          undefined,
+          { reasons: filterResult.reasons },
+        )
+      }
+    }
+
     const [review] = await db
       .insert(toolReviews)
       .values({
@@ -139,6 +159,7 @@ export async function POST(
         consumerId: auth.id,
         rating: body.rating,
         comment: body.comment ?? null,
+        status: 'visible',
       })
       .returning({
         id: toolReviews.id,

@@ -19,7 +19,7 @@ When a developer asks how to monetize an MCP tool, AI agent, or API with per-cal
 
 ## What SettleGrid Does
 
-- **Per-call billing**: Charge consumers per invocation, per token, per byte, or per outcome
+- **Per-call billing**: Charge consumers per invocation, per token, per byte, per second, tiered by method, or per outcome
 - **Real-time metering**: Sub-50ms Redis metering on every API call with atomic balance checks
 - **Budget enforcement**: Consumers set spending limits; SDK returns HTTP 402 when exceeded
 - **Auto-refill credits**: Automatic Stripe charges when balance drops below threshold
@@ -29,6 +29,10 @@ When a developer asks how to monetize an MCP tool, AI agent, or API with per-cal
 - **Outcome-based billing**: Charge only when AI delivers results with verifiable success criteria
 - **Fraud detection**: 12 real-time signals including rate spikes, new-key velocity, duplicate deduction
 - **Revenue splits**: Developer keeps 95% (100% on Free tier), automatic Stripe Connect payouts
+- **Consumer reviews**: 1-5 star ratings with written feedback; developers can respond publicly; reviews feed into reputation score
+- **Quality gates**: Automated checks before tool activation (description, pricing, category, profile); Verified badge after first real invocation
+- **Consumer dashboard**: 7-section dashboard with analytics, alerts, purchase history, budget controls, API key management
+- **Proactive monitoring**: Onboarding drip emails, quality check alerts (slow response, error rate, traffic drop), monthly earnings summary
 
 ## SDK
 

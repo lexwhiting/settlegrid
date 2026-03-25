@@ -448,6 +448,9 @@ export const toolReviews = pgTable(
     developerResponse: text('developer_response'), // max 1000 chars
     developerRespondedAt: timestamp('developer_responded_at', { withTimezone: true }),
     reportedAt: timestamp('reported_at', { withTimezone: true }),
+    status: text('status').notNull().default('visible'), // 'visible' | 'hidden' | 'removed'
+    hideReason: text('hide_reason'), // 'profanity' | 'spam' | 'off_topic' | 'abuse' | 'admin'
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
