@@ -26,6 +26,18 @@
     {
       "path": "/api/cron/aggregate-usage",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/onboarding-drip",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/quality-check",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/monthly-summary",
+      "schedule": "0 9 1 * *"
     }
   ]
 }
