@@ -74,6 +74,8 @@ const useCases = [
       'You built a useful tool on the weekend. Now people want to use it. Wrap it with 2 lines of SettleGrid SDK and start earning per call. Progressive take rate means 0% on your first $1,000 per month. No infrastructure to manage. No Stripe Connect boilerplate. Just code and revenue.',
     example: 'A weather API, a code formatter, a PDF converter, a web scraper.',
     keyBenefit: 'Ship billing in 5 minutes, not 5 weeks',
+    cta: 'Start earning →',
+    href: '/start',
   },
   {
     icon: (
@@ -87,6 +89,8 @@ const useCases = [
       'Your AI product charges per token, per inference, or per generation. SettleGrid gives you 6 pricing models out of the box: per-call, per-token, per-byte, per-second, tiered, and outcome-based. Sub-50ms metering means your users see real-time balance updates. Budget enforcement prevents runaway costs.',
     example: 'An LLM inference API, an image generation service, a code analysis tool.',
     keyBenefit: '6 pricing models, sub-50ms metering, budget enforcement',
+    cta: 'See pricing models →',
+    href: '/pricing',
   },
   {
     icon: (
@@ -100,6 +104,8 @@ const useCases = [
       'Your organization deploys dozens of AI agents. SettleGrid provides per-agent budgets, cost allocation, audit trails, and real-time spending controls. Know Your Agent (KYA) identity verification ensures only authorized agents can spend. Multi-hop settlement handles complex agent chains.',
     example: 'Internal AI tools, department-level budget caps, compliance reporting.',
     keyBenefit: 'Per-agent budgets, KYA identity, audit trails',
+    cta: 'Explore solutions →',
+    href: '/solutions/agent-to-agent',
   },
   {
     icon: (
@@ -113,6 +119,8 @@ const useCases = [
       'You maintain a popular open-source library. With SettleGrid, you can offer a hosted version with per-call billing while keeping the source code free. The free tier means your users can try it without any cost barrier, and progressive take rates mean you keep most of the revenue.',
     example: 'A hosted version of a CLI tool, a managed API wrapper, a premium tier.',
     keyBenefit: 'Free tier for users, progressive rates for you',
+    cta: 'See how it works →',
+    href: '/docs',
   },
   {
     icon: (
@@ -126,6 +134,8 @@ const useCases = [
       'You combine multiple APIs into something more valuable than the parts. SettleGrid handles the billing so you can focus on the integration. Per-call, per-token, or tiered pricing. Smart Proxy mode means zero code changes for simple wrappers.',
     example: 'A unified search API, a data enrichment service, a multi-model LLM router.',
     keyBenefit: 'Smart Proxy for zero-code billing',
+    cta: 'Try Smart Proxy →',
+    href: '/start',
   },
   {
     icon: (
@@ -139,6 +149,8 @@ const useCases = [
       'When Agent A calls Agent B which calls Agent C, who pays whom? SettleGrid handles multi-hop settlement automatically. Each agent in the chain gets their share. 15 payment protocols including MCP, x402, AP2, L402, KYAPay, EMVCo, and DRAIN ensure agents can pay each other regardless of platform.',
     example: 'A research agent chain, an orchestrator calling specialist agents, a marketplace.',
     keyBenefit: 'Multi-hop settlement, 15 protocols, automatic revenue splits',
+    cta: 'Learn about protocols →',
+    href: '/learn/protocols',
   },
 ] as const
 
@@ -203,12 +215,18 @@ export default function UseCasesPage() {
                   <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Example</p>
                   <p className="text-sm text-gray-300">{uc.example}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-4">
                   <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                   <span className="text-sm text-amber-400 font-medium">{uc.keyBenefit}</span>
                 </div>
+                <Link
+                  href={uc.href}
+                  className="inline-flex items-center text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  {uc.cta}
+                </Link>
               </div>
             ))}
           </div>
