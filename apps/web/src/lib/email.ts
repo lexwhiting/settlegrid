@@ -228,6 +228,9 @@ ${content}
 <span class="sg-muted" style="color:#d1d5db">&middot;</span>
 <a href="mailto:support@settlegrid.ai" style="color:#E5A336;text-decoration:none;font-size:13px;margin:0 8px">Support</a>
 </td></tr>
+<tr><td align="center" style="padding-bottom:12px">
+<p style="font-size:11px;color:#666;text-align:center;margin:0">Powered by <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> &mdash; The settlement layer for the AI economy</p>
+</td></tr>
 <tr><td align="center">
 <p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:0">&copy; ${year} Alerterra, LLC. All rights reserved.</p>
 <p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0">2810 N Church St, Wilmington, DE 19802, PMB #481712</p>

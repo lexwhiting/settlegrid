@@ -525,19 +525,68 @@ async function handleProxy(
     responseHeaders.set('X-SettleGrid-Proxy', 'true')
     responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
     responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
+    responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
+    responseHeaders.set('X-SettleGrid-Tool', slug)
+    responseHeaders.set('X-SettleGrid-Protocol', 'api-key')
     if (requestId) {
       responseHeaders.set('x-request-id', requestId)
     }
 
-    // Stream the response body back
-    return new NextResponse(upstreamResponse.body, {
-      status: upstreamStatus,
-      headers: responseHeaders,
-    })
+    // Inject _settlegrid metadata into JSON responses
+    return injectAttributionAndReturn(upstreamResponse, responseHeaders, upstreamStatus, slug, actualCost, 'api-key')
   } catch (error) {
     const latencyMs = Date.now() - startTime
     logger.error('proxy.internal_error', { slug, latencyMs, requestId }, error)
     return internalErrorResponse(error, requestId)
+  }
+}
+
+/**
+ * Injects `_settlegrid` metadata into JSON responses for attribution.
+ * For non-JSON responses, streams the body through unchanged.
+ */
+async function injectAttributionAndReturn(
+  upstreamResponse: Response,
+  responseHeaders: Headers,
+  upstreamStatus: number,
+  toolSlug: string,
+  costCents: number,
+  protocol: string
+): Promise<NextResponse> {
+  const contentType = upstreamResponse.headers.get('content-type') ?? ''
+  const isJson = contentType.includes('application/json')
+
+  if (!isJson) {
+    return new NextResponse(upstreamResponse.body, {
+      status: upstreamStatus,
+      headers: responseHeaders,
+    })
+  }
+
+  // Parse and inject _settlegrid metadata
+  try {
+    const text = await upstreamResponse.text()
+    const parsed = JSON.parse(text)
+
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      parsed._settlegrid = {
+        tool: toolSlug,
+        cost: costCents < 100 ? `$0.${String(costCents).padStart(2, '0')}` : `$${(costCents / 100).toFixed(2)}`,
+        protocol,
+        poweredBy: 'settlegrid.ai',
+      }
+    }
+
+    return new NextResponse(JSON.stringify(parsed), {
+      status: upstreamStatus,
+      headers: responseHeaders,
+    })
+  } catch {
+    // If JSON parsing fails, return the raw body through
+    return new NextResponse(upstreamResponse.body, {
+      status: upstreamStatus,
+      headers: responseHeaders,
+    })
   }
 }
 
@@ -763,6 +812,9 @@ async function handleMppProxy(
   responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
   responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
   responseHeaders.set('X-SettleGrid-Payment-Method', 'mpp')
+  responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
+  responseHeaders.set('X-SettleGrid-Tool', slug)
+  responseHeaders.set('X-SettleGrid-Protocol', 'mpp')
   if (mppResult.paymentId) {
     responseHeaders.set('X-SettleGrid-MPP-Payment-Id', mppResult.paymentId)
   }
@@ -770,10 +822,7 @@ async function handleMppProxy(
     responseHeaders.set('x-request-id', requestId)
   }
 
-  return new NextResponse(upstreamResponse.body, {
-    status: upstreamStatus,
-    headers: responseHeaders,
-  })
+  return injectAttributionAndReturn(upstreamResponse, responseHeaders, upstreamStatus, slug, actualCost, 'mpp')
 }
 
 /**
@@ -1063,6 +1112,9 @@ async function forwardAndBill(
   responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
   responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
   responseHeaders.set('X-SettleGrid-Payment-Method', paymentMethod)
+  responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
+  responseHeaders.set('X-SettleGrid-Tool', slug)
+  responseHeaders.set('X-SettleGrid-Protocol', paymentMethod)
   for (const [key, value] of Object.entries(extraHeaders)) {
     responseHeaders.set(key, value)
   }
@@ -1070,10 +1122,7 @@ async function forwardAndBill(
     responseHeaders.set('x-request-id', requestId)
   }
 
-  return new NextResponse(upstreamResponse.body, {
-    status: upstreamStatus,
-    headers: responseHeaders,
-  })
+  return injectAttributionAndReturn(upstreamResponse, responseHeaders, upstreamStatus, slug, actualCost, paymentMethod)
 }
 
 // ─── x402 Proxy Handler ─────────────────────────────────────────────────────

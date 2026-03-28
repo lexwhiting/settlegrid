@@ -9,31 +9,47 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function badge(label: string, message: string, color: string): string {
-  const labelWidth = label.length * 6.5 + 16
-  const messageWidth = message.length * 6.5 + 16
-  const totalWidth = labelWidth + messageWidth
+function formatCallCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M calls`
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K calls`
+  return `${count} calls`
+}
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20" role="img" aria-label="${escapeXml(label)}: ${escapeXml(message)}">
-  <title>${escapeXml(label)}: ${escapeXml(message)}</title>
+function badge(segments: { text: string; bg: string }[]): string {
+  const segmentWidths = segments.map((s) => s.text.length * 6.5 + 16)
+  const totalWidth = segmentWidths.reduce((a, b) => a + b, 0)
+
+  let rects = ''
+  let texts = ''
+  let xOffset = 0
+
+  for (let i = 0; i < segments.length; i++) {
+    const w = segmentWidths[i]
+    rects += `<rect x="${xOffset}" width="${w}" height="20" fill="${segments[i].bg}"/>`
+    texts += `<text x="${xOffset + w / 2}" y="14">${escapeXml(segments[i].text)}</text>`
+    xOffset += w
+  }
+
+  const ariaLabel = segments.map((s) => s.text).join(' | ')
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20" role="img" aria-label="${escapeXml(ariaLabel)}">
+  <title>${escapeXml(ariaLabel)}</title>
   <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
   <clipPath id="r"><rect width="${totalWidth}" height="20" rx="3" fill="#fff"/></clipPath>
   <g clip-path="url(#r)">
-    <rect width="${labelWidth}" height="20" fill="#555"/>
-    <rect x="${labelWidth}" width="${messageWidth}" height="20" fill="${color}"/>
+    ${rects}
     <rect width="${totalWidth}" height="20" fill="url(#s)"/>
   </g>
   <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="11">
-    <text x="${labelWidth / 2}" y="14">${escapeXml(label)}</text>
-    <text x="${labelWidth + messageWidth / 2}" y="14">${escapeXml(message)}</text>
+    ${texts}
   </g>
 </svg>`
 }
 
 /**
- * GET /api/badge/tool/:slug — SVG badge for a tool
+ * GET /api/badge/tool/:slug — Enhanced SVG badge for a tool with live stats
  *
- * Shows: "SettleGrid | tool-name" with status color
+ * Shows: "SettleGrid | tool-name | X calls" with status color
  * Usage in README: ![SettleGrid](https://settlegrid.ai/api/badge/tool/my-tool)
  */
 export async function GET(
@@ -47,13 +63,17 @@ export async function GET(
       .select({
         name: tools.name,
         status: tools.status,
+        totalInvocations: tools.totalInvocations,
       })
       .from(tools)
       .where(eq(tools.slug, slug))
       .limit(1)
 
     if (!tool) {
-      const svg = badge('SettleGrid', 'not found', '#999')
+      const svg = badge([
+        { text: 'SettleGrid', bg: '#555' },
+        { text: 'not found', bg: '#999' },
+      ])
       return new NextResponse(svg, {
         headers: {
           'Content-Type': 'image/svg+xml',
@@ -63,7 +83,12 @@ export async function GET(
     }
 
     const color = tool.status === 'active' ? '#E5A336' : '#6B7280'
-    const svg = badge('SettleGrid', tool.name, color)
+    const callCountText = formatCallCount(tool.totalInvocations)
+    const svg = badge([
+      { text: 'SettleGrid', bg: '#555' },
+      { text: tool.name, bg: color },
+      { text: callCountText, bg: '#4c1' },
+    ])
 
     return new NextResponse(svg, {
       headers: {
@@ -72,7 +97,10 @@ export async function GET(
       },
     })
   } catch {
-    const svg = badge('SettleGrid', 'error', '#EF4444')
+    const svg = badge([
+      { text: 'SettleGrid', bg: '#555' },
+      { text: 'error', bg: '#EF4444' },
+    ])
     return new NextResponse(svg, {
       headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-cache' },
     })
