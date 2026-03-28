@@ -20,7 +20,7 @@ const createOrgSchema = z.object({
       'Slug must be lowercase alphanumeric with hyphens, cannot start or end with hyphen'
     ),
   billingEmail: z.string().email('Invalid billing email'),
-  plan: z.enum(['free', 'starter', 'growth', 'scale', 'enterprise']).optional(),
+  plan: z.enum(['free', 'builder', 'scale', 'enterprise']).optional(),
 })
 
 export async function POST(request: NextRequest) {

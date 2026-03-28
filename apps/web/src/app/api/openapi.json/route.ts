@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
                   properties: {
                     name: { type: 'string' },
                     billingEmail: { type: 'string', format: 'email' },
-                    plan: { type: 'string', enum: ['free', 'starter', 'growth', 'scale', 'enterprise'] },
+                    plan: { type: 'string', enum: ['free', 'builder', 'scale', 'enterprise'] },
                     monthlyBudgetCents: { type: 'integer', minimum: 0 },
                   },
                 },

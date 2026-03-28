@@ -73,7 +73,7 @@ const jsonLdArticle = {
 function StepHeading({ id, number, title }: { id: string; number: number; title: string }) {
   return (
     <div id={id} className="scroll-mt-24 mb-6 mt-16 first:mt-0">
-      <p className="text-sm font-semibold text-emerald-400 tracking-wide uppercase mb-1">
+      <p className="text-sm font-semibold text-amber-400 tracking-wide uppercase mb-1">
         Step {number}
       </p>
       <h2 className="text-2xl sm:text-3xl font-bold text-gray-100">{title}</h2>
@@ -83,7 +83,7 @@ function StepHeading({ id, number, title }: { id: string; number: number; title:
 
 function Callout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-6 border-l-4 border-emerald-500 bg-emerald-500/5 rounded-r-lg px-5 py-4 text-sm text-gray-300 leading-relaxed">
+    <div className="my-6 border-l-4 border-amber-500 bg-amber-500/5 rounded-r-lg px-5 py-4 text-sm text-gray-300 leading-relaxed">
       {children}
     </div>
   )
@@ -92,7 +92,7 @@ function Callout({ children }: { children: React.ReactNode }) {
 function ChecklistItem({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3">
-      <svg className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+      <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
       </svg>
       <span>{children}</span>
@@ -103,7 +103,7 @@ function ChecklistItem({ children }: { children: React.ReactNode }) {
 function TocLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <li>
-      <a href={href} className="text-gray-400 hover:text-emerald-400 transition-colors text-sm">
+      <a href={href} className="text-gray-400 hover:text-amber-400 transition-colors text-sm">
         {children}
       </a>
     </li>
@@ -116,7 +116,7 @@ function TocLink({ href, children }: { href: string; children: React.ReactNode }
 
 export default function DiscoveryGuidePage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -124,7 +124,7 @@ export default function DiscoveryGuidePage() {
       />
 
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#0F1117]/80 backdrop-blur-lg sticky top-0 z-50">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#0C0E14]/80 backdrop-blur-lg sticky top-0 z-50">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -147,19 +147,19 @@ export default function DiscoveryGuidePage() {
       <main className="flex-1 px-6 py-16">
         <article className="max-w-3xl mx-auto">
           <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
-            <Link href="/learn" className="hover:text-emerald-400 transition-colors">&larr; Back to Learn</Link>
+            <Link href="/learn" className="hover:text-amber-400 transition-colors">&larr; Back to Learn</Link>
           </nav>
 
           {/* ================================================================ */}
           {/*  Hero                                                            */}
           {/* ================================================================ */}
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+            <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
               Discovery guide &middot; 6 steps &middot; Maximize visibility
             </div>
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4 leading-tight">
               How to Get{' '}
-              <span className="text-emerald-400">Discovered</span>
+              <span className="text-amber-400">Discovered</span>
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
               A step-by-step guide to making your tools findable by consumers and AI agents
@@ -170,8 +170,8 @@ export default function DiscoveryGuidePage() {
           {/* ================================================================ */}
           {/*  Table of Contents                                               */}
           {/* ================================================================ */}
-          <nav className="mb-16 bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-6" aria-label="Table of contents">
-            <p className="text-xs font-semibold text-emerald-400 tracking-wide uppercase mb-4">Contents</p>
+          <nav className="mb-16 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6" aria-label="Table of contents">
+            <p className="text-xs font-semibold text-amber-400 tracking-wide uppercase mb-4">Contents</p>
             <ol className="space-y-2.5 list-decimal list-inside">
               <TocLink href="#public-profile">Enable Your Public Profile</TocLink>
               <TocLink href="#publish-tools">Publish Active Tools</TocLink>
@@ -198,7 +198,7 @@ export default function DiscoveryGuidePage() {
               Go to <strong className="text-gray-100">Settings &rarr; Profile</strong> in your dashboard
             </ChecklistItem>
             <ChecklistItem>
-              Set a memorable slug (e.g., <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-xs">lexwhiting</code>) &mdash; this becomes your permanent URL
+              Set a memorable slug (e.g., <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">lexwhiting</code>) &mdash; this becomes your permanent URL
             </ChecklistItem>
             <ChecklistItem>
               Write a bio describing what you build and the problems your tools solve
@@ -208,9 +208,9 @@ export default function DiscoveryGuidePage() {
             </ChecklistItem>
           </ul>
 
-          <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5 mb-6">
+          <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-6">
             <p className="text-sm font-semibold text-gray-100 mb-2">Your profile URL</p>
-            <p className="text-emerald-400 font-mono text-sm">
+            <p className="text-amber-400 font-mono text-sm">
               settlegrid.ai/dev/&#123;slug&#125;
             </p>
             <p className="text-xs text-gray-500 mt-2">
@@ -219,11 +219,11 @@ export default function DiscoveryGuidePage() {
           </div>
 
           <Callout>
-            <strong className="text-emerald-400">Tip:</strong> A complete profile with a bio, slug, and at least one
+            <strong className="text-amber-400">Tip:</strong> A complete profile with a bio, slug, and at least one
             active tool significantly improves your ranking in search results and the Showcase.
           </Callout>
 
-          <div className="mt-6 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+          <div className="mt-6 rounded-xl overflow-hidden border border-[#2A2D3E] shadow-lg">
             <img
               src="/screenshots/Discovery 1.jpg"
               alt="Discovery tab showing profile setup and showcase status"
@@ -245,7 +245,7 @@ export default function DiscoveryGuidePage() {
           <ul className="space-y-3 text-gray-300 leading-relaxed mb-6">
             <ChecklistItem>
               Set your tool status to <strong className="text-gray-100">active</strong> to appear in the{' '}
-              <Link href="/tools" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">Showcase</Link>
+              <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">Showcase</Link>
             </ChecklistItem>
             <ChecklistItem>
               Add a <strong className="text-gray-100">category</strong> and <strong className="text-gray-100">tags</strong> &mdash; these power search and filtering
@@ -258,7 +258,7 @@ export default function DiscoveryGuidePage() {
             </ChecklistItem>
           </ul>
 
-          <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5 mb-6">
+          <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-6">
             <p className="text-sm font-semibold text-gray-100 mb-3">Good description vs. bad description</p>
             <div className="space-y-3 text-sm">
               <div>
@@ -266,7 +266,7 @@ export default function DiscoveryGuidePage() {
                 <p className="text-gray-500">Too vague. Consumers and agents cannot determine what this does or why it is better.</p>
               </div>
               <div>
-                <p className="text-emerald-400 font-medium mb-1">Good: &quot;Web search with structured JSON output, source attribution, and freshness scoring. Returns the top 10 results with title, snippet, URL, and publish date.&quot;</p>
+                <p className="text-amber-400 font-medium mb-1">Good: &quot;Web search with structured JSON output, source attribution, and freshness scoring. Returns the top 10 results with title, snippet, URL, and publish date.&quot;</p>
                 <p className="text-gray-500">Specific, scannable, and tells consumers exactly what they get.</p>
               </div>
             </div>
@@ -290,7 +290,7 @@ export default function DiscoveryGuidePage() {
 
           <h3 className="text-lg font-bold text-gray-100 mt-8 mb-3">Tool badge</h3>
           <p className="text-gray-300 leading-relaxed mb-3">
-            Shows your tool name and current status. Replace <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-xs">&#123;slug&#125;</code> with your tool slug.
+            Shows your tool name and current status. Replace <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">&#123;slug&#125;</code> with your tool slug.
           </p>
           <CopyableCodeBlock
             title="Markdown"
@@ -299,7 +299,7 @@ export default function DiscoveryGuidePage() {
 
           <h3 className="text-lg font-bold text-gray-100 mt-8 mb-3">Developer badge</h3>
           <p className="text-gray-300 leading-relaxed mb-3">
-            Shows your developer profile and reputation tier. Replace <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-xs">&#123;slug&#125;</code> with your developer slug.
+            Shows your developer profile and reputation tier. Replace <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">&#123;slug&#125;</code> with your developer slug.
           </p>
           <CopyableCodeBlock
             title="Markdown"
@@ -307,7 +307,7 @@ export default function DiscoveryGuidePage() {
           />
 
           <Callout>
-            <strong className="text-emerald-400">Why badges matter:</strong> Every badge click is a potential new consumer.
+            <strong className="text-amber-400">Why badges matter:</strong> Every badge click is a potential new consumer.
             Badges also improve your SEO by creating backlinks from GitHub to SettleGrid, which boosts
             your tool&apos;s ranking in the Showcase and Discovery API.
           </Callout>
@@ -324,19 +324,19 @@ export default function DiscoveryGuidePage() {
           </p>
 
           <Callout>
-            <strong className="text-emerald-400">Already listed everywhere:</strong> SettleGrid is already listed on the Official MCP Registry, Smithery, Glama, PulseMCP, mcp.so, and Cursor Directory. Your tools are automatically included when you publish them.
+            <strong className="text-amber-400">Already listed everywhere:</strong> SettleGrid is already listed on the Official MCP Registry, Smithery, Glama, PulseMCP, mcp.so, and Cursor Directory. Your tools are automatically included when you publish them.
           </Callout>
 
           <div className="space-y-6 mb-6">
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">Discovery API</h3>
               <p className="text-sm text-gray-400 mb-3">
-                Your tools are queryable via <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-xs">GET /api/v1/discover</code>.
+                Your tools are queryable via <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">GET /api/v1/discover</code>.
                 Third-party directories, IDE plugins, and integrations can search and embed your tools.
               </p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">MCP Discovery Server</h3>
               <p className="text-sm text-gray-400 mb-3">
                 AI agents using the MCP Discovery Server can find your tools by capability,
@@ -344,11 +344,11 @@ export default function DiscoveryGuidePage() {
               </p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">Showcase</h3>
               <p className="text-sm text-gray-400 mb-3">
                 The{' '}
-                <Link href="/tools" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                   SettleGrid Showcase
                 </Link>
                 {' '}is the public catalog of all active tools. It supports full-text search,
@@ -358,7 +358,7 @@ export default function DiscoveryGuidePage() {
           </div>
 
           <Callout>
-            <strong className="text-emerald-400">Zero configuration:</strong> You do not need to register with
+            <strong className="text-amber-400">Zero configuration:</strong> You do not need to register with
             the Discovery API or MCP Discovery Server separately. Publishing your tool as active on SettleGrid
             automatically makes it available through all discovery channels.
           </Callout>
@@ -373,33 +373,33 @@ export default function DiscoveryGuidePage() {
             of their tools. Higher reputation means higher ranking in the Showcase and Discovery API.
           </p>
 
-          <div className="overflow-x-auto rounded-xl border border-[#2E3148] mb-6">
+          <div className="overflow-x-auto rounded-xl border border-[#2A2D3E] mb-6">
             <table className="w-full text-sm" role="table" aria-label="Reputation tiers and requirements">
               <thead>
-                <tr className="border-b border-[#2E3148] bg-[#1A1D2E]">
+                <tr className="border-b border-[#2A2D3E] bg-[#161822]">
                   <th scope="col" className="text-left py-3 px-4 font-medium text-gray-400">Tier</th>
                   <th scope="col" className="text-left py-3 px-4 font-medium text-gray-400">Requirement</th>
                   <th scope="col" className="text-left py-3 px-4 font-medium text-gray-400">Benefit</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-[#2E3148]/50">
+                <tr className="border-b border-[#2A2D3E]/50">
                   <td className="py-3 px-4 font-medium text-amber-600">Bronze</td>
                   <td className="py-3 px-4 text-gray-300">Profile complete, 1+ active tool</td>
                   <td className="py-3 px-4 text-gray-400">Listed in Showcase</td>
                 </tr>
-                <tr className="border-b border-[#2E3148]/50">
+                <tr className="border-b border-[#2A2D3E]/50">
                   <td className="py-3 px-4 font-medium text-gray-300">Silver</td>
                   <td className="py-3 px-4 text-gray-300">95%+ uptime, positive reviews</td>
                   <td className="py-3 px-4 text-gray-400">Priority ranking in search</td>
                 </tr>
-                <tr className="border-b border-[#2E3148]/50">
+                <tr className="border-b border-[#2A2D3E]/50">
                   <td className="py-3 px-4 font-medium text-yellow-400">Gold</td>
                   <td className="py-3 px-4 text-gray-300">99%+ uptime, 3+ tools, strong reviews</td>
                   <td className="py-3 px-4 text-gray-400">Featured in Showcase, Discovery API boost</td>
                 </tr>
-                <tr className="border-b border-[#2E3148]/50 last:border-b-0">
-                  <td className="py-3 px-4 font-medium text-emerald-400">Platinum</td>
+                <tr className="border-b border-[#2A2D3E]/50 last:border-b-0">
+                  <td className="py-3 px-4 font-medium text-amber-400">Platinum</td>
                   <td className="py-3 px-4 text-gray-300">Top-tier uptime, high volume, excellent reputation</td>
                   <td className="py-3 px-4 text-gray-400">Homepage feature, premium badge, agent priority</td>
                 </tr>
@@ -416,7 +416,7 @@ export default function DiscoveryGuidePage() {
           </ul>
 
           <Callout>
-            <strong className="text-emerald-400">Tips for climbing tiers:</strong> Respond to consumer reviews promptly.
+            <strong className="text-amber-400">Tips for climbing tiers:</strong> Respond to consumer reviews promptly.
             Set up health monitoring to catch downtime before it affects your score. Keep tools updated
             and deprecate anything you no longer maintain. Consistency beats perfection.
           </Callout>
@@ -427,7 +427,7 @@ export default function DiscoveryGuidePage() {
           <StepHeading id="share-profile" number={6} title="Share Your Profile" />
 
           <p className="text-gray-300 leading-relaxed mb-4">
-            Your developer profile at <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-xs">settlegrid.ai/dev/&#123;slug&#125;</code> is
+            Your developer profile at <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">settlegrid.ai/dev/&#123;slug&#125;</code> is
             a public, linkable page that showcases all your active tools, reputation tier, and bio.
             Treat it as your professional identity in the AI tool economy.
           </p>
@@ -441,14 +441,14 @@ export default function DiscoveryGuidePage() {
             <li><strong className="text-gray-100">API documentation</strong> &mdash; link to your SettleGrid profile as the canonical source for your tools</li>
           </ul>
 
-          <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5 mb-6">
+          <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-6">
             <p className="text-sm font-semibold text-gray-100 mb-3">Quick links to share</p>
             <div className="space-y-2 text-sm font-mono">
               <p className="text-gray-300">
-                Profile: <span className="text-emerald-400">settlegrid.ai/dev/&#123;slug&#125;</span>
+                Profile: <span className="text-amber-400">settlegrid.ai/dev/&#123;slug&#125;</span>
               </p>
               <p className="text-gray-300">
-                Tool page: <span className="text-emerald-400">settlegrid.ai/tools/&#123;tool-slug&#125;</span>
+                Tool page: <span className="text-amber-400">settlegrid.ai/tools/&#123;tool-slug&#125;</span>
               </p>
             </div>
           </div>
@@ -456,7 +456,7 @@ export default function DiscoveryGuidePage() {
           {/* ================================================================ */}
           {/*  Footer CTA                                                      */}
           {/* ================================================================ */}
-          <div className="mt-20 mb-8 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-8 sm:p-12 text-center">
+          <div className="mt-20 mb-8 bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20 rounded-2xl p-8 sm:p-12 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-4">
               Ready to get discovered?
             </h2>
@@ -484,7 +484,7 @@ export default function DiscoveryGuidePage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
             <SettleGridLogo variant="compact" size={32} />

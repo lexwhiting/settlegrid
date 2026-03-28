@@ -208,7 +208,7 @@ export function baseEmailTemplate(
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%">
 <!-- Logo -->
 <tr><td align="center" style="padding-bottom:24px">
-<span style="display:inline-block;font-size:22px;letter-spacing:-0.5px"><span style="font-weight:700;color:#1A1F3A">Settle</span><span style="font-weight:400;color:#10B981">Grid</span></span>
+<span style="display:inline-block;font-size:22px;letter-spacing:-0.5px"><span style="font-weight:700;color:#1A1F3A">Settle</span><span style="font-weight:400;color:#E5A336">Grid</span></span>
 </td></tr>
 <!-- Card -->
 <tr><td>
@@ -222,11 +222,11 @@ ${content}
 <tr><td style="padding-top:24px;text-align:center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td align="center" style="padding-bottom:12px">
-<a href="https://settlegrid.ai" style="color:#059669;text-decoration:none;font-size:13px;margin:0 8px">Website</a>
+<a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-size:13px;margin:0 8px">Website</a>
 <span class="sg-muted" style="color:#d1d5db">&middot;</span>
-<a href="https://settlegrid.ai/docs" style="color:#059669;text-decoration:none;font-size:13px;margin:0 8px">Docs</a>
+<a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:none;font-size:13px;margin:0 8px">Docs</a>
 <span class="sg-muted" style="color:#d1d5db">&middot;</span>
-<a href="mailto:support@settlegrid.ai" style="color:#059669;text-decoration:none;font-size:13px;margin:0 8px">Support</a>
+<a href="mailto:support@settlegrid.ai" style="color:#E5A336;text-decoration:none;font-size:13px;margin:0 8px">Support</a>
 </td></tr>
 <tr><td align="center">
 <p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:0">&copy; ${year} Alerterra, LLC. All rights reserved.</p>
@@ -244,7 +244,7 @@ ${content}
  * Create a bulletproof CTA button that works in Outlook and all major clients.
  * Uses VML fallback for Outlook and padding-based approach for others.
  */
-export function ctaButton(text: string, href: string, color = '#059669'): string {
+export function ctaButton(text: string, href: string, color = '#E5A336'): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px auto"><tr><td align="center" style="border-radius:8px;background-color:${color}">
 <!--[if mso]>
 <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(href)}" style="height:44px;v-text-anchor:middle;width:200px" arcsize="18%" strokecolor="${color}" fillcolor="${color}">
@@ -269,7 +269,7 @@ export function welcomeDeveloperEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Welcome, ${escapeHtml(name)}!</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You're all set to start monetizing your AI tools — <strong>free forever</strong>. Your Free plan includes 25,000 ops/month, unlimited tools, and a 0% take rate. You keep 100% of revenue. No credit card required.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">You're all set to start monetizing your AI tools — <strong>free forever</strong>. Your Free plan includes 50,000 ops/month, unlimited tools, and a progressive take rate (0% on your first $1K/mo of revenue). No credit card required.</p>
 <h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Next steps:</h3>
 <ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
 <li>Connect your Stripe account to receive payouts</li>
@@ -344,7 +344,6 @@ export function stripeConnectCompleteEmail(
   name: string,
   options?: { preheader?: string; revenueSharePct?: number }
 ): EmailTemplate {
-  const pct = options?.revenueSharePct ?? 95
   return {
     subject: 'Stripe Connect is active — You can now receive payouts',
     html: baseEmailTemplate(
@@ -352,7 +351,7 @@ export function stripeConnectCompleteEmail(
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Stripe Connect Active</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Great news, ${escapeHtml(name)}! Your Stripe Connect account is now active. You'll receive payouts automatically based on your payout schedule.</p>
 <ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
-<li>Revenue split: You keep ${pct}%</li>
+<li>Revenue split: Progressive take rate — 0% on your first $1K/mo</li>
 <li>Minimum payout: $1.00 — get paid from your very first earnings</li>
 <li>Schedule: Based on your settings (weekly or monthly)</li>
 </ul>
@@ -374,7 +373,7 @@ export function payoutNotificationEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Payout Initiated</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, a payout of <strong style="color:#10B981">${formatted}</strong> has been initiated to your connected Stripe account.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, a payout of <strong style="color:#E5A336">${formatted}</strong> has been initiated to your connected Stripe account.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6">Funds typically arrive within 2-7 business days depending on your bank.</p>
 ${ctaButton('View Payouts', 'https://settlegrid.ai/dashboard/payouts')}
 `,
@@ -417,7 +416,7 @@ export function creditPurchaseConfirmationEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Purchase Confirmed</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your purchase of <strong style="color:#10B981">${formatted}</strong> in credits for <strong>${escapeHtml(toolName)}</strong> has been confirmed.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your purchase of <strong style="color:#E5A336">${formatted}</strong> in credits for <strong>${escapeHtml(toolName)}</strong> has been confirmed.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6">Credits have been added to your balance and are available immediately.</p>
 ${ctaButton('View Balance', 'https://settlegrid.ai/consumer')}
 `,
@@ -650,7 +649,7 @@ ${ctaButton('Download Data Export', exportUrl)}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your SettleGrid account associated with <strong>${escapeHtml(email)}</strong> has been permanently deleted.</p>
 ${alertBanner('info', 'Data retention', 'Some data may be retained for up to 30 days for legal and compliance purposes before being permanently removed.')}
 ${exportSection}
-<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px">If you believe this was a mistake, contact <a href="mailto:support@settlegrid.ai" style="color:#059669">support@settlegrid.ai</a> within 30 days.</p>
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px">If you believe this was a mistake, contact <a href="mailto:support@settlegrid.ai" style="color:#E5A336">support@settlegrid.ai</a> within 30 days.</p>
 `,
       { preheader: 'Your SettleGrid account has been permanently deleted.' }
     ),
@@ -723,7 +722,7 @@ export function payoutCompletedEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Payout Completed</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your payout of <strong style="color:#10B981">${formatted}</strong> has been deposited to your bank account.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your payout of <strong style="color:#E5A336">${formatted}</strong> has been deposited to your bank account.</p>
 ${alertBanner('success', 'Deposit confirmed', 'Funds have been transferred to your connected bank account.')}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
 ${dataRow('Amount', formatted)}
@@ -832,7 +831,7 @@ export function orgMemberRemovedEmail(
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Organization Access Revoked</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your access to <strong>${escapeHtml(orgName)}</strong> on SettleGrid has been revoked.</p>
 ${alertBanner('info', 'Access revoked', 'You no longer have access to tools, API keys, or settings associated with this organization.')}
-<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">If you believe this was a mistake, contact the organization administrator or reach out to <a href="mailto:support@settlegrid.ai" style="color:#059669">support@settlegrid.ai</a>.</p>
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">If you believe this was a mistake, contact the organization administrator or reach out to <a href="mailto:support@settlegrid.ai" style="color:#E5A336">support@settlegrid.ai</a>.</p>
 `,
       { preheader: `Your access to ${escapeHtml(orgName)} on SettleGrid has been revoked.` }
     ),
@@ -912,7 +911,7 @@ export function dunningEmail(
       heading: 'Payment Failed',
       body: `We were unable to process your payment of <strong style="color:#ef4444">${formatted}</strong> for <strong>${safeTool}</strong>. Please update your payment method to continue using the service.`,
       bannerType: 'warning',
-      ctaColor: '#059669',
+      ctaColor: '#E5A336',
     },
     3: {
       heading: 'Payment Still Failing',
@@ -1030,13 +1029,14 @@ ${ctaButton('View Tool', 'https://settlegrid.ai/dashboard/tools')}
 }
 
 const PLAN_DETAILS: Record<string, { label: string; opsLimit: string; takeRate: string }> = {
-  standard: { label: 'Free', opsLimit: '25,000', takeRate: '0%' },
-  starter: { label: 'Starter', opsLimit: '100,000', takeRate: '5%' },
-  growth: { label: 'Growth', opsLimit: '500,000', takeRate: '5%' },
-  scale: { label: 'Scale', opsLimit: '2,000,000', takeRate: '5%' },
+  standard: { label: 'Free', opsLimit: '50,000', takeRate: 'Progressive (0% on first $1K/mo)' },
+  builder: { label: 'Builder', opsLimit: '200,000', takeRate: 'Progressive' },
+  starter: { label: 'Builder', opsLimit: '200,000', takeRate: 'Progressive' }, // legacy alias
+  growth: { label: 'Builder', opsLimit: '200,000', takeRate: 'Progressive' }, // legacy alias
+  scale: { label: 'Scale', opsLimit: '2,000,000', takeRate: 'Progressive' },
 }
 
-const PLAN_RANK: Record<string, number> = { standard: 0, starter: 1, growth: 2, scale: 3 }
+const PLAN_RANK: Record<string, number> = { standard: 0, builder: 1, starter: 1, growth: 1, scale: 2 }
 
 export function planChangedEmail(
   name: string,
@@ -1082,7 +1082,7 @@ export function revenueMilestoneEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Revenue Milestone Reached!</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Congratulations, ${escapeHtml(name)}! Your tool <strong>${escapeHtml(toolName)}</strong> has earned a total of <strong style="color:#10B981">${formatted}</strong> on SettleGrid.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Congratulations, ${escapeHtml(name)}! Your tool <strong>${escapeHtml(toolName)}</strong> has earned a total of <strong style="color:#E5A336">${formatted}</strong> on SettleGrid.</p>
 ${alertBanner('success', 'Milestone unlocked', `You have reached ${formatted} in total earnings. Keep building great tools!`)}
 ${ctaButton('View Earnings', 'https://settlegrid.ai/dashboard')}
 `,
@@ -1097,7 +1097,7 @@ export interface ToolBreakdownItem {
   invocations?: number
 }
 
-const UNSUBSCRIBE_FOOTER = `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:24px 0 0;text-align:center">You are receiving this because you have a SettleGrid account. <a href="https://settlegrid.ai/dashboard/settings" style="color:#059669;text-decoration:underline">Manage email preferences</a> or <a href="https://settlegrid.ai/unsubscribe" style="color:#059669;text-decoration:underline">unsubscribe</a>.</p>`
+const UNSUBSCRIBE_FOOTER = `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:24px 0 0;text-align:center">You are receiving this because you have a SettleGrid account. <a href="https://settlegrid.ai/dashboard/settings" style="color:#E5A336;text-decoration:underline">Manage email preferences</a> or <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">unsubscribe</a>.</p>`
 
 export function monthlyEarningsSummaryEmail(
   name: string,
@@ -1566,8 +1566,9 @@ ${ctaButton('Contact Support', 'mailto:support@settlegrid.ai', '#ef4444')}
 
 const TIER_DISPLAY_NAMES: Record<string, string> = {
   standard: 'Free',
-  starter: 'Starter',
-  growth: 'Growth',
+  builder: 'Builder',
+  starter: 'Builder', // legacy alias
+  growth: 'Builder', // legacy alias
   scale: 'Scale',
   enterprise: 'Enterprise',
 }
@@ -1682,7 +1683,7 @@ export function newReviewNotificationEmail(
   }).join('')
 
   const commentHtml = comment
-    ? `<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0;padding:12px 16px;background:#f9fafb;border-radius:8px;border-left:3px solid #10B981;font-style:italic">"${escapeHtml(comment)}"</p>`
+    ? `<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0;padding:12px 16px;background:#f9fafb;border-radius:8px;border-left:3px solid #E5A336;font-style:italic">"${escapeHtml(comment)}"</p>`
     : `<p class="sg-muted" style="color:#9ca3af;font-size:13px;margin:16px 0;font-style:italic">No comment was left with this review.</p>`
 
   return {
@@ -1976,6 +1977,112 @@ ${ctaButton('View Dashboard', 'https://settlegrid.ai/dashboard')}
 ${UNSUBSCRIBE_FOOTER}
 `,
       { preheader: `You earned ${revenue} from ${invocations} invocations in ${escapeHtml(monthName)}.` }
+    ),
+  }
+}
+
+// ── First Invocation Celebration ──────────────────────────────────────────
+
+/**
+ * Celebration email when a tool receives its first real (non-test) invocation.
+ * This is a milestone — the tool is live and earning.
+ */
+export function firstInvocationCelebrationEmail(
+  devName: string,
+  toolName: string,
+  toolId: string
+): EmailTemplate {
+  const analyticsUrl = `https://settlegrid.ai/dashboard/tools/${encodeURIComponent(toolId)}`
+
+  return {
+    subject: sanitizeSubject('Your tool just got its first call!'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">First Invocation!</h2>
+${alertBanner('success', 'Milestone reached', `${escapeHtml(toolName)} just received its first real invocation on SettleGrid.`)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">Hi ${escapeHtml(devName)}, this is a milestone &mdash; your tool is now live and earning.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Check your analytics to see who is using it and how much you are earning.</p>
+${ctaButton('View Analytics', analyticsUrl)}
+<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Keep building. The more tools you publish, the more you earn.</p>
+`,
+      { preheader: `${toolName} just got its first real call on SettleGrid!` }
+    ),
+  }
+}
+
+// ── Referral Bonus Notification ──────────────────────────────────────────
+
+/**
+ * Email sent to the referrer when someone signs up using their invite code
+ * and both parties are credited bonus operations.
+ */
+export function referralBonusEmail(
+  devName: string,
+  totalBonusOps: number,
+  inviteUrl: string
+): EmailTemplate {
+  const formattedOps = new Intl.NumberFormat('en-US').format(totalBonusOps)
+
+  return {
+    subject: sanitizeSubject('You earned 5,000 bonus operations!'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Referral Bonus Earned</h2>
+${alertBanner('success', '+5,000 operations', 'Someone just signed up using your invite link.')}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">Hi ${escapeHtml(devName)}, you have been credited <strong style="color:#E5A336">5,000 free operations</strong>.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Bonus credited', '5,000 ops')}
+${dataRow('Total bonus balance', `${escapeHtml(formattedOps)} ops`, true)}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Share your link to earn more:</p>
+${codeBlock(escapeHtml(inviteUrl))}
+${ctaButton('View Referrals', 'https://settlegrid.ai/dashboard/referrals')}
+`,
+      { preheader: 'Someone signed up with your invite link. You earned 5,000 bonus operations!' }
+    ),
+  }
+}
+
+// ── Claim Your Listing Templates ─────────────────────────────────────────────
+
+/**
+ * Outreach email sent to developers whose MCP server has been auto-indexed.
+ * Includes CAN-SPAM compliant footer with unsubscribe and physical address.
+ */
+export function claimToolOutreachEmail(
+  firstName: string,
+  toolName: string,
+  claimToken: string,
+  sourceRepoUrl: string | null
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+  const repoLine = sourceRepoUrl
+    ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:8px 0 0">Source: <a href="${escapeHtml(sourceRepoUrl)}" style="color:#E5A336;text-decoration:underline">${escapeHtml(sourceRepoUrl.slice(0, 80))}</a></p>`
+    : ''
+
+  return {
+    subject: sanitizeSubject(`Your MCP server "${toolName}" is listed on SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Tool Is Listed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your MCP server <strong>${escapeHtml(toolName)}</strong> has been automatically indexed on SettleGrid's marketplace.</p>
+${repoLine}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">Right now it is listed as an unclaimed tool. By claiming it, you can:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
+<li>Set per-call pricing (you choose: 1 cent to $10 per call)</li>
+<li>Connect Stripe to receive payouts (95-100% revenue share)</li>
+<li>Get your own tool storefront page with reviews and analytics</li>
+<li>Appear in our discovery API used by AI agents</li>
+</ul>
+${ctaButton('Claim Your Tool', claimUrl)}
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">This takes about 2 minutes. Your tool is already indexed — you are just activating monetization.</p>
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:8px 0 0">If this is not your tool or you are not interested, just ignore this email.</p>
+${dividerLine()}
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You are receiving this because your MCP server was indexed on SettleGrid. <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>
+`,
+      { preheader: `Claim "${toolName}" on SettleGrid and start earning per-call revenue.` }
     ),
   }
 }

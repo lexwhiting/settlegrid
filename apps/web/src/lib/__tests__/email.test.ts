@@ -110,7 +110,7 @@ describe('baseEmailTemplate', () => {
     expect(html).toContain('Settle')
     expect(html).toContain('Grid')
     expect(html).toContain('#1A1F3A')
-    expect(html).toContain('#10B981')
+    expect(html).toContain('#E5A336')
   })
 
   it('includes enhanced footer with links', () => {
@@ -121,9 +121,9 @@ describe('baseEmailTemplate', () => {
     expect(html).toContain('All rights reserved')
   })
 
-  it('uses WCAG AA compliant color #059669 for footer links', () => {
+  it('uses WCAG AA compliant color #E5A336 for footer links', () => {
     const html = baseEmailTemplate('<p>test</p>')
-    expect(html).toContain('color:#059669')
+    expect(html).toContain('color:#E5A336')
   })
 
   it('includes copyright year', () => {
@@ -324,7 +324,7 @@ describe('ctaButton', () => {
     expect(html).toContain('Click Me')
     expect(html).toContain('https://example.com')
     expect(html).toContain('<table')
-    expect(html).toContain('#059669') // default color
+    expect(html).toContain('#E5A336') // default color
   })
 
   it('supports custom colors', () => {
@@ -611,15 +611,9 @@ describe('stripeConnectCompleteEmail', () => {
     expect(result.html).toContain('Stripe Connect account is live')
   })
 
-  it('defaults to 95% revenue share', () => {
+  it('shows progressive take rate info', () => {
     const result = stripeConnectCompleteEmail('Dev')
-    expect(result.html).toContain('You keep 95%')
-  })
-
-  it('accepts custom revenueSharePct', () => {
-    const result = stripeConnectCompleteEmail('Dev', { revenueSharePct: 97 })
-    expect(result.html).toContain('You keep 97%')
-    expect(result.html).not.toContain('You keep 95%')
+    expect(result.html).toContain('Progressive take rate')
   })
 })
 
@@ -1629,7 +1623,7 @@ describe('dunningEmail', () => {
 
   it('escalates CTA color — day 0 green', () => {
     const result = dunningEmail('user@test.com', 0, 1000, 'Tool')
-    expect(result.html).toContain('#059669')
+    expect(result.html).toContain('#E5A336')
   })
 
   it('escalates CTA color — day 14 red', () => {

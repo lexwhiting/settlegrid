@@ -1,0 +1,27 @@
+name: 'SettleGrid Publish'
+description: 'Publish your MCP tool to the SettleGrid registry on every deploy'
+branding:
+  icon: 'upload-cloud'
+  color: 'green'
+inputs:
+  api-key:
+    description: 'Your SettleGrid developer API key'
+    required: true
+  config-path:
+    description: 'Path to settlegrid.config.json (default: ./settlegrid.config.json)'
+    required: false
+    default: './settlegrid.config.json'
+  base-url:
+    description: 'SettleGrid API base URL'
+    required: false
+    default: 'https://settlegrid.ai'
+outputs:
+  tool-url:
+    description: 'Storefront URL for the published tool'
+  tool-slug:
+    description: 'The tool slug in the registry'
+  version:
+    description: 'The published version'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

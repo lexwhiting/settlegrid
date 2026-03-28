@@ -403,7 +403,7 @@ describe('Webhook (POST /api/billing/webhook)', () => {
     expect(data.received).toBe(true)
   })
 
-  it('handles checkout.session.completed for developer subscription', async () => {
+  it('handles checkout.session.completed for developer subscription (builder)', async () => {
     mockStripeWebhooks.constructEvent.mockReturnValueOnce({
       type: 'checkout.session.completed',
       data: {
@@ -413,7 +413,7 @@ describe('Webhook (POST /api/billing/webhook)', () => {
           subscription: 'sub_test_123',
           metadata: {
             developerId: 'dev-123',
-            plan: 'starter',
+            plan: 'builder',
           },
         },
       },
@@ -433,28 +433,27 @@ describe('Webhook (POST /api/billing/webhook)', () => {
 
     expect(response.status).toBe(200)
     expect(data.received).toBe(true)
-    // Verify developer update was called
+    // Verify developer update was called (no revenueSharePct — progressive take rate)
     expect(mockDb.update).toHaveBeenCalled()
     expect(mockDb.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        tier: 'starter',
+        tier: 'builder',
         stripeSubscriptionId: 'sub_test_123',
-        revenueSharePct: 95,
       })
     )
   })
 
-  it('handles checkout.session.completed for growth plan subscription', async () => {
+  it('normalizes legacy starter plan to builder on subscription', async () => {
     mockStripeWebhooks.constructEvent.mockReturnValueOnce({
       type: 'checkout.session.completed',
       data: {
         object: {
-          id: 'cs_sub_growth',
+          id: 'cs_sub_legacy',
           mode: 'subscription',
-          subscription: 'sub_growth_123',
+          subscription: 'sub_legacy_123',
           metadata: {
             developerId: 'dev-456',
-            plan: 'growth',
+            plan: 'starter',
           },
         },
       },
@@ -464,7 +463,7 @@ describe('Webhook (POST /api/billing/webhook)', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'stripe-signature': 'sig_growth_test',
+        'stripe-signature': 'sig_legacy_test',
       },
       body: JSON.stringify({ type: 'checkout.session.completed' }),
     })
@@ -473,9 +472,8 @@ describe('Webhook (POST /api/billing/webhook)', () => {
     expect(response.status).toBe(200)
     expect(mockDb.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        tier: 'growth',
-        stripeSubscriptionId: 'sub_growth_123',
-        revenueSharePct: 95,
+        tier: 'builder',
+        stripeSubscriptionId: 'sub_legacy_123',
       })
     )
   })
@@ -540,7 +538,6 @@ describe('Webhook (POST /api/billing/webhook)', () => {
     expect(mockDb.set).toHaveBeenCalledWith(
       expect.objectContaining({
         tier: 'scale',
-        revenueSharePct: 95,
       })
     )
   })
@@ -578,7 +575,6 @@ describe('Webhook (POST /api/billing/webhook)', () => {
       expect.objectContaining({
         tier: 'standard',
         stripeSubscriptionId: null,
-        revenueSharePct: 100,
       })
     )
   })

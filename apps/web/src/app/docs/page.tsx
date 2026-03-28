@@ -7,7 +7,7 @@ import { FaqAccordion } from '@/components/ui/faq-accordion'
 
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
-  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid.',
+  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across 10 payment protocols.',
   alternates: { canonical: 'https://settlegrid.ai/docs' },
   keywords: [
     'SettleGrid documentation',
@@ -34,7 +34,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is SettleGrid?',
-      a: 'SettleGrid is the settlement layer for the AI economy. It lets developers monetize any AI service — MCP tools, REST APIs, AI agents, model endpoints — with one SDK and one unified billing, metering, and payout system. Think of it as "Stripe for AI services" with real-time metering, multi-protocol support, and automatic revenue splits.',
+      a: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across 10 payment protocols. Think of it as the universal billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
     },
     {
       q: 'How do I get started as a developer?',
@@ -46,7 +46,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Is there a free tier?',
-      a: 'Yes. The Free plan is $0 forever with no catch — unlimited tools, 25,000 operations per month, per-call billing, a full dashboard, and a 0% take rate. You keep 100% of revenue. No credit card required. Most developers will never need to upgrade. The free tier is generous enough to run real production tools, not just prototypes.',
+      a: 'Yes. The Free plan is $0 forever with no catch — unlimited tools, 50,000 operations per month, per-call billing, a full dashboard, and a progressive take rate starting at 0% on your first $1K/mo. No credit card required. Most developers will never need to upgrade. The free tier is generous enough to run real production tools, not just prototypes.',
     },
     {
       q: 'What protocols does SettleGrid support?',
@@ -75,11 +75,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Does the SDK work with non-MCP services?',
-      a: 'Yes. While the package is called @settlegrid/mcp, it includes a settlegridMiddleware() function for REST APIs (Express, Fastify, etc.). The SDK\'s wrap() function works with any async handler regardless of protocol.',
+      a: 'Yes. While the package is called @settlegrid/mcp, it is a universal billing SDK. It works with LLM inference proxies (OpenAI, Anthropic, Cohere), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution sandboxes (E2B, Modal), data APIs, communication services (Twilio, Resend), and any REST API (Express, Fastify, Next.js). The SDK\'s wrap() function works with any async handler regardless of protocol or service type. Use settlegridMiddleware() for HTTP endpoints or sg.wrap() for function-level billing.',
     },
     {
       q: 'How do I test my integration before going live?',
-      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics. Available on Starter tier and above.',
+      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics. Available on Builder tier and above.',
     },
     {
       q: 'Can I attach custom metadata to invocations?',
@@ -248,7 +248,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What is the revenue split?',
-      a: 'The Free plan has a 0% take rate — developers keep 100% of revenue. On Starter, Growth, and Scale plans, the take rate is 5% — developers keep 95%. Need higher limits or a custom arrangement? Email support@settlegrid.ai.',
+      a: 'All plans use a progressive take rate based on monthly tool revenue: 0% on the first $1,000/mo (you keep 100%), 2% on $1,001-$10,000, 3% on $10,001-$50,000, and 5% above $50,000. Most developers pay 0%. Need a custom arrangement? Email support@settlegrid.ai.',
     },
     {
       q: 'What is the minimum payout?',
@@ -438,7 +438,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What analytics are available?',
-      a: 'The dashboard provides real-time analytics on invocation volume, revenue, latency percentiles, consumer growth, conversion events, and tool health. The Scale plan and above support CSV export of all analytics data.',
+      a: 'The dashboard provides real-time analytics on invocation volume, revenue, latency percentiles, consumer growth, conversion events, and tool health. Builder and Scale plans support CSV export of all analytics data.',
     },
     {
       q: 'What happens if webhook delivery fails?',
@@ -578,11 +578,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What plans are available?',
-      a: 'Four plans: Free ($0 forever, unlimited tools, 25K ops/month, 0% take rate), Starter ($9/month, 100K ops/month, 5% take rate, sandbox mode), Growth ($29/month, 500K ops/month, 5% take rate, IP allowlisting), and Scale ($79/month, 2M ops/month, 5% negotiable, fraud detection, priority support). Need higher limits? Email support@settlegrid.ai.',
+      a: 'Three plans: Free ($0 forever, unlimited tools, 50K ops/month), Builder ($19/month, 200K ops/month, sandbox mode, IP allowlisting), and Scale ($79/month, 2M ops/month, fraud detection, priority support). All plans use progressive take rates: 0% on first $1K/mo, scaling to 5% at $50K+. Need higher limits? Email support@settlegrid.ai.',
     },
     {
       q: 'Are there overage charges?',
-      a: 'Operations continue working beyond your plan limit — we never cut off your consumers. On the Free tier, a 5% platform fee applies to operations above 25,000/month (you keep 95% instead of 100%). On paid tiers, overage operations are rate-limited. Upgrade anytime to increase your limit.',
+      a: 'Operations continue working beyond your plan limit — we never cut off your consumers. On the Free tier, the progressive take rate applies to operations above 50,000/month. On paid tiers, overage operations are rate-limited. Upgrade anytime to increase your limit.',
     },
     {
       q: 'Can I switch plans at any time?',
@@ -590,7 +590,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Which features require a paid plan?',
-      a: 'Sandbox mode requires Starter ($9/mo) or above. IP allowlisting, CSV export, and referral system require Growth ($29/mo). Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
+      a: 'Sandbox mode, IP allowlisting, CSV export, and referral system require Builder ($19/mo) or above. Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
     },
   ],
 },
@@ -677,7 +677,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is the only protocol-agnostic settlement layer — supporting 10 protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and a 95%+ revenue share (100% on Free tier). One SDK. Zero vendor lock-in.',
+      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is the only protocol-agnostic settlement layer — supporting 10 protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.',
     },
   ],
 },
@@ -740,8 +740,8 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
 
 export default function DocsPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
-      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 sticky top-0 bg-white dark:bg-[#1A1D2E] z-10">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
+      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 sticky top-0 bg-white dark:bg-[#161822] z-10">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -762,9 +762,10 @@ export default function DocsPage() {
 
       <div className="flex-1 flex">
         {/* Sidebar nav */}
-        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2E3148] p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2A2D3E] p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
           <nav className="space-y-1 text-sm">
             {[
+              { href: '#not-just-mcp', label: 'Not Just MCP' },
               { href: '#getting-started', label: 'Getting Started' },
               { href: '#cli-tools', label: 'CLI Tools' },
               { href: '#quick-start', label: 'Quick Start' },
@@ -790,12 +791,51 @@ export default function DocsPage() {
         <main className="flex-1 px-6 lg:px-12 py-10 max-w-3xl">
           <h1 className="text-4xl font-bold text-indigo dark:text-gray-100 mb-2">Documentation</h1>
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-10">
-            Everything you need to monetize your MCP tools with SettleGrid.
+            Everything you need to add per-call billing to your MCP tools, REST APIs, and serverless functions.
           </p>
+
+          {/* ── Not Just MCP ─────────────────────────── */}
+          <section id="not-just-mcp" className="mb-14 scroll-mt-24">
+            <div className="rounded-xl border border-brand/30 bg-gradient-to-br from-brand/5 via-transparent to-transparent p-6">
+              <h2 className="text-2xl font-bold text-gray-100 mb-3">Not Just MCP — SettleGrid Works with Any API</h2>
+              <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                While MCP is our primary focus, the SettleGrid SDK wraps <strong className="text-gray-300">any handler function</strong>. If you have a REST endpoint, an Express route, a Next.js API route, or a serverless function — SettleGrid can meter and bill it with the same two-line pattern.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-start gap-2 text-gray-400">
+                  <span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span>
+                  <span><strong className="text-gray-300">MCP servers</strong> — sg.wrap() around any tool handler</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-400">
+                  <span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span>
+                  <span><strong className="text-gray-300">REST APIs</strong> — settlegridMiddleware() for Express, Fastify, Hono</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-400">
+                  <span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span>
+                  <span><strong className="text-gray-300">Next.js API routes</strong> — middleware in route.ts handlers</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-400">
+                  <span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span>
+                  <span><strong className="text-gray-300">Serverless functions</strong> — Vercel, AWS Lambda, Cloudflare Workers</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-400">
+                  <span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span>
+                  <span><strong className="text-gray-300">AI agent endpoints</strong> — any callable function with input/output</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-400">
+                  <span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span>
+                  <span><strong className="text-gray-300">gRPC / WebSocket</strong> — wrap the handler, not the transport</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-4">
+                The SDK&apos;s <code className="bg-[#252836] px-1.5 py-0.5 rounded">wrap()</code> function works with any async function. It extracts the API key, validates credits, runs your handler, and meters the call — regardless of protocol or framework.
+              </p>
+            </div>
+          </section>
 
           {/* ── Getting Started: Zero to Revenue ─────────────────────────── */}
           <section id="getting-started" className="mb-14 scroll-mt-24">
-            <div className="rounded-xl border-2 border-brand/30 bg-gradient-to-br from-[#10B981]/5 via-transparent to-transparent p-8">
+            <div className="rounded-xl border-2 border-brand/30 bg-gradient-to-br from-[#E5A336]/5 via-transparent to-transparent p-8">
               <h2 className="text-3xl font-bold text-gray-100 mb-2">Getting Started: Zero to Revenue in 5 Minutes</h2>
               <p className="text-gray-400 mb-8">A step-by-step walkthrough from account creation to your first paid invocation.</p>
 
@@ -830,7 +870,7 @@ export default function DocsPage() {
                     Go to <strong className="text-gray-300">Dashboard &gt; Tools &gt; Create Tool</strong>.
                     Set a name, slug (URL-safe identifier), description, and price per call.
                   </p>
-                  <p className="bg-[#1A1D2E] border border-[#2E3148] rounded-lg px-4 py-3 text-xs">
+                  <p className="bg-[#161822] border border-[#2A2D3E] rounded-lg px-4 py-3 text-xs">
                     <strong className="text-brand-text">Pricing guidance:</strong> Most AI tools charge 1-25 cents per invocation.
                     Start low to attract early users, then adjust based on demand.
                   </p>
@@ -912,7 +952,7 @@ app.post('/api/search', settlegridMiddleware({
               </div>
             </div>
 
-            <div className="mt-8 mb-8 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+            <div className="mt-8 mb-8 rounded-xl overflow-hidden border border-[#2A2D3E] shadow-lg">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Your tools appear in the Showcase after you deploy</p>
               <img
                 src="/screenshots/Showcase.jpg"
@@ -1119,9 +1159,9 @@ try {
               SettleGrid uses a simple, transparent pricing model:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-6">
-              <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 95-100% of revenue.</li>
+              <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep up to 100% of revenue.</li>
               <li><strong>Consumers:</strong> Prepaid credits. Purchase $5, $20, $50, or custom amounts.</li>
-              <li><strong>Platform fee:</strong> 0-5% per transaction (0% on Free, 5% on paid plans). No minimums.</li>
+              <li><strong>Platform fee:</strong> Progressive take rate: 0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K.</li>
               <li><strong>Payouts:</strong> Daily, weekly, or monthly via Stripe Connect. $1 minimum — the lowest in the industry.</li>
             </ul>
           </Section>
@@ -1154,7 +1194,7 @@ try {
                   href={`/templates/${t.file}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2E3148] hover:border-brand/40 transition-colors group"
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2A2D3E] hover:border-brand/40 transition-colors group"
                 >
                   <div>
                     <span className="font-medium text-indigo dark:text-gray-100 group-hover:text-brand transition-colors">{t.name}</span>
@@ -1178,7 +1218,7 @@ try {
                   href={`/templates/${t.file}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2E3148] hover:border-brand/40 transition-colors group"
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2A2D3E] hover:border-brand/40 transition-colors group"
                 >
                   <div>
                     <span className="font-medium text-indigo dark:text-gray-100 group-hover:text-brand transition-colors">{t.name}</span>
@@ -1223,7 +1263,7 @@ try {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs" aria-label="Discovery API query parameters">
                       <thead>
-                        <tr className="border-b border-[#2E3148]">
+                        <tr className="border-b border-[#2A2D3E]">
                           <th className="text-left py-2 pr-4 text-gray-400 font-medium">Param</th>
                           <th className="text-left py-2 pr-4 text-gray-400 font-medium">Type</th>
                           <th className="text-left py-2 text-gray-400 font-medium">Description</th>
@@ -1451,7 +1491,7 @@ npm install -g @settlegrid/discovery`} />
                     params: 'slug',
                   },
                 ].map((tool) => (
-                  <div key={tool.name} className="p-3 rounded-lg border border-[#2E3148] bg-[#1A1D2E]">
+                  <div key={tool.name} className="p-3 rounded-lg border border-[#2A2D3E] bg-[#161822]">
                     <div className="flex items-center gap-2 mb-1">
                       <code className="text-sm font-mono text-brand-text">{tool.name}</code>
                       <span className="text-xs text-gray-500">params: {tool.params}</span>
@@ -1465,7 +1505,7 @@ npm install -g @settlegrid/discovery`} />
               <div className="overflow-x-auto">
                 <table className="w-full text-xs mb-2" aria-label="MCP Discovery Server environment variables">
                   <thead>
-                    <tr className="border-b border-[#2E3148]">
+                    <tr className="border-b border-[#2A2D3E]">
                       <th className="text-left py-2 pr-4 text-gray-400 font-medium">Variable</th>
                       <th className="text-left py-2 pr-4 text-gray-400 font-medium">Default</th>
                       <th className="text-left py-2 text-gray-400 font-medium">Description</th>
@@ -1489,14 +1529,54 @@ npm install -g @settlegrid/discovery`} />
                 SVG badges for READMEs, docs, and marketing pages. All endpoints return <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">image/svg+xml</code> and are CDN-cacheable.
               </p>
 
-              {/* Powered by badge */}
+              {/* README Badges — quick-copy section */}
+              <div className="mb-8 rounded-lg border border-brand/20 bg-brand/5 p-5">
+                <h4 className="text-base font-semibold text-gray-100 mb-1">README Badges</h4>
+                <p className="text-sm text-gray-400 mb-4">
+                  Copy these Markdown snippets into your GitHub README, docs, or website. Each badge is a clickable link
+                  that directs visitors to your tool or profile on SettleGrid.
+                </p>
+
+                <div className="space-y-4">
+                  {/* 1. Tool status badge */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-300 mb-1.5">Tool status badge</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Shows your tool name and live status. Green when active, gray when draft.
+                      Replace <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">your-tool-slug</code> with your actual slug.
+                    </p>
+                    <CopyableCodeBlock title="Markdown" code={`[![SettleGrid](https://settlegrid.ai/api/badge/tool/your-tool-slug)](https://settlegrid.ai/tools/your-tool-slug)`} />
+                  </div>
+
+                  {/* 2. Developer reputation badge */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-300 mb-1.5">Developer reputation badge</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Shows your name and reputation tier (Bronze, Silver, Gold, or Platinum).
+                      Replace <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">your-dev-slug</code> with your developer slug.
+                    </p>
+                    <CopyableCodeBlock title="Markdown" code={`[![SettleGrid Developer](https://settlegrid.ai/api/badge/dev/your-dev-slug)](https://settlegrid.ai/dev/your-dev-slug)`} />
+                  </div>
+
+                  {/* 3. Powered by badge */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-300 mb-1.5">Powered by SettleGrid</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      A generic badge that works in any project. Links back to SettleGrid.
+                    </p>
+                    <CopyableCodeBlock title="Markdown" code={`[![Powered by SettleGrid](https://settlegrid.ai/api/badge/powered-by)](https://settlegrid.ai)`} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Powered by badge — endpoint details */}
               <div className="mb-6">
                 <div className="space-y-1 mb-3">
                   <ApiEndpointRow method="GET" path="/api/badge/powered-by" desc="Generic 'Powered by SettleGrid' badge" />
                 </div>
                 <div className="text-sm text-gray-400 space-y-2">
                   <p>Embed in any Markdown file:</p>
-                  <CopyableCodeBlock title="Markdown" code={`![Powered by SettleGrid](https://settlegrid.ai/api/badge/powered-by)`} />
+                  <CopyableCodeBlock title="Markdown" code={`[![Powered by SettleGrid](https://settlegrid.ai/api/badge/powered-by)](https://settlegrid.ai)`} />
                   <CopyableCodeBlock title="HTML" code={`<a href="https://settlegrid.ai">
   <img src="https://settlegrid.ai/api/badge/powered-by" alt="Powered by SettleGrid" />
 </a>`} />
@@ -1511,10 +1591,11 @@ npm install -g @settlegrid/discovery`} />
                 <div className="text-sm text-gray-400 space-y-2">
                   <p>
                     Shows tool name and status. Color reflects status:{' '}
-                    <span className="text-emerald-400">green</span> for active,{' '}
+                    <span className="text-amber-400">green</span> for active,{' '}
                     <span className="text-gray-500">gray</span> for draft.
+                    Wrapping in a link makes the badge clickable:
                   </p>
-                  <CopyableCodeBlock title="Markdown" code={`![Web Search Pro](https://settlegrid.ai/api/badge/tool/web-search-pro)`} />
+                  <CopyableCodeBlock title="Markdown" code={`[![Web Search Pro](https://settlegrid.ai/api/badge/tool/web-search-pro)](https://settlegrid.ai/tools/web-search-pro)`} />
                 </div>
               </div>
 
@@ -1531,7 +1612,7 @@ npm install -g @settlegrid/discovery`} />
                     <span className="text-yellow-400">Gold</span>,{' '}
                     <span className="text-purple-300">Platinum</span>.
                   </p>
-                  <CopyableCodeBlock title="Markdown" code={`![Fieldbrief on SettleGrid](https://settlegrid.ai/api/badge/dev/fieldbrief)`} />
+                  <CopyableCodeBlock title="Markdown" code={`[![Fieldbrief on SettleGrid](https://settlegrid.ai/api/badge/dev/fieldbrief)](https://settlegrid.ai/dev/fieldbrief)`} />
                 </div>
               </div>
             </div>
@@ -1557,7 +1638,7 @@ npm install -g @settlegrid/discovery`} />
               <div className="overflow-x-auto mb-6">
                 <table className="w-full text-xs" aria-label="Developer reputation tiers">
                   <thead>
-                    <tr className="border-b border-[#2E3148]">
+                    <tr className="border-b border-[#2A2D3E]">
                       <th className="text-left py-2 pr-4 text-gray-400 font-medium">Tier</th>
                       <th className="text-left py-2 pr-4 text-gray-400 font-medium">Score range</th>
                       <th className="text-left py-2 text-gray-400 font-medium">Badge color</th>
@@ -1598,11 +1679,11 @@ npm install -g @settlegrid/discovery`} />
             </div>
 
             {/* ── Discovery guide cross-link ─────────────────────────── */}
-            <div className="mt-8 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-sm text-gray-400">
+            <div className="mt-8 rounded-lg border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-gray-400">
               For a step-by-step guide to maximizing your tool&apos;s visibility, see{' '}
               <Link
                 href="/learn/discovery"
-                className="text-emerald-400 hover:underline font-medium"
+                className="text-amber-400 hover:underline font-medium"
               >
                 How to Get Discovered
               </Link>
@@ -1616,7 +1697,7 @@ npm install -g @settlegrid/discovery`} />
         </main>
       </div>
 
-      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-6">
         <div className="max-w-5xl mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
           &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
         </div>

@@ -1,0 +1,39 @@
+{
+  "name": "n8n-nodes-settlegrid",
+  "version": "0.1.0",
+  "description": "n8n community node for SettleGrid — discover, browse, and invoke monetized AI tools",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "settlegrid",
+    "mcp",
+    "ai-tools"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/SettleGridApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/SettleGrid/SettleGrid.node.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc && cp src/nodes/SettleGrid/settlegrid.svg dist/nodes/SettleGrid/settlegrid.svg",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "n8n-workflow": "^1.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0"
+  }
+}

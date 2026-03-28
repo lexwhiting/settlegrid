@@ -194,7 +194,7 @@ const searchFlights = sg.wrap(async (args: { origin: string; dest: string }) => 
     detectionHeader: 'X-UCP-Session / Authorization: UCP <session>',
     identityType: 'ucp-session',
     paymentType: 'ucp-settlement',
-    color: 'text-emerald-400',
+    color: 'text-amber-400',
     codeExample: `import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
@@ -407,7 +407,7 @@ export async function generateMetadata({
 
 function StatusBadge({ status }: { status: Protocol['status'] }) {
   const styles: Record<Protocol['status'], string> = {
-    Production: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    Production: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     Ready: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     Testnet: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     Pending: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
@@ -447,7 +447,7 @@ export default async function ProtocolDetailPage({
   }
 
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -455,7 +455,7 @@ export default async function ProtocolDetailPage({
       />
 
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E]">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
         <nav className="max-w-4xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -479,7 +479,7 @@ export default async function ProtocolDetailPage({
         <div className="max-w-4xl mx-auto">
           {/* Breadcrumb */}
           <div className="mb-8">
-            <Link href="/learn/protocols" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors">
+            <Link href="/learn/protocols" className="text-sm text-gray-400 hover:text-amber-400 transition-colors">
               &larr; All Protocols
             </Link>
           </div>
@@ -517,7 +517,7 @@ export default async function ProtocolDetailPage({
           {/* How SettleGrid integrates */}
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-gray-100 mb-4">How SettleGrid Integrates</h2>
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-6">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
               <p className="text-gray-300 leading-relaxed">{protocol.integration}</p>
             </div>
           </section>
@@ -525,7 +525,7 @@ export default async function ProtocolDetailPage({
           {/* Key specs table */}
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-gray-100 mb-4">Key Specs</h2>
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl overflow-hidden">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <tbody>
                   {[
@@ -536,7 +536,7 @@ export default async function ProtocolDetailPage({
                     ['Payment Type', protocol.paymentType],
                     ['Status', protocol.status],
                   ].map(([label, value], i) => (
-                    <tr key={label} className={i % 2 === 0 ? 'bg-[#1A1D2E]' : 'bg-[#151823]'}>
+                    <tr key={label} className={i % 2 === 0 ? 'bg-[#161822]' : 'bg-[#151823]'}>
                       <td className="px-6 py-3 font-medium text-gray-300 whitespace-nowrap w-48">{label}</td>
                       <td className="px-6 py-3 text-gray-400 font-mono text-xs">{value}</td>
                     </tr>
@@ -561,12 +561,12 @@ export default async function ProtocolDetailPage({
 
           {/* CTA */}
           <section className="mb-16">
-            <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 rounded-xl p-8 text-center">
+            <div className="bg-gradient-to-r from-amber-500/10 to-amber-600/5 border border-amber-500/20 rounded-xl p-8 text-center">
               <h3 className="text-2xl font-bold text-gray-100 mb-3">
                 Start monetizing with SettleGrid
               </h3>
               <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-                Free forever — 25,000 ops/month, 0% fees. Add billing to your {protocol.name} tool in under 5 minutes.
+                Free forever — 50,000 ops/month, progressive take rate. Add billing to your {protocol.name} tool in under 5 minutes.
               </p>
               <Link
                 href="/register"
@@ -581,11 +581,11 @@ export default async function ProtocolDetailPage({
           </section>
 
           {/* Prev / Next navigation */}
-          <nav className="flex items-center justify-between border-t border-[#2E3148] pt-8">
+          <nav className="flex items-center justify-between border-t border-[#2A2D3E] pt-8">
             {prev ? (
               <Link href={`/learn/protocols/${prev.slug}`} className="group flex flex-col">
                 <span className="text-xs text-gray-500 mb-1">&larr; Previous</span>
-                <span className="text-sm font-medium text-gray-300 group-hover:text-emerald-400 transition-colors">
+                <span className="text-sm font-medium text-gray-300 group-hover:text-amber-400 transition-colors">
                   {prev.name} — {prev.fullName}
                 </span>
               </Link>
@@ -595,7 +595,7 @@ export default async function ProtocolDetailPage({
             {next ? (
               <Link href={`/learn/protocols/${next.slug}`} className="group flex flex-col text-right">
                 <span className="text-xs text-gray-500 mb-1">Next &rarr;</span>
-                <span className="text-sm font-medium text-gray-300 group-hover:text-emerald-400 transition-colors">
+                <span className="text-sm font-medium text-gray-300 group-hover:text-amber-400 transition-colors">
                   {next.name} — {next.fullName}
                 </span>
               </Link>
@@ -607,7 +607,7 @@ export default async function ProtocolDetailPage({
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-4xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
             <SettleGridLogo variant="compact" size={32} />

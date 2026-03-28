@@ -19,7 +19,7 @@ const CATEGORY_META: Record<string, { label: string; color: string }> = {
   finance:       { label: 'Finance',       color: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
   science:       { label: 'Science',       color: 'bg-violet-500/15 text-violet-400 border-violet-500/25' },
   weather:       { label: 'Weather',       color: 'bg-sky-500/15 text-sky-400 border-sky-500/25' },
-  developer:     { label: 'Developer',     color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' },
+  developer:     { label: 'Developer',     color: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
   health:        { label: 'Health',        color: 'bg-rose-500/15 text-rose-400 border-rose-500/25' },
   government:    { label: 'Government',    color: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
   media:         { label: 'Media',         color: 'bg-pink-500/15 text-pink-400 border-pink-500/25' },
@@ -109,7 +109,7 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
             value={query}
             onChange={(e) => { setQuery(e.target.value); setVisibleCount(PAGE_SIZE) }}
             placeholder="Search 1,017 templates by name or description..."
-            className="w-full pl-12 pr-4 py-3.5 bg-[#1A1D2E] border border-[#2E3148] rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all text-sm"
+            className="w-full pl-12 pr-4 py-3.5 bg-[#161822] border border-[#2A2D3E] rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all text-sm"
             aria-label="Search servers"
           />
           {query && (
@@ -132,8 +132,8 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
           onClick={() => { setActiveCategory(null); setVisibleCount(PAGE_SIZE) }}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
             activeCategory === null
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-              : 'bg-[#1A1D2E] text-gray-400 border-[#2E3148] hover:border-gray-500 hover:text-gray-300'
+              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+              : 'bg-[#161822] text-gray-400 border-[#2A2D3E] hover:border-gray-500 hover:text-gray-300'
           }`}
         >
           All <span className="text-[10px] opacity-70">{servers.length}</span>
@@ -145,7 +145,7 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
               activeCategory === cat.key
                 ? cat.color
-                : 'bg-[#1A1D2E] text-gray-400 border-[#2E3148] hover:border-gray-500 hover:text-gray-300'
+                : 'bg-[#161822] text-gray-400 border-[#2A2D3E] hover:border-gray-500 hover:text-gray-300'
             }`}
           >
             {cat.label}{' '}
@@ -173,11 +173,11 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
                 href={server.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-5 hover:border-emerald-500/40 transition-all hover:shadow-lg hover:shadow-emerald-500/5"
+                className="group rounded-xl border border-[#2A2D3E] bg-[#161822] p-5 hover:border-amber-500/40 transition-all hover:shadow-lg hover:shadow-amber-500/5"
               >
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight">
+                  <h3 className="font-semibold text-gray-100 group-hover:text-amber-400 transition-colors text-sm leading-tight">
                     {server.name}
                   </h3>
                   <span
@@ -199,7 +199,7 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
                   <span className="text-[11px] text-gray-500">
                     {server.methods} method{server.methods !== 1 ? 's' : ''}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="inline-flex items-center gap-1 text-[11px] text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
                     Fork on GitHub
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -214,7 +214,7 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
           <div className="text-center mt-8">
             <button
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-              className="px-6 py-2.5 rounded-lg border border-[#2E3148] text-sm font-medium text-gray-300 hover:text-gray-100 hover:border-gray-500 transition-colors"
+              className="px-6 py-2.5 rounded-lg border border-[#2A2D3E] text-sm font-medium text-gray-300 hover:text-gray-100 hover:border-gray-500 transition-colors"
             >
               Show more ({filtered.length - visibleCount} remaining)
             </button>
@@ -222,14 +222,14 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
         )}
         </>
       ) : (
-        <div className="rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-12 text-center">
+        <div className="rounded-xl border border-[#2A2D3E] bg-[#161822] p-12 text-center">
           <p className="text-gray-400 mb-2">No servers match your search.</p>
           <button
             onClick={() => {
               setQuery('')
               setActiveCategory(null)
             }}
-            className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+            className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
           >
             Clear filters
           </button>

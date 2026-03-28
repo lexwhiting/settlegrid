@@ -90,7 +90,7 @@ export function HelpChatWidget() {
         type="button"
         onClick={() => setOpen(!open)}
         aria-label={open ? 'Close help chat' : 'Open help chat'}
-        className={`fixed bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 ${open ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
+        className={`fixed bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-amber-600 hover:bg-amber-700 text-white shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 ${open ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
       >
         {/* message-circle icon */}
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -106,9 +106,9 @@ export function HelpChatWidget() {
             : 'opacity-0 translate-y-4 pointer-events-none'
         } bottom-0 right-0 sm:bottom-6 sm:right-6 w-full sm:w-[400px] h-full sm:h-[600px] sm:max-h-[calc(100vh-48px)]`}
       >
-        <div className="flex flex-col h-full bg-white dark:bg-[#12141F] sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-[#2E3148] overflow-hidden">
+        <div className="flex flex-col h-full bg-white dark:bg-[#12141F] sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-[#2A2D3E] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-emerald-600 text-white shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 bg-amber-600 text-white shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -159,8 +159,8 @@ export function HelpChatWidget() {
                 {messages.length === 0 ? (
                   /* Empty state with suggestions */
                   <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                    <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
-                      <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+                      <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                       </svg>
                     </div>
@@ -176,7 +176,7 @@ export function HelpChatWidget() {
                           key={s}
                           type="button"
                           onClick={() => handleSuggestionClick(s)}
-                          className="w-full text-left text-sm px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#2E3148] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#1A1D2E] hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+                          className="w-full text-left text-sm px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#2A2D3E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#161822] hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
                         >
                           {s}
                         </button>
@@ -201,7 +201,7 @@ export function HelpChatWidget() {
               </div>
 
               {/* Input area */}
-              <div className="shrink-0 border-t border-gray-200 dark:border-[#2E3148] px-4 py-3 bg-white dark:bg-[#12141F]">
+              <div className="shrink-0 border-t border-gray-200 dark:border-[#2A2D3E] px-4 py-3 bg-white dark:bg-[#12141F]">
                 <form onSubmit={handleSubmit} className="flex items-center gap-2">
                   <input
                     ref={inputRef}
@@ -210,13 +210,13 @@ export function HelpChatWidget() {
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="Type your question..."
                     maxLength={1000}
-                    className="flex-1 rounded-lg border border-gray-300 dark:border-[#2E3148] bg-gray-50 dark:bg-[#1A1D2E] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500"
+                    className="flex-1 rounded-lg border border-gray-300 dark:border-[#2A2D3E] bg-gray-50 dark:bg-[#161822] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500"
                   />
                   <button
                     type="submit"
                     disabled={!inputValue.trim() || isStreaming}
                     aria-label="Send message"
-                    className="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors shrink-0"
+                    className="w-9 h-9 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors shrink-0"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
@@ -226,7 +226,7 @@ export function HelpChatWidget() {
                 <button
                   type="button"
                   onClick={() => setShowContactForm(true)}
-                  className="mt-2 w-full text-center text-xs text-gray-400 dark:text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                  className="mt-2 w-full text-center text-xs text-gray-400 dark:text-gray-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
                 >
                   Prefer email? Contact our support team
                 </button>

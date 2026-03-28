@@ -123,6 +123,24 @@ export function getVisaSharedSecret(): string | undefined {
   return process.env.VISA_SHARED_SECRET
 }
 
+// GitHub PAT — optional, used for developer email resolution from public repos
+export function getGitHubToken(): string | undefined {
+  return process.env.GITHUB_TOKEN
+}
+
+// GitHub App — optional, only needed when GitHub App integration is configured
+export function getGitHubAppId(): string | undefined {
+  return process.env.GITHUB_APP_ID
+}
+
+export function getGitHubAppPrivateKey(): string | undefined {
+  return process.env.GITHUB_APP_PRIVATE_KEY
+}
+
+export function getGitHubWebhookSecret(): string | undefined {
+  return process.env.GITHUB_WEBHOOK_SECRET
+}
+
 // Full env object — validates ALL vars at once, cached after first call
 export function getEnv() {
   if (!cached) {

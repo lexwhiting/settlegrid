@@ -27,13 +27,29 @@ interface Tool {
   status: string
 }
 
+interface InviteData {
+  inviteCode: string
+  inviteUrl: string
+  totalInvites: number
+  bonusOpsEarned: number
+  bonusOpsBalance: number
+}
+
 function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+}
+
+function formatOps(ops: number): string {
+  if (ops >= 1000) {
+    return `${(ops / 1000).toFixed(ops % 1000 === 0 ? 0 : 1)}k`
+  }
+  return String(ops)
 }
 
 export default function ReferralsPage() {
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [tools, setTools] = useState<Tool[]>([])
+  const [inviteData, setInviteData] = useState<InviteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
@@ -67,9 +83,21 @@ export default function ReferralsPage() {
     }
   }
 
+  async function fetchInviteData() {
+    try {
+      const res = await fetch('/api/developer/invite')
+      if (res.ok) {
+        const json = await res.json()
+        setInviteData(json)
+      }
+    } catch {
+      // Silently handle — invite section will just not render
+    }
+  }
+
   useEffect(() => {
     async function init() {
-      await Promise.all([fetchReferrals(), fetchTools()])
+      await Promise.all([fetchReferrals(), fetchTools(), fetchInviteData()])
       setLoading(false)
     }
     init()
@@ -103,9 +131,9 @@ export default function ReferralsPage() {
     }
   }
 
-  function copyCode(code: string) {
-    navigator.clipboard.writeText(code)
-    setCopied(code)
+  function copyToClipboard(text: string, label?: string) {
+    navigator.clipboard.writeText(text)
+    setCopied(label ?? text)
     setTimeout(() => setCopied(null), 2000)
   }
 
@@ -168,6 +196,70 @@ export default function ReferralsPage() {
         <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
+      {/* Invite Developers Card */}
+      {inviteData && (
+        <Card className="border-brand/30 dark:border-brand/20">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+              </svg>
+              Invite Developers
+            </CardTitle>
+            <CardDescription>
+              Share this link. When someone signs up, you both get 5,000 free operations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Invite link with copy */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center rounded-lg border border-gray-300 dark:border-[#2A2D3E] bg-gray-50 dark:bg-[#252836] px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 overflow-hidden">
+                  <code className="truncate">{inviteData.inviteUrl}</code>
+                </div>
+                <Button
+                  onClick={() => copyToClipboard(inviteData.inviteUrl, 'invite-url')}
+                  className="shrink-0"
+                  aria-label="Copy invite link"
+                >
+                  {copied === 'invite-url' ? (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Copied
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                      </svg>
+                      Copy Link
+                    </span>
+                  )}
+                </Button>
+              </div>
+
+              {/* Invite stats */}
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-indigo dark:text-gray-100 tabular-nums">{inviteData.totalInvites}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Successful Invites</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-indigo dark:text-gray-100 tabular-nums">{formatOps(inviteData.bonusOpsEarned)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Bonus Ops Earned</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{formatOps(inviteData.bonusOpsBalance)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Bonus Ops Balance</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard title="Total Referrals" value={String(totalReferrals)} subtitle="All-time created" />
@@ -193,7 +285,7 @@ export default function ReferralsPage() {
                     required
                     value={form.toolId}
                     onChange={(e) => setForm({ ...form, toolId: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                   >
                     <option value="">Select a tool...</option>
                     {tools.map((tool) => (
@@ -211,7 +303,7 @@ export default function ReferralsPage() {
                     required
                     value={form.commissionPct}
                     onChange={(e) => setForm({ ...form, commissionPct: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                   />
                 </div>
               </div>
@@ -243,7 +335,7 @@ export default function ReferralsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Referrals list">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Referral Code</th>
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Tool</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Commission</th>
@@ -273,7 +365,7 @@ export default function ReferralsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <button
-                          onClick={() => copyCode(ref.referralCode)}
+                          onClick={() => copyToClipboard(ref.referralCode)}
                           className="text-xs text-brand-text hover:text-brand-dark font-medium"
                           aria-label={`Copy referral code ${ref.referralCode}`}
                         >

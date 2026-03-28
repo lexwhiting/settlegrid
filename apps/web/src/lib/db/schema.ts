@@ -23,8 +23,8 @@ export const developers = pgTable('developers', {
   slug: text('slug').unique(), // vanity URL slug, e.g., 'lexwhiting'
   supabaseUserId: text('supabase_user_id').unique(),
   passwordHash: text('password_hash'),
-  tier: text('tier').notNull().default('standard'), // 'standard' | 'starter' | 'growth' | 'scale' | 'enterprise'
-  revenueSharePct: integer('revenue_share_pct').notNull().default(100), // 100 = free tier keeps 100% (0% fee); paid tiers set to 95 on upgrade
+  tier: text('tier').notNull().default('standard'), // 'standard' | 'builder' | 'scale' | 'enterprise' (legacy: 'starter' | 'growth' may exist for migrated users — treat as 'builder')
+  revenueSharePct: integer('revenue_share_pct').notNull().default(100), // Legacy — progressive take rates now calculated dynamically. See lib/pricing.ts
   stripeConnectId: text('stripe_connect_id'),
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),
   stripeCustomerId: text('stripe_customer_id'), // Stripe Customer for subscription billing
@@ -43,10 +43,15 @@ export const developers = pgTable('developers', {
   publicProfile: boolean('public_profile').notNull().default(false),
   publicBio: text('public_bio'),
   avatarUrl: text('avatar_url'),
+  // Signup referral credits (Dropbox model — 5k bonus ops per invite)
+  inviteCode: text('invite_code').unique(), // format: inv_{12 hex chars}
+  referredByDeveloperId: uuid('referred_by_developer_id'), // FK intentionally omitted to avoid circular ref during insert
+  bonusOpsBalance: integer('bonus_ops_balance').notNull().default(0), // cumulative bonus ops from referrals
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('developers_slug_idx').on(table.slug),
+  uniqueIndex('developers_invite_code_idx').on(table.inviteCode),
 ])
 
 export const developersRelations = relations(developers, ({ many }) => ({
@@ -54,6 +59,7 @@ export const developersRelations = relations(developers, ({ many }) => ({
   payouts: many(payouts),
   webhookEndpoints: many(webhookEndpoints),
   auditLogs: many(auditLogs),
+  achievements: many(achievements),
 }))
 
 // ─── Tools ─────────────────────────────────────────────────────────────────────
@@ -79,6 +85,12 @@ export const tools = pgTable(
     currentVersion: text('current_version').notNull().default('1.0.0'),
     // S4: Health Check Endpoint
     healthEndpoint: text('health_endpoint'), // URL to ping for health checks
+    // Smart Proxy: the actual tool URL that the proxy forwards requests to
+    proxyEndpoint: text('proxy_endpoint'),
+    // Claim Your Listing: source repo and claim flow fields
+    sourceRepoUrl: text('source_repo_url'), // GitHub repo URL the tool was crawled from
+    claimToken: text('claim_token'), // Unique token for claiming this tool
+    claimEmailSentAt: timestamp('claim_email_sent_at', { withTimezone: true }), // When claim email was sent
     // Quality gate: set to true after first real (non-test) invocation
     verified: boolean('verified').notNull().default(false),
     // Manual escalation: timestamp of most recent report
@@ -90,6 +102,7 @@ export const tools = pgTable(
     index('tools_developer_id_idx').on(table.developerId),
     index('tools_status_idx').on(table.status),
     index('tools_category_idx').on(table.category),
+    index('tools_claim_token_idx').on(table.claimToken),
   ]
 )
 
@@ -631,6 +644,41 @@ export const referralsRelations = relations(referrals, ({ one }) => ({
   }),
 }))
 
+// ─── Signup Invites (Developer-level referral credits) ─────────────────────
+
+export const signupInvites = pgTable(
+  'signup_invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    inviterId: uuid('inviter_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    inviteeId: uuid('invitee_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    bonusOps: integer('bonus_ops').notNull().default(5000), // ops credited to each party
+    inviterCredited: boolean('inviter_credited').notNull().default(false),
+    inviteeCredited: boolean('invitee_credited').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('signup_invites_inviter_id_idx').on(table.inviterId),
+    index('signup_invites_invitee_id_idx').on(table.inviteeId),
+    uniqueIndex('signup_invites_invitee_unique_idx').on(table.inviteeId), // each developer can only be invited once
+  ]
+)
+
+export const signupInvitesRelations = relations(signupInvites, ({ one }) => ({
+  inviter: one(developers, {
+    fields: [signupInvites.inviterId],
+    references: [developers.id],
+  }),
+  invitee: one(developers, {
+    fields: [signupInvites.inviteeId],
+    references: [developers.id],
+  }),
+}))
+
 // ─── Developer Reputation (R20) ─────────────────────────────────────────────
 
 export const developerReputation = pgTable(
@@ -830,7 +878,7 @@ export const organizations = pgTable(
     name: text('name').notNull(),
     slug: text('slug').notNull().unique(),
     plan: text('plan').notNull().default('free'),
-      // 'free' | 'starter' | 'growth' | 'scale' | 'enterprise'
+      // 'free' | 'builder' | 'scale' | 'enterprise' (legacy: 'starter' | 'growth' may exist for migrated orgs — treat as 'builder')
     billingEmail: text('billing_email').notNull(),
     stripeCustomerId: text('stripe_customer_id'),
     stripeSubscriptionId: text('stripe_subscription_id'),
@@ -845,7 +893,7 @@ export const organizations = pgTable(
   (table) => [
     uniqueIndex('organizations_slug_idx').on(table.slug),
     index('organizations_plan_idx').on(table.plan),
-    check('organizations_plan_check', sql`${table.plan} IN ('free', 'starter', 'growth', 'scale', 'enterprise')`),
+    check('organizations_plan_check', sql`${table.plan} IN ('free', 'builder', 'starter', 'growth', 'scale', 'enterprise')`),
   ]
 )
 
@@ -952,3 +1000,28 @@ export const outcomeVerifications = pgTable(
     index('outcome_verifications_dispute_status_idx').on(table.disputeStatus),
   ]
 )
+
+// ─── Achievements (Gamification) ─────────────────────────────────────────────
+
+export const achievements = pgTable(
+  'achievements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    badgeKey: text('badge_key').notNull(), // e.g., 'first_tool', 'first_invocation', 'first_dollar'
+    unlockedAt: timestamp('unlocked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('achievements_developer_id_idx').on(table.developerId),
+    uniqueIndex('achievements_dev_badge_idx').on(table.developerId, table.badgeKey),
+  ]
+)
+
+export const achievementsRelations = relations(achievements, ({ one }) => ({
+  developer: one(developers, {
+    fields: [achievements.developerId],
+    references: [developers.id],
+  }),
+}))

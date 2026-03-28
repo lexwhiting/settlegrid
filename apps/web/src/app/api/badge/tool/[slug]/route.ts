@@ -62,7 +62,7 @@ export async function GET(
       })
     }
 
-    const color = tool.status === 'active' ? '#10B981' : '#6B7280'
+    const color = tool.status === 'active' ? '#E5A336' : '#6B7280'
     const svg = badge('SettleGrid', tool.name, color)
 
     return new NextResponse(svg, {

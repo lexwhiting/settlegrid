@@ -173,8 +173,9 @@ function invokeToolCall(consumer: MockConsumer, tool: MockTool, method: string, 
   // Deduct credits
   balance.balanceCents -= costCents
 
-  // 95/5 split: developer gets 95%
-  const devShare = Math.floor(costCents * 0.95)
+  // Progressive take rate: developer receives full costCents at invocation time.
+  // Take rate calculated at payout time. See lib/pricing.ts
+  const devShare = costCents
   const dev = mockDevelopers.find(d => d.id === tool.developerId)
   if (dev) dev.balanceCents += devShare
 
@@ -329,7 +330,7 @@ describe('Tool Invocation Flow', () => {
     expect(balance!.balanceCents).toBe(995)
   })
 
-  it('credits developer with 95% share', () => {
+  it('credits developer with full amount (take rate at payout)', () => {
     const dev = registerDeveloper('dev@example.com', 'Dev')
     const tool = createTool(dev.id, 'Tool', 'tool', 10)
     activateTool(tool)
@@ -339,7 +340,7 @@ describe('Tool Invocation Flow', () => {
 
     invokeToolCall(consumer, tool, 'analyze', 10)
 
-    expect(dev.balanceCents).toBe(9) // 95% of 10 cents
+    expect(dev.balanceCents).toBe(10) // full amount; progressive take rate applied at payout
   })
 
   it('fails with insufficient credits', () => {
@@ -492,13 +493,13 @@ describe('Full Lifecycle Scenario', () => {
     const balance = mockBalances.find(b => b.consumerId === consumer.id && b.toolId === tool.id)
     expect(balance!.balanceCents).toBe(4500) // 5000 - (100 * 5)
 
-    // Developer got 95% of each invocation: floor(5 * 0.95) = 4 per call
-    expect(dev.balanceCents).toBe(400) // 100 * floor(5 * 0.95)
+    // Developer gets full amount at invocation time (progressive take rate at payout)
+    expect(dev.balanceCents).toBe(500) // 100 * 5 cents
 
-    // 5. Balance is 400 cents ($4), above $1 minimum — payout should succeed
+    // 5. Balance is 500 cents ($5), above $1 minimum — payout should succeed
     const payout = triggerPayout(dev)
     expect(payout.success).toBe(true)
-    expect(payout.payout!.amountCents).toBe(400)
+    expect(payout.payout!.amountCents).toBe(500)
     expect(dev.balanceCents).toBe(0)
 
     // 6. More invocations to accumulate again

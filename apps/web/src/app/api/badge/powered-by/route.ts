@@ -13,7 +13,7 @@ export const maxDuration = 5
 export async function GET() {
   const label = 'Powered by'
   const message = 'SettleGrid'
-  const color = '#10B981'
+  const color = '#E5A336'
 
   const labelWidth = label.length * 6.5 + 16
   const messageWidth = message.length * 6.5 + 16

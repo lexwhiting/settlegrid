@@ -154,7 +154,7 @@ export default function AuditLogPage() {
             id="audit-action-filter"
             value={actionFilter}
             onChange={(e) => handleFilterChange('action', e.target.value)}
-            className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+            className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             {ACTION_TYPES.map((action) => (
               <option key={action} value={action}>{action}</option>
@@ -167,7 +167,7 @@ export default function AuditLogPage() {
             id="audit-resource-filter"
             value={resourceFilter}
             onChange={(e) => handleFilterChange('resource', e.target.value)}
-            className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+            className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             {RESOURCE_TYPES.map((resource) => (
               <option key={resource} value={resource}>{resource}</option>
@@ -201,7 +201,7 @@ export default function AuditLogPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" role="table" aria-label="Audit log entries">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                       <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Action</th>
                       <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Resource</th>
                       <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Resource ID</th>

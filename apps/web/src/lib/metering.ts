@@ -3,6 +3,7 @@ import { db } from './db'
 import { consumerToolBalances, invocations, tools, developers, referrals } from './db/schema'
 import { eq, and, sql } from 'drizzle-orm'
 import { logger } from './logger'
+import { calculateTakeCents } from './pricing'
 
 // ─── Redis Key Helpers ──────────────────────────────────────────────────────
 
@@ -294,13 +295,15 @@ export function recordInvocationAsync(params: {
   costCents: number
   latencyMs: number | null
   developerId: string
-  revenueSharePct: number
+  revenueSharePct: number // Legacy — ignored. Progressive take rate calculated at payout time. See lib/pricing.ts
   isTest?: boolean
   isFlagged?: boolean
   referralCode?: string
 }): void {
-  const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, revenueSharePct, isTest, referralCode, isFlagged } = params
-  const developerShareCents = Math.floor(costCents * (revenueSharePct / 100))
+  const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, isTest, referralCode, isFlagged } = params
+  // Progressive take rate: developer receives full costCents at invocation time.
+  // Platform take is calculated and deducted at payout time via calculateTakeCents().
+  const developerShareCents = costCents
 
   const now = new Date()
 

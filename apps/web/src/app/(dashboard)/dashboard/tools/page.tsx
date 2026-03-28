@@ -382,32 +382,32 @@ export default function ToolsPage() {
                 <div>
                   <label htmlFor="tool-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <input id="tool-name" type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A human-readable name for your tool (e.g., &apos;Code Reviewer Pro&apos;)</p>
                 </div>
                 <div>
                   <label htmlFor="tool-slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slug</label>
                   <input id="tool-slug" type="text" required pattern="[a-z0-9-]+" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A URL-safe identifier used in the SDK and API (e.g., &apos;code-reviewer-pro&apos;). Cannot be changed later.</p>
                 </div>
               </div>
               <div>
                 <label htmlFor="tool-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea id="tool-desc" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
+                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Describe what your tool does. This is shown to consumers in the showcase. Minimum {MIN_DESCRIPTION_LENGTH} characters to activate.</p>
               </div>
 
               {/* Pricing Model Selector */}
-              <div className="space-y-4 rounded-lg border border-gray-200 dark:border-[#2E3148] p-4">
+              <div className="space-y-4 rounded-lg border border-gray-200 dark:border-[#2A2D3E] p-4">
                 <div>
                   <label htmlFor="tool-pricing-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pricing Model</label>
                   <select
                     id="tool-pricing-model"
                     value={form.pricingModel}
                     onChange={(e) => setForm({ ...form, pricingModel: e.target.value as PricingModelType })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                   >
                     {(Object.keys(PRICING_MODEL_LABELS) as PricingModelType[]).map((model) => (
                       <option key={model} value={model}>{PRICING_MODEL_LABELS[model]}</option>
@@ -420,7 +420,7 @@ export default function ToolsPage() {
                 <div className="w-48">
                   <label htmlFor="tool-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Cost (cents)</label>
                   <input id="tool-cost" type="number" min="0" required value={form.defaultCostCents} onChange={(e) => setForm({ ...form, defaultCostCents: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                    className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {form.pricingModel === 'per-invocation' && 'Price per invocation in cents. Most AI tools charge 1-25 cents per call.'}
                     {form.pricingModel === 'per-token' && 'Fallback cost per call when token count is unavailable.'}
@@ -436,7 +436,7 @@ export default function ToolsPage() {
                   <div className="w-48">
                     <label htmlFor="tool-cost-per-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Per Token (hundredths of a cent)</label>
                     <input id="tool-cost-per-token" type="number" min="0" step="0.01" required value={form.costPerToken} onChange={(e) => setForm({ ...form, costPerToken: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                      className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">e.g., 10 = $0.001 per token, 1 = $0.0001 per token</p>
                   </div>
                 )}
@@ -446,7 +446,7 @@ export default function ToolsPage() {
                   <div className="w-48">
                     <label htmlFor="tool-cost-per-mb" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Per MB (cents)</label>
                     <input id="tool-cost-per-mb" type="number" min="0" step="0.01" required value={form.costPerMB} onChange={(e) => setForm({ ...form, costPerMB: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                      className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Price in cents per megabyte transferred</p>
                   </div>
                 )}
@@ -456,7 +456,7 @@ export default function ToolsPage() {
                   <div className="w-48">
                     <label htmlFor="tool-cost-per-second" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Per Second (cents)</label>
                     <input id="tool-cost-per-second" type="number" min="0" step="0.01" required value={form.costPerSecond} onChange={(e) => setForm({ ...form, costPerSecond: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                      className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Price in cents per second of compute time</p>
                   </div>
                 )}
@@ -478,7 +478,7 @@ export default function ToolsPage() {
                               updated[index] = { ...entry, name: e.target.value }
                               setTieredMethods(updated)
                             }}
-                            className="flex h-9 flex-1 rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 flex-1 rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
                           />
                           <input
                             type="number"
@@ -491,7 +491,7 @@ export default function ToolsPage() {
                               updated[index] = { ...entry, costCents: e.target.value }
                               setTieredMethods(updated)
                             }}
-                            className="flex h-9 w-32 rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                            className="flex h-9 w-32 rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
                           />
                           {tieredMethods.length > 1 && (
                             <button
@@ -524,20 +524,20 @@ export default function ToolsPage() {
                       <div>
                         <label htmlFor="tool-success-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Success Cost (cents)</label>
                         <input id="tool-success-cost" type="number" min="0" required value={form.successCostCents} onChange={(e) => setForm({ ...form, successCostCents: e.target.value })}
-                          className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                          className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Amount charged when the operation succeeds</p>
                       </div>
                       <div>
                         <label htmlFor="tool-failure-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Failure Cost (cents)</label>
                         <input id="tool-failure-cost" type="number" min="0" required value={form.failureCostCents} onChange={(e) => setForm({ ...form, failureCostCents: e.target.value })}
-                          className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                          className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Amount charged on failure (usually 0)</p>
                       </div>
                     </div>
                     <div>
                       <label htmlFor="tool-success-condition" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Success Condition</label>
                       <input id="tool-success-condition" type="text" required value={form.successCondition} onChange={(e) => setForm({ ...form, successCondition: e.target.value })}
-                        className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm font-mono text-xs focus:ring-2 focus:ring-brand" />
+                        className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm font-mono text-xs focus:ring-2 focus:ring-brand" />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">JSONPath or field check that determines success (e.g., &apos;result.success === true&apos;)</p>
                     </div>
                   </div>
@@ -577,7 +577,7 @@ export default function ToolsPage() {
             />
             <div className="text-center pb-6 pt-2 space-y-4">
               {/* CLI scaffolder */}
-              <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-lg mx-6 p-4">
+              <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-lg mx-6 p-4">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Scaffold a complete project with billing pre-wired
                 </p>
@@ -585,7 +585,7 @@ export default function ToolsPage() {
                   Generates an MCP server with tests, Dockerfile, README, and deploy config. 4 templates, 3 deploy targets.
                 </p>
                 <div className="flex items-center justify-center gap-2">
-                  <code className="text-sm font-mono bg-gray-100 dark:bg-[#252836] text-brand dark:text-emerald-400 px-4 py-2 rounded-lg border border-gray-200 dark:border-[#2E3148]">
+                  <code className="text-sm font-mono bg-gray-100 dark:bg-[#252836] text-brand dark:text-amber-400 px-4 py-2 rounded-lg border border-gray-200 dark:border-[#2A2D3E]">
                     npx create-settlegrid-tool
                   </code>
                 </div>
@@ -677,7 +677,7 @@ function ToolCard({
               </Badge>
               {tool.verified && (
                 <span
-                  className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/25"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/25"
                   title="Verified: this tool has processed real invocations"
                   aria-label="Verified tool"
                 >
@@ -724,7 +724,7 @@ function ToolCard({
 
         {/* Quality checklist for draft tools */}
         {isDraft && !allPassed && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2E3148]">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2A2D3E]">
             <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">
               Showcase Readiness
             </h4>
@@ -732,7 +732,7 @@ function ToolCard({
               {checklist.map((check, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   {check.passed ? (
-                    <svg className="w-4 h-4 text-emerald-500 dark:text-emerald-400 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <svg className="w-4 h-4 text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                       <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
                     </svg>
                   ) : (
@@ -754,7 +754,7 @@ function ToolCard({
 
         {/* Changelog creation form */}
         {changelogToolId === tool.id && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2E3148]">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2A2D3E]">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">New Changelog Entry</h4>
             <form onSubmit={(e) => onChangelogSubmit(e, tool.id)} className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -768,7 +768,7 @@ function ToolCard({
                     pattern="\d+\.\d+\.\d+"
                     value={changelogForm.version}
                     onChange={(e) => onChangelogFormChange({ ...changelogForm, version: e.target.value })}
-                    className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
                   />
                 </div>
                 <div>
@@ -777,7 +777,7 @@ function ToolCard({
                     id={`cl-type-${tool.id}`}
                     value={changelogForm.changeType}
                     onChange={(e) => onChangelogFormChange({ ...changelogForm, changeType: e.target.value as ChangelogForm['changeType'] })}
-                    className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                    className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
                   >
                     <option value="feature">Feature</option>
                     <option value="fix">Fix</option>
@@ -796,7 +796,7 @@ function ToolCard({
                   placeholder="Describe what changed..."
                   value={changelogForm.summary}
                   onChange={(e) => onChangelogFormChange({ ...changelogForm, summary: e.target.value })}
-                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand min-h-[56px] resize-none"
+                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand min-h-[56px] resize-none"
                 />
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">{changelogForm.summary.length}/500</p>
               </div>

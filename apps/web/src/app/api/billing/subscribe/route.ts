@@ -15,13 +15,12 @@ export const maxDuration = 30
 // ── Plan → Stripe Price ID mapping (configure in env or replace with real IDs) ──
 
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  starter: process.env.STRIPE_PRICE_STARTER?.trim(),
-  growth: process.env.STRIPE_PRICE_GROWTH?.trim(),
+  builder: (process.env.STRIPE_PRICE_BUILDER ?? process.env.STRIPE_PRICE_STARTER)?.trim(),
   scale: process.env.STRIPE_PRICE_SCALE?.trim(),
 }
 
 const subscribeSchema = z.object({
-  plan: z.enum(['starter', 'growth', 'scale']),
+  plan: z.enum(['builder', 'scale']),
 })
 
 function getStripe(): Stripe {

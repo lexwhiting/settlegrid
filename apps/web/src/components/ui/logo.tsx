@@ -26,43 +26,43 @@ function FlowGrid({ size, theme, className }: { size: number; theme: 'light' | '
       <span className={cn('inline-flex', className)}>
         <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="dark:hidden" aria-hidden="true">
           <g transform="translate(6,6)">
-            <circle cx="4" cy="4" r="3" fill="#059669" opacity="0.35" />
-            <circle cx="32" cy="4" r="3" fill="#059669" opacity="0.35" />
-            <circle cx="4" cy="32" r="3" fill="#059669" opacity="0.35" />
-            <circle cx="32" cy="32" r="3" fill="#059669" opacity="0.35" />
-            <circle cx="18" cy="4" r="3" fill="#059669" />
-            <circle cx="4" cy="18" r="3" fill="#059669" />
-            <circle cx="32" cy="18" r="3" fill="#059669" />
-            <circle cx="18" cy="32" r="3" fill="#059669" />
-            <circle cx="18" cy="18" r="4.5" fill="#059669" />
-            <line x1="18" y1="4" x2="18" y2="18" stroke="#059669" strokeWidth="1.5" opacity="0.4" />
-            <line x1="4" y1="18" x2="18" y2="18" stroke="#059669" strokeWidth="1.5" opacity="0.4" />
-            <line x1="18" y1="18" x2="32" y2="18" stroke="#059669" strokeWidth="1.5" opacity="0.4" />
-            <line x1="18" y1="18" x2="18" y2="32" stroke="#059669" strokeWidth="1.5" opacity="0.4" />
+            <circle cx="4" cy="4" r="3" fill="#E5A336" opacity="0.35" />
+            <circle cx="32" cy="4" r="3" fill="#E5A336" opacity="0.35" />
+            <circle cx="4" cy="32" r="3" fill="#E5A336" opacity="0.35" />
+            <circle cx="32" cy="32" r="3" fill="#E5A336" opacity="0.35" />
+            <circle cx="18" cy="4" r="3" fill="#E5A336" />
+            <circle cx="4" cy="18" r="3" fill="#E5A336" />
+            <circle cx="32" cy="18" r="3" fill="#E5A336" />
+            <circle cx="18" cy="32" r="3" fill="#E5A336" />
+            <circle cx="18" cy="18" r="4.5" fill="#E5A336" />
+            <line x1="18" y1="4" x2="18" y2="18" stroke="#E5A336" strokeWidth="1.5" opacity="0.4" />
+            <line x1="4" y1="18" x2="18" y2="18" stroke="#E5A336" strokeWidth="1.5" opacity="0.4" />
+            <line x1="18" y1="18" x2="32" y2="18" stroke="#E5A336" strokeWidth="1.5" opacity="0.4" />
+            <line x1="18" y1="18" x2="18" y2="32" stroke="#E5A336" strokeWidth="1.5" opacity="0.4" />
           </g>
         </svg>
         <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden dark:inline" aria-hidden="true">
           <g transform="translate(6,6)">
-            <circle cx="4" cy="4" r="3" fill="#34D399" opacity="0.35" />
-            <circle cx="32" cy="4" r="3" fill="#34D399" opacity="0.35" />
-            <circle cx="4" cy="32" r="3" fill="#34D399" opacity="0.35" />
-            <circle cx="32" cy="32" r="3" fill="#34D399" opacity="0.35" />
-            <circle cx="18" cy="4" r="3" fill="#34D399" />
-            <circle cx="4" cy="18" r="3" fill="#34D399" />
-            <circle cx="32" cy="18" r="3" fill="#34D399" />
-            <circle cx="18" cy="32" r="3" fill="#34D399" />
-            <circle cx="18" cy="18" r="4.5" fill="#34D399" />
-            <line x1="18" y1="4" x2="18" y2="18" stroke="#34D399" strokeWidth="1.5" opacity="0.4" />
-            <line x1="4" y1="18" x2="18" y2="18" stroke="#34D399" strokeWidth="1.5" opacity="0.4" />
-            <line x1="18" y1="18" x2="32" y2="18" stroke="#34D399" strokeWidth="1.5" opacity="0.4" />
-            <line x1="18" y1="18" x2="18" y2="32" stroke="#34D399" strokeWidth="1.5" opacity="0.4" />
+            <circle cx="4" cy="4" r="3" fill="#F5C963" opacity="0.35" />
+            <circle cx="32" cy="4" r="3" fill="#F5C963" opacity="0.35" />
+            <circle cx="4" cy="32" r="3" fill="#F5C963" opacity="0.35" />
+            <circle cx="32" cy="32" r="3" fill="#F5C963" opacity="0.35" />
+            <circle cx="18" cy="4" r="3" fill="#F5C963" />
+            <circle cx="4" cy="18" r="3" fill="#F5C963" />
+            <circle cx="32" cy="18" r="3" fill="#F5C963" />
+            <circle cx="18" cy="32" r="3" fill="#F5C963" />
+            <circle cx="18" cy="18" r="4.5" fill="#F5C963" />
+            <line x1="18" y1="4" x2="18" y2="18" stroke="#F5C963" strokeWidth="1.5" opacity="0.4" />
+            <line x1="4" y1="18" x2="18" y2="18" stroke="#F5C963" strokeWidth="1.5" opacity="0.4" />
+            <line x1="18" y1="18" x2="32" y2="18" stroke="#F5C963" strokeWidth="1.5" opacity="0.4" />
+            <line x1="18" y1="18" x2="18" y2="32" stroke="#F5C963" strokeWidth="1.5" opacity="0.4" />
           </g>
         </svg>
       </span>
     )
   }
 
-  const color = theme === 'dark' ? '#34D399' : '#059669'
+  const color = theme === 'dark' ? '#F5C963' : '#E5A336'
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <g transform="translate(6,6)">
@@ -87,8 +87,8 @@ function FlowGrid({ size, theme, className }: { size: number; theme: 'light' | '
 /**
  * SettleGrid wordmark: "Settle" (bold 700) + "Grid" (regular 400).
  * Auto theme: uses Tailwind dark: classes to swap colors.
- * Light: "Settle" is Deep Indigo, "Grid" is Emerald.
- * Dark: "Settle" is White, "Grid" is lighter Emerald.
+ * Light: "Settle" is Deep Indigo, "Grid" is Amber-Gold.
+ * Dark: "Settle" is White, "Grid" is lighter Amber-Gold.
  */
 function Wordmark({
   size,
@@ -112,7 +112,7 @@ function Wordmark({
           letterSpacing: '-0.5px',
         }}
       >
-        Settle<span className="text-[#059669] dark:text-[#34D399]" style={{ fontWeight: 400 }}>Grid</span>
+        Settle<span className="text-[#E5A336] dark:text-[#F5C963]" style={{ fontWeight: 400 }}>Grid</span>
       </span>
     )
   }
@@ -129,7 +129,7 @@ function Wordmark({
         color: settleColor,
       }}
     >
-      Settle<span style={{ color: theme === 'dark' ? '#34D399' : '#059669', fontWeight: 400 }}>Grid</span>
+      Settle<span style={{ color: theme === 'dark' ? '#F5C963' : '#E5A336', fontWeight: 400 }}>Grid</span>
     </span>
   )
 }
@@ -144,8 +144,8 @@ function Wordmark({
  *
  * Themes:
  * - "auto" (default): Responds to Tailwind dark mode automatically
- * - "light": Force light appearance (Deep Indigo text + darker Emerald icon)
- * - "dark": Force dark appearance (White text + lighter Emerald icon)
+ * - "light": Force light appearance (Deep Indigo text + darker Amber-Gold icon)
+ * - "dark": Force dark appearance (White text + lighter Amber-Gold icon)
  */
 export function SettleGridLogo({
   variant = 'horizontal',

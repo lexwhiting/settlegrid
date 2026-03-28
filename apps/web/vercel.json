@@ -38,6 +38,30 @@
     {
       "path": "/api/cron/monthly-summary",
       "schedule": "0 9 1 * *"
+    },
+    {
+      "path": "/api/cron/crawl-registry",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/monitor-reddit",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/monitor-github-repos",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-report",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/claim-outreach",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/crawl-services",
+      "schedule": "0 12 * * *"
     }
   ]
 }

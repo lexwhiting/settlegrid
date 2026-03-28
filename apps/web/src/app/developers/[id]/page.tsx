@@ -92,8 +92,8 @@ export default async function DeveloperProfilePage({
 
   if (!profile) {
     return (
-      <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
-        <header className="border-b border-[#2E3148] px-6 py-4">
+      <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
+        <header className="border-b border-[#2A2D3E] px-6 py-4">
           <nav className="max-w-4xl mx-auto flex items-center justify-between">
             <Link href="/">
               <SettleGridLogo variant="horizontal" size={28} />
@@ -110,7 +110,7 @@ export default async function DeveloperProfilePage({
         </header>
         <main className="flex-1 flex items-center justify-center px-6">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-[#1A1D2E] flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-full bg-[#161822] flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
@@ -141,9 +141,9 @@ export default async function DeveloperProfilePage({
   })
 
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* Header */}
-      <header className="border-b border-[#2E3148] px-6 py-4">
+      <header className="border-b border-[#2A2D3E] px-6 py-4">
         <nav className="max-w-4xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -171,10 +171,10 @@ export default async function DeveloperProfilePage({
               <img
                 src={profile.avatarUrl}
                 alt={profile.name}
-                className="w-20 h-20 rounded-full object-cover border-2 border-[#2E3148]"
+                className="w-20 h-20 rounded-full object-cover border-2 border-[#2A2D3E]"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-brand/20 flex items-center justify-center border-2 border-[#2E3148] shrink-0">
+              <div className="w-20 h-20 rounded-full bg-brand/20 flex items-center justify-center border-2 border-[#2A2D3E] shrink-0">
                 <span className="text-2xl font-bold text-brand-text">{initials}</span>
               </div>
             )}
@@ -189,15 +189,15 @@ export default async function DeveloperProfilePage({
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 mb-10">
-            <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5 text-center">
+            <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 text-center">
               <p className="text-2xl font-bold text-brand-text">{profile.stats.toolCount}</p>
               <p className="text-sm text-gray-400 mt-1">Tools</p>
             </div>
-            <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5 text-center">
+            <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 text-center">
               <p className="text-2xl font-bold text-brand-text">{formatNumber(profile.stats.totalInvocations)}</p>
               <p className="text-sm text-gray-400 mt-1">Total Invocations</p>
             </div>
-            <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5 text-center">
+            <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 text-center">
               <p className="text-2xl font-bold text-brand-text">
                 {profile.stats.avgResponseTimeMs > 0 ? `${Math.round(profile.stats.avgResponseTimeMs)}ms` : '--'}
               </p>
@@ -209,7 +209,7 @@ export default async function DeveloperProfilePage({
           <div>
             <h2 className="text-lg font-semibold mb-4">Tools</h2>
             {profile.tools.length === 0 ? (
-              <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-8 text-center">
+              <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-8 text-center">
                 <p className="text-gray-400 text-sm">No published tools yet.</p>
               </div>
             ) : (
@@ -218,7 +218,7 @@ export default async function DeveloperProfilePage({
                   <Link
                     key={tool.slug}
                     href={`/tools/${tool.slug}`}
-                    className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5 hover:border-brand/50 transition-colors group"
+                    className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 hover:border-brand/50 transition-colors group"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <h3 className="font-semibold text-gray-100 group-hover:text-brand-text transition-colors">
@@ -254,7 +254,7 @@ export default async function DeveloperProfilePage({
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-4xl mx-auto text-center text-sm text-gray-400">
           Powered by <Link href="/" className="text-brand-text hover:text-brand-dark">SettleGrid</Link>
         </div>
