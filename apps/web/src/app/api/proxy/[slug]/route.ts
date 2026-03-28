@@ -7,6 +7,8 @@ import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
+import { isIpInAllowlist } from '@/lib/ip-validation'
+import { detectFraud, isIpBlocked, trackFailedAuth } from '@/lib/fraud'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
@@ -48,6 +50,9 @@ async function authenticateProxyRequest(
       toolId: string
       keyId: string
       isTestKey: boolean
+      ipAllowlist: string[] | null
+      keyCreatedAt: Date | null
+      keyLastUsedAt: Date | null
       tool: {
         id: string
         name: string
@@ -86,6 +91,9 @@ async function authenticateProxyRequest(
       consumerId: apiKeys.consumerId,
       toolId: apiKeys.toolId,
       isTestKey: apiKeys.isTestKey,
+      ipAllowlist: apiKeys.ipAllowlist,
+      keyCreatedAt: apiKeys.createdAt,
+      keyLastUsedAt: apiKeys.lastUsedAt,
       toolName: tools.name,
       toolSlug: tools.slug,
       toolStatus: tools.status,
@@ -154,6 +162,9 @@ async function authenticateProxyRequest(
     toolId: row.toolId,
     keyId: row.keyId,
     isTestKey: row.isTestKey,
+    ipAllowlist: row.ipAllowlist as string[] | null,
+    keyCreatedAt: row.keyCreatedAt,
+    keyLastUsedAt: row.keyLastUsedAt,
     tool: {
       id: row.toolId,
       name: row.toolName,
@@ -304,13 +315,66 @@ async function handleProxy(
     }
 
     // ── Standard API Key Flow ───────────────────────────────────────────────
+
+    // Check if caller IP is blocked due to excessive failed auth attempts
+    const blocked = await isIpBlocked(ip)
+    if (blocked) {
+      return errorResponse('Too many failed attempts. Try again later.', 429, 'IP_BLOCKED', requestId)
+    }
+
     // Authenticate
     const auth = await authenticateProxyRequest(request, slug)
     if (!auth.ok) {
+      // Track failed auth for IP-based blocking
+      trackFailedAuth(ip).catch(() => {})
       return auth.error
     }
 
+    // ── IP Allowlist Enforcement ──────────────────────────────────────────
+    const allowlist = auth.ipAllowlist
+    if (allowlist && allowlist.length > 0) {
+      if (!isIpInAllowlist(ip, allowlist)) {
+        logger.warn('proxy.ip_not_in_allowlist', {
+          slug,
+          consumerId: auth.consumerId,
+          ip,
+          requestId,
+        })
+        return errorResponse(
+          'Request from unauthorized IP address.',
+          403,
+          'IP_NOT_ALLOWED',
+          requestId
+        )
+      }
+    }
+
     const costCents = getCostCents(auth.tool.pricingConfig)
+
+    // ── Fraud Detection ──────────────────────────────────────────────────
+    // Run fraud detection in parallel with balance checks (non-blocking for
+    // low-risk calls, blocking for high-risk).
+    const fraudResult = await detectFraud({
+      consumerId: auth.consumerId,
+      toolId: auth.toolId,
+      costCents,
+      ip,
+      keyId: auth.keyId,
+      keyCreatedAt: auth.keyCreatedAt ?? undefined,
+      keyLastUsedAt: auth.keyLastUsedAt,
+      method: `proxy:${request.method}`,
+    })
+
+    if (fraudResult.flagged) {
+      logger.warn('proxy.fraud_flagged', {
+        slug,
+        consumerId: auth.consumerId,
+        riskScore: fraudResult.riskScore,
+        signals: fraudResult.signals,
+        reasons: fraudResult.reasons,
+        requestId,
+      })
+    }
 
     // For test keys, skip balance checks but still proxy
     if (!auth.isTestKey && costCents > 0) {
@@ -386,6 +450,7 @@ async function handleProxy(
           latencyMs,
           status: 'error',
           isTest: auth.isTestKey,
+          isFlagged: fraudResult.flagged,
           metadata: { error: err instanceof Error ? err.name : 'unknown', proxy: true },
         })
         .then(() => {})
@@ -479,7 +544,7 @@ async function handleProxy(
         .catch(() => {})
     }
 
-    // Record invocation
+    // Record invocation (with fraud flag and test mode metadata)
     db.insert(invocations)
       .values({
         toolId: auth.toolId,
@@ -490,10 +555,13 @@ async function handleProxy(
         latencyMs,
         status: upstreamOk ? 'success' : 'error',
         isTest: auth.isTestKey,
+        isFlagged: fraudResult.flagged,
         metadata: {
           proxy: true,
           upstreamStatus,
           toolSlug: slug,
+          ...(auth.isTestKey ? { isTest: true } : {}),
+          ...(fraudResult.flagged ? { fraudRiskScore: fraudResult.riskScore, fraudSignals: fraudResult.signals } : {}),
         },
       })
       .then(() => {})
@@ -506,6 +574,8 @@ async function handleProxy(
       latencyMs,
       upstreamStatus,
       costCents: actualCost,
+      isTest: auth.isTestKey,
+      isFlagged: fraudResult.flagged,
       requestId,
     })
 
@@ -528,6 +598,9 @@ async function handleProxy(
     responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
     responseHeaders.set('X-SettleGrid-Tool', slug)
     responseHeaders.set('X-SettleGrid-Protocol', 'api-key')
+    if (auth.isTestKey) {
+      responseHeaders.set('X-SettleGrid-Mode', 'sandbox')
+    }
     if (requestId) {
       responseHeaders.set('x-request-id', requestId)
     }
