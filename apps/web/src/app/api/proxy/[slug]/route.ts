@@ -8,7 +8,21 @@ import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
-import { isMppEnabled, getMppRecipientId } from '@/lib/env'
+import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
+import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
+import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
+import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
+import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
+import { isMastercardRequest, isMastercardEnabled, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
+import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoPayment, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
+import {
+  isMppEnabled,
+  getMppRecipientId,
+  isX402Enabled,
+  isAp2Enabled,
+  isVisaTapEnabled,
+  isAcpEnabled,
+} from '@/lib/env'
 
 export const maxDuration = 60
 
@@ -214,12 +228,49 @@ async function handleProxy(
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
-    // ── MPP Payment Flow ────────────────────────────────────────────────────
-    // If the request contains MPP payment headers and MPP is enabled,
-    // use the MPP payment flow instead of the standard API key flow.
-    // This allows agents with Stripe SPTs to pay for tools directly.
+    // ── Payment Protocol Detection Chain ────────────────────────────────────
+    // Check each payment protocol in priority order. When a protocol is
+    // enabled and the request matches its headers, use that protocol's
+    // payment flow instead of the standard API key flow.
+
+    // 1. MPP (Stripe Machine Payments Protocol)
     if (isMppEnabled() && isMppRequest(request)) {
       return handleMppProxy(request, slug, requestId, startTime)
+    }
+
+    // 2. x402 (Coinbase — USDC on Base blockchain)
+    if (isX402Enabled() && isX402Request(request)) {
+      return handleX402Proxy(request, slug, requestId, startTime)
+    }
+
+    // 3. AP2 (Google Agentic Payments Protocol)
+    if (isAp2Enabled() && isAp2Request(request)) {
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    }
+
+    // 4. Visa TAP (Trusted Agent Protocol)
+    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
+      return handleVisaTapProxy(request, slug, requestId, startTime)
+    }
+
+    // 5. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
+    if (isAcpEnabled() && isAcpRequest(request)) {
+      return handleAcpProxy(request, slug, requestId, startTime)
+    }
+
+    // 6. UCP (Universal Commerce Protocol)
+    if (isUcpEnabled() && isUcpRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    }
+
+    // 7. Mastercard Agent Pay
+    if (isMastercardEnabled() && isMastercardRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
+    }
+
+    // 8. Circle Nanopayments
+    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
     }
 
     // ── Standard API Key Flow ───────────────────────────────────────────────
@@ -745,6 +796,532 @@ function recordMppInvocation(params: {
         mppPaymentId: params.mppPaymentId,
       }, err)
     })
+}
+
+// ─── Shared: Look up tool by slug (no API key required) ─────────────────────
+
+type PaymentMethod = 'mpp' | 'x402' | 'ap2' | 'visa-tap' | 'acp' | 'ucp' | 'mastercard-vi' | 'circle-nano'
+
+async function lookupToolBySlug(slug: string, requestId: string) {
+  const [toolRow] = await db
+    .select({
+      id: tools.id,
+      name: tools.name,
+      slug: tools.slug,
+      status: tools.status,
+      proxyEndpoint: tools.proxyEndpoint,
+      developerId: tools.developerId,
+      pricingConfig: tools.pricingConfig,
+      revenueSharePct: developers.revenueSharePct,
+    })
+    .from(tools)
+    .innerJoin(developers, eq(tools.developerId, developers.id))
+    .where(eq(tools.slug, slug))
+    .limit(1)
+
+  if (!toolRow) {
+    return { ok: false as const, error: errorResponse('Tool not found.', 404, 'TOOL_NOT_FOUND', requestId) }
+  }
+  if (toolRow.status !== 'active') {
+    return { ok: false as const, error: errorResponse('Tool is not active.', 404, 'TOOL_NOT_ACTIVE', requestId) }
+  }
+  if (!toolRow.proxyEndpoint) {
+    return { ok: false as const, error: errorResponse('This tool does not have a proxy endpoint configured.', 404, 'NO_PROXY_ENDPOINT', requestId) }
+  }
+  // After the null check above, proxyEndpoint is guaranteed to be a string.
+  // Use an intermediate variable to help TypeScript narrow the type.
+  const verifiedTool = {
+    id: toolRow.id,
+    name: toolRow.name,
+    slug: toolRow.slug,
+    proxyEndpoint: toolRow.proxyEndpoint as string,
+    developerId: toolRow.developerId,
+    pricingConfig: toolRow.pricingConfig,
+    revenueSharePct: toolRow.revenueSharePct,
+  }
+  return { ok: true as const, toolRow: verifiedTool }
+}
+
+/**
+ * Record a protocol-paid invocation to the database.
+ * Uses a sentinel consumer/apiKey since protocol payments bypass the
+ * traditional API key flow. Payment details are stored in metadata.
+ */
+function recordProtocolInvocation(params: {
+  toolId: string
+  developerId: string
+  method: string
+  costCents: number
+  latencyMs: number
+  status: 'success' | 'error'
+  paymentMethod: PaymentMethod
+  paymentId?: string
+  payerIdentifier?: string
+  toolSlug: string
+  upstreamStatus?: number
+  extraMetadata?: Record<string, unknown>
+}): void {
+  // Protocol invocations use a sentinel consumer/key ID — the payer is identified
+  // by their protocol-specific identifier, not a SettleGrid consumer account.
+  const PROTOCOL_SENTINEL_ID = '00000000-0000-0000-0000-000000000002'
+
+  db.insert(invocations)
+    .values({
+      toolId: params.toolId,
+      consumerId: PROTOCOL_SENTINEL_ID,
+      apiKeyId: PROTOCOL_SENTINEL_ID,
+      method: params.method,
+      costCents: params.costCents,
+      latencyMs: params.latencyMs,
+      status: params.status,
+      isTest: false,
+      metadata: {
+        proxy: true,
+        paymentMethod: params.paymentMethod,
+        paymentId: params.paymentId ?? null,
+        payerIdentifier: params.payerIdentifier ?? null,
+        toolSlug: params.toolSlug,
+        upstreamStatus: params.upstreamStatus ?? null,
+        ...params.extraMetadata,
+      },
+    })
+    .then(() => {})
+    .catch((err) => {
+      logger.error('proxy.protocol_invocation_record_error', {
+        toolId: params.toolId,
+        paymentMethod: params.paymentMethod,
+        paymentId: params.paymentId,
+      }, err)
+    })
+}
+
+/**
+ * Forward a request to the upstream tool and handle billing.
+ * Shared by all protocol handlers after payment validation succeeds.
+ */
+async function forwardAndBill(
+  request: NextRequest,
+  toolRow: {
+    id: string
+    name: string
+    slug: string
+    proxyEndpoint: string
+    developerId: string
+    pricingConfig: unknown
+    revenueSharePct: number
+  },
+  paymentMethod: PaymentMethod,
+  costCents: number,
+  slug: string,
+  requestId: string,
+  startTime: number,
+  paymentId: string | undefined,
+  payerIdentifier: string | undefined,
+  extraHeaders: Record<string, string>,
+  extraMetadata?: Record<string, unknown>
+): Promise<NextResponse> {
+  const upstreamHeaders = buildUpstreamHeaders(request)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
+
+  let upstreamResponse: Response
+  try {
+    const fetchInit: RequestInit = {
+      method: request.method,
+      headers: upstreamHeaders,
+      signal: controller.signal,
+    }
+
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      fetchInit.body = request.body
+      // @ts-expect-error -- duplex is required for streaming request bodies in fetch but not in the TS types yet
+      fetchInit.duplex = 'half'
+    }
+
+    upstreamResponse = await fetch(toolRow.proxyEndpoint, fetchInit)
+  } catch (err) {
+    clearTimeout(timeout)
+    const latencyMs = Date.now() - startTime
+
+    logger.error(`proxy.${paymentMethod}_upstream_error`, {
+      slug,
+      paymentId,
+      latencyMs,
+      error: err instanceof Error ? err.message : String(err),
+      requestId,
+    })
+
+    recordProtocolInvocation({
+      toolId: toolRow.id,
+      developerId: toolRow.developerId,
+      method: `proxy:${request.method}`,
+      costCents: 0,
+      latencyMs,
+      status: 'error',
+      paymentMethod,
+      paymentId,
+      payerIdentifier,
+      toolSlug: slug,
+      extraMetadata,
+    })
+
+    if (err instanceof Error && err.name === 'AbortError') {
+      return errorResponse('Upstream tool timed out after 30 seconds.', 504, 'UPSTREAM_TIMEOUT', requestId)
+    }
+    return errorResponse('Upstream tool is unreachable.', 503, 'UPSTREAM_UNREACHABLE', requestId)
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  const latencyMs = Date.now() - startTime
+  const upstreamStatus = upstreamResponse.status
+  const upstreamOk = upstreamStatus >= 200 && upstreamStatus < 300
+  const actualCost = upstreamOk ? costCents : 0
+
+  if (upstreamOk) {
+    const developerShareCents = Math.floor(actualCost * (toolRow.revenueSharePct / 100))
+
+    Promise.all([
+      db.update(tools).set({
+        totalInvocations: sql`${tools.totalInvocations} + 1`,
+        totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+        updatedAt: new Date(),
+      }).where(eq(tools.id, toolRow.id)),
+      db.update(developers).set({
+        balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+        updatedAt: new Date(),
+      }).where(eq(developers.id, toolRow.developerId)),
+    ]).catch((err) => {
+      logger.error(`proxy.${paymentMethod}_billing_update_error`, { slug, requestId }, err)
+    })
+  }
+
+  recordProtocolInvocation({
+    toolId: toolRow.id,
+    developerId: toolRow.developerId,
+    method: `proxy:${request.method}`,
+    costCents: actualCost,
+    latencyMs,
+    status: upstreamOk ? 'success' : 'error',
+    paymentMethod,
+    paymentId,
+    payerIdentifier,
+    toolSlug: slug,
+    upstreamStatus,
+    extraMetadata,
+  })
+
+  logger.info(`proxy.${paymentMethod}_invocation`, {
+    slug,
+    paymentId,
+    latencyMs,
+    upstreamStatus,
+    costCents: actualCost,
+    requestId,
+  })
+
+  // Stream the upstream response back
+  const responseHeaders = new Headers()
+  upstreamResponse.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower !== 'transfer-encoding' && lower !== 'connection') {
+      responseHeaders.set(key, value)
+    }
+  })
+
+  responseHeaders.set('X-SettleGrid-Proxy', 'true')
+  responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
+  responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
+  responseHeaders.set('X-SettleGrid-Payment-Method', paymentMethod)
+  for (const [key, value] of Object.entries(extraHeaders)) {
+    responseHeaders.set(key, value)
+  }
+  if (requestId) {
+    responseHeaders.set('x-request-id', requestId)
+  }
+
+  return new NextResponse(upstreamResponse.body, {
+    status: upstreamStatus,
+    headers: responseHeaders,
+  })
+}
+
+// ─── x402 Proxy Handler ─────────────────────────────────────────────────────
+
+async function handleX402Proxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+
+  const x402Result = await validateX402Payment(request, {
+    slug: toolRow.slug,
+    costCents,
+    displayName: toolRow.name,
+    recipientAddress: process.env.SETTLEGRID_PAYMENT_ADDRESS,
+  })
+
+  if (!x402Result.valid) {
+    logger.info('proxy.x402_payment_required', {
+      slug,
+      costCents,
+      errorCode: x402Result.error?.code,
+      requestId,
+    })
+
+    const x402Response = generateX402_402Response(toolRow.slug, costCents, toolRow.name)
+    const body = await x402Response.text()
+    const headers = new Headers(x402Response.headers)
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(body, { status: 402, headers })
+  }
+
+  return forwardAndBill(
+    request, toolRow, 'x402', costCents, slug, requestId, startTime,
+    x402Result.txHash,
+    x402Result.payerAddress,
+    {
+      ...(x402Result.txHash ? { 'X-SettleGrid-Tx-Hash': x402Result.txHash } : {}),
+    },
+    {
+      network: x402Result.network ?? null,
+      scheme: x402Result.scheme ?? null,
+      amountUsdc: x402Result.amountUsdc ?? null,
+    }
+  )
+}
+
+// ─── AP2 Proxy Handler ──────────────────────────────────────────────────────
+
+async function handleAp2Proxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+
+  const ap2Result = await validateAp2Payment(request, {
+    slug: toolRow.slug,
+    costCents,
+    displayName: toolRow.name,
+    merchantId: 'settlegrid_platform',
+  })
+
+  if (!ap2Result.valid) {
+    logger.info('proxy.ap2_payment_required', {
+      slug,
+      costCents,
+      errorCode: ap2Result.error?.code,
+      requestId,
+    })
+
+    const ap2Response = generateAp2_402Response(toolRow.slug, costCents, toolRow.name)
+    const body = await ap2Response.text()
+    const headers = new Headers(ap2Response.headers)
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(body, { status: 402, headers })
+  }
+
+  return forwardAndBill(
+    request, toolRow, 'ap2', costCents, slug, requestId, startTime,
+    ap2Result.transactionId,
+    ap2Result.consumerId,
+    {},
+    {
+      ap2PaymentMethod: ap2Result.paymentMethod ?? null,
+      ap2MandateType: ap2Result.mandateType ?? null,
+    }
+  )
+}
+
+// ─── Visa TAP Proxy Handler ─────────────────────────────────────────────────
+
+async function handleVisaTapProxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+
+  const visaResult = await validateVisaTapPayment(request, {
+    slug: toolRow.slug,
+    costCents,
+    displayName: toolRow.name,
+    merchantId: 'settlegrid_platform',
+  })
+
+  if (!visaResult.valid) {
+    logger.info('proxy.visa_tap_payment_required', {
+      slug,
+      costCents,
+      errorCode: visaResult.error?.code,
+      requestId,
+    })
+
+    const visaResponse = generateVisaTap402Response(toolRow.slug, costCents, toolRow.name)
+    const body = await visaResponse.text()
+    const headers = new Headers(visaResponse.headers)
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(body, { status: 402, headers })
+  }
+
+  return forwardAndBill(
+    request, toolRow, 'visa-tap', costCents, slug, requestId, startTime,
+    visaResult.authorizationCode,
+    visaResult.tokenReferenceId,
+    {
+      ...(visaResult.authorizationCode ? { 'X-SettleGrid-Visa-Auth-Code': visaResult.authorizationCode } : {}),
+      ...(visaResult.networkReferenceId ? { 'X-SettleGrid-Visa-Network-Ref': visaResult.networkReferenceId } : {}),
+    },
+    {
+      visaTokenRef: visaResult.tokenReferenceId ?? null,
+      visaAgentId: visaResult.agentId ?? null,
+    }
+  )
+}
+
+// ─── ACP Proxy Handler ──────────────────────────────────────────────────────
+
+async function handleAcpProxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+
+  const acpResult = await validateAcpPayment(request, {
+    slug: toolRow.slug,
+    costCents,
+    displayName: toolRow.name,
+    recipientId: process.env.ACP_RECIPIENT_ID,
+  })
+
+  if (!acpResult.valid) {
+    logger.info('proxy.acp_payment_required', {
+      slug,
+      costCents,
+      errorCode: acpResult.error?.code,
+      requestId,
+    })
+
+    const acpResponse = generateAcp402Response(toolRow.slug, costCents, toolRow.name)
+    const body = await acpResponse.text()
+    const headers = new Headers(acpResponse.headers)
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(body, { status: 402, headers })
+  }
+
+  return forwardAndBill(
+    request, toolRow, 'acp', costCents, slug, requestId, startTime,
+    acpResult.paymentIntentId ?? acpResult.checkoutSessionId,
+    acpResult.customerId,
+    {
+      ...(acpResult.checkoutSessionId ? { 'X-SettleGrid-ACP-Session-Id': acpResult.checkoutSessionId } : {}),
+    },
+    {
+      acpCheckoutSessionId: acpResult.checkoutSessionId ?? null,
+      acpPaymentIntentId: acpResult.paymentIntentId ?? null,
+    }
+  )
+}
+
+// ─── Generic Protocol Proxy Handler (UCP, Mastercard, Circle Nano) ──────────
+
+/**
+ * Handles proxy invocations for UCP, Mastercard Agent Pay, and Circle Nanopayments.
+ * These share the same lookup-validate-forward-bill pattern with protocol-specific
+ * validation and 402 response generation.
+ */
+async function handleProtocolProxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number,
+  protocol: 'ucp' | 'mastercard-vi' | 'circle-nano'
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+  const toolConfig = { slug: toolRow.slug, costCents, displayName: toolRow.name }
+
+  let valid = false
+  let paymentId: string | undefined
+  let payerIdentifier: string | undefined
+  let extraMeta: Record<string, unknown> = {}
+
+  // Validate payment based on protocol
+  if (protocol === 'ucp') {
+    const result = await validateUcpPayment(request, toolConfig)
+    valid = result.valid
+    paymentId = result.sessionId
+    payerIdentifier = result.paymentHandler
+    if (!valid) {
+      const resp402 = generateUcp402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { ucpSessionId: result.sessionId ?? null, ucpPaymentHandler: result.paymentHandler ?? null }
+  } else if (protocol === 'mastercard-vi') {
+    const result = await validateMastercardPayment(request, { ...toolConfig, merchantId: 'settlegrid_platform' })
+    valid = result.valid
+    paymentId = result.authorizationRef ?? result.intentId
+    payerIdentifier = result.intentId
+    if (!valid) {
+      const resp402 = generateMastercard402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { mcIntentId: result.intentId ?? null }
+  } else if (protocol === 'circle-nano') {
+    const result = await validateCircleNanoPayment(request, toolConfig)
+    valid = result.valid
+    paymentId = result.confirmationId
+    payerIdentifier = result.payerAddress
+    if (!valid) {
+      const resp402 = generateCircleNano402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { circleNanoConfirmationId: result.confirmationId ?? null, payerAddress: result.payerAddress ?? null }
+  }
+
+  if (!valid) {
+    return errorResponse('Payment validation failed.', 402, 'PAYMENT_REQUIRED', requestId)
+  }
+
+  return forwardAndBill(
+    request, toolRow, protocol, costCents, slug, requestId, startTime,
+    paymentId, payerIdentifier, {}, extraMeta
+  )
 }
 
 export async function POST(

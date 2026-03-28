@@ -219,8 +219,20 @@ export async function validateMppPayment(
     }
 
     // Step 2: Check that the authorized amount covers the tool cost
-    const requestedAmount = extractRequestedAmount(request)
     const chargeAmount = toolConfig.costCents
+    const agentAmount = extractRequestedAmount(request)
+
+    // If the agent specified an amount, verify it matches the tool cost
+    if (agentAmount !== null && agentAmount < chargeAmount) {
+      return {
+        valid: false,
+        sessionId,
+        error: {
+          code: 'MPP_AMOUNT_MISMATCH',
+          message: `Agent authorized ${agentAmount} cents but tool costs ${chargeAmount} cents.`,
+        },
+      }
+    }
 
     if (verifyResult.maxAmountCents !== undefined && verifyResult.maxAmountCents < chargeAmount) {
       return {

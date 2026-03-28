@@ -136,6 +136,44 @@ export function getVisaSharedSecret(): string | undefined {
   return process.env.VISA_SHARED_SECRET
 }
 
+// Protocol enable checks — each protocol is enabled when its key env var is set
+
+// x402: enabled when facilitator URL is set OR the gas wallet key is available
+export function isX402Enabled(): boolean {
+  return !!process.env.X402_FACILITATOR_URL || !!process.env.SETTLEGRID_GAS_WALLET_KEY
+}
+
+export function getX402FacilitatorUrl(): string | undefined {
+  return process.env.X402_FACILITATOR_URL
+}
+
+// AP2: enabled when the signing secret or verification key is configured
+export function isAp2Enabled(): boolean {
+  return !!process.env.AP2_PROVIDER_KEY || !!process.env.AP2_SIGNING_SECRET || !!process.env.AP2_VERIFICATION_KEY
+}
+
+export function getAp2ProviderKey(): string | undefined {
+  return process.env.AP2_PROVIDER_KEY
+}
+
+// Visa TAP: enabled when the Visa API key is set (VISA_TAP_API_KEY or VISA_API_KEY)
+export function isVisaTapEnabled(): boolean {
+  return !!process.env.VISA_TAP_API_KEY || !!process.env.VISA_API_KEY
+}
+
+export function getVisaTapApiKey(): string | undefined {
+  return process.env.VISA_TAP_API_KEY ?? process.env.VISA_API_KEY
+}
+
+// ACP: enabled when the ACP Stripe key is set
+export function isAcpEnabled(): boolean {
+  return !!process.env.ACP_STRIPE_KEY
+}
+
+export function getAcpStripeKey(): string | undefined {
+  return process.env.ACP_STRIPE_KEY
+}
+
 // GitHub PAT — optional, used for developer email resolution from public repos
 export function getGitHubToken(): string | undefined {
   return process.env.GITHUB_TOKEN
