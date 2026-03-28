@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -75,8 +76,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function StartPage() {
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<Step>('paste')
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(searchParams.get('url') ?? '')
   const [analyzing, setAnalyzing] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [detection, setDetection] = useState<DetectionResult | null>(null)
@@ -136,6 +138,16 @@ export default function StartPage() {
       setAnalyzing(false)
     }
   }, [url])
+
+  // Auto-analyze if URL came from homepage paste input
+  const autoAnalyzed = useRef(false)
+  useEffect(() => {
+    if (searchParams.get('url') && url.trim() && !autoAnalyzed.current) {
+      autoAnalyzed.current = true
+      analyzeUrl()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ─── OAuth Sign In ────────────────────────────────────────────────────────
 
