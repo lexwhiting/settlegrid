@@ -185,7 +185,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Feature-by-feature comparison of SettleGrid and Nevermined for AI agent payments. Protocols, metering speed, pricing, and SDK simplicity.',
     competitorName: 'Nevermined',
     introParagraph:
-      'Both SettleGrid and Nevermined enable payments between AI agents. Nevermined focuses on crypto-native, on-chain settlement via x402 and A2A protocols. SettleGrid takes a protocol-agnostic approach, supporting 10 payment protocols with sub-50ms Redis metering and both fiat and crypto settlement. Here is how they compare across key dimensions.',
+      'Both SettleGrid and Nevermined enable payments between AI agents. Nevermined focuses on crypto-native, on-chain settlement via x402 and A2A protocols. SettleGrid takes a protocol-agnostic approach, supporting 15 payment protocols with sub-50ms Redis metering and both fiat and crypto settlement. Here is how they compare across key dimensions.',
     features: [
       { feature: 'Take rate', settlegrid: '0\u20135% (progressive)', competitor: '1\u20136.5%' },
       { feature: 'Protocol support', settlegrid: '15 protocols', competitor: 'x402 / A2A' },
@@ -267,7 +267,7 @@ const comparisons: Record<string, ComparisonData> = {
     settlegridPros: [
       'Keep up to 100% of revenue (progressive take rate) vs 85% on MCPize',
       'Host anywhere \u2014 no vendor lock-in to a single marketplace',
-      '10 payment protocols vs MCP-only on MCPize',
+      '15 payment protocols vs MCP-only on MCPize',
       '6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome)',
       'Free tier with 50K ops/month and progressive take rate',
     ],
@@ -287,7 +287,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Compare SettleGrid and Paid.ai for AI tool billing. Pricing model flexibility, protocol support, revenue share, free tier, and SDK simplicity.',
     competitorName: 'Paid.ai',
     introParagraph:
-      'Paid.ai, founded by Manny Medina (Outreach founder) with $21M in seed funding, focuses on outcome-based billing for AI tools \u2014 you only pay when the AI delivers results. SettleGrid supports outcome-based billing AND five other pricing models, across 10 payment protocols. Here is how they compare.',
+      'Paid.ai, founded by Manny Medina (Outreach founder) with $21M in seed funding, focuses on outcome-based billing for AI tools \u2014 you only pay when the AI delivers results. SettleGrid supports outcome-based billing AND five other pricing models, across 15 payment protocols. Here is how they compare.',
     features: [
       { feature: 'Pricing models', settlegrid: '6 models', competitor: 'Outcome-based only' },
       { feature: 'Protocol support', settlegrid: '15 protocols', competitor: 'MCP' },
@@ -301,7 +301,7 @@ const comparisons: Record<string, ComparisonData> = {
     ],
     settlegridPros: [
       'Supports 6 pricing models: per-call, per-token, per-byte, per-second, tiered, AND outcome-based',
-      '10 payment protocols vs MCP-only on Paid.ai',
+      '15 payment protocols vs MCP-only on Paid.ai',
       'Transparent progressive take rate (0-5%) with a free tier at 50K ops/mo',
       'Sub-50ms metering latency for real-time billing',
       'Budget enforcement and agent identity built in',
@@ -312,7 +312,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Simple mental model: pay only when AI delivers results',
     ],
     verdict:
-      'If your use case is exclusively outcome-based billing and nothing else, Paid.ai has a compelling story. But most AI tools need flexible pricing \u2014 a search tool charges per call, an LLM proxy charges per token, a compute service charges per second. SettleGrid supports all six pricing models including outcomes, plus 10 payment protocols, a free tier, and transparent revenue sharing. For developers who want maximum flexibility, SettleGrid is the more complete platform.',
+      'If your use case is exclusively outcome-based billing and nothing else, Paid.ai has a compelling story. But most AI tools need flexible pricing \u2014 a search tool charges per call, an LLM proxy charges per token, a compute service charges per second. SettleGrid supports all six pricing models including outcomes, plus 15 payment protocols, a free tier, and transparent revenue sharing. For developers who want maximum flexibility, SettleGrid is the more complete platform.',
   },
   'vs-moesif': {
     slug: 'vs-moesif',
@@ -338,7 +338,7 @@ const comparisons: Record<string, ComparisonData> = {
     settlegridPros: [
       'Purpose-built for AI tool monetization, not retrofitted from analytics',
       'MCP-native SDK \u2014 2-line integration vs 10\u201320 lines for Moesif',
-      '10 payment protocols including MCP, x402, and A2A',
+      '15 payment protocols including MCP, x402, and A2A',
       'Sub-50ms synchronous metering vs async analytics pipeline',
       'Budget enforcement and agent identity built in',
     ],
@@ -359,7 +359,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Compare SettleGrid and Stripe Metronome (acquired by Stripe for $1B) for AI service billing. Setup time, pricing models, discovery, protocol support, and take rate.',
     competitorName: 'Stripe Metronome',
     introParagraph:
-      'Stripe acquired Metronome for $1 billion, signaling how critical usage-based billing has become. Metronome is enterprise-grade usage-based billing designed for complex pricing at scale. SettleGrid is purpose-built for the AI economy: a 2-line SDK with progressive pricing, AI-native discovery and metering, and support for 10 payment protocols. Both platforms handle usage-based billing, but they serve very different worlds.',
+      'Stripe acquired Metronome for $1 billion, signaling how critical usage-based billing has become. Metronome is enterprise-grade usage-based billing designed for complex pricing at scale. SettleGrid is purpose-built for the AI economy: a 2-line SDK with progressive pricing, AI-native discovery and metering, and support for 15 payment protocols. Both platforms handle usage-based billing, but they serve very different worlds.',
     features: [
       { feature: 'Setup time', settlegrid: '2 lines of code', competitor: 'Weeks (enterprise onboarding)' },
       { feature: 'Pricing models', settlegrid: '6 (per-call, per-token, per-byte, per-second, tiered, outcome)', competitor: 'Usage-based (custom metering events)' },
@@ -375,7 +375,7 @@ const comparisons: Record<string, ComparisonData> = {
     settlegridPros: [
       '2-line SDK integration vs weeks of enterprise onboarding for Metronome',
       'Progressive take rate starting at 0% on first $1K/mo \u2014 free to start',
-      '10 payment protocols including crypto (x402) and agent-native (A2A, AP2)',
+      '15 payment protocols including crypto (x402) and agent-native (A2A, AP2)',
       'Built-in AI tool discovery marketplace and showcase',
       'Agent identity, budget enforcement, and multi-hop settlement for agent-to-agent workflows',
       'Purpose-built for AI service billing, not adapted from SaaS billing',
@@ -388,7 +388,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Strong fit for traditional SaaS companies with complex usage-based pricing',
     ],
     verdict:
-      'Stripe Metronome is an exceptional choice for enterprise SaaS companies that need complex usage-based billing within the Stripe ecosystem. But if you are building AI tools, agent services, or MCP servers, SettleGrid is purpose-built for your world: a 2-line SDK, 10 payment protocols, AI-native discovery, progressive pricing starting at 0%, and agent-specific features like budget enforcement and multi-hop settlement. Metronome bills for SaaS usage. SettleGrid settles AI service calls.',
+      'Stripe Metronome is an exceptional choice for enterprise SaaS companies that need complex usage-based billing within the Stripe ecosystem. But if you are building AI tools, agent services, or MCP servers, SettleGrid is purpose-built for your world: a 2-line SDK, 15 payment protocols, AI-native discovery, progressive pricing starting at 0%, and agent-specific features like budget enforcement and multi-hop settlement. Metronome bills for SaaS usage. SettleGrid settles AI service calls.',
   },
   'vs-orb': {
     slug: 'vs-orb',
@@ -427,7 +427,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Detailed usage analytics and real-time dashboards',
     ],
     verdict:
-      'Orb is an outstanding billing platform for B2B SaaS companies with complex, custom pricing that need SQL-level flexibility in defining their billing logic. But if you are monetizing AI tools, MCP servers, or agent services, SettleGrid is built specifically for that: 2 lines of code, 10 payment protocols, a discovery marketplace, progressive pricing from 0%, and agent-native features like budget enforcement. Orb bills for SaaS events. SettleGrid settles AI service calls.',
+      'Orb is an outstanding billing platform for B2B SaaS companies with complex, custom pricing that need SQL-level flexibility in defining their billing logic. But if you are monetizing AI tools, MCP servers, or agent services, SettleGrid is built specifically for that: 2 lines of code, 15 payment protocols, a discovery marketplace, progressive pricing from 0%, and agent-native features like budget enforcement. Orb bills for SaaS events. SettleGrid settles AI service calls.',
   },
   'vs-lago': {
     slug: 'vs-lago',
@@ -437,7 +437,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Compare SettleGrid and Lago for AI tool monetization. Open-source vs managed, protocol support, discovery marketplace, infrastructure requirements, and pricing.',
     competitorName: 'Lago',
     introParagraph:
-      'Lago is an open-source usage-based billing platform that can be self-hosted or used as a cloud service. It is a strong choice for companies that want full control over their billing infrastructure. SettleGrid is a managed platform purpose-built for AI service settlement: zero infrastructure to manage, 10 payment protocols, AI-native discovery, and a 2-line SDK. The core question: do you want to run billing infrastructure, or ship AI tools?',
+      'Lago is an open-source usage-based billing platform that can be self-hosted or used as a cloud service. It is a strong choice for companies that want full control over their billing infrastructure. SettleGrid is a managed platform purpose-built for AI service settlement: zero infrastructure to manage, 15 payment protocols, AI-native discovery, and a 2-line SDK. The core question: do you want to run billing infrastructure, or ship AI tools?',
     features: [
       { feature: 'Setup time', settlegrid: '2 lines of code', competitor: 'Hours\u2013days (self-host) or minutes (cloud)' },
       { feature: 'Infrastructure', settlegrid: 'Fully managed, zero ops', competitor: 'Self-hosted (Postgres, Redis, Sidekiq) or cloud' },
@@ -466,7 +466,7 @@ const comparisons: Record<string, ComparisonData> = {
       'Good fit for teams with DevOps capacity who want full billing control',
     ],
     verdict:
-      'Lago is an excellent choice if you have the DevOps capacity to run your own billing infrastructure and want complete control over the source code. But most AI tool developers do not want to become billing infrastructure operators. SettleGrid lets you skip that entirely: 2 lines of code, zero infrastructure, 10 payment protocols, a discovery marketplace, and AI-specific features like agent identity and budget enforcement. If your goal is to monetize AI tools quickly, SettleGrid gets you there faster with less operational burden.',
+      'Lago is an excellent choice if you have the DevOps capacity to run your own billing infrastructure and want complete control over the source code. But most AI tool developers do not want to become billing infrastructure operators. SettleGrid lets you skip that entirely: 2 lines of code, zero infrastructure, 15 payment protocols, a discovery marketplace, and AI-specific features like agent identity and budget enforcement. If your goal is to monetize AI tools quickly, SettleGrid gets you there faster with less operational burden.',
   },
 }
 
