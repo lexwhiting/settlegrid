@@ -50,19 +50,19 @@ const glossaryTerms = [
     name: 'AI Service Settlement',
     definition:
       'The process of tracking, billing, and distributing payment for individual AI service calls across providers, consumers, and intermediaries. Settlement transforms every API call, tool invocation, or agent action into a monetizable event with real-time metering and automatic payouts.',
-    link: '/docs',
+    link: '/solutions',
   },
   {
     name: 'Metering',
     definition:
       'Real-time measurement of AI service usage at the individual call level. SettleGrid meters every invocation in under 50 milliseconds using atomic Redis operations, tracking call count, token usage, byte transfer, or execution time depending on the pricing model.',
-    link: '/docs',
+    link: '/learn/how-to/how-to-create-mcp-tool',
   },
   {
     name: 'Per-Call Billing',
     definition:
       'A pricing model where consumers are charged for each individual service invocation rather than through subscriptions or prepaid credits. Per-call billing aligns costs with actual usage and is the most common model for AI tools and APIs.',
-    link: '/pricing',
+    link: '/learn/how-to/how-to-set-pricing',
   },
   {
     name: 'Progressive Take Rate',
@@ -74,37 +74,37 @@ const glossaryTerms = [
     name: 'Smart Proxy',
     definition:
       'A reverse proxy that adds billing, metering, and access control to any existing API endpoint without code changes. Developers point their API URL at the Smart Proxy, configure pricing, and SettleGrid handles authentication, balance checks, and usage tracking transparently.',
-    link: '/docs',
+    link: '/start',
   },
   {
     name: 'Multi-Hop Settlement',
     definition:
       'Automatic payment distribution across a chain of AI agents or services where Agent A calls Agent B which calls Agent C. SettleGrid tracks the full call chain and distributes revenue to each participant based on their contribution, supporting up to 10 hops per session.',
-    link: '/docs',
+    link: '/solutions/agent-to-agent',
   },
   {
     name: 'Agent Identity (KYA)',
     definition:
       'Know Your Agent (KYA) is a verification framework for AI agents that establishes identity, capabilities, and trust level before allowing financial transactions. KYA enables per-agent budgets, spending controls, and audit trails for agent-to-agent commerce.',
-    link: '/docs',
+    link: '/solutions/agent-to-agent',
   },
   {
     name: 'Cost-Based Routing',
     definition:
       'An optimization strategy that automatically selects the cheapest AI service provider meeting quality thresholds for a given request. Cost-based routing compares price, latency, and reliability across registered providers and routes the call to the optimal endpoint.',
-    link: '/learn/discovery',
+    link: '/explore',
   },
   {
     name: 'Fallback Chain',
     definition:
       'An ordered list of alternative AI service providers that are tried in sequence when the primary provider is unavailable or fails. SettleGrid automatically manages failover, retries, and billing across the fallback chain without consumer-side code changes.',
-    link: '/docs',
+    link: '/explore',
   },
   {
     name: 'Settlement Pulse',
     definition:
       'A real-time heartbeat of settlement activity across the SettleGrid network. The settlement pulse tracks transaction volume, revenue flow, active tools, and network health, providing both operators and developers with live observability into the AI economy.',
-    link: '/docs',
+    link: '/changelog',
   },
   {
     name: 'Tool Discovery',
@@ -116,7 +116,7 @@ const glossaryTerms = [
     name: 'MCP (Model Context Protocol)',
     definition:
       'An open protocol originally created by Anthropic that standardizes how AI models interact with external tools and data sources. MCP defines a structured interface for tool discovery, invocation, and response handling. SettleGrid adds a billing and settlement layer on top of MCP.',
-    link: '/learn/protocols',
+    link: '/learn/protocols/mcp',
   },
   {
     name: 'Protocol-Agnostic',
@@ -134,25 +134,25 @@ const glossaryTerms = [
     name: 'Revenue Share',
     definition:
       'The split of revenue between the service provider (developer) and the platform. On SettleGrid, developers keep up to 100% of their revenue on the first $1,000/month and 95-98% above that, compared to 85% on marketplace-style competitors.',
-    link: '/pricing',
+    link: '/learn/compare/mcp-billing-platforms-2026',
   },
   {
     name: 'Outcome-Based Billing',
     definition:
       'A pricing model where the consumer pays based on the result or outcome of the AI service rather than the computation performed. For example, paying only when an AI successfully extracts the requested data or completes a task. SettleGrid supports outcome-based billing as one of six pricing models.',
-    link: '/docs',
+    link: '/learn/how-to/how-to-set-pricing',
   },
   {
     name: 'Budget Controller',
     definition:
       'A real-time spending limit system that prevents AI agents or consumers from exceeding predetermined budgets. SettleGrid enforces budgets at the per-call level with atomic balance checks, ensuring agents cannot overspend even under concurrent request load.',
-    link: '/docs',
+    link: '/use-cases',
   },
   {
     name: 'Agent Firewall',
     definition:
       'A security layer that validates, rate-limits, and filters AI agent requests before they reach the underlying service. The agent firewall combines KYA identity verification, budget enforcement, rate limiting, and anomaly detection to protect both providers and consumers.',
-    link: '/docs',
+    link: '/solutions/agent-to-agent',
   },
 ] as const
 
