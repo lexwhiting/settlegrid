@@ -110,6 +110,19 @@ export function getAp2VerificationKey(): string | undefined {
   return process.env.AP2_VERIFICATION_KEY
 }
 
+// Stripe MPP (Machine Payments Protocol)
+export function getStripeMppSecret(): string | undefined {
+  return process.env.STRIPE_MPP_SECRET
+}
+
+export function isMppEnabled(): boolean {
+  return !!process.env.STRIPE_MPP_SECRET
+}
+
+export function getMppRecipientId(): string | undefined {
+  return process.env.MPP_RECIPIENT_ID
+}
+
 // Visa TAP (Trusted Agent Protocol)
 export function getVisaApiUrl(): string {
   return process.env.VISA_API_URL ?? 'https://sandbox.api.visa.com'

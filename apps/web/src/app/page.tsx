@@ -729,7 +729,7 @@ export default async function HomePage() {
                 {[
                   { name: 'MCP', backer: 'Anthropic', href: 'https://modelcontextprotocol.io', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/30',
                     icon: <img src="/icons/protocols/mcp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
-                  { name: 'MPP', backer: 'Stripe + Tempo', href: 'https://docs.stripe.com/payments/machine/mpp', color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-800/30',
+                  { name: 'MPP', backer: 'Stripe + Tempo', href: '/learn/protocols/mpp', badge: 'Native', color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-800/30 ring-2 ring-violet-500/30',
                     icon: <img src="/icons/protocols/mpp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'x402', backer: 'Coinbase', href: 'https://www.x402.org', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/30',
                     icon: <img src="/icons/protocols/x402.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
@@ -753,8 +753,13 @@ export default async function HomePage() {
                       href={proto.href}
                       target={proto.href.startsWith('/') ? undefined : '_blank'}
                       rel={proto.href.startsWith('/') ? undefined : 'noopener noreferrer'}
-                      className={`protocol-card group flex flex-col items-center gap-2 rounded-xl border px-3 py-5 hover:scale-[1.04] ${proto.color}`}
+                      className={`protocol-card group relative flex flex-col items-center gap-2 rounded-xl border px-3 py-5 hover:scale-[1.04] ${proto.color}`}
                     >
+                      {'badge' in proto && proto.badge && (
+                        <span className="absolute -top-2 -right-2 bg-violet-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide shadow-lg">
+                          {proto.badge as string}
+                        </span>
+                      )}
                       <span className="mb-1 flex items-center justify-center w-10 h-10">{proto.icon}</span>
                       <span className="text-sm sm:text-base font-bold tracking-tight">{proto.name}</span>
                       <span className="text-[10px] sm:text-xs font-semibold opacity-80 text-center leading-tight">{proto.backer}</span>

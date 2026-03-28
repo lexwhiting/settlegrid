@@ -5,10 +5,15 @@
  * MPP launched March 18, 2026, enabling Stripe-powered card payments (SPT)
  * and Tempo blockchain crypto payments for machine-to-machine commerce.
  *
+ * Deep integration: SettleGrid natively accepts Stripe Shared Payment Tokens
+ * (SPTs) via the Smart Proxy. See lib/mpp.ts for the full payment handler.
+ *
  * Detects requests via:
- *   1. x-mpp-credential header (MPP session credential)
- *   2. x-settlegrid-protocol: mpp header
- *   3. Authorization header containing MPP credential format (mpp_*)
+ *   1. X-Payment-Protocol: MPP/1.0 header
+ *   2. X-Payment-Token: spt_* header (Shared Payment Token)
+ *   3. x-mpp-credential header (MPP session credential)
+ *   4. x-settlegrid-protocol: mpp header
+ *   5. Authorization: Bearer spt_* or Bearer mpp_* token
  */
 
 import type { ProtocolAdapter, PaymentContext, SettlementResult } from '../types'
@@ -20,22 +25,37 @@ export class MPPAdapter implements ProtocolAdapter {
 
   /**
    * Detect if this request is an MPP payment.
-   * MPP requests have:
-   *   - x-mpp-credential header (MPP session credential)
-   *   - OR x-settlegrid-protocol: mpp
-   *   - OR Authorization: Bearer mpp_* token
+   * Extended detection to cover all MPP header patterns including
+   * the deep SPT integration headers.
    */
   canHandle(request: Request): boolean {
+    // Deep integration: X-Payment-Protocol header
+    const protocolHeader = request.headers.get('x-payment-protocol')
+    if (protocolHeader?.startsWith('MPP')) return true
+
+    // Deep integration: X-Payment-Token with SPT prefix
+    const paymentToken = request.headers.get('x-payment-token')
+    if (paymentToken?.startsWith('spt_')) return true
+
+    // Legacy: x-mpp-credential header
     const hasMppCredential = request.headers.get('x-mpp-credential') !== null
+
+    // Legacy: explicit protocol header
     const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'mpp'
-    const hasAuthMpp = request.headers.get('authorization')?.includes('mpp_') === true
+
+    // Authorization bearer with MPP or SPT prefix
+    const auth = request.headers.get('authorization')
+    const hasAuthMpp = auth?.includes('mpp_') === true || auth?.includes('spt_') === true
+
     return hasMppCredential || hasProtocolHeader || hasAuthMpp
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {
+    // Extract credential from multiple possible header locations
     const credential =
+      request.headers.get('x-payment-token') ??
       request.headers.get('x-mpp-credential') ??
-      request.headers.get('authorization')?.replace('Bearer ', '') ??
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ??
       null
 
     if (!credential) {
@@ -43,10 +63,13 @@ export class MPPAdapter implements ProtocolAdapter {
     }
 
     // Determine payment type from the credential or body
-    let paymentType: 'spt' | 'crypto' = 'spt'
+    let paymentType: 'spt' | 'crypto' = credential.startsWith('spt_') ? 'spt' : 'spt'
     let method = 'payment'
     let service = 'mpp-session'
     let sessionId: string | undefined
+
+    // Check for MPP session ID header
+    sessionId = request.headers.get('x-mpp-session-id') ?? undefined
 
     try {
       const clone = request.clone()
@@ -58,7 +81,7 @@ export class MPPAdapter implements ProtocolAdapter {
       }
       if (body?.method) method = String(body.method)
       if (body?.service) service = String(body.service)
-      if (body?.sessionId) sessionId = String(body.sessionId)
+      if (body?.sessionId && !sessionId) sessionId = String(body.sessionId)
     } catch {
       // Body may not be JSON or may have been consumed
     }
@@ -66,7 +89,7 @@ export class MPPAdapter implements ProtocolAdapter {
     return {
       protocol: 'mpp',
       identity: {
-        type: 'mpp-session',
+        type: credential.startsWith('spt_') ? 'spt' : 'mpp-session',
         value: credential,
         metadata: { paymentType },
       },
