@@ -237,8 +237,9 @@ async function handleProxy(
   const startTime = Date.now()
 
   try {
-    // Rate limit by IP
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    // Rate limit by IP — extract first IP from x-forwarded-for (client IP)
+    const rawForwardedFor = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = rawForwardedFor.split(',')[0].trim()
     const rateLimit = await checkRateLimit(sdkLimiter, `proxy:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
