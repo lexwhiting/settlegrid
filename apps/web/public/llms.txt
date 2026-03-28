@@ -108,7 +108,7 @@ const billedHandler = sg.wrap(myHandler, { method: 'search' })
 - **Free**: $0/forever — 50,000 ops/month, progressive take rate, unlimited tools. Free forever for most developers.
 - **Builder**: $19/month — 200,000 ops/month, sandbox mode, IP allowlisting, CSV export
 - **Scale**: $79/month — 2,000,000 ops/month, fraud detection, audit logging, Smart Proxy
-- All plans: Progressive take rate — 0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K
+- All plans: Progressive take rate — 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K
 - Need higher limits? Email support@settlegrid.ai
 
 ## Discovery API (Public, No Auth)

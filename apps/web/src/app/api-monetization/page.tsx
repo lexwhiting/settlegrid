@@ -260,7 +260,7 @@ export async function POST(req: Request) {
               {[
                 { range: '$0 - $1K/mo', rate: '0%', note: 'Keep 100%' },
                 { range: '$1K - $10K', rate: '2%', note: 'Keep 98%' },
-                { range: '$10K - $50K', rate: '3%', note: 'Keep 97%' },
+                { range: '$10K - $50K', rate: '2.5%', note: 'Keep 97.5%' },
                 { range: '$50K+', rate: '5%', note: 'Keep 95%' },
               ].map((tier) => (
                 <div key={tier.range} className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-4 text-center">

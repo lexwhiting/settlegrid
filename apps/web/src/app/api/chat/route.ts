@@ -67,7 +67,7 @@ npm install @settlegrid/mcp
 - Credit system: consumers pre-purchase credits, real-time Redis metering
 - Budget enforcement: spending limits, auto-refill, budget exceeded (402)
 - API keys: sg_live_ prefix for production, sg_test_ prefix for sandbox (no real charges)
-- Stripe Connect: developer payout onboarding, progressive take rate (0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K)
+- Stripe Connect: developer payout onboarding, progressive take rate (0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K)
 - x402: facilitator for on-chain USDC settlement (Base network)
 - Webhooks: 10 event types, HMAC-SHA256 signed, retry with exponential backoff
 - Sessions: multi-hop workflow budgets with delegation
@@ -102,7 +102,7 @@ npm install @settlegrid/mcp
 - Go to Dashboard > Settings > Payouts and connect your Stripe account
 - SettleGrid uses Stripe Connect Express — setup takes about 2 minutes
 - Payouts are processed on your chosen schedule when your balance exceeds the minimum threshold
-- Progressive take rate: 0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K
+- Progressive take rate: 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K
 
 ## Dashboard Navigation
 - **Dashboard** (/) — Overview of your tools, revenue, and recent activity
@@ -118,7 +118,7 @@ npm install @settlegrid/mcp
 - **Reputation** (/dashboard/reputation) — View your developer reputation score and consumer reviews
 
 ## Pricing
-Free forever for most developers — $0, 50K ops/mo, progressive take rate, unlimited tools, no credit card. Most developers never need to upgrade. Paid tiers: Builder ($19, 200K ops) / Scale ($79, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K. Need higher limits? Email support@settlegrid.ai. Developer keeps up to 100% of revenue.
+Free forever for most developers — $0, 50K ops/mo, progressive take rate, unlimited tools, no credit card. Most developers never need to upgrade. Paid tiers: Builder ($19, 200K ops) / Scale ($79, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. Need higher limits? Email support@settlegrid.ai. Developer keeps up to 100% of revenue.
 
 ## Rules
 - Be concise — 2-3 sentences max for simple questions, but provide more detail when the question warrants it
