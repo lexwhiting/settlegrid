@@ -159,31 +159,32 @@ export default function AboutPage() {
 
           {/* ---- Story ---- */}
           <section className="mb-20">
-            <h2 className="text-2xl font-bold text-gray-100 mb-6">The Story</h2>
+            <h2 className="text-2xl font-bold text-gray-100 mb-6">Why SettleGrid Exists</h2>
             <div className="space-y-4 text-gray-400 leading-relaxed">
               <p>
-                I started SettleGrid because I kept running into the same problem: every time I
-                built an AI tool worth using, I had to build billing infrastructure from scratch.
-                Metering, balance management, Stripe Connect, fraud detection, budget enforcement
-                &mdash; weeks of work before I could charge my first dollar.
+                The AI economy is generating trillions of service calls per year &mdash; LLM inferences,
+                tool invocations, agent-to-agent workflows, media generation, browser automation. But the
+                billing infrastructure hasn&apos;t kept up. Developers building AI services face a choice:
+                spend weeks building metering, billing, and payout systems from scratch, or give up 15-30%
+                to a marketplace that hosts your code and owns your customer relationship.
               </p>
               <p>
-                The existing options were either too generic (Stripe Billing is great for SaaS,
-                not for per-call AI tool billing), too locked-in (marketplace platforms that take
-                15% and host your code), or too early-stage (crypto-only with on-chain latency).
+                Neither option is acceptable. The settlement layer for AI services should be invisible
+                infrastructure &mdash; like Stripe is for payments or Cloudflare is for CDN. It should
+                take two lines of code, support every payment protocol, and let developers keep the
+                vast majority of their revenue.
               </p>
               <p>
-                So I built what I wanted: an SDK you can add to any AI service in 2 lines of code
-                that handles everything &mdash; metering, billing, payouts, discovery, fraud
-                detection &mdash; across 10 payment protocols. With a progressive take rate that
-                starts at 0% because I believe the platform should earn its share, not extract it
-                upfront.
+                That&apos;s what SettleGrid is: a universal settlement layer that wraps any AI service
+                with per-call billing, real-time metering, budget enforcement, and automated Stripe
+                payouts &mdash; across 10 payment protocols. With a progressive take rate that starts
+                at 0% because the platform should earn its share by delivering value, not by extracting
+                it upfront.
               </p>
               <p>
-                SettleGrid is a solo-founded company. Every line of code, every design decision,
-                every comparison page you read was built by one person who uses the product.
-                That means it moves fast, stays focused, and prioritizes real developer needs over
-                enterprise sales decks.
+                SettleGrid is built by developers, for developers. We use our own platform. We publish
+                our pricing logic in the source code. We compete on product quality and developer
+                experience, not on sales teams or vendor lock-in.
               </p>
             </div>
           </section>
