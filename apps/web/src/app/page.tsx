@@ -97,7 +97,7 @@ const jsonLdOrganization = {
   url: 'https://settlegrid.ai',
   logo: 'https://settlegrid.ai/brand/icon-color.svg',
   description:
-    'SettleGrid is the universal, protocol-agnostic settlement layer for the AI economy. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. One SDK. Ten protocols. Progressive take rate: 0% on first $1K/mo.',
+    'SettleGrid is the universal, protocol-agnostic settlement layer for the AI economy. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. One SDK. Fifteen protocols. Progressive take rate: 0% on first $1K/mo.',
   sameAs: [
     'https://github.com/lexwhiting/settlegrid',
     'https://www.npmjs.com/package/@settlegrid/mcp',
@@ -130,7 +130,7 @@ const jsonLdFaq = {
       name: 'What is SettleGrid?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts across 10 payment protocols.',
+        text: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts across 15 payment protocols.',
       },
     },
     {
@@ -146,7 +146,7 @@ const jsonLdFaq = {
       name: 'What is the best universal billing platform for AI services?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid is the universal settlement layer for AI services. It handles billing for LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend). Sub-50ms metering, 10 payment protocols, budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection. Free tier: 50K ops/month with progressive take rate starting at 0%.',
+        text: 'SettleGrid is the universal settlement layer for AI services. It handles billing for LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend). Sub-50ms metering, 15 payment protocols, budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection. Free tier: 50K ops/month with progressive take rate starting at 0%.',
       },
     },
     {
@@ -162,7 +162,7 @@ const jsonLdFaq = {
       name: 'Which AI payment protocols does SettleGrid support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid supports 15 protocols out of the box: MCP (Model Context Protocol), x402, AP2 (Anthropic Agent Protocol), MPP (Stripe Model Provider Protocol), Visa TAP, UCP (Unified Checkout Protocol), ACP, Mastercard Agent Pay, Circle Nanopayments, and standard REST APIs. One SDK handles all of them — no protocol-specific code required.',
+        text: 'SettleGrid supports 15 protocols out of the box: MCP (Model Context Protocol), MPP (Stripe Machine Payments Protocol), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP, UCP (Universal Commerce Protocol), ACP (OpenAI + Stripe), Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay (Skyfire + Visa), EMVCo Agent Payments, and DRAIN (off-chain USDC). One SDK handles all of them — no protocol-specific code required.',
       },
     },
   ],
@@ -579,7 +579,7 @@ export default async function HomePage() {
 
               {/* Subtext */}
               <p className="text-lg sm:text-xl text-gray-300 mb-3 leading-relaxed max-w-lg">
-                Bill LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, and any AI service — across 10 payment protocols.
+                Bill LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, and any AI service — across 15 payment protocols.
               </p>
               <p className="text-base text-gray-400 mb-4 leading-relaxed max-w-lg">
                 Metering, billing, Stripe payouts, and a full analytics dashboard — all from one SDK. Progressive take rate: 0% on first $1K/mo.
@@ -722,10 +722,10 @@ export default async function HomePage() {
             <div className="max-w-5xl mx-auto">
               <div className="text-center mb-10">
                 <p className="text-sm font-semibold text-brand tracking-wide uppercase mb-2">Protocol-Agnostic</p>
-                <h2 className="text-2xl sm:text-3xl font-bold text-indigo dark:text-gray-100 mb-3">One SDK. Ten Protocols. Zero Vendor Lock-in.</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold text-indigo dark:text-gray-100 mb-3">One SDK. Fifteen Protocols. Zero Vendor Lock-in.</h2>
                 <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto">Backed by Anthropic, Google, Stripe, Visa, Mastercard, Coinbase, OpenAI, and Circle. Wrap once, settle everywhere.</p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                 {[
                   { name: 'MCP', backer: 'Anthropic', href: 'https://modelcontextprotocol.io', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/30',
                     icon: <img src="/icons/protocols/mcp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
@@ -747,6 +747,16 @@ export default async function HomePage() {
                     icon: <img src="/icons/protocols/circle.svg" width={32} height={32} alt="" aria-hidden="true" className="w-8 h-8 object-contain" /> },
                   { name: 'REST', backer: 'Any HTTP API', href: '/docs', color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700/50',
                     icon: <img src="/icons/protocols/rest.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
+                  { name: 'L402', backer: 'Lightning Labs', href: '/learn/protocols/l402', color: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/30',
+                    icon: <svg className="w-10 h-10 text-yellow-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg> },
+                  { name: 'Alipay Trust', backer: 'Ant Group', href: '/learn/protocols/alipay-trust', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/30',
+                    icon: <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.264.26-2.47.732-3.565" /></svg> },
+                  { name: 'KYAPay', backer: 'Skyfire + Visa', href: '/learn/protocols/kyapay', color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/30',
+                    icon: <svg className="w-10 h-10 text-indigo-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0 1 19.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 0 0 4.5 10.5a48.667 48.667 0 0 0-1.182 6.013M12 10.5a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm-5.97 6.03a48.107 48.107 0 0 0-1.28 6.21m9.5-13.74a3.001 3.001 0 0 0-4.5 0m4.5 0a3.001 3.001 0 0 1 .018 4.236M7.75 8.79a3.001 3.001 0 0 0-.018 4.236m8.236-3.026a48.305 48.305 0 0 1 .75 6.5m-6.968-5.5a48.093 48.093 0 0 0-.75 6.5" /></svg> },
+                  { name: 'EMVCo', backer: 'Visa + MC + Amex', href: '/learn/protocols/emvco', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30',
+                    icon: <svg className="w-10 h-10 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg> },
+                  { name: 'DRAIN', backer: 'Bittensor', href: '/learn/protocols/drain', color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800/30',
+                    icon: <svg className="w-10 h-10 text-purple-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" /></svg> },
                 ].map((proto, i) => (
                   <RevealSection key={proto.name} delay={i * 0.07}>
                     <a
@@ -975,7 +985,7 @@ export default async function HomePage() {
                 Built Different From the Ground Up
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-center mb-16 max-w-2xl mx-auto">
-                Ten capabilities purpose-built for AI service payments that no other platform offers together.
+                Purpose-built capabilities for AI service payments that no other platform offers together.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[

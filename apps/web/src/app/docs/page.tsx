@@ -7,7 +7,7 @@ import { FaqAccordion } from '@/components/ui/faq-accordion'
 
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
-  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across 10 payment protocols.',
+  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across 15 payment protocols.',
   alternates: { canonical: 'https://settlegrid.ai/docs' },
   keywords: [
     'SettleGrid documentation',
@@ -34,7 +34,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is SettleGrid?',
-      a: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across 10 payment protocols. Think of it as the universal billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
+      a: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across 15 payment protocols. Think of it as the universal billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
     },
     {
       q: 'How do I get started as a developer?',

@@ -263,7 +263,7 @@ Charge only when the AI delivers results.
 
 ---
 
-## Protocol Support (10 Protocols)
+## Protocol Support (15 Protocols)
 
 ### MCP (Model Context Protocol)
 Native `wrap()` integration. The SDK reads API keys from MCP `_meta` and meters usage per tool call.
@@ -294,6 +294,21 @@ SettleGrid supports Circle's nanopayment protocol for sub-cent USDC micropayment
 
 ### REST APIs
 Any HTTP endpoint can be wrapped with `settlegridMiddleware()`.
+
+### L402 (Bitcoin Lightning)
+Native Bitcoin Lightning micropayments with macaroon authentication. Fully pseudonymous, per-request payments via the Lightning Network. No API keys, no signup, no KYC.
+
+### Alipay Trust Protocol (Ant Group)
+Delegated authorization for agentic commerce, covering 1.3 billion Alipay users. Agent Tokens carry embedded spending limits and merchant category restrictions.
+
+### KYAPay (Skyfire + Visa)
+JWT-based verified agent identity and intelligent commerce. Self-contained tokens with embedded spend authorization — the fastest payment protocol in the stack (microsecond verification, no network round-trips).
+
+### EMVCo Agent Payments (Visa + Mastercard + Amex + Discover + JCB + UnionPay)
+Global card-based agent payment standard using 3-D Secure and Payment Tokenisation. Currently in working group stage; SettleGrid has detection and 402 response generation ready.
+
+### DRAIN (Bittensor / Handshake58)
+Off-chain USDC micropayments via EIP-712 signed vouchers on Polygon. Payments as low as $0.0001 per request with only a one-time $0.02 channel opening cost.
 
 ---
 

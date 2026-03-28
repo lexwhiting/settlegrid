@@ -7,7 +7,7 @@
 <h1 align="center">The Settlement Layer for AI Agent Payments</h1>
 
 <p align="center">
-  <strong>Monetize any AI tool with 2 lines of code. Per-call billing, 10 protocols, built-in discovery.</strong>
+  <strong>Monetize any AI tool with 2 lines of code. Per-call billing, 15 protocols, built-in discovery.</strong>
 </p>
 
 <p align="center">
@@ -63,7 +63,7 @@ npx create-settlegrid-tool
 
 |  | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
 |---|:---:|:---:|:---:|:---:|
-| **Protocol support** | 10 protocols | REST only | x402 / DeFi | MCP only |
+| **Protocol support** | 15 protocols | REST only | x402 / DeFi | MCP only |
 | **Real-time metering** | <50ms Redis | Batch only | On-chain | Per-call |
 | **Built-in discovery** | 8+ registries | None | None | None |
 | **Multi-hop settlement** | Yes | No | Yes | No |

@@ -136,7 +136,7 @@ const useCases = [
     title: 'Multi-Agent Workflows',
     headline: 'Settlement for agent-to-agent workflows',
     description:
-      'When Agent A calls Agent B which calls Agent C, who pays whom? SettleGrid handles multi-hop settlement automatically. Each agent in the chain gets their share. 10 payment protocols including MCP, x402, AP2, and A2A ensure agents can pay each other regardless of platform.',
+      'When Agent A calls Agent B which calls Agent C, who pays whom? SettleGrid handles multi-hop settlement automatically. Each agent in the chain gets their share. 15 payment protocols including MCP, x402, AP2, L402, KYAPay, EMVCo, and DRAIN ensure agents can pay each other regardless of platform.',
     example: 'A research agent chain, an orchestrator calling specialist agents, a marketplace.',
     keyBenefit: 'Multi-hop settlement, 15 protocols, automatic revenue splits',
   },

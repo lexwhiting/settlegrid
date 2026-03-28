@@ -251,7 +251,7 @@ export default async function BlogPostPage({
               Ready to monetize your MCP tools?
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              Two lines of code. 10 payment protocols. Up to 100% revenue share. Start earning from your AI tools today.
+              Two lines of code. 15 payment protocols. Up to 100% revenue share. Start earning from your AI tools today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link

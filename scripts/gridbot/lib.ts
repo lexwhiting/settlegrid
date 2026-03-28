@@ -131,6 +131,10 @@ const CATEGORY_KEYWORDS: Record<string, { keywords: string[]; searchTerms: strin
     keywords: ['scrape', 'scraping', 'crawl', 'extract', 'pricing page', 'webpage', 'browser', 'playwright'],
     searchTerms: 'web scraping browser automation',
   },
+  crypto: {
+    keywords: ['bitcoin', 'lightning', 'l402', 'macaroon', 'satoshi', 'micropayment', 'drain', 'voucher', 'usdc', 'polygon', 'eip-712', 'channel', 'off-chain'],
+    searchTerms: 'crypto Lightning L402 micropayment',
+  },
 }
 
 /**
