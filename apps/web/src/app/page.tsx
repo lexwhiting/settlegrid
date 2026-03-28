@@ -7,13 +7,24 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
 import { CopyCommand } from '@/components/marketing/copy-command'
 import { ScreenshotCarousel } from '@/components/marketing/screenshot-carousel'
+import { db } from '@/lib/db'
+import { developers } from '@/lib/db/schema'
+import { sql } from 'drizzle-orm'
+import { First100Banner } from '@/components/marketing/first-100-banner'
 
 export const metadata: Metadata = {
-  title: 'SettleGrid — Monetize AI Tools with 2 Lines of Code',
+  title: 'SettleGrid — The Universal Settlement Layer for AI Services',
   description:
-    'The settlement layer for AI agent payments. Per-call billing, usage metering, and automated payouts for MCP tools, REST APIs, and AI agents. Free forever — 25K ops/month, 0% fees. 10 protocols. Open source SDK.',
+    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. 10 protocols. Progressive take rates. Free forever — 50K ops/month. Open source SDK.',
   alternates: { canonical: 'https://settlegrid.ai' },
   keywords: [
+    'universal AI settlement',
+    'AI service billing',
+    'LLM inference billing',
+    'browser automation billing',
+    'media generation billing',
+    'code execution billing',
+    'agent-to-agent payments',
     'MCP monetization',
     'AI agent payments',
     'settlement layer',
@@ -26,6 +37,8 @@ export const metadata: Metadata = {
     'API monetization',
     'usage-based billing',
     'AI economy',
+    'data API monetization',
+    'communication API billing',
   ],
 }
 
@@ -38,7 +51,7 @@ const jsonLdSoftwareApplication = {
   '@type': 'SoftwareApplication',
   name: 'SettleGrid',
   description:
-    'The settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts across 10 protocols — MCP, x402, AP2, MPP, Visa TAP, UCP, and more. Developer keeps 95%. Free tier keeps 100%.',
+    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. 10 protocols — MCP, x402, AP2, MPP, Visa TAP, UCP, and more. Progressive take rate: 0% on first $1K/mo. Free tier: 50K ops/month.',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any',
   url: 'https://settlegrid.ai',
@@ -48,28 +61,21 @@ const jsonLdSoftwareApplication = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
-      description: 'Free forever — 25,000 operations/month, 0% take rate, unlimited tools. Most developers never need to upgrade.',
+      description: 'Free forever — 50,000 operations/month, progressive take rate, unlimited tools. Most developers never need to upgrade.',
     },
     {
       '@type': 'Offer',
-      name: 'Starter',
-      price: '9',
+      name: 'Builder',
+      price: '19',
       priceCurrency: 'USD',
-      description: '100,000 operations/month, 5% take rate',
-    },
-    {
-      '@type': 'Offer',
-      name: 'Growth',
-      price: '29',
-      priceCurrency: 'USD',
-      description: '500,000 operations/month, IP allowlisting',
+      description: '200,000 operations/month, progressive take rate, sandbox mode',
     },
     {
       '@type': 'Offer',
       name: 'Scale',
       price: '79',
       priceCurrency: 'USD',
-      description: '2,000,000 operations/month, fraud detection',
+      description: '2,000,000 operations/month, progressive take rate, fraud detection',
     },
   ],
   author: {
@@ -89,7 +95,7 @@ const jsonLdOrganization = {
   url: 'https://settlegrid.ai',
   logo: 'https://settlegrid.ai/brand/icon-color.svg',
   description:
-    'SettleGrid is the protocol-agnostic settlement layer for the AI economy. One SDK. Ten protocols. Developer keeps 95%. Supports MCP, x402, AP2, MPP, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST.',
+    'SettleGrid is the universal, protocol-agnostic settlement layer for the AI economy. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. One SDK. Ten protocols. Progressive take rate: 0% on first $1K/mo.',
   sameAs: [
     'https://github.com/lexwhiting/settlegrid',
     'https://www.npmjs.com/package/@settlegrid/mcp',
@@ -101,7 +107,7 @@ const jsonLdProduct = {
   '@type': 'Product',
   name: 'SettleGrid SDK',
   description:
-    '@settlegrid/mcp — TypeScript SDK for adding per-call billing, usage metering, and budget enforcement to any MCP tool, REST API, or AI agent.',
+    '@settlegrid/mcp — TypeScript SDK for adding per-call billing, usage metering, and budget enforcement to any AI service: LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, communication services, and REST APIs.',
   brand: { '@type': 'Brand', name: 'SettleGrid' },
   url: 'https://settlegrid.ai',
   offers: {
@@ -109,7 +115,7 @@ const jsonLdProduct = {
     lowPrice: '0',
     highPrice: '79',
     priceCurrency: 'USD',
-    offerCount: 4,
+    offerCount: 3,
   },
 }
 
@@ -122,7 +128,7 @@ const jsonLdFaq = {
       name: 'What is SettleGrid?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid is the settlement layer for AI agent payments. It lets developers monetize any AI service — MCP tools, REST APIs, AI agents, model endpoints — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts.',
+        text: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts across 10 payment protocols.',
       },
     },
     {
@@ -130,15 +136,15 @@ const jsonLdFaq = {
       name: 'How do I monetize my MCP server?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Install the @settlegrid/mcp SDK (npm install @settlegrid/mcp), call settlegrid.init() with your tool slug and pricing, then wrap your handler with sg.wrap(). Every call is automatically metered and billed. You keep 95% of revenue — or 100% on the Free tier.',
+        text: 'Install the @settlegrid/mcp SDK (npm install @settlegrid/mcp), call settlegrid.init() with your tool slug and pricing, then wrap your handler with sg.wrap(). Every call is automatically metered and billed. Progressive take rate: 0% on your first $1K/mo, scaling to 5% at $50K+.',
       },
     },
     {
       '@type': 'Question',
-      name: 'What is the best settlement layer for AI agent payments?',
+      name: 'What is the best universal billing platform for AI services?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid is purpose-built for AI agent payments with sub-50ms metering, multi-protocol support (MCP, x402, AP2, Visa TAP, REST), budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection. Free tier available with 0% take rate.',
+        text: 'SettleGrid is the universal settlement layer for AI services. It handles billing for LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend). Sub-50ms metering, 10 payment protocols, budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection. Free tier: 50K ops/month with progressive take rate starting at 0%.',
       },
     },
     {
@@ -146,7 +152,7 @@ const jsonLdFaq = {
       name: 'How much does SettleGrid cost?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid offers four plans: Free ($0, 25K ops/month, 0% take rate), Starter ($9/mo, 100K ops), Growth ($29/mo, 500K ops), and Scale ($79/mo, 2M ops). Developers keep 95-100% of revenue. Need more? Email support@settlegrid.ai.',
+        text: 'SettleGrid offers three plans: Free ($0, 50K ops/month), Builder ($19/mo, 200K ops), and Scale ($79/mo, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K. Need more? Email support@settlegrid.ai.',
       },
     },
     {
@@ -194,7 +200,7 @@ function CoreCard({
   description: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] hover:border-brand/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 dark:hover:border-brand/50">
+    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] hover:border-brand/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 dark:hover:border-brand/50">
       <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4 group-hover:bg-brand/20 transition-colors">
         {icon}
       </div>
@@ -214,7 +220,7 @@ function HighlightBlock({
   code: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] hover:border-brand/30 hover:shadow-md transition-all duration-200">
+    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] hover:border-brand/30 hover:shadow-md transition-all duration-200">
       <h3 className="font-bold text-lg text-indigo dark:text-gray-100 mb-2">{title}</h3>
       <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">{description}</p>
       <CopyableCodeBlock code={code} className="!my-0" />
@@ -238,7 +244,7 @@ function ComparisonTable() {
     { name: 'Sandbox mode', settlegrid: true, stripe: true, nevermined: false, paid: true },
     { name: 'Open-source SDK', settlegrid: true, stripe: false, nevermined: true, paid: false },
     { name: 'Budget enforcement', settlegrid: true, stripe: false, nevermined: false, paid: false },
-    { name: 'Revenue split (100% free / 95% paid)', settlegrid: true, stripe: false, nevermined: false, paid: false },
+    { name: 'Progressive take rate (0% on first $1K/mo)', settlegrid: true, stripe: false, nevermined: false, paid: false },
     { name: 'Built-in discovery (8+ registries)', settlegrid: true, stripe: false, nevermined: false, paid: false },
     { name: 'Quality gates & health monitoring', settlegrid: true, stripe: true, nevermined: false, paid: false },
     { name: 'Consumer reviews & responses', settlegrid: true, stripe: false, nevermined: false, paid: false },
@@ -254,10 +260,10 @@ function ComparisonTable() {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-[#2E3148]">
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-[#2A2D3E]">
       <table className="w-full text-sm" role="table" aria-label="Feature comparison">
         <thead>
-          <tr className="border-b border-gray-200 dark:border-[#2E3148] bg-gray-50 dark:bg-[#1A1D2E]">
+          <tr className="border-b border-gray-200 dark:border-[#2A2D3E] bg-gray-50 dark:bg-[#161822]">
             <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Feature</th>
             <th scope="col" className="text-center py-3 px-4 font-bold text-brand-text dark:text-brand-light bg-brand/5 dark:bg-brand/10">SettleGrid</th>
             <th scope="col" className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Stripe / MPP</th>
@@ -267,7 +273,7 @@ function ComparisonTable() {
         </thead>
         <tbody>
           {features.map((f) => (
-            <tr key={f.name} className="comparison-row border-b border-gray-100 dark:border-[#2E3148]/50 last:border-b-0">
+            <tr key={f.name} className="comparison-row border-b border-gray-100 dark:border-[#2A2D3E]/50 last:border-b-0">
               <td className="py-3 px-4 text-gray-700 dark:text-gray-300 font-medium">{f.name}</td>
               <td className="text-center py-3 px-4 bg-brand/5 dark:bg-brand/10">{renderCell(f.settlegrid)}</td>
               <td className="text-center py-3 px-4">{renderCell(f.stripe)}</td>
@@ -290,9 +296,9 @@ function PricingSection() {
       description: 'Ship and validate without spending a cent',
       features: [
         'Unlimited tools',
-        '25,000 operations/month',
+        '50,000 operations/month',
         'Per-call billing & full dashboard',
-        '0% take rate — keep 100%',
+        'Progressive take rate: 0% on first $1K/mo',
         'No credit card ever',
       ],
       cta: 'Start Free',
@@ -300,37 +306,19 @@ function PricingSection() {
       highlighted: false,
     },
     {
-      name: 'Starter',
-      price: '$9',
+      name: 'Builder',
+      price: '$19',
       period: '/month',
       description: 'For developers earning their first revenue',
       features: [
         'Unlimited tools',
-        '100,000 operations/month',
-        'Full analytics',
-        'Webhook events',
-        'Sandbox mode',
-        '5% take rate — keep 95%',
+        '200,000 operations/month',
+        'Full analytics & sandbox mode',
+        'Webhook events & IP allowlisting',
+        'CSV export & referral system',
+        'Progressive take rate',
       ],
       cta: 'Start Building',
-      href: '/register',
-      highlighted: false,
-    },
-    {
-      name: 'Growth',
-      price: '$29',
-      period: '/month',
-      description: 'For tools gaining real traction',
-      features: [
-        'Unlimited tools',
-        '500,000 operations/month',
-        'Priority webhooks',
-        'IP allowlisting',
-        'CSV export',
-        'Referral system',
-        '5% take rate — keep 95%',
-      ],
-      cta: 'Get Started',
       href: '/register',
       highlighted: true,
     },
@@ -342,10 +330,10 @@ function PricingSection() {
       features: [
         'Unlimited tools',
         '2,000,000 operations/month',
-        'Fraud detection',
-        'Audit logging',
+        'Smart Proxy & Transaction Explorer',
+        'Fraud detection & audit logging',
         'Dedicated support',
-        '5% take rate (negotiable)',
+        'Progressive take rate',
       ],
       cta: 'Get Started',
       href: '/register',
@@ -358,19 +346,19 @@ function PricingSection() {
       <p className="text-sm font-semibold text-brand tracking-wide uppercase mb-2">Pricing</p>
       <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 mb-4">Free Forever for Most Developers</h2>
       <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-xl mx-auto">
-        25,000 ops/month at zero cost, zero fees, zero take rate. No credit card required.
+        50,000 ops/month at zero cost. Progressive take rate: 0% on first $1K/mo. No credit card required.
       </p>
       <p className="text-sm font-medium text-brand-text dark:text-brand-light mb-10">
-        At scale, you still keep 95% of every transaction.
+        Progressive: 0% &rarr; 2% &rarr; 3% &rarr; 5% as your revenue grows.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-4xl mx-auto">
         {tiers.map((tier, i) => (
           <RevealSection key={tier.name} delay={i * 0.08}>
           <div
             className={`p-6 rounded-xl border-2 text-left relative transition-all hover:shadow-md h-full ${
               tier.highlighted
                 ? 'border-brand shadow-lg shadow-brand/15 bg-brand/[0.02] dark:bg-brand/[0.05] scale-[1.02]'
-                : 'border-gray-200 dark:border-[#2E3148]'
+                : 'border-gray-200 dark:border-[#2A2D3E]'
             }`}
           >
             {tier.highlighted && (
@@ -389,7 +377,7 @@ function PricingSection() {
               className={`block w-full text-center py-2 rounded-lg text-sm font-semibold transition-colors mb-4 ${
                 tier.highlighted
                   ? 'bg-brand text-white hover:bg-brand-dark'
-                  : 'bg-gray-100 dark:bg-[#252836] text-indigo dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-[#2E3148]'
+                  : 'bg-gray-100 dark:bg-[#252836] text-indigo dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-[#2A2D3E]'
               }`}
             >
               {tier.cta}
@@ -440,6 +428,8 @@ const iconIdentity = "M7.864 4.243A7.5 7.5 0 0 1 19.5 10.5c0 2.92-.556 5.709-1.5
 const iconOutcome = "M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.745 3.745 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z"
 // Building — Enterprise
 const iconEnterprise = "M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"
+// Squares-2x2 — Any AI Service
+const iconAnyService = "M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"
 
 /* -------------------------------------------------------------------------- */
 /*  Developer Experience checklist items                                      */
@@ -458,9 +448,23 @@ const dxFeatures = [
 /*  Page                                                                      */
 /* -------------------------------------------------------------------------- */
 
-export default function HomePage() {
+async function getDeveloperCount(): Promise<number> {
+  try {
+    const result = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(developers)
+    return result[0]?.count ?? 0
+  } catch {
+    return 0
+  }
+}
+
+export default async function HomePage() {
+  const developerCount = await getDeveloperCount()
+  const spotsRemaining = Math.max(0, 100 - developerCount)
+
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
@@ -480,7 +484,7 @@ export default function HomePage() {
       />
 
       {/* ---- Header ---- */}
-      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#0F1117] sticky top-0 z-50 bg-white/80 dark:bg-[#0F1117]/80 backdrop-blur-lg">
+      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 dark:bg-[#0C0E14] sticky top-0 z-50 bg-white/80 dark:bg-[#0C0E14]/80 backdrop-blur-lg">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center"><SettleGridLogo variant="horizontal" size={32} /></Link>
           <div className="flex items-center gap-5">
@@ -489,6 +493,9 @@ export default function HomePage() {
             </Link>
             <Link href="/servers" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Templates
+            </Link>
+            <Link href="/solutions" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
+              Solutions
             </Link>
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Docs
@@ -507,6 +514,13 @@ export default function HomePage() {
       </header>
 
       <main className="flex-1">
+        {/* ================================================================ */}
+        {/*  First 100 Lifetime Free Banner                                  */}
+        {/* ================================================================ */}
+        {developerCount < 100 && (
+          <First100Banner spotsRemaining={spotsRemaining} developerCount={developerCount} />
+        )}
+
         {/* ================================================================ */}
         {/*  1. Hero — Dark with animated gradient mesh + grid              */}
         {/* ================================================================ */}
@@ -542,31 +556,51 @@ export default function HomePage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
                 </span>
-                Now in Early Access — Free forever tier available
+                1,017 open-source templates ready to monetize
               </div>
 
               {/* Headline */}
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight text-white mb-6 leading-[1.08]">
-                Monetize AI tools with{' '}
-                <span className="text-brand-light">2 lines of code</span>
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight text-white mb-3 leading-[1.08]">
+                The Settlement Layer for the{' '}
+                <span className="text-brand-light">AI Economy</span>
               </h1>
-
-              {/* Subtext */}
-              <p className="text-lg sm:text-xl text-gray-300 mb-4 leading-relaxed max-w-lg">
-                The settlement layer for AI agent payments. Per-call billing, usage metering, and automated payouts for MCP tools, REST APIs, and AI agents.
+              <p className="text-xl sm:text-2xl font-semibold text-gray-200 mb-6">
+                Per-call billing for any AI service — in 2 lines of code
               </p>
 
+              {/* Subtext */}
+              <p className="text-lg sm:text-xl text-gray-300 mb-3 leading-relaxed max-w-lg">
+                Bill LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, and any AI service — across 10 payment protocols.
+              </p>
+              <p className="text-base text-gray-400 mb-4 leading-relaxed max-w-lg">
+                Metering, billing, Stripe payouts, and a full analytics dashboard — all from one SDK. Progressive take rate: 0% on first $1K/mo.
+              </p>
+
+              {/* Templates badge — viral hook */}
+              <div className="flex items-center gap-3 mb-5">
+                <Link
+                  href="/servers"
+                  className="inline-flex items-center gap-2.5 bg-amber-500/10 border border-amber-500/25 rounded-full px-4 py-2 hover:bg-amber-500/15 hover:border-amber-500/40 transition-all group"
+                >
+                  <span className="text-2xl font-bold text-amber-400">1,017</span>
+                  <span className="text-sm text-amber-300/80 group-hover:text-amber-300 transition-colors">open-source templates — fork, deploy, earn</span>
+                  <svg className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
+              </div>
+
               {/* Stat bar */}
-              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-6 text-xs sm:text-sm whitespace-nowrap">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-6 text-xs sm:text-sm whitespace-nowrap">
                 <span className="text-brand-light font-semibold">Free forever</span>
-                <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">1,017 <span className="text-gray-400 font-normal">templates</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">8+ <span className="text-gray-400 font-normal">registries</span></span>
                 <span className="text-white/20">|</span>
                 <span className="text-white font-semibold">&lt;50ms <span className="text-gray-400 font-normal">metering</span></span>
+                <span className="text-white/20">|</span>
+                <span className="text-white font-semibold">Stripe <span className="text-gray-400 font-normal">payouts</span></span>
               </div>
 
               {/* npm install bar with copy */}
@@ -590,7 +624,7 @@ export default function HomePage() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <svg className="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  25K ops/month free
+                  50K ops/month free
                 </span>
                 <span className="flex items-center gap-1.5">
                   <svg className="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -637,7 +671,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  2. Protocol logo bar                                            */}
         {/* ================================================================ */}
-        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148]">
+        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2A2D3E]">
           <RevealSection>
             <div className="max-w-5xl mx-auto">
               <div className="text-center mb-10">
@@ -657,7 +691,7 @@ export default function HomePage() {
                     icon: <img src="/icons/protocols/ap2.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'Visa TAP', backer: 'Visa', href: 'https://developer.visa.com/capabilities/trusted-agent-protocol', color: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/30',
                     icon: <img src="/icons/protocols/tap.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
-                  { name: 'UCP', backer: 'Google + Shopify', href: 'https://ucp.dev', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30',
+                  { name: 'UCP', backer: 'Google + Shopify', href: 'https://ucp.dev', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/30',
                     icon: <img src="/icons/protocols/ucp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
                   { name: 'ACP', backer: 'OpenAI + Stripe', href: 'https://www.agenticcommerce.dev', color: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800/30',
                     icon: <img src="/icons/protocols/acp.svg" width={40} height={40} alt="" aria-hidden="true" className="w-10 h-10 object-contain" /> },
@@ -704,7 +738,7 @@ export default function HomePage() {
                   <StepCard
                     step="1"
                     title="Install & Wrap"
-                    description="npm install the SDK, set your pricing, and wrap your handler. MCP tool, REST API, or AI agent — five lines of code, any protocol."
+                    description="npm install the SDK, set your pricing, and wrap your handler. LLM proxy, browser scraper, image generator, MCP tool, REST API, or any AI service — five lines of code, any protocol."
                   />
                   <div className="mt-4 text-center">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Or scaffold a complete project instantly:</p>
@@ -714,7 +748,7 @@ export default function HomePage() {
                 <StepCard
                   step="2"
                   title="Users Pay Per Call"
-                  description="Consumers pre-fund credits via Stripe or crypto (x402/USDC). Auto-refill keeps usage seamless. You keep 100% on the Free tier — 95% on paid plans."
+                  description="Consumers pre-fund credits via Stripe or crypto (x402/USDC). Auto-refill keeps usage seamless. Progressive take rate: 0% on your first $1K/mo, scales to 5% at $50K+."
                 />
                 <StepCard
                   step="3"
@@ -729,7 +763,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  3a-b. Dashboard screenshot — proof the product is real          */}
         {/* ================================================================ */}
-        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#0F1117]">
+        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#0C0E14]">
           <RevealSection>
             <div className="max-w-5xl mx-auto">
               <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">See It in Action</p>
@@ -745,7 +779,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  3b. 1,017 Open-Source Servers callout                          */}
         {/* ================================================================ */}
-        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2E3148] bg-cloud dark:bg-[#0F1117]">
+        <section className="px-6 py-16 border-b border-gray-200 dark:border-[#2A2D3E] bg-cloud dark:bg-[#0C0E14]">
           <RevealSection>
             <div className="max-w-4xl mx-auto text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-6">
@@ -790,7 +824,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  3c. How Your Tools Get Found — discovery channels               */}
         {/* ================================================================ */}
-        <section className="px-6 py-20 border-b border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#0F1117]">
+        <section className="px-6 py-20 border-b border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#0C0E14]">
           <RevealSection>
             <div className="max-w-5xl mx-auto">
               <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">Discovery</p>
@@ -803,7 +837,7 @@ export default function HomePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Card 1: Showcase & Search */}
-                <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-8">
+                <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-8">
                   <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
                     <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -822,7 +856,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Card 2: Discovery API */}
-                <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-8">
+                <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-8">
                   <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
                     <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
@@ -844,7 +878,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Card 3: AI Agent Discovery */}
-                <div className="bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-8">
+                <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-8">
                   <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4">
                     <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
@@ -868,7 +902,7 @@ export default function HomePage() {
 
               {/* Bottom callout */}
               <div className="mt-10 text-center">
-                <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-lg inline-flex items-center gap-2 px-5 py-3">
+                <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-lg inline-flex items-center gap-2 px-5 py-3">
                   <svg className="w-4 h-4 text-brand shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -882,7 +916,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  4. Core Platform — 6 cards in 2x3 grid                         */}
         {/* ================================================================ */}
-        <section className="px-6 py-24 bg-cloud dark:bg-[#0F1117]">
+        <section className="px-6 py-24 bg-cloud dark:bg-[#0C0E14]">
           <RevealSection>
             <div className="max-w-5xl mx-auto">
               <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">Core Platform</p>
@@ -890,7 +924,7 @@ export default function HomePage() {
                 Built Different From the Ground Up
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-center mb-16 max-w-2xl mx-auto">
-                Six capabilities purpose-built for AI agent payments that no other platform offers together.
+                Seven capabilities purpose-built for AI service payments that no other platform offers together.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[
@@ -900,6 +934,7 @@ export default function HomePage() {
                   { icon: iconIdentity, title: 'Agent Identity (KYA)', description: 'Know Your Agent verification compatible with AgentFacts, Skyfire JWT, and DID standards. Trust scoring and budget delegation for autonomous agents.' },
                   { icon: iconOutcome, title: 'Outcome-Based Billing', description: 'Charge only when AI delivers results. Define success criteria, verify outcomes, handle disputes. Move beyond per-call to value-based pricing.' },
                   { icon: iconEnterprise, title: 'Enterprise Ready', description: 'Organizations, RBAC, SOC 2 readiness, GDPR compliance, cost allocation, and white-label. Built for teams that need governance and control.' },
+                  { icon: iconAnyService, title: 'Any AI Service', description: 'Bill any AI service type: LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend).' },
                 ].map((card, i) => (
                   <RevealSection key={card.title} delay={i * 0.08}>
                     <CoreCard
@@ -956,7 +991,7 @@ export default function HomePage() {
         {/* ================================================================ */}
         {/*  6. Developer Experience — compact checklist                     */}
         {/* ================================================================ */}
-        <section className="px-6 py-24 bg-cloud dark:bg-[#0F1117]">
+        <section className="px-6 py-24 bg-cloud dark:bg-[#0C0E14]">
           <RevealSection>
             <div className="max-w-4xl mx-auto">
               <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">Developer Experience</p>
@@ -1082,7 +1117,7 @@ assert signature == request.headers[
         {/* ================================================================ */}
         {/*  9. Pricing                                                      */}
         {/* ================================================================ */}
-        <section className="px-6 py-24 bg-cloud dark:bg-[#0F1117]">
+        <section className="px-6 py-24 bg-cloud dark:bg-[#0C0E14]">
           <RevealSection>
             <div className="max-w-6xl mx-auto">
               <PricingSection />
@@ -1126,7 +1161,7 @@ assert signature == request.headers[
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-10">
+      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-10">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -1145,7 +1180,7 @@ assert signature == request.headers[
               <Link href="/terms" className="hover:text-indigo dark:hover:text-gray-200 transition-colors">Terms</Link>
             </div>
           </div>
-          <div className="mt-6 pt-6 border-t border-gray-100 dark:border-[#2E3148]/50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400 dark:text-gray-500">
+          <div className="mt-6 pt-6 border-t border-gray-100 dark:border-[#2A2D3E]/50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400 dark:text-gray-500">
             <p>&copy; {new Date().getFullYear()} SettleGrid. All rights reserved.</p>
             <p>Built with Stripe Connect, Redis, and TypeScript.</p>
           </div>

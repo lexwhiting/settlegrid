@@ -41,7 +41,7 @@ function highlightCode(code: string): React.ReactNode[] {
     } else if (token.startsWith("'") || token.startsWith('"') || token.startsWith('`')) {
       parts.push(<span key={match.index} className="text-amber-300">{token}</span>)
     } else {
-      parts.push(<span key={match.index} className="text-emerald-400">{token}</span>)
+      parts.push(<span key={match.index} className="text-amber-400">{token}</span>)
     }
     lastIndex = match.index + token.length
   }

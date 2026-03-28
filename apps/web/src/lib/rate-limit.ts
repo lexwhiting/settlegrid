@@ -70,7 +70,7 @@ export const sdkLimiter = lazyLimiter(1000, '1 m')
 
 // ─── Tiered Rate Limiting ────────────────────────────────────────────────────
 
-export type PlanTier = 'free' | 'starter' | 'growth' | 'scale' | 'enterprise'
+export type PlanTier = 'free' | 'builder' | 'scale' | 'enterprise'
 
 export interface TierLimits {
   api: number // requests per minute
@@ -79,10 +79,15 @@ export interface TierLimits {
 
 const TIER_LIMITS: Record<PlanTier, TierLimits> = {
   free: { api: 30, sdk: 200 },
-  starter: { api: 60, sdk: 800 },
-  growth: { api: 200, sdk: 4000 },
+  builder: { api: 200, sdk: 4000 },
   scale: { api: 500, sdk: 16000 },
   enterprise: { api: 1000, sdk: 50000 },
+}
+
+/** Map legacy tier names to current tiers for rate limiting */
+const TIER_ALIASES: Record<string, PlanTier> = {
+  starter: 'builder',
+  growth: 'builder',
 }
 
 /**
@@ -90,8 +95,9 @@ const TIER_LIMITS: Record<PlanTier, TierLimits> = {
  * Falls back to 'free' tier if tier is unknown.
  */
 export function getTierLimits(tier: string): TierLimits {
-  const key = tier.toLowerCase() as PlanTier
-  return TIER_LIMITS[key] ?? TIER_LIMITS.free
+  const lower = tier.toLowerCase()
+  const resolved = TIER_ALIASES[lower] ?? lower
+  return TIER_LIMITS[resolved as PlanTier] ?? TIER_LIMITS.free
 }
 
 // Cache of tiered rate limiters keyed by "tier:type"

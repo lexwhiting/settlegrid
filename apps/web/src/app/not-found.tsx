@@ -3,7 +3,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 
 export default function NotFound() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       <div className="flex-1 flex items-center justify-center px-6">
         <div className="text-center max-w-md">
           <div className="mb-8">
@@ -25,7 +25,7 @@ export default function NotFound() {
             </Link>
             <Link
               href="/docs"
-              className="border border-[#2E3148] text-gray-300 px-6 py-2.5 rounded-lg hover:border-gray-500 hover:text-white transition-colors font-medium text-sm"
+              className="border border-[#2A2D3E] text-gray-300 px-6 py-2.5 rounded-lg hover:border-gray-500 hover:text-white transition-colors font-medium text-sm"
             >
               View Docs
             </Link>

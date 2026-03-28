@@ -118,8 +118,9 @@ export const POST = withCors(async function POST(request: NextRequest) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    // Dynamic revenue split based on developer tier (95% standard, 97% enterprise)
-    const developerShareCents = Math.floor(body.costCents * (toolDev.revenueSharePct / 100))
+    // Progressive take rate — developer receives full costCents at invocation time.
+    // Platform take is calculated at payout time via calculateTakeCents(). See lib/pricing.ts
+    const developerShareCents = body.costCents
 
     // 1. Deduct from consumer balance (atomic)
     const [updatedBalance] = await db

@@ -19,9 +19,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function TermsPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
-      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 dark:bg-[#1A1D2E]">
+      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 dark:bg-[#161822]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={32} />
@@ -79,8 +79,8 @@ export default function TermsPage() {
                   tools through the platform.
                 </li>
                 <li>
-                  SettleGrid retains a 0-5% platform fee on each transaction depending on your plan
-                  (0% on Free tier, 5% on Starter/Growth/Scale, negotiable for Enterprise).
+                  SettleGrid retains a progressive platform fee on each transaction based on monthly revenue
+                  (0% on first $1,000/mo, 2% on $1,001-$10,000, 3% on $10,001-$50,000, 5% above $50,000).
                   Payout schedules and minimums are detailed in your dashboard.
                 </li>
                 <li>
@@ -243,7 +243,7 @@ export default function TermsPage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-8">
+      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">

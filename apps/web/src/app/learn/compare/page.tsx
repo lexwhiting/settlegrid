@@ -11,6 +11,12 @@ export const metadata: Metadata = {
 
 const comparisons = [
   {
+    slug: 'mcp-billing-platforms-2026',
+    title: 'MCP Billing Platforms Compared 2026',
+    description:
+      'The definitive comparison of every major MCP monetization platform: SettleGrid, Nevermined, MCPize, Paid.ai, Moesif, Masumi, and PaidMCP. Full feature matrix with revenue share, pricing models, protocols, and more.',
+  },
+  {
     slug: 'vs-diy',
     title: 'SettleGrid vs Building Your Own',
     description:
@@ -28,13 +34,49 @@ const comparisons = [
     description:
       'Stripe is great for SaaS subscriptions. SettleGrid is purpose-built for per-call AI tool billing with native MCP support and real-time budget enforcement.',
   },
+  {
+    slug: 'vs-mcpize',
+    title: 'SettleGrid vs MCPize',
+    description:
+      'MCPize is a hosted marketplace with 85% revenue share. SettleGrid is an SDK with up to 100% revenue share (progressive take rate) that works with any hosting provider and supports 10 protocols.',
+  },
+  {
+    slug: 'vs-paid-ai',
+    title: 'SettleGrid vs Paid.ai',
+    description:
+      'Paid.ai focuses on outcome-based billing. SettleGrid supports 6 pricing models including outcomes, plus 10 payment protocols and a free tier with 0% fees.',
+  },
+  {
+    slug: 'vs-moesif',
+    title: 'SettleGrid vs Moesif',
+    description:
+      'Moesif is an API analytics platform adding billing. SettleGrid is purpose-built for AI tool monetization with a 2-line MCP-native SDK and sub-50ms metering.',
+  },
+  {
+    slug: 'vs-stripe-metronome',
+    title: 'SettleGrid vs Stripe Metronome',
+    description:
+      'Stripe acquired Metronome for $1B to own enterprise usage-based billing. SettleGrid is purpose-built for AI services: 2-line SDK, 10 protocols, progressive pricing from 0%, and AI-native discovery.',
+  },
+  {
+    slug: 'vs-orb',
+    title: 'SettleGrid vs Orb',
+    description:
+      'Orb offers powerful SQL-based event metering for B2B SaaS. SettleGrid is built for AI tool monetization: 2-line SDK, 10 protocols, a discovery marketplace, and progressive take rates.',
+  },
+  {
+    slug: 'vs-lago',
+    title: 'SettleGrid vs Lago',
+    description:
+      'Lago is open-source usage-based billing you can self-host. SettleGrid is a managed platform with zero infrastructure, 10 AI protocols, discovery marketplace, and a 2-line SDK.',
+  },
 ] as const
 
 export default function CompareIndexPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E]">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={32} />
@@ -60,7 +102,7 @@ export default function CompareIndexPage() {
       <main className="flex-1 px-6 py-16">
         <div className="max-w-4xl mx-auto">
           <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
-            <Link href="/learn" className="hover:text-emerald-400 transition-colors">&larr; Back to Learn</Link>
+            <Link href="/learn" className="hover:text-amber-400 transition-colors">&larr; Back to Learn</Link>
           </nav>
           <h1 className="text-4xl font-bold text-gray-100 mb-4">
             How SettleGrid Compares
@@ -75,7 +117,7 @@ export default function CompareIndexPage() {
               <Link
                 key={c.slug}
                 href={`/learn/compare/${c.slug}`}
-                className="group block bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-6 hover:border-brand/60 transition-colors"
+                className="group block bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 hover:border-brand/60 transition-colors"
               >
                 <h2 className="text-xl font-semibold text-gray-100 mb-2 group-hover:text-brand transition-colors">
                   {c.title}
@@ -91,7 +133,7 @@ export default function CompareIndexPage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-8">
+      <footer className="border-t border-[#2A2D3E] px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-400">

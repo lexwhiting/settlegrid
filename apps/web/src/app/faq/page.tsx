@@ -40,7 +40,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'Is there a free tier?',
-        a: 'Yes. The Free plan is $0 forever with no catch — unlimited tools, 25,000 operations per month, per-call billing, a full dashboard, and a 0% take rate. You keep 100% of revenue. No credit card required. Most developers will never need to upgrade.',
+        a: 'Yes. The Free plan is $0 forever with no catch — unlimited tools, 50,000 operations per month, per-call billing, a full dashboard, and a progressive take rate starting at 0% on your first $1K/mo of revenue. No credit card required. Most developers will never need to upgrade.',
       },
       {
         q: 'What protocols does SettleGrid support?',
@@ -84,6 +84,10 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
         q: 'Does the SDK work with non-MCP services?',
         a: "Yes. While the package is called @settlegrid/mcp, it includes a settlegridMiddleware() function for REST APIs (Express, Fastify, etc.). The SDK's wrap() function works with any async handler regardless of protocol.",
       },
+      {
+        q: 'Does SettleGrid only work with MCP servers?',
+        a: 'No. While MCP is our primary focus, the SettleGrid SDK wraps any function handler. It works with REST APIs, Express routes, Next.js API routes, serverless functions, and any callable endpoint. If your code accepts input and returns output, SettleGrid can meter and bill it.',
+      },
     ],
   },
   {
@@ -95,7 +99,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'Are there overage charges on the Free tier?',
-        a: 'Your tools keep working beyond 25,000 ops/month — we never cut off consumers. A 5% platform fee applies to overage operations (you keep 95% instead of 100%). Upgrade to any paid plan for higher limits.',
+        a: 'Your tools keep working beyond 50,000 ops/month — we never cut off consumers. The progressive take rate applies to overage operations. Upgrade to Builder ($19/mo) or Scale ($79/mo) for higher limits.',
       },
       {
         q: 'How much should I charge per invocation?',
@@ -133,7 +137,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'What is the revenue split?',
-        a: 'The Free plan has a 0% take rate — developers keep 100% of revenue. On Starter, Growth, and Scale plans, the take rate is 5% — developers keep 95%. Need higher limits or a custom arrangement? Email support@settlegrid.ai.',
+        a: 'All plans use a progressive take rate based on monthly tool revenue: 0% on the first $1,000/mo (you keep 100%), 2% on $1,001-$10,000, 3% on $10,001-$50,000, and 5% above $50,000. Most developers pay 0%. Need a custom arrangement? Email support@settlegrid.ai.',
       },
     ],
   },
@@ -193,6 +197,23 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
     ],
   },
+  {
+    title: 'Universal AI Service Billing',
+    faqs: [
+      {
+        q: 'What AI services can I monetize with SettleGrid?',
+        a: 'SettleGrid is a universal billing layer for any AI service. Supported service types include: LLM inference proxies (OpenAI, Anthropic, Cohere, Mistral), browser automation tools (Playwright, Browserbase, Puppeteer), media generation services (DALL-E, Stable Diffusion, ElevenLabs), code execution sandboxes (E2B, Modal, Fly Machines), data enrichment APIs, MCP tools, agent-to-agent orchestration workflows, communication services (Twilio, Resend, SendGrid), search and retrieval (RAG pipelines, vector search), and compute infrastructure (GPU instances, model hosting). If your service accepts input and returns output, SettleGrid can meter and bill it.',
+      },
+      {
+        q: 'Can I use SettleGrid as an agent budget controller?',
+        a: 'Yes. SettleGrid provides comprehensive agent budget controls through three features: (1) Transaction Explorer gives full visibility into every AI service call with cost breakdowns, (2) Smart Proxy enforces budget limits in real-time and returns HTTP 402 when budgets are exceeded, and (3) progressive budgets let you set daily, weekly, or monthly spending limits per agent, per tool, or per workflow. Combined with Agent Identity (KYA) verification, you can delegate budgets to autonomous agents with full control and audit trails.',
+      },
+      {
+        q: 'How is SettleGrid different from Stripe or Orb?',
+        a: 'Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — 10 payment protocols (MCP, x402, AP2, Visa TAP, etc.) vs. Stripe/Orb\'s REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.',
+      },
+    ],
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
@@ -220,7 +241,7 @@ const faqJsonLd = {
 
 export default function FaqPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -228,7 +249,7 @@ export default function FaqPage() {
       />
 
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E]">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
         <nav className="max-w-4xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -251,7 +272,7 @@ export default function FaqPage() {
       <main className="flex-1 px-6 py-16">
         <div className="max-w-3xl mx-auto">
           <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
-            <Link href="/" className="hover:text-emerald-400 transition-colors">Home</Link>
+            <Link href="/" className="hover:text-amber-400 transition-colors">Home</Link>
             <span className="mx-2 text-gray-600">/</span>
             <span className="text-gray-300">FAQ</span>
           </nav>
@@ -263,7 +284,7 @@ export default function FaqPage() {
             <p className="text-gray-400 max-w-xl mx-auto">
               Everything you need to know about SettleGrid — billing, protocols, payouts, and security.
               Can&apos;t find what you&apos;re looking for?{' '}
-              <a href="mailto:support@settlegrid.ai" className="text-emerald-400 hover:underline">
+              <a href="mailto:support@settlegrid.ai" className="text-amber-400 hover:underline">
                 Contact support
               </a>.
             </p>
@@ -273,7 +294,7 @@ export default function FaqPage() {
           <FaqAccordion categories={faqCategories} />
 
           {/* Bottom CTA */}
-          <div className="mt-16 bg-gradient-to-r from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 rounded-xl p-8 text-center">
+          <div className="mt-16 bg-gradient-to-r from-amber-500/10 to-amber-600/5 border border-amber-500/20 rounded-xl p-8 text-center">
             <h2 className="text-xl font-bold text-gray-100 mb-3">Still have questions?</h2>
             <p className="text-gray-400 mb-6">
               Check the full documentation or reach out to our team.
@@ -281,7 +302,7 @@ export default function FaqPage() {
             <div className="flex items-center justify-center gap-4 flex-wrap">
               <Link
                 href="/docs"
-                className="inline-flex items-center gap-2 bg-[#1A1D2E] border border-[#2E3148] text-gray-300 px-5 py-2.5 rounded-lg font-medium hover:border-emerald-500/40 transition-colors"
+                className="inline-flex items-center gap-2 bg-[#161822] border border-[#2A2D3E] text-gray-300 px-5 py-2.5 rounded-lg font-medium hover:border-amber-500/40 transition-colors"
               >
                 Read the Docs
               </Link>
@@ -297,7 +318,7 @@ export default function FaqPage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-4xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
             <SettleGridLogo variant="compact" size={32} />

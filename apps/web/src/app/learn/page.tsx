@@ -128,6 +128,102 @@ const SECTIONS: SectionCard[] = [
       </svg>
     ),
   },
+  {
+    title: 'Framework Integrations',
+    description:
+      'Use paid SettleGrid tools natively in popular AI agent frameworks. Step-by-step integration guides for smolagents (Hugging Face), LangChain, and CrewAI with code examples in TypeScript and Python.',
+    href: '/learn/integrations',
+    badge: '3 frameworks',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Explore Tools by Category',
+    description:
+      'Browse all monetized AI services across 21+ categories covering MCP tools, LLM inference, browser automation, media generation, code execution, data APIs, agent-to-agent workflows, communication services, and more. Each category has its own landing page with tools, pricing, and a monetization guide.',
+    href: '/explore',
+    badge: '21+ categories',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'How-To Guides',
+    description:
+      'Step-by-step tutorials that walk you from zero to revenue. Build your first MCP tool, deploy with billing, set pricing, maximize discovery, and scale your AI tool business.',
+    href: '/learn/how-to',
+    badge: '5 guides',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Monetization Guides',
+    description:
+      'Category-specific guides on pricing, market sizing, revenue benchmarks, and competitive positioning for every tool category on SettleGrid.',
+    href: '/guides',
+    badge: '13 guides',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Curated Collections',
+    description:
+      'Hand-picked collections of the best AI tools for specific use cases — weather APIs, code analysis, data enrichment, security toolkits, and financial data feeds. Editorially curated for AI agents.',
+    href: '/explore/collections',
+    badge: '5 collections',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-17.25-.375a1.125 1.125 0 1 1 2.25 0V12m15.75-2.625a1.125 1.125 0 1 1-2.25 0V12m-13.5 0v6.75A2.25 2.25 0 0 0 6.75 21h10.5A2.25 2.25 0 0 0 19.5 18.75V12m-16.5 0h16.5" />
+      </svg>
+    ),
+  },
+  {
+    title: 'State of MCP Monetization 2026',
+    description:
+      'Data-driven report on the MCP monetization landscape. 12,770+ servers, 97M+ SDK downloads, less than 5% monetized. Protocol landscape, revenue benchmarks, and the $385B opportunity.',
+    href: '/learn/state-of-mcp-2026',
+    badge: 'Data Report',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+      </svg>
+    ),
+  },
+  {
+    title: "The MCP Ecosystem's $0 Problem",
+    description:
+      '12,000+ MCP servers exist. Less than 5% earn a single dollar. Why free is unsustainable, what other ecosystems learned, and the case for charging for your AI tools.',
+    href: '/learn/mcp-zero-problem',
+    badge: 'Opinion',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Blog',
+    description:
+      'In-depth articles on MCP monetization, billing comparisons, per-call pricing strategies, AI payment protocol analysis, and getting started guides. Written for developers building AI tools.',
+    href: '/learn/blog/how-to-monetize-mcp-server',
+    badge: '5 articles',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+      </svg>
+    ),
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
@@ -136,9 +232,9 @@ const SECTIONS: SectionCard[] = [
 
 export default function LearnPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E]">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -163,7 +259,7 @@ export default function LearnPage() {
           {/* Hero */}
           <div className="text-center mb-16">
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4">
-              Learn Settle<span className="text-emerald-400 font-normal">Grid</span>
+              Learn Settle<span className="text-amber-400 font-normal">Grid</span>
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
               Guides, tutorials, and protocol references to help you monetize your AI tools.
@@ -176,21 +272,21 @@ export default function LearnPage() {
               <Link
                 key={section.title}
                 href={section.href}
-                className="group bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-6 hover:border-emerald-500/40 transition-all hover:scale-[1.02]"
+                className="group bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 hover:border-amber-500/40 transition-all hover:scale-[1.02]"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="text-emerald-400">{section.icon}</div>
+                  <div className="text-amber-400">{section.icon}</div>
                   {section.badge && (
-                    <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full px-2 py-0.5">
+                    <span className="text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full px-2 py-0.5">
                       {section.badge}
                     </span>
                   )}
                 </div>
-                <h2 className="text-lg font-bold text-gray-100 mb-2 group-hover:text-emerald-400 transition-colors">
+                <h2 className="text-lg font-bold text-gray-100 mb-2 group-hover:text-amber-400 transition-colors">
                   {section.title}
                 </h2>
                 <p className="text-sm text-gray-400 leading-relaxed">{section.description}</p>
-                <div className="mt-4 text-xs font-medium text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="mt-4 text-xs font-medium text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
                   Explore &rarr;
                 </div>
               </Link>
@@ -198,28 +294,28 @@ export default function LearnPage() {
           </div>
 
           {/* Additional resources */}
-          <div className="mt-16 bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-8">
+          <div className="mt-16 bg-[#161822] border border-[#2A2D3E] rounded-xl p-8">
             <h2 className="text-xl font-bold text-gray-100 mb-4">More Resources</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Link href="/docs" className="flex items-center gap-3 text-gray-400 hover:text-emerald-400 transition-colors">
+              <Link href="/docs" className="flex items-center gap-3 text-gray-400 hover:text-amber-400 transition-colors">
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
                 <span className="text-sm font-medium">Full API Documentation</span>
               </Link>
-              <Link href="/faq" className="flex items-center gap-3 text-gray-400 hover:text-emerald-400 transition-colors">
+              <Link href="/faq" className="flex items-center gap-3 text-gray-400 hover:text-amber-400 transition-colors">
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
                 </svg>
                 <span className="text-sm font-medium">Frequently Asked Questions</span>
               </Link>
-              <Link href="/tools" className="flex items-center gap-3 text-gray-400 hover:text-emerald-400 transition-colors">
+              <Link href="/tools" className="flex items-center gap-3 text-gray-400 hover:text-amber-400 transition-colors">
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
                 </svg>
                 <span className="text-sm font-medium">Tool Showcase</span>
               </Link>
-              <a href="https://www.npmjs.com/package/@settlegrid/mcp" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-gray-400 hover:text-emerald-400 transition-colors">
+              <a href="https://www.npmjs.com/package/@settlegrid/mcp" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-gray-400 hover:text-amber-400 transition-colors">
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
                 </svg>
@@ -231,7 +327,7 @@ export default function LearnPage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
             <SettleGridLogo variant="compact" size={32} />

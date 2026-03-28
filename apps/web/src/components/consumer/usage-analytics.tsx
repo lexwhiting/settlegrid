@@ -173,8 +173,8 @@ export function UsageAnalytics() {
             aria-label={`Show ${p === '7d' ? '7 day' : p === '30d' ? '30 day' : '90 day'} analytics`}
             className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none ${
               period === p
-                ? 'bg-emerald-600 text-white'
-                : 'bg-gray-100 dark:bg-[#252836] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#2E3148]'
+                ? 'bg-amber-600 text-white'
+                : 'bg-gray-100 dark:bg-[#252836] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#2A2D3E]'
             }`}
           >
             {p === '7d' ? '7 days' : p === '30d' ? '30 days' : '90 days'}
@@ -263,8 +263,8 @@ export function UsageAnalytics() {
                           <div
                             className={`w-full rounded-t transition-colors ${
                               isHovered
-                                ? 'bg-emerald-400 dark:bg-emerald-300'
-                                : 'bg-emerald-500 dark:bg-emerald-500'
+                                ? 'bg-amber-400 dark:bg-amber-300'
+                                : 'bg-amber-500 dark:bg-amber-500'
                             }`}
                             style={{
                               height: `${Math.max(heightPercent, day.totalCostCents > 0 ? 2 : 0)}%`,
@@ -329,7 +329,7 @@ export function UsageAnalytics() {
                         </div>
                         <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2.5">
                           <div
-                            className="h-2.5 rounded-full bg-emerald-500 transition-all"
+                            className="h-2.5 rounded-full bg-amber-500 transition-all"
                             style={{
                               width: `${Math.max(widthPercent, tool.totalCostCents > 0 ? 1 : 0)}%`,
                             }}

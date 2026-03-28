@@ -4,14 +4,15 @@ import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, gt, and } from 'drizzle-orm'
+import { getRevenueTier, getLeaderboardTier, formatCentsCompact } from '@/lib/revenue'
 
 // ─── SEO Metadata ──────────────────────────────────────────────────────────
 
 export const metadata: Metadata = {
   title: 'Developer Directory | SettleGrid',
   description:
-    'Discover developers building monetized AI tools on SettleGrid. Browse public profiles sorted by reputation score.',
+    'Discover top-earning developers building monetized AI tools on SettleGrid. Browse public profiles sorted by reputation and revenue.',
   alternates: { canonical: 'https://settlegrid.ai/developers' },
   keywords: [
     'AI developers',
@@ -19,11 +20,12 @@ export const metadata: Metadata = {
     'SettleGrid developers',
     'AI agent developers',
     'developer directory',
+    'top earning developers',
   ],
   openGraph: {
     title: 'Developer Directory | SettleGrid',
     description:
-      'Discover developers building monetized AI tools on SettleGrid. Browse public profiles sorted by reputation score.',
+      'Discover top-earning developers building monetized AI tools on SettleGrid. Browse public profiles sorted by reputation and revenue.',
     type: 'website',
     siteName: 'SettleGrid',
   },
@@ -31,7 +33,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Developer Directory | SettleGrid',
     description:
-      'Discover developers building monetized AI tools on SettleGrid. Browse public profiles sorted by reputation score.',
+      'Discover top-earning developers building monetized AI tools on SettleGrid. Browse public profiles sorted by reputation and revenue.',
   },
 }
 
@@ -63,6 +65,22 @@ interface DeveloperCard {
   avatarUrl: string | null
   reputationScore: number | null
   activeToolCount: number
+  totalRevenueCents: number
+}
+
+interface LeaderboardEntry {
+  name: string | null
+  slug: string | null
+  avatarUrl: string | null
+  reputationScore: number | null
+  activeToolCount: number
+  totalRevenueCents: number
+}
+
+interface DirectoryStats {
+  developerCount: number
+  toolCount: number
+  totalRevenueCents: number
 }
 
 // ─── Data fetching ─────────────────────────────────────────────────────────
@@ -76,6 +94,7 @@ async function getPublicDevelopers(): Promise<DeveloperCard[]> {
       avatarUrl: developers.avatarUrl,
       reputationScore: developerReputation.score,
       activeToolCount: sql<number>`count(case when ${tools.status} = 'active' then 1 end)`.as('active_tool_count'),
+      totalRevenueCents: sql<number>`coalesce(sum(${tools.totalRevenueCents}), 0)`.as('total_revenue_cents'),
     })
     .from(developers)
     .leftJoin(developerReputation, eq(developerReputation.developerId, developers.id))
@@ -98,7 +117,63 @@ async function getPublicDevelopers(): Promise<DeveloperCard[]> {
     avatarUrl: r.avatarUrl,
     reputationScore: r.reputationScore,
     activeToolCount: Number(r.activeToolCount) || 0,
+    totalRevenueCents: Number(r.totalRevenueCents) || 0,
   }))
+}
+
+async function getTopDevelopers(): Promise<LeaderboardEntry[]> {
+  const rows = await db
+    .select({
+      name: developers.name,
+      slug: developers.slug,
+      avatarUrl: developers.avatarUrl,
+      reputationScore: developerReputation.score,
+      activeToolCount: sql<number>`count(case when ${tools.status} = 'active' then 1 end)`.as('active_tool_count'),
+      totalRevenueCents: sql<number>`coalesce(sum(${tools.totalRevenueCents}), 0)`.as('total_revenue_cents'),
+    })
+    .from(developers)
+    .leftJoin(developerReputation, eq(developerReputation.developerId, developers.id))
+    .innerJoin(tools, eq(tools.developerId, developers.id))
+    .where(and(
+      eq(developers.publicProfile, true),
+    ))
+    .groupBy(
+      developers.id,
+      developers.name,
+      developers.slug,
+      developers.avatarUrl,
+      developerReputation.score,
+    )
+    .having(gt(sql`coalesce(sum(${tools.totalRevenueCents}), 0)`, 0))
+    .orderBy(desc(sql`coalesce(sum(${tools.totalRevenueCents}), 0)`))
+    .limit(10)
+
+  return rows.map((r) => ({
+    name: r.name,
+    slug: r.slug,
+    avatarUrl: r.avatarUrl,
+    reputationScore: r.reputationScore,
+    activeToolCount: Number(r.activeToolCount) || 0,
+    totalRevenueCents: Number(r.totalRevenueCents) || 0,
+  }))
+}
+
+async function getDirectoryStats(): Promise<DirectoryStats> {
+  const [result] = await db
+    .select({
+      developerCount: sql<number>`count(distinct ${developers.id})`.as('developer_count'),
+      toolCount: sql<number>`count(distinct case when ${tools.status} = 'active' then ${tools.id} end)`.as('tool_count'),
+      totalRevenueCents: sql<number>`coalesce(sum(${tools.totalRevenueCents}), 0)`.as('total_revenue_cents'),
+    })
+    .from(developers)
+    .leftJoin(tools, eq(tools.developerId, developers.id))
+    .where(eq(developers.publicProfile, true))
+
+  return {
+    developerCount: Number(result?.developerCount) || 0,
+    toolCount: Number(result?.toolCount) || 0,
+    totalRevenueCents: Number(result?.totalRevenueCents) || 0,
+  }
 }
 
 // ─── Helper: initials from name ────────────────────────────────────────────
@@ -114,17 +189,23 @@ function getInitials(name: string | null): string {
 
 export default async function DeveloperDirectoryPage() {
   let devs: DeveloperCard[] = []
+  let topDevs: LeaderboardEntry[] = []
+  let stats: DirectoryStats = { developerCount: 0, toolCount: 0, totalRevenueCents: 0 }
 
   try {
-    devs = await getPublicDevelopers()
+    ;[devs, topDevs, stats] = await Promise.all([
+      getPublicDevelopers(),
+      getTopDevelopers(),
+      getDirectoryStats(),
+    ])
   } catch {
     // DB unavailable — show empty state gracefully
   }
 
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E] sticky top-0 z-50 backdrop-blur-lg">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822] sticky top-0 z-50 backdrop-blur-lg">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -144,7 +225,7 @@ export default async function DeveloperDirectoryPage() {
             </Link>
             <Link
               href="/developers"
-              className="hidden sm:inline text-sm font-medium text-emerald-400 transition-colors"
+              className="hidden sm:inline text-sm font-medium text-amber-400 transition-colors"
               aria-current="page"
             >
               Developers
@@ -180,95 +261,247 @@ export default async function DeveloperDirectoryPage() {
       <main className="flex-1 px-6 py-16">
         <div className="max-w-6xl mx-auto">
           {/* ── Hero ───────────────────────────────────────────────── */}
-          <div className="text-center mb-14">
+          <div className="text-center mb-10">
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4">
               Developer Directory
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Find builders on Settle<span className="text-emerald-400">Grid</span>
+              Find builders on Settle<span className="text-amber-400">Grid</span>
             </p>
           </div>
 
+          {/* ── Stats Bar ──────────────────────────────────────────── */}
+          {(stats.developerCount > 0 || stats.toolCount > 0) && (
+            <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 mb-12">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                </svg>
+                <span className="text-sm font-medium text-gray-300">
+                  <span className="text-amber-400 font-bold">{stats.developerCount}</span> {stats.developerCount === 1 ? 'developer' : 'developers'}
+                </span>
+              </div>
+              <div className="w-px h-4 bg-[#2A2D3E] hidden sm:block" />
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                </svg>
+                <span className="text-sm font-medium text-gray-300">
+                  <span className="text-amber-400 font-bold">{stats.toolCount}</span> {stats.toolCount === 1 ? 'tool' : 'tools'} published
+                </span>
+              </div>
+              {stats.totalRevenueCents > 0 && (
+                <>
+                  <div className="w-px h-4 bg-[#2A2D3E] hidden sm:block" />
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-300">
+                      <span className="text-amber-400 font-bold">{formatCentsCompact(stats.totalRevenueCents)}</span> total earned
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Top Developers Leaderboard ─────────────────────────── */}
+          {topDevs.length > 0 && (
+            <section className="mb-14">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/10">
+                  <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-100">Top Developers</h2>
+                <span className="text-xs text-gray-500 font-medium ml-1">by revenue</span>
+              </div>
+              <div className="rounded-xl border border-[#2A2D3E] bg-[#161822] overflow-hidden">
+                <div className="divide-y divide-[#252836]">
+                  {topDevs.map((dev, i) => {
+                    const score = dev.reputationScore ?? 0
+                    const tierInfo = getReputationTier(score)
+                    const revTier = getRevenueTier(dev.totalRevenueCents)
+                    const lbTier = getLeaderboardTier(dev.totalRevenueCents)
+                    const initials = getInitials(dev.name)
+                    const href = dev.slug ? `/dev/${dev.slug}` : '#'
+                    const rank = i + 1
+
+                    return (
+                      <Link
+                        key={dev.slug ?? dev.name ?? i}
+                        href={href}
+                        className="flex items-center gap-4 px-5 py-4 hover:bg-[#252836] transition-colors group"
+                      >
+                        {/* Rank */}
+                        <span className={`text-sm font-bold w-6 text-center shrink-0 ${rank <= 3 ? 'text-amber-400' : 'text-gray-500'}`}>
+                          {rank}
+                        </span>
+
+                        {/* Avatar */}
+                        {dev.avatarUrl ? (
+                          <Image
+                            src={dev.avatarUrl}
+                            alt={dev.name ?? 'Developer'}
+                            width={36}
+                            height={36}
+                            className="w-9 h-9 rounded-full object-cover ring-1 ring-[#2A2D3E] shrink-0"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-amber-500/10 ring-1 ring-[#2A2D3E] flex items-center justify-center text-amber-400 font-semibold text-xs shrink-0">
+                            {initials}
+                          </div>
+                        )}
+
+                        {/* Name + tier */}
+                        <div className="min-w-0 flex-1">
+                          <span className="text-sm font-semibold text-gray-100 group-hover:text-amber-400 transition-colors truncate block">
+                            {dev.name ?? 'Anonymous'}
+                          </span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border"
+                              style={{
+                                color: tierInfo.color,
+                                backgroundColor: tierInfo.bgColor,
+                                borderColor: tierInfo.borderColor,
+                              }}
+                            >
+                              {tierInfo.tier}
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              {dev.activeToolCount} {dev.activeToolCount === 1 ? 'tool' : 'tools'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Revenue tier badge */}
+                        {lbTier && (
+                          <span
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0"
+                            style={{
+                              color: revTier.color,
+                              backgroundColor: revTier.bgColor,
+                              borderColor: revTier.borderColor,
+                            }}
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            {lbTier}
+                          </span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* ── Developer Grid ─────────────────────────────────────── */}
           {devs.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-              {devs.map((dev) => {
-                const score = dev.reputationScore ?? 0
-                const tierInfo = getReputationTier(score)
-                const initials = getInitials(dev.name)
-                const bio = dev.bio
-                  ? dev.bio.length > 120
-                    ? dev.bio.slice(0, 120) + '...'
-                    : dev.bio
-                  : null
-                const href = dev.slug ? `/dev/${dev.slug}` : '#'
+            <>
+              {topDevs.length > 0 && (
+                <h2 className="text-xl font-bold text-gray-100 mb-6">All Developers</h2>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+                {devs.map((dev) => {
+                  const score = dev.reputationScore ?? 0
+                  const tierInfo = getReputationTier(score)
+                  const initials = getInitials(dev.name)
+                  const bio = dev.bio
+                    ? dev.bio.length > 120
+                      ? dev.bio.slice(0, 120) + '...'
+                      : dev.bio
+                    : null
+                  const href = dev.slug ? `/dev/${dev.slug}` : '#'
+                  const revTier = dev.totalRevenueCents > 0 ? getRevenueTier(dev.totalRevenueCents) : null
 
-                return (
-                  <Link
-                    key={dev.slug ?? dev.name}
-                    href={href}
-                    className="group rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-6 hover:border-emerald-500/40 transition-colors"
-                  >
-                    {/* Avatar + Name */}
-                    <div className="flex items-center gap-4 mb-4">
-                      {dev.avatarUrl ? (
-                        <Image
-                          src={dev.avatarUrl}
-                          alt={dev.name ?? 'Developer'}
-                          width={48}
-                          height={48}
-                          className="w-12 h-12 rounded-full object-cover ring-2 ring-[#2E3148] group-hover:ring-emerald-500/40 transition-colors"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-emerald-500/10 ring-2 ring-[#2E3148] group-hover:ring-emerald-500/40 transition-colors flex items-center justify-center text-emerald-400 font-semibold text-sm">
-                          {initials}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <h2 className="text-base font-semibold text-gray-100 truncate group-hover:text-emerald-400 transition-colors">
-                          {dev.name ?? 'Anonymous'}
-                        </h2>
-                        {dev.slug && (
-                          <p className="text-xs text-gray-500 truncate">@{dev.slug}</p>
+                  return (
+                    <Link
+                      key={dev.slug ?? dev.name}
+                      href={href}
+                      className="group rounded-xl border border-[#2A2D3E] bg-[#161822] p-6 hover:border-amber-500/40 transition-colors"
+                    >
+                      {/* Avatar + Name */}
+                      <div className="flex items-center gap-4 mb-4">
+                        {dev.avatarUrl ? (
+                          <Image
+                            src={dev.avatarUrl}
+                            alt={dev.name ?? 'Developer'}
+                            width={48}
+                            height={48}
+                            className="w-12 h-12 rounded-full object-cover ring-2 ring-[#2A2D3E] group-hover:ring-amber-500/40 transition-colors"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-amber-500/10 ring-2 ring-[#2A2D3E] group-hover:ring-amber-500/40 transition-colors flex items-center justify-center text-amber-400 font-semibold text-sm">
+                            {initials}
+                          </div>
                         )}
+                        <div className="min-w-0">
+                          <h2 className="text-base font-semibold text-gray-100 truncate group-hover:text-amber-400 transition-colors">
+                            {dev.name ?? 'Anonymous'}
+                          </h2>
+                          {dev.slug && (
+                            <p className="text-xs text-gray-500 truncate">@{dev.slug}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Bio */}
-                    {bio && (
-                      <p className="text-sm text-gray-400 mb-4 line-clamp-3">
-                        {bio}
-                      </p>
-                    )}
+                      {/* Bio */}
+                      {bio && (
+                        <p className="text-sm text-gray-400 mb-4 line-clamp-3">
+                          {bio}
+                        </p>
+                      )}
 
-                    {/* Tier Badge + Tool Count */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border"
-                        style={{
-                          color: tierInfo.color,
-                          backgroundColor: tierInfo.bgColor,
-                          borderColor: tierInfo.borderColor,
-                        }}
-                      >
-                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                        </svg>
-                        {tierInfo.tier}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {dev.activeToolCount} {dev.activeToolCount === 1 ? 'tool' : 'tools'}
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
+                      {/* Tier Badge + Revenue Badge + Tool Count */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border"
+                          style={{
+                            color: tierInfo.color,
+                            backgroundColor: tierInfo.bgColor,
+                            borderColor: tierInfo.borderColor,
+                          }}
+                        >
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                          {tierInfo.tier}
+                        </span>
+                        {revTier && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border"
+                            style={{
+                              color: revTier.color,
+                              backgroundColor: revTier.bgColor,
+                              borderColor: revTier.borderColor,
+                            }}
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            {revTier.label}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500 ml-auto">
+                          {dev.activeToolCount} {dev.activeToolCount === 1 ? 'tool' : 'tools'}
+                        </span>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </>
           ) : (
             /* ── Empty state ─────────────────────────────────────── */
-            <div className="rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-12 text-center mb-20">
-              <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
-                <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+            <div className="rounded-xl border border-[#2A2D3E] bg-[#161822] p-12 text-center mb-20">
+              <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10">
+                <svg className="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                 </svg>
               </div>
@@ -286,7 +519,7 @@ export default async function DeveloperDirectoryPage() {
           )}
 
           {/* ── Bottom CTA ─────────────────────────────────────────── */}
-          <div className="rounded-xl border border-[#2E3148] bg-gradient-to-br from-[#1A1D2E] to-[#0F1117] p-12 text-center">
+          <div className="rounded-xl border border-[#2A2D3E] bg-gradient-to-br from-[#161822] to-[#0C0E14] p-12 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-3">
               Want to be listed?
             </h2>
@@ -302,7 +535,7 @@ export default async function DeveloperDirectoryPage() {
               </Link>
               <Link
                 href="/dashboard/settings"
-                className="text-gray-400 hover:text-gray-100 px-6 py-3 rounded-lg font-medium border border-[#2E3148] hover:border-gray-500 transition-colors"
+                className="text-gray-400 hover:text-gray-100 px-6 py-3 rounded-lg font-medium border border-[#2A2D3E] hover:border-gray-500 transition-colors"
               >
                 Go to Settings
               </Link>
@@ -312,7 +545,7 @@ export default async function DeveloperDirectoryPage() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="border-t border-[#2E3148] px-6 py-6 mt-8">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6 mt-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-400">

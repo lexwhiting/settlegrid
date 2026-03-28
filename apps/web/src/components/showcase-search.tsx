@@ -35,7 +35,7 @@ const CATEGORY_META: Record<string, { label: string; color: string }> = {
   data:    { label: 'Data',    color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25' },
   nlp:     { label: 'NLP',     color: 'bg-orange-500/15 text-orange-400 border-orange-500/25' },
   image:   { label: 'Image',   color: 'bg-pink-500/15 text-pink-400 border-pink-500/25' },
-  code:    { label: 'Code',    color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' },
+  code:    { label: 'Code',    color: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
   search:  { label: 'Search',  color: 'bg-violet-500/15 text-violet-400 border-violet-500/25' },
   finance: { label: 'Finance', color: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
   science: { label: 'Science', color: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
@@ -97,7 +97,7 @@ const PAGE_SIZE = 60
 function VerifiedBadge() {
   return (
     <span
-      className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/25 shrink-0"
+      className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/25 shrink-0"
       title="Verified: this tool has processed real invocations"
       aria-label="Verified tool"
     >
@@ -167,7 +167,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
       {featured.length > 0 && !isFiltering && (
         <div className="mb-14">
           <h2 className="text-lg font-semibold text-gray-100 mb-5 flex items-center gap-2">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+            <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
             </svg>
             Featured Tools
@@ -179,11 +179,11 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                 <Link
                   key={tool.slug}
                   href={`/tools/${tool.slug}`}
-                  className="group rounded-xl border border-emerald-500/25 bg-gradient-to-br from-[#1A1D2E] to-[#151722] p-5 hover:border-emerald-500/50 transition-all hover:shadow-lg hover:shadow-emerald-500/5"
+                  className="group rounded-xl border border-amber-500/25 bg-gradient-to-br from-[#161822] to-[#151722] p-5 hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/5"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight truncate">
+                      <h3 className="font-semibold text-gray-100 group-hover:text-amber-400 transition-colors text-sm leading-tight truncate">
                         {tool.name}
                       </h3>
                       {tool.verified && <VerifiedBadge />}
@@ -194,11 +194,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                       </span>
                     )}
                   </div>
-                  {tool.developerName && (
-                    <p className="text-[11px] text-gray-500 mb-2">
-                      by {tool.developerName}
-                    </p>
-                  )}
+                  {/* Developer name hidden until multi-developer adoption */}
                   {tool.description && (
                     <p className="text-xs text-gray-400 leading-relaxed mb-4 line-clamp-2">
                       {tool.description.length > 120
@@ -211,7 +207,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                       <span className="text-[11px] text-gray-500">
                         v{tool.currentVersion}
                       </span>
-                      <span className="text-[11px] text-emerald-400/70">
+                      <span className="text-[11px] text-amber-400/70">
                         {formatInvocations(tool.totalInvocations)} calls
                       </span>
                       {formatPricing(tool.pricingConfig) && (
@@ -220,7 +216,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[11px] text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       View storefront &rarr;
                     </span>
                   </div>
@@ -253,7 +249,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
             value={query}
             onChange={(e) => { setQuery(e.target.value); setVisibleCount(PAGE_SIZE) }}
             placeholder={`Search ${tools.length} tools by name, description, or slug...`}
-            className="w-full pl-12 pr-4 py-3.5 bg-[#1A1D2E] border border-[#2E3148] rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all text-sm"
+            className="w-full pl-12 pr-4 py-3.5 bg-[#161822] border border-[#2A2D3E] rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all text-sm"
             aria-label="Search tools"
           />
           {query && (
@@ -277,8 +273,8 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
             onClick={() => { setActiveCategory(null); setVisibleCount(PAGE_SIZE) }}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
               activeCategory === null
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                : 'bg-[#1A1D2E] text-gray-400 border-[#2E3148] hover:border-gray-500 hover:text-gray-300'
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                : 'bg-[#161822] text-gray-400 border-[#2A2D3E] hover:border-gray-500 hover:text-gray-300'
             }`}
           >
             All <span className="text-[10px] opacity-70">{tools.length}</span>
@@ -290,7 +286,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 activeCategory === cat.key
                   ? cat.color
-                  : 'bg-[#1A1D2E] text-gray-400 border-[#2E3148] hover:border-gray-500 hover:text-gray-300'
+                  : 'bg-[#161822] text-gray-400 border-[#2A2D3E] hover:border-gray-500 hover:text-gray-300'
               }`}
             >
               {cat.label}{' '}
@@ -317,12 +313,12 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                 <Link
                   key={tool.slug}
                   href={`/tools/${tool.slug}`}
-                  className="group rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-5 hover:border-emerald-500/40 transition-all hover:shadow-lg hover:shadow-emerald-500/5"
+                  className="group rounded-xl border border-[#2A2D3E] bg-[#161822] p-5 hover:border-amber-500/40 transition-all hover:shadow-lg hover:shadow-amber-500/5"
                 >
                   {/* Header row */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors text-sm leading-tight truncate">
+                      <h3 className="font-semibold text-gray-100 group-hover:text-amber-400 transition-colors text-sm leading-tight truncate">
                         {tool.name}
                       </h3>
                       {tool.verified && <VerifiedBadge />}
@@ -335,11 +331,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                   </div>
 
                   {/* Developer */}
-                  {tool.developerName && (
-                    <p className="text-[11px] text-gray-500 mb-2">
-                      by {tool.developerName}
-                    </p>
-                  )}
+                  {/* Developer name hidden until multi-developer adoption */}
 
                   {/* Description */}
                   {tool.description && (
@@ -386,7 +378,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[11px] text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       View storefront &rarr;
                     </span>
                   </div>
@@ -398,7 +390,7 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
             <div className="text-center mb-20">
               <button
                 onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                className="px-6 py-2.5 rounded-lg border border-[#2E3148] text-sm font-medium text-gray-300 hover:text-gray-100 hover:border-gray-500 transition-colors"
+                className="px-6 py-2.5 rounded-lg border border-[#2A2D3E] text-sm font-medium text-gray-300 hover:text-gray-100 hover:border-gray-500 transition-colors"
               >
                 Show more ({filtered.length - visibleCount} remaining)
               </button>
@@ -406,14 +398,14 @@ export function ShowcaseSearch({ tools }: { tools: ShowcaseTool[] }) {
           )}
         </>
       ) : (
-        <div className="rounded-xl border border-[#2E3148] bg-[#1A1D2E] p-12 text-center mb-20">
+        <div className="rounded-xl border border-[#2A2D3E] bg-[#161822] p-12 text-center mb-20">
           <p className="text-gray-400 mb-2">No tools match your search.</p>
           <button
             onClick={() => {
               setQuery('')
               setActiveCategory(null)
             }}
-            className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+            className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
           >
             Clear filters
           </button>

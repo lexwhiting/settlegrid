@@ -10,6 +10,10 @@ import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { BarChart } from '@/components/charts/bar-chart'
 import { AreaChart } from '@/components/charts/area-chart'
 import { LiveIndicator } from '@/components/ui/live-indicator'
+import { calculateTakeCents } from '@/lib/pricing'
+import { showAchievementToasts } from '@/components/ui/achievement-toast'
+import { SocialShare } from '@/components/ui/social-share'
+import type { AchievementWithProgress, BadgeDefinition } from '@/lib/achievements'
 
 interface DeveloperStats {
   totalRevenueCents: number
@@ -29,6 +33,21 @@ interface ToolSummary {
   status: string
 }
 
+interface InviteStats {
+  inviteCode: string
+  inviteUrl: string
+  totalInvites: number
+  bonusOpsEarned: number
+  bonusOpsBalance: number
+}
+
+interface AchievementsData {
+  achievements: AchievementWithProgress[]
+  newlyUnlocked: BadgeDefinition[]
+  totalEarned: number
+  totalBadges: number
+}
+
 const CHECKLIST_DISMISSED_KEY = 'settlegrid_checklist_dismissed'
 const SDK_STEP_DISMISSED_KEY = 'settlegrid_sdk_step_dismissed'
 
@@ -45,8 +64,9 @@ interface UsageData {
 
 const TIER_LABELS: Record<string, string> = {
   standard: 'Free',
-  starter: 'Starter',
-  growth: 'Growth',
+  builder: 'Builder',
+  starter: 'Builder', // legacy alias
+  growth: 'Builder', // legacy alias
   scale: 'Scale',
   enterprise: 'Enterprise',
 }
@@ -68,27 +88,54 @@ function formatCents(cents: number): string {
 
 type Period = '7' | '30' | '90'
 
-// ─── Discovery Card ───────────────────────────────────────────────────────────
+// ─── Badge Snippet ───────────────────────────────────────────────────────────
 
-function DiscoveryCard({ slug, publicProfile }: { slug: string | null; publicProfile: boolean }) {
-  const [expanded, setExpanded] = useState(false)
-  const [badgeCopied, setBadgeCopied] = useState(false)
+function BadgeSnippet({ label, markdown }: { label: string; markdown: string }) {
+  const [copied, setCopied] = useState(false)
 
-  const profileUrl = slug ? `settlegrid.ai/dev/${slug}` : null
-  const badgeMarkdown = slug
-    ? `[![SettleGrid](https://settlegrid.ai/api/badge/dev/${slug})](https://${profileUrl})`
-    : null
-
-  async function copyBadge() {
-    if (!badgeMarkdown) return
+  async function copy() {
     try {
-      await navigator.clipboard.writeText(badgeMarkdown)
-      setBadgeCopied(true)
-      setTimeout(() => setBadgeCopied(false), 2000)
+      await navigator.clipboard.writeText(markdown)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
     } catch {
       // Clipboard API unavailable — silently fail
     }
   }
+
+  return (
+    <div>
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">{label}</span>
+      <div className="flex items-center gap-2">
+        <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300 max-w-md truncate block">
+          {markdown}
+        </code>
+        <button
+          onClick={copy}
+          className="shrink-0 text-gray-400 hover:text-brand transition-colors"
+          aria-label={`Copy ${label} markdown`}
+        >
+          {copied ? (
+            <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+            </svg>
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Discovery Card ───────────────────────────────────────────────────────────
+
+function DiscoveryCard({ slug, publicProfile }: { slug: string | null; publicProfile: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const profileUrl = slug ? `settlegrid.ai/dev/${slug}` : null
 
   return (
     <Card>
@@ -158,31 +205,24 @@ function DiscoveryCard({ slug, publicProfile }: { slug: string | null; publicPro
             )}
           </div>
 
-          {/* Badge Snippet */}
-          {badgeMarkdown && (
+          {/* README Badges */}
+          {slug && (
             <div>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1.5">
-                Powered-by badge (Markdown):
+                README Badges
               </span>
-              <div className="flex items-center gap-2">
-                <code className="text-xs bg-gray-100 dark:bg-[#252836] px-2.5 py-1.5 rounded font-mono text-gray-700 dark:text-gray-300 max-w-md truncate block">
-                  {badgeMarkdown}
-                </code>
-                <button
-                  onClick={copyBadge}
-                  className="shrink-0 text-gray-400 hover:text-brand transition-colors"
-                  aria-label="Copy badge markdown"
-                >
-                  {badgeCopied ? (
-                    <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                    </svg>
-                  )}
-                </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Add these to your GitHub README to build credibility and drive discovery.
+              </p>
+              <div className="space-y-3">
+                <BadgeSnippet
+                  label="Developer reputation badge"
+                  markdown={`[![SettleGrid](https://settlegrid.ai/api/badge/dev/${slug})](https://settlegrid.ai/dev/${slug})`}
+                />
+                <BadgeSnippet
+                  label="Powered by SettleGrid"
+                  markdown={`[![Powered by SettleGrid](https://settlegrid.ai/api/badge/powered-by)](https://settlegrid.ai)`}
+                />
               </div>
             </div>
           )}
@@ -200,6 +240,95 @@ function DiscoveryCard({ slug, publicProfile }: { slug: string | null; publicPro
   )
 }
 
+// ─── Savings Calculator Card ──────────────────────────────────────────────────
+
+/** Competitor take rates */
+const COMPETITOR_RATES = [
+  { name: 'MCPize', calc: (revCents: number) => Math.round(revCents * 0.15) },
+  { name: 'xpay', calc: (revCents: number) => Math.round(revCents * 0.025) },
+  {
+    name: 'Stripe Direct',
+    // 2.9% + 30c per transaction. Assume ~$5 avg transaction for tx count.
+    calc: (revCents: number) => {
+      const avgTxCents = 500
+      const txCount = Math.max(1, Math.round(revCents / avgTxCents))
+      return Math.round(revCents * 0.029 + txCount * 30)
+    },
+  },
+]
+
+function SavingsCard({ monthlyRevenueCents }: { monthlyRevenueCents: number }) {
+  if (monthlyRevenueCents <= 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+            </svg>
+            <CardTitle className="text-lg">Savings Calculator</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Start earning to see your savings vs competitors.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const settleGridTakeCents = calculateTakeCents(monthlyRevenueCents)
+  const revenueDollars = formatCents(monthlyRevenueCents)
+
+  // Find the competitor with the highest take for the "You saved" headline
+  const competitorSavings = COMPETITOR_RATES.map((c) => {
+    const theirTake = c.calc(monthlyRevenueCents)
+    const saved = theirTake - settleGridTakeCents
+    return { name: c.name, takeCents: theirTake, savedCents: saved }
+  })
+
+  const bestSaving = competitorSavings.reduce((best, c) =>
+    c.savedCents > best.savedCents ? c : best
+  )
+
+  return (
+    <Card className="border-2 border-green-500/30 bg-green-50/5 dark:bg-green-900/10">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+          </svg>
+          <CardTitle className="text-lg">Savings Calculator</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          You saved <strong className="text-green-600 dark:text-green-400">{formatCents(bestSaving.savedCents)}</strong> this month by using SettleGrid instead of {bestSaving.name}.
+        </p>
+
+        {/* Comparison table */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {competitorSavings.map((c) => (
+            <div key={c.name} className="bg-white/50 dark:bg-[#161822] rounded-lg p-3 text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{c.name}</p>
+              <p className="text-sm font-semibold text-red-500">{formatCents(c.takeCents)}</p>
+            </div>
+          ))}
+          <div className="bg-green-500/10 rounded-lg p-3 text-center">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">SettleGrid</p>
+            <p className="text-sm font-semibold text-green-600 dark:text-green-400">{formatCents(settleGridTakeCents)}</p>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          Based on {revenueDollars} monthly revenue. SettleGrid uses progressive take rates: 0% on your first $1K, scaling to 5% above $50K.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function DeveloperDashboardPage() {
   const [stats, setStats] = useState<DeveloperStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
@@ -211,6 +340,10 @@ export default function DeveloperDashboardPage() {
   const [period, setPeriod] = useState<Period>('30')
   const [checklistDismissed, setChecklistDismissed] = useState(false)
   const [sdkStepDismissed, setSdkStepDismissed] = useState(false)
+  const [inviteStats, setInviteStats] = useState<InviteStats | null>(null)
+  const [inviteCopied, setInviteCopied] = useState(false)
+  const [achievementsData, setAchievementsData] = useState<AchievementsData | null>(null)
+  const [shareAchievement, setShareAchievement] = useState<AchievementWithProgress | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -225,12 +358,14 @@ export default function DeveloperDashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, analyticsRes, profileRes, toolsRes, usageRes] = await Promise.all([
+        const [statsRes, analyticsRes, profileRes, toolsRes, usageRes, inviteRes, achievementsRes] = await Promise.all([
           fetch('/api/dashboard/developer/stats'),
           fetch('/api/dashboard/developer/stats/analytics'),
           fetch('/api/auth/developer/me'),
           fetch('/api/tools'),
           fetch('/api/dashboard/developer/usage'),
+          fetch('/api/developer/invite'),
+          fetch('/api/developer/achievements'),
         ])
         if (statsRes.ok) {
           const data = await statsRes.json()
@@ -253,6 +388,18 @@ export default function DeveloperDashboardPage() {
         if (usageRes.ok) {
           const data = await usageRes.json()
           setUsage(data as UsageData)
+        }
+        if (inviteRes.ok) {
+          const data = await inviteRes.json()
+          setInviteStats(data as InviteStats)
+        }
+        if (achievementsRes.ok) {
+          const data = (await achievementsRes.json()) as AchievementsData
+          setAchievementsData(data)
+          // Show toasts for newly unlocked achievements
+          if (data.newlyUnlocked && data.newlyUnlocked.length > 0) {
+            showAchievementToasts(data.newlyUnlocked)
+          }
         }
       } catch {
         setError('Network error loading dashboard')
@@ -291,7 +438,7 @@ export default function DeveloperDashboardPage() {
 
   const checklistSteps = [
     { key: 'create-tool', label: 'Create your first tool', description: 'Register an MCP tool to start metering usage and collecting payments.', done: hasTools, href: '/dashboard/tools', cta: 'Create Tool' },
-    { key: 'connect-stripe', label: 'Connect Stripe for payouts', description: 'Link your Stripe account to receive earnings directly.', done: stripeConnected, href: '/dashboard/settings#payouts', cta: 'Connect Stripe' },
+    { key: 'connect-stripe', label: 'Connect Stripe for payouts', description: 'Earn now, cash out later — your revenue accrues while you set up Stripe. Connect anytime to withdraw.', done: stripeConnected, href: '/dashboard/settings#payouts', cta: 'Connect Stripe' },
     { key: 'install-sdk', label: 'Install the SDK', description: 'Add the SettleGrid SDK to your project.', done: sdkInstalled, href: null, cta: null },
     { key: 'test-invocation', label: 'Make a test invocation', description: 'Send a test call to verify metering is working.', done: hasInvocations, href: '/docs', cta: 'View Docs' },
     { key: 'go-live', label: 'Go live', description: 'Activate a tool to start accepting production traffic.', done: hasActiveTool, href: '/dashboard/tools', cta: 'Manage Tools' },
@@ -350,7 +497,7 @@ export default function DeveloperDashboardPage() {
               onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 period === p
-                  ? 'bg-white dark:bg-[#1A1D2E] text-indigo dark:text-gray-100 shadow-sm'
+                  ? 'bg-white dark:bg-[#161822] text-indigo dark:text-gray-100 shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
@@ -359,6 +506,80 @@ export default function DeveloperDashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Invite Developers — prominent referral card */}
+      {inviteStats && (
+        <Card className="border-2 border-amber-500/40 bg-amber-50/5 dark:bg-amber-900/10">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+              </svg>
+              <CardTitle className="text-xl">Invite Developers</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Share this link. Both you and your invite get <strong className="text-amber-600 dark:text-amber-400">5,000 free operations</strong>.
+            </p>
+
+            {/* Invite URL with copy */}
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-sm bg-gray-100 dark:bg-[#252836] border border-gray-200 dark:border-[#2A2D3E] px-3 py-2.5 rounded-lg font-mono text-gray-700 dark:text-gray-300 truncate">
+                {inviteStats.inviteUrl}
+              </code>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(inviteStats.inviteUrl)
+                    setInviteCopied(true)
+                    setTimeout(() => setInviteCopied(false), 2000)
+                  } catch {
+                    // Clipboard API unavailable
+                  }
+                }}
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors"
+                aria-label="Copy invite URL"
+              >
+                {inviteCopied ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                    </svg>
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Invite stats */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/50 dark:bg-[#161822] rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{inviteStats.totalInvites}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Invites sent</p>
+              </div>
+              <div className="bg-white/50 dark:bg-[#161822] rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{inviteStats.bonusOpsEarned.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Bonus ops earned</p>
+              </div>
+            </div>
+
+            <Link href="/dashboard/referrals" className="inline-flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-medium transition-colors">
+              View all referrals
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Getting Started Checklist */}
       {showChecklist && (
@@ -463,7 +684,7 @@ export default function DeveloperDashboardPage() {
         <StatCard
           title="Total Revenue"
           value={formatCents(stats?.totalRevenueCents ?? 0)}
-          subtitle="95-100% of consumer spend"
+          subtitle="Progressive take rate applied at payout"
           animate
         />
         <StatCard
@@ -487,6 +708,123 @@ export default function DeveloperDashboardPage() {
           animate
         />
       </div>
+
+      {/* Savings Calculator */}
+      <SavingsCard monthlyRevenueCents={stats?.totalRevenueCents ?? 0} />
+
+      {/* Achievements */}
+      {achievementsData && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228m0 0a6.023 6.023 0 01-2.77.672c-.992 0-1.929-.24-2.77-.672" />
+                </svg>
+                <CardTitle className="text-lg">Achievements</CardTitle>
+              </div>
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {achievementsData.totalEarned} / {achievementsData.totalBadges} earned
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {achievementsData.achievements.map((achievement) => {
+                const isUnlocked = achievement.unlocked
+                const progressPct =
+                  achievement.target && achievement.target > 0
+                    ? Math.min(Math.round(((achievement.progress ?? 0) / achievement.target) * 100), 100)
+                    : 0
+
+                return (
+                  <button
+                    key={achievement.badgeKey}
+                    onClick={() => {
+                      if (isUnlocked) setShareAchievement(achievement)
+                    }}
+                    disabled={!isUnlocked}
+                    className={`relative group flex flex-col items-center gap-1.5 rounded-lg p-3 text-center transition-all ${
+                      isUnlocked
+                        ? 'bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/60 dark:border-amber-700/30 hover:border-amber-400 dark:hover:border-amber-500/50 cursor-pointer'
+                        : 'bg-gray-50 dark:bg-[#1a1d2e] border border-gray-200/40 dark:border-[#252836] opacity-60 cursor-default'
+                    }`}
+                    aria-label={
+                      isUnlocked
+                        ? `${achievement.badge.name} - unlocked. Click to share.`
+                        : `${achievement.badge.name} - locked. ${progressPct}% progress.`
+                    }
+                  >
+                    {/* Badge icon */}
+                    <span className={`text-2xl ${isUnlocked ? '' : 'grayscale'}`} aria-hidden="true">
+                      {isUnlocked ? achievement.badge.icon : '???'}
+                    </span>
+
+                    {/* Badge name */}
+                    <span className={`text-xs font-medium leading-tight ${
+                      isUnlocked
+                        ? 'text-gray-800 dark:text-gray-200'
+                        : 'text-gray-400 dark:text-gray-500'
+                    }`}>
+                      {isUnlocked ? achievement.badge.name : '???'}
+                    </span>
+
+                    {/* Progress bar for locked badges */}
+                    {!isUnlocked && achievement.target && achievement.target > 1 && (
+                      <div className="w-full mt-0.5">
+                        <div className="w-full bg-gray-200 dark:bg-[#252836] rounded-full h-1">
+                          <div
+                            className="h-1 rounded-full bg-amber-400/60 transition-all"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                          {achievement.progress}/{achievement.target}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Unlock date tooltip for earned badges */}
+                    {isUnlocked && achievement.unlockedAt && (
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        {new Date(achievement.unlockedAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Social share popover for selected achievement */}
+            {shareAchievement && (
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-[#1a1d2e] rounded-lg border border-gray-200 dark:border-[#252836]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Share: {shareAchievement.badge.icon} {shareAchievement.badge.name}
+                  </p>
+                  <button
+                    onClick={() => setShareAchievement(null)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    aria-label="Close share panel"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <SocialShare
+                  type="achievement"
+                  badgeName={shareAchievement.badge.name}
+                  badgeIcon={shareAchievement.badge.icon}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Usage Tracking Widget */}
       {usage && (
@@ -517,7 +855,7 @@ export default function DeveloperDashboardPage() {
                       ? 'bg-red-500'
                       : usage.usagePercent >= 70
                         ? 'bg-amber-500'
-                        : 'bg-emerald-500'
+                        : 'bg-amber-500'
                   }`}
                   style={{ width: `${Math.min(usage.usagePercent, 100)}%` }}
                 />
@@ -669,7 +1007,7 @@ export default function DeveloperDashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Method breakdown">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Method</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Invocations</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Revenue</th>
@@ -708,7 +1046,7 @@ export default function DeveloperDashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Top consumers">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">#</th>
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Consumer</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Total Spend</th>

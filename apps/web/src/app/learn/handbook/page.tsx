@@ -74,7 +74,7 @@ const jsonLdArticle = {
 function ChapterHeading({ id, number, title }: { id: string; number: number; title: string }) {
   return (
     <div id={id} className="scroll-mt-24 mb-6 mt-16 first:mt-0">
-      <p className="text-sm font-semibold text-emerald-400 tracking-wide uppercase mb-1">
+      <p className="text-sm font-semibold text-amber-400 tracking-wide uppercase mb-1">
         Chapter {number}
       </p>
       <h2 className="text-2xl sm:text-3xl font-bold text-gray-100">{title}</h2>
@@ -84,7 +84,7 @@ function ChapterHeading({ id, number, title }: { id: string; number: number; tit
 
 function Callout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-6 border-l-4 border-emerald-500 bg-emerald-500/5 rounded-r-lg px-5 py-4 text-sm text-gray-300 leading-relaxed">
+    <div className="my-6 border-l-4 border-amber-500 bg-amber-500/5 rounded-r-lg px-5 py-4 text-sm text-gray-300 leading-relaxed">
       {children}
     </div>
   )
@@ -100,9 +100,9 @@ function PricingBenchmarkRow({
   examples: string
 }) {
   return (
-    <tr className="border-b border-[#2E3148]/50 last:border-b-0">
+    <tr className="border-b border-[#2A2D3E]/50 last:border-b-0">
       <td className="py-3 px-4 font-medium text-gray-200">{category}</td>
-      <td className="py-3 px-4 text-emerald-400 font-semibold">{range}</td>
+      <td className="py-3 px-4 text-amber-400 font-semibold">{range}</td>
       <td className="py-3 px-4 text-gray-400">{examples}</td>
     </tr>
   )
@@ -111,7 +111,7 @@ function PricingBenchmarkRow({
 function TocLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <li>
-      <a href={href} className="text-gray-400 hover:text-emerald-400 transition-colors text-sm">
+      <a href={href} className="text-gray-400 hover:text-amber-400 transition-colors text-sm">
         {children}
       </a>
     </li>
@@ -124,7 +124,7 @@ function TocLink({ href, children }: { href: string; children: React.ReactNode }
 
 export default function HandbookPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -132,7 +132,7 @@ export default function HandbookPage() {
       />
 
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#0F1117]/80 backdrop-blur-lg sticky top-0 z-50">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#0C0E14]/80 backdrop-blur-lg sticky top-0 z-50">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -155,19 +155,19 @@ export default function HandbookPage() {
       <main className="flex-1 px-6 py-16">
         <article className="max-w-3xl mx-auto">
           <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
-            <Link href="/learn" className="hover:text-emerald-400 transition-colors">&larr; Back to Learn</Link>
+            <Link href="/learn" className="hover:text-amber-400 transition-colors">&larr; Back to Learn</Link>
           </nav>
 
           {/* ================================================================ */}
           {/*  Hero                                                            */}
           {/* ================================================================ */}
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+            <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
               Free guide &middot; 7 chapters &middot; Code examples included
             </div>
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4 leading-tight">
               The MCP Monetization{' '}
-              <span className="text-emerald-400">Handbook</span>
+              <span className="text-amber-400">Handbook</span>
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
               Everything you need to turn your AI tools into revenue.
@@ -179,8 +179,8 @@ export default function HandbookPage() {
           {/* ================================================================ */}
           {/*  Table of Contents                                               */}
           {/* ================================================================ */}
-          <nav className="mb-16 bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-6" aria-label="Table of contents">
-            <p className="text-xs font-semibold text-emerald-400 tracking-wide uppercase mb-4">Contents</p>
+          <nav className="mb-16 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6" aria-label="Table of contents">
+            <p className="text-xs font-semibold text-amber-400 tracking-wide uppercase mb-4">Contents</p>
             <ol className="space-y-2.5 list-decimal list-inside">
               <TocLink href="#why-monetize">Why Monetize Your MCP Tools?</TocLink>
               <TocLink href="#pricing-model">Choosing Your Pricing Model</TocLink>
@@ -231,10 +231,10 @@ export default function HandbookPage() {
             Based on analysis of 1,017 open-source MCP servers and existing paid API services,
             here are realistic per-call revenue benchmarks by tool type:
           </p>
-          <div className="overflow-x-auto rounded-xl border border-[#2E3148] mb-6">
+          <div className="overflow-x-auto rounded-xl border border-[#2A2D3E] mb-6">
             <table className="w-full text-sm" role="table" aria-label="Revenue benchmarks by tool type">
               <thead>
-                <tr className="border-b border-[#2E3148] bg-[#1A1D2E]">
+                <tr className="border-b border-[#2A2D3E] bg-[#161822]">
                   <th scope="col" className="text-left py-3 px-4 font-medium text-gray-400">Tool Type</th>
                   <th scope="col" className="text-left py-3 px-4 font-medium text-gray-400">Price Range</th>
                   <th scope="col" className="text-left py-3 px-4 font-medium text-gray-400">Examples</th>
@@ -252,9 +252,9 @@ export default function HandbookPage() {
           </div>
 
           <Callout>
-            <strong className="text-emerald-400">Example:</strong> A web search MCP tool charging 5 cents per call,
-            used by 100 agents making 50 calls/day each, generates <strong className="text-emerald-400">$7,500/month</strong>.
-            With SettleGrid&apos;s free tier (0% take rate), you keep every cent up to 25K ops/month.
+            <strong className="text-amber-400">Example:</strong> A web search MCP tool charging 5 cents per call,
+            used by 100 agents making 50 calls/day each, generates <strong className="text-amber-400">$7,500/month</strong>.
+            With SettleGrid&apos;s progressive take rate (0% on first $1K/mo), you keep every cent. 50K ops/month on the free tier.
           </Callout>
 
           {/* ================================================================ */}
@@ -267,43 +267,43 @@ export default function HandbookPage() {
           </p>
 
           <div className="space-y-6">
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
-              <h3 className="text-lg font-bold text-gray-100 mb-1">Per-Invocation <span className="text-xs font-normal text-emerald-400 ml-2">Most common</span></h3>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
+              <h3 className="text-lg font-bold text-gray-100 mb-1">Per-Invocation <span className="text-xs font-normal text-amber-400 ml-2">Most common</span></h3>
               <p className="text-sm text-gray-400 mb-3">A fixed price for every call, regardless of input size or processing time. Simple, predictable, and easy for consumers to budget.</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Best for:</strong> Search tools, lookups, CRUD operations, simple transformations</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Example:</strong> Web search tool at 5 cents/call</p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">Per-Token</h3>
               <p className="text-sm text-gray-400 mb-3">Charge based on input/output token count. Fair pricing that scales with usage intensity.</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Best for:</strong> LLM wrappers, text processing, translation services</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Example:</strong> Summarization tool at $0.001 per 1K tokens</p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">Per-Byte</h3>
               <p className="text-sm text-gray-400 mb-3">Charge based on data volume transferred or processed. Natural fit for file and data tools.</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Best for:</strong> File conversion, image processing, data export</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Example:</strong> PDF converter at $0.01 per MB</p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
               <h3 className="text-lg font-bold text-gray-100 mb-1">Per-Second</h3>
               <p className="text-sm text-gray-400 mb-3">Charge based on compute time consumed. Aligns cost with resource usage.</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Best for:</strong> Video processing, simulation, ML inference, compute-heavy tasks</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Example:</strong> Video transcription at $0.02 per second</p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
-              <h3 className="text-lg font-bold text-gray-100 mb-1">Tiered <span className="text-xs font-normal text-emerald-400 ml-2">Per-method pricing</span></h3>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
+              <h3 className="text-lg font-bold text-gray-100 mb-1">Tiered <span className="text-xs font-normal text-amber-400 ml-2">Per-method pricing</span></h3>
               <p className="text-sm text-gray-400 mb-3">Different prices for different tool methods. Lets you charge more for expensive operations.</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Best for:</strong> Multi-method tools with varying compute costs</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Example:</strong> Database tool: read at 1 cent, write at 5 cents, complex query at 10 cents</p>
             </div>
 
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
-              <h3 className="text-lg font-bold text-gray-100 mb-1">Outcome-Based <span className="text-xs font-normal text-emerald-400 ml-2">Pay for results</span></h3>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
+              <h3 className="text-lg font-bold text-gray-100 mb-1">Outcome-Based <span className="text-xs font-normal text-amber-400 ml-2">Pay for results</span></h3>
               <p className="text-sm text-gray-400 mb-3">Charge only when the tool delivers a successful result. Zero risk for consumers — maximum alignment.</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Best for:</strong> High-value, variable-success tasks like lead generation, data extraction, code generation</p>
               <p className="text-sm text-gray-300"><strong className="text-gray-100">Example:</strong> Lead enrichment tool: free if no data found, 25 cents on success</p>
@@ -311,7 +311,7 @@ export default function HandbookPage() {
           </div>
 
           <Callout>
-            <strong className="text-emerald-400">Recommendation:</strong> Start with per-invocation pricing.
+            <strong className="text-amber-400">Recommendation:</strong> Start with per-invocation pricing.
             It is the easiest to understand, easiest to implement, and what consumers expect.
             You can always switch to a more sophisticated model later.
           </Callout>
@@ -331,7 +331,7 @@ export default function HandbookPage() {
           <h3 className="text-xl font-bold text-gray-100 mt-8 mb-3">Step 2: Register Your Tool</h3>
           <p className="text-gray-300 leading-relaxed mb-4">
             Create a free account at{' '}
-            <Link href="/register" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+            <Link href="/register" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
               settlegrid.ai/register
             </Link>
             , then create a tool with a unique slug and your pricing configuration. No credit card required.
@@ -415,20 +415,20 @@ export async function POST(request: Request) {
                 Your price should cover your compute cost and leave room for margin.
                 A good rule of thumb: charge at least 3-5x your per-call cost.
               </p>
-              <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
                 <p className="text-sm font-semibold text-gray-100 mb-2">Revenue Calculator (Quick Math)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                   <div className="text-center">
                     <p className="text-gray-400 mb-1">100 agents x 20 calls/day</p>
-                    <p className="text-emerald-400 font-bold text-lg">2,000 calls/day</p>
+                    <p className="text-amber-400 font-bold text-lg">2,000 calls/day</p>
                   </div>
                   <div className="text-center">
                     <p className="text-gray-400 mb-1">At 5 cents/call</p>
-                    <p className="text-emerald-400 font-bold text-lg">$100/day</p>
+                    <p className="text-amber-400 font-bold text-lg">$100/day</p>
                   </div>
                   <div className="text-center">
                     <p className="text-gray-400 mb-1">Monthly revenue</p>
-                    <p className="text-emerald-400 font-bold text-lg">$3,000/month</p>
+                    <p className="text-amber-400 font-bold text-lg">$3,000/month</p>
                   </div>
                 </div>
               </div>
@@ -437,7 +437,7 @@ export async function POST(request: Request) {
             <div>
               <h3 className="text-xl font-bold text-gray-100 mb-3">3. Test in Sandbox Mode</h3>
               <p className="text-gray-300 leading-relaxed">
-                SettleGrid supports sandbox mode with test API keys (prefixed <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-xs">sg_test_</code>).
+                SettleGrid supports sandbox mode with test API keys (prefixed <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">sg_test_</code>).
                 Test keys meter usage without real charges. Verify your integration
                 works end-to-end before going live.
               </p>
@@ -455,7 +455,7 @@ export async function POST(request: Request) {
               <h3 className="text-xl font-bold text-gray-100 mb-3">5. Get Your First Consumer</h3>
               <p className="text-gray-300 leading-relaxed">
                 List your tool on the{' '}
-                <Link href="/tools" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                   SettleGrid Showcase
                 </Link>
                 . Share it on MCP registries (Smithery, Glama, mcp.so).
@@ -473,7 +473,7 @@ export async function POST(request: Request) {
             </div>
           </div>
 
-          <div className="mt-6 mb-6 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+          <div className="mt-6 mb-6 rounded-xl overflow-hidden border border-[#2A2D3E] shadow-lg">
             <img
               src="/screenshots/Dashboard 2.jpg"
               alt="Developer dashboard showing revenue analytics and payout history"
@@ -543,7 +543,7 @@ export async function POST(request: Request) {
               <p className="text-gray-300 leading-relaxed mb-3">
                 Your tools are automatically discoverable by AI agents and consumers through
                 SettleGrid&apos;s built-in discovery infrastructure. The{' '}
-                <Link href="/tools" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                   Showcase
                 </Link>
                 {' '}is the public catalog where consumers browse and search for tools.
@@ -555,18 +555,18 @@ export async function POST(request: Request) {
               </p>
               <p className="text-gray-300 leading-relaxed">
                 Combined with{' '}
-                <Link href="/dev" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                <Link href="/dev" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                   developer profiles
                 </Link>
                 , README badges, and reputation tiers (Bronze through Platinum), these channels
                 form a distribution engine that grows your visibility as you build trust.
                 Read the full{' '}
-                <Link href="/learn/discovery" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                <Link href="/learn/discovery" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
                   How to Get Discovered
                 </Link>
                 {' '}guide for step-by-step instructions on maximizing your tool&apos;s reach.
               </p>
-              <div className="mt-6 mb-6 rounded-xl overflow-hidden border border-[#2E3148] shadow-lg">
+              <div className="mt-6 mb-6 rounded-xl overflow-hidden border border-[#2A2D3E] shadow-lg">
                 <img
                   src="/screenshots/Tools.jpg"
                   alt="SettleGrid Showcase with published tools and verified badges"
@@ -606,7 +606,7 @@ export async function POST(request: Request) {
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
                 {['MCP', 'MPP', 'x402', 'AP2', 'Visa TAP', 'UCP', 'ACP', 'MC Agent Pay', 'Nanopayments', 'REST'].map((p) => (
-                  <div key={p} className="bg-[#1A1D2E] border border-[#2E3148] rounded-lg px-3 py-2 text-center text-xs font-semibold text-gray-300">
+                  <div key={p} className="bg-[#161822] border border-[#2A2D3E] rounded-lg px-3 py-2 text-center text-xs font-semibold text-gray-300">
                     {p}
                   </div>
                 ))}
@@ -669,11 +669,11 @@ export async function POST(request: Request) {
             with billing already wired in.
           </p>
 
-          <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-6 mb-6">
+          <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
             <h3 className="text-lg font-bold text-gray-100 mb-4">17 Templates Available</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-xs font-semibold text-emerald-400 tracking-wide uppercase mb-2">MCP Templates (13)</p>
+                <p className="text-xs font-semibold text-amber-400 tracking-wide uppercase mb-2">MCP Templates (13)</p>
                 <ul className="space-y-1.5 text-gray-300">
                   <li>Web search &amp; scraping</li>
                   <li>Document analysis</li>
@@ -691,7 +691,7 @@ export async function POST(request: Request) {
                 </ul>
               </div>
               <div>
-                <p className="text-xs font-semibold text-emerald-400 tracking-wide uppercase mb-2">REST Templates (4)</p>
+                <p className="text-xs font-semibold text-amber-400 tracking-wide uppercase mb-2">REST Templates (4)</p>
                 <ul className="space-y-1.5 text-gray-300">
                   <li>Next.js API route</li>
                   <li>Express middleware</li>
@@ -704,7 +704,7 @@ export async function POST(request: Request) {
 
           <p className="text-gray-300 leading-relaxed mb-4">
             Browse all templates on the{' '}
-            <Link href="/templates/" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+            <Link href="/templates/" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
               Templates page
             </Link>
             .
@@ -714,7 +714,7 @@ export async function POST(request: Request) {
           <p className="text-gray-300 leading-relaxed mb-4">
             We have cataloged 1,017 open-source MCP servers that can be monetized.
             Browse the full database on the{' '}
-            <Link href="/tools" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+            <Link href="/tools" className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
               SettleGrid Showcase
             </Link>
             {' '}to find tools in your domain or get inspiration for new tools.
@@ -734,12 +734,12 @@ export async function POST(request: Request) {
           {/* ================================================================ */}
           {/*  Footer CTA                                                      */}
           {/* ================================================================ */}
-          <div className="mt-20 mb-8 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-8 sm:p-12 text-center">
+          <div className="mt-20 mb-8 bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20 rounded-2xl p-8 sm:p-12 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-4">
               Start building — free forever
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              25,000 operations/month. 0% fees. No credit card.
+              50,000 operations/month. Progressive take rate. No credit card.
               Your AI tools deserve to earn money.
             </p>
             <div className="flex flex-wrap justify-center items-center gap-4">
@@ -762,7 +762,7 @@ export async function POST(request: Request) {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
             <SettleGridLogo variant="compact" size={32} />

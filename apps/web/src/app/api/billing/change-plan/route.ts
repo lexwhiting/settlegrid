@@ -18,15 +18,14 @@ export const maxDuration = 30
 // ── Plan → Stripe Price ID mapping ──────────────────────────────────────────
 
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  starter: process.env.STRIPE_PRICE_STARTER?.trim(),
-  growth: process.env.STRIPE_PRICE_GROWTH?.trim(),
+  builder: (process.env.STRIPE_PRICE_BUILDER ?? process.env.STRIPE_PRICE_STARTER)?.trim(),
   scale: process.env.STRIPE_PRICE_SCALE?.trim(),
 }
 
-const PLAN_ORDER = ['free', 'starter', 'growth', 'scale'] as const
+const PLAN_ORDER = ['free', 'builder', 'scale'] as const
 
 const changePlanSchema = z.object({
-  plan: z.enum(['starter', 'growth', 'scale']),
+  plan: z.enum(['builder', 'scale']),
 })
 
 function getStripe(): Stripe {
@@ -115,8 +114,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Normalize legacy tiers for comparison
+    const normalizedCurrentTier = (developer.tier === 'starter' || developer.tier === 'growth') ? 'builder' : developer.tier
     // Determine if this is an upgrade or downgrade
-    const currentIndex = PLAN_ORDER.indexOf(developer.tier as typeof PLAN_ORDER[number])
+    const currentIndex = PLAN_ORDER.indexOf(normalizedCurrentTier as typeof PLAN_ORDER[number])
     const newIndex = PLAN_ORDER.indexOf(body.plan)
     const isUpgrade = newIndex > currentIndex
 
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
       .update(developers)
       .set({
         tier: body.plan,
-        revenueSharePct: 95,
+        // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
         updatedAt: new Date(),
       })
       .where(eq(developers.id, auth.id))

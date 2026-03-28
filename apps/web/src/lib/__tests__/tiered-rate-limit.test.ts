@@ -15,13 +15,19 @@ describe('Tiered Rate Limiting', () => {
     expect(limits.sdk).toBe(200)
   })
 
-  it('returns starter tier limits', () => {
-    const limits = getTierLimits('starter')
-    expect(limits.api).toBe(60)
-    expect(limits.sdk).toBe(800)
+  it('returns builder tier limits', () => {
+    const limits = getTierLimits('builder')
+    expect(limits.api).toBe(200)
+    expect(limits.sdk).toBe(4000)
   })
 
-  it('returns growth tier limits', () => {
+  it('maps legacy starter to builder tier limits', () => {
+    const limits = getTierLimits('starter')
+    expect(limits.api).toBe(200)
+    expect(limits.sdk).toBe(4000)
+  })
+
+  it('maps legacy growth to builder tier limits', () => {
     const limits = getTierLimits('growth')
     expect(limits.api).toBe(200)
     expect(limits.sdk).toBe(4000)

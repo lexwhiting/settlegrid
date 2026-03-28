@@ -125,7 +125,7 @@ export default function PayoutsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Payout history">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Date</th>
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Period</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Amount</th>

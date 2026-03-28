@@ -96,8 +96,8 @@ const PROTOCOLS: ProtocolCard[] = [
     backer: 'Google + Shopify',
     status: 'Ready',
     oneLiner: 'Universal checkout for AI agents — discover, negotiate, and purchase services.',
-    color: 'bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40',
-    borderColor: 'border-emerald-800/30',
+    color: 'bg-amber-500/10 text-amber-400 hover:border-amber-500/40',
+    borderColor: 'border-amber-800/30',
   },
   {
     slug: 'acp',
@@ -147,7 +147,7 @@ const PROTOCOLS: ProtocolCard[] = [
 
 function StatusBadge({ status }: { status: ProtocolCard['status'] }) {
   const styles: Record<ProtocolCard['status'], string> = {
-    Production: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    Production: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     Ready: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     Testnet: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     Pending: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
@@ -165,9 +165,9 @@ function StatusBadge({ status }: { status: ProtocolCard['status'] }) {
 
 export default function ProtocolIndexPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E]">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
         <nav className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -191,14 +191,14 @@ export default function ProtocolIndexPage() {
         <div className="max-w-5xl mx-auto">
           {/* Breadcrumb */}
           <div className="mb-8">
-            <Link href="/learn" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors">
+            <Link href="/learn" className="text-sm text-gray-400 hover:text-amber-400 transition-colors">
               &larr; Learn Hub
             </Link>
           </div>
 
           {/* Title */}
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-emerald-400 tracking-wide uppercase mb-2">Protocol Guides</p>
+            <p className="text-sm font-semibold text-amber-400 tracking-wide uppercase mb-2">Protocol Guides</p>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-4">
               One SDK. Ten Protocols. Zero Vendor Lock-in.
             </h1>
@@ -223,7 +223,7 @@ export default function ProtocolIndexPage() {
                 </div>
                 <p className="text-xs font-semibold opacity-70 mb-2">{proto.backer}</p>
                 <p className="text-sm text-gray-400 leading-relaxed">{proto.oneLiner}</p>
-                <div className="mt-4 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity text-emerald-400">
+                <div className="mt-4 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity text-amber-400">
                   Read guide &rarr;
                 </div>
               </Link>
@@ -233,7 +233,7 @@ export default function ProtocolIndexPage() {
           {/* Bottom CTA */}
           <div className="text-center mt-16">
             <p className="text-gray-500 mb-4">
-              All protocols use the same <code className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded text-sm">sg.wrap()</code> interface.
+              All protocols use the same <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-sm">sg.wrap()</code> interface.
               No protocol-specific code required.
             </p>
             <Link
@@ -250,7 +250,7 @@ export default function ProtocolIndexPage() {
       </main>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
           <Link href="/" className="hover:text-gray-300 transition-colors">
             <SettleGridLogo variant="compact" size={32} />

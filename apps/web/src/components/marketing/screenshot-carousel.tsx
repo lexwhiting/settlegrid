@@ -66,8 +66,8 @@ export function ScreenshotCarousel() {
       onMouseLeave={() => setPaused(false)}
     >
       {/* Browser chrome */}
-      <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-[#2E3148] shadow-2xl shadow-black/20">
-        <div className="bg-gray-100 dark:bg-[#1A1D2E] px-4 py-2.5 flex items-center gap-2 border-b border-gray-200 dark:border-[#2E3148]">
+      <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-[#2A2D3E] shadow-2xl shadow-black/20">
+        <div className="bg-gray-100 dark:bg-[#161822] px-4 py-2.5 flex items-center gap-2 border-b border-gray-200 dark:border-[#2A2D3E]">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-red-400/80" />
             <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
@@ -81,7 +81,7 @@ export function ScreenshotCarousel() {
         </div>
 
         {/* Screenshot with fade transition — fixed aspect ratio container */}
-        <div className="relative overflow-hidden bg-[#0F1117]" style={{ aspectRatio: '16 / 9' }}>
+        <div className="relative overflow-hidden bg-[#0C0E14]" style={{ aspectRatio: '16 / 9' }}>
           {SLIDES.map((s, i) => (
             <img
               key={s.src}

@@ -85,26 +85,27 @@ const PLANS: Record<string, PlanInfo> = {
   free: {
     name: 'Free',
     price: '$0/mo',
-    features: ['Unlimited tools', '25,000 ops/mo', '0% take rate — keep 100%', 'Free forever — no catch'],
+    features: ['Unlimited tools', '50,000 ops/mo', 'Progressive take rate: 0% on first $1K/mo', 'Free forever — no catch'],
   },
-  starter: {
-    name: 'Starter',
-    price: '$9/mo',
-    features: ['Unlimited tools', '100,000 ops/mo', '5% take rate', 'Full analytics', 'Sandbox mode'],
-  },
-  growth: {
-    name: 'Growth',
-    price: '$29/mo',
-    features: ['Unlimited tools', '500,000 ops/mo', '5% take rate', 'Priority webhooks', 'IP allowlisting'],
+  builder: {
+    name: 'Builder',
+    price: '$19/mo',
+    features: ['Unlimited tools', '200,000 ops/mo', 'Progressive take rate', 'Full analytics & sandbox mode', 'IP allowlisting & CSV export'],
   },
   scale: {
     name: 'Scale',
     price: '$79/mo',
-    features: ['Unlimited tools', '2,000,000 ops/mo', '5% take rate (negotiable)', 'Fraud detection', 'Priority support'],
+    features: ['Unlimited tools', '2,000,000 ops/mo', 'Progressive take rate', 'Smart Proxy & Transaction Explorer', 'Fraud detection & priority support'],
   },
 }
 
-const PLAN_ORDER = ['free', 'starter', 'growth', 'scale']
+const PLAN_ORDER = ['free', 'builder', 'scale']
+
+/** Map legacy tiers to current tier keys */
+function normalizePlanKey(key: string): string {
+  if (key === 'starter' || key === 'growth') return 'builder'
+  return key
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -880,7 +881,8 @@ export default function SettingsPage() {
 
   // ─── Derived Values ─────────────────────────────────────────────────────────
 
-  const currentPlanKey = profile?.tier === 'enterprise' ? 'enterprise' : (profile?.tier ?? 'free')
+  const rawTier = profile?.tier ?? 'free'
+  const currentPlanKey = rawTier === 'enterprise' ? 'enterprise' : normalizePlanKey(rawTier)
   const currentPlanIndex = PLAN_ORDER.indexOf(currentPlanKey === 'standard' ? 'free' : currentPlanKey)
   const notificationCategories = ['billing', 'tools', 'security', 'webhooks'] as const
 
@@ -908,7 +910,7 @@ export default function SettingsPage() {
                 onClick={() => scrollToSection(item.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors text-left ${
                   activeSection === item.id
-                    ? 'bg-brand/10 text-brand dark:bg-brand/20 dark:text-emerald-400'
+                    ? 'bg-brand/10 text-brand dark:bg-brand/20 dark:text-amber-400'
                     : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-[#252836]'
                 }`}
               >
@@ -951,7 +953,7 @@ export default function SettingsPage() {
                     Profile URL
                   </label>
                   <div className="flex items-center gap-0 max-w-lg">
-                    <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-[#2E3148] dark:bg-[#252836] dark:text-gray-400 whitespace-nowrap">
+                    <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-[#2A2D3E] dark:bg-[#252836] dark:text-gray-400 whitespace-nowrap">
                       settlegrid.ai/developers/
                     </span>
                     <Input
@@ -974,7 +976,7 @@ export default function SettingsPage() {
                     Choose a unique URL for your public profile. Only lowercase letters, numbers, and hyphens.
                   </p>
                   {profileSlug && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug) && profileSlug.length >= 3 && (
-                    <p className="mt-1 text-xs text-brand dark:text-emerald-400">
+                    <p className="mt-1 text-xs text-brand dark:text-amber-400">
                       Your profile: settlegrid.ai/developers/{profileSlug}
                     </p>
                   )}
@@ -1000,7 +1002,7 @@ export default function SettingsPage() {
                     placeholder="Tell others about yourself and your tools..."
                     maxLength={500}
                     rows={3}
-                    className="flex w-full max-w-lg rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-[#2E3148] dark:bg-[#1A1D2E] dark:text-gray-100 dark:ring-offset-[#0F1117] dark:placeholder:text-gray-500 resize-none"
+                    className="flex w-full max-w-lg rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-[#2A2D3E] dark:bg-[#161822] dark:text-gray-100 dark:ring-offset-[#0C0E14] dark:placeholder:text-gray-500 resize-none"
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{profileBio.length}/500 characters</p>
                 </div>
@@ -1012,7 +1014,7 @@ export default function SettingsPage() {
                     aria-checked={publicProfile}
                     aria-label="Public profile"
                     onClick={() => setPublicProfile(!publicProfile)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:ring-offset-[#0F1117] ${
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:ring-offset-[#0C0E14] ${
                       publicProfile ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
                     }`}
                   >
@@ -1031,7 +1033,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-gray-700 dark:text-gray-300">
                         Your public profile is visible at{' '}
-                        <span className="font-medium text-brand dark:text-emerald-400">settlegrid.ai/dev/{profileSlug}</span>.
+                        <span className="font-medium text-brand dark:text-amber-400">settlegrid.ai/dev/{profileSlug}</span>.
                         Consumers and AI agents can discover you and your tools here.
                       </p>
                       <Link
@@ -1056,7 +1058,7 @@ export default function SettingsPage() {
                 )}
 
                 {/* Read-only fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-[#2E3148]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-[#2A2D3E]">
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Developer ID</dt>
                     <dd className="mt-1">
@@ -1074,9 +1076,9 @@ export default function SettingsPage() {
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue Share</dt>
                     <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">
-                      {currentPlanKey === 'standard' || currentPlanKey === 'free' ? '100%' : '95%'}
+                      Progressive
                       <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                        ({currentPlanKey === 'standard' || currentPlanKey === 'free' ? '0% platform fee on Free tier' : '5% platform fee on paid tiers'})
+                        (0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K)
                       </span>
                     </dd>
                   </div>
@@ -1135,7 +1137,7 @@ export default function SettingsPage() {
                     id="payout-schedule"
                     value={payoutSchedule}
                     onChange={(e) => setPayoutSchedule(e.target.value)}
-                    className="flex h-10 w-full max-w-xs rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-[#2E3148] dark:bg-[#1A1D2E] dark:text-gray-100 dark:ring-offset-[#0F1117]"
+                    className="flex h-10 w-full max-w-xs rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-[#2A2D3E] dark:bg-[#161822] dark:text-gray-100 dark:ring-offset-[#0C0E14]"
                   >
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
@@ -1202,7 +1204,7 @@ export default function SettingsPage() {
                   return (
                     <div key={category}>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 capitalize">{category}</h4>
-                      <div className="border border-gray-200 dark:border-[#2E3148] rounded-md overflow-hidden">
+                      <div className="border border-gray-200 dark:border-[#2A2D3E] rounded-md overflow-hidden">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="bg-gray-50 dark:bg-[#252836]">
@@ -1213,7 +1215,7 @@ export default function SettingsPage() {
                           </thead>
                           <tbody>
                             {events.map((event) => (
-                              <tr key={event.key} className="border-t border-gray-100 dark:border-[#2E3148]">
+                              <tr key={event.key} className="border-t border-gray-100 dark:border-[#2A2D3E]">
                                 <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{event.label}</td>
                                 <td className="px-4 py-2.5 text-center">
                                   <button
@@ -1222,7 +1224,7 @@ export default function SettingsPage() {
                                     aria-label={`${event.label} email notification`}
                                     onClick={() => toggleNotification(event.key)}
                                     disabled={event.critical}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:ring-offset-[#0F1117] disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:ring-offset-[#0C0E14] disabled:cursor-not-allowed disabled:opacity-60 ${
                                       event.emailEnabled ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
                                     }`}
                                   >
@@ -1307,7 +1309,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 2FA */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4 space-y-3">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Two-Factor Authentication</h4>
@@ -1329,7 +1331,7 @@ export default function SettingsPage() {
                   )}
 
                   {mfaQrCode && !mfaEnrolled && (
-                    <div className="space-y-4 p-4 border border-gray-200 dark:border-[#2E3148] rounded-lg bg-gray-50 dark:bg-[#1A1F3A]/50">
+                    <div className="space-y-4 p-4 border border-gray-200 dark:border-[#2A2D3E] rounded-lg bg-gray-50 dark:bg-[#1A1F3A]/50">
                       <p className="text-sm text-gray-700 dark:text-gray-300">
                         Scan this QR code with your authenticator app (e.g. Google Authenticator, Authy):
                       </p>
@@ -1386,7 +1388,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Active Sessions */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Active Sessions</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Session management is available in your Supabase dashboard.
@@ -1394,7 +1396,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Login History */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <Link
                     href="/dashboard/audit-log"
                     className="text-sm text-brand hover:text-brand-dark font-medium transition-colors"
@@ -1416,11 +1418,11 @@ export default function SettingsPage() {
               <CardContent className="space-y-5">
                 {/* Current Plan Summary */}
                 {(() => {
-                  const planKey = currentPlanKey === 'standard' ? 'free' : currentPlanKey
+                  const planKey = currentPlanKey === 'standard' ? 'free' : normalizePlanKey(currentPlanKey)
                   const plan = PLANS[planKey]
-                  const opsLimit = planKey === 'free' ? '25,000' : planKey === 'starter' ? '100,000' : planKey === 'growth' ? '500,000' : '2,000,000'
-                  const takeRate = planKey === 'free' ? '0%' : '5%'
-                  const revenueShare = planKey === 'free' ? '100%' : '95%'
+                  const opsLimit = planKey === 'free' ? '50,000' : planKey === 'builder' ? '200,000' : '2,000,000'
+                  const takeRate = 'Progressive'
+                  const revenueShare = 'Up to 100%'
                   return (
                     <div className="rounded-lg border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4">
                       <div className="flex items-center gap-3 mb-3">
@@ -1446,7 +1448,7 @@ export default function SettingsPage() {
                 })()}
 
                 {/* Plan Comparison */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {PLAN_ORDER.map((planKey, planIndex) => {
                     const plan = PLANS[planKey]
                     const effectiveCurrentIndex = currentPlanIndex < 0 ? 0 : currentPlanIndex
@@ -1460,7 +1462,7 @@ export default function SettingsPage() {
                         className={`rounded-lg border p-4 ${
                           isCurrent
                             ? 'border-brand bg-brand/5 dark:bg-brand/10'
-                            : 'border-gray-200 dark:border-[#2E3148]'
+                            : 'border-gray-200 dark:border-[#2A2D3E]'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -1528,7 +1530,7 @@ export default function SettingsPage() {
 
                 {/* Cancel / Manage Billing — uses Stripe Billing Portal (cancel + payment methods) */}
                 {profile?.stripeSubscriptionId && (
-                  <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4 flex items-center gap-4">
+                  <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4 flex items-center gap-4">
                     <Button onClick={handleManageSubscription} disabled={managingSubscription} variant="outline" size="sm">
                       {managingSubscription ? 'Opening...' : 'Cancel or Update Payment Method'}
                     </Button>
@@ -1572,7 +1574,7 @@ export default function SettingsPage() {
                         id="log-retention"
                         value={logRetentionDays}
                         onChange={(e) => setLogRetentionDays(Number(e.target.value))}
-                        className="w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                        className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
                         <option value={30}>30 days</option>
                         <option value={60}>60 days</option>
@@ -1591,7 +1593,7 @@ export default function SettingsPage() {
                         id="webhook-retention"
                         value={webhookLogRetentionDays}
                         onChange={(e) => setWebhookLogRetentionDays(Number(e.target.value))}
-                        className="w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                        className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
                         <option value={7}>7 days</option>
                         <option value={14}>14 days</option>
@@ -1609,7 +1611,7 @@ export default function SettingsPage() {
                         id="audit-retention"
                         value={auditLogRetentionDays}
                         onChange={(e) => setAuditLogRetentionDays(Number(e.target.value))}
-                        className="w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                        className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
                         <option value={90}>90 days (minimum)</option>
                         <option value={180}>180 days</option>
@@ -1627,7 +1629,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* B. Third-Party Data Transparency */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Third-Party Services</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
                     Services that process your data as part of SettleGrid&apos;s operation.
@@ -1635,7 +1637,7 @@ export default function SettingsPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
                       <thead>
-                        <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                        <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                           <th className="pb-2 pr-4 font-medium text-gray-500 dark:text-gray-400">Service</th>
                           <th className="pb-2 pr-4 font-medium text-gray-500 dark:text-gray-400">Data Shared</th>
                           <th className="pb-2 pr-4 font-medium text-gray-500 dark:text-gray-400">Purpose</th>
@@ -1679,7 +1681,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* C. Marketing Communications Toggle */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Product updates and tips</h4>
@@ -1708,7 +1710,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* D. Selective Data Export */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Export My Data</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
                     Select which data categories to include in your export.
@@ -1741,7 +1743,7 @@ export default function SettingsPage() {
                       id="export-days"
                       value={exportDays}
                       onChange={(e) => setExportDays(Number(e.target.value))}
-                      className="rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1F3A] px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
+                      className="rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                     >
                       <option value={30}>Last 30 days</option>
                       <option value={60}>Last 60 days</option>
@@ -1756,7 +1758,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Delete Account */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Delete Account</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
                     Permanently delete your account and all associated data. This action cannot be undone.
@@ -1789,7 +1791,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Privacy Links */}
-                <div className="border-t border-gray-200 dark:border-[#2E3148] pt-4 space-y-2">
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4 space-y-2">
                   <Link
                     href="/privacy"
                     className="block text-sm text-brand hover:text-brand-dark font-medium transition-colors"

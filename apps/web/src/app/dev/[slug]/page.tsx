@@ -5,6 +5,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { getRevenueTier } from '@/lib/revenue'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,8 @@ interface DevTool {
   description: string | null
   category: string | null
   currentVersion: string
+  totalInvocations: number
+  totalRevenueCents: number
 }
 
 type ReputationTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum'
@@ -45,6 +48,8 @@ async function getDevProfile(slug: string) {
         description: tools.description,
         category: tools.category,
         currentVersion: tools.currentVersion,
+        totalInvocations: tools.totalInvocations,
+        totalRevenueCents: tools.totalRevenueCents,
       })
       .from(tools)
       .where(and(eq(tools.developerId, dev.id), eq(tools.status, 'active')))
@@ -130,7 +135,7 @@ export default async function DevProfilePage({
       <Shell>
         <main className="flex-1 flex items-center justify-center px-6">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-[#1A1D2E] flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-full bg-[#161822] flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
@@ -154,7 +159,7 @@ export default async function DevProfilePage({
       <Shell>
         <main className="flex-1 flex items-center justify-center px-6">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-[#1A1D2E] flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-full bg-[#161822] flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
               </svg>
@@ -190,6 +195,10 @@ export default async function DevProfilePage({
   const repTier = reputation ? getReputationTier(reputation.score) : null
   const badgeSnippet = `![SettleGrid](https://settlegrid.ai/api/badge/dev/${slug})`
 
+  // Calculate total revenue across all tools for this developer
+  const totalDevRevenueCents = devTools.reduce((sum, t) => sum + (t.totalRevenueCents ?? 0), 0)
+  const devRevenueTier = getRevenueTier(totalDevRevenueCents)
+
   return (
     <Shell>
       <main className="flex-1 px-6 py-12">
@@ -201,11 +210,11 @@ export default async function DevProfilePage({
               <img
                 src={developer.avatarUrl}
                 alt={name}
-                className="w-20 h-20 rounded-full object-cover border-2 border-[#2E3148] shrink-0"
+                className="w-20 h-20 rounded-full object-cover border-2 border-[#2A2D3E] shrink-0"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center border-2 border-[#2E3148] shrink-0">
-                <span className="text-2xl font-bold text-emerald-400">{initials}</span>
+              <div className="w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center border-2 border-[#2A2D3E] shrink-0">
+                <span className="text-2xl font-bold text-amber-400">{initials}</span>
               </div>
             )}
             <div className="min-w-0">
@@ -226,15 +235,31 @@ export default async function DevProfilePage({
           </div>
 
           {/* Stats */}
-          {reputation && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
-              <StatCard label="Tools" value={String(reputation.totalTools)} />
-              <StatCard label="Consumers" value={String(reputation.totalConsumers)} />
-              <StatCard label="Uptime" value={`${reputation.uptimePct}%`} />
-              <StatCard
-                label="Avg Rating"
-                value={reputation.reviewAvg > 0 ? (reputation.reviewAvg / 100).toFixed(1) : '--'}
-              />
+          {(reputation || developer.publicProfile) && (
+            <div className={`grid grid-cols-2 gap-4 mb-10 ${reputation ? 'sm:grid-cols-5' : 'sm:grid-cols-2'}`}>
+              {reputation && (
+                <>
+                  <StatCard label="Tools" value={String(reputation.totalTools)} />
+                  <StatCard label="Consumers" value={String(reputation.totalConsumers)} />
+                  <StatCard label="Uptime" value={`${reputation.uptimePct}%`} />
+                  <StatCard
+                    label="Avg Rating"
+                    value={reputation.reviewAvg > 0 ? (reputation.reviewAvg / 100).toFixed(1) : '--'}
+                  />
+                </>
+              )}
+              {/* Earnings stat card — only show for public profiles */}
+              {developer.publicProfile && (
+                <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 text-center">
+                  <p
+                    className="text-2xl font-bold"
+                    style={{ color: devRevenueTier.color }}
+                  >
+                    {devRevenueTier.label}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">Total Earned</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -242,44 +267,76 @@ export default async function DevProfilePage({
           <section className="mb-10">
             <h2 className="text-lg font-semibold text-gray-100 mb-4">Tools</h2>
             {devTools.length === 0 ? (
-              <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-8 text-center">
+              <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-8 text-center">
                 <p className="text-gray-400 text-sm">No published tools yet.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {devTools.map((tool) => (
-                  <Link
-                    key={tool.slug}
-                    href={`/tools/${tool.slug}`}
-                    className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5 hover:border-emerald-500/40 transition-colors group"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors">
-                        {tool.name}
-                      </h3>
-                      {tool.category && (
-                        <span className="inline-flex items-center rounded-full bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-xs font-semibold shrink-0 ml-2">
-                          {tool.category}
-                        </span>
+                {devTools.map((tool) => {
+                  const toolRevTier = getRevenueTier(tool.totalRevenueCents ?? 0)
+                  const hasRevenue = (tool.totalRevenueCents ?? 0) > 0
+
+                  return (
+                    <Link
+                      key={tool.slug}
+                      href={`/tools/${tool.slug}`}
+                      className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 hover:border-amber-500/40 transition-colors group"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold text-gray-100 group-hover:text-amber-400 transition-colors">
+                          {tool.name}
+                        </h3>
+                        {tool.category && (
+                          <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-400 px-2 py-0.5 text-xs font-semibold shrink-0 ml-2">
+                            {tool.category}
+                          </span>
+                        )}
+                      </div>
+                      {tool.description && (
+                        <p className="text-sm text-gray-400 leading-relaxed mb-3 line-clamp-2">
+                          {tool.description.length > 120
+                            ? `${tool.description.slice(0, 120)}...`
+                            : tool.description}
+                        </p>
                       )}
-                    </div>
-                    {tool.description && (
-                      <p className="text-sm text-gray-400 leading-relaxed mb-3 line-clamp-2">
-                        {tool.description.length > 120
-                          ? `${tool.description.slice(0, 120)}...`
-                          : tool.description}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between pt-3 border-t border-[#252836]">
-                      <span className="inline-flex items-center rounded-full border border-[#2E3148] text-gray-400 px-2 py-0.5 text-xs font-mono">
-                        v{tool.currentVersion}
-                      </span>
-                      <span className="text-xs text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                        View storefront &rarr;
-                      </span>
-                    </div>
-                  </Link>
-                ))}
+                      <div className="flex items-center justify-between pt-3 border-t border-[#252836]">
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex items-center rounded-full border border-[#2A2D3E] text-gray-400 px-2 py-0.5 text-xs font-mono">
+                            v{tool.currentVersion}
+                          </span>
+                          {/* Invocation count */}
+                          {(tool.totalInvocations ?? 0) > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                              </svg>
+                              {formatInvocations(tool.totalInvocations)}
+                            </span>
+                          )}
+                          {/* Per-tool revenue tier */}
+                          {hasRevenue && (
+                            <span
+                              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border"
+                              style={{
+                                color: toolRevTier.color,
+                                backgroundColor: toolRevTier.bgColor,
+                                borderColor: toolRevTier.borderColor,
+                              }}
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                              </svg>
+                              {toolRevTier.label}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          View storefront &rarr;
+                        </span>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             )}
           </section>
@@ -287,7 +344,7 @@ export default async function DevProfilePage({
           {/* Embeddable Badge */}
           <section>
             <h2 className="text-lg font-semibold text-gray-100 mb-4">README Badge</h2>
-            <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5">
+            <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5">
               <p className="text-sm text-gray-400 mb-3">
                 Add this badge to your GitHub README to showcase your SettleGrid profile:
               </p>
@@ -300,12 +357,20 @@ export default async function DevProfilePage({
   )
 }
 
+// ─── Format invocations ─────────────────────────────────────────────────────
+
+function formatInvocations(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`
+  return String(count)
+}
+
 // ─── Shared layout shell ────────────────────────────────────────────────────
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E]">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -327,7 +392,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
       {children}
-      <footer className="border-t border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-400">
@@ -349,8 +414,8 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[#1A1D2E] rounded-xl border border-[#2E3148] p-5 text-center">
-      <p className="text-2xl font-bold text-emerald-400">{value}</p>
+    <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 text-center">
+      <p className="text-2xl font-bold text-amber-400">{value}</p>
       <p className="text-sm text-gray-400 mt-1">{label}</p>
     </div>
   )
@@ -370,4 +435,3 @@ function TierIcon({ tier }: { tier: ReputationTier }) {
     </svg>
   )
 }
-

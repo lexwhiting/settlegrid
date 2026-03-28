@@ -88,7 +88,7 @@ ${body.pageUrl ? `<p style="color:#4b5563"><strong>Page:</strong> ${escapeHtml(b
 <body style="margin:0;padding:0;background:#f9fafb;font-family:'Outfit',system-ui,sans-serif">
 <div style="max-width:560px;margin:0 auto;padding:32px 24px">
 <div style="text-align:center;margin-bottom:24px">
-<div style="display:inline-block;font-size:22px;letter-spacing:-0.5px"><span style="font-weight:700;color:#1A1F3A">Settle</span><span style="font-weight:400;color:#10B981">Grid</span></div>
+<div style="display:inline-block;font-size:22px;letter-spacing:-0.5px"><span style="font-weight:700;color:#1A1F3A">Settle</span><span style="font-weight:400;color:#E5A336">Grid</span></div>
 </div>
 <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px">
 <h2 style="color:#1A1F3A;margin:0 0 16px">We received your message</h2>
@@ -98,7 +98,7 @@ ${body.pageUrl ? `<p style="color:#4b5563"><strong>Page:</strong> ${escapeHtml(b
 </div>
 <div style="text-align:center;margin-top:24px;color:#9ca3af;font-size:12px">
 <p>&copy; ${new Date().getFullYear()} SettleGrid. All rights reserved.</p>
-<p><a href="https://settlegrid.ai" style="color:#10B981;text-decoration:none">settlegrid.ai</a></p>
+<p><a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none">settlegrid.ai</a></p>
 </div>
 </div>
 </body>
