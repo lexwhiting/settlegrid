@@ -619,7 +619,7 @@ export default async function HomePage() {
                   className="group flex items-center w-full h-14 px-5 rounded-xl border-2 border-[#2A2D3E] bg-[#161822] hover:border-brand/50 hover:bg-[#1a1e2a] transition-all cursor-text"
                 >
                   <svg className="w-5 h-5 text-gray-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-2.06a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.5 8.25" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                   </svg>
                   <span className="text-gray-500 text-base">Paste your API endpoint to start earning...</span>
                   <span className="ml-auto text-xs font-semibold text-brand opacity-0 group-hover:opacity-100 transition-opacity">60 seconds →</span>
