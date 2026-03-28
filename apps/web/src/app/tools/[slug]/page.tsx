@@ -599,8 +599,21 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
       </main>
 
       <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-4xl mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
-          Powered by <Link href="/" className="text-brand-text hover:text-brand-dark">SettleGrid</Link>
+        <div className="max-w-4xl mx-auto text-center space-y-2">
+          <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center gap-1.5 bg-[#161822] border border-[#2A2D3E] rounded-full px-4 py-1.5">
+              <svg className="w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+              <span className="text-xs font-medium text-gray-300">
+                Powered by <Link href="/" className="text-brand-text hover:text-brand-dark font-semibold">SettleGrid</Link>
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-500">
+            The settlement layer for the AI economy &mdash;{' '}
+            <Link href="/start" className="text-brand-text hover:underline">Start earning with your tools</Link>
+          </p>
         </div>
       </footer>
     </div>
