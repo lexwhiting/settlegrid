@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { Confetti } from '@/components/ui/confetti'
+import { SocialShare } from '@/components/ui/social-share'
 // Metadata is in layout.tsx
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -601,6 +602,22 @@ export default function StartPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Share your tool */}
+            <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-5 text-center space-y-3">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Share your tool with your network
+              </p>
+              <SocialShare
+                type="tool"
+                toolName={publishResult.tool.name}
+                toolSlug={publishResult.tool.slug}
+                className="justify-center"
+              />
+              <p className="text-xs text-gray-400">
+                Every share helps potential customers discover your tool.
+              </p>
+            </div>
 
             {/* Smart Proxy + Achievements callout */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
