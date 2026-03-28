@@ -98,7 +98,7 @@ const entries: ChangelogEntry[] = [
     date: '2026-03-25',
     title: 'Universal AI Service Settlement',
     description:
-      'Expanded from MCP-only to universal settlement. SettleGrid now bills any AI service: LLM inference, browser automation, media generation, code execution, data APIs, agent-to-agent workflows, and communication services. One SDK, 10 protocols.',
+      'Expanded from MCP-only to universal settlement. SettleGrid now bills any AI service: LLM inference, browser automation, media generation, code execution, data APIs, agent-to-agent workflows, and communication services. One SDK, 15 protocols.',
     badge: 'Feature',
   },
   {

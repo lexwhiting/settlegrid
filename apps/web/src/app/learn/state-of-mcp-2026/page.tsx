@@ -302,7 +302,7 @@ export default function StateOfMcp2026Page() {
             The fragmentation creates a real challenge for tool developers: which protocols should
             you support? Every protocol you add reaches more agents, but implementing multiple
             payment integrations is expensive and time-consuming. This is precisely the problem
-            SettleGrid solves with a single SDK that supports all 10 protocols.
+            SettleGrid solves with a single SDK that supports all 15 protocols.
           </p>
 
           {/* ================================================================ */}

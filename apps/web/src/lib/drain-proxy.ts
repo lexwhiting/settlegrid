@@ -270,7 +270,8 @@ function verifyVoucherSignature(voucher: DrainVoucher): {
   }
 
   // Compute the EIP-712 hash (for logging / future ecrecover)
-  const _hash = computeVoucherHash(voucher)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const voucherHash = computeVoucherHash(voucher)
 
   // TODO: Full ecrecover verification:
   //   const recoveredAddress = ethers.verifyTypedData(domain, types, voucher, signature)
