@@ -190,7 +190,7 @@ function ProfileSetupSection({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your display name"
-            className="max-w-sm border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E]"
+            className="max-w-sm border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822]"
           />
         </div>
 
@@ -207,7 +207,7 @@ function ProfileSetupSection({
               setSlugError('')
             }}
             placeholder="my-slug"
-            className="max-w-sm border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E]"
+            className="max-w-sm border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822]"
           />
           {slugError && (
             <p className="text-xs text-red-500 mt-1">{slugError}</p>
@@ -231,7 +231,7 @@ function ProfileSetupSection({
             onChange={(e) => setBio(e.target.value)}
             rows={3}
             placeholder="Tell consumers and AI agents what you build..."
-            className="w-full max-w-lg rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand"
+            className="w-full max-w-lg rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand"
           />
         </div>
 
@@ -247,7 +247,7 @@ function ProfileSetupSection({
             aria-label={isPublic ? 'Disable public profile' : 'Enable public profile'}
             onClick={() => setIsPublic(!isPublic)}
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-              isPublic ? 'bg-brand' : 'bg-gray-300 dark:bg-[#2E3148]'
+              isPublic ? 'bg-brand' : 'bg-gray-300 dark:bg-[#2A2D3E]'
             }`}
           >
             <span
@@ -447,7 +447,7 @@ function BadgeGeneratorSection({ slug, tools }: { slug: string | null; tools: To
                 <select
                   value={selectedToolSlug}
                   onChange={(e) => setSelectedToolSlug(e.target.value)}
-                  className="mb-2 text-sm rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-2 py-1.5 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand/40"
+                  className="mb-2 text-sm rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-2 py-1.5 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand/40"
                   aria-label="Select tool for badge"
                 >
                   {activeTools.map((t) => (
@@ -948,7 +948,7 @@ export default function DiscoveryPage() {
                 href={registry.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-4 py-3 hover:border-brand/40 dark:hover:border-brand/40 transition-colors group"
+                className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-4 py-3 hover:border-brand/40 dark:hover:border-brand/40 transition-colors group"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-brand transition-colors">

@@ -27,6 +27,9 @@ const devNavItems: { href: string; label: string; icon: string; external?: boole
 
 const consumerNavItems: { href: string; label: string; icon: string }[] = [
   { href: '/consumer', label: 'Consumer', icon: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5z' },
+  { href: '/consumer/explorer', label: 'Explorer', icon: 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6' },
+  { href: '/consumer/budgets', label: 'Budgets', icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
+  { href: '/consumer/onboard', label: 'Onboard', icon: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z' },
 ]
 
 const bottomNavItems: { href: string; label: string; icon: string; external?: boolean }[] = [
@@ -93,9 +96,9 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-white dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] shadow-lg py-1 z-50">
+        <div className="absolute bottom-full left-0 mb-2 w-56 rounded-lg bg-white dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] shadow-lg py-1 z-50">
           {email && (
-            <div className="px-4 py-2 border-b border-gray-100 dark:border-[#2E3148]">
+            <div className="px-4 py-2 border-b border-gray-100 dark:border-[#2A2D3E]">
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{email}</p>
             </div>
           )}
@@ -106,7 +109,7 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
           >
             Settings
           </Link>
-          <div className="border-t border-gray-100 dark:border-[#2E3148]" />
+          <div className="border-t border-gray-100 dark:border-[#2A2D3E]" />
           <button
             type="button"
             onClick={handleSignOut}
@@ -317,9 +320,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0F1117]">
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0C0E14]">
         {/* Mobile header */}
-        <header className="sticky top-0 z-30 bg-white dark:bg-[#0F1117] border-b border-gray-200 dark:border-[#2E3148] px-6 py-4 lg:hidden">
+        <header className="sticky top-0 z-30 bg-white dark:bg-[#0C0E14] border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 lg:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -333,7 +336,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Desktop top bar with search hint and theme toggle */}
-        <div className="hidden lg:flex items-center justify-end gap-4 px-8 py-3 border-b border-gray-200 dark:border-[#2E3148]">
+        <div className="hidden lg:flex items-center justify-end gap-4 px-8 py-3 border-b border-gray-200 dark:border-[#2A2D3E]">
           <button
             onClick={openCommandPalette}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"

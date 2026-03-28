@@ -10,6 +10,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { payoutNotificationEmail, sendEmail } from '@/lib/email'
+import { calculateTakeCents } from '@/lib/pricing'
 
 export const maxDuration = 60
 
@@ -78,12 +79,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // The balanceCents already represents the developer's share (e.g. 95% or 100% of revenue)
-    const payoutAmountCents = developer.balanceCents
-    // Platform fee already retained — calculate for record keeping
-    const sharePct = developer.revenueSharePct ?? 95
-    const platformPct = 100 - sharePct
-    const platformFeeCents = Math.floor(payoutAmountCents * (platformPct / sharePct))
+    // Progressive take rate: developer balance contains full revenue.
+    // Calculate platform take based on the developer's current month balance.
+    const grossRevenueCents = developer.balanceCents
+    const platformFeeCents = calculateTakeCents(grossRevenueCents)
+    const payoutAmountCents = grossRevenueCents - platformFeeCents
 
     const now = new Date()
 

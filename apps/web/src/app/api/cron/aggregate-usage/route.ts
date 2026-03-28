@@ -14,9 +14,8 @@ export const maxDuration = 60
 
 // Monthly operation limits per tier (soft limits — tools keep working)
 const TIER_OPS_LIMITS: Record<string, number> = {
-  standard: 25_000,
-  starter: 100_000,
-  growth: 500_000,
+  standard: 50_000,
+  builder: 200_000,
   scale: 2_000_000,
   enterprise: Infinity,
 }

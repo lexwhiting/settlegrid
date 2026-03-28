@@ -1,0 +1,31 @@
+{
+  "name": "langchain-settlegrid",
+  "version": "0.1.0",
+  "description": "LangChain integration for SettleGrid — discover and use paid MCP tools in LangChain agents",
+  "keywords": [
+    "langchain",
+    "settlegrid",
+    "mcp",
+    "ai-tools",
+    "billing",
+    "agent-tools"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit"
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@langchain/core": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "typescript": "^5.0.0"
+  }
+}

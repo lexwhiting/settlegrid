@@ -101,7 +101,7 @@ export function PurchaseHistory() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm" aria-label="Purchase history">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                   <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
                   <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tool</th>
                   <th className="text-right py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>

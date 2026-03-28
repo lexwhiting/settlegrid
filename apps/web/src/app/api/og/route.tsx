@@ -39,7 +39,7 @@ export async function GET() {
                       width: isCenter ? '32px' : '24px',
                       height: isCenter ? '32px' : '24px',
                       borderRadius: '50%',
-                      backgroundColor: '#10B981',
+                      backgroundColor: '#E5A336',
                       opacity: isEdge ? 1 : 0.35,
                     }}
                   />
@@ -64,7 +64,7 @@ export async function GET() {
             style={{
               fontSize: '64px',
               fontWeight: 400,
-              color: '#10B981',
+              color: '#E5A336',
               letterSpacing: '-1.5px',
             }}
           >

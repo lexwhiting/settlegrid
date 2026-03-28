@@ -19,6 +19,22 @@ export function GET() {
       outcomes: '/api/outcomes',
       organizations: '/api/orgs',
       stream: '/api/stream',
+      discover: {
+        search: '/api/v1/discover',
+        route: '/api/v1/discover/route',
+      },
+      mcpRegistry: {
+        servers: '/api/v0.1/servers',
+        serverDetail: '/api/v0.1/servers/{serverName}/versions/{version}',
+        serverVersions: '/api/v0.1/servers/{serverName}/versions',
+        publish: '/api/v0.1/publish',
+        extensions: {
+          pricing: '/api/v0.1/x/ai.settlegrid/pricing/{serverName}',
+          reviews: '/api/v0.1/x/ai.settlegrid/reviews/{serverName}',
+          revenue: '/api/v0.1/x/ai.settlegrid/revenue/{serverName}',
+          stats: '/api/v0.1/x/ai.settlegrid/stats',
+        },
+      },
     },
   })
 }

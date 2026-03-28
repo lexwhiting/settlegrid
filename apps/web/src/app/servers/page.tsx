@@ -41,9 +41,9 @@ const servers = catalogData as CatalogEntry[]
 
 export default function ServersPage() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="border-b border-[#2E3148] px-6 py-4 bg-[#1A1D2E] sticky top-0 z-50 backdrop-blur-lg">
+      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822] sticky top-0 z-50 backdrop-blur-lg">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -57,7 +57,7 @@ export default function ServersPage() {
             </Link>
             <Link
               href="/servers"
-              className="hidden sm:inline text-sm font-medium text-emerald-400 transition-colors"
+              className="hidden sm:inline text-sm font-medium text-amber-400 transition-colors"
               aria-current="page"
             >
               Templates
@@ -99,21 +99,21 @@ export default function ServersPage() {
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
               Fork any template, add your API key, deploy to Vercel.
-              Settle<span className="text-emerald-400">Grid</span> billing is
+              Settle<span className="text-amber-400">Grid</span> billing is
               pre-wired &mdash; start earning on every call.
             </p>
 
             {/* Workflow callout */}
-            <div className="mt-6 mx-auto max-w-xl rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-5 py-3 text-sm text-gray-400">
-              <span className="font-medium text-emerald-400">Fork</span>
+            <div className="mt-6 mx-auto max-w-xl rounded-lg border border-amber-500/20 bg-amber-500/5 px-5 py-3 text-sm text-gray-400">
+              <span className="font-medium text-amber-400">Fork</span>
               {' \u2192 '}
-              <span className="font-medium text-emerald-400">Deploy</span>
+              <span className="font-medium text-amber-400">Deploy</span>
               {' \u2192 '}Your tool appears in the{' '}
-              <Link href="/tools" className="text-emerald-400 hover:underline">
+              <Link href="/tools" className="text-amber-400 hover:underline">
                 Showcase
               </Link>{' '}
               and is automatically discoverable across 8+ MCP registries via the{' '}
-              <Link href="/docs#discovery" className="text-emerald-400 hover:underline">
+              <Link href="/docs#discovery" className="text-amber-400 hover:underline">
                 Discovery API
               </Link>
               .
@@ -124,7 +124,7 @@ export default function ServersPage() {
           <ServerSearch servers={servers} />
 
           {/* ── Bottom CTA ─────────────────────────────────────────── */}
-          <div className="mt-16 rounded-xl border border-[#2E3148] bg-gradient-to-br from-[#1A1D2E] to-[#0F1117] p-12 text-center">
+          <div className="mt-16 rounded-xl border border-[#2A2D3E] bg-gradient-to-br from-[#161822] to-[#0C0E14] p-12 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-3">
               Want to monetize your own tool?
             </h2>
@@ -141,7 +141,7 @@ export default function ServersPage() {
               </Link>
               <Link
                 href="/learn/handbook"
-                className="text-gray-400 hover:text-gray-100 px-6 py-3 rounded-lg font-medium border border-[#2E3148] hover:border-gray-500 transition-colors"
+                className="text-gray-400 hover:text-gray-100 px-6 py-3 rounded-lg font-medium border border-[#2A2D3E] hover:border-gray-500 transition-colors"
               >
                 Read the Monetization Handbook
               </Link>
@@ -151,7 +151,7 @@ export default function ServersPage() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="border-t border-[#2E3148] px-6 py-6 mt-8">
+      <footer className="border-t border-[#2A2D3E] px-6 py-6 mt-8">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-400">

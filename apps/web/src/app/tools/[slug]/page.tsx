@@ -1,9 +1,32 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
 import { ReviewForm } from '@/components/storefront/review-form'
+import { db } from '@/lib/db'
+import { tools } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { getCategoryBySlug } from '@/lib/categories'
+
+// ─── Static Generation ──────────────────────────────────────────────────────
+
+export async function generateStaticParams() {
+  try {
+    const activeTools = await db
+      .select({ slug: tools.slug })
+      .from(tools)
+      .where(eq(tools.status, 'active'))
+      .limit(500)
+
+    return activeTools
+      .filter((t): t is { slug: string } => t.slug != null)
+      .map((t) => ({ slug: t.slug }))
+  } catch {
+    return []
+  }
+}
 
 interface ToolData {
   id: string
@@ -85,11 +108,12 @@ async function getToolData(slug: string): Promise<ToolData | null> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3005'
     const res = await fetch(`${baseUrl}/api/tools/public/${slug}`, {
-      cache: 'no-store',
+      next: { revalidate: 300 }, // ISR: revalidate every 5 minutes
     })
     if (!res.ok) return null
-    const data = await res.json()
-    return data.data
+    const parsed = await res.json()
+    if (!parsed?.data || typeof parsed.data !== 'object') return null
+    return parsed.data as ToolData
   } catch {
     return null
   }
@@ -103,13 +127,33 @@ export async function generateMetadata({
   const { slug } = await params
   const tool = await getToolData(slug)
   if (!tool) return { title: 'Tool Not Found | SettleGrid' }
+
+  const description = tool.description
+    ? `${tool.description.slice(0, 150)} — Available on SettleGrid with per-call pricing.`
+    : `${tool.name} MCP tool on SettleGrid with transparent per-call pricing.`
+
   return {
     title: `${tool.name} | SettleGrid`,
-    description: tool.description,
+    description,
+    alternates: { canonical: `https://settlegrid.ai/tools/${slug}` },
+    keywords: [
+      tool.name,
+      `${tool.name} API`,
+      `${tool.name} pricing`,
+      tool.category,
+      'MCP tool',
+      'AI tool billing',
+    ].filter(Boolean) as string[],
     openGraph: {
       title: `${tool.name} — SettleGrid Tool`,
-      description: tool.description,
+      description,
       type: 'website',
+      url: `https://settlegrid.ai/tools/${slug}`,
+    },
+    twitter: {
+      card: 'summary',
+      title: `${tool.name} | SettleGrid`,
+      description,
     },
   }
 }
@@ -122,46 +166,72 @@ export default async function ToolStorefrontPage({
   const { slug } = await params
   const tool = await getToolData(slug)
 
-  if (!tool) {
-    return (
-      <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
-        <header className="border-b border-[#2E3148] px-6 py-4">
-          <nav className="max-w-4xl mx-auto flex items-center justify-between">
-            <Link href="/"><SettleGridLogo variant="horizontal" size={28} /></Link>
-            <div className="flex items-center gap-4">
-              <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Showcase</Link>
-              <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">Sign up</Link>
-            </div>
-          </nav>
-        </header>
-        <main className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center max-w-md">
-            <div className="w-14 h-14 rounded-full bg-[#1A1D2E] border border-[#2E3148] flex items-center justify-center mx-auto mb-6">
-              <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-100 mb-3">Tool Not Available</h1>
-            <p className="text-gray-400 mb-6">
-              This tool hasn&apos;t been published yet, or the URL may be incorrect. Published tools appear in our showcase.
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <Link href="/tools" className="bg-brand text-white px-5 py-2.5 rounded-lg font-medium hover:bg-brand-dark transition-colors">
-                Browse Showcase
-              </Link>
-              <Link href="/docs" className="text-gray-400 hover:text-gray-200 font-medium transition-colors">
-                Read Docs
-              </Link>
-            </div>
-          </div>
-        </main>
-      </div>
-    )
-  }
+  if (!tool) notFound()
 
   const pricingModel = tool.pricingConfig.model ?? 'per-invocation'
   const methods = tool.pricingConfig.methods ?? {}
   const methodEntries = Object.entries(methods)
   const reviews = tool.reviews ?? []
   const changelog = tool.changelog ?? []
+  const categoryDef = getCategoryBySlug(tool.category)
+
+  // ─── Structured Data ──────────────────────────────────────────────────────
+
+  const priceUsd = tool.pricingConfig.defaultCostCents != null
+    ? (tool.pricingConfig.defaultCostCents / 100).toFixed(4)
+    : '0.01'
+
+  const jsonLdProduct = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: tool.name,
+    description: tool.description,
+    url: `https://settlegrid.ai/tools/${tool.slug}`,
+    category: categoryDef?.name ?? tool.category,
+    brand: { '@type': 'Organization', name: tool.developerName },
+    offers: {
+      '@type': 'Offer',
+      price: priceUsd,
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      priceSpecification: {
+        '@type': 'UnitPriceSpecification',
+        price: priceUsd,
+        priceCurrency: 'USD',
+        unitText: pricingModelLabel(pricingModel),
+      },
+    },
+    ...(tool.reviewCount > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: tool.averageRating.toFixed(1),
+        reviewCount: tool.reviewCount,
+        bestRating: 5,
+        worstRating: 1,
+      },
+    }),
+    ...(reviews.length > 0 && {
+      review: reviews.slice(0, 5).map((r) => ({
+        '@type': 'Review',
+        author: { '@type': 'Person', name: r.consumerName },
+        reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5 },
+        reviewBody: r.comment,
+        datePublished: r.createdAt,
+      })),
+    }),
+  }
+
+  const jsonLdBreadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Explore', item: 'https://settlegrid.ai/explore' },
+      ...(categoryDef
+        ? [{ '@type': 'ListItem', position: 2, name: categoryDef.name, item: `https://settlegrid.ai/explore/category/${tool.category}` }]
+        : []),
+      { '@type': 'ListItem', position: categoryDef ? 3 : 2, name: tool.name, item: `https://settlegrid.ai/tools/${tool.slug}` },
+    ],
+  }
 
   const changeTypeBadge = (type: string) => {
     switch (type) {
@@ -174,8 +244,8 @@ export default async function ToolStorefrontPage({
   }
 
   return (
-    <div className="dark min-h-screen flex flex-col bg-[#0F1117] text-gray-100">
-      <header className="border-b border-gray-200 dark:border-[#2E3148] px-6 py-4">
+    <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
+      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4">
         <nav className="max-w-4xl mx-auto flex items-center justify-between">
           <Link href="/">
             <SettleGridLogo variant="horizontal" size={28} />
@@ -196,6 +266,22 @@ export default async function ToolStorefrontPage({
 
       <main className="flex-1 px-6 py-12">
         <div className="max-w-4xl mx-auto">
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
+
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-sm text-gray-400 mb-6" aria-label="Breadcrumb">
+            <Link href="/explore" className="hover:text-gray-100 transition-colors">Explore</Link>
+            <span aria-hidden="true">/</span>
+            {categoryDef && (
+              <>
+                <Link href={`/explore/category/${tool.category}`} className="hover:text-gray-100 transition-colors">{categoryDef.name}</Link>
+                <span aria-hidden="true">/</span>
+              </>
+            )}
+            <span className="text-gray-100 truncate">{tool.name}</span>
+          </nav>
+
           <div className="mb-8">
             <div className="flex flex-wrap items-center gap-3 mb-3">
               <h1 className="text-4xl font-bold text-indigo dark:text-gray-100">{tool.name}</h1>
@@ -205,7 +291,7 @@ export default async function ToolStorefrontPage({
                 </span>
               )}
               {tool.currentVersion && (
-                <span className="inline-flex items-center rounded-full border border-gray-300 dark:border-[#2E3148] text-gray-600 dark:text-gray-400 px-2.5 py-0.5 text-xs font-medium">
+                <span className="inline-flex items-center rounded-full border border-gray-300 dark:border-[#2A2D3E] text-gray-600 dark:text-gray-400 px-2.5 py-0.5 text-xs font-medium">
                   v{tool.currentVersion}
                 </span>
               )}
@@ -241,7 +327,7 @@ export default async function ToolStorefrontPage({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Pricing */}
             <div className="md:col-span-2">
-              <div className="bg-white dark:bg-[#1A1D2E] rounded-xl border border-gray-200 dark:border-[#2E3148] p-6">
+              <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-indigo dark:text-gray-100">Pricing</h2>
                   <span className="inline-flex items-center rounded-full bg-brand/10 text-brand-text px-2.5 py-0.5 text-xs font-medium">
@@ -331,7 +417,7 @@ export default async function ToolStorefrontPage({
               </div>
 
               {/* Quick Start */}
-              <div className="mt-8 bg-white dark:bg-[#1A1D2E] rounded-xl border border-gray-200 dark:border-[#2E3148] p-6">
+              <div className="mt-8 bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
                 <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Quick Start</h2>
                 <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
                   <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
@@ -352,7 +438,7 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
 
             {/* Purchase sidebar */}
             <div>
-              <div className="bg-white dark:bg-[#1A1D2E] rounded-xl border-2 border-brand p-6 sticky top-8">
+              <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-brand p-6 sticky top-8">
                 <h3 className="font-semibold text-indigo dark:text-gray-100 mb-4">Buy Credits</h3>
                 <div className="space-y-2 mb-6">
                   {[
@@ -377,7 +463,7 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
 
           {/* Reviews Section */}
           <div className="mt-12">
-            <div className="bg-white dark:bg-[#1A1D2E] rounded-xl border border-gray-200 dark:border-[#2E3148] p-6">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
               <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-6">Reviews</h2>
               {reviews.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400 text-sm">No reviews yet. Be the first to review this tool after using it.</p>
@@ -423,7 +509,7 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
 
           {/* Changelog Section */}
           <div className="mt-8">
-            <div className="bg-white dark:bg-[#1A1D2E] rounded-xl border border-gray-200 dark:border-[#2E3148] p-6">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
               <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-6">Changelog</h2>
               {changelog.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400 text-sm">No changelog entries yet.</p>
@@ -432,7 +518,7 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                   {changelog.map((entry, i) => (
                     <div key={i} className="flex items-start gap-4 border-b border-gray-100 dark:border-[#252836] pb-4 last:border-0 last:pb-0">
                       <div className="shrink-0">
-                        <span className="inline-flex items-center rounded-full border border-gray-300 dark:border-[#2E3148] text-gray-700 dark:text-gray-300 px-2.5 py-0.5 text-xs font-mono font-medium">
+                        <span className="inline-flex items-center rounded-full border border-gray-300 dark:border-[#2A2D3E] text-gray-700 dark:text-gray-300 px-2.5 py-0.5 text-xs font-mono font-medium">
                           v{entry.version}
                         </span>
                       </div>
@@ -453,10 +539,66 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
               )}
             </div>
           </div>
+
+          {/* Badges */}
+          <div className="mt-8">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
+              <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-2">Badges</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Add these badges to your GitHub README, docs, or website to show that this tool is available on SettleGrid.
+              </p>
+              <div className="space-y-5">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tool status badge</p>
+                  <CopyableCodeBlock
+                    title="Markdown"
+                    code={`[![SettleGrid](https://settlegrid.ai/api/badge/tool/${slug})](https://settlegrid.ai/tools/${slug})`}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                    Displays the tool name and live status (green for active, gray for draft).
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Powered by SettleGrid</p>
+                  <CopyableCodeBlock
+                    title="Markdown"
+                    code={`[![Powered by SettleGrid](https://settlegrid.ai/api/badge/powered-by)](https://settlegrid.ai)`}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                    A generic badge that links back to SettleGrid. Works in any project README.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cross-links */}
+          {categoryDef && (
+            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Link
+                href={`/explore/category/${tool.category}`}
+                className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-5 hover:border-brand/40 transition-colors group"
+              >
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">More tools</p>
+                <p className="font-semibold text-indigo dark:text-gray-100 group-hover:text-brand transition-colors">
+                  Browse all {categoryDef.name} tools
+                </p>
+              </Link>
+              <Link
+                href={`/guides/monetize-${tool.category}-tools`}
+                className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-5 hover:border-brand/40 transition-colors group"
+              >
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Guide</p>
+                <p className="font-semibold text-indigo dark:text-gray-100 group-hover:text-brand transition-colors">
+                  How to monetize {categoryDef.name.toLowerCase()} tools
+                </p>
+              </Link>
+            </div>
+          )}
         </div>
       </main>
 
-      <footer className="border-t border-gray-200 dark:border-[#2E3148] px-6 py-6">
+      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-6">
         <div className="max-w-4xl mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
           Powered by <Link href="/" className="text-brand-text hover:text-brand-dark">SettleGrid</Link>
         </div>

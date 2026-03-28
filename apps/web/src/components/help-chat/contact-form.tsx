@@ -44,8 +44,8 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
   if (status === 'success') {
     return (
       <div className="p-6 text-center">
-        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-          <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
         </div>
@@ -56,7 +56,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
         <button
           type="button"
           onClick={onClose}
-          className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors"
+          className="text-sm font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
         >
           Back to chat
         </button>
@@ -77,7 +77,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
           maxLength={200}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500"
+          className="w-full rounded-lg border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500"
           placeholder="Your name"
         />
       </div>
@@ -93,7 +93,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
           maxLength={320}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500"
+          className="w-full rounded-lg border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500"
           placeholder="you@company.com"
         />
       </div>
@@ -109,7 +109,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
           maxLength={300}
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500"
+          className="w-full rounded-lg border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500"
           placeholder="What do you need help with?"
         />
       </div>
@@ -125,7 +125,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
           rows={4}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none"
+          className="w-full rounded-lg border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#151726] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 resize-none"
           placeholder="Describe your issue or question..."
         />
       </div>
@@ -138,7 +138,7 @@ export function ContactForm({ onClose, pageUrl }: ContactFormProps) {
         <button
           type="submit"
           disabled={status === 'submitting'}
-          className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 transition-colors"
+          className="flex-1 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 px-4 transition-colors"
         >
           {status === 'submitting' ? 'Sending...' : 'Send Message'}
         </button>

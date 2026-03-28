@@ -37,16 +37,16 @@ describe('SettleGridLogo class logic', () => {
 
   it('brand colors match official palette', () => {
     // Official brand colors from SettleGrid Brand Guidelines
-    const EMERALD = '#10B981'
+    const AMBER_GOLD = '#E5A336'
     const DEEP_INDIGO = '#1A1F3A'
-    const BRAND_TEXT = '#047857'
+    const BRAND_TEXT = '#C4891E'
     const CLOUD = '#F8FAFB'
-    const EMERALD_LIGHT = '#D1FAE5'
+    const AMBER_LIGHT = '#FEF3C7'
 
-    expect(EMERALD).toBe('#10B981')
+    expect(AMBER_GOLD).toBe('#E5A336')
     expect(DEEP_INDIGO).toBe('#1A1F3A')
-    expect(BRAND_TEXT).toBe('#047857')
+    expect(BRAND_TEXT).toBe('#C4891E')
     expect(CLOUD).toBe('#F8FAFB')
-    expect(EMERALD_LIGHT).toBe('#D1FAE5')
+    expect(AMBER_LIGHT).toBe('#FEF3C7')
   })
 })

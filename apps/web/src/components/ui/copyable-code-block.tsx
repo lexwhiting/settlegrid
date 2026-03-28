@@ -25,7 +25,7 @@ function highlightCode(code: string): React.ReactNode[] {
     } else if (token.startsWith("'") || token.startsWith('"') || token.startsWith('`')) {
       parts.push(<span key={match.index} className="text-amber-300">{token}</span>)
     } else {
-      parts.push(<span key={match.index} className="text-emerald-400">{token}</span>)
+      parts.push(<span key={match.index} className="text-amber-400">{token}</span>)
     }
     lastIndex = match.index + token.length
   }
@@ -56,7 +56,7 @@ export function CopyableCodeBlock({ code, language, title, className }: Copyable
       <div className={`relative group bg-[#0D1117] text-gray-300 text-sm font-mono p-4 overflow-x-auto ${title ? 'rounded-b-lg' : 'rounded-lg'}`}>
         <button
           onClick={handleCopy}
-          className="absolute top-3 right-3 flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white/5 border border-white/10 text-gray-400 hover:text-emerald-400 hover:border-emerald-400/40 hover:bg-emerald-400/5 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="absolute top-3 right-3 flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white/5 border border-white/10 text-gray-400 hover:text-amber-400 hover:border-amber-400/40 hover:bg-amber-400/5 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
           aria-label="Copy code"
         >
           {copied ? (
@@ -64,7 +64,7 @@ export function CopyableCodeBlock({ code, language, title, className }: Copyable
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
-              <span className="text-emerald-400">Copied!</span>
+              <span className="text-amber-400">Copied!</span>
             </>
           ) : (
             <>

@@ -30,7 +30,7 @@ export function AreaChart({
   yKey,
   yKeyPrevious,
   height = 200,
-  color = '#10B981',
+  color = '#E5A336',
   formatValue = (v) => String(v),
   formatXAxis = (v) => v,
   ariaLabel,
@@ -70,7 +70,7 @@ export function AreaChart({
         <Tooltip
           contentStyle={{
             backgroundColor: '#1A1F3A',
-            border: '1px solid #2E3148',
+            border: '1px solid #2A2D3E',
             borderRadius: '8px',
             color: '#fff',
             fontSize: '12px',

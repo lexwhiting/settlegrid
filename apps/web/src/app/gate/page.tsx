@@ -43,13 +43,13 @@ export default function GatePage() {
         <div
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full opacity-[0.08]"
           style={{
-            background: 'radial-gradient(circle, #10B981 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #E5A336 0%, transparent 70%)',
           }}
         />
         <div
           className="absolute right-1/4 top-1/4 h-[300px] w-[300px] rounded-full opacity-[0.04]"
           style={{
-            background: 'radial-gradient(circle, #34D399 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #F5C963 0%, transparent 70%)',
           }}
         />
       </div>

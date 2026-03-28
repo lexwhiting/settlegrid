@@ -306,7 +306,7 @@ export default function ReviewsPage() {
                 id="tool-filter"
                 value={toolFilter}
                 onChange={(e) => setToolFilter(e.target.value)}
-                className="text-sm rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-900 dark:text-gray-100 px-3 py-1.5"
+                className="text-sm rounded-lg border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] text-gray-900 dark:text-gray-100 px-3 py-1.5"
               >
                 <option value="">All Tools</option>
                 {tools.map((t) => (
@@ -320,7 +320,7 @@ export default function ReviewsPage() {
                 id="rating-filter"
                 value={ratingFilter}
                 onChange={(e) => setRatingFilter(e.target.value)}
-                className="text-sm rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-900 dark:text-gray-100 px-3 py-1.5"
+                className="text-sm rounded-lg border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] text-gray-900 dark:text-gray-100 px-3 py-1.5"
               >
                 <option value="">All Ratings</option>
                 {[5, 4, 3, 2, 1].map((r) => (
@@ -334,7 +334,7 @@ export default function ReviewsPage() {
                 id="responded-filter"
                 value={respondedFilter}
                 onChange={(e) => setRespondedFilter(e.target.value)}
-                className="text-sm rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-900 dark:text-gray-100 px-3 py-1.5"
+                className="text-sm rounded-lg border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] text-gray-900 dark:text-gray-100 px-3 py-1.5"
               >
                 <option value="">All</option>
                 <option value="false">Unresponded</option>
@@ -349,7 +349,7 @@ export default function ReviewsPage() {
       {reviews.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
-            <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-[#1A1D2E] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-[#161822] flex items-center justify-center mx-auto mb-4">
               <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
               </svg>
@@ -423,7 +423,7 @@ export default function ReviewsPage() {
                             maxLength={1000}
                             rows={3}
                             placeholder="Write your response..."
-                            className="w-full text-sm rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/50 resize-none"
+                            className="w-full text-sm rounded-lg border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/50 resize-none"
                           />
                           <div className="flex items-center gap-2">
                             <button
@@ -456,7 +456,7 @@ export default function ReviewsPage() {
                       <button
                         type="button"
                         onClick={() => startResponding(review)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-[#2E3148] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-[#2A2D3E] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
                       >
                         {review.developerResponse ? 'Edit' : 'Respond'}
                       </button>

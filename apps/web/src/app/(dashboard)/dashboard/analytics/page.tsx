@@ -164,7 +164,7 @@ export default function AnalyticsPage() {
               xKey="date"
               yKey="revenueCents"
               height={200}
-              color="#10B981"
+              color="#E5A336"
               ariaLabel="Daily revenue trend over the last 30 days"
               formatValue={(v) => formatCents(v)}
               formatXAxis={(v) =>
@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Method usage breakdown">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Method</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Invocations</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Revenue</th>
@@ -250,7 +250,7 @@ export default function AnalyticsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm" role="table" aria-label="Top consumers by spend">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th scope="col" className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Consumer ID</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Total Spend</th>
                     <th scope="col" className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Invocations</th>

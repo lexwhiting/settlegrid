@@ -14,12 +14,19 @@ import {
   sendEmail,
 } from '@/lib/email'
 
-/** Valid paid plan tiers that map from Stripe subscription metadata */
-const VALID_PAID_TIERS = ['starter', 'growth', 'scale'] as const
+/** Valid paid plan tiers that map from Stripe subscription metadata.
+ * 'starter' and 'growth' are legacy tiers — mapped to 'builder' internally. */
+const VALID_PAID_TIERS = ['builder', 'scale', 'starter', 'growth'] as const
 type PaidTier = typeof VALID_PAID_TIERS[number]
 
 function isValidPaidTier(plan: string | undefined): plan is PaidTier {
   return VALID_PAID_TIERS.includes(plan as PaidTier)
+}
+
+/** Normalize legacy tier names to current tier names */
+function normalizeTier(plan: string): string {
+  if (plan === 'starter' || plan === 'growth') return 'builder'
+  return plan
 }
 
 export const maxDuration = 60
@@ -111,19 +118,20 @@ export async function POST(request: NextRequest) {
             : session.subscription?.toString() ?? null
 
           if (isValidPaidTier(plan) && subscriptionId) {
+            const normalizedTier = normalizeTier(plan)
             await db
               .update(developers)
               .set({
-                tier: plan,
+                tier: normalizedTier,
                 stripeSubscriptionId: subscriptionId,
-                revenueSharePct: 95, // Paid tiers: 5% platform fee
+                // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
                 updatedAt: new Date(),
               })
               .where(eq(developers.id, developerId))
 
             logger.info('stripe.webhook.subscription_activated', {
               developerId,
-              plan,
+              plan: normalizedTier,
               subscriptionId,
             })
           } else {
@@ -343,18 +351,19 @@ export async function POST(request: NextRequest) {
         const plan = subscription.metadata?.plan
 
         if (developerId && isValidPaidTier(plan)) {
+          const normalizedTier = normalizeTier(plan)
           await db
             .update(developers)
             .set({
-              tier: plan,
-              revenueSharePct: 95,
+              tier: normalizedTier,
+              // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
               updatedAt: new Date(),
             })
             .where(eq(developers.id, developerId))
 
           logger.info('stripe.webhook.subscription_updated', {
             developerId,
-            plan,
+            plan: normalizedTier,
             subscriptionId: subscription.id,
             status: subscription.status,
           })
@@ -388,7 +397,7 @@ export async function POST(request: NextRequest) {
               .set({
                 tier: 'standard',
                 stripeSubscriptionId: null,
-                revenueSharePct: 100, // Free tier: 0% platform fee
+                // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
                 updatedAt: new Date(),
               })
               .where(eq(developers.id, developerId))

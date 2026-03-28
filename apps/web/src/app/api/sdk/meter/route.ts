@@ -15,15 +15,16 @@ import { getRedis, tryRedis } from '@/lib/redis'
 
 /** Monthly ops limits per tier */
 const TIER_OPS_LIMITS: Record<string, number> = {
-  standard: 25_000,
-  starter: 100_000,
-  growth: 500_000,
+  standard: 50_000,
+  builder: 200_000,
+  starter: 200_000, // legacy alias — treat as builder
+  growth: 200_000, // legacy alias — treat as builder
   scale: 2_000_000,
   enterprise: 10_000_000,
 }
 
-/** Platform fee rate applied when free-tier developer exceeds monthly ops limit */
-const OVERAGE_REVENUE_SHARE_PCT = 95 // developer keeps 95%, platform takes 5%
+/** Legacy — progressive take rate now calculated at payout time. See lib/pricing.ts */
+const OVERAGE_REVENUE_SHARE_PCT = 100 // developer keeps 100% at invocation time; take rate applied at payout
 
 export const maxDuration = 60
 export { corsOptions as OPTIONS }
@@ -70,7 +71,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    // ── Overage fee: apply 5% platform fee when free-tier devs exceed ops limit ─
+    // ── Overage: progressive take rate applied at payout time, not here ─
     let effectiveRevenueSharePct = toolDev.revenueSharePct
     const tier = toolDev.developerTier ?? 'standard'
     const tierLimit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard

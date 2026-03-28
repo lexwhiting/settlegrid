@@ -168,7 +168,7 @@ function FeedbackWidget({ question }: { question: string }) {
       <button
         type="button"
         onClick={() => handleVote(true)}
-        className="p-1 rounded transition-colors text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+        className="p-1 rounded transition-colors text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
         aria-label={`Mark "${question}" as helpful`}
       >
         <ThumbUpIcon />
@@ -295,7 +295,7 @@ export function FaqAccordion({ categories: rawCategories }: FaqAccordionProps) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search FAQs..."
-          className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-200 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand"
+          className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand"
           aria-label="Search frequently asked questions"
         />
         {isSearching && (

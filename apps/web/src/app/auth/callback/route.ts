@@ -1,13 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { db } from '@/lib/db'
-import { developers, consumers } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { developers, consumers, signupInvites } from '@/lib/db/schema'
+import { eq, sql } from 'drizzle-orm'
 import { welcomeDeveloperEmail, welcomeConsumerEmail, newSignupNotificationEmail, sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 
 const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
+const INVITE_BONUS_OPS = 5000
+
+/**
+ * Process a signup invite referral — credits bonus ops to both parties.
+ * Fire-and-forget: failures here must never block login.
+ */
+async function processSignupInvite(refCode: string, newDeveloperId: string): Promise<void> {
+  // Validate the invite code belongs to an existing developer
+  const [referrer] = await db
+    .select({ id: developers.id })
+    .from(developers)
+    .where(eq(developers.inviteCode, refCode))
+    .limit(1)
+
+  if (!referrer) {
+    logger.warn('invite.invalid_code', { refCode, newDeveloperId })
+    return
+  }
+
+  // Prevent self-referral
+  if (referrer.id === newDeveloperId) {
+    logger.warn('invite.self_referral', { refCode, newDeveloperId })
+    return
+  }
+
+  // Check idempotency — skip if already referred
+  const [existing] = await db
+    .select({ id: signupInvites.id })
+    .from(signupInvites)
+    .where(eq(signupInvites.inviteeId, newDeveloperId))
+    .limit(1)
+
+  if (existing) {
+    logger.info('invite.already_processed', { newDeveloperId })
+    return
+  }
+
+  // Atomic: create invite record + credit both parties in a single transaction
+  await db.transaction(async (tx) => {
+    await tx.insert(signupInvites).values({
+      inviterId: referrer.id,
+      inviteeId: newDeveloperId,
+      bonusOps: INVITE_BONUS_OPS,
+      inviterCredited: true,
+      inviteeCredited: true,
+    })
+
+    await tx
+      .update(developers)
+      .set({
+        bonusOpsBalance: sql`${developers.bonusOpsBalance} + ${INVITE_BONUS_OPS}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(developers.id, referrer.id))
+
+    await tx
+      .update(developers)
+      .set({
+        bonusOpsBalance: sql`${developers.bonusOpsBalance} + ${INVITE_BONUS_OPS}`,
+        referredByDeveloperId: referrer.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(developers.id, newDeveloperId))
+  })
+
+  logger.info('invite.processed', {
+    referrerId: referrer.id,
+    inviteeId: newDeveloperId,
+    bonusOps: INVITE_BONUS_OPS,
+  })
+}
 
 function notifyAdminsOfSignup(type: 'developer' | 'consumer', email: string, name: string | null) {
   const template = newSignupNotificationEmail(type, email, name, new Date().toISOString())
@@ -100,6 +171,16 @@ export async function GET(request: NextRequest) {
 
           // Notify admins of new developer signup
           notifyAdminsOfSignup('developer', email, name)
+
+          // Process signup invite referral if ref cookie is present
+          const refCode = request.cookies.get('sg_ref')?.value
+          if (refCode && developerId) {
+            processSignupInvite(refCode, developerId).catch((err) => {
+              logger.error('auth.invite_processing_failed', { refCode, developerId }, err as Error)
+            })
+            // Clear the referral cookie
+            response.cookies.set('sg_ref', '', { maxAge: 0, path: '/' })
+          }
         }
       } else {
         developerId = existing.id

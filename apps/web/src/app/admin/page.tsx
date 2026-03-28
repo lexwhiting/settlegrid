@@ -3,6 +3,25 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 
+interface NuclearMetrics {
+  statsCards: {
+    totalDevelopers: number
+    activeTools: number
+    paidSubscribers: number
+    mrrCents: number
+    invocationsThisMonth: number
+    organicToolsThisWeek: number
+  }
+  leadingIndicators: {
+    activeConsumers: number
+    referralInvitesSent: number
+    referralConversions: number
+    referralConversionRate: number
+    badgeImpressions: number | null
+  }
+  signupsByDay: { date: string; count: number }[]
+}
+
 interface AdminStats {
   developers: { total: number; last24h: number; last7d: number; last30d: number }
   consumers: { total: number; last24h: number; last7d: number; last30d: number }
@@ -47,7 +66,7 @@ function timeAgo(iso: string): string {
 
 function StatCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5">
+    <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
       <h3 className="text-sm font-medium text-gray-400 mb-3">{title}</h3>
       {children}
     </div>
@@ -81,6 +100,23 @@ export default function AdminDashboardPage() {
   const [flaggedReviews, setFlaggedReviews] = useState<FlaggedReview[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewActionLoading, setReviewActionLoading] = useState<string | null>(null)
+  const [metrics, setMetrics] = useState<NuclearMetrics | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+
+  const fetchMetrics = useCallback(async () => {
+    setMetricsLoading(true)
+    try {
+      const res = await fetch('/api/admin/metrics')
+      if (res.ok) {
+        const data = await res.json()
+        setMetrics(data)
+      }
+    } catch {
+      // Metrics section is supplementary — fail silently
+    } finally {
+      setMetricsLoading(false)
+    }
+  }, [])
 
   const fetchFlaggedReviews = useCallback(async () => {
     setReviewsLoading(true)
@@ -156,12 +192,13 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     fetchStats()
     fetchFlaggedReviews()
-  }, [fetchStats, fetchFlaggedReviews])
+    fetchMetrics()
+  }, [fetchStats, fetchFlaggedReviews, fetchMetrics])
 
   if (error) {
     // Show a generic 404-style page — don't reveal /admin exists
     return (
-      <div className="min-h-screen bg-[#0F1117] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#0C0E14] flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-7xl font-bold text-gray-700 mb-4">404</p>
           <p className="text-gray-500 mb-6">This page could not be found.</p>
@@ -172,7 +209,7 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F1117] text-gray-100">
+    <div className="min-h-screen bg-[#0C0E14] text-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -197,7 +234,7 @@ export default function AdminDashboardPage() {
             <button
               onClick={fetchStats}
               disabled={loading}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 text-sm font-medium transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 text-sm font-medium transition-colors"
             >
               <svg
                 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
@@ -217,12 +254,12 @@ export default function AdminDashboardPage() {
         {loading && !stats ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl p-5 animate-pulse">
-                <div className="h-4 w-24 bg-[#2E3148] rounded mb-4" />
-                <div className="h-8 w-16 bg-[#2E3148] rounded mb-2" />
+              <div key={i} className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 animate-pulse">
+                <div className="h-4 w-24 bg-[#2A2D3E] rounded mb-4" />
+                <div className="h-8 w-16 bg-[#2A2D3E] rounded mb-2" />
                 <div className="space-y-2">
-                  <div className="h-3 w-full bg-[#2E3148] rounded" />
-                  <div className="h-3 w-3/4 bg-[#2E3148] rounded" />
+                  <div className="h-3 w-full bg-[#2A2D3E] rounded" />
+                  <div className="h-3 w-3/4 bg-[#2A2D3E] rounded" />
                 </div>
               </div>
             ))}
@@ -287,9 +324,125 @@ export default function AdminDashboardPage() {
               </StatCard>
             </div>
 
+            {/* Nuclear Expansion KPIs */}
+            {metrics && (
+              <>
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold text-gray-200 mb-4">Expansion KPIs</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <StatCard title="Total Developers">
+                      <Metric label="All-time signups" value={formatNumber(metrics.statsCards.totalDevelopers)} />
+                    </StatCard>
+                    <StatCard title="Active Tools">
+                      <Metric label="Status = active" value={formatNumber(metrics.statsCards.activeTools)} />
+                    </StatCard>
+                    <StatCard title="Paid Subscribers">
+                      <Metric label="Tier != standard" value={formatNumber(metrics.statsCards.paidSubscribers)} />
+                    </StatCard>
+                    <StatCard title="MRR">
+                      <Metric label="Monthly recurring revenue" value={formatCurrency(metrics.statsCards.mrrCents)} />
+                    </StatCard>
+                    <StatCard title="Invocations This Month">
+                      <Metric label="Current calendar month" value={formatNumber(metrics.statsCards.invocationsThisMonth)} />
+                    </StatCard>
+                    <StatCard title="Organic Tools (7d)">
+                      <Metric
+                        label="Tools with non-founder invocations"
+                        value={formatNumber(metrics.statsCards.organicToolsThisWeek)}
+                      />
+                    </StatCard>
+                  </div>
+                </div>
+
+                {/* Signup Growth Chart (CSS bars) */}
+                {metrics.signupsByDay.length > 0 && (
+                  <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-6">
+                    <h3 className="text-sm font-medium text-gray-400 mb-4">Signups Per Day (Last 30 Days)</h3>
+                    <div className="flex items-end gap-1 h-32" aria-label="Signups per day bar chart">
+                      {(() => {
+                        const maxCount = Math.max(...metrics.signupsByDay.map((d) => d.count), 1)
+                        return metrics.signupsByDay.map((day) => {
+                          const heightPct = Math.max((day.count / maxCount) * 100, 2)
+                          const shortDate = day.date.slice(5) // MM-DD
+                          return (
+                            <div
+                              key={day.date}
+                              className="flex-1 flex flex-col items-center justify-end gap-1 min-w-0"
+                              title={`${day.date}: ${day.count} signups`}
+                            >
+                              <span className="text-[10px] text-gray-500 tabular-nums">{day.count > 0 ? day.count : ''}</span>
+                              <div
+                                className="w-full rounded-t bg-amber-500/80 transition-all duration-300 min-h-[2px]"
+                                style={{ height: `${heightPct}%` }}
+                              />
+                              {metrics.signupsByDay.length <= 15 && (
+                                <span className="text-[9px] text-gray-600 truncate max-w-full">{shortDate}</span>
+                              )}
+                            </div>
+                          )
+                        })
+                      })()}
+                    </div>
+                    {metrics.signupsByDay.length > 15 && (
+                      <div className="flex justify-between mt-1 text-[9px] text-gray-600">
+                        <span>{metrics.signupsByDay[0]?.date.slice(5)}</span>
+                        <span>{metrics.signupsByDay[metrics.signupsByDay.length - 1]?.date.slice(5)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Leading Indicators */}
+                <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-8">
+                  <h3 className="text-sm font-medium text-gray-400 mb-4">Leading Indicators</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-100">{formatNumber(metrics.leadingIndicators.activeConsumers)}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Consumers with activity</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-100">{formatNumber(metrics.leadingIndicators.referralInvitesSent)}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Referral invites sent</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-100">
+                        {metrics.leadingIndicators.referralConversionRate > 0
+                          ? `${(metrics.leadingIndicators.referralConversionRate * 100).toFixed(1)}%`
+                          : '0%'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">Referral conversion rate</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-100">
+                        {metrics.leadingIndicators.badgeImpressions !== null
+                          ? formatNumber(metrics.leadingIndicators.badgeImpressions)
+                          : '--'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Badge impressions{metrics.leadingIndicators.badgeImpressions === null && (
+                          <span className="ml-1 text-[10px] text-amber-500/80">tracking coming soon</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {metricsLoading && !metrics && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={`m-${i}`} className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 animate-pulse">
+                    <div className="h-4 w-24 bg-[#2A2D3E] rounded mb-4" />
+                    <div className="h-8 w-16 bg-[#2A2D3E] rounded" />
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Recent Signups */}
-            <div className="bg-[#1A1D2E] border border-[#2E3148] rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#2E3148]">
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#2A2D3E]">
                 <h3 className="text-sm font-medium text-gray-300">Recent Signups</h3>
               </div>
               {stats.recentSignups.length === 0 ? (
@@ -307,7 +460,7 @@ export default function AdminDashboardPage() {
                         <th className="px-5 py-3 font-medium">Signed up</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#2E3148]">
+                    <tbody className="divide-y divide-[#2A2D3E]">
                       {stats.recentSignups.map((s, i) => (
                         <tr key={`${s.email}-${s.type}-${i}`} className="hover:bg-[#252836] transition-colors">
                           <td className="px-5 py-3 text-gray-200 font-mono text-xs">{s.email}</td>
@@ -316,7 +469,7 @@ export default function AdminDashboardPage() {
                             <span
                               className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                                 s.type === 'developer'
-                                  ? 'bg-emerald-500/10 text-emerald-400'
+                                  ? 'bg-amber-500/10 text-amber-400'
                                   : 'bg-blue-500/10 text-blue-400'
                               }`}
                             >
@@ -333,8 +486,8 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Flagged Reviews */}
-            <div className="mt-8 bg-[#1A1D2E] border border-[#2E3148] rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#2E3148] flex items-center justify-between">
+            <div className="mt-8 bg-[#161822] border border-[#2A2D3E] rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#2A2D3E] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-medium text-gray-300">Flagged Reviews</h3>
                   {flaggedReviews.length > 0 && (
@@ -356,7 +509,7 @@ export default function AdminDashboardPage() {
                   No flagged reviews. All clear.
                 </div>
               ) : (
-                <div className="divide-y divide-[#2E3148]">
+                <div className="divide-y divide-[#2A2D3E]">
                   {flaggedReviews.map((review) => (
                     <div key={review.id} className="px-5 py-4 hover:bg-[#252836] transition-colors">
                       <div className="flex items-start justify-between gap-4">
@@ -364,7 +517,7 @@ export default function AdminDashboardPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <Link
                               href={`/tools/${review.toolSlug}`}
-                              className="text-sm font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                              className="text-sm font-medium text-gray-200 hover:text-amber-400 transition-colors"
                             >
                               {review.toolName}
                             </Link>

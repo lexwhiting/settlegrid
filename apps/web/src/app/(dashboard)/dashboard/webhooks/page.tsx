@@ -174,7 +174,7 @@ export default function WebhooksPage() {
                   placeholder="https://your-server.com/webhooks/settlegrid"
                   value={form.url}
                   onChange={(e) => setForm({ ...form, url: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
+                  className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand"
                 />
               </div>
               <div>
@@ -186,7 +186,7 @@ export default function WebhooksPage() {
                         type="checkbox"
                         checked={form.events.includes(event)}
                         onChange={() => toggleEvent(event)}
-                        className="rounded border-gray-300 dark:border-[#2E3148] text-brand focus:ring-brand"
+                        className="rounded border-gray-300 dark:border-[#2A2D3E] text-brand focus:ring-brand"
                       />
                       <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded">{event}</code>
                     </label>
@@ -280,7 +280,7 @@ export default function WebhooksPage() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm" role="table" aria-label="Webhook deliveries">
                           <thead>
-                            <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                            <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                               <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Event</th>
                               <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Status</th>
                               <th scope="col" className="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">HTTP Code</th>

@@ -25,7 +25,7 @@ export function CopyCommand({ command }: { command: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="group inline-flex items-center gap-2 text-sm bg-gray-100 dark:bg-[#252836] px-3 py-1.5 rounded-lg font-mono text-brand dark:text-emerald-400 hover:bg-gray-200 dark:hover:bg-[#2E3148] transition-colors cursor-pointer"
+      className="group inline-flex items-center gap-2 text-sm bg-gray-100 dark:bg-[#252836] px-3 py-1.5 rounded-lg font-mono text-brand dark:text-amber-400 hover:bg-gray-200 dark:hover:bg-[#2A2D3E] transition-colors cursor-pointer"
       title="Click to copy"
       aria-label={`Copy ${command} to clipboard`}
     >

@@ -38,3 +38,8 @@ private/
 internal/
 *-private/
 .mcpregistry_*
+
+# GridBot runtime state & logs
+scripts/gridbot/state.json
+scripts/gridbot/schedule-state.json
+scripts/gridbot/logs/*.jsonl

@@ -10,7 +10,11 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "extract-prospects": "npx tsx scripts/extract-mcp-developers.ts",
+    "update-templates": "npx tsx scripts/update-template-readmes.ts",
+    "gridbot": "npx tsx scripts/gridbot/index.ts",
+    "gridbot:schedule": "npx tsx scripts/gridbot/scheduler.ts"
   },
   "devDependencies": {
     "turbo": "^2.3.0"

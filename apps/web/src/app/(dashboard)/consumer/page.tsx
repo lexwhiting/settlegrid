@@ -439,7 +439,7 @@ export default function ConsumerDashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs" aria-label="Recent invocations">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                  <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                     <th className="text-left py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Method</th>
                     <th className="text-right py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Cost</th>
                     <th className="text-right py-1.5 pr-3 font-medium text-gray-500 dark:text-gray-400">Latency</th>
@@ -528,7 +528,7 @@ export default function ConsumerDashboardPage() {
                         <span className="font-semibold text-brand-text">{formatCents(b.balanceCents)}</span>
                         <a
                           href={`/tools/${b.toolSlug}`}
-                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:outline-none"
+                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252836] h-9 px-3 transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:outline-none"
                           aria-label={`Add credits for ${b.toolName || 'this tool'}`}
                         >
                           Add Credits
@@ -538,9 +538,9 @@ export default function ConsumerDashboardPage() {
 
                     {/* Generate Key / Show Key */}
                     {newKey ? (
-                      <div className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-md p-3">
-                        <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mb-1">API key created. Copy it now -- it will not be shown again.</p>
-                        <code className="block text-xs bg-white dark:bg-[#1A1D2E] border border-emerald-200 dark:border-emerald-800/40 rounded px-2 py-1.5 font-mono text-gray-900 dark:text-gray-100 break-all select-all">
+                      <div className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">API key created. Copy it now -- it will not be shown again.</p>
+                        <code className="block text-xs bg-white dark:bg-[#161822] border border-amber-200 dark:border-amber-800/40 rounded px-2 py-1.5 font-mono text-gray-900 dark:text-gray-100 break-all select-all">
                           {newKey}
                         </code>
                         <Button
@@ -625,7 +625,7 @@ export default function ConsumerDashboardPage() {
                             min="0"
                             value={budgetForm.spendingLimitCents}
                             onChange={(e) => setBudgetForm({ ...budgetForm, spendingLimitCents: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                           />
                         </div>
                         <div>
@@ -634,7 +634,7 @@ export default function ConsumerDashboardPage() {
                             id={`period-${budget.toolId}`}
                             value={budgetForm.period}
                             onChange={(e) => setBudgetForm({ ...budgetForm, period: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                           >
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
@@ -650,7 +650,7 @@ export default function ConsumerDashboardPage() {
                             max="100"
                             value={budgetForm.alertThresholdPercent}
                             onChange={(e) => setBudgetForm({ ...budgetForm, alertThresholdPercent: e.target.value })}
-                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                            className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                           />
                         </div>
                       </div>
@@ -756,7 +756,7 @@ export default function ConsumerDashboardPage() {
                               placeholder="e.g. 192.168.1.0/24"
                               value={newIp}
                               onChange={(e) => setNewIp(e.target.value)}
-                              className="flex h-8 flex-1 rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-2 py-1 text-xs text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                              className="flex h-8 flex-1 rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-2 py-1 text-xs text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                               aria-label="IP address or CIDR range"
                             />
                             <Button size="sm" className="h-8 text-xs" onClick={() => addIp(key.id)} disabled={savingIp}>

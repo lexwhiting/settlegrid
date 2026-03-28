@@ -206,7 +206,7 @@ export function AlertsManager({ tools }: AlertsManagerProps) {
 
         {/* Create Alert Form */}
         {showForm && (
-          <div className="border border-gray-200 dark:border-[#2E3148] rounded-lg p-4 mb-4 bg-gray-50 dark:bg-[#252836]/50">
+          <div className="border border-gray-200 dark:border-[#2A2D3E] rounded-lg p-4 mb-4 bg-gray-50 dark:bg-[#252836]/50">
             <h4 className="text-sm font-medium text-indigo dark:text-gray-100 mb-3">New Alert</h4>
             {tools.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">No tools available. Purchase credits for a tool first to create alerts.</p>
@@ -221,7 +221,7 @@ export function AlertsManager({ tools }: AlertsManagerProps) {
                       id="alert-type"
                       value={formType}
                       onChange={(e) => setFormType(e.target.value as AlertType)}
-                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                     >
                       <option value="low_balance">Low Balance</option>
                       <option value="budget_exceeded">Budget Exceeded</option>
@@ -237,7 +237,7 @@ export function AlertsManager({ tools }: AlertsManagerProps) {
                       id="alert-tool"
                       value={formToolId}
                       onChange={(e) => setFormToolId(e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                     >
                       {tools.map((t) => (
                         <option key={t.toolId} value={t.toolId}>{t.toolName}</option>
@@ -256,7 +256,7 @@ export function AlertsManager({ tools }: AlertsManagerProps) {
                       value={formThreshold}
                       onChange={(e) => setFormThreshold(e.target.value)}
                       placeholder="e.g. 500"
-                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none placeholder:text-gray-500"
+                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none placeholder:text-gray-500"
                     />
                     <p className="text-xs text-gray-400 mt-1">{THRESHOLD_HINTS[formType]}</p>
                   </div>
@@ -269,7 +269,7 @@ export function AlertsManager({ tools }: AlertsManagerProps) {
                       id="alert-channel"
                       value={formChannel}
                       onChange={(e) => setFormChannel(e.target.value as AlertChannel)}
-                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2E3148] bg-white dark:bg-[#1A1D2E] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                      className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
                     >
                       <option value="email">Email</option>
                       <option value="webhook">Webhook</option>

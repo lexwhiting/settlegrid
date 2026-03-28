@@ -161,8 +161,8 @@ export function ConsumerStatBar({ balances, keys }: StatBarProps) {
       label: 'Total Balance',
       value: formatCents(totalBalanceCents),
       icon: <WalletIcon />,
-      color: 'text-emerald-500',
-      bgColor: 'bg-emerald-500/10',
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-500/10',
     },
     {
       label: 'Spend This Month',
@@ -192,7 +192,7 @@ export function ConsumerStatBar({ balances, keys }: StatBarProps) {
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="bg-white dark:bg-[#1A1D2E] border border-gray-200 dark:border-[#2E3148] rounded-xl p-5 flex items-start gap-4"
+          className="bg-white dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-5 flex items-start gap-4"
           role="group"
           aria-label={`${stat.label}: ${stat.value}`}
         >
@@ -206,7 +206,7 @@ export function ConsumerStatBar({ balances, keys }: StatBarProps) {
             <p
               className={`text-2xl font-bold tabular-nums mt-0.5 ${
                 stat.label === 'Total Balance'
-                  ? 'text-emerald-600 dark:text-emerald-400'
+                  ? 'text-amber-600 dark:text-amber-400'
                   : 'text-gray-900 dark:text-gray-100'
               }`}
             >

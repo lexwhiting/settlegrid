@@ -11,7 +11,7 @@ interface ChatBubbleProps {
 function TypingIndicator() {
   return (
     <div className="flex items-start gap-2 max-w-[85%]">
-      <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+      <div className="w-7 h-7 rounded-full bg-amber-600 flex items-center justify-center shrink-0">
         <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
         </svg>
@@ -33,7 +33,7 @@ function ChatBubble({ role, content, timestamp }: ChatBubbleProps) {
   return (
     <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : ''} max-w-[85%] ${isUser ? 'ml-auto' : ''}`}>
       {!isUser && (
-        <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+        <div className="w-7 h-7 rounded-full bg-amber-600 flex items-center justify-center shrink-0">
           <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
@@ -43,7 +43,7 @@ function ChatBubble({ role, content, timestamp }: ChatBubbleProps) {
         <div
           className={
             isUser
-              ? 'bg-emerald-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5'
+              ? 'bg-amber-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5'
               : 'bg-gray-100 dark:bg-[#1E2030] text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-sm px-4 py-2.5'
           }
         >
