@@ -198,6 +198,19 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     ],
   },
   {
+    title: 'Claim & Indexing',
+    faqs: [
+      {
+        q: 'What if my tool is already indexed on SettleGrid?',
+        a: "We automatically index tools from MCP registries, npm, Hugging Face, and Replicate. If your tool appears as 'unclaimed', you can claim it and set pricing in 2 minutes. Check your email for a claim link, or search for your tool on the Explore page at settlegrid.ai/explore.",
+      },
+      {
+        q: 'How does the claim process work?',
+        a: 'SettleGrid crawls MCP registries, npm, and other sources every 6 hours. When we find a tool that uses @settlegrid/mcp or matches an MCP server pattern, we create an unclaimed listing and email the developer (resolved from GitHub commits or npm profiles). Click the claim link in the email, verify ownership, and start earning.',
+      },
+    ],
+  },
+  {
     title: 'Universal AI Service Billing',
     faqs: [
       {

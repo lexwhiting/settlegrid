@@ -47,6 +47,9 @@ export const developers = pgTable('developers', {
   inviteCode: text('invite_code').unique(), // format: inv_{12 hex chars}
   referredByDeveloperId: uuid('referred_by_developer_id'), // FK intentionally omitted to avoid circular ref during insert
   bonusOpsBalance: integer('bonus_ops_balance').notNull().default(0), // cumulative bonus ops from referrals
+  // Founding Member program — first 100 developers get lifetime free tier
+  isFoundingMember: boolean('is_founding_member').notNull().default(false),
+  foundingMemberAt: timestamp('founding_member_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

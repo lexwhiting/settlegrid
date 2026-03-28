@@ -590,6 +590,22 @@ export default function StartPage() {
               </CardContent>
             </Card>
 
+            {/* Smart Proxy + Achievements callout */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+              <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-lg p-4">
+                <p className="text-xs font-semibold text-brand mb-1">Smart Proxy Active</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Your service is billed through the Smart Proxy. Authentication, balance checks, and metering happen automatically on every call.
+                </p>
+              </div>
+              <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-lg p-4">
+                <p className="text-xs font-semibold text-brand mb-1">Earn Achievements</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  First Tool Published &mdash; unlocked! Next up: First Call, First Dollar, Going Viral, and $1K Milestone.
+                </p>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/dashboard/settings#payouts">
                 <Button variant="outline" className="w-full sm:w-auto">

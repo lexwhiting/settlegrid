@@ -330,9 +330,9 @@ function PricingSection() {
       features: [
         'Unlimited tools',
         '2,000,000 operations/month',
-        'Smart Proxy & Transaction Explorer',
+        'Smart Proxy (zero-code billing)',
+        'Transaction Explorer (anomaly detection)',
         'Fraud detection & audit logging',
-        'Dedicated support',
         'Progressive take rate',
       ],
       cta: 'Get Started',
@@ -591,16 +591,14 @@ export default async function HomePage() {
               </div>
 
               {/* Stat bar */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-6 text-xs sm:text-sm whitespace-nowrap">
-                <span className="text-brand-light font-semibold">Free forever</span>
-                <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">10 <span className="text-gray-400 font-normal">protocols</span></span>
-                <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">8+ <span className="text-gray-400 font-normal">registries</span></span>
-                <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">&lt;50ms <span className="text-gray-400 font-normal">metering</span></span>
-                <span className="text-white/20">|</span>
-                <span className="text-white font-semibold">Stripe <span className="text-gray-400 font-normal">payouts</span></span>
+              <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-3 mb-6 text-[11px] sm:text-sm">
+                <span className="text-brand-light font-semibold whitespace-nowrap">Free forever</span>
+                <span className="text-white/20">·</span>
+                <span className="text-white font-semibold whitespace-nowrap">10 protocols</span>
+                <span className="text-white/20">·</span>
+                <span className="text-white font-semibold whitespace-nowrap">&lt;50ms metering</span>
+                <span className="text-white/20">·</span>
+                <span className="text-white font-semibold whitespace-nowrap">Stripe payouts</span>
               </div>
 
               {/* npm install bar with copy */}
@@ -924,7 +922,7 @@ export default async function HomePage() {
                 Built Different From the Ground Up
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-center mb-16 max-w-2xl mx-auto">
-                Seven capabilities purpose-built for AI service payments that no other platform offers together.
+                Ten capabilities purpose-built for AI service payments that no other platform offers together.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[
@@ -935,6 +933,9 @@ export default async function HomePage() {
                   { icon: iconOutcome, title: 'Outcome-Based Billing', description: 'Charge only when AI delivers results. Define success criteria, verify outcomes, handle disputes. Move beyond per-call to value-based pricing.' },
                   { icon: iconEnterprise, title: 'Enterprise Ready', description: 'Organizations, RBAC, SOC 2 readiness, GDPR compliance, cost allocation, and white-label. Built for teams that need governance and control.' },
                   { icon: iconAnyService, title: 'Any AI Service', description: 'Bill any AI service type: LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend).' },
+                  { icon: "m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z", title: 'Cost-Based Routing', description: 'Agents automatically find the cheapest tool meeting quality thresholds. Routing API with fallback chains compares price, latency, and reliability across all providers.' },
+                  { icon: "M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z", title: 'Smart Proxy', description: 'Zero-code billing. Paste your URL, get a billed proxy endpoint. Authentication, balance checks, and metering happen transparently. No SDK, no code changes.' },
+                  { icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z", title: 'Transaction Explorer', description: 'Real-time observability into agent spending. Per-agent breakdown, anomaly detection for spending spikes and error patterns, and proactive budget alerts.' },
                 ].map((card, i) => (
                   <RevealSection key={card.title} delay={i * 0.08}>
                     <CoreCard
@@ -1121,6 +1122,92 @@ assert signature == request.headers[
           <RevealSection>
             <div className="max-w-6xl mx-auto">
               <PricingSection />
+            </div>
+          </RevealSection>
+        </section>
+
+        {/* ================================================================ */}
+        {/*  9a. Integrations — n8n, LangChain, GitHub App                  */}
+        {/* ================================================================ */}
+        <section className="px-6 py-20 border-b border-gray-200 dark:border-[#2A2D3E]">
+          <RevealSection>
+            <div className="max-w-5xl mx-auto">
+              <p className="text-sm font-semibold text-brand tracking-wide uppercase text-center mb-2">Integrations</p>
+              <h2 className="text-3xl font-bold text-indigo dark:text-gray-100 text-center mb-4">
+                Works Where You Already Build
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-12 max-w-xl mx-auto">
+                Use SettleGrid tools natively in popular AI frameworks, no-code platforms, and CI/CD pipelines.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {[
+                  { name: 'n8n', desc: 'Community node for n8n workflows. Discover and invoke SettleGrid tools from visual automations.', href: '/docs#n8n-integration' },
+                  { name: 'LangChain', desc: 'Use paid SettleGrid tools as LangChain Tool objects in your agents.', href: '/learn/integrations/langchain' },
+                  { name: 'GitHub App', desc: 'Auto-discover MCP tools from your repos. Install once, tools appear automatically.', href: '/learn/github-app' },
+                  { name: 'CI/CD Publish', desc: 'GitHub Action to publish tools on every push. One YAML file, continuous deployment.', href: '/docs#publish-action' },
+                ].map((item) => (
+                  <Link key={item.name} href={item.href} className="group bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-5 hover:border-brand/40 transition-colors">
+                    <h3 className="font-bold text-indigo dark:text-gray-100 mb-2 group-hover:text-brand transition-colors">{item.name}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{item.desc}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </RevealSection>
+        </section>
+
+        {/* ================================================================ */}
+        {/*  9b. Claim Your Listing + Achievements + Referrals              */}
+        {/* ================================================================ */}
+        <section className="px-6 py-20 bg-cloud dark:bg-[#0C0E14]">
+          <RevealSection>
+            <div className="max-w-5xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Claim your listing */}
+                <div className="bg-gradient-to-br from-amber-500/5 via-transparent to-transparent border border-amber-500/20 rounded-xl p-6">
+                  <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">Already have an MCP server?</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+                    We&apos;ve indexed 20,000+ AI services from MCP registries, npm, Hugging Face, and Replicate. If your tool is already indexed, claim it and start earning.
+                  </p>
+                  <Link href="/explore" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                    Browse unclaimed tools
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Link>
+                </div>
+
+                {/* Gamification */}
+                <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-6">
+                  <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">Earn Achievements as You Grow</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+                    12 badges with progress tracking and social sharing. Celebrate milestones from your first tool to your first $1K.
+                  </p>
+                  <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                    <span>First Tool</span>
+                    <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                    <span>First Call</span>
+                    <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                    <span>First Dollar</span>
+                    <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                    <span className="text-brand font-semibold">$1K</span>
+                  </div>
+                </div>
+
+                {/* Referrals */}
+                <div className="bg-gray-50 dark:bg-[#161822] border border-gray-200 dark:border-[#2A2D3E] rounded-xl p-6">
+                  <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">Invite Developers, Both Earn</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+                    Share your referral link. When a developer joins and publishes, you both get 5,000 free operations. Build your network while growing the ecosystem.
+                  </p>
+                  <Link href="/register" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors">
+                    Get your referral link
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
             </div>
           </RevealSection>
         </section>
