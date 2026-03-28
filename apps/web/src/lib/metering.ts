@@ -3,7 +3,7 @@ import { db } from './db'
 import { consumerToolBalances, invocations, tools, developers, referrals } from './db/schema'
 import { eq, and, sql } from 'drizzle-orm'
 import { logger } from './logger'
-import { calculateTakeCents } from './pricing'
+// Progressive take rate is calculated at payout time — see lib/pricing.ts
 
 // ─── Redis Key Helpers ──────────────────────────────────────────────────────
 

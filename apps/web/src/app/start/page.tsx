@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { Confetti } from '@/components/ui/confetti'
-import type { Metadata } from 'next'
+// Metadata is in layout.tsx
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
