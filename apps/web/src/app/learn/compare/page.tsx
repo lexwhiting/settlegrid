@@ -44,7 +44,7 @@ const comparisons = [
     slug: 'vs-paid-ai',
     title: 'SettleGrid vs Paid.ai',
     description:
-      'Paid.ai focuses on outcome-based billing. SettleGrid supports 6 pricing models including outcomes, plus 10 payment protocols and a free tier with 0% fees.',
+      'Paid.ai focuses on outcome-based billing. SettleGrid supports 6 pricing models including outcomes, plus 15 payment protocols and a free tier with 0% fees.',
   },
   {
     slug: 'vs-moesif',

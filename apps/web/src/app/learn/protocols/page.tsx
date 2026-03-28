@@ -139,6 +139,56 @@ const PROTOCOLS: ProtocolCard[] = [
     color: 'bg-gray-500/10 text-gray-400 hover:border-gray-500/40',
     borderColor: 'border-gray-700/50',
   },
+  {
+    slug: 'l402',
+    name: 'L402',
+    fullName: 'L402 Lightning Payments',
+    backer: 'Lightning Labs',
+    status: 'Ready',
+    oneLiner: 'Bitcoin Lightning micropayments with macaroon authentication — pseudonymous, per-request.',
+    color: 'bg-yellow-500/10 text-yellow-400 hover:border-yellow-500/40',
+    borderColor: 'border-yellow-800/30',
+  },
+  {
+    slug: 'alipay-trust',
+    name: 'Alipay Trust',
+    fullName: 'Alipay Trust Protocol',
+    backer: 'Ant Group / Alipay',
+    status: 'Pending',
+    oneLiner: 'Delegated authorization for agentic commerce across 1.3B Alipay users.',
+    color: 'bg-blue-500/10 text-blue-400 hover:border-blue-500/40',
+    borderColor: 'border-blue-800/30',
+  },
+  {
+    slug: 'kyapay',
+    name: 'KYAPay',
+    fullName: 'KYAPay Intelligent Commerce',
+    backer: 'Skyfire + Visa',
+    status: 'Ready',
+    oneLiner: 'JWT-based verified agent identity + payment — the fastest protocol in the stack.',
+    color: 'bg-indigo-500/10 text-indigo-400 hover:border-indigo-500/40',
+    borderColor: 'border-indigo-800/30',
+  },
+  {
+    slug: 'emvco',
+    name: 'EMVCo',
+    fullName: 'EMVCo Agent Payments',
+    backer: 'Visa + MC + Amex + Discover + JCB + UnionPay',
+    status: 'Pending',
+    oneLiner: 'Global card-based agent payment standard with 3-D Secure and tokenisation.',
+    color: 'bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40',
+    borderColor: 'border-emerald-800/30',
+  },
+  {
+    slug: 'drain',
+    name: 'DRAIN',
+    fullName: 'DRAIN Off-chain USDC Payments',
+    backer: 'Bittensor / Handshake58',
+    status: 'Testnet',
+    oneLiner: 'Off-chain USDC micropayments via EIP-712 vouchers on Polygon — $0.0001 per request.',
+    color: 'bg-purple-500/10 text-purple-400 hover:border-purple-500/40',
+    borderColor: 'border-purple-800/30',
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
@@ -200,12 +250,12 @@ export default function ProtocolIndexPage() {
           <div className="text-center mb-12">
             <p className="text-sm font-semibold text-amber-400 tracking-wide uppercase mb-2">Protocol Guides</p>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-4">
-              One SDK. Ten Protocols. Zero Vendor Lock-in.
+              One SDK. Fifteen Protocols. Zero Vendor Lock-in.
             </h1>
             <p className="text-gray-400 max-w-2xl mx-auto">
               SettleGrid supports every major AI payment protocol out of the box. Wrap your tool once and
               accept payments from agents across Anthropic, Google, Stripe, Visa, Mastercard, Coinbase,
-              OpenAI, Circle, and Shopify ecosystems.
+              OpenAI, Circle, Shopify, Lightning Labs, Ant Group, Skyfire, EMVCo, and Bittensor ecosystems.
             </p>
           </div>
 

@@ -223,7 +223,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'How is SettleGrid different from Stripe or Orb?',
-        a: 'Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — 10 payment protocols (MCP, x402, AP2, Visa TAP, etc.) vs. Stripe/Orb\'s REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.',
+        a: 'Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — 15 payment protocols (MCP, MPP, x402, AP2, Visa TAP, L402, KYAPay, EMVCo, DRAIN, etc.) vs. Stripe/Orb\'s REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.',
       },
     ],
   },

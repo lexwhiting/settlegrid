@@ -152,9 +152,9 @@ const entries: ChangelogEntry[] = [
   },
   {
     date: '2026-03-17',
-    title: '10-Protocol Support',
+    title: '15-Protocol Support',
     description:
-      'Added support for Visa TAP, UCP, ACP, Mastercard Agent Pay, and Circle Nanopayments. SettleGrid now supports 10 payment protocols through a single SDK: MCP, x402, MPP, AP2, A2A, Visa TAP, UCP, ACP, Mastercard Agent Pay, and Circle.',
+      'SettleGrid now supports 15 payment protocols through a single SDK: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay (Skyfire + Visa), EMVCo Agent Payments, and DRAIN (off-chain USDC).',
     badge: 'Feature',
   },
   {

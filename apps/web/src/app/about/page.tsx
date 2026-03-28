@@ -43,7 +43,7 @@ const jsonLdOrganization = {
   url: 'https://settlegrid.ai',
   logo: 'https://settlegrid.ai/brand/icon-color.svg',
   description:
-    'SettleGrid is the universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service across 10 payment protocols.',
+    'SettleGrid is the universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service across 15 payment protocols.',
   foundingDate: '2026',
   sameAs: [
     'https://github.com/lexwhiting/settlegrid',
@@ -78,7 +78,7 @@ const values = [
   {
     title: 'Protocol-Agnostic',
     description:
-      '10 payment protocols through one SDK. MCP, x402, AP2, Visa TAP, and more. We believe the settlement layer should work with every protocol, not lock you into one.',
+      '15 payment protocols through one SDK. MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402, Alipay Trust, KYAPay, EMVCo, and DRAIN. We believe the settlement layer should work with every protocol, not lock you into one.',
   },
   {
     title: 'Ship Fast, Iterate Publicly',
@@ -88,7 +88,7 @@ const values = [
 ] as const
 
 const stats = [
-  { value: '10', label: 'Payment Protocols' },
+  { value: '15', label: 'Payment Protocols' },
   { value: '6', label: 'Pricing Models' },
   { value: '8', label: 'Service Categories' },
   { value: '50K', label: 'Free Ops/Month' },
@@ -177,7 +177,7 @@ export default function AboutPage() {
               <p>
                 That&apos;s what SettleGrid is: a universal settlement layer that wraps any AI service
                 with per-call billing, real-time metering, budget enforcement, and automated Stripe
-                payouts &mdash; across 10 payment protocols. With a progressive take rate that starts
+                payouts &mdash; across 15 payment protocols. With a progressive take rate that starts
                 at 0% because the platform should earn its share by delivering value, not by extracting
                 it upfront.
               </p>

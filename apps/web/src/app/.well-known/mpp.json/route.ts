@@ -35,7 +35,7 @@ export async function GET() {
   const mppManifest = {
     // MPP Directory fields
     name: 'SettleGrid',
-    description: 'Universal AI service settlement layer. Per-call billing, usage metering, and automated payouts for any AI service across 10 payment protocols.',
+    description: 'Universal AI service settlement layer. Per-call billing, usage metering, and automated payouts for any AI service across 15 payment protocols.',
     mpp_version: '1.0',
     mpp_enabled: isMppEnabled(),
 

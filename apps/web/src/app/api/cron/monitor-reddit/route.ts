@@ -23,6 +23,9 @@ const SUBREDDITS = [
   'LocalLLaMA',
   'webscraping',
   'SaaS',
+  'Bitcoin',
+  'lightningnetwork',
+  'Bittensor',
 ] as const
 
 /** Keywords that indicate monetization discussion */
@@ -40,6 +43,13 @@ const MONETIZATION_KEYWORDS = [
   'metering',
   'monetize API',
   'API pricing',
+  'L402',
+  'Lightning payments',
+  'macaroon auth',
+  'KYAPay',
+  'EMVCo agent',
+  'DRAIN protocol',
+  'agent micropayment',
 ] as const
 
 /** Posts older than 24 hours are ignored */

@@ -194,17 +194,20 @@ export async function GET(request: NextRequest) {
     const yesterday = getYesterdayDateString()
     const redis = getRedis()
 
-    // Run two searches: topic:mcp-server and topic:mcp
-    const [mcpServerRepos, mcpRepos] = await Promise.all([
+    // Run searches for MCP and new protocol repos
+    const [mcpServerRepos, mcpRepos, l402Repos, drainRepos, kyapayRepos] = await Promise.all([
       searchGitHubRepos(`topic:mcp-server created:>${yesterday}`),
       searchGitHubRepos(`topic:mcp created:>${yesterday}`),
+      searchGitHubRepos(`topic:l402 OR topic:lsat OR "lightning payments" created:>${yesterday}`),
+      searchGitHubRepos(`topic:drain-protocol OR topic:bittensor-payments created:>${yesterday}`),
+      searchGitHubRepos(`topic:kyapay OR topic:emvco-agent created:>${yesterday}`),
     ])
 
     // Merge and deduplicate by full_name
     const seenNames = new Set<string>()
     const allRepos: GitHubRepo[] = []
 
-    for (const repo of [...mcpServerRepos, ...mcpRepos]) {
+    for (const repo of [...mcpServerRepos, ...mcpRepos, ...l402Repos, ...drainRepos, ...kyapayRepos]) {
       if (!repo.full_name || seenNames.has(repo.full_name)) continue
       seenNames.add(repo.full_name)
       allRepos.push(repo)
