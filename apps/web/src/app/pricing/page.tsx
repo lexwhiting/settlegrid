@@ -147,8 +147,8 @@ const plans = [
 const takeRateBrackets = [
   { bracket: '$0 \u2013 $1,000', rate: '0%', youKeep: '100%', example: '$1,000 revenue \u2192 you keep $1,000' },
   { bracket: '$1,001 \u2013 $10,000', rate: '2%', youKeep: '98%', example: '$5,000 revenue \u2192 you keep $4,920' },
-  { bracket: '$10,001 \u2013 $50,000', rate: '3%', youKeep: '97%', example: '$25,000 revenue \u2192 you keep $24,580' },
-  { bracket: '$50,001+', rate: '5%', youKeep: '95%', example: '$100,000 revenue \u2192 you keep $97,080' },
+  { bracket: '$10,001 \u2013 $50,000', rate: '2.5%', youKeep: '97.5%', example: '$25,000 revenue \u2192 you keep $24,445' },
+  { bracket: '$50,001+', rate: '5%', youKeep: '95%', example: '$100,000 revenue \u2192 you keep $96,830' },
 ] as const
 
 const revenueExamples = [

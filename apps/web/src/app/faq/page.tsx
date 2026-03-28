@@ -137,7 +137,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'What is the revenue split?',
-        a: 'All plans use a progressive take rate based on monthly tool revenue: 0% on the first $1,000/mo (you keep 100%), 2% on $1,001-$10,000, 3% on $10,001-$50,000, and 5% above $50,000. Most developers pay 0%. Need a custom arrangement? Email support@settlegrid.ai.',
+        a: 'All plans use a progressive take rate based on monthly tool revenue: 0% on the first $1,000/mo (you keep 100%), 2% on $1,001-$10,000, 2.5% on $10,001-$50,000, and 5% above $50,000. Most developers pay 0%. Need a custom arrangement? Email support@settlegrid.ai.',
       },
     ],
   },

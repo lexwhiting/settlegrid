@@ -67,7 +67,7 @@ const glossaryTerms = [
   {
     name: 'Progressive Take Rate',
     definition:
-      'A revenue-sharing model where the platform fee increases gradually with revenue brackets rather than applying a flat percentage. SettleGrid charges 0% on the first $1,000/month, 2% on $1K-$10K, 3% on $10K-$50K, and 5% above $50K. This means developers always keep more than they would on a flat-rate platform.',
+      'A revenue-sharing model where the platform fee increases gradually with revenue brackets rather than applying a flat percentage. SettleGrid charges 0% on the first $1,000/month, 2% on $1K-$10K, 2.5% on $10K-$50K, and 5% above $50K. This means developers always keep more than they would on a flat-rate platform.',
     link: '/pricing',
   },
   {

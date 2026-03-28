@@ -10,7 +10,7 @@ function calculateSettleGridTake(cents: number): number {
   const brackets = [
     { upTo: 100_000, rate: 0 },
     { upTo: 1_000_000, rate: 0.02 },
-    { upTo: 5_000_000, rate: 0.03 },
+    { upTo: 5_000_000, rate: 0.025 },
     { upTo: Infinity, rate: 0.05 },
   ]
   let remaining = cents
