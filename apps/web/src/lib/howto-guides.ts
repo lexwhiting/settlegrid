@@ -126,7 +126,7 @@ For production workloads, configure auto-scaling. The SettleGrid SDK is stateles
         heading: 'Connect Stripe for Payouts',
         content: `SettleGrid uses Stripe Connect to pay tool publishers. If you do not already have a Stripe account, create one at stripe.com and complete identity verification. Then, in the SettleGrid dashboard, go to Settings > Payouts and click "Connect Stripe." This initiates the Stripe Connect onboarding flow, which takes about 5 minutes and requires your bank account details.
 
-Once connected, SettleGrid automatically transfers your earnings to your Stripe balance on a rolling 7-day schedule. You can view pending payouts, completed transfers, and revenue breakdowns in both the SettleGrid dashboard and the Stripe dashboard. SettleGrid uses a progressive take rate: 0% on your first $1K/mo of revenue, 2% on $1K-$10K, 3% on $10K-$50K, and 5% above $50K. Most developers pay 0%.
+Once connected, SettleGrid automatically transfers your earnings to your Stripe balance on a rolling 7-day schedule. You can view pending payouts, completed transfers, and revenue breakdowns in both the SettleGrid dashboard and the Stripe dashboard. SettleGrid uses a progressive take rate: 0% on your first $1K/mo of revenue, 2% on $1K-$10K, 2.5% on $10K-$50K, and 5% above $50K. Most developers pay 0%.
 
 Test the payment flow end-to-end before going live. Use the SettleGrid sandbox with Stripe test mode to simulate tool calls, verify that metering events are recorded, and confirm that settlement amounts are correct. The sandbox produces test webhook events that you can inspect in the Stripe dashboard under Developers > Webhooks. Verify that the amounts, descriptions, and metadata match your expectations.`,
       },

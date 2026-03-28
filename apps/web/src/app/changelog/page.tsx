@@ -126,7 +126,7 @@ const entries: ChangelogEntry[] = [
     date: '2026-03-21',
     title: 'Progressive Pricing',
     description:
-      '0% take rate on first $1,000/month. Replaced the flat 3% take rate with progressive brackets: 0% on $0-$1K, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K. Developers keep significantly more revenue.',
+      '0% take rate on first $1,000/month. Replaced the flat 3% take rate with progressive brackets: 0% on $0-$1K, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. Developers keep significantly more revenue.',
     badge: 'Improvement',
   },
   {

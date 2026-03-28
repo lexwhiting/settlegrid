@@ -154,7 +154,7 @@ const jsonLdFaq = {
       name: 'How much does SettleGrid cost?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid offers three plans: Free ($0, 50K ops/month), Builder ($19/mo, 200K ops), and Scale ($79/mo, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K. Need more? Email support@settlegrid.ai.',
+        text: 'SettleGrid offers three plans: Free ($0, 50K ops/month), Builder ($19/mo, 200K ops), and Scale ($79/mo, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. Need more? Email support@settlegrid.ai.',
       },
     },
     {
@@ -351,7 +351,7 @@ function PricingSection() {
         50,000 ops/month at zero cost. Progressive take rate: 0% on first $1K/mo. No credit card required.
       </p>
       <p className="text-sm font-medium text-brand-text dark:text-brand-light mb-10">
-        Progressive: 0% &rarr; 2% &rarr; 3% &rarr; 5% as your revenue grows.
+        Progressive: 0% &rarr; 2% &rarr; 2.5% &rarr; 5% as your revenue grows.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-4xl mx-auto">
         {tiers.map((tier, i) => (

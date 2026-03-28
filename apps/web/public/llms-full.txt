@@ -306,7 +306,7 @@ Any HTTP endpoint can be wrapped with `settlegridMiddleware()`.
 | Scale | $79/mo | 2,000,000 | Progressive | Smart Proxy, Transaction Explorer, fraud detection, audit logging |
 | Need more? | Email support@settlegrid.ai | Custom limits | Custom | — |
 
-Progressive take rate brackets: 0% on $0-$1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K.
+Progressive take rate brackets: 0% on $0-$1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K.
 
 ---
 
@@ -394,7 +394,7 @@ Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid 
 Paid.ai supports MCP only. SettleGrid is protocol-agnostic with 10 protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST), plus budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection.
 
 ### What percentage does SettleGrid take?
-Progressive take rate: 0% on first $1K/mo (you keep 100%), 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K. All plans use the same progressive rate. Need higher limits? Email support@settlegrid.ai.
+Progressive take rate: 0% on first $1K/mo (you keep 100%), 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. All plans use the same progressive rate. Need higher limits? Email support@settlegrid.ai.
 
 ### How fast is the metering?
 Sub-50ms. SettleGrid uses Redis DECRBY for atomic balance checks on the hot path, with async database writeback. Key validation is LRU-cached for 5 minutes.

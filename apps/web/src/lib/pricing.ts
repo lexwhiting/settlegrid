@@ -7,7 +7,7 @@
  * Brackets (in cents, monthly tool revenue):
  *   $0 - $1,000    → 0% take  (developer keeps 100%)
  *   $1,001 - $10,000 → 2% take (developer keeps 98%)
- *   $10,001 - $50,000 → 3% take (developer keeps 97%)
+ *   $10,001 - $50,000 → 2.5% take (developer keeps 97.5%)
  *   $50,001+        → 5% take  (developer keeps 95%)
  */
 
@@ -21,7 +21,7 @@ export interface TakeRateBracket {
 export const TAKE_RATE_BRACKETS: readonly TakeRateBracket[] = [
   { upTo: 100_000, rate: 0 },       // $0 - $1,000 → 0%
   { upTo: 1_000_000, rate: 0.02 },   // $1,001 - $10,000 → 2%
-  { upTo: 5_000_000, rate: 0.03 },   // $10,001 - $50,000 → 3%
+  { upTo: 5_000_000, rate: 0.025 },  // $10,001 - $50,000 → 2.5%
   { upTo: Infinity, rate: 0.05 },     // $50,001+ → 5%
 ] as const
 
@@ -83,7 +83,7 @@ export function calculateDeveloperPayoutCents(monthlyRevenueCents: number): numb
  * Returns a human-readable description of the progressive take rate model.
  */
 export function getProgressiveTakeDescription(): string {
-  return 'Progressive: 0% on first $1K, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K'
+  return 'Progressive: 0% on first $1K, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K'
 }
 
 /**
