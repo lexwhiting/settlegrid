@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       .select({
         stripeCustomerId: developers.stripeCustomerId,
         stripeSubscriptionId: developers.stripeSubscriptionId,
+        isFoundingMember: developers.isFoundingMember,
       })
       .from(developers)
       .where(eq(developers.id, auth.id))
@@ -63,6 +64,14 @@ export async function POST(request: NextRequest) {
 
     if (!developer) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
+    }
+
+    // Founding Members get Scale-tier features for free — no subscription needed
+    if (developer.isFoundingMember) {
+      return successResponse({
+        message: 'You are a Founding Member with lifetime free access to all features. No subscription needed.',
+        foundingMember: true,
+      })
     }
 
     // If developer already has an active subscription, direct them to manage portal instead

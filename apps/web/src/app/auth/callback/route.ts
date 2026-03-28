@@ -154,10 +154,18 @@ export async function GET(request: NextRequest) {
             .set({ supabaseUserId: user.id, updatedAt: new Date() })
             .where(eq(developers.email, email))
         } else {
+          // Check if this developer qualifies as a Founding Member (first 100)
+          const [{ count: devCount }] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(developers)
+          const isFoundingMember = devCount < 100
+
           const [inserted] = await db.insert(developers).values({
             email,
             name,
             supabaseUserId: user.id,
+            isFoundingMember,
+            foundingMemberAt: isFoundingMember ? new Date() : null,
             updatedAt: new Date(),
           }).returning({ id: developers.id })
 

@@ -422,7 +422,7 @@ export default function ConsumerExplorerPage() {
                 className={cn(
                   'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                   period === p.value
-                    ? 'bg-white dark:bg-[#1A1D2E] text-gray-900 dark:text-gray-100 shadow-sm'
+                    ? 'bg-white dark:bg-[#161822] text-gray-900 dark:text-gray-100 shadow-sm'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 )}
               >
@@ -509,7 +509,7 @@ export default function ConsumerExplorerPage() {
                   <select
                     value={toolFilter}
                     onChange={(e) => setToolFilter(e.target.value)}
-                    className="text-xs bg-gray-100 dark:bg-[#252836] border border-gray-200 dark:border-[#2E3148] rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-brand"
+                    className="text-xs bg-gray-100 dark:bg-[#252836] border border-gray-200 dark:border-[#2A2D3E] rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-brand"
                   >
                     <option value="">All Tools</option>
                     {uniqueTools.map((t) => (
@@ -520,7 +520,7 @@ export default function ConsumerExplorerPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="text-xs bg-gray-100 dark:bg-[#252836] border border-gray-200 dark:border-[#2E3148] rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-brand"
+                    className="text-xs bg-gray-100 dark:bg-[#252836] border border-gray-200 dark:border-[#2A2D3E] rounded-md px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-brand"
                   >
                     <option value="">All Statuses</option>
                     <option value="success">Success</option>
@@ -534,7 +534,7 @@ export default function ConsumerExplorerPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                    <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                       <th
                         className="text-left py-2.5 px-2 font-medium text-gray-500 dark:text-gray-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200"
                         onClick={() => handleTxSort('createdAt')}
@@ -561,7 +561,7 @@ export default function ConsumerExplorerPage() {
                     {sortedTransactions.map((tx) => (
                       <tr
                         key={tx.id}
-                        className="border-b border-gray-100 dark:border-[#252836] last:border-0 hover:bg-gray-50 dark:hover:bg-[#1A1D2E] transition-colors"
+                        className="border-b border-gray-100 dark:border-[#252836] last:border-0 hover:bg-gray-50 dark:hover:bg-[#161822] transition-colors"
                       >
                         <td className="py-2.5 px-2">
                           <div className="flex flex-col">
@@ -622,7 +622,7 @@ export default function ConsumerExplorerPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                        <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                           <th className="text-left py-2.5 px-2 font-medium text-gray-500 dark:text-gray-400">Tool</th>
                           <th
                             className="text-right py-2.5 px-2 font-medium text-gray-500 dark:text-gray-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200"
@@ -740,7 +740,7 @@ export default function ConsumerExplorerPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-200 dark:border-[#2E3148]">
+                      <tr className="border-b border-gray-200 dark:border-[#2A2D3E]">
                         <th className="text-left py-2.5 px-2 font-medium text-gray-500 dark:text-gray-400">Agent Key</th>
                         <th className="text-right py-2.5 px-2 font-medium text-gray-500 dark:text-gray-400">Total Calls</th>
                         <th className="text-right py-2.5 px-2 font-medium text-gray-500 dark:text-gray-400">Total Spent</th>

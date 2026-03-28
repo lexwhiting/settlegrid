@@ -133,10 +133,10 @@ const plans = [
     features: [
       'Everything in Builder',
       '2,000,000 operations/month',
+      'Smart Proxy (zero-code billing)',
+      'Transaction Explorer (anomaly detection)',
       'Fraud detection (12 signals)',
-      'Dedicated support',
-      'SLA guarantee',
-      'Custom integrations',
+      'Dedicated support & SLA guarantee',
     ],
     cta: 'Go Scale',
     ctaHref: '/register',
@@ -366,9 +366,12 @@ export default function PricingPage() {
             <h2 className="text-3xl font-bold text-gray-100 mb-4">
               Start free. Scale when ready.
             </h2>
-            <p className="text-gray-400 mb-8 max-w-xl mx-auto">
+            <p className="text-gray-400 mb-4 max-w-xl mx-auto">
               50,000 operations per month, progressive take rate starting at 0%.
               No credit card required.
+            </p>
+            <p className="text-sm text-amber-400/80 mb-8">
+              Invite developers and both get 5,000 free operations.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

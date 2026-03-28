@@ -223,6 +223,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     })),
 
+    // ── GitHub App ──────────────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/learn/github-app`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+
     // ── Content pages & blog ──────────────────────────────────────────────────
     {
       url: `${BASE_URL}/learn/state-of-mcp-2026`,

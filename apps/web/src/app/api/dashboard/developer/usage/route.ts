@@ -44,14 +44,15 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
-    // Get developer's tier
+    // Get developer's tier and founding member status
     const [developer] = await db
-      .select({ tier: developers.tier })
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
       .from(developers)
       .where(eq(developers.id, auth.id))
       .limit(1)
 
-    const tier = developer?.tier ?? 'standard'
+    const isFoundingMember = developer?.isFoundingMember ?? false
+    const tier = isFoundingMember ? 'scale' : (developer?.tier ?? 'standard')
     const tierLimit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
 
     // Get developer's tool IDs
@@ -101,6 +102,7 @@ export async function GET(request: NextRequest) {
       currentMonthOps,
       tierLimit,
       tier,
+      isFoundingMember,
       usagePercent,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),

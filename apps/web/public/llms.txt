@@ -69,6 +69,21 @@ SettleGrid is a universal billing layer. It supports all of the following AI ser
 
 Any service that accepts input and returns output can be metered and billed through SettleGrid.
 
+## Additional Capabilities
+
+- **GitHub App**: Install at github.com/apps/settlegrid to auto-discover MCP tools from your repositories. Push code, get listed.
+- **n8n Community Node**: `npm install n8n-nodes-settlegrid` — use SettleGrid tools in n8n workflows (400K+ users).
+- **CI/CD Publish Action**: `settlegrid/publish-action@v1` — publish tools on every push to main via GitHub Actions.
+- **Cost-Based Routing**: `GET /api/v1/discover/route?q=weather&max_cost=10&min_rating=3` — agents find the cheapest tool meeting quality thresholds with fallback chains.
+- **Smart Proxy**: Zero-code billing reverse proxy. Register your URL, get a proxy endpoint at `settlegrid.ai/api/proxy/your-tool`. No SDK needed.
+- **Transaction Explorer**: Real-time observability into agent spending with anomaly detection (spending spikes, error patterns, budget alerts).
+- **Claim-Your-Listing**: 20,000+ AI services auto-indexed from MCP registries, npm, Hugging Face, and Replicate. Claim your tool and start earning.
+- **A2A Protocol**: Native support for Google's Agent-to-Agent protocol with multi-hop atomic settlement.
+- **6 Service Templates**: Ready-to-deploy templates for LLM proxy, browser scraper, image generator, email sender, code sandbox, search API.
+- **Gamification**: 12 achievement badges with progress tracking and social sharing.
+- **Referral System**: Invite developers, both get 5,000 free operations.
+- **LangChain Integration**: `langchain-settlegrid` package for native LangChain agent integration.
+
 ## SDK
 
 - [npm package](https://www.npmjs.com/package/@settlegrid/mcp): `@settlegrid/mcp`
