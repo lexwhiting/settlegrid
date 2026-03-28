@@ -176,31 +176,38 @@ export default async function TryToolsPage() {
               {
                 step: '1',
                 title: 'Create a free account',
-                description: 'No credit card required. Get 50,000 free operations per month.',
+                description: 'No credit card required. Get 50,000 free operations per month. Sign up with Google or GitHub in one click.',
                 icon: 'M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z',
+                href: '/register',
+                cta: 'Sign up free →',
               },
               {
                 step: '2',
                 title: 'Browse & discover tools',
-                description: 'Search by category, keyword, or use case. Every tool shows transparent pricing.',
+                description: 'Search by category, keyword, or use case. Every tool shows transparent per-call pricing with reviews and ratings.',
                 icon: 'M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z',
+                href: '/explore',
+                cta: 'Browse tools →',
               },
               {
                 step: '3',
                 title: 'Call any tool instantly',
-                description: 'Use the API, SDK, or connect through your AI agent. Pay per call, not per month.',
+                description: 'Use the API, SDK, Smart Proxy, or connect through your AI agent. Pay per call, not per month. Budget controls included.',
                 icon: 'M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z',
+                href: '/docs',
+                cta: 'Read the docs →',
               },
             ].map((item) => (
-              <div key={item.step} className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6 text-center">
+              <Link key={item.step} href={item.href} className="group bg-[#161822] rounded-xl border border-[#2A2D3E] p-6 text-center hover:border-amber-500/40 transition-colors">
                 <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
                   <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                   </svg>
                 </div>
-                <h2 className="text-lg font-semibold text-gray-100 mb-2">{item.title}</h2>
-                <p className="text-sm text-gray-400">{item.description}</p>
-              </div>
+                <h2 className="text-lg font-semibold text-gray-100 mb-2 group-hover:text-amber-400 transition-colors">{item.title}</h2>
+                <p className="text-sm text-gray-400 mb-3">{item.description}</p>
+                <span className="text-xs font-semibold text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">{item.cta}</span>
+              </Link>
             ))}
           </div>
 
@@ -257,20 +264,27 @@ export default async function TryToolsPage() {
                     href={`/tools/${tool.slug}`}
                     className="group bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 hover:border-amber-500/40 transition-colors"
                   >
-                    <h3 className="font-semibold text-gray-100 mb-1 group-hover:text-amber-400 transition-colors">
-                      {tool.name}
-                    </h3>
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-gray-100 group-hover:text-amber-400 transition-colors">
+                        {tool.name}
+                      </h3>
+                      {tool.category && (
+                        <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold shrink-0 ml-2">
+                          {tool.category}
+                        </span>
+                      )}
+                    </div>
                     {tool.description && (
                       <p className="text-sm text-gray-400 leading-relaxed line-clamp-2 mb-3">
                         {tool.description}
                       </p>
                     )}
-                    <div className="flex items-center justify-between">
-                      {tool.category && (
-                        <span className="text-xs text-gray-500">{tool.category}</span>
-                      )}
-                      <span className="text-xs font-medium text-amber-400">
+                    <div className="flex items-center justify-between pt-3 border-t border-[#252836]">
+                      <span className="text-xs font-semibold text-amber-400">
                         {getPriceLabel(tool.pricingConfig)}
+                      </span>
+                      <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Try this tool &rarr;
                       </span>
                     </div>
                   </Link>
