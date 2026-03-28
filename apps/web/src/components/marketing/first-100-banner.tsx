@@ -17,29 +17,29 @@ export function First100Banner({
   const progressPct = Math.round((developerCount / 100) * 100)
 
   return (
-    <div className="relative bg-gradient-to-r from-amber-900/40 via-amber-800/30 to-amber-900/40 border-b border-amber-700/30">
-      <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+    <div className="relative bg-gradient-to-r from-[#1a1400] via-[#2a1f00] to-[#1a1400] border-b border-amber-500/30">
+      <div className="max-w-6xl mx-auto px-6 py-3.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 flex-1 min-w-0">
           {/* Pulsing dot */}
-          <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span className="relative flex h-3 w-3 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
           </span>
 
-          <div className="flex items-center gap-3 flex-wrap min-w-0">
-            <span className="text-sm font-semibold text-amber-300">
+          <div className="flex items-center gap-4 flex-wrap min-w-0">
+            <span className="text-sm font-bold text-white">
               First 100 developers get lifetime free tier
             </span>
 
-            {/* Progress indicator */}
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-1.5 rounded-full bg-amber-950/60 overflow-hidden">
+            {/* Progress bar */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-28 h-2.5 rounded-full bg-black/40 border border-amber-500/20 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-500 shadow-sm shadow-amber-400/30"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
-              <span className="text-xs font-bold text-amber-400 tabular-nums whitespace-nowrap">
+              <span className="text-sm font-bold text-amber-300 tabular-nums whitespace-nowrap">
                 {spotsRemaining} spots left
               </span>
             </div>
@@ -49,16 +49,15 @@ export function First100Banner({
         <div className="flex items-center gap-3 shrink-0">
           <Link
             href="/register"
-            className="text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-white px-4 py-1.5 rounded-full transition-colors shadow-sm shadow-amber-500/20"
+            className="text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black px-5 py-2 rounded-full transition-colors shadow-md shadow-amber-500/30"
           >
-            Claim yours
+            Claim yours →
           </Link>
 
-          {/* Dismiss button */}
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="text-amber-500/60 hover:text-amber-400 transition-colors"
+            className="text-amber-500/50 hover:text-amber-300 transition-colors"
             aria-label="Dismiss banner"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
