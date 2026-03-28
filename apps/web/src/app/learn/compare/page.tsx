@@ -26,7 +26,7 @@ const comparisons = [
     slug: 'vs-nevermined',
     title: 'SettleGrid vs Nevermined',
     description:
-      'Both platforms enable AI agent payments, but SettleGrid covers 10 protocols with sub-50ms metering while Nevermined focuses on on-chain settlement.',
+      'Both platforms enable AI agent payments, but SettleGrid covers 15 protocols with sub-50ms metering while Nevermined focuses on on-chain settlement.',
   },
   {
     slug: 'vs-stripe',
@@ -38,7 +38,7 @@ const comparisons = [
     slug: 'vs-mcpize',
     title: 'SettleGrid vs MCPize',
     description:
-      'MCPize is a hosted marketplace with 85% revenue share. SettleGrid is an SDK with up to 100% revenue share (progressive take rate) that works with any hosting provider and supports 10 protocols.',
+      'MCPize is a hosted marketplace with 85% revenue share. SettleGrid is an SDK with up to 100% revenue share (progressive take rate) that works with any hosting provider and supports 15 protocols.',
   },
   {
     slug: 'vs-paid-ai',
@@ -56,13 +56,13 @@ const comparisons = [
     slug: 'vs-stripe-metronome',
     title: 'SettleGrid vs Stripe Metronome',
     description:
-      'Stripe acquired Metronome for $1B to own enterprise usage-based billing. SettleGrid is purpose-built for AI services: 2-line SDK, 10 protocols, progressive pricing from 0%, and AI-native discovery.',
+      'Stripe acquired Metronome for $1B to own enterprise usage-based billing. SettleGrid is purpose-built for AI services: 2-line SDK, 15 protocols, progressive pricing from 0%, and AI-native discovery.',
   },
   {
     slug: 'vs-orb',
     title: 'SettleGrid vs Orb',
     description:
-      'Orb offers powerful SQL-based event metering for B2B SaaS. SettleGrid is built for AI tool monetization: 2-line SDK, 10 protocols, a discovery marketplace, and progressive take rates.',
+      'Orb offers powerful SQL-based event metering for B2B SaaS. SettleGrid is built for AI tool monetization: 2-line SDK, 15 protocols, a discovery marketplace, and progressive take rates.',
   },
   {
     slug: 'vs-lago',

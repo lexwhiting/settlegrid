@@ -121,7 +121,7 @@ const glossaryTerms = [
   {
     name: 'Protocol-Agnostic',
     definition:
-      'An architecture that works across multiple payment and communication protocols without requiring protocol-specific code. SettleGrid is protocol-agnostic, supporting 10 protocols (MCP, x402, AP2, MPP, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle, REST) through a single unified SDK.',
+      'An architecture that works across multiple payment and communication protocols without requiring protocol-specific code. SettleGrid is protocol-agnostic, supporting 15 protocols (MCP, x402, AP2, MPP, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle, REST) through a single unified SDK.',
     link: '/learn/protocols',
   },
   {

@@ -17,7 +17,7 @@ import { PasteUrlInput } from '@/components/marketing/paste-url-input'
 export const metadata: Metadata = {
   title: 'SettleGrid — The Universal Settlement Layer for AI Services',
   description:
-    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. 10 protocols. Progressive take rates. Free forever — 50K ops/month. Open source SDK.',
+    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. 15 protocols. Progressive take rates. Free forever — 50K ops/month. Open source SDK.',
   alternates: { canonical: 'https://settlegrid.ai' },
   keywords: [
     'universal AI settlement',
@@ -53,7 +53,7 @@ const jsonLdSoftwareApplication = {
   '@type': 'SoftwareApplication',
   name: 'SettleGrid',
   description:
-    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. 10 protocols — MCP, x402, AP2, MPP, Visa TAP, UCP, and more. Progressive take rate: 0% on first $1K/mo. Free tier: 50K ops/month.',
+    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services. 15 protocols — MCP, x402, AP2, MPP, Visa TAP, UCP, and more. Progressive take rate: 0% on first $1K/mo. Free tier: 50K ops/month.',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any',
   url: 'https://settlegrid.ai',
@@ -162,7 +162,7 @@ const jsonLdFaq = {
       name: 'Which AI payment protocols does SettleGrid support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid supports 10 protocols out of the box: MCP (Model Context Protocol), x402, AP2 (Anthropic Agent Protocol), MPP (Stripe Model Provider Protocol), Visa TAP, UCP (Unified Checkout Protocol), ACP, Mastercard Agent Pay, Circle Nanopayments, and standard REST APIs. One SDK handles all of them — no protocol-specific code required.',
+        text: 'SettleGrid supports 15 protocols out of the box: MCP (Model Context Protocol), x402, AP2 (Anthropic Agent Protocol), MPP (Stripe Model Provider Protocol), Visa TAP, UCP (Unified Checkout Protocol), ACP, Mastercard Agent Pay, Circle Nanopayments, and standard REST APIs. One SDK handles all of them — no protocol-specific code required.',
       },
     },
   ],
@@ -232,7 +232,7 @@ function HighlightBlock({
 
 function ComparisonTable() {
   const features = [
-    { name: 'Protocol support', settlegrid: '10 protocols (MCP, MPP, x402, AP2, TAP, UCP, ACP, MC, Nano, REST)', stripe: 'MPP + REST', nevermined: 'x402 / DeFi', paid: 'MCP only' },
+    { name: 'Protocol support', settlegrid: '15 protocols (MCP, MPP, x402, AP2, TAP, UCP, ACP, MC, Nano, REST, L402, Alipay, KYAPay, EMVCo, DRAIN)', stripe: 'MPP + REST', nevermined: 'x402 / DeFi', paid: 'MCP only' },
     { name: 'Real-time metering', settlegrid: '<50ms Redis', stripe: 'Batch only', nevermined: 'On-chain', paid: 'Per-call' },
     { name: 'Multi-hop settlement', settlegrid: true, stripe: false, nevermined: true, paid: false },
     { name: 'Agent identity (KYA)', settlegrid: true, stripe: false, nevermined: false, paid: false },
@@ -603,7 +603,7 @@ export default async function HomePage() {
               <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-3 mb-6 text-[11px] sm:text-sm">
                 <span className="text-brand-light font-semibold whitespace-nowrap">Free forever</span>
                 <span className="text-white/20">·</span>
-                <span className="text-white font-semibold whitespace-nowrap">10 protocols</span>
+                <span className="text-white font-semibold whitespace-nowrap">15 protocols</span>
                 <span className="text-white/20">·</span>
                 <span className="text-white font-semibold whitespace-nowrap">&lt;50ms metering</span>
                 <span className="text-white/20">·</span>
@@ -980,7 +980,7 @@ export default async function HomePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[
                   { icon: iconMetering, title: 'Real-Time Metering', description: 'Sub-50ms Redis metering on every API call. Pre-funded credit balances with auto-refill. Atomic balance checks, deductions, and usage recording in a single pipeline.' },
-                  { icon: iconProtocol, title: 'Protocol-Agnostic', description: 'Native support for 10 protocols: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. One SDK. Zero vendor lock-in.' },
+                  { icon: iconProtocol, title: 'Protocol-Agnostic', description: 'Native support for 15 protocols: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN. One SDK. Zero vendor lock-in.' },
                   { icon: iconMultiHop, title: 'Multi-Hop Settlement', description: 'Atomic settlement across multi-agent workflows. Agent A calls B calls C — everyone gets paid or no one does. Revenue splits resolved in real time.' },
                   { icon: iconIdentity, title: 'Agent Identity (KYA)', description: 'Know Your Agent verification compatible with AgentFacts, Skyfire JWT, and DID standards. Trust scoring and budget delegation for autonomous agents.' },
                   { icon: iconOutcome, title: 'Outcome-Based Billing', description: 'Charge only when AI delivers results. Define success criteria, verify outcomes, handle disputes. Move beyond per-call to value-based pricing.' },
@@ -1086,7 +1086,7 @@ export default async function HomePage() {
                   <p className="text-sm font-semibold text-brand-light tracking-wide uppercase mb-2">Security</p>
                   <h2 className="text-3xl font-bold mb-4">Security Your Compliance Team Will Love</h2>
                   <p className="text-gray-300 text-lg mb-8 leading-relaxed">
-                    Enterprise-grade security and compliance from day one. SOC 2 ready, HMAC-signed webhooks, SHA-256 key hashing, and tiered rate limiting across all 10 protocols.
+                    Enterprise-grade security and compliance from day one. SOC 2 ready, HMAC-signed webhooks, SHA-256 key hashing, and tiered rate limiting across all 15 protocols.
                   </p>
                   <ul className="space-y-4">
                     {[
@@ -1161,7 +1161,7 @@ assert signature == request.headers[
                 The Only Platform That Does It All
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-center mb-10 max-w-xl mx-auto">
-                Purpose-built for AI agent payments. 15 features. 10 protocols. Nobody else comes close.
+                Purpose-built for AI agent payments. 15 features. 15 protocols. Nobody else comes close.
               </p>
               <ComparisonTable />
             </div>

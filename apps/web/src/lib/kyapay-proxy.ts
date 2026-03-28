@@ -186,6 +186,7 @@ function verifyJwtSignature(
   if (algorithm === 'RS256') {
     // RSA-SHA256 verification
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const crypto = require('crypto') as typeof import('crypto')
       const verifier = crypto.createVerify('RSA-SHA256')
       verifier.update(signedContent)
