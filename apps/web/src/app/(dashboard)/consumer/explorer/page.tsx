@@ -93,14 +93,10 @@ function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(safe / 100)
 }
 
+/* formatDate available if needed:
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+} */
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', {

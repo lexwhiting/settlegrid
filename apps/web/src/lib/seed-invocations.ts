@@ -20,7 +20,7 @@ export function queueSeedInvocations(opts: {
   toolSlug: string
   proxyUrl: string
 }): void {
-  const { toolSlug, proxyUrl } = opts
+  const { toolSlug } = opts
 
   // Fire-and-forget: schedule calls asynchronously
   void (async () => {

@@ -120,7 +120,7 @@ export default function ApiMonetizationPage() {
                 Choose per-invocation, per-token, per-byte, per-second, tiered, or outcome-based pricing. You set the price.
               </p>
               <div className="text-sm bg-[#0C0E14] border border-[#2A2D3E] px-3 py-2 rounded-lg font-mono text-gray-300">
-                <span className="text-gray-500">// settlegrid.config.json</span><br />
+                <span className="text-gray-500">{/* settlegrid.config.json */}</span><br />
                 {`{ "pricing": { "model": "per-invocation", "defaultCostCents": 5 } }`}
               </div>
             </div>

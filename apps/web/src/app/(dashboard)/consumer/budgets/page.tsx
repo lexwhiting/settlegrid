@@ -279,9 +279,6 @@ export default function ConsumerBudgetsPage() {
   const [editAlertPct, setEditAlertPct] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Alert creation state
-  const [creatingAlert, setCreatingAlert] = useState(false)
-
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -367,7 +364,7 @@ export default function ConsumerBudgetsPage() {
   // ─── Create Alert Handler ──────────────────────────────────────────────
 
   async function handleCreateAlert(toolId: string, threshold: number) {
-    setCreatingAlert(true)
+    setSaving(true)
     try {
       const res = await fetch('/api/consumer/alerts', {
         method: 'POST',
@@ -389,7 +386,7 @@ export default function ConsumerBudgetsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create alert.')
     } finally {
-      setCreatingAlert(false)
+      setSaving(false)
     }
   }
 

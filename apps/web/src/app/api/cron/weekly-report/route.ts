@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { sql, eq, and, gte, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations, payouts } from '@/lib/db/schema'
+import { tools, invocations } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
