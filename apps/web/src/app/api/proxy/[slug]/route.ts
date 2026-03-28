@@ -15,6 +15,11 @@ import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/
 import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
 import { isMastercardRequest, isMastercardEnabled, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
 import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoPayment, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
+import { isL402Request, isL402Enabled, validateL402Payment, generateL402_402Response } from '@/lib/l402-proxy'
+import { isAlipayRequest, isAlipayEnabled, validateAlipayPayment, generateAlipay402Response } from '@/lib/alipay-proxy'
+import { isKyaPayRequest, isKyaPayEnabled, validateKyaPayPayment, generateKyaPay402Response } from '@/lib/kyapay-proxy'
+import { isEmvcoRequest, isEmvcoEnabled, validateEmvcoPayment, generateEmvco402Response } from '@/lib/emvco-proxy'
+import { isDrainRequest, isDrainEnabled, validateDrainPayment, generateDrain402Response } from '@/lib/drain-proxy'
 import {
   isMppEnabled,
   getMppRecipientId,
@@ -271,6 +276,31 @@ async function handleProxy(
     // 8. Circle Nanopayments
     if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    }
+
+    // 9. L402 (Bitcoin Lightning)
+    if (isL402Enabled() && isL402Request(request)) {
+      return handleL402Proxy(request, slug, requestId, startTime)
+    }
+
+    // 10. Alipay Trust Protocol
+    if (isAlipayEnabled() && isAlipayRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'alipay')
+    }
+
+    // 11. KYAPay (Visa Intelligent Commerce)
+    if (isKyaPayEnabled() && isKyaPayRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'kyapay')
+    }
+
+    // 12. EMVCo Agent Payments
+    if (isEmvcoEnabled() && isEmvcoRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'emvco')
+    }
+
+    // 13. DRAIN (Off-chain USDC)
+    if (isDrainEnabled() && isDrainRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'drain')
     }
 
     // ── Standard API Key Flow ───────────────────────────────────────────────
@@ -800,7 +830,7 @@ function recordMppInvocation(params: {
 
 // ─── Shared: Look up tool by slug (no API key required) ─────────────────────
 
-type PaymentMethod = 'mpp' | 'x402' | 'ap2' | 'visa-tap' | 'acp' | 'ucp' | 'mastercard-vi' | 'circle-nano'
+type PaymentMethod = 'mpp' | 'x402' | 'ap2' | 'visa-tap' | 'acp' | 'ucp' | 'mastercard-vi' | 'circle-nano' | 'l402' | 'alipay' | 'kyapay' | 'emvco' | 'drain'
 
 async function lookupToolBySlug(slug: string, requestId: string) {
   const [toolRow] = await db
@@ -1258,7 +1288,7 @@ async function handleProtocolProxy(
   slug: string,
   requestId: string,
   startTime: number,
-  protocol: 'ucp' | 'mastercard-vi' | 'circle-nano'
+  protocol: 'ucp' | 'mastercard-vi' | 'circle-nano' | 'alipay' | 'kyapay' | 'emvco' | 'drain'
 ): Promise<NextResponse> {
   const lookup = await lookupToolBySlug(slug, requestId)
   if (!lookup.ok) return lookup.error
@@ -1312,6 +1342,58 @@ async function handleProtocolProxy(
       return new NextResponse(body, { status: 402, headers })
     }
     extraMeta = { circleNanoConfirmationId: result.confirmationId ?? null, payerAddress: result.payerAddress ?? null }
+  } else if (protocol === 'alipay') {
+    const result = await validateAlipayPayment(request, toolConfig)
+    valid = result.valid
+    paymentId = result.transactionRef
+    payerIdentifier = result.agentId
+    if (!valid) {
+      const resp402 = generateAlipay402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { alipayTransactionRef: result.transactionRef ?? null, alipaySessionId: result.sessionId ?? null }
+  } else if (protocol === 'kyapay') {
+    const result = await validateKyaPayPayment(request, toolConfig)
+    valid = result.valid
+    paymentId = result.tokenId
+    payerIdentifier = result.principalId
+    if (!valid) {
+      const resp402 = generateKyaPay402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { kyapayTokenId: result.tokenId ?? null, kyapayAgentId: result.agentId ?? null, kyapayAuthorizedCents: result.authorizedAmountCents ?? null }
+  } else if (protocol === 'emvco') {
+    const result = await validateEmvcoPayment(request, toolConfig)
+    valid = result.valid
+    paymentId = result.transactionRef
+    payerIdentifier = result.tokenRef
+    if (!valid) {
+      const resp402 = generateEmvco402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { emvcoTransactionRef: result.transactionRef ?? null, emvcoNetwork: result.network ?? null, emvcoThreeDsRef: result.threeDsRef ?? null }
+  } else if (protocol === 'drain') {
+    const result = await validateDrainPayment(request, toolConfig)
+    valid = result.valid
+    paymentId = result.channelId
+    payerIdentifier = result.payerAddress
+    if (!valid) {
+      const resp402 = generateDrain402Response(toolRow.slug, costCents, toolRow.name)
+      const body = await resp402.text()
+      const headers = new Headers(resp402.headers)
+      if (requestId) headers.set('x-request-id', requestId)
+      return new NextResponse(body, { status: 402, headers })
+    }
+    extraMeta = { drainChannelId: result.channelId ?? null, drainNonce: result.nonce ?? null, drainAmountUsdc: result.amountUsdc ?? null }
   }
 
   if (!valid) {
@@ -1321,6 +1403,54 @@ async function handleProtocolProxy(
   return forwardAndBill(
     request, toolRow, protocol, costCents, slug, requestId, startTime,
     paymentId, payerIdentifier, {}, extraMeta
+  )
+}
+
+// ─── L402 Proxy Handler ─────────────────────────────────────────────────────
+
+async function handleL402Proxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+
+  const l402Result = await validateL402Payment(request, {
+    slug: toolRow.slug,
+    costCents,
+    displayName: toolRow.name,
+  })
+
+  if (!l402Result.valid) {
+    logger.info('proxy.l402_payment_required', {
+      slug,
+      costCents,
+      errorCode: l402Result.error?.code,
+      requestId,
+    })
+
+    // L402 402 response is async (generates Lightning invoice)
+    const l402Response = await generateL402_402Response(toolRow.slug, costCents, toolRow.name)
+    const body = await l402Response.text()
+    const headers = new Headers(l402Response.headers)
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(body, { status: 402, headers })
+  }
+
+  return forwardAndBill(
+    request, toolRow, 'l402', costCents, slug, requestId, startTime,
+    l402Result.macaroonId,
+    l402Result.preimageHash,
+    {},
+    {
+      l402MacaroonId: l402Result.macaroonId ?? null,
+      l402AmountSats: l402Result.amountSats ?? null,
+    }
   )
 }
 

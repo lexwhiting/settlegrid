@@ -174,6 +174,51 @@ export function getAcpStripeKey(): string | undefined {
   return process.env.ACP_STRIPE_KEY
 }
 
+// L402 (Bitcoin Lightning)
+export function isL402Enabled(): boolean {
+  return process.env.L402_ENABLED === 'true' || !!process.env.LND_REST_URL
+}
+
+export function getLndRestUrl(): string | undefined {
+  return process.env.LND_REST_URL
+}
+
+export function getLndMacaroonHex(): string | undefined {
+  return process.env.LND_MACAROON_HEX
+}
+
+// Alipay Trust Protocol
+export function isAlipayEnabled(): boolean {
+  return !!process.env.ALIPAY_APP_ID
+}
+
+export function getAlipayAppId(): string | undefined {
+  return process.env.ALIPAY_APP_ID
+}
+
+// KYAPay (Skyfire — Visa Intelligent Commerce)
+export function isKyaPayEnabled(): boolean {
+  return !!process.env.KYAPAY_VERIFICATION_KEY
+}
+
+export function getKyaPayVerificationKey(): string | undefined {
+  return process.env.KYAPAY_VERIFICATION_KEY
+}
+
+// EMVCo Agent Payments
+export function isEmvcoEnabled(): boolean {
+  return process.env.EMVCO_ENABLED === 'true'
+}
+
+// DRAIN (Off-chain USDC via EIP-712 vouchers)
+export function isDrainEnabled(): boolean {
+  return process.env.DRAIN_ENABLED === 'true' || !!process.env.DRAIN_CHANNEL_ADDRESS
+}
+
+export function getDrainChannelAddress(): string | undefined {
+  return process.env.DRAIN_CHANNEL_ADDRESS
+}
+
 // GitHub PAT — optional, used for developer email resolution from public repos
 export function getGitHubToken(): string | undefined {
   return process.env.GITHUB_TOKEN
