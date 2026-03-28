@@ -61,22 +61,42 @@ const search = sg.wrap(async (args: { query: string }) => {
     backer: 'Stripe + Tempo',
     status: 'Production',
     overview:
-      'MPP (Machine Payments Protocol) is Stripe and Tempo Labs\' protocol for enabling autonomous machine-to-machine payments. It allows AI agents to pay for services using Stripe-backed payment methods without human intervention, combining Stripe\'s payment infrastructure with Tempo\'s agent orchestration layer.',
+      'MPP (Machine Payments Protocol) is Stripe and Tempo Labs\' protocol for enabling autonomous machine-to-machine payments. Launched March 18, 2026, it is the most significant payment protocol for AI agent commerce because of Stripe\'s massive distribution and Visa\'s planned extension. SettleGrid has a deep, native MPP integration — every SettleGrid tool automatically accepts Stripe Shared Payment Tokens (SPTs) alongside traditional API keys with zero configuration.',
     howItWorks:
-      'MPP extends Stripe\'s existing payment rails to support autonomous agent transactions. A "model provider" (the AI agent\'s host) registers payment credentials with Stripe, receives an MPP token, and passes it along when the agent calls external services. The service provider verifies the token with Stripe and charges the model provider\'s account.\n\nThe protocol uses Stripe\'s existing infrastructure for settlement, compliance, and dispute resolution. This means developers get Stripe-grade payment processing with full PCI compliance, automatic currency conversion, and established fraud protection.\n\nMPP tokens carry embedded spending limits, expiration times, and scope constraints — so agents can only spend within pre-approved budgets. Every transaction is recorded in the Stripe dashboard alongside regular business payments.',
+      'MPP extends Stripe\'s existing payment rails to support autonomous agent transactions. A "model provider" (the AI agent\'s host) registers payment credentials with Stripe, receives a Shared Payment Token (SPT), and passes it along when the agent calls external services. The service provider verifies the SPT with Stripe and charges the model provider\'s account.\n\nThe protocol uses Stripe\'s existing infrastructure for settlement, compliance, and dispute resolution. This means developers get Stripe-grade payment processing with full PCI compliance, automatic currency conversion, and established fraud protection.\n\nSPTs carry embedded spending limits, expiration times, and scope constraints — so agents can only spend within pre-approved budgets. Every transaction is recorded in the Stripe dashboard alongside regular business payments.\n\nWhen an agent calls a SettleGrid tool without valid payment, it receives a standard HTTP 402 response with MPP headers (X-Payment-Protocol, X-Payment-Amount, X-Payment-Currency) that tell the agent exactly how to pay. The agent then re-sends the request with a valid SPT in the X-Payment-Token header. SettleGrid verifies the SPT, captures the payment, forwards the request to the upstream tool, and returns the result — all in a single round-trip.',
     integration:
-      "SettleGrid acts as an MPP service provider, accepting MPP tokens alongside its native API keys. When an agent presents an MPP token, SettleGrid validates it with Stripe, checks the embedded spending limits, executes your tool, and settles the payment through Stripe's ledger. Your tool receives the same payout via Stripe Connect regardless of whether the consumer used an API key or an MPP token.",
-    detectionHeader: 'Authorization: Bearer mpp_*',
+      'SettleGrid has a deep, native MPP integration. Every tool on the platform automatically accepts Stripe Shared Payment Tokens (SPTs) via the Smart Proxy — no configuration needed. When an agent presents an SPT via X-Payment-Token header or Authorization: Bearer spt_*, SettleGrid validates it with Stripe\'s MPP API, verifies the spending limits, captures the payment, forwards the request to the upstream tool, and records the invocation with paymentMethod: \'mpp\'. If the token is missing or invalid, SettleGrid returns a proper MPP 402 response with pricing information so the agent can negotiate payment. Developers receive payouts via Stripe Connect regardless of payment method. SettleGrid also publishes a /.well-known/mpp.json manifest for MPP directory registration.',
+    detectionHeader: 'X-Payment-Token: spt_* / Authorization: Bearer spt_* / X-Payment-Protocol: MPP/1.0',
     identityType: 'mpp-token',
     paymentType: 'stripe-direct',
     color: 'text-violet-400',
-    codeExample: `import { settlegrid } from '@settlegrid/mcp'
+    codeExample: `// Agent paying for a SettleGrid tool via MPP
+// No SDK needed — just HTTP headers
+
+const response = await fetch('https://settlegrid.ai/api/proxy/data-enrichment', {
+  method: 'POST',
+  headers: {
+    // MPP payment via Stripe Shared Payment Token
+    'X-Payment-Protocol': 'MPP/1.0',
+    'X-Payment-Token': 'spt_live_abc123...',
+    'X-Payment-Amount': '10',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ domain: 'example.com' }),
+})
+
+// If payment is valid, you get the tool response directly.
+// If not, you get a 402 with X-Payment-Amount header telling
+// you the price, so your agent can negotiate.
+
+// Developer side — zero config needed:
+import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
   toolSlug: 'data-enrichment',
   pricing: { defaultCostCents: 10 },
-  // MPP tokens are accepted automatically
-  // alongside standard sg_live_* API keys
+  // MPP Shared Payment Tokens are accepted automatically
+  // alongside standard sg_live_* API keys — no extra code
 })
 
 const enrich = sg.wrap(async (args: { domain: string }) => {

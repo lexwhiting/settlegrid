@@ -778,6 +778,7 @@ export default function DocsPage() {
               { href: '#n8n-integration', label: 'n8n Integration' },
               { href: '#publish-action', label: 'CI/CD: Publish Action' },
               { href: '#cost-based-routing', label: 'Cost-Based Routing' },
+              { href: '#mpp', label: 'MPP Payments' },
               { href: '#smart-proxy', label: 'Smart Proxy' },
               { href: '#service-templates', label: 'Service Templates' },
               { href: '#a2a-settlement', label: 'A2A Settlement' },
@@ -1817,6 +1818,60 @@ try {
 }`} />
           </Section>
 
+          {/* ── Accepting MPP Payments ─────────────────────────── */}
+          <Section title="Accepting MPP Payments" id="mpp">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              SettleGrid natively accepts Stripe MPP (Machine Payments Protocol) Shared Payment Tokens alongside traditional API keys. Any agent using Stripe MPP can pay for your SettleGrid tools seamlessly — zero configuration required.
+            </p>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">How MPP Works with SettleGrid</h3>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+                <li>An MPP agent calls your tool&apos;s proxy URL without payment</li>
+                <li>SettleGrid returns HTTP 402 with MPP headers: <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">X-Payment-Protocol: MPP/1.0</code>, <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">X-Payment-Amount: 500</code></li>
+                <li>The agent obtains a Stripe Shared Payment Token (SPT) and re-sends the request with <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">X-Payment-Token: spt_...</code></li>
+                <li>SettleGrid validates the SPT with Stripe, captures the payment, and forwards the request to your tool</li>
+                <li>Your tool processes the request normally — the response is streamed back to the agent</li>
+              </ol>
+            </div>
+            <CopyableCodeBlock title="MPP Agent (cURL)" code={`# Step 1: Call without payment — get 402 with pricing
+curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
+  -H "X-Payment-Protocol: MPP/1.0" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "example"}'
+
+# Response: 402 Payment Required
+# X-Payment-Protocol: MPP/1.0
+# X-Payment-Amount: 500
+# X-Payment-Currency: USD
+
+# Step 2: Re-send with valid Stripe SPT
+curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
+  -H "X-Payment-Protocol: MPP/1.0" \\
+  -H "X-Payment-Token: spt_live_abc123..." \\
+  -H "X-Payment-Amount: 500" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "example"}'
+
+# Response: 200 OK (tool result)
+# X-SettleGrid-Payment-Method: mpp
+# X-SettleGrid-MPP-Payment-Id: pi_xxx
+# X-SettleGrid-Cost-Cents: 500`} />
+            <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Key Details</h3>
+              <div className="space-y-3 text-sm text-gray-400">
+                <p><strong className="text-gray-300">Dual payment</strong> — Tools accept both MPP (SPT) and traditional API key payments. No code changes needed on the developer side.</p>
+                <p><strong className="text-gray-300">Standard 402 flow</strong> — When payment is missing, SettleGrid returns a proper MPP 402 response with pricing headers so agents can negotiate.</p>
+                <p><strong className="text-gray-300">Stripe settlement</strong> — MPP payments settle through Stripe. Developers receive payouts via Stripe Connect alongside API key revenue.</p>
+                <p><strong className="text-gray-300">MPP directory</strong> — SettleGrid publishes a <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">/.well-known/mpp.json</code> manifest for automatic service discovery.</p>
+                <p><strong className="text-gray-300">Environment variable</strong> — Set <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">STRIPE_MPP_SECRET</code> to enable MPP payments. Optional — SettleGrid works without it.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400 mt-4">
+              Learn more on the{' '}
+              <Link href="/learn/protocols/mpp" className="text-brand-text hover:text-brand-dark font-medium">MPP protocol page</Link>.
+            </p>
+          </Section>
+
           {/* ── Smart Proxy ─────────────────────────── */}
           <Section title="Smart Proxy" id="smart-proxy">
             <p className="text-gray-600 dark:text-gray-400 mb-4">
@@ -1868,7 +1923,7 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
             </div>
             <p className="text-sm text-gray-400 mt-4">
               View source code on{' '}
-              <a href="https://github.com/lexwhiting/settlegrid/tree/main/scripts/service-templates" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">GitHub</a>.
+              <a href="https://github.com/lexwhiting/settlegrid/tree/staging/nuclear-expansion/scripts/service-templates" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">GitHub</a>.
             </p>
           </Section>
 
