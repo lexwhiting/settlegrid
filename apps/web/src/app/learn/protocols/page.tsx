@@ -9,7 +9,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export const metadata: Metadata = {
   title: 'Protocol Guides | SettleGrid',
   description:
-    'Explore the 10 AI payment protocols supported by SettleGrid — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. One SDK, every protocol.',
+    'Explore the 15 AI payment protocols supported by SettleGrid — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN. One SDK, every protocol.',
   alternates: { canonical: 'https://settlegrid.ai/learn/protocols' },
   keywords: [
     'AI payment protocols',

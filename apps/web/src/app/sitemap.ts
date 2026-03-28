@@ -92,7 +92,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly',
       priority: 0.7,
     },
-    ...(['mcp', 'mpp', 'x402', 'ap2', 'visa-tap', 'ucp', 'acp', 'mastercard-agent-pay', 'circle-nanopayments', 'rest'] as const).map(
+    ...(['mcp', 'mpp', 'x402', 'ap2', 'visa-tap', 'ucp', 'acp', 'mastercard-agent-pay', 'circle-nanopayments', 'rest', 'l402', 'alipay-trust', 'kyapay', 'emvco', 'drain'] as const).map(
       (slug) => ({
         url: `${BASE_URL}/learn/protocols/${slug}`,
         lastModified: now,

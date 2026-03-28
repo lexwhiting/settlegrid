@@ -377,6 +377,203 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ result, metered: true })
 }`,
   },
+  {
+    slug: 'l402',
+    name: 'L402',
+    fullName: 'L402 Lightning Payments',
+    backer: 'Lightning Labs (Bitcoin)',
+    status: 'Ready',
+    overview:
+      'L402 (formerly LSAT) is Lightning Labs\' protocol for native Bitcoin Lightning payments over HTTP. It uses the HTTP 402 status code with Lightning invoices and cryptographic macaroons to enable fully pseudonymous, per-request payments. No API keys, no signup, no KYC — just pay-per-use via the Lightning Network. SettleGrid is the first multi-protocol billing platform with deep L402 support, allowing any AI tool to accept Bitcoin alongside fiat and stablecoin payments.',
+    howItWorks:
+      'The L402 flow begins when an agent calls a paid endpoint without credentials. The server returns HTTP 402 with a WWW-Authenticate header containing two components: a macaroon (a cryptographic bearer token with embedded caveats like expiry time, tool slug, and amount) and a Lightning invoice (a BOLT-11 payment request for the exact amount in satoshis).\n\nThe agent pays the Lightning invoice through the Bitcoin Lightning Network, which settles in seconds. Payment produces a preimage — the cryptographic proof of payment. The agent then re-sends the original request with an Authorization: L402 <macaroon>:<preimage> header.\n\nThe server verifies the macaroon\'s HMAC signature chain, checks that caveats are satisfied (correct tool, not expired, correct amount), and validates the preimage against the payment hash. If all checks pass, the request is processed.\n\nMacaroons support delegation — an agent can add additional caveats (further restrictions) before passing the macaroon to a sub-agent, enabling hierarchical payment authorization without server interaction.',
+    integration:
+      'SettleGrid has a deep L402 integration with full macaroon minting and verification. Every tool on the platform can accept Lightning payments via the Smart Proxy. When an agent presents L402 credentials, SettleGrid verifies the HMAC-SHA256 macaroon signature chain, checks caveats (tool slug, expiry, amount), validates the preimage format, and records the invocation. If LND_REST_URL is configured, real Lightning invoices are generated via the LND REST API; otherwise, mock invoices are used for development.',
+    detectionHeader: 'Authorization: L402 <macaroon>:<preimage> / Authorization: LSAT <macaroon>:<preimage>',
+    identityType: 'pseudonymous (macaroon)',
+    paymentType: 'bitcoin-lightning',
+    color: 'text-yellow-500',
+    codeExample: `// Agent paying for a SettleGrid tool via L402 (Bitcoin Lightning)
+// Step 1: Call the endpoint — get a 402 with Lightning invoice
+
+const initial = await fetch('https://settlegrid.ai/api/proxy/data-enrichment', {
+  method: 'POST',
+  headers: { 'x-settlegrid-protocol': 'l402' },
+  body: JSON.stringify({ domain: 'example.com' }),
+})
+// Returns 402 with WWW-Authenticate: L402 macaroon="...", invoice="lnbc..."
+
+const { macaroon, invoice } = await initial.json()
+
+// Step 2: Pay the Lightning invoice (via your LN wallet/node)
+const preimage = await payLightningInvoice(invoice)
+
+// Step 3: Re-send with L402 credentials
+const result = await fetch('https://settlegrid.ai/api/proxy/data-enrichment', {
+  method: 'POST',
+  headers: {
+    'Authorization': \`L402 \${macaroon}:\${preimage}\`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ domain: 'example.com' }),
+})`,
+  },
+  {
+    slug: 'alipay-trust',
+    name: 'Alipay Trust',
+    fullName: 'Alipay Trust Protocol',
+    backer: 'Alipay (Ant Group)',
+    status: 'Pending',
+    overview:
+      'The Alipay Trust Protocol is Alipay\'s agentic commerce framework that extends MCP with delegated payment authorization. It enables AI agents to transact on behalf of users through Alipay\'s rails, covering the 1.3 billion Alipay users across China and Southeast Asia. The protocol uses Alipay Agent Tokens — delegated authorization credentials that allow agents to make payments within pre-approved budgets.',
+    howItWorks:
+      'The Alipay Trust Protocol uses a delegated authorization model. A user (the principal) grants an AI agent an Alipay Agent Token through the Alipay authorization flow. The token carries embedded spending limits, time constraints, merchant category restrictions, and the user\'s payment preference (balance, credit, or Huabei installments).\n\nWhen the agent calls a service, it presents the Agent Token in the x-alipay-agent-token header. The service verifies the token with Alipay\'s Open Platform API, which confirms the token\'s validity, checks spending limits, and authorizes the charge. Payment is settled through Alipay\'s existing rails.\n\nThe protocol supports multi-currency settlement (CNY, USD, EUR) and integrates with Alipay\'s existing merchant infrastructure, giving service providers access to Alipay\'s massive user base without separate payment integration.',
+    integration:
+      'SettleGrid supports Alipay Agent Tokens as a payment method. When an agent presents an Alipay Agent Token, SettleGrid validates the token structure and (when Alipay partnership credentials are configured) verifies it with Alipay\'s Open Platform API. The tool invocation is metered and the developer receives payouts through Stripe Connect or Alipay merchant settlement. Requires ALIPAY_APP_ID and ALIPAY_PRIVATE_KEY environment variables for full API verification.',
+    detectionHeader: 'x-alipay-agent-token / Authorization: Bearer alipay_*',
+    identityType: 'alipay-agent-token',
+    paymentType: 'alipay-rails',
+    color: 'text-blue-500',
+    codeExample: `// Agent paying for a SettleGrid tool via Alipay Trust Protocol
+
+const response = await fetch('https://settlegrid.ai/api/proxy/market-research', {
+  method: 'POST',
+  headers: {
+    'x-alipay-agent-token': 'alipay_agent_token_abc123...',
+    'x-alipay-session-id': 'session_xyz789',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ market: 'consumer-electronics', region: 'asia-pacific' }),
+})
+
+// Developer side — zero config needed:
+import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'market-research',
+  pricing: { defaultCostCents: 15 },
+  // Alipay Agent Tokens are accepted automatically
+  // alongside all other payment protocols
+})`,
+  },
+  {
+    slug: 'kyapay',
+    name: 'KYAPay',
+    fullName: 'KYAPay Intelligent Commerce',
+    backer: 'Skyfire + Visa',
+    status: 'Ready',
+    overview:
+      'KYAPay is Skyfire\'s protocol for verified agent identity and intelligent commerce, built in partnership with Visa. It uses JWT tokens that embed verified agent identity, payment credentials, and spending authorization into a single self-contained token. No external API calls are needed for verification — the JWT is cryptographically self-proving, making KYAPay the fastest payment protocol in the SettleGrid stack.',
+    howItWorks:
+      'KYAPay uses standard JWT (JSON Web Token) technology with custom claims for agent commerce. A principal (user or organization) registers with the Skyfire platform, which issues JWT tokens with embedded claims:\n\n- sub: the principal (agent owner) identifier\n- max_spend_cents: the maximum authorized spend per token\n- agent_id: the specific agent using the token\n- allowed_services: list of tool slugs the agent can access\n- payment_credential_ref: reference to the payment method on file\n\nThe JWT is signed with RS256 (RSA) or HS256 (HMAC) and includes standard exp/nbf/iat claims for time-based validity. Service providers verify the signature locally using the public key or shared secret — no API call to Skyfire is needed.\n\nThis makes KYAPay uniquely suited for latency-sensitive workloads: verification adds only microseconds of overhead since it is pure cryptographic computation with no network round-trips.',
+    integration:
+      'SettleGrid has full JWT validation for KYAPay tokens. When an agent presents a KYAPay token via x-kyapay-token header or Authorization: Bearer kyapay_*, SettleGrid decodes the JWT, verifies the signature (RS256 or HS256) using KYAPAY_VERIFICATION_KEY, checks expiry/nbf claims, validates the max_spend_cents against the tool cost, and optionally verifies the allowed_services list. No external API calls are made — verification is entirely local.',
+    detectionHeader: 'x-kyapay-token / Authorization: Bearer kyapay_*',
+    identityType: 'kyapay-jwt',
+    paymentType: 'jwt-authorized',
+    color: 'text-indigo-400',
+    codeExample: `// Agent paying for a SettleGrid tool via KYAPay JWT
+
+const response = await fetch('https://settlegrid.ai/api/proxy/sentiment-analysis', {
+  method: 'POST',
+  headers: {
+    // KYAPay JWT with embedded spend authorization
+    'x-kyapay-token': 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ text: 'Analyze this market report...' }),
+})
+
+// KYAPay JWT payload example:
+// {
+//   "sub": "org_acme_corp",
+//   "agent_id": "agent_research_bot_42",
+//   "max_spend_cents": 500,
+//   "allowed_services": ["sentiment-analysis", "data-enrichment"],
+//   "exp": 1711929600,
+//   "iss": "skyfire.xyz"
+// }`,
+  },
+  {
+    slug: 'emvco',
+    name: 'EMVCo',
+    fullName: 'EMVCo Agent Payments',
+    backer: 'EMVCo (Visa + Mastercard + Amex + Discover + JCB + UnionPay)',
+    status: 'Pending',
+    overview:
+      'EMVCo Agent Payments is the forthcoming card-based agent payment standard from EMVCo — the consortium behind chip cards (EMV), contactless payments, and 3-D Secure. It brings the full weight of the global card network infrastructure (Visa, Mastercard, Amex, Discover, JCB, UnionPay) to AI agent commerce. When finalized, it will enable any AI agent to make card-based payments with 3-D Secure authentication and payment tokenisation.',
+    howItWorks:
+      'EMVCo Agent Payments extends the existing 3-D Secure (3DS) and Payment Tokenisation standards for agent-initiated transactions. The flow combines three EMVCo technologies:\n\n1. Payment Tokenisation: The agent\'s principal\'s card is tokenized into a DPAN (Device PAN) with a cryptogram, so the actual card number is never exposed to the agent or merchant.\n\n2. 3-D Secure: Agent-initiated transactions go through 3DS authentication via the Directory Server. The principal pre-authorizes agent transactions through their banking app, and the 3DS authentication result is embedded in the payment token.\n\n3. Agent Payment Token: A new token type that wraps the DPAN + cryptogram + 3DS result into a single credential the agent presents to merchants.\n\nThe specification is currently in working group stage. SettleGrid has implemented detection and 402 response generation so that early adopters can begin testing their agent payment flows.',
+    integration:
+      'SettleGrid supports EMVCo Agent Payments with full detection and 402 response generation. When the EMVCo specification is finalized, SettleGrid will add full payment processing via the card network acquirers. Currently, detection (x-emvco-agent-token header) and 402 responses (with supported networks, 3DS version, and tokenisation details) are fully functional. Validation is stub-marked pending the final specification.',
+    detectionHeader: 'x-emvco-agent-token',
+    identityType: 'emvco-payment-token',
+    paymentType: 'card-network (Visa/MC/Amex/Discover/JCB/UnionPay)',
+    color: 'text-emerald-400',
+    codeExample: `// Agent paying for a SettleGrid tool via EMVCo Agent Payment
+// (Once the EMVCo spec is finalized)
+
+const response = await fetch('https://settlegrid.ai/api/proxy/risk-assessment', {
+  method: 'POST',
+  headers: {
+    // EMVCo agent payment token (DPAN + cryptogram + 3DS)
+    'x-emvco-agent-token': 'emvco_tok_dpan_abc123...',
+    'x-emvco-network': 'visa',  // or mastercard, amex, etc.
+    'x-emvco-3ds-ref': '3ds_auth_ref_xyz',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ entity: 'ACME Corp', type: 'comprehensive' }),
+})
+
+// Developer side — zero config needed:
+import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'risk-assessment',
+  pricing: { defaultCostCents: 50 },
+  // EMVCo tokens will be verified automatically
+  // when the specification is finalized
+})`,
+  },
+  {
+    slug: 'drain',
+    name: 'DRAIN',
+    fullName: 'DRAIN Off-chain USDC Payments',
+    backer: 'Bittensor / Handshake58',
+    status: 'Testnet',
+    overview:
+      'DRAIN is a protocol for ultra-low-cost micropayments using off-chain payment channels with EIP-712 signed vouchers on Polygon. It enables payments as low as $0.0001 per request with only a one-time $0.02 channel opening cost. DRAIN is designed for high-frequency, low-value transactions — exactly the pattern AI agents use when calling tools thousands of times per task.',
+    howItWorks:
+      'DRAIN uses payment channels — a well-established pattern in crypto for reducing on-chain costs. The flow works as follows:\n\n1. Channel Opening: The payer opens a payment channel by depositing USDC into a smart contract on Polygon (one-time cost of ~$0.02). This creates a channel between the payer and the service provider.\n\n2. Off-chain Vouchers: For each payment, the payer signs an EIP-712 typed data voucher containing the cumulative amount, a monotonically increasing nonce, and an expiry timestamp. This voucher is sent in the x-drain-voucher header — no on-chain transaction needed.\n\n3. Service Delivery: The service provider verifies the EIP-712 signature, checks the amount and nonce, and serves the request. The provider accumulates vouchers.\n\n4. Channel Settlement: At any time, the provider can submit the latest voucher to the smart contract to claim the accumulated payments on-chain. Only one on-chain transaction is needed regardless of how many vouchers were exchanged.\n\nThis architecture amortizes gas costs across thousands of requests, making per-token or per-byte pricing economically viable.',
+    integration:
+      'SettleGrid supports DRAIN vouchers with full EIP-712 structural validation. When an agent presents a DRAIN voucher via the x-drain-voucher header, SettleGrid parses the voucher (JSON or base64-encoded), validates the EIP-712 signature format, checks the expiry and nonce, verifies the amount covers the tool cost, and optionally validates the channel address against DRAIN_CHANNEL_ADDRESS. Voucher signature recovery uses the EIP-712 typed data standard on Polygon (chain ID 137).',
+    detectionHeader: 'x-drain-voucher',
+    identityType: 'wallet-address (Polygon)',
+    paymentType: 'off-chain USDC voucher',
+    color: 'text-purple-400',
+    codeExample: `// Agent paying for a SettleGrid tool via DRAIN off-chain voucher
+
+const voucher = {
+  channelAddress: '0x1234...payment-channel-contract',
+  payer: '0xABCD...my-polygon-wallet',
+  amount: '100000',  // 0.10 USDC (6 decimals)
+  nonce: 42,
+  expiry: Math.floor(Date.now() / 1000) + 3600,
+  signature: '0x...',  // EIP-712 signed
+}
+
+const response = await fetch('https://settlegrid.ai/api/proxy/embedding-service', {
+  method: 'POST',
+  headers: {
+    'x-drain-voucher': JSON.stringify(voucher),
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ text: 'Generate embedding for this text' }),
+})
+
+// Ultra-low cost: $0.001 per embedding call
+// Only $0.02 to open the channel, then unlimited off-chain vouchers`,
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
