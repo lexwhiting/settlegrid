@@ -70,6 +70,7 @@ interface RecentTool {
   slug: string
   description: string | null
   category: string | null
+  currentVersion: string
   developerName: string | null
 }
 
@@ -81,6 +82,7 @@ async function getRecentTools(): Promise<RecentTool[]> {
         slug: tools.slug,
         description: tools.description,
         category: tools.category,
+        currentVersion: tools.currentVersion,
         developerName: developers.name,
       })
       .from(tools)
@@ -204,15 +206,22 @@ export default async function ExplorePage() {
                     href={`/tools/${tool.slug}`}
                     className="group bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 hover:border-amber-500/40 transition-colors"
                   >
-                    <h3 className="font-semibold text-gray-100 mb-1 group-hover:text-amber-400 transition-colors">{tool.name}</h3>
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-gray-100 group-hover:text-amber-400 transition-colors">{tool.name}</h3>
+                      {tool.category && (
+                        <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold shrink-0 ml-2">
+                          {tool.category}
+                        </span>
+                      )}
+                    </div>
                     {tool.description && (
                       <p className="text-sm text-gray-400 leading-relaxed line-clamp-2 mb-3">{tool.description}</p>
                     )}
-                    <div className="flex items-center justify-between">
-                      {tool.category && (
-                        <span className="text-xs text-gray-500">{tool.category}</span>
-                      )}
-                      {/* Developer name hidden until multi-developer adoption */}
+                    <div className="flex items-center justify-between pt-3 border-t border-[#252836]">
+                      <span className="text-xs text-gray-500 font-mono">v{tool.currentVersion}</span>
+                      <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        View tool &rarr;
+                      </span>
                     </div>
                   </Link>
                 ))}
