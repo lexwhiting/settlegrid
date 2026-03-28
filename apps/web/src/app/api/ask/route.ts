@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc, ilike, or, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
@@ -48,12 +48,201 @@ function formatCostDisplay(cents: number): string {
   return cents < 100 ? `$0.${String(cents).padStart(2, '0')}` : `$${(cents / 100).toFixed(2)}`
 }
 
+// ─── Category Routing (adapted from GridBot) ─────────────────────────────────
+
+/** Maps question keywords to tool categories and expanded search terms. */
+const CATEGORY_KEYWORDS: Record<string, { keywords: string[]; searchTerms: string[] }> = {
+  data: {
+    keywords: ['weather', 'temperature', 'forecast', 'climate', 'meteorology', 'api', 'database', 'feed', 'geolocation', 'location', 'ip address', 'dns', 'lookup'],
+    searchTerms: ['data', 'api', 'weather', 'feed', 'lookup', 'geolocation'],
+  },
+  nlp: {
+    keywords: ['translate', 'translation', 'sentiment', 'summarize', 'summary', 'text', 'language', 'grammar', 'spell', 'entity', 'extract text', 'paraphrase'],
+    searchTerms: ['text', 'analysis', 'nlp', 'language', 'sentiment', 'translate'],
+  },
+  image: {
+    keywords: ['image', 'photo', 'picture', 'generate image', 'ocr', 'vision', 'detect object', 'visual', 'sunset', 'mountains', 'illustration', 'draw', 'painting', 'art', 'avatar', 'thumbnail'],
+    searchTerms: ['image', 'generation', 'vision', 'photo', 'visual', 'picture'],
+  },
+  media: {
+    keywords: ['audio', 'video', 'music', 'podcast', 'transcribe', 'speech', 'voice', 'sound', 'mp3', 'mp4', 'stream'],
+    searchTerms: ['media', 'audio', 'video', 'transcription', 'speech'],
+  },
+  code: {
+    keywords: ['code', 'lint', 'bug', 'review', 'format', 'compile', 'debug', 'analyze code', 'python', 'javascript', 'sandbox', 'programming', 'developer', 'software', 'repository', 'github'],
+    searchTerms: ['code', 'analysis', 'lint', 'security', 'developer', 'programming'],
+  },
+  search: {
+    keywords: ['search', 'find', 'lookup', 'discover', 'paper', 'research', 'document', 'arxiv', 'scholar'],
+    searchTerms: ['search', 'retrieval', 'find', 'discover'],
+  },
+  finance: {
+    keywords: ['stock', 'market', 'currency', 'exchange', 'forex', 'usd', 'eur', 'gbp', 'jpy', 'btc', 'crypto', 'trading', 'financial', 'money', 'payment', 'invoice', 'price', 'convert usd', 'convert eur', 'convert gbp', 'convert currency'],
+    searchTerms: ['finance', 'market', 'currency', 'exchange', 'forex', 'trading'],
+  },
+  science: {
+    keywords: ['molecule', 'chemical', 'physics', 'biology', 'genome', 'protein', 'scientific', 'experiment', 'lab', 'formula'],
+    searchTerms: ['science', 'research', 'molecular', 'computation'],
+  },
+  security: {
+    keywords: ['ssl', 'certificate', 'threat', 'scan', 'vulnerability', 'malware', 'phishing', 'compliance', 'firewall', 'penetration'],
+    searchTerms: ['security', 'scanning', 'threat', 'vulnerability'],
+  },
+  utility: {
+    keywords: ['convert', 'encode', 'decode', 'hash', 'validate', 'uuid', 'base64', 'json', 'csv', 'qr code', 'checksum'],
+    searchTerms: ['utility', 'conversion', 'encode', 'format', 'validate'],
+  },
+  analytics: {
+    keywords: ['analytics', 'metrics', 'dashboard', 'report', 'trend', 'statistics', 'insight', 'chart', 'graph'],
+    searchTerms: ['analytics', 'reporting', 'metrics', 'dashboard'],
+  },
+  'llm-inference': {
+    keywords: ['gpt', 'gpt-4', 'inference', 'llm', 'prompt', 'completion', 'token', 'openai', 'anthropic', 'claude', 'cost to run'],
+    searchTerms: ['llm', 'inference', 'ai', 'model'],
+  },
+  scraping: {
+    keywords: ['scrape', 'scraping', 'crawl', 'extract', 'pricing page', 'webpage', 'browser', 'playwright'],
+    searchTerms: ['scraping', 'browser', 'automation', 'crawl'],
+  },
+  communication: {
+    keywords: ['email', 'sms', 'notification', 'message', 'chat', 'slack', 'webhook'],
+    searchTerms: ['email', 'messaging', 'notification', 'communication'],
+  },
+  productivity: {
+    keywords: ['calendar', 'task', 'schedule', 'workflow', 'automation', 'document', 'spreadsheet'],
+    searchTerms: ['productivity', 'task', 'workflow', 'automation'],
+  },
+}
+
+/** Stop words to exclude from keyword extraction. */
+const STOP_WORDS = new Set([
+  'what', 'whats', "what's", 'how', 'does', 'have', 'this', 'that', 'with',
+  'from', 'about', 'there', 'their', 'some', 'most', 'latest', 'check',
+  'can', 'the', 'for', 'and', 'but', 'not', 'you', 'all', 'are', 'was',
+  'were', 'been', 'being', 'has', 'had', 'having', 'will', 'would', 'could',
+  'should', 'may', 'might', 'shall', 'into', 'than', 'then', 'when', 'where',
+  'which', 'who', 'whom', 'whose', 'why', 'any', 'each', 'every', 'both',
+  'few', 'more', 'other', 'such', 'only', 'just', 'also', 'very', 'really',
+  'please', 'help', 'want', 'need', 'like', 'tell', 'show', 'give', 'get',
+])
+
+/**
+ * Maps a natural-language question to a tool category and search terms.
+ * Uses keyword matching (longer keyword matches score higher) adapted
+ * from GridBot's proven categorizeQuestion() logic.
+ */
+function categorizeQuestion(question: string): {
+  category: string | null
+  searchTerms: string[]
+  questionKeywords: string[]
+} {
+  const lower = question.toLowerCase()
+
+  // Detect best category via keyword scoring
+  let bestCategory: string | null = null
+  let bestScore = 0
+  let bestSearchTerms: string[] = []
+
+  for (const [category, { keywords, searchTerms }] of Object.entries(CATEGORY_KEYWORDS)) {
+    let score = 0
+    for (const keyword of keywords) {
+      if (lower.includes(keyword)) {
+        // Longer keyword matches are more specific and score higher
+        score += keyword.length
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestCategory = category
+      bestSearchTerms = searchTerms
+    }
+  }
+
+  // Extract meaningful words from the question for text search
+  const questionKeywords = question
+    .replace(/[?!.,;:'"()]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()))
+    .map((w) => w.toLowerCase())
+    .slice(0, 6)
+
+  return { category: bestCategory, searchTerms: bestSearchTerms, questionKeywords }
+}
+
+type ToolRow = {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  category: string | null
+  tags: unknown
+  pricingConfig: unknown
+  totalInvocations: number
+}
+
+const TOOL_SELECT = {
+  id: tools.id,
+  name: tools.name,
+  slug: tools.slug,
+  description: tools.description,
+  category: tools.category,
+  tags: tools.tags,
+  pricingConfig: tools.pricingConfig,
+  totalInvocations: tools.totalInvocations,
+} as const
+
+/**
+ * Scores a tool against a set of search terms and question keywords.
+ * Uses weighted matching: name > tags > description > category.
+ */
+function scoreTool(
+  tool: ToolRow,
+  searchTerms: string[],
+  questionKeywords: string[],
+): number {
+  const nameLower = (tool.name ?? '').toLowerCase()
+  const descLower = (tool.description ?? '').toLowerCase()
+  const catLower = (tool.category ?? '').toLowerCase()
+  const tagValues: string[] = Array.isArray(tool.tags)
+    ? (tool.tags as string[]).map((t) => t.toLowerCase())
+    : []
+
+  let score = 0
+  const allTerms = new Set([...searchTerms, ...questionKeywords])
+
+  for (const term of allTerms) {
+    if (term.length < 2) continue
+    // Name match is strongest signal
+    if (nameLower.includes(term)) score += 5
+    // Tag match is strong — tags are curated relevance signals
+    if (tagValues.some((t) => t.includes(term))) score += 4
+    // Description match
+    if (descLower.includes(term)) score += 2
+    // Category match
+    if (catLower.includes(term)) score += 1
+  }
+
+  // Small popularity tiebreaker (max +1 point, never enough to override relevance)
+  score += Math.min(tool.totalInvocations / 10000, 1)
+
+  return score
+}
+
+/** Minimum relevance score to consider a match valid. */
+const MIN_MATCH_SCORE = 3
+
 /**
  * POST /api/ask — Public "Ask SettleGrid" endpoint
  *
  * Accepts a question, discovers a relevant tool, and returns an answer
  * with attribution. Rate limited to 3 questions/day per IP.
  * Uses system credits with a daily budget cap.
+ *
+ * Matching strategy (category-first, with expanded keyword fallback):
+ * 1. Categorize the question using keyword detection
+ * 2. Query tools filtered to that category, score them
+ * 3. If no category or no results, query broadly with text search
+ * 4. If still no relevant match, return "no tools found" (never a random tool)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -83,59 +272,113 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Discover a relevant tool — search for active tools that might match the question
-    const matchingTools = await db
-      .select({
-        id: tools.id,
-        name: tools.name,
-        slug: tools.slug,
-        description: tools.description,
-        category: tools.category,
-        pricingConfig: tools.pricingConfig,
-        totalInvocations: tools.totalInvocations,
-      })
-      .from(tools)
-      .where(eq(tools.status, 'active'))
-      .orderBy(desc(tools.totalInvocations))
-      .limit(10)
+    const { category, searchTerms, questionKeywords } = categorizeQuestion(body.question)
 
-    if (matchingTools.length === 0) {
-      return NextResponse.json(
-        {
-          error: 'No tools available right now. Check back soon!',
-          remaining: rl.remaining,
-        },
-        { status: 503 }
-      )
+    logger.info('ask.categorized', {
+      question: body.question,
+      category,
+      searchTerms,
+      questionKeywords,
+    })
+
+    // ── Step 1: Category-filtered search ──────────────────────────────────
+    let bestTool: ToolRow | null = null
+
+    if (category) {
+      const categoryTools = await db
+        .select(TOOL_SELECT)
+        .from(tools)
+        .where(and(eq(tools.status, 'active'), eq(tools.category, category)))
+        .orderBy(desc(tools.totalInvocations))
+        .limit(20)
+
+      if (categoryTools.length > 0) {
+        let bestScore = 0
+        for (const tool of categoryTools) {
+          const score = scoreTool(tool, searchTerms, questionKeywords)
+          if (score > bestScore) {
+            bestScore = score
+            bestTool = tool
+          }
+        }
+        // Even within the right category, ensure a minimum relevance threshold
+        if (bestScore < MIN_MATCH_SCORE) {
+          bestTool = null
+        }
+      }
     }
 
-    // Simple keyword matching — find the best tool based on question content
-    const questionLower = body.question.toLowerCase()
-    let bestTool = matchingTools[0]
-    let bestScore = 0
+    // ── Step 2: Broad text-search fallback ────────────────────────────────
+    if (!bestTool) {
+      // Build ilike conditions from question keywords and search terms
+      const searchWords = [...new Set([...searchTerms, ...questionKeywords])].filter(
+        (w) => w.length >= 3,
+      )
 
-    for (const tool of matchingTools) {
-      let score = 0
-      const nameLower = (tool.name ?? '').toLowerCase()
-      const descLower = (tool.description ?? '').toLowerCase()
-      const catLower = (tool.category ?? '').toLowerCase()
+      let broadTools: ToolRow[]
 
-      // Score based on keyword overlap
-      const words = questionLower.split(/\s+/)
-      for (const word of words) {
-        if (word.length < 3) continue
-        if (nameLower.includes(word)) score += 3
-        if (descLower.includes(word)) score += 2
-        if (catLower.includes(word)) score += 1
+      if (searchWords.length > 0) {
+        // Build OR conditions: any keyword matching name, description, or slug
+        const textConditions: SQL[] = searchWords.flatMap((word) => {
+          const pattern = `%${word}%`
+          return [
+            ilike(tools.name, pattern),
+            ilike(tools.description, pattern),
+            ilike(tools.slug, pattern),
+          ]
+        })
+
+        broadTools = await db
+          .select(TOOL_SELECT)
+          .from(tools)
+          .where(and(eq(tools.status, 'active'), or(...textConditions)!))
+          .orderBy(desc(tools.totalInvocations))
+          .limit(20)
+      } else {
+        // No usable keywords — fetch popular tools as candidates
+        broadTools = await db
+          .select(TOOL_SELECT)
+          .from(tools)
+          .where(eq(tools.status, 'active'))
+          .orderBy(desc(tools.totalInvocations))
+          .limit(20)
       }
 
-      // Boost popular tools slightly
-      score += Math.min(tool.totalInvocations / 1000, 2)
-
-      if (score > bestScore) {
-        bestScore = score
-        bestTool = tool
+      if (broadTools.length > 0) {
+        let bestScore = 0
+        for (const tool of broadTools) {
+          const score = scoreTool(tool, searchTerms, questionKeywords)
+          if (score > bestScore) {
+            bestScore = score
+            bestTool = tool
+          }
+        }
+        if (bestScore < MIN_MATCH_SCORE) {
+          bestTool = null
+        }
       }
+    }
+
+    // ── Step 3: No match — return helpful message instead of wrong tool ──
+    if (!bestTool) {
+      logger.info('ask.no_match', {
+        ip,
+        question: body.question,
+        category,
+        remaining: rl.remaining,
+      })
+
+      return NextResponse.json({
+        answer: [
+          `I couldn't find a tool on SettleGrid that matches your question.`,
+          '',
+          `Try browsing our categories at settlegrid.ai/explore or rephrasing your question with more specific terms.`,
+        ].join('\n'),
+        toolName: null,
+        toolSlug: null,
+        costDisplay: 'free',
+        remaining: rl.remaining,
+      })
     }
 
     const costCents = getEffectiveCost(bestTool.pricingConfig)
@@ -167,6 +410,7 @@ export async function POST(request: NextRequest) {
     logger.info('ask.answered', {
       ip,
       toolSlug: bestTool.slug,
+      category,
       costCents,
       remaining: rl.remaining,
     })
