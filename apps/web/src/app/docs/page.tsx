@@ -79,7 +79,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I test my integration before going live?',
-      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics. Available on Builder tier and above.',
+      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics and responses include the X-SettleGrid-Mode: sandbox header. Available on Builder tier and above.',
     },
     {
       q: 'Can I attach custom metadata to invocations?',
