@@ -55,6 +55,7 @@ interface UsageData {
   currentMonthOps: number
   tierLimit: number
   tier: string
+  isFoundingMember: boolean
   usagePercent: number
   periodStart: string
   periodEnd: string
@@ -832,9 +833,16 @@ export default function DeveloperDashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Monthly Usage</CardTitle>
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#252836] text-gray-600 dark:text-gray-300">
-                {TIER_LABELS[usage.tier] ?? usage.tier} plan
-              </span>
+              <div className="flex items-center gap-2">
+                {usage.isFoundingMember && (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    ⭐ Founding Member
+                  </span>
+                )}
+                <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#252836] text-gray-600 dark:text-gray-300">
+                  {usage.isFoundingMember ? 'Scale (lifetime)' : `${TIER_LABELS[usage.tier] ?? usage.tier} plan`}
+                </span>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0 space-y-4">

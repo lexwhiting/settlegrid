@@ -448,6 +448,87 @@ print(result)`,
       },
     ],
   },
+  /* ── 4. n8n ─────────────────────────────────────────────────────────────── */
+  {
+    slug: 'n8n',
+    title: 'Use SettleGrid Tools in n8n Workflows',
+    description:
+      'Install the n8n-nodes-settlegrid community node to discover, browse, and invoke SettleGrid tools directly from your n8n visual automations. No code required.',
+    framework: 'n8n',
+    language: 'typescript',
+    icon: 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z',
+    keywords: [
+      'n8n SettleGrid',
+      'n8n MCP tools',
+      'n8n community node',
+      'n8n AI tools',
+      'n8n-nodes-settlegrid',
+      'n8n automation billing',
+      'no-code AI tools',
+    ],
+    steps: [
+      {
+        heading: 'Install the Community Node',
+        content: `Install the n8n-nodes-settlegrid community node in your n8n instance. Go to Settings > Community Nodes and search for "settlegrid", or install manually via \`npm install n8n-nodes-settlegrid\` in your n8n installation directory.
+
+If you are using n8n Cloud, community nodes can be installed from the Settings panel. For self-hosted n8n, restart your instance after installation for the node to appear in the node palette.
+
+The SettleGrid node appears under the "AI" category in the n8n node palette. You will need a SettleGrid API key to use it — sign up at settlegrid.ai/register if you do not have one.`,
+      },
+      {
+        heading: 'Configure Credentials',
+        content: `Add your SettleGrid API key as a credential in n8n. Go to Credentials > New Credential > SettleGrid API and enter your consumer API key (starts with \`sg_\`). This key will be used for all SettleGrid node operations in your workflows.
+
+The credential is stored securely in n8n and passed automatically to every SettleGrid node in your workflows. You only need to configure it once.`,
+      },
+      {
+        heading: 'Add SettleGrid Nodes to Your Workflow',
+        content: `Drag the SettleGrid node from the palette into your workflow canvas. The node supports five operations:
+
+- **List Tools** — Browse all available SettleGrid tools with optional category filtering
+- **Get Tool** — Retrieve full details for a specific tool by its slug
+- **List Categories** — Get all tool categories with tool counts
+- **List Servers** — Browse MCP server listings from the registry
+- **Get Server** — Get detailed MCP server information with pricing extensions
+
+Connect the SettleGrid node to other nodes in your workflow to build AI-powered automations. For example, use List Tools to discover tools, then pass the results to an HTTP Request node to invoke them.`,
+      },
+      {
+        heading: 'Build AI Automation Workflows',
+        content: `Combine SettleGrid nodes with n8n's 400+ other integrations to build powerful AI workflows. Common patterns include:
+
+- **Scheduled discovery**: Use a Cron node to periodically check for new tools in a category, then notify your team via Slack when new tools appear.
+- **Tool invocation pipelines**: Use the Get Tool node to fetch tool details, then an HTTP Request node to call the tool via SettleGrid's proxy endpoint.
+- **Cost monitoring**: Query your SettleGrid usage data and send alerts when spending exceeds thresholds.
+
+All tool invocations through the SettleGrid proxy are metered and billed automatically. View your usage in the SettleGrid dashboard at settlegrid.ai/dashboard.`,
+      },
+    ],
+    codeExamples: [
+      {
+        title: 'Install via npm',
+        language: 'bash',
+        code: `npm install n8n-nodes-settlegrid`,
+      },
+      {
+        title: 'n8n workflow JSON (List Tools)',
+        language: 'json',
+        code: `{
+  "nodes": [
+    {
+      "name": "SettleGrid",
+      "type": "n8n-nodes-settlegrid.settlegrid",
+      "parameters": {
+        "operation": "listTools",
+        "category": "data",
+        "limit": 10
+      }
+    }
+  ]
+}`,
+      },
+    ],
+  },
 ]
 
 /* -------------------------------------------------------------------------- */

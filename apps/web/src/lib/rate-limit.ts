@@ -92,9 +92,11 @@ const TIER_ALIASES: Record<string, PlanTier> = {
 
 /**
  * Returns the rate limits for a given plan tier.
+ * Founding Members get Scale-tier limits regardless of their tier field.
  * Falls back to 'free' tier if tier is unknown.
  */
-export function getTierLimits(tier: string): TierLimits {
+export function getTierLimits(tier: string, isFoundingMember?: boolean): TierLimits {
+  if (isFoundingMember) return TIER_LIMITS.scale
   const lower = tier.toLowerCase()
   const resolved = TIER_ALIASES[lower] ?? lower
   return TIER_LIMITS[resolved as PlanTier] ?? TIER_LIMITS.free

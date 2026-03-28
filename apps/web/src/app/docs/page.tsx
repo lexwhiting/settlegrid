@@ -774,6 +774,13 @@ export default function DocsPage() {
               { href: '#pricing', label: 'Pricing Model' },
               { href: '#templates', label: 'Templates' },
               { href: '#discovery', label: 'Discovery' },
+              { href: '#github-app', label: 'GitHub App' },
+              { href: '#n8n-integration', label: 'n8n Integration' },
+              { href: '#publish-action', label: 'CI/CD: Publish Action' },
+              { href: '#cost-based-routing', label: 'Cost-Based Routing' },
+              { href: '#smart-proxy', label: 'Smart Proxy' },
+              { href: '#service-templates', label: 'Service Templates' },
+              { href: '#a2a-settlement', label: 'A2A Settlement' },
               { href: '#faq', label: 'FAQ' },
             ].map((item) => (
               <a
@@ -1690,6 +1697,200 @@ npm install -g @settlegrid/discovery`} />
               .
             </div>
           </section>
+
+          {/* ── GitHub App Integration ─────────────────────────── */}
+          <Section title="GitHub App Integration" id="github-app">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Install the SettleGrid GitHub App to automatically discover and list MCP servers from your repositories. Push code, get listed.
+            </p>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">How It Works</h3>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+                <li>Install the app at{' '}
+                  <a href="https://github.com/apps/settlegrid" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">github.com/apps/settlegrid</a>
+                </li>
+                <li>Grant access to your repositories (all or selected)</li>
+                <li>SettleGrid scans for <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">@settlegrid/mcp</code> usage</li>
+                <li>Tools are auto-created as draft listings on your dashboard</li>
+                <li>Every push to main triggers a re-scan and metadata sync</li>
+              </ol>
+            </div>
+            <p className="text-sm text-gray-400">
+              No code changes, no configuration files, no webhooks to set up. Read the{' '}
+              <Link href="/learn/github-app" className="text-brand-text hover:text-brand-dark font-medium">full GitHub App guide</Link>.
+            </p>
+          </Section>
+
+          {/* ── n8n Integration ─────────────────────────── */}
+          <Section title="n8n Integration" id="n8n-integration">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Use SettleGrid tools in n8n workflows with the official community node. Discover, invoke, and manage billing for any SettleGrid tool directly from your n8n automations.
+            </p>
+            <CopyableCodeBlock title="Terminal" code="npm install n8n-nodes-settlegrid" />
+            <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Available Operations</h3>
+              <div className="space-y-2 text-sm text-gray-400">
+                <div className="flex items-start gap-2"><span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span><span><strong className="text-gray-300">List Tools</strong> — Browse all available SettleGrid tools with filtering</span></div>
+                <div className="flex items-start gap-2"><span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span><span><strong className="text-gray-300">Get Tool</strong> — Retrieve full details for a specific tool by slug</span></div>
+                <div className="flex items-start gap-2"><span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span><span><strong className="text-gray-300">List Categories</strong> — Get all tool categories with counts</span></div>
+                <div className="flex items-start gap-2"><span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span><span><strong className="text-gray-300">List Servers</strong> — Browse MCP server listings</span></div>
+                <div className="flex items-start gap-2"><span className="text-brand-text mt-0.5 shrink-0 font-bold">&#10003;</span><span><strong className="text-gray-300">Get Server</strong> — Get MCP server details and pricing extensions</span></div>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400 mt-4">
+              View the package on{' '}
+              <a href="https://www.npmjs.com/package/n8n-nodes-settlegrid" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">npm</a>.
+              n8n has 400K+ users building AI automations — your tools are instantly available to all of them.
+            </p>
+          </Section>
+
+          {/* ── CI/CD: Publish Action ─────────────────────────── */}
+          <Section title="CI/CD: Publish Action" id="publish-action">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Automate tool publishing with the SettleGrid GitHub Action. Add it to your CI/CD pipeline to publish or update tools on every push to main.
+            </p>
+            <CopyableCodeBlock title=".github/workflows/publish.yml" language="YAML" code={`name: Publish to SettleGrid
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: settlegrid/publish-action@v1
+        with:
+          api-key: \${{ secrets.SETTLEGRID_API_KEY }}`} />
+            <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">What It Does</h3>
+              <ul className="list-disc list-inside space-y-2 text-sm text-gray-400">
+                <li>Reads your tool configuration from <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">settlegrid.json</code> or package.json</li>
+                <li>Creates or updates your tool listing on the SettleGrid registry</li>
+                <li>Syncs metadata (name, description, version, pricing) automatically</li>
+                <li>Reports publish status back to the GitHub Actions workflow</li>
+              </ul>
+            </div>
+            <p className="text-sm text-gray-400 mt-4">
+              View the action on{' '}
+              <a href="https://github.com/marketplace/actions/settlegrid-publish" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">GitHub Marketplace</a>.
+            </p>
+          </Section>
+
+          {/* ── Cost-Based Routing ─────────────────────────── */}
+          <Section title="Cost-Based Routing" id="cost-based-routing">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Agents automatically find the cheapest tool meeting their quality thresholds. SettleGrid&apos;s routing engine compares price, latency, and reliability across all providers and routes to the optimal endpoint — with automatic fallback chains.
+            </p>
+            <CopyableCodeBlock title="cURL" code={`# Find the cheapest weather tool with at least 3-star rating
+curl "https://settlegrid.ai/api/v1/discover/route?q=weather&max_cost=10&min_rating=3"
+
+# Response includes a ranked list of alternatives
+{
+  "primary": { "slug": "weather-basic", "costCents": 2, "rating": 4.2 },
+  "fallbacks": [
+    { "slug": "weather-pro", "costCents": 5, "rating": 4.8 },
+    { "slug": "weather-enterprise", "costCents": 10, "rating": 4.9 }
+  ]
+}`} />
+            <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Why This Is Unique</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                Cost-based routing requires a complete catalog of tools <em>and</em> their real-time pricing data. SettleGrid is the only platform that combines a tool registry, pricing metadata, and quality scores in a single queryable API — making intelligent routing possible for the first time.
+              </p>
+            </div>
+            <CopyableCodeBlock title="TypeScript" language="TypeScript" code={`// Agent uses cost-based routing to find the cheapest tool
+const route = await fetch(
+  'https://settlegrid.ai/api/v1/discover/route?q=search&max_cost=5&min_rating=3'
+).then(r => r.json())
+
+// Call the primary tool, fall back if it fails
+try {
+  const result = await callTool(route.primary.slug, args)
+} catch {
+  for (const fallback of route.fallbacks) {
+    try {
+      const result = await callTool(fallback.slug, args)
+      break
+    } catch { continue }
+  }
+}`} />
+          </Section>
+
+          {/* ── Smart Proxy ─────────────────────────── */}
+          <Section title="Smart Proxy" id="smart-proxy">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Zero-code billing. Point any API at the SettleGrid Smart Proxy — authentication, balance checks, and metering happen transparently. No SDK, no code changes.
+            </p>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">How It Works</h3>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+                <li>Register your API endpoint URL on SettleGrid</li>
+                <li>Get a proxied URL: <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">settlegrid.ai/api/proxy/your-tool</code></li>
+                <li>Consumers call the proxy URL with their SettleGrid API key</li>
+                <li>Smart Proxy validates the key, checks balance, forwards to your server, meters the call</li>
+                <li>Your server receives the request normally — no SDK needed</li>
+              </ol>
+            </div>
+            <CopyableCodeBlock title="cURL" code={`# Consumer calls your tool through the Smart Proxy
+curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
+  -H "x-api-key: sg_live_consumer_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "example"}'
+
+# Your server receives the request with billing handled automatically`} />
+            <p className="text-sm text-gray-400 mt-4">
+              Smart Proxy supports streaming (SSE), handles authentication, enforces budget limits, and works with any HTTP API. Available on the Scale plan.
+            </p>
+          </Section>
+
+          {/* ── Service Templates ─────────────────────────── */}
+          <Section title="Service Templates" id="service-templates">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Six ready-to-deploy non-MCP service templates for common AI service patterns. Each template is a complete project you can fork and customize.
+            </p>
+            <div className="space-y-3">
+              {[
+                { name: 'LLM Proxy', desc: 'Resell OpenAI/Anthropic access with automatic markup pricing and model selection' },
+                { name: 'Browser Scraper', desc: 'Headless browser automation for web scraping and data extraction' },
+                { name: 'Image Generator', desc: 'Wrap image generation APIs (DALL-E, Stable Diffusion) with per-image billing' },
+                { name: 'Email Sender', desc: 'Transactional email service with template management and per-send billing' },
+                { name: 'Code Sandbox', desc: 'Secure code execution environment with per-run billing and resource limits' },
+                { name: 'Search API', desc: 'Full-text search service with indexing and per-query billing' },
+              ].map((t) => (
+                <div key={t.name} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-[#2A2D3E]">
+                  <div>
+                    <span className="font-medium text-indigo dark:text-gray-100">{t.name}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-gray-400 mt-4">
+              View source code on{' '}
+              <a href="https://github.com/lexwhiting/settlegrid/tree/main/scripts/service-templates" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">GitHub</a>.
+            </p>
+          </Section>
+
+          {/* ── Agent-to-Agent Settlement ─────────────────────────── */}
+          <Section title="Agent-to-Agent Settlement" id="a2a-settlement">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Native support for Google&apos;s Agent-to-Agent (A2A) protocol and multi-hop settlement. When Agent A calls Agent B which calls Agent C, SettleGrid tracks the entire chain and settles all hops atomically.
+            </p>
+            <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Multi-Hop Settlement</h3>
+              <div className="space-y-3 text-sm text-gray-400">
+                <p><strong className="text-gray-300">Workflow sessions</strong> — Budget-capped containers for multi-agent workflows. Create a session, delegate budgets to sub-agents, track every hop.</p>
+                <p><strong className="text-gray-300">Atomic settlement</strong> — All hops settle together or none do. If any hop fails, the entire workflow rolls back. No partial payments.</p>
+                <p><strong className="text-gray-300">Budget delegation</strong> — Parent agents delegate budgets to child agents. Unused budget returns to the parent automatically.</p>
+                <p><strong className="text-gray-300">A2A skills discovery</strong> — Your tools are automatically discoverable by A2A-compatible agents via the <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">/api/a2a/skills</code> endpoint.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400">
+              Learn more in the{' '}
+              <Link href="/solutions/agent-to-agent" className="text-brand-text hover:text-brand-dark font-medium">Agent-to-Agent solutions page</Link>.
+            </p>
+          </Section>
 
           <Section title="FAQ" id="faq">
             <FaqAccordion categories={faqCategories} />
