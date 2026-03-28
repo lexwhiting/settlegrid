@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" fill="none">
   <rect width="500" height="500" rx="40" fill="#1A1F3A"/>
   <g transform="translate(105,105) scale(6.041666666666666)">
-    <circle cx="4" cy="4" r="3" fill="#10B981" opacity="0.35"/>
-    <circle cx="18" cy="4" r="3" fill="#10B981"/>
-    <circle cx="32" cy="4" r="3" fill="#10B981" opacity="0.35"/>
-    <circle cx="4" cy="18" r="3" fill="#10B981"/>
-    <circle cx="18" cy="18" r="4.5" fill="#10B981"/>
-    <circle cx="32" cy="18" r="3" fill="#10B981"/>
-    <circle cx="4" cy="32" r="3" fill="#10B981" opacity="0.35"/>
-    <circle cx="18" cy="32" r="3" fill="#10B981"/>
-    <circle cx="32" cy="32" r="3" fill="#10B981" opacity="0.35"/>
-    <line x1="18" y1="4" x2="18" y2="18" stroke="#10B981" stroke-width="1.5" opacity="0.4"/>
-    <line x1="4" y1="18" x2="18" y2="18" stroke="#10B981" stroke-width="1.5" opacity="0.4"/>
-    <line x1="18" y1="18" x2="32" y2="18" stroke="#10B981" stroke-width="1.5" opacity="0.4"/>
-    <line x1="18" y1="18" x2="18" y2="32" stroke="#10B981" stroke-width="1.5" opacity="0.4"/>
+    <circle cx="4" cy="4" r="3" fill="#E5A336" opacity="0.35"/>
+    <circle cx="18" cy="4" r="3" fill="#E5A336"/>
+    <circle cx="32" cy="4" r="3" fill="#E5A336" opacity="0.35"/>
+    <circle cx="4" cy="18" r="3" fill="#E5A336"/>
+    <circle cx="18" cy="18" r="4.5" fill="#E5A336"/>
+    <circle cx="32" cy="18" r="3" fill="#E5A336"/>
+    <circle cx="4" cy="32" r="3" fill="#E5A336" opacity="0.35"/>
+    <circle cx="18" cy="32" r="3" fill="#E5A336"/>
+    <circle cx="32" cy="32" r="3" fill="#E5A336" opacity="0.35"/>
+    <line x1="18" y1="4" x2="18" y2="18" stroke="#E5A336" stroke-width="1.5" opacity="0.4"/>
+    <line x1="4" y1="18" x2="18" y2="18" stroke="#E5A336" stroke-width="1.5" opacity="0.4"/>
+    <line x1="18" y1="18" x2="32" y2="18" stroke="#E5A336" stroke-width="1.5" opacity="0.4"/>
+    <line x1="18" y1="18" x2="18" y2="32" stroke="#E5A336" stroke-width="1.5" opacity="0.4"/>
   </g>
 </svg>
