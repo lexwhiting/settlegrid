@@ -8,8 +8,16 @@ import { getCronSecret } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
-import { sendEmail, claimToolOutreachEmail } from '@/lib/email'
-import { resolveDeveloperEmail } from '@/lib/developer-email-resolver'
+import {
+  sendEmail,
+  claimToolOutreachEmail,
+  claimAiModelEmail,
+  claimPackageEmail,
+  claimApiServiceEmail,
+  claimAgentToolEmail,
+  type EmailTemplate,
+} from '@/lib/email'
+import { resolveCreatorEmail } from '@/lib/ecosystem-email-resolver'
 
 export const maxDuration = 120
 
@@ -24,19 +32,76 @@ const CLAIM_TOKEN_BYTES = 24
 /** Redis dedup TTL: 90 days in seconds */
 const REDIS_DEDUP_TTL_SECONDS = 90 * 24 * 60 * 60
 
+/** Map source ecosystems to human-readable framework/ecosystem names */
+const ECOSYSTEM_DISPLAY_NAMES: Record<string, string> = {
+  npm: 'npm',
+  pypi: 'PyPI',
+  huggingface: 'HuggingFace',
+  replicate: 'Replicate',
+  apify: 'Apify',
+  github: 'GitHub',
+  'mcp-registry': 'MCP',
+  smithery: 'Smithery',
+  pulsemcp: 'PulseMCP',
+  openrouter: 'OpenRouter',
+}
+
+// ─── Template Selection ─────────────────────────────────────────────────────
+
+/**
+ * Select the appropriate email template based on tool type and ecosystem.
+ * Returns the correct outreach email for each tool category.
+ */
+function selectEmailTemplate(
+  firstName: string,
+  toolName: string,
+  claimToken: string,
+  toolType: string,
+  sourceRepoUrl: string | null,
+  sourceEcosystem: string | null
+): EmailTemplate {
+  const ecosystemDisplay =
+    ECOSYSTEM_DISPLAY_NAMES[sourceEcosystem ?? ''] ?? sourceEcosystem ?? 'AI'
+
+  switch (toolType) {
+    case 'ai-model':
+      return claimAiModelEmail(firstName, toolName, claimToken, sourceRepoUrl)
+
+    case 'sdk-package':
+      return claimPackageEmail(firstName, toolName, claimToken, ecosystemDisplay)
+
+    case 'rest-api':
+    case 'automation':
+      return claimApiServiceEmail(firstName, toolName, claimToken)
+
+    case 'agent-tool':
+      return claimAgentToolEmail(
+        firstName,
+        toolName,
+        claimToken,
+        ecosystemDisplay
+      )
+
+    case 'mcp-server':
+    default:
+      return claimToolOutreachEmail(firstName, toolName, claimToken, sourceRepoUrl)
+  }
+}
+
 // ─── Route Handler ──────────────────────────────────────────────────────────
 
 /**
  * Vercel Cron handler: finds unclaimed tools that have not been emailed yet,
- * resolves the developer's email from GitHub, and sends claim outreach emails.
+ * resolves the creator's email from the appropriate ecosystem, and sends
+ * claim outreach emails.
  *
  * Schedule: daily at 10 AM UTC
  *
  * For each unclaimed tool:
  * 1. Check Redis dedup key (claim:emailed:{toolSlug})
- * 2. Resolve developer email from sourceRepoUrl via GitHub API
+ * 2. Resolve creator email via ecosystem-specific resolver
  * 3. Generate a unique claim token
- * 4. Send claim outreach email
+ * 4. Send ecosystem-appropriate claim outreach email
  * 5. Update tool record with claimToken and claimEmailSentAt
  */
 export async function GET(request: NextRequest) {
@@ -60,7 +125,7 @@ export async function GET(request: NextRequest) {
     logger.info('cron.claim_outreach.starting')
 
     // Query unclaimed tools that have not been emailed yet
-    // Must have a sourceRepoUrl (otherwise we cannot find the developer)
+    // Must have a sourceRepoUrl (otherwise we cannot find the creator)
     const unclaimedTools = await db
       .select({
         id: tools.id,
@@ -68,6 +133,8 @@ export async function GET(request: NextRequest) {
         slug: tools.slug,
         description: tools.description,
         sourceRepoUrl: tools.sourceRepoUrl,
+        toolType: tools.toolType,
+        sourceEcosystem: tools.sourceEcosystem,
       })
       .from(tools)
       .where(
@@ -111,17 +178,22 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Resolve developer email from GitHub
+        // Resolve creator email from the appropriate ecosystem
         if (!tool.sourceRepoUrl) {
           skipped++
           continue
         }
 
-        const developer = await resolveDeveloperEmail(tool.sourceRepoUrl)
-        if (!developer) {
+        const creator = await resolveCreatorEmail(
+          tool.sourceRepoUrl,
+          tool.sourceEcosystem
+        )
+        if (!creator) {
           logger.info('cron.claim_outreach.no_email', {
             slug: tool.slug,
             sourceRepoUrl: tool.sourceRepoUrl,
+            toolType: tool.toolType,
+            sourceEcosystem: tool.sourceEcosystem,
           })
           noEmail++
           continue
@@ -131,20 +203,22 @@ export async function GET(request: NextRequest) {
         const claimToken = crypto.randomBytes(CLAIM_TOKEN_BYTES).toString('hex')
 
         // Extract first name (or fallback to username)
-        const firstName = developer.name
-          ? developer.name.split(/\s+/)[0] || developer.githubUsername
-          : developer.githubUsername
+        const firstName = creator.name
+          ? creator.name.split(/\s+/)[0] || creator.username
+          : creator.username
 
-        // Build and send the email
-        const emailTemplate = claimToolOutreachEmail(
+        // Select and build the appropriate email template
+        const emailTemplate = selectEmailTemplate(
           firstName,
           tool.name,
           claimToken,
-          tool.sourceRepoUrl
+          tool.toolType,
+          tool.sourceRepoUrl,
+          tool.sourceEcosystem
         )
 
         const sent = await sendEmail({
-          to: developer.email,
+          to: creator.email,
           subject: emailTemplate.subject,
           html: emailTemplate.html,
         })
@@ -152,7 +226,7 @@ export async function GET(request: NextRequest) {
         if (!sent) {
           logger.warn('cron.claim_outreach.email_failed', {
             slug: tool.slug,
-            email: developer.email.split('@')[0]?.slice(0, 3) + '***', // redact
+            email: creator.email.split('@')[0]?.slice(0, 3) + '***', // redact
           })
           continue
         }
@@ -174,7 +248,9 @@ export async function GET(request: NextRequest) {
 
         logger.info('cron.claim_outreach.sent', {
           slug: tool.slug,
-          githubUser: developer.githubUsername,
+          ecosystem: creator.ecosystem,
+          username: creator.username,
+          toolType: tool.toolType,
         })
       } catch (toolErr) {
         logger.error(

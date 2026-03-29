@@ -2090,6 +2090,160 @@ ${dividerLine()}
   }
 }
 
+// ── Ecosystem Claim Outreach Templates ───────────────────────────────────────
+
+/** CAN-SPAM footer for outreach emails (unsubscribe + physical address). */
+const OUTREACH_CAN_SPAM_FOOTER = `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You are receiving this because your tool was indexed on SettleGrid. <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>`
+
+/**
+ * Outreach email for AI model creators (HuggingFace, Replicate, etc.).
+ * Emphasizes per-inference billing and zero infrastructure changes.
+ */
+export function claimAiModelEmail(
+  firstName: string,
+  modelName: string,
+  claimToken: string,
+  sourceUrl: string | null
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+  const sourceLine = sourceUrl
+    ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:8px 0 0">Source: <a href="${escapeHtml(sourceUrl)}" style="color:#E5A336;text-decoration:underline">${escapeHtml(sourceUrl.slice(0, 80))}</a></p>`
+    : ''
+
+  return {
+    subject: sanitizeSubject(`Monetize your AI model ${modelName} on SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your AI Model Is Listed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your AI model <strong>${escapeHtml(modelName)}</strong> has been indexed on SettleGrid. AI agents can now discover it — claim it to start earning per-inference revenue.</p>
+${sourceLine}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your model, you get:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
+<li>Per-inference billing — you set the price</li>
+<li>Zero infrastructure changes required</li>
+<li>Download and usage analytics dashboard</li>
+<li>95-100% revenue share via Stripe payouts</li>
+</ul>
+${ctaButton('Claim Your Model', claimUrl)}
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your model, just ignore this email.</p>
+${dividerLine()}
+${OUTREACH_CAN_SPAM_FOOTER}
+`,
+      { preheader: `Claim "${modelName}" on SettleGrid and earn per-inference revenue.` }
+    ),
+  }
+}
+
+/**
+ * Outreach email for package creators (npm, PyPI, etc.).
+ * Emphasizes per-call billing for premium features.
+ */
+export function claimPackageEmail(
+  firstName: string,
+  packageName: string,
+  claimToken: string,
+  ecosystem: string
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+  const ecosystemDisplay = escapeHtml(ecosystem.toUpperCase())
+
+  return {
+    subject: sanitizeSubject(`Your ${ecosystem} package ${packageName} is listed on SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Package Is Listed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your ${ecosystemDisplay} package <strong>${escapeHtml(packageName)}</strong> has been indexed on SettleGrid's AI tool marketplace. Claim it to monetize usage by AI agents.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your package, you get:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
+<li>Per-call billing for premium features — you set the price</li>
+<li>Weekly download and usage analytics</li>
+<li>AI agent discovery via our marketplace API</li>
+<li>95-100% revenue share via Stripe payouts</li>
+</ul>
+${ctaButton('Claim Your Package', claimUrl)}
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your package, just ignore this email.</p>
+${dividerLine()}
+${OUTREACH_CAN_SPAM_FOOTER}
+`,
+      { preheader: `Claim "${packageName}" on SettleGrid and start earning per-call revenue.` }
+    ),
+  }
+}
+
+/**
+ * Outreach email for API/automation service creators (Apify, REST APIs).
+ * Emphasizes agent-native payment and machine-to-machine billing.
+ */
+export function claimApiServiceEmail(
+  firstName: string,
+  serviceName: string,
+  claimToken: string
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+
+  return {
+    subject: sanitizeSubject(`AI agents can now pay for ${serviceName}`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Service Is Listed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your service <strong>${escapeHtml(serviceName)}</strong> has been indexed on SettleGrid. AI agents can discover it — claim it to enable autonomous machine-to-machine billing.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your service, you get:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
+<li>Agent-native payment — agents pay per call automatically</li>
+<li>Autonomous machine-to-machine billing</li>
+<li>Usage analytics and revenue dashboard</li>
+<li>95-100% revenue share via Stripe payouts</li>
+</ul>
+${ctaButton('Claim Your Service', claimUrl)}
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your service, just ignore this email.</p>
+${dividerLine()}
+${OUTREACH_CAN_SPAM_FOOTER}
+`,
+      { preheader: `Claim "${serviceName}" on SettleGrid and let AI agents pay for your service.` }
+    ),
+  }
+}
+
+/**
+ * Outreach email for agent tool creators (LangChain, CrewAI, etc.).
+ * Emphasizes that AI agents discover and pay automatically.
+ */
+export function claimAgentToolEmail(
+  firstName: string,
+  toolName: string,
+  claimToken: string,
+  framework: string
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+
+  return {
+    subject: sanitizeSubject(`Your ${framework} tool ${toolName} is on SettleGrid`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Agent Tool Is Listed</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your ${escapeHtml(framework)} tool <strong>${escapeHtml(toolName)}</strong> has been indexed on SettleGrid's AI tool marketplace.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your tool, you get:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
+<li>AI agents discover and pay for your tool automatically</li>
+<li>Per-call pricing — you set the rate</li>
+<li>Usage analytics across agent frameworks</li>
+<li>95-100% revenue share via Stripe payouts</li>
+</ul>
+${ctaButton('Claim Your Tool', claimUrl)}
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your tool, just ignore this email.</p>
+${dividerLine()}
+${OUTREACH_CAN_SPAM_FOOTER}
+`,
+      { preheader: `Claim "${toolName}" on SettleGrid and let AI agents pay per call.` }
+    ),
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {

@@ -31,8 +31,8 @@ export default function NotFound() {
             </Link>
           </div>
           <div className="flex items-center justify-center gap-5 text-xs text-gray-500">
+            <Link href="/marketplace" className="hover:text-gray-300 transition-colors">Marketplace</Link>
             <Link href="/tools" className="hover:text-gray-300 transition-colors">Showcase</Link>
-            <Link href="/servers" className="hover:text-gray-300 transition-colors">Templates</Link>
             <Link href="/learn" className="hover:text-gray-300 transition-colors">Learn</Link>
             <Link href="/faq" className="hover:text-gray-300 transition-colors">FAQ</Link>
           </div>
