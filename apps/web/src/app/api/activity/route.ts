@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
       toolTypeBreakdown,
     }
 
-    logger.info('activity.feed_served', { ip, activityCount: activity.length })
+    logger.info('activity.feed_served', { activityCount: activity.length })
 
     return NextResponse.json(
       { activity: activity.slice(0, 20), stats },

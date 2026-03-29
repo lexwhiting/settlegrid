@@ -307,7 +307,13 @@ export function generatePayload(toolType: ToolTypeSlug, category: string | null)
 
 /**
  * Discovers candidate tools for GridBot invocation.
- * Selects random active tools of the given type, excluding already-seeded slugs.
+ * Selects random active tools of the given type that have a proxy endpoint set,
+ * excluding already-seeded slugs.
+ *
+ * NOTE: Only tools with a proxyEndpoint can actually be invoked via the Smart Proxy.
+ * Unclaimed/crawled tools do not have proxy endpoints until a developer claims them
+ * and configures one. GridBot will naturally generate zero traffic until developers
+ * start claiming tools and setting endpoints.
  */
 export async function discoverCandidates(
   toolType: ToolTypeSlug,
@@ -317,6 +323,7 @@ export async function discoverCandidates(
   const conditions = [
     eq(tools.status, 'active'),
     eq(tools.toolType, toolType),
+    sql`${tools.proxyEndpoint} IS NOT NULL`,
   ]
 
   if (excludeSlugs.length > 0) {

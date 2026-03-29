@@ -31,8 +31,18 @@ function checkAndDeductBudget(costCents: number): boolean {
   return true
 }
 
+/** Strips HTML tags to prevent XSS in reflected responses. */
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, '')
+}
+
 const askSchema = z.object({
-  question: z.string().trim().min(1, 'Question is required').max(500, 'Question too long'),
+  question: z
+    .string()
+    .trim()
+    .min(1, 'Question is required')
+    .max(500, 'Question too long')
+    .transform(stripHtml),
 })
 
 function getEffectiveCost(pricingConfig: unknown): number {
@@ -437,8 +447,10 @@ export async function POST(request: NextRequest) {
 
       if (searchWords.length > 0) {
         // Build OR conditions: any keyword matching name, description, or slug
+        // Escape SQL LIKE wildcards to prevent pattern injection from user input
         const textConditions: SQL[] = searchWords.flatMap((word) => {
-          const pattern = `%${word}%`
+          const escaped = word.replace(/[%_\\]/g, '\\$&')
+          const pattern = `%${escaped}%`
           return [
             ilike(tools.name, pattern),
             ilike(tools.description, pattern),
