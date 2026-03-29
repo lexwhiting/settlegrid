@@ -137,6 +137,11 @@ async function processBatch(
     // Map the crawler source to the source_ecosystem column value
     const sourceEcosystem = SOURCE_TO_ECOSYSTEM[service.source] ?? service.source
 
+    // Store enrichment metadata in crawl_metadata JSONB column
+    const crawlMetadata = service.enrichment
+      ? JSON.parse(JSON.stringify(service.enrichment))
+      : null
+
     try {
       await db.insert(tools).values({
         developerId: systemDeveloperId,
@@ -148,6 +153,7 @@ async function processBatch(
         sourceRepoUrl: service.sourceUrl || null,
         toolType: service.toolType,
         sourceEcosystem,
+        crawlMetadata,
       })
 
       existingSlugs.add(slug)

@@ -35,6 +35,11 @@ const VALID_SORTS = ['popular', 'newest', 'revenue'] as const
 
 const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 24
+const MAX_PAGE = 1000
+const MAX_SEARCH_LENGTH = 200
+
+/** Valid status filter values */
+const VALID_STATUSES = ['active', 'unclaimed', 'claimed'] as const
 
 /** GET /api/marketplace — public marketplace listing with filtering, search, and pagination */
 export async function GET(request: NextRequest) {
@@ -47,14 +52,17 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
 
-    // Parse query params
+    // Parse and validate query params with bounds
     const typeParam = searchParams.get('type')
     const categoryParam = searchParams.get('category')
     const ecosystemParam = searchParams.get('ecosystem')
     const statusParam = searchParams.get('status')
-    const searchQuery = searchParams.get('q')
+    const rawSearch = searchParams.get('q')
     const sortParam = searchParams.get('sort') ?? 'popular'
-    const pageParam = Math.max(parseInt(searchParams.get('page') ?? '1', 10) || 1, 1)
+    const pageParam = Math.min(
+      Math.max(parseInt(searchParams.get('page') ?? '1', 10) || 1, 1),
+      MAX_PAGE
+    )
     const limitParam = Math.min(
       Math.max(parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT, 1),
       MAX_LIMIT
@@ -87,8 +95,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Build where conditions — default to active tools only
-    const conditions: SQL[] = [eq(tools.status, 'active')]
+    // Validate status
+    if (statusParam && !VALID_STATUSES.includes(statusParam as (typeof VALID_STATUSES)[number])) {
+      return errorResponse(
+        `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
+        400,
+        'INVALID_STATUS'
+      )
+    }
+
+    // Sanitize search query: trim, enforce max length
+    const searchQuery = rawSearch
+      ? rawSearch.trim().slice(0, MAX_SEARCH_LENGTH)
+      : null
+
+    // Build where conditions — show both active and unclaimed by default
+    // This ensures the marketplace shows the full breadth of the directory
+    const conditions: SQL[] = [
+      or(eq(tools.status, 'active'), eq(tools.status, 'unclaimed'))!,
+    ]
 
     if (typeParam) {
       conditions.push(eq(tools.toolType, typeParam))
@@ -102,14 +127,19 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(tools.sourceEcosystem, ecosystemParam))
     }
 
-    if (statusParam === 'claimed') {
+    if (statusParam === 'active') {
+      // Override default: show only active tools
+      conditions[0] = eq(tools.status, 'active')
+    } else if (statusParam === 'claimed') {
+      conditions[0] = eq(tools.status, 'active')
       conditions.push(sql`${tools.developerId} IS NOT NULL`)
       conditions.push(sql`${tools.claimToken} IS NULL`)
     } else if (statusParam === 'unclaimed') {
-      conditions.push(sql`${tools.claimToken} IS NOT NULL`)
+      conditions[0] = eq(tools.status, 'unclaimed')
     }
 
-    if (searchQuery) {
+    if (searchQuery && searchQuery.length > 0) {
+      // Use parameterized ilike — Drizzle handles escaping
       const pattern = `%${searchQuery}%`
       conditions.push(
         or(
@@ -169,7 +199,9 @@ export async function GET(request: NextRequest) {
       .offset(offset)
 
     // Build facets for filtering UI and third-party integrations
-    const facetConditions: SQL[] = [eq(tools.status, 'active')]
+    const facetConditions: SQL[] = [
+      or(eq(tools.status, 'active'), eq(tools.status, 'unclaimed'))!,
+    ]
     const facetWhere = and(...facetConditions)
 
     const [typeFacets, ecosystemFacets, categoryFacets] = await Promise.all([

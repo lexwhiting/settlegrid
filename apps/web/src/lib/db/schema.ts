@@ -98,6 +98,8 @@ export const tools = pgTable(
     sourceRepoUrl: text('source_repo_url'), // GitHub repo URL the tool was crawled from
     claimToken: text('claim_token'), // Unique token for claiming this tool
     claimEmailSentAt: timestamp('claim_email_sent_at', { withTimezone: true }), // When claim email was sent
+    // Enrichment metadata from crawlers (popularity, stars, license, etc.)
+    crawlMetadata: jsonb('crawl_metadata'),
     // Quality gate: set to true after first real (non-test) invocation
     verified: boolean('verified').notNull().default(false),
     // Manual escalation: timestamp of most recent report

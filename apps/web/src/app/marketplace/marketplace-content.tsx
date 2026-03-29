@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
-import { eq, and, desc, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { eq, and, desc, ilike, or, sql, type SQL, inArray } from 'drizzle-orm'
 import { type MarketplaceTool } from '@/components/marketplace/tool-card'
 import { MarketplaceClientShell } from './marketplace-client-shell'
 
@@ -28,7 +28,10 @@ async function getEcosystemCounts(): Promise<Map<string, number>> {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(and(eq(tools.status, 'active'), sql`${tools.sourceEcosystem} IS NOT NULL`))
+      .where(and(
+        inArray(tools.status, ['active', 'unclaimed']),
+        sql`${tools.sourceEcosystem} IS NOT NULL`,
+      ))
       .groupBy(tools.sourceEcosystem)
 
     return new Map(rows.map((r) => [r.ecosystem!, r.count]))
@@ -45,7 +48,7 @@ async function getTypeCounts(): Promise<Map<string, number>> {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(inArray(tools.status, ['active', 'unclaimed']))
       .groupBy(tools.toolType)
 
     return new Map(rows.map((r) => [r.toolType, r.count]))
@@ -73,8 +76,9 @@ export async function MarketplaceContent({
     MAX_LIMIT
   )
 
-  // Build where conditions
-  const conditions: SQL[] = [eq(tools.status, 'active')]
+  // Build where conditions — include both active and unclaimed tools
+  // so the marketplace reflects the full breadth of the directory
+  const conditions: SQL[] = [inArray(tools.status, ['active', 'unclaimed'])]
 
   if (typeFilter) {
     conditions.push(eq(tools.toolType, typeFilter))
@@ -112,7 +116,7 @@ export async function MarketplaceContent({
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(tools)
-        .where(eq(tools.status, 'active')),
+        .where(inArray(tools.status, ['active', 'unclaimed'])),
     ])
 
     total = countResult[0]?.count ?? 0

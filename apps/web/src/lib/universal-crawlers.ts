@@ -994,10 +994,12 @@ export async function crawlNpmAiPackages(limit: number): Promise<CrawledService[
           continue
         }
 
-        const data = (await res.json()) as NpmSearchResponse
-        if (!Array.isArray(data.objects)) continue
+        const data: unknown = await res.json()
+        if (typeof data !== 'object' || data === null) continue
+        const npmResponse = data as NpmSearchResponse
+        if (!Array.isArray(npmResponse.objects)) continue
 
-        for (const obj of data.objects) {
+        for (const obj of npmResponse.objects) {
           if (results.length >= limit) break
 
           const pkg = obj.package
@@ -1178,10 +1180,12 @@ export async function crawlGitHubAiRepos(limit: number): Promise<CrawledService[
         continue
       }
 
-      const data = (await res.json()) as GitHubSearchResponse
-      if (!Array.isArray(data.items)) continue
+      const data: unknown = await res.json()
+      if (typeof data !== 'object' || data === null) continue
+      const ghResponse = data as GitHubSearchResponse
+      if (!Array.isArray(ghResponse.items)) continue
 
-      for (const repo of data.items) {
+      for (const repo of ghResponse.items) {
         if (results.length >= limit) break
         if (typeof repo !== 'object' || repo === null) continue
 

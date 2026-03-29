@@ -79,6 +79,12 @@ export default async function MarketplacePage({
               Marketplace
             </Link>
             <Link
+              href="/marketplace/compare/vs-xpay"
+              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
+            >
+              Compare
+            </Link>
+            <Link
               href="/tools"
               className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
             >
