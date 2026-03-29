@@ -7,7 +7,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
 import { CopyCommand } from '@/components/marketing/copy-command'
 import { ScreenshotCarousel } from '@/components/marketing/screenshot-carousel'
-import { GoldFlowHero } from '@/components/ui/gold-flow-hero'
+
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { sql } from 'drizzle-orm'
@@ -552,16 +552,8 @@ export default async function HomePage() {
         {/*  1. Hero — Dark with animated gradient mesh + grid              */}
         {/* ================================================================ */}
         <section className="relative px-6 pt-20 pb-24 bg-indigo overflow-hidden">
-          {/* Layer 1: Caustic light refraction pattern */}
-          <div className="absolute inset-0 caustic-light" />
-
-          {/* Layer 2: Liquid gold gradient mesh — replaces hero-gradient-mesh */}
-          <div className="absolute inset-0 opacity-50 hero-liquid-gold" />
-
-          {/* Layer 3: Gold flow conduit lines (SVG) — 15 tributary paths */}
-          <GoldFlowHero className="absolute inset-0" />
-
-          {/* Layer 4: Subtle gold-tinted dot grid */}
+          {/* Background layers */}
+          <div className="absolute inset-0 hero-gradient-mesh opacity-50" />
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
@@ -569,7 +561,6 @@ export default async function HomePage() {
               backgroundSize: '24px 24px',
             }}
           />
-          {/* Top glow accent line — now gold gradient */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-gold-flowing/60 to-transparent" />
 
           <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
