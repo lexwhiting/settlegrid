@@ -206,8 +206,12 @@ export function baseEmailTemplate(
 <body class="sg-body" style="margin:0;padding:0;background-color:#f9fafb;font-family:${FONT_STACK};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">${preheader ? `<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(preheader)}${'&#847; &zwnj; '.repeat(30)}</div>` : ''}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%">
+<!-- Gold flow band -->
+<tr><td style="padding:0">
+<div style="height:3px;background:linear-gradient(90deg, transparent, #E5A336 20%, #F5C963 50%, #E5A336 80%, transparent);border-radius:2px"></div>
+</td></tr>
 <!-- Logo -->
-<tr><td align="center" style="padding-bottom:24px">
+<tr><td align="center" style="padding:16px 0 24px">
 <span style="display:inline-block;font-size:22px;letter-spacing:-0.5px"><span style="font-weight:700;color:#1A1F3A">Settle</span><span style="font-weight:400;color:#E5A336">Grid</span></span>
 </td></tr>
 <!-- Card -->
@@ -221,6 +225,10 @@ ${content}
 <!-- Footer -->
 <tr><td style="padding-top:24px;text-align:center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<!-- Gold flow band -->
+<tr><td style="padding:0 0 12px">
+<div style="height:2px;background:linear-gradient(90deg, transparent, #C4891E 20%, #E5A336 50%, #C4891E 80%, transparent);border-radius:2px"></div>
+</td></tr>
 <tr><td align="center" style="padding-bottom:12px">
 <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-size:13px;margin:0 8px">Website</a>
 <span class="sg-muted" style="color:#d1d5db">&middot;</span>
@@ -248,15 +256,22 @@ ${content}
  * Uses VML fallback for Outlook and padding-based approach for others.
  */
 export function ctaButton(text: string, href: string, color = '#E5A336'): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px auto"><tr><td align="center" style="border-radius:8px;background-color:${color}">
+  // Non-gold colors (e.g. red for warnings) use the original style with white text
+  const isGold = color === '#E5A336'
+  const bgStyle = isGold
+    ? 'background:linear-gradient(135deg, #E5A336, #D4961F)'
+    : `background-color:${color}`
+  const textColor = isGold ? '#1A1F3A' : '#ffffff'
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px auto"><tr><td align="center" style="border-radius:8px;${bgStyle}">
 <!--[if mso]>
 <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(href)}" style="height:44px;v-text-anchor:middle;width:200px" arcsize="18%" strokecolor="${color}" fillcolor="${color}">
 <w:anchorlock/>
-<center style="color:#ffffff;font-family:${FONT_STACK};font-size:15px;font-weight:600">${escapeHtml(text)}</center>
+<center style="color:${textColor};font-family:${FONT_STACK};font-size:15px;font-weight:600">${escapeHtml(text)}</center>
 </v:roundrect>
 <![endif]-->
 <!--[if !mso]><!-->
-<a href="${escapeHtml(href)}" style="display:inline-block;background-color:${color};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px;font-family:${FONT_STACK};line-height:1.2;mso-hide:all">${escapeHtml(text)}</a>
+<a href="${escapeHtml(href)}" style="display:inline-block;${bgStyle};color:${textColor};text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px;font-family:${FONT_STACK};line-height:1.2;mso-hide:all">${escapeHtml(text)}</a>
 <!--<![endif]-->
 </td></tr></table>`
 }

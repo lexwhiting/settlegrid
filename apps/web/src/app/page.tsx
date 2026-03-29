@@ -7,6 +7,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
 import { CopyCommand } from '@/components/marketing/copy-command'
 import { ScreenshotCarousel } from '@/components/marketing/screenshot-carousel'
+import { GoldFlowHero } from '@/components/ui/gold-flow-hero'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { sql } from 'drizzle-orm'
@@ -176,16 +177,33 @@ function StepCard({
   step,
   title,
   description,
+  state,
 }: {
   step: string
   title: string
   description: string
+  state: 'molten' | 'flowing' | 'settled'
 }) {
+  const stateColors = {
+    molten: 'from-gold-molten to-gold-flowing',
+    flowing: 'from-gold-flowing to-gold-warm',
+    settled: 'from-gold-warm to-gold-settled',
+  }
+  const stateLabels = {
+    molten: 'Source',
+    flowing: 'Flow',
+    settled: 'Settle',
+  }
+
   return (
-    <div className="text-center relative">
-      <div className="w-14 h-14 rounded-2xl bg-brand text-white font-bold text-lg flex items-center justify-center mx-auto mb-5 shadow-lg shadow-brand/20">
+    <div className="text-center relative group">
+      {/* Gold state indicator */}
+      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${stateColors[state]} text-white font-bold text-lg flex items-center justify-center mx-auto mb-2 shadow-lg shadow-gold-flowing/20 group-hover:shadow-gold-flowing/30 transition-shadow`}>
         {step}
       </div>
+      <p className="text-[10px] uppercase tracking-widest text-gold-settled mb-3 font-medium">
+        {stateLabels[state]}
+      </p>
       <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">{title}</h3>
       <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
     </div>
@@ -202,8 +220,8 @@ function CoreCard({
   description: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] hover:border-brand/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 dark:hover:border-brand/50">
-      <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4 group-hover:bg-brand/20 transition-colors">
+    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] hover:border-brand/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 dark:hover:border-brand/50 gold-edge-top liquid-depth">
+      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-gold-flowing/10 to-gold-settled/5 flex items-center justify-center mb-4 group-hover:from-gold-flowing/20 group-hover:to-gold-settled/10 transition-colors">
         {icon}
       </div>
       <h3 className="font-bold text-indigo dark:text-gray-100 mb-2">{title}</h3>
@@ -534,28 +552,25 @@ export default async function HomePage() {
         {/*  1. Hero — Dark with animated gradient mesh + grid              */}
         {/* ================================================================ */}
         <section className="relative px-6 pt-20 pb-24 bg-indigo overflow-hidden">
-          {/* Layer 1: Haikei stacked waves — static texture at the bottom */}
+          {/* Layer 1: Caustic light refraction pattern */}
+          <div className="absolute inset-0 caustic-light" />
+
+          {/* Layer 2: Liquid gold gradient mesh — replaces hero-gradient-mesh */}
+          <div className="absolute inset-0 opacity-50 hero-liquid-gold" />
+
+          {/* Layer 3: Gold flow conduit lines (SVG) — 15 tributary paths */}
+          <GoldFlowHero className="absolute inset-0" />
+
+          {/* Layer 4: Subtle gold-tinted dot grid */}
           <div
-            className="absolute inset-0 opacity-60"
+            className="absolute inset-0 opacity-[0.03]"
             style={{
-              backgroundImage: 'url(/hero-waves.svg)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center bottom',
-              backgroundRepeat: 'no-repeat',
-            }}
-          />
-          {/* Layer 2: Animated gradient mesh — drifting glow on top */}
-          <div className="absolute inset-0 opacity-40 hero-gradient-mesh" />
-          {/* Layer 3: Subtle dot grid overlay for depth */}
-          <div
-            className="absolute inset-0 opacity-[0.04]"
-            style={{
-              backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
+              backgroundImage: 'radial-gradient(circle, #E5A336 1px, transparent 1px)',
               backgroundSize: '24px 24px',
             }}
           />
-          {/* Top glow accent line */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
+          {/* Top glow accent line — now gold gradient */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-gold-flowing/60 to-transparent" />
 
           <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -571,7 +586,7 @@ export default async function HomePage() {
               {/* Headline */}
               <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight text-white mb-3 leading-[1.08]">
                 The Settlement Layer for the{' '}
-                <span className="text-brand-light">AI Economy</span>
+                <span className="gold-shimmer">AI Economy</span>
               </h1>
               <p className="text-xl sm:text-2xl font-semibold text-gray-200 mb-6">
                 Per-call billing for any AI service — in 2 lines of code
@@ -599,15 +614,27 @@ export default async function HomePage() {
                 </Link>
               </div>
 
-              {/* Stat bar */}
-              <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-3 mb-6 text-[11px] sm:text-sm">
-                <span className="text-brand-light font-semibold whitespace-nowrap">Free forever</span>
-                <span className="text-white/20">·</span>
-                <span className="text-white font-semibold whitespace-nowrap">15 protocols</span>
-                <span className="text-white/20">·</span>
-                <span className="text-white font-semibold whitespace-nowrap">&lt;50ms metering</span>
-                <span className="text-white/20">·</span>
-                <span className="text-white font-semibold whitespace-nowrap">Stripe payouts</span>
+              {/* Protocol tributaries stat bar */}
+              <div className="flex items-center justify-center sm:justify-start gap-3 mb-6 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-8 h-[2px] bg-gradient-to-r from-gold-molten to-gold-settled rounded-full" />
+                  <span className="text-gold-molten font-semibold whitespace-nowrap">Free forever</span>
+                </div>
+                <span className="text-white/15">|</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-[2px] bg-gradient-to-r from-gold-flowing to-transparent rounded-full" />
+                  <span className="text-white font-semibold whitespace-nowrap">15 protocols</span>
+                </div>
+                <span className="text-white/15">|</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-[2px] bg-gradient-to-r from-gold-flowing to-transparent rounded-full" />
+                  <span className="text-white font-semibold whitespace-nowrap">&lt;50ms metering</span>
+                </div>
+                <span className="text-white/15">|</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-[2px] bg-gradient-to-r from-gold-settled to-transparent rounded-full" />
+                  <span className="text-white font-semibold whitespace-nowrap">Stripe payouts</span>
+                </div>
               </div>
 
               {/* npm install bar with copy */}
@@ -615,7 +642,7 @@ export default async function HomePage() {
 
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-4">
-                <Link href="/start" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3.5 rounded-lg text-lg hover:bg-brand-dark transition-all shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 hover:-translate-y-0.5">
+                <Link href="/start" className="inline-flex items-center justify-center bg-gradient-to-r from-gold-flowing to-gold-warm text-white font-semibold px-8 py-3.5 rounded-lg text-lg hover:from-gold-molten hover:to-gold-flowing transition-all shadow-lg shadow-gold-flowing/25 hover:shadow-xl hover:shadow-gold-molten/30 hover:-translate-y-0.5">
                   Start Earning — Free
                 </Link>
                 <Link href="/docs" className="inline-flex items-center justify-center border-2 border-white/25 text-white font-semibold px-8 py-3.5 rounded-lg text-lg hover:bg-white/10 hover:border-white/40 transition-all">
@@ -800,6 +827,7 @@ export default async function HomePage() {
                     step="1"
                     title="Install & Wrap"
                     description="npm install the SDK, set your pricing, and wrap your handler. LLM proxy, browser scraper, image generator, MCP tool, REST API, or any AI service — five lines of code, any protocol."
+                    state="molten"
                   />
                   <div className="mt-4 text-center">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Or scaffold a complete project instantly:</p>
@@ -810,11 +838,13 @@ export default async function HomePage() {
                   step="2"
                   title="Users Pay Per Call"
                   description="Consumers pre-fund credits via Stripe or crypto (x402/USDC). Auto-refill keeps usage seamless. Progressive take rate: 0% on your first $1K/mo, scales to 5% at $50K+."
+                  state="flowing"
                 />
                 <StepCard
                   step="3"
                   title="Get Paid Automatically"
                   description="Every call is metered in real time. Revenue splits across multi-agent chains settle atomically. $1 minimum payout — the lowest of any AI monetization platform."
+                  state="settled"
                 />
               </div>
             </div>

@@ -47,6 +47,17 @@ const VALID_PRICING_MODELS = [
   'outcome',
 ] as const
 
+const VALID_TOOL_TYPES = [
+  'mcp-server',
+  'ai-model',
+  'rest-api',
+  'agent-tool',
+  'automation',
+  'extension',
+  'dataset',
+  'sdk-package',
+] as const
+
 const quickPublishSchema = z.object({
   url: z
     .string()
@@ -68,6 +79,9 @@ const quickPublishSchema = z.object({
     .string()
     .max(50, 'Category too long')
     .optional(),
+  toolType: z
+    .enum(VALID_TOOL_TYPES)
+    .default('mcp-server'),
   pricingModel: z
     .enum(VALID_PRICING_MODELS)
     .default('per-invocation'),
@@ -151,6 +165,7 @@ export async function POST(request: NextRequest) {
     const pricingConfig = buildPricingConfig(pricingModel, costCents)
 
     // Create tool with active status and proxy endpoint
+    const toolType = body.toolType ?? 'mcp-server'
     const [tool] = await db
       .insert(tools)
       .values({
@@ -161,6 +176,7 @@ export async function POST(request: NextRequest) {
         pricingConfig,
         status: 'active',
         category: body.category ?? null,
+        toolType,
         proxyEndpoint: body.url,
         currentVersion: '1.0.0',
       })
@@ -171,6 +187,7 @@ export async function POST(request: NextRequest) {
         description: tools.description,
         pricingConfig: tools.pricingConfig,
         status: tools.status,
+        toolType: tools.toolType,
         category: tools.category,
         proxyEndpoint: tools.proxyEndpoint,
         createdAt: tools.createdAt,
@@ -190,6 +207,7 @@ export async function POST(request: NextRequest) {
         name: body.name,
         slug: tool.slug,
         url: body.url,
+        toolType,
         category: body.category ?? null,
         costCents: body.costCents,
       },
@@ -216,6 +234,7 @@ export async function POST(request: NextRequest) {
           slug: tool.slug,
           description: tool.description,
           status: tool.status,
+          toolType: tool.toolType,
           category: tool.category,
           proxyUrl,
           toolPageUrl,

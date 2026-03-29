@@ -49,8 +49,9 @@ export function AreaChart({
       <RechartsAreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id={`gradient-${yKey}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={color} stopOpacity={0.2} />
-            <stop offset="95%" stopColor={color} stopOpacity={0} />
+            <stop offset="0%" stopColor="#F5C963" stopOpacity={0.3} />
+            <stop offset="40%" stopColor="#E5A336" stopOpacity={0.15} />
+            <stop offset="100%" stopColor="#C4891E" stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
@@ -70,11 +71,12 @@ export function AreaChart({
         <Tooltip
           contentStyle={{
             backgroundColor: '#1A1F3A',
-            border: '1px solid #2A2D3E',
+            border: '1px solid rgba(229, 163, 54, 0.3)',
             borderRadius: '8px',
             color: '#fff',
             fontSize: '12px',
             padding: '8px 12px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           }}
           cursor={{ stroke: 'rgba(255,255,255,0.1)' }}
           formatter={(value: number) => [formatValue(value), '']}
