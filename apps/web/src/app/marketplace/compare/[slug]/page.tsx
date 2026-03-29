@@ -230,13 +230,13 @@ export default async function ComparisonPage({
             <Link href="/marketplace" className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
               Marketplace
             </Link>
-            <Link href="/marketplace/compare/vs-xpay" className="hidden sm:inline text-sm font-medium text-amber-400 transition-colors">
+            <Link href="/marketplace/compare/vs-xpay" className="hidden sm:inline text-sm font-medium text-gold-flowing transition-colors">
               Compare
             </Link>
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
               Docs
             </Link>
-            <Link href="/register" className="text-sm font-semibold bg-brand text-white px-5 py-2 rounded-lg hover:bg-brand-dark transition-colors shadow-sm shadow-brand/25">
+            <Link href="/register" className="text-sm font-semibold bg-gradient-to-r from-gold-flowing to-gold-warm text-white px-5 py-2 rounded-lg hover:from-gold-molten hover:to-gold-flowing transition-all shadow-sm shadow-gold-flowing/25">
               Start Building
             </Link>
           </div>
@@ -284,7 +284,7 @@ export default async function ComparisonPage({
               <thead>
                 <tr className="border-b border-[#2A2D3E] bg-[#161822]">
                   <th className="px-4 py-3 text-left text-gray-400 font-medium w-1/4">Feature</th>
-                  <th className="px-4 py-3 text-left text-amber-400 font-medium w-1/3">SettleGrid</th>
+                  <th className="px-4 py-3 text-left text-gold-flowing font-medium w-1/3">SettleGrid</th>
                   <th className="px-4 py-3 text-left text-gray-400 font-medium w-1/3">{page.competitor}</th>
                   <th className="px-4 py-3 text-center text-gray-400 font-medium w-28">Verdict</th>
                 </tr>
@@ -314,8 +314,8 @@ export default async function ComparisonPage({
           </div>
 
           {/* Verdict */}
-          <div className="mt-10 rounded-xl border border-amber-500/20 bg-amber-500/5 p-6">
-            <h2 className="text-lg font-semibold text-amber-400 mb-2">Our Verdict</h2>
+          <div className="mt-10 rounded-xl border border-gold-flowing/20 bg-gold-flowing/5 p-6 gold-edge-top">
+            <h2 className="text-lg font-semibold text-gold-flowing mb-2">Our Verdict</h2>
             <p className="text-gray-300 leading-relaxed">{page.verdict}</p>
           </div>
 
@@ -329,7 +329,7 @@ export default async function ComparisonPage({
                   <Link
                     key={otherSlug}
                     href={`/marketplace/compare/${otherSlug}`}
-                    className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 hover:border-amber-500/40 transition-colors"
+                    className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 hover:border-gold-flowing/40 transition-colors"
                   >
                     <span className="text-sm font-medium text-gray-200">
                       SettleGrid vs {other.competitor}
@@ -353,7 +353,7 @@ export default async function ComparisonPage({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 text-center hover:border-amber-500/40 transition-colors"
+                  className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 text-center hover:border-gold-flowing/40 transition-colors"
                 >
                   <span className="text-sm font-medium text-gray-200">{item.label}</span>
                 </Link>
@@ -365,7 +365,7 @@ export default async function ComparisonPage({
           <div className="mt-12 text-center">
             <Link
               href="/register"
-              className="inline-flex items-center bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark transition-colors shadow-sm shadow-brand/25"
+              className="inline-flex items-center bg-gradient-to-r from-gold-flowing to-gold-warm text-white px-6 py-3 rounded-lg font-semibold hover:from-gold-molten hover:to-gold-flowing transition-all shadow-lg shadow-gold-flowing/25"
             >
               Start Building on SettleGrid
             </Link>
