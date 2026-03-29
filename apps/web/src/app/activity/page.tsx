@@ -7,6 +7,8 @@ import { SettleGridLogo } from '@/components/ui/logo'
 interface ActivityItem {
   type: string
   category?: string
+  toolType?: string
+  toolTypeLabel?: string
   tool?: string
   timestamp: string
   message: string
@@ -18,6 +20,7 @@ interface ActivityData {
     toolsToday: number
     invocationsLastHour: number
     developersThisWeek: number
+    toolTypeBreakdown?: Record<string, number>
   }
 }
 
@@ -45,7 +48,25 @@ function activityIcon(type: string): string {
   }
 }
 
-function activityColor(type: string): string {
+/** Maps tool types to accent colors for the activity feed. */
+const TOOL_TYPE_COLORS: Record<string, string> = {
+  'mcp-server': 'text-[#E5A336]',
+  'ai-model': 'text-[#8B5CF6]',
+  'rest-api': 'text-[#0EA5E9]',
+  'agent-tool': 'text-[#10B981]',
+  automation: 'text-[#F97316]',
+  extension: 'text-[#EC4899]',
+  dataset: 'text-[#14B8A6]',
+  'sdk-package': 'text-[#6366F1]',
+}
+
+function activityColor(type: string, toolType?: string): string {
+  if (type === 'tool_published' && toolType && TOOL_TYPE_COLORS[toolType]) {
+    return TOOL_TYPE_COLORS[toolType]
+  }
+  if (type === 'invocation' && toolType && TOOL_TYPE_COLORS[toolType]) {
+    return TOOL_TYPE_COLORS[toolType]
+  }
   switch (type) {
     case 'tool_published':
       return 'text-green-400'
@@ -144,7 +165,7 @@ export default function ActivityPage() {
               Marketplace <span className="text-brand">Pulse</span>
             </h1>
             <p className="text-gray-400">
-              Real-time activity on the SettleGrid marketplace
+              Real-time activity across AI models, APIs, agent tools, datasets, and more
             </p>
           </div>
 
@@ -193,16 +214,26 @@ export default function ActivityPage() {
                   <div className="divide-y divide-[#2A2D3E]">
                     {data.activity.map((item, i) => (
                       <div key={i} className="px-6 py-3.5 flex items-center gap-4 hover:bg-[#1E2030] transition-colors">
-                        <div className={`flex-shrink-0 ${activityColor(item.type)}`}>
+                        <div className={`flex-shrink-0 ${activityColor(item.type, item.toolType)}`}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" d={activityIcon(item.type)} />
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-200 truncate">{item.message}</p>
-                          {item.category && (
-                            <span className="text-xs text-gray-500">{item.category}</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {item.toolTypeLabel && (
+                              <span className={`text-xs ${item.toolType ? (TOOL_TYPE_COLORS[item.toolType] ?? 'text-gray-500') : 'text-gray-500'}`}>
+                                {item.toolTypeLabel}
+                              </span>
+                            )}
+                            {item.toolTypeLabel && item.category && (
+                              <span className="text-xs text-gray-600">&middot;</span>
+                            )}
+                            {item.category && (
+                              <span className="text-xs text-gray-500">{item.category}</span>
+                            )}
+                          </div>
                         </div>
                         <span className="text-xs text-gray-500 tabular-nums flex-shrink-0">
                           {formatTimeAgo(item.timestamp)}

@@ -48,6 +48,84 @@ function formatCostDisplay(cents: number): string {
   return cents < 100 ? `$0.${String(cents).padStart(2, '0')}` : `$${(cents / 100).toFixed(2)}`
 }
 
+// ─── Tool Type Detection ──────────────────────────────────────────────────────
+
+/** Human-readable labels for each tool type. */
+const TOOL_TYPE_LABELS: Record<string, string> = {
+  'mcp-server': 'MCP Server',
+  'ai-model': 'AI Model',
+  'rest-api': 'REST API',
+  'agent-tool': 'Agent Tool',
+  automation: 'Automation',
+  extension: 'Extension',
+  dataset: 'Dataset',
+  'sdk-package': 'SDK Package',
+}
+
+/**
+ * Maps question keywords to preferred tool types.
+ * If the question mentions a specific tool type, we prefer that type in results.
+ */
+const TOOL_TYPE_KEYWORDS: Record<string, { keywords: string[]; toolType: string }> = {
+  'ai-model': {
+    keywords: ['ai model', 'inference', 'llm', 'gpt', 'claude', 'language model', 'embedding', 'text generation', 'image generation model', 'stable diffusion', 'whisper'],
+    toolType: 'ai-model',
+  },
+  'rest-api': {
+    keywords: ['rest api', 'api endpoint', 'http api', 'web api', 'json api', 'graphql'],
+    toolType: 'rest-api',
+  },
+  'agent-tool': {
+    keywords: ['agent tool', 'langchain', 'crewai', 'autogen', 'agent framework', 'tool calling', 'function calling'],
+    toolType: 'agent-tool',
+  },
+  automation: {
+    keywords: ['automation', 'workflow', 'zapier', 'n8n', 'trigger', 'cron job', 'scheduled task', 'pipeline'],
+    toolType: 'automation',
+  },
+  extension: {
+    keywords: ['extension', 'plugin', 'addon', 'browser extension', 'vscode extension', 'ide plugin'],
+    toolType: 'extension',
+  },
+  dataset: {
+    keywords: ['dataset', 'training data', 'data download', 'csv data', 'parquet', 'huggingface dataset', 'benchmark data'],
+    toolType: 'dataset',
+  },
+  'sdk-package': {
+    keywords: ['sdk', 'package', 'npm package', 'pip package', 'library', 'npm install', 'pip install', 'client library'],
+    toolType: 'sdk-package',
+  },
+  'mcp-server': {
+    keywords: ['mcp server', 'mcp tool', 'model context protocol', 'mcp'],
+    toolType: 'mcp-server',
+  },
+}
+
+/**
+ * Detects if a question implies a specific tool type.
+ * Returns the best matching tool type slug or null for any type.
+ */
+function detectToolType(question: string): string | null {
+  const lower = question.toLowerCase()
+  let bestType: string | null = null
+  let bestScore = 0
+
+  for (const { keywords, toolType } of Object.values(TOOL_TYPE_KEYWORDS)) {
+    let score = 0
+    for (const keyword of keywords) {
+      if (lower.includes(keyword)) {
+        score += keyword.length
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestType = toolType
+    }
+  }
+
+  return bestType
+}
+
 // ─── Category Routing (adapted from GridBot) ─────────────────────────────────
 
 /** Maps question keywords to tool categories and expanded search terms. */
@@ -175,6 +253,7 @@ type ToolRow = {
   slug: string
   description: string | null
   category: string | null
+  toolType: string
   tags: unknown
   pricingConfig: unknown
   totalInvocations: number
@@ -186,6 +265,7 @@ const TOOL_SELECT = {
   slug: tools.slug,
   description: tools.description,
   category: tools.category,
+  toolType: tools.toolType,
   tags: tools.tags,
   pricingConfig: tools.pricingConfig,
   totalInvocations: tools.totalInvocations,
@@ -193,12 +273,14 @@ const TOOL_SELECT = {
 
 /**
  * Scores a tool against a set of search terms and question keywords.
- * Uses weighted matching: name > tags > description > category.
+ * Uses weighted matching: name > tags > description > category > toolType.
+ * When a preferred tool type is specified, tools of that type get a bonus.
  */
 function scoreTool(
   tool: ToolRow,
   searchTerms: string[],
   questionKeywords: string[],
+  preferredToolType?: string | null,
 ): number {
   const nameLower = (tool.name ?? '').toLowerCase()
   const descLower = (tool.description ?? '').toLowerCase()
@@ -220,6 +302,11 @@ function scoreTool(
     if (descLower.includes(term)) score += 2
     // Category match
     if (catLower.includes(term)) score += 1
+  }
+
+  // Tool type preference bonus — matches the detected type from the question
+  if (preferredToolType && tool.toolType === preferredToolType) {
+    score += 3
   }
 
   // Small popularity tiebreaker (max +1 point, never enough to override relevance)
@@ -273,42 +360,73 @@ export async function POST(request: NextRequest) {
     }
 
     const { category, searchTerms, questionKeywords } = categorizeQuestion(body.question)
+    const preferredToolType = detectToolType(body.question)
 
     logger.info('ask.categorized', {
       question: body.question,
       category,
+      preferredToolType,
       searchTerms,
       questionKeywords,
     })
 
-    // ── Step 1: Category-filtered search ──────────────────────────────────
+    // ── Step 1: Category-filtered search (all tool types) ─────────────────
     let bestTool: ToolRow | null = null
 
     if (category) {
-      const categoryTools = await db
-        .select(TOOL_SELECT)
-        .from(tools)
-        .where(and(eq(tools.status, 'active'), eq(tools.category, category)))
-        .orderBy(desc(tools.totalInvocations))
-        .limit(20)
+      // Search across all tool types within the category
+      const conditions = [eq(tools.status, 'active'), eq(tools.category, category)]
 
-      if (categoryTools.length > 0) {
-        let bestScore = 0
-        for (const tool of categoryTools) {
-          const score = scoreTool(tool, searchTerms, questionKeywords)
-          if (score > bestScore) {
-            bestScore = score
-            bestTool = tool
+      // If user's question implies a specific tool type, also try filtering by it
+      if (preferredToolType) {
+        const typedTools = await db
+          .select(TOOL_SELECT)
+          .from(tools)
+          .where(and(...conditions, eq(tools.toolType, preferredToolType)))
+          .orderBy(desc(tools.totalInvocations))
+          .limit(20)
+
+        if (typedTools.length > 0) {
+          let bestScore = 0
+          for (const tool of typedTools) {
+            const score = scoreTool(tool, searchTerms, questionKeywords, preferredToolType)
+            if (score > bestScore) {
+              bestScore = score
+              bestTool = tool
+            }
+          }
+          if (bestScore < MIN_MATCH_SCORE) {
+            bestTool = null
           }
         }
-        // Even within the right category, ensure a minimum relevance threshold
-        if (bestScore < MIN_MATCH_SCORE) {
-          bestTool = null
+      }
+
+      // Fall back to all tool types in the category
+      if (!bestTool) {
+        const categoryTools = await db
+          .select(TOOL_SELECT)
+          .from(tools)
+          .where(and(...conditions))
+          .orderBy(desc(tools.totalInvocations))
+          .limit(20)
+
+        if (categoryTools.length > 0) {
+          let bestScore = 0
+          for (const tool of categoryTools) {
+            const score = scoreTool(tool, searchTerms, questionKeywords, preferredToolType)
+            if (score > bestScore) {
+              bestScore = score
+              bestTool = tool
+            }
+          }
+          if (bestScore < MIN_MATCH_SCORE) {
+            bestTool = null
+          }
         }
       }
     }
 
-    // ── Step 2: Broad text-search fallback ────────────────────────────────
+    // ── Step 2: Broad text-search fallback (all tool types) ───────────────
     if (!bestTool) {
       // Build ilike conditions from question keywords and search terms
       const searchWords = [...new Set([...searchTerms, ...questionKeywords])].filter(
@@ -347,7 +465,7 @@ export async function POST(request: NextRequest) {
       if (broadTools.length > 0) {
         let bestScore = 0
         for (const tool of broadTools) {
-          const score = scoreTool(tool, searchTerms, questionKeywords)
+          const score = scoreTool(tool, searchTerms, questionKeywords, preferredToolType)
           if (score > bestScore) {
             bestScore = score
             bestTool = tool
@@ -395,11 +513,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Build a helpful response using the tool's information
+    const toolTypeLabel = TOOL_TYPE_LABELS[bestTool.toolType] ?? bestTool.toolType
     const answer = [
-      `Based on your question, I found a relevant tool on SettleGrid:`,
+      `Based on your question, I found a relevant ${toolTypeLabel} on SettleGrid:`,
       '',
       `**${bestTool.name}**${bestTool.description ? ` - ${bestTool.description}` : ''}`,
       '',
+      `Type: ${toolTypeLabel}`,
       `Category: ${bestTool.category ?? 'General'}`,
       `Price: ${formatCostDisplay(costCents)} per call`,
       `Usage: ${bestTool.totalInvocations.toLocaleString()} total calls`,
@@ -410,6 +530,7 @@ export async function POST(request: NextRequest) {
     logger.info('ask.answered', {
       ip,
       toolSlug: bestTool.slug,
+      toolType: bestTool.toolType,
       category,
       costCents,
       remaining: rl.remaining,
@@ -419,6 +540,8 @@ export async function POST(request: NextRequest) {
       answer,
       toolName: bestTool.name,
       toolSlug: bestTool.slug,
+      toolType: bestTool.toolType,
+      toolTypeLabel,
       costDisplay: formatCostDisplay(costCents),
       remaining: rl.remaining,
     })
