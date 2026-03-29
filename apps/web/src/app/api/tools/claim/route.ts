@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     // Parse and validate the body
     const body = await parseBody(request, claimSchema)
 
-    // Look up tool by claim token
+    // Look up tool by claim token (include toolType + sourceEcosystem to preserve on claim)
     const [tool] = await db
       .select({
         id: tools.id,
@@ -100,6 +100,8 @@ export async function POST(request: NextRequest) {
         status: tools.status,
         developerId: tools.developerId,
         sourceRepoUrl: tools.sourceRepoUrl,
+        toolType: tools.toolType,
+        sourceEcosystem: tools.sourceEcosystem,
       })
       .from(tools)
       .where(eq(tools.claimToken, body.token))
@@ -141,6 +143,8 @@ export async function POST(request: NextRequest) {
         description: tools.description,
         status: tools.status,
         sourceRepoUrl: tools.sourceRepoUrl,
+        toolType: tools.toolType,
+        sourceEcosystem: tools.sourceEcosystem,
       })
 
     if (!updated) {
@@ -163,6 +167,8 @@ export async function POST(request: NextRequest) {
         name: updated.name,
         slug: updated.slug,
         sourceRepoUrl: updated.sourceRepoUrl,
+        toolType: updated.toolType,
+        sourceEcosystem: updated.sourceEcosystem,
       },
       ipAddress: ip,
     }).catch(() => {})
@@ -185,6 +191,8 @@ export async function POST(request: NextRequest) {
           slug: updated.slug,
           description: updated.description,
           status: updated.status,
+          toolType: updated.toolType,
+          sourceEcosystem: updated.sourceEcosystem,
         },
         redirectUrl: settingsUrl,
       },
