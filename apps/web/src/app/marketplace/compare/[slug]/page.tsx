@@ -230,6 +230,9 @@ export default async function ComparisonPage({
             <Link href="/marketplace" className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
               Marketplace
             </Link>
+            <Link href="/marketplace/compare/vs-xpay" className="hidden sm:inline text-sm font-medium text-amber-400 transition-colors">
+              Compare
+            </Link>
             <Link href="/docs" className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
               Docs
             </Link>
@@ -334,6 +337,27 @@ export default async function ComparisonPage({
                   </Link>
                 )
               })}
+            </div>
+          </div>
+
+          {/* Browse by type */}
+          <div className="mt-12">
+            <h2 className="text-xl font-semibold text-gray-100 mb-4">Explore the Marketplace</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { href: '/marketplace?type=mcp-server', label: 'MCP Servers' },
+                { href: '/marketplace?type=ai-model', label: 'AI Models' },
+                { href: '/marketplace?type=agent-tool', label: 'Agent Tools' },
+                { href: '/marketplace?type=sdk-package', label: 'SDK Packages' },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 text-center hover:border-amber-500/40 transition-colors"
+                >
+                  <span className="text-sm font-medium text-gray-200">{item.label}</span>
+                </Link>
+              ))}
             </div>
           </div>
 

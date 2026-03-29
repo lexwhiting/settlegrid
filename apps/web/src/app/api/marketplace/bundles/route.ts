@@ -34,6 +34,15 @@ interface BundleWithTools {
   matchScore?: number
 }
 
+/** Max slug length for bundle lookup */
+const MAX_SLUG_LENGTH = 128
+
+/** Slug validation: only lowercase alphanumeric and hyphens */
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/
+
+/** Category/ecosystem validation: only lowercase alphanumeric, hyphens, underscores */
+const CATEGORY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
+
 /**
  * GET /api/marketplace/bundles - Returns tool bundles with matching tools.
  *
@@ -61,6 +70,27 @@ export async function GET(request: NextRequest) {
       Math.max(parseInt(searchParams.get('limit') ?? '6', 10) || 6, 1),
       20,
     )
+
+    // Validate slug format
+    if (slugParam) {
+      if (slugParam.length > MAX_SLUG_LENGTH || !SLUG_PATTERN.test(slugParam)) {
+        return errorResponse('Invalid slug format.', 400, 'INVALID_SLUG')
+      }
+    }
+
+    // Validate category format
+    if (categoryParam) {
+      if (categoryParam.length > MAX_SLUG_LENGTH || !CATEGORY_PATTERN.test(categoryParam)) {
+        return errorResponse('Invalid category format.', 400, 'INVALID_CATEGORY')
+      }
+    }
+
+    // Validate ecosystem format
+    if (ecosystemParam) {
+      if (ecosystemParam.length > MAX_SLUG_LENGTH || !CATEGORY_PATTERN.test(ecosystemParam)) {
+        return errorResponse('Invalid ecosystem format.', 400, 'INVALID_ECOSYSTEM')
+      }
+    }
 
     // Determine which bundles to return
     let bundlesToReturn: ReadonlyArray<ToolBundle>

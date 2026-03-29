@@ -22,6 +22,16 @@ const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
 const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
 const SYSTEM_DEVELOPER_NAME = 'SettleGrid System'
 
+/**
+ * Maps registry crawler source identifiers to the `source_ecosystem` column values.
+ */
+const SOURCE_TO_ECOSYSTEM: Record<string, string> = {
+  'mcp-registry': 'mcp-registry',
+  'pulsemcp': 'pulsemcp',
+  'smithery': 'smithery',
+  'npm': 'npm',
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 /**
@@ -125,6 +135,14 @@ async function processBatch(
         ? sanitizeText(server.description, 2000)
         : null
 
+    // Map the crawler source to the source_ecosystem column value
+    const sourceEcosystem = SOURCE_TO_ECOSYSTEM[server.source] ?? server.source
+
+    // Store enrichment metadata in crawl_metadata JSONB column
+    const crawlMetadata = server.enrichment
+      ? JSON.parse(JSON.stringify(server.enrichment))
+      : null
+
     try {
       await db.insert(tools).values({
         developerId: systemDeveloperId,
@@ -134,6 +152,9 @@ async function processBatch(
         status: 'unclaimed',
         category: null,
         sourceRepoUrl: server.sourceUrl || null,
+        toolType: 'mcp-server', // Registry crawlers discover MCP servers
+        sourceEcosystem,
+        crawlMetadata,
       })
 
       // Track the slug so later servers in the same batch don't duplicate

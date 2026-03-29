@@ -26,11 +26,17 @@ export const maxDuration = 120
 /** Maximum tools to process per cron run */
 const MAX_TOOLS_PER_RUN = 20
 
+/** Maximum emails to send per calendar day (UTC). Prevents accidental spam. */
+const MAX_EMAILS_PER_DAY = 50
+
 /** Claim token length in bytes (24 bytes = 48 hex chars) */
 const CLAIM_TOKEN_BYTES = 24
 
 /** Redis dedup TTL: 90 days in seconds */
 const REDIS_DEDUP_TTL_SECONDS = 90 * 24 * 60 * 60
+
+/** Redis daily cap TTL: 24 hours in seconds */
+const REDIS_DAILY_CAP_TTL_SECONDS = 24 * 60 * 60
 
 /** Map source ecosystems to human-readable framework/ecosystem names */
 const ECOSYSTEM_DISPLAY_NAMES: Record<string, string> = {
@@ -163,7 +169,37 @@ export async function GET(request: NextRequest) {
     let skipped = 0
     let noEmail = 0
 
+    // Daily cap: prevent sending more than MAX_EMAILS_PER_DAY across all runs
+    const todayKey = `claim:daily-count:${new Date().toISOString().slice(0, 10)}`
+    const dailyCountRaw = await redis.get<string>(todayKey)
+    const dailySent = dailyCountRaw ? parseInt(dailyCountRaw, 10) || 0 : 0
+
+    if (dailySent >= MAX_EMAILS_PER_DAY) {
+      logger.info('cron.claim_outreach.daily_cap_reached', {
+        dailySent,
+        cap: MAX_EMAILS_PER_DAY,
+      })
+      return successResponse({
+        processed: 0,
+        emailed: 0,
+        skipped: 0,
+        noEmail: 0,
+        dailyCapReached: true,
+      })
+    }
+
+    // Remaining budget for today
+    const remainingBudget = MAX_EMAILS_PER_DAY - dailySent
+
     for (const tool of unclaimedTools) {
+      // Respect daily cap mid-loop
+      if (emailed >= remainingBudget) {
+        logger.info('cron.claim_outreach.daily_cap_mid_run', {
+          emailed,
+          remainingBudget,
+        })
+        break
+      }
       try {
         // Redis dedup check
         const dedupKey = `claim:emailed:${tool.slug}`
@@ -243,6 +279,13 @@ export async function GET(request: NextRequest) {
 
         // Set Redis dedup key with 90-day TTL
         await redis.set(dedupKey, '1', { ex: REDIS_DEDUP_TTL_SECONDS })
+
+        // Increment daily counter (incr creates the key if missing)
+        const newCount = await redis.incr(todayKey)
+        // Set expiry on first increment to auto-clean up
+        if (newCount === 1 || newCount === dailySent + 1) {
+          await redis.expire(todayKey, REDIS_DAILY_CAP_TTL_SECONDS)
+        }
 
         emailed++
 
