@@ -13,6 +13,35 @@ import { getGitHubToken } from '@/lib/env'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+export interface CrawledServiceEnrichment {
+  /** Download/install/run count from the source registry */
+  popularityCount?: number
+  /** Stars (GitHub) or likes (HuggingFace) */
+  starCount?: number
+  /** ISO date string of last update from the source registry */
+  lastUpdatedAt?: string
+  /** License identifier (e.g. 'MIT', 'Apache-2.0') */
+  license?: string
+  /** Number of maintainers/contributors */
+  maintainerCount?: number
+  /** Whether this tool is already monetized elsewhere (paid API, SaaS tier, etc.) */
+  isAlreadyMonetized?: boolean
+  /** Where it is monetized, if detected (e.g. 'replicate', 'huggingface-pro', 'npm-paid') */
+  monetizationSource?: string
+  /** Auto-detected category slug from keyword analysis */
+  detectedCategory?: string
+  /** Confidence of the category detection (0-1) */
+  categoryConfidence?: number
+  /** Detected pricing info from the source (cents per call, if available) */
+  detectedPriceCents?: number
+  /** Pricing model detected from source ('per-run', 'per-token', 'subscription', 'free') */
+  detectedPricingModel?: string
+  /** Repository language (e.g. 'Python', 'TypeScript') */
+  language?: string
+  /** Tags extracted from the source registry */
+  sourceTags?: string[]
+}
+
 export interface CrawledService {
   name: string
   description: string
@@ -20,6 +49,8 @@ export interface CrawledService {
   source: string
   toolType: string
   authorEmail?: string
+  /** Rich metadata for data moat — makes SettleGrid's directory more valuable than source registries */
+  enrichment?: CrawledServiceEnrichment
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -39,6 +70,158 @@ export const UNIVERSAL_SOURCES = [
 ] as const
 
 export type UniversalSource = (typeof UNIVERSAL_SOURCES)[number]
+
+// ─── Keyword-based category classifier ─────────────────────────────────────
+
+/** Maps keyword patterns to category slugs with confidence weights */
+const CATEGORY_KEYWORD_MAP: ReadonlyArray<{
+  category: string
+  keywords: ReadonlyArray<string>
+  weight: number
+}> = [
+  { category: 'nlp', keywords: ['nlp', 'text', 'language', 'sentiment', 'translation', 'summariz', 'tokeniz', 'embedding', 'ner', 'chatbot', 'conversational'], weight: 0.85 },
+  { category: 'image', keywords: ['image', 'vision', 'ocr', 'object-detection', 'segmentation', 'diffusion', 'stable-diffusion', 'dalle', 'midjourney', 'img2img', 'inpainting'], weight: 0.85 },
+  { category: 'code', keywords: ['code', 'linting', 'formatter', 'compiler', 'ast', 'refactor', 'copilot', 'codegen', 'lint', 'typescript', 'python'], weight: 0.8 },
+  { category: 'data', keywords: ['data', 'database', 'sql', 'csv', 'json', 'api', 'scraping', 'crawl', 'etl', 'pipeline', 'warehouse'], weight: 0.75 },
+  { category: 'search', keywords: ['search', 'retrieval', 'rag', 'vector', 'semantic', 'index', 'query', 'elasticsearch', 'pinecone', 'weaviate'], weight: 0.85 },
+  { category: 'finance', keywords: ['finance', 'trading', 'stock', 'crypto', 'payment', 'invoice', 'accounting', 'forex', 'defi', 'blockchain'], weight: 0.85 },
+  { category: 'science', keywords: ['science', 'research', 'molecule', 'chemistry', 'physics', 'biology', 'genome', 'protein', 'arxiv', 'pubmed'], weight: 0.85 },
+  { category: 'media', keywords: ['audio', 'video', 'music', 'speech', 'tts', 'stt', 'transcri', 'podcast', 'voice', 'sound', 'whisper'], weight: 0.85 },
+  { category: 'security', keywords: ['security', 'vulnerability', 'threat', 'malware', 'firewall', 'encryption', 'ssl', 'pentest', 'compliance'], weight: 0.85 },
+  { category: 'communication', keywords: ['email', 'sms', 'notification', 'messaging', 'chat', 'slack', 'discord', 'webhook', 'push'], weight: 0.8 },
+  { category: 'productivity', keywords: ['productivity', 'calendar', 'task', 'workflow', 'automation', 'scheduling', 'document', 'pdf', 'spreadsheet'], weight: 0.75 },
+  { category: 'analytics', keywords: ['analytics', 'dashboard', 'metrics', 'monitoring', 'observability', 'logging', 'tracing', 'apm'], weight: 0.8 },
+  { category: 'llm-inference', keywords: ['llm', 'gpt', 'claude', 'gemini', 'mistral', 'inference', 'transformer', 'attention', 'fine-tun'], weight: 0.9 },
+  { category: 'browser-automation', keywords: ['browser', 'playwright', 'puppeteer', 'selenium', 'headless', 'scraper', 'crawler'], weight: 0.85 },
+  { category: 'media-generation', keywords: ['generate', 'generation', 'text-to-image', 'text-to-speech', 'text-to-video', 'elevenlabs', 'suno'], weight: 0.8 },
+]
+
+/**
+ * Classifies a tool into a category based on keyword analysis of its
+ * name, description, and source tags. Returns the best matching category
+ * with confidence score. This is a local, zero-cost alternative to AI
+ * classification that runs on every crawled tool.
+ */
+export function classifyByKeywords(
+  name: string,
+  description: string,
+  tags: string[] = [],
+): { category: string; confidence: number } | null {
+  const combined = `${name} ${description} ${tags.join(' ')}`.toLowerCase()
+  let bestCategory: string | null = null
+  let bestScore = 0
+
+  for (const entry of CATEGORY_KEYWORD_MAP) {
+    let matchCount = 0
+    for (const keyword of entry.keywords) {
+      if (combined.includes(keyword)) {
+        matchCount++
+      }
+    }
+    if (matchCount === 0) continue
+
+    // Score = (matched keywords / total keywords) * weight
+    const score = (matchCount / entry.keywords.length) * entry.weight
+    if (score > bestScore) {
+      bestScore = score
+      bestCategory = entry.category
+    }
+  }
+
+  if (!bestCategory || bestScore < 0.05) return null
+
+  return {
+    category: bestCategory,
+    confidence: Math.min(bestScore, 1),
+  }
+}
+
+// ─── Monetization detection patterns ────────────────────────────────────────
+
+/** URL patterns that indicate a tool is already monetized */
+const MONETIZATION_INDICATORS: ReadonlyArray<{
+  pattern: RegExp
+  source: string
+}> = [
+  { pattern: /replicate\.com\//, source: 'replicate' },
+  { pattern: /api\.openai\.com/, source: 'openai' },
+  { pattern: /rapidapi\.com\//, source: 'rapidapi' },
+  { pattern: /aws\.amazon\.com\/marketplace/, source: 'aws-marketplace' },
+  { pattern: /cloud\.google\.com\/marketplace/, source: 'gcp-marketplace' },
+  { pattern: /azuremarketplace\.microsoft\.com/, source: 'azure-marketplace' },
+]
+
+/** Description patterns that suggest existing monetization */
+const PAID_DESCRIPTION_PATTERNS: ReadonlyArray<RegExp> = [
+  /\bpaid\b/i,
+  /\bpro plan\b/i,
+  /\bsubscription\b/i,
+  /\bpricing\b/i,
+  /\$\d+/,
+  /\bper[- ]month\b/i,
+  /\bfree tier\b/i,
+  /\bapi key required\b/i,
+]
+
+/**
+ * Detects whether a tool is already monetized elsewhere based on
+ * URL patterns and description text analysis.
+ */
+export function detectMonetization(
+  sourceUrl: string,
+  description: string,
+): { isMonetized: boolean; source?: string } {
+  // Check URL patterns
+  for (const indicator of MONETIZATION_INDICATORS) {
+    if (indicator.pattern.test(sourceUrl)) {
+      return { isMonetized: true, source: indicator.source }
+    }
+  }
+
+  // Check description for pricing language
+  for (const pattern of PAID_DESCRIPTION_PATTERNS) {
+    if (pattern.test(description)) {
+      return { isMonetized: true, source: 'description-detected' }
+    }
+  }
+
+  return { isMonetized: false }
+}
+
+// ─── Pricing detection from descriptions ────────────────────────────────────
+
+/** Patterns to extract pricing info from descriptions */
+const PRICE_PATTERNS: ReadonlyArray<{
+  pattern: RegExp
+  model: string
+}> = [
+  { pattern: /\$(\d+(?:\.\d+)?)\s*(?:per|\/)\s*(?:call|request|invocation|query)/i, model: 'per-invocation' },
+  { pattern: /\$(\d+(?:\.\d+)?)\s*(?:per|\/)\s*(?:1[kK]|1000)\s*(?:token|tok)/i, model: 'per-token' },
+  { pattern: /\$(\d+(?:\.\d+)?)\s*(?:per|\/)\s*(?:run|prediction|inference)/i, model: 'per-run' },
+  { pattern: /(\d+(?:\.\d+)?)\s*(?:cent|c)\s*(?:per|\/)\s*(?:call|request)/i, model: 'per-invocation' },
+]
+
+/**
+ * Attempts to extract pricing information from a tool's description text.
+ * Returns detected price in cents and pricing model, or null if not found.
+ */
+export function detectPricingFromDescription(
+  description: string,
+): { priceCents: number; model: string } | null {
+  for (const { pattern, model } of PRICE_PATTERNS) {
+    const match = description.match(pattern)
+    if (match?.[1]) {
+      const value = parseFloat(match[1])
+      if (Number.isFinite(value) && value > 0 && value < 10000) {
+        // If the pattern matched dollars, convert to cents
+        const isCents = pattern.source.includes('cent')
+        const cents = isCents ? Math.round(value) : Math.round(value * 100)
+        return { priceCents: cents, model }
+      }
+    }
+  }
+  return null
+}
 
 // ─── Fetch helper ───────────────────────────────────────────────────────────
 
@@ -77,6 +260,11 @@ interface HfModel {
   downloads?: number
   author?: string
   modelId?: string
+  likes?: number
+  lastModified?: string
+  tags?: string[]
+  library_name?: string
+  gated?: boolean | string
 }
 
 /**
@@ -131,12 +319,39 @@ export async function crawlHuggingFaceModels(limit: number): Promise<CrawledServ
         `${downloads.toLocaleString()} downloads.`,
       ].filter(Boolean)
 
+      // Enrichment: extract metadata that makes SettleGrid's directory richer
+      const tags: string[] = Array.isArray(model.tags)
+        ? model.tags.filter((t): t is string => typeof t === 'string')
+        : []
+      const likes = typeof model.likes === 'number' && Number.isFinite(model.likes) ? model.likes : 0
+      const lastModified = typeof model.lastModified === 'string' ? model.lastModified : undefined
+      const libraryName = typeof model.library_name === 'string' ? model.library_name : undefined
+      const isGated = model.gated === true || model.gated === 'auto' || model.gated === 'manual'
+
+      const fullDesc = `${modelName}: ${descParts.join(' ')}`.slice(0, 2000)
+      const categoryResult = classifyByKeywords(modelName, fullDesc, tags.concat(pipelineTag ? [pipelineTag] : []))
+      const monetization = detectMonetization(`https://huggingface.co/${id}`, fullDesc)
+      const pricingInfo = detectPricingFromDescription(fullDesc)
+
       results.push({
         name: `hf-model-${id.replace('/', '-')}`,
-        description: `${modelName}: ${descParts.join(' ')}`.slice(0, 2000),
+        description: fullDesc,
         sourceUrl: `https://huggingface.co/${id}`,
         source: 'huggingface',
         toolType: 'ai-model',
+        enrichment: {
+          popularityCount: downloads,
+          starCount: likes,
+          lastUpdatedAt: lastModified,
+          sourceTags: tags.slice(0, 20),
+          language: libraryName,
+          isAlreadyMonetized: isGated || monetization.isMonetized,
+          monetizationSource: isGated ? 'huggingface-gated' : monetization.source,
+          detectedCategory: categoryResult?.category,
+          categoryConfidence: categoryResult?.confidence,
+          detectedPriceCents: pricingInfo?.priceCents,
+          detectedPricingModel: pricingInfo?.model,
+        },
       })
     }
 
@@ -244,12 +459,23 @@ export async function crawlHuggingFaceSpaces(limit: number): Promise<CrawledServ
         Boolean,
       )
 
+      const fullDesc = `${title}: ${descParts.join(' ')}`.slice(0, 2000)
+      const categoryResult = classifyByKeywords(title, fullDesc, allTags)
+      const sdkName = typeof space.sdk === 'string' ? space.sdk : undefined
+
       results.push({
         name: `hf-${id.replace('/', '-')}`,
-        description: `${title}: ${descParts.join(' ')}`.slice(0, 2000),
+        description: fullDesc,
         sourceUrl: `https://huggingface.co/spaces/${id}`,
         source: 'huggingface',
         toolType: 'ai-model',
+        enrichment: {
+          starCount: likes,
+          sourceTags: allTags.slice(0, 20),
+          language: sdkName,
+          detectedCategory: categoryResult?.category,
+          categoryConfidence: categoryResult?.confidence,
+        },
       })
     }
 
@@ -274,6 +500,16 @@ interface ApifyItem {
   name?: string
   username?: string
   description?: string
+  stats?: {
+    totalRuns?: number
+    totalUsers?: number
+    totalBuilds?: number
+  }
+  currentPricingInfo?: {
+    pricingModel?: string
+  }
+  categories?: string[]
+  modifiedAt?: string
 }
 
 interface ApifyStoreResponse {
@@ -341,12 +577,35 @@ export async function crawlApifyActors(limit: number): Promise<CrawledService[]>
         ? item.description.trim().slice(0, 2000)
         : ''
 
+      const fullDesc = `${displayName}: ${description}`.slice(0, 2000)
+      const totalRuns = typeof item.stats?.totalRuns === 'number' ? item.stats.totalRuns : undefined
+      const totalUsers = typeof item.stats?.totalUsers === 'number' ? item.stats.totalUsers : undefined
+      const modifiedAt = typeof item.modifiedAt === 'string' ? item.modifiedAt : undefined
+      const apifyCategories: string[] = Array.isArray(item.categories)
+        ? item.categories.filter((c): c is string => typeof c === 'string')
+        : []
+      const isPaid = item.currentPricingInfo?.pricingModel === 'PRICE_PER_RUN'
+        || item.currentPricingInfo?.pricingModel === 'FLAT_PRICE_PER_MONTH'
+
+      const categoryResult = classifyByKeywords(displayName, fullDesc, apifyCategories)
+
       results.push({
         name: `apify-${username}-${name}`,
-        description: `${displayName}: ${description}`.slice(0, 2000),
+        description: fullDesc,
         sourceUrl: `https://apify.com/${username}/${name}`,
         source: 'apify',
         toolType: 'rest-api',
+        enrichment: {
+          popularityCount: totalRuns,
+          maintainerCount: totalUsers !== undefined ? Math.min(totalUsers, 1) : undefined,
+          lastUpdatedAt: modifiedAt,
+          sourceTags: apifyCategories.slice(0, 20),
+          isAlreadyMonetized: isPaid,
+          monetizationSource: isPaid ? 'apify' : undefined,
+          detectedCategory: categoryResult?.category,
+          categoryConfidence: categoryResult?.confidence,
+          detectedPricingModel: isPaid ? 'per-run' : undefined,
+        },
       })
     }
 
@@ -415,6 +674,13 @@ interface PypiPackageInfo {
     author_email?: string
     home_page?: string
     project_urls?: Record<string, string>
+    license?: string
+    keywords?: string
+    classifiers?: string[]
+    maintainer?: string
+    maintainer_email?: string
+    version?: string
+    requires_dist?: string[]
   }
 }
 
@@ -463,13 +729,35 @@ export async function crawlPypiAiPackages(limit: number): Promise<CrawledService
           ? info.home_page
           : `https://pypi.org/project/${name}/`)
 
+      const license = typeof info.license === 'string' ? info.license.trim() : undefined
+      const pypiKeywords = typeof info.keywords === 'string'
+        ? info.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+        : []
+      // Count maintainers from classifiers or email presence
+      const hasMaintainer = typeof info.maintainer === 'string' && info.maintainer.length > 0
+      const maintainerCount = hasMaintainer ? 2 : 1 // Author + optional maintainer
+
+      const fullDesc = summary || `Python package: ${name}`
+      const categoryResult = classifyByKeywords(name, fullDesc, pypiKeywords)
+      const monetization = detectMonetization(repoUrl, fullDesc)
+
       results.push({
         name: `pypi-${name}`,
-        description: summary || `Python package: ${name}`,
+        description: fullDesc,
         sourceUrl: repoUrl,
         source: 'pypi',
         toolType: 'sdk-package',
         authorEmail: authorEmail || undefined,
+        enrichment: {
+          license: license || undefined,
+          language: 'Python',
+          maintainerCount,
+          sourceTags: pypiKeywords.slice(0, 20),
+          isAlreadyMonetized: monetization.isMonetized,
+          monetizationSource: monetization.source,
+          detectedCategory: categoryResult?.category,
+          categoryConfidence: categoryResult?.confidence,
+        },
       })
     } catch (err) {
       // Individual package failure — log and continue
@@ -498,6 +786,13 @@ interface ReplicateModel {
   run_count?: number
   github_url?: string
   visibility?: string
+  latest_version?: {
+    created_at?: string
+  }
+  default_example?: {
+    completed_at?: string
+  }
+  cover_image_url?: string
 }
 
 interface ReplicateListResponse {
@@ -584,12 +879,27 @@ export async function crawlReplicateModels(limit: number): Promise<CrawledServic
             ? model.url
             : `https://replicate.com/${owner}/${name}`
 
+      const fullDesc = descParts.join(' ').slice(0, 2000)
+      const categoryResult = classifyByKeywords(name, fullDesc)
+      const lastVersion = model.latest_version?.created_at
+      const lastUpdated = typeof lastVersion === 'string' ? lastVersion : undefined
+
       results.push({
         name: `replicate-${owner}-${name}`,
-        description: descParts.join(' ').slice(0, 2000),
+        description: fullDesc,
         sourceUrl,
         source: 'replicate',
         toolType: 'ai-model',
+        enrichment: {
+          popularityCount: runCount,
+          lastUpdatedAt: lastUpdated,
+          // Replicate models are always monetized (pay-per-prediction)
+          isAlreadyMonetized: true,
+          monetizationSource: 'replicate',
+          detectedCategory: categoryResult?.category,
+          categoryConfidence: categoryResult?.confidence,
+          detectedPricingModel: 'per-run',
+        },
       })
     }
 
@@ -717,6 +1027,10 @@ export async function crawlNpmAiPackages(limit: number): Promise<CrawledService[
           const authorEmail =
             typeof pkg.publisher?.email === 'string' ? pkg.publisher.email : undefined
 
+          const categoryResult = classifyByKeywords(name, description, keywords)
+          const monetization = detectMonetization(sourceUrl, description)
+          const pricingInfo = detectPricingFromDescription(description)
+
           results.push({
             name,
             description,
@@ -724,6 +1038,16 @@ export async function crawlNpmAiPackages(limit: number): Promise<CrawledService[
             source: 'npm',
             toolType: inferNpmToolType(keywords),
             authorEmail,
+            enrichment: {
+              sourceTags: keywords.slice(0, 20),
+              language: 'JavaScript',
+              isAlreadyMonetized: monetization.isMonetized,
+              monetizationSource: monetization.source,
+              detectedCategory: categoryResult?.category,
+              categoryConfidence: categoryResult?.confidence,
+              detectedPriceCents: pricingInfo?.priceCents,
+              detectedPricingModel: pricingInfo?.model,
+            },
           })
         }
 
@@ -774,6 +1098,15 @@ interface GitHubRepo {
   owner?: {
     login?: string
   }
+  forks_count?: number
+  updated_at?: string
+  license?: {
+    spdx_id?: string
+    name?: string
+  }
+  language?: string
+  open_issues_count?: number
+  watchers_count?: number
 }
 
 interface GitHubSearchResponse {
@@ -877,12 +1210,35 @@ export async function crawlGitHubAiRepos(limit: number): Promise<CrawledService[
           ? repo.html_url
           : `https://github.com/${fullName}`
 
+        const fullDesc = `${description} By ${owner}. ${stars.toLocaleString()} stars.`.trim().slice(0, 2000)
+        const categoryResult = classifyByKeywords(repoName, fullDesc, topics)
+        const monetization = detectMonetization(htmlUrl, fullDesc)
+        const pricingInfo = detectPricingFromDescription(fullDesc)
+        const forks = typeof repo.forks_count === 'number' && Number.isFinite(repo.forks_count) ? repo.forks_count : 0
+        const updatedAt = typeof repo.updated_at === 'string' ? repo.updated_at : undefined
+        const license = typeof repo.license?.spdx_id === 'string' ? repo.license.spdx_id : undefined
+        const repoLanguage = typeof repo.language === 'string' ? repo.language : undefined
+
         results.push({
           name: `github-${repoName}`,
-          description: `${description} By ${owner}. ${stars.toLocaleString()} stars.`.trim().slice(0, 2000),
+          description: fullDesc,
           sourceUrl: htmlUrl,
           source: 'github',
           toolType: inferGitHubToolType(topics),
+          enrichment: {
+            starCount: stars,
+            popularityCount: forks,
+            lastUpdatedAt: updatedAt,
+            license,
+            language: repoLanguage,
+            sourceTags: topics.slice(0, 20),
+            isAlreadyMonetized: monetization.isMonetized,
+            monetizationSource: monetization.source,
+            detectedCategory: categoryResult?.category,
+            categoryConfidence: categoryResult?.confidence,
+            detectedPriceCents: pricingInfo?.priceCents,
+            detectedPricingModel: pricingInfo?.model,
+          },
         })
       }
 
