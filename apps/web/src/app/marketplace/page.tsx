@@ -79,10 +79,10 @@ export default async function MarketplacePage({
               Marketplace
             </Link>
             <Link
-              href="/marketplace/compare/vs-xpay"
+              href="/pricing"
               className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
             >
-              Compare
+              Pricing
             </Link>
             <Link
               href="/tools"
@@ -173,25 +173,24 @@ export default async function MarketplacePage({
             <MarketplaceContent searchParams={normalizedParams} />
           </Suspense>
 
-          {/* Comparisons section */}
+          {/* Browse by type */}
           <div className="mt-16 mb-8">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">
-              How SettleGrid Compares
+              Browse by Type
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { slug: 'vs-xpay', name: 'xpay.sh' },
-                { slug: 'vs-nevermined', name: 'Nevermined' },
-                { slug: 'vs-stripe-mpp', name: 'Stripe MPP' },
-                { slug: 'vs-zuplo', name: 'Zuplo' },
-              ].map((comp) => (
+                { slug: 'mcp-servers', name: 'MCP Servers' },
+                { slug: 'ai-models', name: 'AI Models' },
+                { slug: 'apis', name: 'REST APIs' },
+                { slug: 'packages', name: 'SDK Packages' },
+              ].map((t) => (
                 <Link
-                  key={comp.slug}
-                  href={`/marketplace/compare/${comp.slug}`}
+                  key={t.slug}
+                  href={`/marketplace/${t.slug}`}
                   className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 text-center hover:border-amber-500/40 transition-colors"
                 >
-                  <span className="text-xs text-gray-500 block">vs</span>
-                  <span className="text-sm font-medium text-gray-200">{comp.name}</span>
+                  <span className="text-sm font-medium text-gray-200">{t.name}</span>
                 </Link>
               ))}
             </div>
