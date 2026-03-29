@@ -256,9 +256,21 @@ export default async function EcosystemPage({
           </nav>
 
           {/* Hero with ecosystem accent */}
-          <div className="text-center mb-12">
+          <div className="relative text-center mb-12 rounded-2xl py-12 px-6 overflow-hidden">
+            {/* Caustic light background */}
             <div
-              className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${config.accentBg} mb-4`}
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background: [
+                  'radial-gradient(ellipse 30% 20% at 20% 30%, rgba(245,201,99,0.08), transparent)',
+                  'radial-gradient(ellipse 25% 35% at 70% 60%, rgba(229,163,54,0.06), transparent)',
+                  'radial-gradient(ellipse 20% 15% at 50% 80%, rgba(14,165,233,0.04), transparent)',
+                  'radial-gradient(ellipse 35% 25% at 80% 20%, rgba(245,201,99,0.05), transparent)',
+                ].join(', '),
+              }}
+            />
+            <div
+              className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${config.accentBg} mb-4 relative`}
             >
               <span className={`text-2xl font-bold font-mono ${config.accentColor}`}>
                 {config.label.length <= 4
@@ -269,10 +281,18 @@ export default async function EcosystemPage({
                       .join('')}
               </span>
             </div>
-            <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4 font-display">
+            <h1 className="relative text-4xl sm:text-5xl font-bold text-gray-100 mb-4 font-display">
               {config.label}
             </h1>
-            <p className="text-lg text-gray-400 max-w-2xl mx-auto">{config.hero}</p>
+            <p className="relative text-lg text-gray-400 max-w-2xl mx-auto">{config.hero}</p>
+            {/* Gold gradient accent line below hero */}
+            <div
+              className="mx-auto mt-6 max-w-xs h-[2px] rounded-full"
+              style={{
+                background:
+                  'linear-gradient(90deg, transparent, #C4891E 20%, #E5A336 50%, #C4891E 80%, transparent)',
+              }}
+            />
           </div>
 
           {/* Content */}

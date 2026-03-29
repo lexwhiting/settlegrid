@@ -139,12 +139,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (searchQuery && searchQuery.length > 0) {
-      // Use parameterized ilike — Drizzle handles escaping
-      const pattern = `%${searchQuery}%`
+      // Escape SQL LIKE wildcards in user input to prevent pattern injection
+      const escaped = searchQuery.replace(/[%_\\]/g, '\\$&')
+      const pattern = `%${escaped}%`
       conditions.push(
         or(
           ilike(tools.name, pattern),
-          ilike(tools.description, pattern)
+          ilike(tools.description, pattern),
+          ilike(tools.slug, pattern)
         )!
       )
     }

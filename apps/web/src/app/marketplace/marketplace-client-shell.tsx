@@ -307,26 +307,25 @@ export function MarketplaceClientShell({
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 bg-[#161822] rounded-xl border border-[#2A2D3E]">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10">
-                <svg
-                  className="w-7 h-7 text-amber-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-200 mb-2">No tools found</h3>
+            <div className="flex flex-col items-center justify-center py-20 bg-[#161822] rounded-xl border border-[#2A2D3E] text-center">
+              {/* Frozen gold drop */}
+              <div
+                className="mb-6 opacity-60"
+                style={{
+                  width: '80px',
+                  height: '96px',
+                  background: 'linear-gradient(180deg, #F5C963, #E5A336, #C4891E)',
+                  borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%',
+                  position: 'relative',
+                  filter: 'drop-shadow(0 8px 24px rgba(229,163,54,0.3))',
+                }}
+                aria-hidden="true"
+              />
+              <h3 className="text-sm font-semibold text-gray-100 mb-1">
+                No tools flowing through this filter yet
+              </h3>
               <p className="text-sm text-gray-400 max-w-sm mx-auto">
-                Try adjusting your filters or search query. New tools are added every day.
+                This tributary is waiting for its first tools. Try adjusting your filters or be the first to publish.
               </p>
             </div>
           )}

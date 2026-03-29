@@ -192,13 +192,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 title={collapsed ? item.label : undefined}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
+                  'relative flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
                   collapsed ? 'lg:justify-center lg:px-2 px-3 py-2.5' : 'px-3 py-2.5',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 )}
               >
+                {/* Gold active indicator */}
+                <span
+                  className={cn(
+                    'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full transition-all',
+                    isActive ? 'opacity-100' : 'opacity-0'
+                  )}
+                  style={{
+                    background: isActive
+                      ? 'linear-gradient(to bottom, #F5C963, #E5A336)'
+                      : undefined,
+                  }}
+                />
                 <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>
@@ -226,13 +238,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 title={collapsed ? item.label : undefined}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
+                  'relative flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
                   collapsed ? 'lg:justify-center lg:px-2 px-3 py-2.5' : 'px-3 py-2.5',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 )}
               >
+                {/* Gold active indicator */}
+                <span
+                  className={cn(
+                    'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full transition-all',
+                    isActive ? 'opacity-100' : 'opacity-0'
+                  )}
+                  style={{
+                    background: isActive
+                      ? 'linear-gradient(to bottom, #F5C963, #E5A336)'
+                      : undefined,
+                  }}
+                />
                 <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>
@@ -258,13 +282,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 onClick={() => setSidebarOpen(false)}
                 {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
+                  'relative flex items-center gap-3 rounded-lg text-sm font-medium transition-colors',
                   collapsed ? 'lg:justify-center lg:px-2 px-3 py-2.5' : 'px-3 py-2.5',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 )}
               >
+                {/* Gold active indicator */}
+                <span
+                  className={cn(
+                    'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full transition-all',
+                    isActive ? 'opacity-100' : 'opacity-0'
+                  )}
+                  style={{
+                    background: isActive
+                      ? 'linear-gradient(to bottom, #F5C963, #E5A336)'
+                      : undefined,
+                  }}
+                />
                 <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>

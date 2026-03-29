@@ -61,11 +61,12 @@ export function BarChart({
         <Tooltip
           contentStyle={{
             backgroundColor: '#1A1F3A',
-            border: '1px solid #2A2D3E',
+            border: '1px solid rgba(229, 163, 54, 0.3)',
             borderRadius: '8px',
             color: '#fff',
             fontSize: '12px',
             padding: '8px 12px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           }}
           cursor={{ fill: 'rgba(255,255,255,0.04)' }}
           formatter={(value: number) => [formatValue(value), '']}

@@ -3,7 +3,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* ---- Brand (WCAG AA: >=4.5:1 with white text on buttons) ---- */
+  /* ---- Liquid Gold Spectrum ---- */
+  --color-gold-molten: #F5C963;
+  --color-gold-flowing: #E5A336;
+  --color-gold-warm: #D4961F;
+  --color-gold-settled: #C4891E;
+  --color-gold-deep: #A06E14;
+
+  /* ---- Backward-compatible aliases (keep existing class names working) ---- */
   --color-brand: #E5A336;
   --color-brand-dark: #C4891E;
   --color-brand-light: #F5C963;
@@ -14,15 +21,16 @@
   /* ---- Neutrals ---- */
   --color-indigo: #1A1F3A;
   --color-indigo-light: #2A2F4A;
+  --color-indigo-abyss: #0C0E14;
   --color-cloud: #F8FAFB;
 
-  /* ---- Chart palette (6 colors for Recharts) ---- */
-  --color-chart-1: #E5A336;  /* amber-gold — primary metric */
-  --color-chart-2: #0EA5E9;  /* sky — secondary metric */
-  --color-chart-3: #10B981;  /* emerald — third metric */
-  --color-chart-4: #EF4444;  /* red — error / negative */
-  --color-chart-5: #8B5CF6;  /* violet — auxiliary */
-  --color-chart-6: #6B7280;  /* gray — neutral / previous period */
+  /* ---- Chart palette (gold gradient primary) ---- */
+  --color-chart-1: #E5A336;
+  --color-chart-2: #0EA5E9;
+  --color-chart-3: #10B981;
+  --color-chart-4: #EF4444;
+  --color-chart-5: #8B5CF6;
+  --color-chart-6: #6B7280;
 
   /* ---- Semantic (light mode defaults) ---- */
   --color-surface: #FFFFFF;
@@ -41,6 +49,8 @@
   /* ---- Shadows ---- */
   --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
   --shadow-card-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-gold-glow: 0 4px 24px -4px rgba(229, 163, 54, 0.25), 0 0 48px -12px rgba(245, 201, 99, 0.15);
+  --shadow-gold-subtle: 0 0 16px -4px rgba(229, 163, 54, 0.12);
 
   /* ---- Radius ---- */
   --radius-sm: 0.375rem;
@@ -54,7 +64,7 @@
   --color-surface: #0C0E14;
   --color-surface-secondary: #161822;
   --color-border: #2A2D3E;
-  --color-border-hover: rgba(229, 163, 54, 0.5);
+  --color-border-hover: rgba(245, 201, 99, 0.4);
   --color-text-primary: #F0EDE6;
   --color-text-secondary: #9CA3AF;
   --color-text-muted: #6B7280;
@@ -64,7 +74,7 @@
   --shadow-card-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.15);
 }
 
-/* ---- Animated hero gradient mesh ---- */
+/* ---- Animated hero gradient mesh (kept for backward compat) ---- */
 .hero-gradient-mesh {
   background:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(229, 163, 54, 0.4), transparent),
@@ -118,4 +128,224 @@
 }
 .dark .comparison-row:hover {
   background-color: rgba(26, 29, 46, 0.5);
+}
+
+/* ================================================================ */
+/*  LIQUID GOLD EFFECTS                                              */
+/* ================================================================ */
+
+/* ---- Caustic light pattern background ---- */
+/* Uses layered radial gradients that simulate light refraction through liquid */
+.caustic-light {
+  background:
+    radial-gradient(ellipse 30% 20% at 20% 30%, rgba(245, 201, 99, 0.08), transparent),
+    radial-gradient(ellipse 25% 35% at 70% 60%, rgba(229, 163, 54, 0.06), transparent),
+    radial-gradient(ellipse 20% 15% at 50% 80%, rgba(14, 165, 233, 0.04), transparent),
+    radial-gradient(ellipse 35% 25% at 80% 20%, rgba(245, 201, 99, 0.05), transparent);
+  background-size: 100% 100%;
+  animation: causticShift 12s ease-in-out infinite;
+}
+
+@keyframes causticShift {
+  0%, 100% {
+    background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+  33% {
+    background-position: 5% -3%, -3% 5%, 3% -2%, -5% 3%;
+  }
+  66% {
+    background-position: -3% 5%, 5% -5%, -5% 3%, 3% -3%;
+  }
+}
+
+/* ---- Gold top-edge line on cards ---- */
+.gold-edge-top {
+  position: relative;
+}
+.gold-edge-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #E5A336 20%, #F5C963 50%, #E5A336 80%, transparent);
+  border-radius: 2px 2px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.gold-edge-top:hover::before {
+  opacity: 1;
+}
+
+/* ---- Liquid depth shadow (deeper = more settled) ---- */
+.liquid-depth {
+  box-shadow:
+    0 1px 2px rgba(196, 137, 30, 0.04),
+    0 4px 8px rgba(196, 137, 30, 0.03),
+    0 8px 24px rgba(196, 137, 30, 0.02);
+  transition: box-shadow 0.3s ease;
+}
+.liquid-depth:hover {
+  box-shadow:
+    0 2px 4px rgba(229, 163, 54, 0.08),
+    0 8px 16px rgba(229, 163, 54, 0.06),
+    0 16px 48px rgba(229, 163, 54, 0.04);
+}
+
+/* ---- Gold meniscus loading animation ---- */
+@keyframes meniscusFill {
+  0% { height: 0%; border-radius: 0 0 50% 50%; }
+  50% { border-radius: 50% 50% 50% 50%; }
+  100% { height: 100%; border-radius: 50% 50% 0 0; }
+}
+
+.meniscus-loader {
+  width: 32px;
+  height: 48px;
+  border: 2px solid rgba(229, 163, 54, 0.3);
+  border-radius: 0 0 16px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.meniscus-loader::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, #C4891E, #E5A336, #F5C963);
+  animation: meniscusFill 2s ease-in-out infinite alternate;
+}
+
+/* ---- Gold shimmer on text ---- */
+.gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    #C4891E 0%,
+    #E5A336 25%,
+    #F5C963 50%,
+    #E5A336 75%,
+    #C4891E 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: goldShimmer 3s ease-in-out infinite;
+}
+
+@keyframes goldShimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* ---- Frozen gold drop (404 page) ---- */
+.frozen-drop {
+  width: 80px;
+  height: 96px;
+  background: linear-gradient(180deg, #F5C963, #E5A336, #C4891E);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  position: relative;
+  filter: drop-shadow(0 8px 24px rgba(229, 163, 54, 0.3));
+}
+.frozen-drop::after {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 25%;
+  width: 30%;
+  height: 20%;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  filter: blur(4px);
+}
+
+/* ---- Gold burst animation (success moments) ---- */
+@keyframes goldBurst {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.gold-burst {
+  position: relative;
+}
+.gold-burst::after {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 201, 99, 0.4), rgba(229, 163, 54, 0.2), transparent 70%);
+  animation: goldBurst 0.6s ease-out forwards;
+  pointer-events: none;
+}
+
+/* ---- Pour animation on CTA click ---- */
+@keyframes pourDown {
+  0% {
+    clip-path: inset(0 0 100% 0);
+    background-position: 0% 0%;
+  }
+  100% {
+    clip-path: inset(0 0 0% 0);
+    background-position: 0% 100%;
+  }
+}
+
+/* ---- Replaced hero gradient mesh with liquid gold version ---- */
+.hero-liquid-gold {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 201, 99, 0.35), transparent),
+    radial-gradient(ellipse 60% 40% at 85% 50%, rgba(229, 163, 54, 0.2), transparent),
+    radial-gradient(ellipse 50% 60% at 10% 80%, rgba(196, 137, 30, 0.12), transparent),
+    radial-gradient(ellipse 40% 30% at 60% 70%, rgba(14, 165, 233, 0.06), transparent);
+  background-size: 200% 200%, 200% 200%, 200% 200%, 200% 200%;
+  animation: heroGradientDrift 18s ease-in-out infinite;
+}
+
+/* ---- Gold particle hover effect ---- */
+@keyframes particleFloat {
+  0% { transform: translateY(0) scale(1); opacity: 0.6; }
+  50% { transform: translateY(-8px) scale(1.2); opacity: 1; }
+  100% { transform: translateY(-16px) scale(0.8); opacity: 0; }
+}
+
+/* ---- Caustic shimmer on scroll ---- */
+.caustic-scroll-shimmer {
+  background:
+    linear-gradient(135deg, transparent 40%, rgba(245, 201, 99, 0.03) 45%, transparent 50%),
+    linear-gradient(225deg, transparent 40%, rgba(229, 163, 54, 0.03) 45%, transparent 50%);
+  background-size: 200% 200%;
+  animation: causticScroll 8s ease-in-out infinite;
+}
+
+@keyframes causticScroll {
+  0%, 100% { background-position: 0% 0%, 100% 100%; }
+  50% { background-position: 100% 100%, 0% 0%; }
+}
+
+/* ---- Reduced motion: kill all liquid animations ---- */
+@media (prefers-reduced-motion: reduce) {
+  .caustic-light,
+  .hero-liquid-gold,
+  .caustic-scroll-shimmer,
+  .gold-shimmer,
+  .meniscus-loader::after,
+  .animate-shimmer,
+  .hero-gradient-mesh {
+    animation: none !important;
+  }
+  .gold-burst::after {
+    display: none;
+  }
 }

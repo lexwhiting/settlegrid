@@ -30,7 +30,21 @@ export function StatCard({ title, value, subtitle, trend, variant, animate = fal
     : value
 
   return (
-    <Card>
+    <Card
+      className="relative overflow-hidden"
+      style={{
+        boxShadow:
+          '0 1px 2px rgba(196,137,30,0.04), 0 4px 8px rgba(196,137,30,0.03), 0 8px 24px rgba(196,137,30,0.02)',
+      }}
+    >
+      {/* Gold edge top line */}
+      <span
+        className="absolute top-0 left-0 right-0 h-[2px] opacity-60"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, #E5A336 20%, #F5C963 50%, #E5A336 80%, transparent)',
+        }}
+      />
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</CardTitle>
       </CardHeader>
@@ -62,6 +76,14 @@ export function StatCard({ title, value, subtitle, trend, variant, animate = fal
         </div>
         {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>}
       </CardContent>
+      {/* Gold reservoir level indicator */}
+      <span
+        className="absolute bottom-0 left-0 right-0 h-[2px]"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, rgba(229,163,54,0.3) 30%, rgba(229,163,54,0.3) 70%, transparent)',
+        }}
+      />
     </Card>
   )
 }
