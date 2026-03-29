@@ -219,6 +219,11 @@ export function getDrainChannelAddress(): string | undefined {
   return process.env.DRAIN_CHANNEL_ADDRESS
 }
 
+// Replicate API token — optional, needed for Replicate model crawler
+export function getReplicateToken(): string | undefined {
+  return process.env.REPLICATE_API_TOKEN
+}
+
 // GitHub PAT — optional, used for developer email resolution from public repos
 export function getGitHubToken(): string | undefined {
   return process.env.GITHUB_TOKEN

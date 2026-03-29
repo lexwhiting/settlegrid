@@ -57,54 +57,48 @@ const SCHEDULE_STATE_FILE = path.join(
  * Daily question pool. Each question targets a different tool category
  * to generate diverse marketplace activity.
  */
-const DAILY_QUESTIONS: { question: string; expectedCategory: string }[] = [
-  // Data & APIs
-  { question: "What's the weather in New York City?", expectedCategory: 'data' },
-  { question: "Get the current IP geolocation for 8.8.8.8", expectedCategory: 'data' },
+const DAILY_QUESTIONS: { question: string; expectedCategory: string; toolType?: string }[] = [
+  // ─── MCP Servers ────────────────────────────────────────────────────────
+  { question: "What's the weather in New York City?", expectedCategory: 'data', toolType: 'mcp-server' },
+  { question: "Get the current IP geolocation for 8.8.8.8", expectedCategory: 'data', toolType: 'mcp-server' },
+  { question: "Analyze this code for security issues: function login(user, pass) { return db.query('SELECT * FROM users WHERE name=' + user) }", expectedCategory: 'code', toolType: 'mcp-server' },
+  { question: "Find documentation about MCP protocol specification", expectedCategory: 'search', toolType: 'mcp-server' },
 
-  // Code & Development
-  { question: "Analyze this code for security issues: function login(user, pass) { return db.query('SELECT * FROM users WHERE name=' + user) }", expectedCategory: 'code' },
-  { question: "Lint this JavaScript: const x = [1,2,3]; x.map(i => {return i * 2})", expectedCategory: 'code' },
+  // ─── AI Models ──────────────────────────────────────────────────────────
+  { question: "Run inference: summarize the key points of this article about AI safety", expectedCategory: 'nlp', toolType: 'ai-model' },
+  { question: "Generate an embedding for this sentence: 'The quick brown fox jumps over the lazy dog'", expectedCategory: 'nlp', toolType: 'ai-model' },
+  { question: "How much does it cost to run GPT-4 inference for this prompt?", expectedCategory: 'ai-inference', toolType: 'ai-model' },
 
-  // Finance & Payments
-  { question: "Convert 100 USD to EUR at current exchange rates", expectedCategory: 'finance' },
-  { question: "What is the current price of Bitcoin?", expectedCategory: 'finance' },
+  // ─── REST APIs ──────────────────────────────────────────────────────────
+  { question: "Convert 100 USD to EUR at current exchange rates", expectedCategory: 'finance', toolType: 'rest-api' },
+  { question: "What is the current price of Bitcoin?", expectedCategory: 'finance', toolType: 'rest-api' },
+  { question: "Check if example.com has any SSL certificate issues", expectedCategory: 'security', toolType: 'rest-api' },
 
-  // Search & Discovery
-  { question: "What are the latest papers about transformer architectures?", expectedCategory: 'search' },
-  { question: "Find documentation about MCP protocol specification", expectedCategory: 'search' },
+  // ─── Agent Tools ────────────────────────────────────────────────────────
+  { question: "Find a LangChain tool for web scraping", expectedCategory: 'scraping', toolType: 'agent-tool' },
+  { question: "Invoke a CrewAI-compatible tool for text analysis", expectedCategory: 'nlp', toolType: 'agent-tool' },
 
-  // Security
-  { question: "Check if example.com has any SSL certificate issues", expectedCategory: 'security' },
-  { question: "Scan this URL for security vulnerabilities: https://example.com", expectedCategory: 'security' },
+  // ─── Automations ────────────────────────────────────────────────────────
+  { question: "Set up an automation workflow to monitor website uptime", expectedCategory: 'security', toolType: 'automation' },
+  { question: "Trigger a scheduled data export pipeline", expectedCategory: 'data', toolType: 'automation' },
 
-  // NLP
+  // ─── Datasets ───────────────────────────────────────────────────────────
+  { question: "Download a training dataset for sentiment analysis", expectedCategory: 'nlp', toolType: 'dataset' },
+  { question: "Query a benchmark dataset for image classification", expectedCategory: 'image', toolType: 'dataset' },
+
+  // ─── SDK Packages ───────────────────────────────────────────────────────
+  { question: "Find an npm package for payment integration", expectedCategory: 'finance', toolType: 'sdk-package' },
+  { question: "Check features of a Python SDK for data analysis", expectedCategory: 'analytics', toolType: 'sdk-package' },
+
+  // ─── Extensions ─────────────────────────────────────────────────────────
+  { question: "Find a VSCode extension for code security scanning", expectedCategory: 'security', toolType: 'extension' },
+
+  // ─── Cross-type queries ─────────────────────────────────────────────────
   { question: "Translate 'Hello, how are you?' to Japanese", expectedCategory: 'nlp' },
-  { question: "What is the sentiment of this text: 'The product exceeded all my expectations and the team was incredibly helpful'", expectedCategory: 'nlp' },
-
-  // Image & Vision
-  { question: "Generate a placeholder image: 800x600 with text 'SettleGrid Demo'", expectedCategory: 'image' },
-
-  // Utility
   { question: "Validate this JSON: {\"name\": \"test\", \"value\": 42, \"items\": [1, 2, 3]}", expectedCategory: 'utility' },
-
-  // Analytics
   { question: "Calculate the average and standard deviation of these values: 12, 15, 18, 22, 25, 28, 31", expectedCategory: 'analytics' },
-
-  // Science
   { question: "What is the molecular weight of caffeine?", expectedCategory: 'science' },
-
-  // AI Inference
-  { question: "How much does it cost to run GPT-4 inference for this prompt?", expectedCategory: 'ai-inference' },
-
-  // Scraping
-  { question: "Scrape the pricing page at example.com", expectedCategory: 'scraping' },
-
-  // Image Generation (non-MCP)
   { question: "Generate an image of a sunset over mountains", expectedCategory: 'image' },
-
-  // Code Analysis (non-MCP)
-  { question: "Analyze this Python code for security vulnerabilities", expectedCategory: 'code' },
 ]
 
 // ─── Schedule State ──────────────────────────────────────────────────────────
