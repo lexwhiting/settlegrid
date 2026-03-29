@@ -81,6 +81,10 @@ export const tools = pgTable(
     status: text('status').notNull().default('draft'),
     totalInvocations: integer('total_invocations').notNull().default(0),
     totalRevenueCents: integer('total_revenue_cents').notNull().default(0),
+    // Tool type: what kind of service this is
+    toolType: text('tool_type').notNull().default('mcp-server'), // 'mcp-server' | 'ai-model' | 'rest-api' | 'agent-tool' | 'automation' | 'extension' | 'dataset' | 'sdk-package'
+    // Source ecosystem: where this tool was crawled from (null if manually registered)
+    sourceEcosystem: text('source_ecosystem'), // 'mcp-registry' | 'pulsemcp' | 'smithery' | 'npm' | 'pypi' | 'huggingface' | 'replicate' | 'apify' | 'openrouter' | 'github' | null
     // R7: Tool Categories & Directory
     category: text('category'), // e.g. 'data', 'nlp', 'image', 'code', 'search', 'finance'
     tags: jsonb('tags').default('[]'), // string[]
@@ -105,6 +109,8 @@ export const tools = pgTable(
     index('tools_developer_id_idx').on(table.developerId),
     index('tools_status_idx').on(table.status),
     index('tools_category_idx').on(table.category),
+    index('tools_tool_type_idx').on(table.toolType),
+    index('tools_source_ecosystem_idx').on(table.sourceEcosystem),
     index('tools_claim_token_idx').on(table.claimToken),
   ]
 )

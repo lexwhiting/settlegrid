@@ -18,5 +18,8 @@
   },
   "devDependencies": {
     "turbo": "^2.3.0"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
   }
 }

@@ -63,7 +63,7 @@ function isNoReplyEmail(email: string): boolean {
   return NOREPLY_PATTERNS.some((pattern) => lower.includes(pattern))
 }
 
-function isValidEmail(email: string): boolean {
+export function isValidEmail(email: string): boolean {
   if (!email || email.length < 5 || email.length > 254) return false
   if (isNoReplyEmail(email)) return false
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)

@@ -257,63 +257,125 @@ export async function crawlSmithery(limit: number): Promise<CrawledServer[]> {
 
 const NPM_SEARCH_URL = 'https://registry.npmjs.org/-/v1/search'
 
+/** MCP-focused search queries for npm (expanded beyond just "mcp server") */
+const NPM_MCP_QUERIES = [
+  'mcp server',
+  'mcp-server',
+  'model-context-protocol',
+] as const
+
+/** Max results per npm query (API caps at 250) */
+const NPM_RESULTS_PER_QUERY = 100
+
+/**
+ * Runs a single npm search query and returns MCP-related results.
+ */
+async function searchNpmMcp(
+  query: string,
+  size: number,
+): Promise<CrawledServer[]> {
+  const url = new URL(NPM_SEARCH_URL)
+  url.searchParams.set('text', query)
+  url.searchParams.set('size', String(Math.min(size, 250)))
+
+  const res = await fetchWithTimeout(url.toString())
+  if (!res.ok) {
+    logger.warn('crawler.npm.query_failed', { query, status: res.status })
+    return []
+  }
+
+  const data: unknown = await res.json()
+  if (typeof data !== 'object' || data === null) return []
+
+  const raw = data as { objects?: unknown[] }
+  if (!Array.isArray(raw.objects)) return []
+
+  const results: CrawledServer[] = []
+
+  for (const obj of raw.objects) {
+    if (typeof obj !== 'object' || obj === null) continue
+
+    const pkg = (obj as { package?: Record<string, unknown> }).package
+    if (!pkg || typeof pkg !== 'object') continue
+
+    const name = typeof pkg.name === 'string' ? pkg.name.trim() : null
+    if (!name) continue
+
+    // Filter: only include packages with "mcp" or "model-context-protocol" in name or keywords
+    const keywords = Array.isArray(pkg.keywords)
+      ? (pkg.keywords as unknown[]).filter((k) => typeof k === 'string') as string[]
+      : []
+    const nameLower = name.toLowerCase()
+    const hasMcpInName = nameLower.includes('mcp') || nameLower.includes('model-context-protocol')
+    const hasMcpInKeywords = keywords.some((k) => {
+      const kl = k.toLowerCase()
+      return kl.includes('mcp') || kl.includes('model-context-protocol')
+    })
+
+    if (!hasMcpInName && !hasMcpInKeywords) continue
+
+    const repoUrl =
+      typeof pkg.links === 'object' && pkg.links !== null
+        ? typeof (pkg.links as Record<string, unknown>).repository === 'string'
+          ? (pkg.links as Record<string, unknown>).repository as string
+          : typeof (pkg.links as Record<string, unknown>).homepage === 'string'
+            ? (pkg.links as Record<string, unknown>).homepage as string
+            : typeof (pkg.links as Record<string, unknown>).npm === 'string'
+              ? (pkg.links as Record<string, unknown>).npm as string
+              : `https://www.npmjs.com/package/${name}`
+        : `https://www.npmjs.com/package/${name}`
+
+    results.push({
+      name,
+      description:
+        typeof pkg.description === 'string' ? pkg.description.trim().slice(0, 2000) : '',
+      sourceUrl: repoUrl,
+      source: 'npm',
+    })
+  }
+
+  return results
+}
+
+/**
+ * Crawls npm for MCP-related packages across multiple search queries.
+ * Deduplicates by package name across queries and returns up to `limit` results.
+ */
 export async function crawlNpmSearch(limit: number): Promise<CrawledServer[]> {
   try {
-    const url = new URL(NPM_SEARCH_URL)
-    url.searchParams.set('text', 'mcp server')
-    url.searchParams.set('size', String(Math.min(limit, 250)))
-
-    const res = await fetchWithTimeout(url.toString())
-    if (!res.ok) {
-      logger.warn('crawler.npm.fetch_failed', { status: res.status })
-      return []
-    }
-
-    const data: unknown = await res.json()
-    if (typeof data !== 'object' || data === null) return []
-
-    const raw = data as { objects?: unknown[] }
-    if (!Array.isArray(raw.objects)) return []
-
+    const seen = new Set<string>()
     const results: CrawledServer[] = []
-    for (const obj of raw.objects) {
+
+    for (const query of NPM_MCP_QUERIES) {
       if (results.length >= limit) break
-      if (typeof obj !== 'object' || obj === null) continue
 
-      const pkg = (obj as { package?: Record<string, unknown> }).package
-      if (!pkg || typeof pkg !== 'object') continue
+      try {
+        const remaining = limit - results.length
+        const servers = await searchNpmMcp(query, Math.min(remaining, NPM_RESULTS_PER_QUERY))
 
-      const name = typeof pkg.name === 'string' ? pkg.name.trim() : null
-      if (!name) continue
+        for (const server of servers) {
+          if (results.length >= limit) break
 
-      // Filter: only include packages with "mcp" in name or keywords
-      const keywords = Array.isArray(pkg.keywords)
-        ? (pkg.keywords as unknown[]).filter((k) => typeof k === 'string') as string[]
-        : []
-      const nameLower = name.toLowerCase()
-      const hasMcpInName = nameLower.includes('mcp')
-      const hasMcpInKeywords = keywords.some((k) => k.toLowerCase().includes('mcp'))
+          // Deduplicate by name across queries
+          const key = server.name.toLowerCase()
+          if (seen.has(key)) continue
+          seen.add(key)
 
-      if (!hasMcpInName && !hasMcpInKeywords) continue
+          results.push(server)
+        }
 
-      const repoUrl =
-        typeof pkg.links === 'object' && pkg.links !== null
-          ? typeof (pkg.links as Record<string, unknown>).repository === 'string'
-            ? (pkg.links as Record<string, unknown>).repository as string
-            : typeof (pkg.links as Record<string, unknown>).homepage === 'string'
-              ? (pkg.links as Record<string, unknown>).homepage as string
-              : typeof (pkg.links as Record<string, unknown>).npm === 'string'
-                ? (pkg.links as Record<string, unknown>).npm as string
-                : `https://www.npmjs.com/package/${name}`
-          : `https://www.npmjs.com/package/${name}`
-
-      results.push({
-        name,
-        description:
-          typeof pkg.description === 'string' ? pkg.description.trim().slice(0, 2000) : '',
-        sourceUrl: repoUrl,
-        source: 'npm',
-      })
+        logger.info('crawler.npm.query_completed', {
+          query,
+          found: servers.length,
+          totalSoFar: results.length,
+        })
+      } catch (queryErr) {
+        // Log but continue to next query
+        logger.warn('crawler.npm.query_error', {
+          query,
+          error: queryErr instanceof Error ? queryErr.message : String(queryErr),
+        })
+      }
     }
 
     logger.info('crawler.npm.completed', { count: results.length })

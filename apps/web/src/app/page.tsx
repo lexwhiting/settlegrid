@@ -497,11 +497,11 @@ export default async function HomePage() {
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center"><SettleGridLogo variant="horizontal" size={32} /></Link>
           <div className="flex items-center gap-5">
+            <Link href="/marketplace" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
+              Marketplace
+            </Link>
             <Link href="/tools" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Showcase
-            </Link>
-            <Link href="/servers" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
-              Templates
             </Link>
             <Link href="/solutions" className="hidden sm:inline text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-white transition-colors">
               Solutions
