@@ -195,6 +195,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     })),
 
+    // ── Marketplace ────────────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/marketplace`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    ...(['mcp-servers', 'ai-models', 'apis', 'agent-tools', 'packages', 'automations', 'datasets', 'extensions'] as const).map(
+      (type) => ({
+        url: `${BASE_URL}/marketplace/${type}`,
+        lastModified: now,
+        changeFrequency: 'daily' as const,
+        priority: 0.8,
+      })
+    ),
+    ...(['huggingface', 'npm', 'pypi', 'smithery', 'apify', 'mcp-registry', 'pulsemcp', 'replicate', 'openrouter', 'github'] as const).map(
+      (eco) => ({
+        url: `${BASE_URL}/marketplace/ecosystem/${eco}`,
+        lastModified: now,
+        changeFrequency: 'daily' as const,
+        priority: 0.7,
+      })
+    ),
+
     // ── How-to guides ─────────────────────────────────────────────────────────
     {
       url: `${BASE_URL}/learn/how-to`,

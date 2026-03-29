@@ -122,6 +122,7 @@ export default async function ExplorePage() {
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/"><SettleGridLogo variant="horizontal" size={28} /></Link>
           <div className="flex items-center gap-4">
+            <Link href="/marketplace" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Marketplace</Link>
             <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Showcase</Link>
             <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Docs</Link>
             <Link href="/learn" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Learn</Link>
@@ -285,6 +286,7 @@ export default async function ExplorePage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <SettleGridLogo variant="compact" size={32} />
           <div className="flex items-center gap-6 text-sm text-gray-400">
+            <Link href="/marketplace" className="hover:text-gray-100 transition-colors">Marketplace</Link>
             <Link href="/tools" className="hover:text-gray-100 transition-colors">Showcase</Link>
             <Link href="/docs" className="hover:text-gray-100 transition-colors">Docs</Link>
             <Link href="/learn" className="hover:text-gray-100 transition-colors">Learn</Link>

@@ -54,8 +54,8 @@ export default async function ShowcasePage() {
             <SettleGridLogo variant="horizontal" size={28} />
           </Link>
           <div className="flex items-center gap-4">
-            <Link href="/servers" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Templates
+            <Link href="/marketplace" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
+              Marketplace
             </Link>
             <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
               Docs
