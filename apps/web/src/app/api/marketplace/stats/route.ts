@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         .groupBy(tools.category)
         .orderBy(sql`count(*) DESC`)
         .limit(15),
-      // Top ecosystems
+      // Top ecosystems (bounded by enum cardinality, limit 20 for safety)
       db
         .select({
           ecosystem: tools.sourceEcosystem,
@@ -72,8 +72,9 @@ export async function GET(request: NextRequest) {
         .from(tools)
         .where(and(eq(tools.status, 'active'), sql`${tools.sourceEcosystem} IS NOT NULL`))
         .groupBy(tools.sourceEcosystem)
-        .orderBy(sql`count(*) DESC`),
-      // Top tool types
+        .orderBy(sql`count(*) DESC`)
+        .limit(20),
+      // Top tool types (bounded by enum cardinality, limit 20 for safety)
       db
         .select({
           type: tools.toolType,
@@ -82,7 +83,8 @@ export async function GET(request: NextRequest) {
         .from(tools)
         .where(eq(tools.status, 'active'))
         .groupBy(tools.toolType)
-        .orderBy(sql`count(*) DESC`),
+        .orderBy(sql`count(*) DESC`)
+        .limit(20),
       // Most recently added (last 7 days)
       db
         .select({ count: sql<number>`count(*)::int` })
