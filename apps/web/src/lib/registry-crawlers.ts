@@ -76,11 +76,14 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
     if (!Array.isArray(servers)) return []
 
     const results: CrawledServer[] = []
-    for (const server of servers) {
+    for (const entry of servers) {
       if (results.length >= limit) break
-      if (typeof server !== 'object' || server === null) continue
+      if (typeof entry !== 'object' || entry === null) continue
 
-      const s = server as Record<string, unknown>
+      // MCP registry wraps each entry: { server: { name, description, repository, ... } }
+      const e = entry as Record<string, unknown>
+      const s = (typeof e.server === 'object' && e.server !== null ? e.server : e) as Record<string, unknown>
+
       const name =
         typeof s.name === 'string' && s.name.trim().length > 0
           ? s.name.trim()
@@ -90,12 +93,16 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
 
       if (!name) continue
 
+      // Repository URL may be nested under server.repository.url
+      const repo = s.repository as Record<string, unknown> | undefined
+      const repoUrl = typeof repo?.url === 'string' ? repo.url : null
+      const websiteUrl = typeof s.websiteUrl === 'string' ? s.websiteUrl : null
+
       results.push({
         name,
         description:
           typeof s.description === 'string' ? s.description.trim().slice(0, 2000) : '',
-        sourceUrl:
-          typeof s.url === 'string' ? s.url : `${MCP_REGISTRY_URL}`,
+        sourceUrl: repoUrl ?? websiteUrl ?? MCP_REGISTRY_URL,
         source: 'mcp-registry',
       })
     }
