@@ -168,11 +168,46 @@ export async function GET(request: NextRequest) {
       .limit(limitParam)
       .offset(offset)
 
+    // Build facets for filtering UI and third-party integrations
+    const facetConditions: SQL[] = [eq(tools.status, 'active')]
+    const facetWhere = and(...facetConditions)
+
+    const [typeFacets, ecosystemFacets, categoryFacets] = await Promise.all([
+      db
+        .select({ value: tools.toolType, count: sql<number>`count(*)::int` })
+        .from(tools)
+        .where(facetWhere)
+        .groupBy(tools.toolType),
+      db
+        .select({ value: tools.sourceEcosystem, count: sql<number>`count(*)::int` })
+        .from(tools)
+        .where(and(facetWhere, sql`${tools.sourceEcosystem} IS NOT NULL`))
+        .groupBy(tools.sourceEcosystem),
+      db
+        .select({ value: tools.category, count: sql<number>`count(*)::int` })
+        .from(tools)
+        .where(and(facetWhere, sql`${tools.category} IS NOT NULL`))
+        .groupBy(tools.category),
+    ])
+
     return successResponse({
       tools: results,
       total,
       page: pageParam,
       totalPages,
+      // Facets enable third-party integrations to build filter UIs
+      facets: {
+        types: typeFacets.map((f) => ({ value: f.value, count: f.count })),
+        ecosystems: ecosystemFacets.map((f) => ({ value: f.value ?? 'unknown', count: f.count })),
+        categories: categoryFacets.map((f) => ({ value: f.value ?? 'uncategorized', count: f.count })),
+      },
+      // API metadata for third-party consumers
+      _meta: {
+        version: 'v1',
+        filterable: ['type', 'category', 'ecosystem', 'status', 'q'],
+        sortable: ['popular', 'newest', 'revenue'],
+        maxLimit: MAX_LIMIT,
+      },
     })
   } catch (error) {
     return internalErrorResponse(error)

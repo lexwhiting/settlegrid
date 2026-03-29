@@ -143,6 +143,30 @@ export default async function MarketplacePage({
             <MarketplaceContent searchParams={normalizedParams} />
           </Suspense>
 
+          {/* Comparisons section */}
+          <div className="mt-16 mb-8">
+            <h2 className="text-xl font-semibold text-gray-100 mb-4">
+              How SettleGrid Compares
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { slug: 'vs-xpay', name: 'xpay.sh' },
+                { slug: 'vs-nevermined', name: 'Nevermined' },
+                { slug: 'vs-stripe-mpp', name: 'Stripe MPP' },
+                { slug: 'vs-zuplo', name: 'Zuplo' },
+              ].map((comp) => (
+                <Link
+                  key={comp.slug}
+                  href={`/marketplace/compare/${comp.slug}`}
+                  className="rounded-lg border border-[#2A2D3E] bg-[#161822] px-4 py-3 text-center hover:border-amber-500/40 transition-colors"
+                >
+                  <span className="text-xs text-gray-500 block">vs</span>
+                  <span className="text-sm font-medium text-gray-200">{comp.name}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
           {/* CTA */}
           <div className="rounded-xl border border-[#2A2D3E] bg-gradient-to-br from-[#161822] to-[#0C0E14] p-12 text-center mt-16">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-3">

@@ -11,11 +11,28 @@ import { logger } from '@/lib/logger'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+export interface CrawledServerEnrichment {
+  /** Total uses/installations from the source registry */
+  usageCount?: number
+  /** Number of GitHub stars (if source is GitHub-based) */
+  starCount?: number
+  /** ISO date string of last update from the source */
+  lastUpdatedAt?: string
+  /** License identifier (e.g. 'MIT', 'Apache-2.0') */
+  license?: string
+  /** Tags/topics from the source registry */
+  sourceTags?: string[]
+  /** Whether the server is also listed on other registries */
+  crossListedSources?: string[]
+}
+
 export interface CrawledServer {
   name: string
   description: string
   sourceUrl: string
   source: string
+  /** Rich metadata for data moat — enhances directory value beyond source registries */
+  enrichment?: CrawledServerEnrichment
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -159,12 +176,29 @@ export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
       const externalUrl = typeof s.external_url === 'string' ? s.external_url : null
       const pulseUrl = typeof s.url === 'string' ? s.url : null
 
+      // Extract enrichment metadata from PulseMCP's rich API
+      const tags: string[] = Array.isArray(s.tags)
+        ? (s.tags as unknown[]).filter((t): t is string => typeof t === 'string')
+        : []
+      const githubStars = typeof s.github_stars === 'number' && Number.isFinite(s.github_stars as number)
+        ? (s.github_stars as number) : undefined
+      const updatedAt = typeof s.updated_at === 'string' ? (s.updated_at as string) : undefined
+
       results.push({
         name,
         description:
           typeof s.short_description === 'string' ? s.short_description.trim().slice(0, 2000) : '',
         sourceUrl: sourceCodeUrl ?? externalUrl ?? pulseUrl ?? 'https://pulsemcp.com',
         source: 'pulsemcp',
+        enrichment: {
+          starCount: githubStars,
+          lastUpdatedAt: updatedAt,
+          sourceTags: tags.slice(0, 20),
+          // If it has a source_code_url, it exists on GitHub too
+          crossListedSources: sourceCodeUrl
+            ? ['github']
+            : undefined,
+        },
       })
     }
 
@@ -225,19 +259,31 @@ export async function crawlSmithery(limit: number): Promise<CrawledServer[]> {
 
       if (!name) continue
 
+      const sourceUrl =
+        typeof s.homepage === 'string'
+          ? s.homepage
+          : typeof s.url === 'string'
+            ? s.url
+            : typeof s.qualifiedName === 'string'
+              ? `https://smithery.ai/server/${s.qualifiedName}`
+              : 'https://smithery.ai'
+
+      const useCount = typeof s.useCount === 'number' && Number.isFinite(s.useCount as number)
+        ? (s.useCount as number) : undefined
+      const tags: string[] = Array.isArray(s.tags)
+        ? (s.tags as unknown[]).filter((t): t is string => typeof t === 'string')
+        : []
+
       results.push({
         name,
         description:
           typeof s.description === 'string' ? s.description.trim().slice(0, 2000) : '',
-        sourceUrl:
-          typeof s.homepage === 'string'
-            ? s.homepage
-            : typeof s.url === 'string'
-              ? s.url
-              : typeof s.qualifiedName === 'string'
-                ? `https://smithery.ai/server/${s.qualifiedName}`
-                : 'https://smithery.ai',
+        sourceUrl,
         source: 'smithery',
+        enrichment: {
+          usageCount: useCount,
+          sourceTags: tags.slice(0, 20),
+        },
       })
     }
 
@@ -325,12 +371,21 @@ async function searchNpmMcp(
               : `https://www.npmjs.com/package/${name}`
         : `https://www.npmjs.com/package/${name}`
 
+    const npmKeywords: string[] = keywords.filter((k) => typeof k === 'string')
+
     results.push({
       name,
       description:
         typeof pkg.description === 'string' ? pkg.description.trim().slice(0, 2000) : '',
       sourceUrl: repoUrl,
       source: 'npm',
+      enrichment: {
+        sourceTags: npmKeywords.slice(0, 20),
+        // npm MCP packages with GitHub repos are cross-listed
+        crossListedSources: typeof repoUrl === 'string' && repoUrl.includes('github.com')
+          ? ['github']
+          : undefined,
+      },
     })
   }
 
