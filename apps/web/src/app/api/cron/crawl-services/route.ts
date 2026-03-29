@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import {
   crawlUniversalSource,
   getUniversalSourceForDay,
+  getAdditionalSources,
   type CrawledService,
   type UniversalSource,
 } from '@/lib/universal-crawlers'
@@ -179,14 +180,13 @@ async function processBatch(
  * APIs, agents, SDK packages, and automation actors. Indexes newly
  * discovered ones as unclaimed tools in the SettleGrid catalog.
  *
- * Rotates through 7 sources on a daily cycle:
- *   Day 0: HuggingFace Models
- *   Day 1: HuggingFace Spaces
- *   Day 2: Apify Actors
- *   Day 3: PyPI AI Packages
- *   Day 4: Replicate Models
- *   Day 5: npm AI Packages
- *   Day 6: GitHub AI Repos
+ * Runs 2-3 sources per invocation:
+ *   1. The primary source (rotated daily through 7 sources)
+ *   2. 1-2 additional high-priority sources (HuggingFace models/spaces)
+ *      unless they are already the primary
+ *
+ * Sources are crawled sequentially to stay within the 300-second timeout.
+ * If a source fails, it is skipped and the next source continues.
  *
  * Schedule: daily at noon UTC
  */
@@ -208,45 +208,74 @@ export async function GET(request: NextRequest) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
-    // Determine which source to crawl this run
-    const source = getUniversalSourceForDay()
-    logger.info('cron.crawl_services.starting', { source })
+    // Build the list of sources: primary (rotated) + high-priority extras
+    const primary = getUniversalSourceForDay()
+    const additional = getAdditionalSources(primary)
+    const sourcesToCrawl: UniversalSource[] = [primary, ...additional]
 
-    // Crawl the selected source
-    const services = await crawlUniversalSource(source, MAX_SERVICES_PER_RUN)
-
-    if (services.length === 0) {
-      logger.info('cron.crawl_services.no_data', {
-        source,
-        msg: 'Source returned 0 services',
-      })
-      return successResponse({
-        source,
-        discovered: 0,
-        inserted: 0,
-        skipped: 0,
-        message: `${source} returned 0 services`,
-      })
-    }
+    logger.info('cron.crawl_services.starting', {
+      primary,
+      additional,
+      totalSources: sourcesToCrawl.length,
+    })
 
     // Ensure system developer exists (needed for FK on unclaimed tools)
     const systemDeveloperId = await ensureSystemDeveloper()
 
-    // Process and insert new tools
-    const { inserted, skipped } = await processBatch(services, source, systemDeveloperId)
+    // Crawl each source sequentially (avoids timeout from parallel fetches)
+    const sourceResults: Array<{
+      source: UniversalSource
+      discovered: number
+      inserted: number
+      skipped: number
+    }> = []
+
+    let totalInserted = 0
+
+    for (const source of sourcesToCrawl) {
+      try {
+        logger.info('cron.crawl_services.source_starting', { source })
+
+        const services = await crawlUniversalSource(source, MAX_SERVICES_PER_RUN)
+
+        if (services.length === 0) {
+          logger.info('cron.crawl_services.source_no_data', {
+            source,
+            msg: 'Source returned 0 services',
+          })
+          sourceResults.push({ source, discovered: 0, inserted: 0, skipped: 0 })
+          continue
+        }
+
+        const { inserted, skipped } = await processBatch(services, source, systemDeveloperId)
+
+        logger.info('cron.crawl_services.source_completed', {
+          source,
+          discovered: services.length,
+          inserted,
+          skipped,
+        })
+
+        sourceResults.push({ source, discovered: services.length, inserted, skipped })
+        totalInserted += inserted
+      } catch (sourceError) {
+        logger.warn('cron.crawl_services.source_failed', {
+          source,
+          error: sourceError instanceof Error ? sourceError.message : String(sourceError),
+        })
+        sourceResults.push({ source, discovered: 0, inserted: 0, skipped: 0 })
+        // Continue to next source
+      }
+    }
 
     logger.info('cron.crawl_services.completed', {
-      source,
-      discovered: services.length,
-      inserted,
-      skipped,
+      sourcesRun: sourceResults.length,
+      totalInserted,
     })
 
     return successResponse({
-      source,
-      discovered: services.length,
-      inserted,
-      skipped,
+      sources: sourceResults,
+      totalInserted,
     })
   } catch (error) {
     return internalErrorResponse(error)

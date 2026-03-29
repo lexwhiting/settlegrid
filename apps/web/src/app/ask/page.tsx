@@ -8,6 +8,8 @@ interface AskResult {
   answer: string
   toolName: string
   toolSlug: string
+  toolType?: string
+  toolTypeLabel?: string
   costDisplay: string
   error?: string
 }
@@ -85,7 +87,7 @@ export default function AskSettleGridPage() {
               Ask <span className="text-brand">SettleGrid</span>
             </h1>
             <p className="text-gray-400 text-lg">
-              Try AI tools free. Ask a question and see the marketplace in action.
+              Discover AI models, APIs, agent tools, datasets, and more. Ask a question and see the marketplace in action.
             </p>
           </div>
 
@@ -134,8 +136,11 @@ export default function AskSettleGridPage() {
                   This answer used{' '}
                   <Link href={`/tools/${result.toolSlug}`} className="text-brand-text hover:underline font-medium">
                     {result.toolName}
-                  </Link>{' '}
-                  ({result.costDisplay}) via SettleGrid
+                  </Link>
+                  {result.toolTypeLabel && (
+                    <span className="text-gray-600"> ({result.toolTypeLabel})</span>
+                  )}
+                  {' '}({result.costDisplay}) via SettleGrid
                 </p>
                 <Link
                   href="/start"
@@ -161,10 +166,12 @@ export default function AskSettleGridPage() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3 text-center">Try asking</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
-                  'What are the top MCP tools available?',
-                  'How does API monetization work?',
-                  'Compare per-call vs subscription billing',
-                  'What payment protocols does SettleGrid support?',
+                  'Find an AI model for text generation',
+                  'What REST APIs are available for weather data?',
+                  'Show me agent tools for LangChain',
+                  'Find a dataset for machine learning training',
+                  'What automation tools handle email workflows?',
+                  'Find an SDK package for payment integration',
                 ].map((q) => (
                   <button
                     key={q}

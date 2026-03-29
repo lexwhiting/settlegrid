@@ -9,7 +9,7 @@
  */
 
 import { logger } from '@/lib/logger'
-import { getGitHubToken } from '@/lib/env'
+import { getGitHubToken, getReplicateToken } from '@/lib/env'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -802,13 +802,24 @@ interface ReplicateListResponse {
 
 /**
  * Crawls Replicate for popular models sorted by run count.
+ * Requires REPLICATE_API_TOKEN — returns empty array if not configured.
  */
 export async function crawlReplicateModels(limit: number): Promise<CrawledService[]> {
+  const token = getReplicateToken()
+  if (!token) {
+    logger.info('crawler.replicate.skipped', {
+      msg: 'REPLICATE_API_TOKEN not configured — skipping Replicate crawler',
+    })
+    return []
+  }
+
   try {
     const url = new URL(REPLICATE_API_URL)
     url.searchParams.set('page_size', String(Math.min(limit * 2, 100)))
 
-    const res = await fetchWithTimeout(url.toString())
+    const res = await fetchWithTimeout(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
     if (!res.ok) {
       logger.warn('crawler.replicate.fetch_failed', { status: res.status })
       return []
@@ -1306,4 +1317,23 @@ export function getUniversalSourceForDay(): UniversalSource {
   const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24))
   const index = dayOfYear % UNIVERSAL_SOURCES.length
   return UNIVERSAL_SOURCES[index]
+}
+
+/**
+ * High-priority sources that should run more frequently than once per week.
+ * HuggingFace models is the largest source (2M+ models) and benefits from
+ * daily crawling to keep the catalog fresh.
+ */
+const HIGH_PRIORITY_SOURCES: readonly UniversalSource[] = [
+  'huggingface-models',
+  'huggingface-spaces',
+] as const
+
+/**
+ * Returns 1-2 additional high-priority sources to run alongside
+ * the primary rotated source. Excludes the primary to avoid
+ * duplicate crawls in the same invocation.
+ */
+export function getAdditionalSources(primary: UniversalSource): UniversalSource[] {
+  return HIGH_PRIORITY_SOURCES.filter((s) => s !== primary)
 }
