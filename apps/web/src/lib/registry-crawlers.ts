@@ -121,11 +121,14 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
 
 // ─── Source 2: PulseMCP ─────────────────────────────────────────────────────
 
-const PULSEMCP_API_URL = 'https://api.pulsemcp.com/v0beta1/servers'
+const PULSEMCP_API_URL = 'https://api.pulsemcp.com/v0beta/servers'
 
 export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
   try {
-    const res = await fetchWithTimeout(PULSEMCP_API_URL)
+    const url = new URL(PULSEMCP_API_URL)
+    url.searchParams.set('count_per_page', String(Math.min(limit, 5000)))
+
+    const res = await fetchWithTimeout(url.toString())
     if (!res.ok) {
       logger.warn('crawler.pulsemcp.fetch_failed', { status: res.status })
       return []
@@ -134,13 +137,9 @@ export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
     const data: unknown = await res.json()
     if (typeof data !== 'object' || data === null) return []
 
-    // PulseMCP may return { servers: [...] } or a top-level array
+    // PulseMCP v0beta returns { servers: [...], total_count, next }
     const raw = data as Record<string, unknown>
-    const servers = Array.isArray(raw.servers)
-      ? raw.servers
-      : Array.isArray(data)
-        ? (data as unknown[])
-        : []
+    const servers = Array.isArray(raw.servers) ? raw.servers : []
 
     const results: CrawledServer[] = []
     for (const server of servers) {
@@ -151,27 +150,25 @@ export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
       const name =
         typeof s.name === 'string' && s.name.trim().length > 0
           ? s.name.trim()
-          : typeof s.title === 'string' && s.title.trim().length > 0
-            ? s.title.trim()
-            : null
+          : null
 
       if (!name) continue
+
+      // PulseMCP uses source_code_url (GitHub), external_url, and short_description
+      const sourceCodeUrl = typeof s.source_code_url === 'string' ? s.source_code_url : null
+      const externalUrl = typeof s.external_url === 'string' ? s.external_url : null
+      const pulseUrl = typeof s.url === 'string' ? s.url : null
 
       results.push({
         name,
         description:
-          typeof s.description === 'string' ? s.description.trim().slice(0, 2000) : '',
-        sourceUrl:
-          typeof s.url === 'string'
-            ? s.url
-            : typeof s.homepage === 'string'
-              ? s.homepage
-              : 'https://pulsemcp.com',
+          typeof s.short_description === 'string' ? s.short_description.trim().slice(0, 2000) : '',
+        sourceUrl: sourceCodeUrl ?? externalUrl ?? pulseUrl ?? 'https://pulsemcp.com',
         source: 'pulsemcp',
       })
     }
 
-    logger.info('crawler.pulsemcp.completed', { count: results.length })
+    logger.info('crawler.pulsemcp.completed', { count: results.length, total: raw.total_count })
     return results
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
