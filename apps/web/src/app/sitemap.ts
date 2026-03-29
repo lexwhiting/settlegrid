@@ -101,20 +101,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     ),
     {
-      url: `${BASE_URL}/learn/compare`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    },
-    ...(['vs-diy', 'vs-nevermined', 'vs-stripe', 'vs-mcpize', 'vs-paid-ai', 'vs-moesif', 'vs-stripe-metronome', 'vs-orb', 'vs-lago', 'mcp-billing-platforms-2026'] as const).map(
-      (slug) => ({
-        url: `${BASE_URL}/learn/compare/${slug}`,
-        lastModified: now,
-        changeFrequency: 'monthly' as const,
-        priority: slug === 'mcp-billing-platforms-2026' ? 0.7 : 0.5,
-      })
-    ),
-    {
       url: `${BASE_URL}/learn/glossary`,
       lastModified: now,
       changeFrequency: 'monthly',
@@ -219,21 +205,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     ),
 
-    // ── Marketplace comparisons ─────────────────────────────────────────────────
-    {
-      url: `${BASE_URL}/marketplace/compare`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-    ...(['vs-xpay', 'vs-nevermined', 'vs-stripe-mpp', 'vs-zuplo'] as const).map(
-      (slug) => ({
-        url: `${BASE_URL}/marketplace/compare/${slug}`,
-        lastModified: now,
-        changeFrequency: 'weekly' as const,
-        priority: 0.7,
-      })
-    ),
 
     // ── How-to guides ─────────────────────────────────────────────────────────
     {
