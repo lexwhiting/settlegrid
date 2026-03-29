@@ -219,6 +219,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     ),
 
+    // ── Marketplace comparisons ─────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/marketplace/compare`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.7,
+    },
+    ...(['vs-xpay', 'vs-nevermined', 'vs-stripe-mpp', 'vs-zuplo'] as const).map(
+      (slug) => ({
+        url: `${BASE_URL}/marketplace/compare/${slug}`,
+        lastModified: now,
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
+      })
+    ),
+
     // ── How-to guides ─────────────────────────────────────────────────────────
     {
       url: `${BASE_URL}/learn/how-to`,
@@ -348,6 +364,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${BASE_URL}/api/v1/discover/categories`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.5,
+    },
+    // ── Marketplace data APIs ─────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/api/marketplace/stats`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.6,
+    },
+    {
+      url: `${BASE_URL}/api/marketplace/bundles`,
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.5,
