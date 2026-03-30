@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { sql, eq, and, gte, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations } from '@/lib/db/schema'
+import { tools, invocations, consumers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
@@ -23,6 +23,12 @@ interface WeeklyReportData {
   newToolsThisWeek: number
   totalInvocationsThisWeek: number
   totalRevenueCentsThisWeek: number
+  // Seed/demo traffic (consumers without supabase_user_id)
+  seedInvocationsThisWeek: number
+  seedRevenueCentsThisWeek: number
+  // Real traffic (consumers with supabase_user_id = authenticated users)
+  realInvocationsThisWeek: number
+  realRevenueCentsThisWeek: number
   top5Tools: Array<{
     name: string
     slug: string
@@ -87,8 +93,20 @@ async function sendReportEmail(report: WeeklyReportData): Promise<void> {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 ${dataRow('Total Active Tools', String(report.totalActiveTools))}
 ${dataRow('New Tools This Week', String(report.newToolsThisWeek))}
-${dataRow('Total Invocations', report.totalInvocationsThisWeek.toLocaleString())}
-${dataRow('Total Revenue', formatCents(report.totalRevenueCentsThisWeek), true)}
+</table>
+
+${dividerLine()}
+
+<h3 class="sg-heading" style="color:#1A1F3A;margin:0 0 12px;font-size:16px">Real Traffic (Authenticated Users)</h3>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+${dataRow('Invocations', report.realInvocationsThisWeek.toLocaleString())}
+${dataRow('Revenue', formatCents(report.realRevenueCentsThisWeek), true)}
+</table>
+
+<h3 class="sg-heading" style="color:#9ca3af;margin:16px 0 12px;font-size:14px">Seed / Demo Traffic</h3>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+${dataRow('Invocations', report.seedInvocationsThisWeek.toLocaleString())}
+${dataRow('Revenue (not withdrawable)', formatCents(report.seedRevenueCentsThisWeek))}
 </table>
 
 ${dividerLine()}
@@ -106,7 +124,7 @@ ${categoryHtml}
 </table>
 ` : ''}
 `,
-    { preheader: `Active tools: ${report.totalActiveTools} | Revenue: ${formatCents(report.totalRevenueCentsThisWeek)}` }
+    { preheader: `Active tools: ${report.totalActiveTools} | Real revenue: ${formatCents(report.realRevenueCentsThisWeek)} | Real invocations: ${report.realInvocationsThisWeek.toLocaleString()}` }
   )
 
   await sendEmail({ to: ADMIN_EMAIL, subject, html })
@@ -166,7 +184,9 @@ export async function GET(request: NextRequest) {
 
     const newToolsThisWeek = newToolsResult?.count ?? 0
 
-    // 3. Total invocations this week
+    // 3. Total invocations this week — split real vs seed
+    // Real = consumer has supabase_user_id (authenticated via OAuth)
+    // Seed = consumer has no supabase_user_id (demo/test data)
     const [invocationsResult] = await db
       .select({
         count: sql<number>`count(*)::int`,
@@ -182,6 +202,27 @@ export async function GET(request: NextRequest) {
 
     const totalInvocationsThisWeek = invocationsResult?.count ?? 0
     const totalRevenueCentsThisWeek = invocationsResult?.totalCents ?? 0
+
+    // Real invocations: join with consumers to check supabase_user_id
+    const [realResult] = await db
+      .select({
+        count: sql<number>`count(*)::int`,
+        totalCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
+      })
+      .from(invocations)
+      .innerJoin(consumers, eq(invocations.consumerId, consumers.id))
+      .where(
+        and(
+          gte(invocations.createdAt, weekAgo),
+          eq(invocations.isTest, false),
+          sql`${consumers.supabaseUserId} IS NOT NULL`
+        )
+      )
+
+    const realInvocationsThisWeek = realResult?.count ?? 0
+    const realRevenueCentsThisWeek = realResult?.totalCents ?? 0
+    const seedInvocationsThisWeek = totalInvocationsThisWeek - realInvocationsThisWeek
+    const seedRevenueCentsThisWeek = totalRevenueCentsThisWeek - realRevenueCentsThisWeek
 
     // 4. Top 5 tools by invocations this week
     const top5ToolsRaw = await db
@@ -253,6 +294,10 @@ export async function GET(request: NextRequest) {
       newToolsThisWeek,
       totalInvocationsThisWeek,
       totalRevenueCentsThisWeek,
+      seedInvocationsThisWeek,
+      seedRevenueCentsThisWeek,
+      realInvocationsThisWeek,
+      realRevenueCentsThisWeek,
       top5Tools,
       categoryBreakdown: categoryBreakdown.map((r) => ({
         category: r.category,
