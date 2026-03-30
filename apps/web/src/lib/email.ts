@@ -2104,11 +2104,10 @@ export function claimToolOutreachEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for tools per call.</p>
 ${repoLine}
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-call pricing and get paid via Stripe whenever an AI agent uses it. You keep 95&ndash;100% of revenue. No code changes or infrastructure work required.</p>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools are already indexed across 11 registries. Claiming takes about 90 seconds.</p>
-${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-call pricing and get paid via Stripe whenever an AI agent uses it. You keep 95&ndash;100% of revenue. No code changes or infrastructure work required. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your project? No worries — just ignore this email and we won't follow up.</p>
-<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0">Want to look around first? <a href="https://settlegrid.ai/marketplace" style="color:#E5A336;text-decoration:underline">Browse the marketplace</a> · <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">See how it works</a></p>
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace" style="color:#E5A336;text-decoration:underline">Browse the marketplace</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
 ${outreachFooter(toolName)}
 `,
@@ -2142,11 +2141,10 @@ export function claimAiModelEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(modelName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for models per inference.</p>
 ${sourceLine}
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-inference pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. No changes to your model hosting or deployment needed.</p>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and models are already indexed across 11 registries.</p>
-${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-inference pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. No changes to your model hosting or deployment needed. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your model? No worries — just ignore this and we won't follow up.</p>
-<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0">Want to look around first? <a href="https://settlegrid.ai/marketplace/ai-models" style="color:#E5A336;text-decoration:underline">Browse AI models</a> · <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">See how it works</a></p>
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/ai-models" style="color:#E5A336;text-decoration:underline">Browse AI models</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
 ${outreachFooter(modelName)}
 `,
@@ -2175,11 +2173,10 @@ export function claimPackageEmail(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(packageName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for ${ecosystemDisplay} tools per call.</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you can add per-call pricing for AI agent usage and get paid via Stripe. You keep 95&ndash;100% of the revenue. Nothing changes for your existing ${ecosystemDisplay} users&nbsp;&mdash; this is an additional revenue channel.</p>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and packages are indexed across 11 registries. Takes about 90 seconds to claim.</p>
-${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you can add per-call pricing for AI agent usage and get paid via Stripe. You keep 95&ndash;100% of the revenue. Nothing changes for your existing ${ecosystemDisplay} users&nbsp;&mdash; this is an additional revenue channel. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your package? No worries — just ignore this and we won't follow up.</p>
-<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0">Want to look around first? <a href="https://settlegrid.ai/marketplace/packages" style="color:#E5A336;text-decoration:underline">Browse packages</a> · <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">See how it works</a></p>
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/packages" style="color:#E5A336;text-decoration:underline">Browse packages</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
 ${outreachFooter(packageName)}
 `,
@@ -2206,11 +2203,10 @@ export function claimApiServiceEmail(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(serviceName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for services autonomously.</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, agents can pay per call automatically via Stripe. You set the price, you keep 95&ndash;100% of revenue. No SDK integration required&nbsp;&mdash; agents handle billing through SettleGrid's protocol.</p>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and services are indexed across 11 registries.</p>
-${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, agents can pay per call automatically via Stripe. You set the price, you keep 95&ndash;100% of revenue. No SDK integration required&nbsp;&mdash; agents handle billing through SettleGrid's protocol. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your service? No worries — just ignore this and we won't follow up.</p>
-<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0">Want to look around first? <a href="https://settlegrid.ai/marketplace/apis" style="color:#E5A336;text-decoration:underline">Browse APIs</a> · <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">See how it works</a></p>
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/apis" style="color:#E5A336;text-decoration:underline">Browse APIs</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
 ${outreachFooter(serviceName)}
 `,
@@ -2238,11 +2234,10 @@ export function claimAgentToolEmail(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents across any framework can discover and pay for tools per call.</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you set per-call pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. Agents handle billing through SettleGrid's payment protocol&nbsp;&mdash; no changes to your tool code.</p>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools are indexed across 11 registries. Claiming takes about 90 seconds.</p>
-${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you set per-call pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. Agents handle billing through SettleGrid's payment protocol&nbsp;&mdash; no changes to your tool code. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your tool? No worries — just ignore this and we won't follow up.</p>
-<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0">Want to look around first? <a href="https://settlegrid.ai/marketplace/agent-tools" style="color:#E5A336;text-decoration:underline">Browse agent tools</a> · <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">See how it works</a></p>
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/agent-tools" style="color:#E5A336;text-decoration:underline">Browse agent tools</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
 ${outreachFooter(toolName)}
 `,
