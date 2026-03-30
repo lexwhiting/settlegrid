@@ -272,7 +272,7 @@ function SavingsCard({ monthlyRevenueCents }: { monthlyRevenueCents: number }) {
         </CardHeader>
         <CardContent className="pt-0">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Reservoir empty. Start earning to see your gold accumulate here.
+            No data yet. Start earning to see your savings accumulate here.
           </p>
         </CardContent>
       </Card>
@@ -973,7 +973,7 @@ export default function DeveloperDashboardPage() {
               }}
             />
           ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No gold flowing yet. Publish your first tool to start the flow.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No activity yet. Publish your first tool to start earning.</p>
           )}
         </CardContent>
       </Card>
