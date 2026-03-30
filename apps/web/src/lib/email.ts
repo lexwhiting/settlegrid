@@ -2068,8 +2068,11 @@ ${ctaButton('View Referrals', 'https://settlegrid.ai/dashboard/referrals')}
  * Explains HOW the email was triggered (auto-indexed from a public registry)
  * to pre-empt "is this spam?" objections.
  */
-function outreachFooter(itemName: string): string {
-  return `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You received this because <strong>${escapeHtml(itemName)}</strong> was auto-indexed on SettleGrid from a public registry. <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
+function outreachFooter(itemName: string, recipientEmail?: string): string {
+  const unsubUrl = recipientEmail
+    ? `https://settlegrid.ai/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
+    : 'https://settlegrid.ai/unsubscribe'
+  return `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You received this because <strong>${escapeHtml(itemName)}</strong> was auto-indexed on SettleGrid from a public registry. <a href="${unsubUrl}" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
 <p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>`
 }
 
@@ -2090,7 +2093,8 @@ export function claimToolOutreachEmail(
   firstName: string,
   toolName: string,
   claimToken: string,
-  sourceRepoUrl: string | null
+  sourceRepoUrl: string | null,
+  recipientEmail?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const repoLine = sourceRepoUrl
@@ -2109,7 +2113,7 @@ ${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your project? No worries — just ignore this email and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace" style="color:#E5A336;text-decoration:underline">Browse the marketplace</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
-${outreachFooter(toolName)}
+${outreachFooter(toolName, recipientEmail)}
 `,
       { preheader: `AI agents can discover ${toolName} right now. Claim it to set pricing.` }
     ),
@@ -2127,7 +2131,8 @@ export function claimAiModelEmail(
   firstName: string,
   modelName: string,
   claimToken: string,
-  sourceUrl: string | null
+  sourceUrl: string | null,
+  recipientEmail?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const sourceLine = sourceUrl
@@ -2146,7 +2151,7 @@ ${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your model? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/ai-models" style="color:#E5A336;text-decoration:underline">Browse AI models</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
-${outreachFooter(modelName)}
+${outreachFooter(modelName, recipientEmail)}
 `,
       { preheader: `AI agents can already find ${modelName}. Set your pricing in 90 seconds.` }
     ),
@@ -2162,7 +2167,8 @@ export function claimPackageEmail(
   firstName: string,
   packageName: string,
   claimToken: string,
-  ecosystem: string
+  ecosystem: string,
+  recipientEmail?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const ecosystemDisplay = escapeHtml(ecosystem)
@@ -2178,7 +2184,7 @@ ${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your package? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/packages" style="color:#E5A336;text-decoration:underline">Browse packages</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
-${outreachFooter(packageName)}
+${outreachFooter(packageName, recipientEmail)}
 `,
       { preheader: `AI agents are discovering ${ecosystemDisplay} packages like ${packageName}. Claim yours.` }
     ),
@@ -2193,7 +2199,8 @@ ${outreachFooter(packageName)}
 export function claimApiServiceEmail(
   firstName: string,
   serviceName: string,
-  claimToken: string
+  claimToken: string,
+  recipientEmail?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
 
@@ -2208,7 +2215,7 @@ ${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your service? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/apis" style="color:#E5A336;text-decoration:underline">Browse APIs</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
-${outreachFooter(serviceName)}
+${outreachFooter(serviceName, recipientEmail)}
 `,
       { preheader: `AI agents can already discover ${serviceName}. Set your per-call pricing.` }
     ),
@@ -2224,7 +2231,8 @@ export function claimAgentToolEmail(
   firstName: string,
   toolName: string,
   claimToken: string,
-  _framework: string
+  _framework: string,
+  recipientEmail?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
 
@@ -2239,7 +2247,7 @@ ${ctaButton('See your listing & start earning', claimUrl)}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your tool? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/agent-tools" style="color:#E5A336;text-decoration:underline">Browse agent tools</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
-${outreachFooter(toolName)}
+${outreachFooter(toolName, recipientEmail)}
 `,
       { preheader: `AI agents can already discover ${toolName}. Claim it to set pricing.` }
     ),
