@@ -199,7 +199,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 )}
               >
-                {/* Gold active indicator */}
+                {/* Active indicator */}
                 <span
                   className={cn(
                     'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full transition-all',
@@ -245,7 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 )}
               >
-                {/* Gold active indicator */}
+                {/* Active indicator */}
                 <span
                   className={cn(
                     'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full transition-all',
@@ -289,7 +289,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 )}
               >
-                {/* Gold active indicator */}
+                {/* Active indicator */}
                 <span
                   className={cn(
                     'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full transition-all',

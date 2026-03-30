@@ -308,24 +308,16 @@ export function MarketplaceClientShell({
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-20 bg-[#161822] rounded-xl border border-[#2A2D3E] text-center">
-              {/* Frozen gold drop */}
-              <div
-                className="mb-6 opacity-60"
-                style={{
-                  width: '80px',
-                  height: '96px',
-                  background: 'linear-gradient(180deg, #F5C963, #E5A336, #C4891E)',
-                  borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%',
-                  position: 'relative',
-                  filter: 'drop-shadow(0 8px 24px rgba(229,163,54,0.3))',
-                }}
-                aria-hidden="true"
-              />
+              <div className="w-12 h-12 rounded-full bg-[#252836] border border-[#2A2D3E] flex items-center justify-center mb-4 text-gray-500" aria-hidden="true">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
               <h3 className="text-sm font-semibold text-gray-100 mb-1">
-                No tools flowing through this filter yet
+                No tools match this filter yet
               </h3>
               <p className="text-sm text-gray-400 max-w-sm mx-auto">
-                This tributary is waiting for its first tools. Try adjusting your filters or be the first to publish.
+                Try adjusting your filters or be the first to publish.
               </p>
             </div>
           )}
