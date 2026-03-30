@@ -64,33 +64,29 @@ function selectEmailTemplate(
   claimToken: string,
   toolType: string,
   sourceRepoUrl: string | null,
-  sourceEcosystem: string | null
+  sourceEcosystem: string | null,
+  recipientEmail: string
 ): EmailTemplate {
   const ecosystemDisplay =
     ECOSYSTEM_DISPLAY_NAMES[sourceEcosystem ?? ''] ?? sourceEcosystem ?? 'AI'
 
   switch (toolType) {
     case 'ai-model':
-      return claimAiModelEmail(firstName, toolName, claimToken, sourceRepoUrl)
+      return claimAiModelEmail(firstName, toolName, claimToken, sourceRepoUrl, recipientEmail)
 
     case 'sdk-package':
-      return claimPackageEmail(firstName, toolName, claimToken, ecosystemDisplay)
+      return claimPackageEmail(firstName, toolName, claimToken, ecosystemDisplay, recipientEmail)
 
     case 'rest-api':
     case 'automation':
-      return claimApiServiceEmail(firstName, toolName, claimToken)
+      return claimApiServiceEmail(firstName, toolName, claimToken, recipientEmail)
 
     case 'agent-tool':
-      return claimAgentToolEmail(
-        firstName,
-        toolName,
-        claimToken,
-        ecosystemDisplay
-      )
+      return claimAgentToolEmail(firstName, toolName, claimToken, ecosystemDisplay, recipientEmail)
 
     case 'mcp-server':
     default:
-      return claimToolOutreachEmail(firstName, toolName, claimToken, sourceRepoUrl)
+      return claimToolOutreachEmail(firstName, toolName, claimToken, sourceRepoUrl, recipientEmail)
   }
 }
 
@@ -243,6 +239,15 @@ export async function GET(request: NextRequest) {
           ? creator.name.split(/\s+/)[0] || creator.username
           : creator.username
 
+        // Check unsubscribe suppression list
+        const unsubKey = `unsub:outreach:${creator.email.toLowerCase()}`
+        const isUnsubscribed = await redis.get<string>(unsubKey)
+        if (isUnsubscribed) {
+          logger.info('cron.claim_outreach.unsubscribed', { slug: tool.slug })
+          skipped++
+          continue
+        }
+
         // Select and build the appropriate email template
         const emailTemplate = selectEmailTemplate(
           firstName,
@@ -250,7 +255,8 @@ export async function GET(request: NextRequest) {
           claimToken,
           tool.toolType,
           tool.sourceRepoUrl,
-          tool.sourceEcosystem
+          tool.sourceEcosystem,
+          creator.email
         )
 
         const sent = await sendEmail({
