@@ -36,42 +36,26 @@ export function ToolCard({ tool }: ToolCardProps) {
   return (
     <Link
       href={`/tools/${tool.slug}`}
-      className="group relative overflow-hidden bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 hover:border-[rgba(229,163,54,0.4)] transition-all hover:shadow-[0_4px_16px_-2px_rgba(229,163,54,0.12)]"
-      style={{
-        boxShadow:
-          '0 1px 2px rgba(196,137,30,0.04), 0 4px 8px rgba(196,137,30,0.03), 0 8px 24px rgba(196,137,30,0.02)',
-      }}
+      className="group relative overflow-hidden bg-[#161822] rounded-xl border border-[#2A2D3E] p-5 hover:border-brand/40 transition-all shadow-card hover:shadow-card-hover"
     >
-      {/* Gold edge top line */}
-      <span
-        className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] rounded-t-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent, #E5A336 20%, #F5C963 50%, #E5A336 80%, transparent)',
-        }}
-      />
 
       <div className="relative z-10">
         {/* Header: name + badges + activity indicator */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h3 className="font-semibold text-gray-100 group-hover:text-[#F5C963] transition-colors leading-tight line-clamp-1">
+            <h3 className="font-semibold text-gray-100 group-hover:text-brand-light transition-colors leading-tight line-clamp-1">
               {tool.name}
             </h3>
             {isHighActivity && (
               <span
-                className="inline-block w-2 h-2 rounded-full shrink-0"
-                style={{
-                  backgroundColor: '#E5A336',
-                  boxShadow: '0 0 6px rgba(229,163,54,0.6)',
-                }}
+                className="inline-block w-2 h-2 rounded-full shrink-0 bg-brand"
                 title="High activity"
               />
             )}
           </div>
           {tool.verified && (
             <svg
-              className="w-4 h-4 text-[#F5C963] shrink-0 mt-0.5"
+              className="w-4 h-4 text-brand-light shrink-0 mt-0.5"
               fill="currentColor"
               viewBox="0 0 20 20"
               aria-label="Verified"
@@ -85,13 +69,12 @@ export function ToolCard({ tool }: ToolCardProps) {
           )}
         </div>
 
-        {/* Gold flow indicator: small bar showing activity level */}
+        {/* Activity level indicator */}
         <div className="w-full h-[2px] bg-[#252836] rounded-full mb-3 overflow-hidden">
           <div
-            className="h-full rounded-full transition-all"
+            className="h-full rounded-full transition-all bg-brand"
             style={{
               width: `${Math.min(100, (tool.totalInvocations / 1000) * 100)}%`,
-              background: 'linear-gradient(90deg, #C4891E, #E5A336)',
             }}
           />
         </div>
@@ -140,7 +123,7 @@ export function ToolCard({ tool }: ToolCardProps) {
               </span>
             )}
           </div>
-          <span className="text-xs text-[#F5C963] opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-xs text-brand-light opacity-0 group-hover:opacity-100 transition-opacity">
             View &rarr;
           </span>
         </div>

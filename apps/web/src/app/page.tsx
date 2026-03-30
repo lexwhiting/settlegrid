@@ -184,11 +184,6 @@ function StepCard({
   description: string
   state: 'molten' | 'flowing' | 'settled'
 }) {
-  const stateColors = {
-    molten: 'from-gold-molten to-gold-flowing',
-    flowing: 'from-gold-flowing to-gold-warm',
-    settled: 'from-gold-warm to-gold-settled',
-  }
   const stateLabels = {
     molten: 'Source',
     flowing: 'Flow',
@@ -197,11 +192,10 @@ function StepCard({
 
   return (
     <div className="text-center relative group">
-      {/* Gold state indicator */}
-      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${stateColors[state]} text-white font-bold text-lg flex items-center justify-center mx-auto mb-2 shadow-lg shadow-gold-flowing/20 group-hover:shadow-gold-flowing/30 transition-shadow`}>
+      <div className="w-14 h-14 rounded-2xl bg-brand text-white font-bold text-lg flex items-center justify-center mx-auto mb-2 shadow-sm">
         {step}
       </div>
-      <p className="text-[10px] uppercase tracking-widest text-gold-settled mb-3 font-medium">
+      <p className="text-[10px] uppercase tracking-widest text-brand mb-3 font-medium">
         {stateLabels[state]}
       </p>
       <h3 className="font-bold text-indigo dark:text-gray-100 text-lg mb-2">{title}</h3>
@@ -220,8 +214,8 @@ function CoreCard({
   description: string
 }) {
   return (
-    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] hover:border-brand/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 dark:hover:border-brand/50 gold-edge-top liquid-depth">
-      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-gold-flowing/10 to-gold-settled/5 flex items-center justify-center mb-4 group-hover:from-gold-flowing/20 group-hover:to-gold-settled/10 transition-colors">
+    <div className="group p-6 rounded-xl border border-gray-200 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] hover:border-brand/40 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 dark:hover:border-brand/50">
+      <div className="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center mb-4 group-hover:bg-brand/15 transition-colors">
         {icon}
       </div>
       <h3 className="font-bold text-indigo dark:text-gray-100 mb-2">{title}</h3>
@@ -561,7 +555,7 @@ export default async function HomePage() {
               backgroundSize: '24px 24px',
             }}
           />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-gold-flowing/60 to-transparent" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-brand/40 to-transparent" />
 
           <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -577,7 +571,7 @@ export default async function HomePage() {
               {/* Headline */}
               <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight text-white mb-3 leading-[1.08]">
                 The Settlement Layer for the{' '}
-                <span className="gold-shimmer">AI Economy</span>
+                <span className="text-brand-light">AI Economy</span>
               </h1>
               <p className="text-xl sm:text-2xl font-semibold text-gray-200 mb-6">
                 Per-call billing for any AI service — in 2 lines of code
@@ -608,22 +602,22 @@ export default async function HomePage() {
               {/* Protocol tributaries stat bar */}
               <div className="flex items-center justify-center sm:justify-start gap-3 mb-6 text-sm">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-[2px] bg-gradient-to-r from-gold-molten to-gold-settled rounded-full" />
-                  <span className="text-gold-molten font-semibold whitespace-nowrap">Free forever</span>
+                  <div className="w-8 h-[2px] bg-brand rounded-full" />
+                  <span className="text-brand-light font-semibold whitespace-nowrap">Free forever</span>
                 </div>
                 <span className="text-white/15">|</span>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-[2px] bg-gradient-to-r from-gold-flowing to-transparent rounded-full" />
+                  <div className="w-6 h-[2px] bg-brand/60 rounded-full" />
                   <span className="text-white font-semibold whitespace-nowrap">15 protocols</span>
                 </div>
                 <span className="text-white/15">|</span>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-[2px] bg-gradient-to-r from-gold-flowing to-transparent rounded-full" />
+                  <div className="w-6 h-[2px] bg-brand/60 rounded-full" />
                   <span className="text-white font-semibold whitespace-nowrap">&lt;50ms metering</span>
                 </div>
                 <span className="text-white/15">|</span>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-[2px] bg-gradient-to-r from-gold-settled to-transparent rounded-full" />
+                  <div className="w-6 h-[2px] bg-brand/40 rounded-full" />
                   <span className="text-white font-semibold whitespace-nowrap">Stripe payouts</span>
                 </div>
               </div>
@@ -633,7 +627,7 @@ export default async function HomePage() {
 
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-4">
-                <Link href="/start" className="inline-flex items-center justify-center bg-gradient-to-r from-gold-flowing to-gold-warm text-white font-semibold px-8 py-3.5 rounded-lg text-lg hover:from-gold-molten hover:to-gold-flowing transition-all shadow-lg shadow-gold-flowing/25 hover:shadow-xl hover:shadow-gold-molten/30 hover:-translate-y-0.5">
+                <Link href="/start" className="inline-flex items-center justify-center bg-brand text-white font-semibold px-8 py-3.5 rounded-lg text-lg hover:bg-brand-dark transition-colors shadow-sm hover:-translate-y-0.5">
                   Start Earning — Free
                 </Link>
                 <Link href="/docs" className="inline-flex items-center justify-center border-2 border-white/25 text-white font-semibold px-8 py-3.5 rounded-lg text-lg hover:bg-white/10 hover:border-white/40 transition-all">

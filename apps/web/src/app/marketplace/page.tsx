@@ -126,35 +126,13 @@ export default async function MarketplacePage({
           />
 
           {/* Hero */}
-          <div className="relative text-center mb-12 rounded-2xl py-12 px-6 overflow-hidden">
-            {/* Caustic light background */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: [
-                  'radial-gradient(ellipse 30% 20% at 20% 30%, rgba(245,201,99,0.08), transparent)',
-                  'radial-gradient(ellipse 25% 35% at 70% 60%, rgba(229,163,54,0.06), transparent)',
-                  'radial-gradient(ellipse 20% 15% at 50% 80%, rgba(14,165,233,0.04), transparent)',
-                  'radial-gradient(ellipse 35% 25% at 80% 20%, rgba(245,201,99,0.05), transparent)',
-                ].join(', '),
-              }}
-            />
-            <h1 className="relative text-4xl sm:text-5xl font-bold text-gray-100 mb-4 font-display">
+          <div className="text-center mb-12 rounded-2xl py-12 px-6">
+            <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4 font-display">
               The{' '}
-              <span
-                style={{
-                  background:
-                    'linear-gradient(90deg, #C4891E 0%, #E5A336 25%, #F5C963 50%, #E5A336 75%, #C4891E 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                AI Services
-              </span>{' '}
+              <span className="text-brand-light">AI Services</span>{' '}
               Marketplace
             </h1>
-            <p className="relative text-lg text-gray-400 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
               Discover, compare, and monetize AI tools across every ecosystem.
               MCP servers, models, APIs, agent tools, and automations — all with
               universal settlement and transparent per-call pricing.
