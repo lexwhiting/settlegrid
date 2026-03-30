@@ -557,6 +557,57 @@ async function resolveGitHubEmail(
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
+// ─── Smithery → GitHub Cross-Reference ───────────────────────────────────────
+
+/**
+ * Cross-references a Smithery server URL with PulseMCP to find the GitHub source repo.
+ * Smithery URLs like "smithery.ai/servers/foo" don't contain developer contact info,
+ * but PulseMCP indexes the same servers and provides source_code_url (usually GitHub).
+ */
+async function resolveSmitheryToGitHub(smitheryUrl: string): Promise<string | null> {
+  // Extract server name from URL: "https://smithery.ai/servers/agentmail" → "agentmail"
+  const match = smitheryUrl.match(/smithery\.ai\/servers?\/([^/?#]+)/)
+  if (!match) return null
+  const serverName = match[1]
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    const res = await fetch(
+      `https://api.pulsemcp.com/v0beta/servers?query=${encodeURIComponent(serverName)}&count_per_page=5`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      }
+    )
+
+    clearTimeout(timeout)
+    if (!res.ok) return null
+
+    const data = (await res.json()) as { servers?: Array<{ name?: string; source_code_url?: string }> }
+    if (!Array.isArray(data.servers)) return null
+
+    // Find a matching server with a GitHub source_code_url
+    for (const server of data.servers) {
+      const name = typeof server.name === 'string' ? server.name.toLowerCase() : ''
+      if (name.includes(serverName.toLowerCase()) || serverName.toLowerCase().includes(name)) {
+        if (typeof server.source_code_url === 'string' && server.source_code_url.includes('github.com')) {
+          logger.info('ecosystem_email_resolver.smithery_cross_ref_found', {
+            smitheryServer: serverName,
+            githubUrl: server.source_code_url,
+          })
+          return server.source_code_url
+        }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Resolves the creator's email for any supported AI tool ecosystem.
  *
@@ -565,9 +616,8 @@ async function resolveGitHubEmail(
  * 2. Dispatch to ecosystem-specific resolver
  * 3. Return ResolvedCreator or null if no email found
  *
- * Supported ecosystems: github, npm, pypi, huggingface, apify
- * Ecosystems with GitHub-based repos (mcp-registry, smithery, pulsemcp)
- * fall through to GitHub resolution.
+ * Supported ecosystems: github, npm, pypi, huggingface, apify, smithery
+ * Smithery cross-references with PulseMCP to find GitHub repos.
  */
 export async function resolveCreatorEmail(
   sourceUrl: string,
@@ -604,9 +654,19 @@ export async function resolveCreatorEmail(
 
       case 'github':
       case 'mcp-registry':
-      case 'smithery':
       case 'pulsemcp':
         return await resolveGitHubEmail(sourceUrl)
+
+      case 'smithery': {
+        // Smithery URLs (smithery.ai/servers/foo) don't contain GitHub info.
+        // Cross-reference with PulseMCP to find the GitHub source_code_url.
+        const githubUrl = await resolveSmitheryToGitHub(sourceUrl)
+        if (githubUrl) {
+          return await resolveGitHubEmail(githubUrl)
+        }
+        logger.info('ecosystem_email_resolver.smithery_no_github', { url: sourceUrl.slice(0, 200) })
+        return null
+      }
 
       default: {
         // Try GitHub resolution as last resort (many tools have GitHub URLs)
