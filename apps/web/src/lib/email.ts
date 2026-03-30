@@ -2064,8 +2064,27 @@ ${ctaButton('View Referrals', 'https://settlegrid.ai/dashboard/referrals')}
 // ── Claim Your Listing Templates ─────────────────────────────────────────────
 
 /**
+ * Build a CAN-SPAM compliant footer that names the specific tool/model/package.
+ * Explains HOW the email was triggered (auto-indexed from a public registry)
+ * to pre-empt "is this spam?" objections.
+ */
+function outreachFooter(itemName: string): string {
+  return `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You received this because <strong>${escapeHtml(itemName)}</strong> was auto-indexed on SettleGrid from a public registry. <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>`
+}
+
+/**
  * Outreach email sent to developers whose MCP server has been auto-indexed.
- * Includes CAN-SPAM compliant footer with unsubscribe and physical address.
+ *
+ * Design principles (apply to all 5 claim templates):
+ * - Subject: <50 chars, tool name included, curiosity-driven
+ * - Preheader: complements (never repeats) the subject
+ * - Opening: developer-first hook in first 2 lines
+ * - Body: 4-5 short sentences max, no bullet lists
+ * - Social proof: registry count (credible pre-traction)
+ * - CTA: single, low-friction ("See your listing")
+ * - Objection: one line explaining why they got this email
+ * - Footer: CAN-SPAM with physical address + unsubscribe
  */
 export function claimToolOutreachEmail(
   firstName: string,
@@ -2075,45 +2094,34 @@ export function claimToolOutreachEmail(
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const repoLine = sourceRepoUrl
-    ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:8px 0 0">Source: <a href="${escapeHtml(sourceRepoUrl)}" style="color:#E5A336;text-decoration:underline">${escapeHtml(sourceRepoUrl.slice(0, 80))}</a></p>`
+    ? `<p class="sg-text" style="color:#6b7280;font-size:12px;margin:4px 0 0"><a href="${escapeHtml(sourceRepoUrl)}" style="color:#9ca3af;text-decoration:none">${escapeHtml(sourceRepoUrl.slice(0, 80))}</a></p>`
     : ''
 
   return {
-    subject: sanitizeSubject(`Your MCP server "${toolName}" is listed on SettleGrid`),
+    subject: sanitizeSubject(`${toolName} has a listing page`),
     html: baseEmailTemplate(
       `
-<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Tool Is Listed</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your MCP server <strong>${escapeHtml(toolName)}</strong> has been automatically indexed on SettleGrid's marketplace.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We auto-index MCP servers from Smithery, PulseMCP, npm, and the MCP Registry. Your server <strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on SettleGrid.</p>
 ${repoLine}
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">Right now it is listed as an unclaimed tool. By claiming it, you can:</p>
-<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
-<li>Set per-call pricing (you choose: 1 cent to $10 per call)</li>
-<li>Connect Stripe to receive payouts (95-100% revenue share)</li>
-<li>Get your own tool storefront page with reviews and analytics</li>
-<li>Appear in our discovery API used by AI agents</li>
-</ul>
-${ctaButton('Claim Your Tool', claimUrl)}
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">This takes about 2 minutes. Your tool is already indexed — you are just activating monetization.</p>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:8px 0 0">If this is not your tool or you are not interested, just ignore this email.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-call pricing and get paid via Stripe whenever an AI agent uses it. You keep 95&ndash;100% of revenue. No code changes or infrastructure work required.</p>
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools are already indexed across 11 registries. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your project? No worries — just ignore this email and we won't follow up.</p>
 ${dividerLine()}
-<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You are receiving this because your MCP server was indexed on SettleGrid. <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
-<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>
+${outreachFooter(toolName)}
 `,
-      { preheader: `Claim "${toolName}" on SettleGrid and start earning per-call revenue.` }
+      { preheader: `AI agents can discover ${toolName} right now. Claim it to set pricing.` }
     ),
   }
 }
 
 // ── Ecosystem Claim Outreach Templates ───────────────────────────────────────
 
-/** CAN-SPAM footer for outreach emails (unsubscribe + physical address). */
-const OUTREACH_CAN_SPAM_FOOTER = `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">You are receiving this because your tool was indexed on SettleGrid. <a href="https://settlegrid.ai/unsubscribe" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
-<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>`
-
 /**
  * Outreach email for AI model creators (HuggingFace, Replicate, etc.).
- * Emphasizes per-inference billing and zero infrastructure changes.
+ * Hooks on the "your model is already discoverable" angle.
+ * Emphasizes zero infrastructure changes and per-inference billing.
  */
 export function claimAiModelEmail(
   firstName: string,
@@ -2123,37 +2131,32 @@ export function claimAiModelEmail(
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const sourceLine = sourceUrl
-    ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:8px 0 0">Source: <a href="${escapeHtml(sourceUrl)}" style="color:#E5A336;text-decoration:underline">${escapeHtml(sourceUrl.slice(0, 80))}</a></p>`
+    ? `<p class="sg-text" style="color:#6b7280;font-size:12px;margin:4px 0 0"><a href="${escapeHtml(sourceUrl)}" style="color:#9ca3af;text-decoration:none">${escapeHtml(sourceUrl.slice(0, 80))}</a></p>`
     : ''
 
   return {
-    subject: sanitizeSubject(`Monetize your AI model ${modelName} on SettleGrid`),
+    subject: sanitizeSubject(`${modelName} — your listing is live`),
     html: baseEmailTemplate(
       `
-<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your AI Model Is Listed</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your AI model <strong>${escapeHtml(modelName)}</strong> has been indexed on SettleGrid. AI agents can now discover it — claim it to start earning per-inference revenue.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">SettleGrid auto-indexes AI models from HuggingFace, Replicate, and other registries. Your model <strong style="color:#1A1F3A">${escapeHtml(modelName)}</strong> already has a listing page that AI agents can discover.</p>
 ${sourceLine}
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your model, you get:</p>
-<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
-<li>Per-inference billing — you set the price</li>
-<li>Zero infrastructure changes required</li>
-<li>Download and usage analytics dashboard</li>
-<li>95-100% revenue share via Stripe payouts</li>
-</ul>
-${ctaButton('Claim Your Model', claimUrl)}
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your model, just ignore this email.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-inference pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. No changes to your model hosting or deployment needed.</p>
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and models are already indexed across 11 registries.</p>
+${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your model? No worries — just ignore this and we won't follow up.</p>
 ${dividerLine()}
-${OUTREACH_CAN_SPAM_FOOTER}
+${outreachFooter(modelName)}
 `,
-      { preheader: `Claim "${modelName}" on SettleGrid and earn per-inference revenue.` }
+      { preheader: `AI agents can already find ${modelName}. Set your pricing in 90 seconds.` }
     ),
   }
 }
 
 /**
  * Outreach email for package creators (npm, PyPI, etc.).
- * Emphasizes per-call billing for premium features.
+ * Hooks on the ecosystem name (npm/PyPI) for immediate recognition.
+ * Emphasizes that their existing package gains a new revenue channel.
  */
 export function claimPackageEmail(
   firstName: string,
@@ -2162,35 +2165,30 @@ export function claimPackageEmail(
   ecosystem: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
-  const ecosystemDisplay = escapeHtml(ecosystem.toUpperCase())
+  const ecosystemDisplay = escapeHtml(ecosystem)
 
   return {
-    subject: sanitizeSubject(`Your ${ecosystem} package ${packageName} is listed on SettleGrid`),
+    subject: sanitizeSubject(`${packageName} on SettleGrid`),
     html: baseEmailTemplate(
       `
-<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Package Is Listed</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your ${ecosystemDisplay} package <strong>${escapeHtml(packageName)}</strong> has been indexed on SettleGrid's AI tool marketplace. Claim it to monetize usage by AI agents.</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your package, you get:</p>
-<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
-<li>Per-call billing for premium features — you set the price</li>
-<li>Weekly download and usage analytics</li>
-<li>AI agent discovery via our marketplace API</li>
-<li>95-100% revenue share via Stripe payouts</li>
-</ul>
-${ctaButton('Claim Your Package', claimUrl)}
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your package, just ignore this email.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We index ${ecosystemDisplay} packages that AI agents use as tools. Your package <strong style="color:#1A1F3A">${escapeHtml(packageName)}</strong> already has a listing page on SettleGrid.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you can add per-call pricing for AI agent usage and get paid via Stripe. You keep 95&ndash;100% of the revenue. Nothing changes for your existing ${ecosystemDisplay} users&nbsp;&mdash; this is an additional revenue channel.</p>
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and packages are indexed across 11 registries. Takes about 90 seconds to claim.</p>
+${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your package? No worries — just ignore this and we won't follow up.</p>
 ${dividerLine()}
-${OUTREACH_CAN_SPAM_FOOTER}
+${outreachFooter(packageName)}
 `,
-      { preheader: `Claim "${packageName}" on SettleGrid and start earning per-call revenue.` }
+      { preheader: `AI agents are discovering ${ecosystemDisplay} packages like ${packageName}. Claim yours.` }
     ),
   }
 }
 
 /**
  * Outreach email for API/automation service creators (Apify, REST APIs).
- * Emphasizes agent-native payment and machine-to-machine billing.
+ * Hooks on the "agents can already find your service" angle.
+ * Emphasizes autonomous machine-to-machine billing as the value prop.
  */
 export function claimApiServiceEmail(
   firstName: string,
@@ -2200,32 +2198,27 @@ export function claimApiServiceEmail(
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
 
   return {
-    subject: sanitizeSubject(`AI agents can now pay for ${serviceName}`),
+    subject: sanitizeSubject(`${serviceName} — agents can find you`),
     html: baseEmailTemplate(
       `
-<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Service Is Listed</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your service <strong>${escapeHtml(serviceName)}</strong> has been indexed on SettleGrid. AI agents can discover it — claim it to enable autonomous machine-to-machine billing.</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your service, you get:</p>
-<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
-<li>Agent-native payment — agents pay per call automatically</li>
-<li>Autonomous machine-to-machine billing</li>
-<li>Usage analytics and revenue dashboard</li>
-<li>95-100% revenue share via Stripe payouts</li>
-</ul>
-${ctaButton('Claim Your Service', claimUrl)}
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your service, just ignore this email.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">SettleGrid indexes APIs and automation services so AI agents can discover and pay for them autonomously. Your service <strong style="color:#1A1F3A">${escapeHtml(serviceName)}</strong> already has a listing page.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, agents can pay per call automatically via Stripe. You set the price, you keep 95&ndash;100% of revenue. No SDK integration required&nbsp;&mdash; agents handle billing through SettleGrid's protocol.</p>
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and services are indexed across 11 registries.</p>
+${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your service? No worries — just ignore this and we won't follow up.</p>
 ${dividerLine()}
-${OUTREACH_CAN_SPAM_FOOTER}
+${outreachFooter(serviceName)}
 `,
-      { preheader: `Claim "${serviceName}" on SettleGrid and let AI agents pay for your service.` }
+      { preheader: `AI agents can already discover ${serviceName}. Set your per-call pricing.` }
     ),
   }
 }
 
 /**
  * Outreach email for agent tool creators (LangChain, CrewAI, etc.).
- * Emphasizes that AI agents discover and pay automatically.
+ * Hooks on the framework name for immediate recognition.
+ * Emphasizes cross-framework discovery as unique value.
  */
 export function claimAgentToolEmail(
   firstName: string,
@@ -2236,25 +2229,19 @@ export function claimAgentToolEmail(
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
 
   return {
-    subject: sanitizeSubject(`Your ${framework} tool ${toolName} is on SettleGrid`),
+    subject: sanitizeSubject(`${toolName} has a listing page`),
     html: baseEmailTemplate(
       `
-<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your Agent Tool Is Listed</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your ${escapeHtml(framework)} tool <strong>${escapeHtml(toolName)}</strong> has been indexed on SettleGrid's AI tool marketplace.</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">By claiming your tool, you get:</p>
-<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
-<li>AI agents discover and pay for your tool automatically</li>
-<li>Per-call pricing — you set the rate</li>
-<li>Usage analytics across agent frameworks</li>
-<li>95-100% revenue share via Stripe payouts</li>
-</ul>
-${ctaButton('Claim Your Tool', claimUrl)}
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:16px 0 0">Takes about 2 minutes. If this is not your tool, just ignore this email.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We index ${escapeHtml(framework)} tools so AI agents across any framework can discover and pay for them. Your tool <strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on SettleGrid.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you set per-call pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. Agents handle billing through SettleGrid's payment protocol&nbsp;&mdash; no changes to your tool code.</p>
+<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools are indexed across 11 registries. Claiming takes about 90 seconds.</p>
+${ctaButton('See your listing', claimUrl)}
+<p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your tool? No worries — just ignore this and we won't follow up.</p>
 ${dividerLine()}
-${OUTREACH_CAN_SPAM_FOOTER}
+${outreachFooter(toolName)}
 `,
-      { preheader: `Claim "${toolName}" on SettleGrid and let AI agents pay per call.` }
+      { preheader: `AI agents can already discover ${toolName}. Claim it to set pricing.` }
     ),
   }
 }
