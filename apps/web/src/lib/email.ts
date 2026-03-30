@@ -2102,7 +2102,7 @@ export function claimToolOutreachEmail(
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We auto-index MCP servers from Smithery, PulseMCP, npm, and the MCP Registry. Your server <strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on SettleGrid.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on SettleGrid. AI agents can discover and call it right now.</p>
 ${repoLine}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-call pricing and get paid via Stripe whenever an AI agent uses it. You keep 95&ndash;100% of revenue. No code changes or infrastructure work required.</p>
 <p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools are already indexed across 11 registries. Claiming takes about 90 seconds.</p>
@@ -2139,7 +2139,7 @@ export function claimAiModelEmail(
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">SettleGrid auto-indexes AI models from HuggingFace, Replicate, and other registries. Your model <strong style="color:#1A1F3A">${escapeHtml(modelName)}</strong> already has a listing page that AI agents can discover.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(modelName)}</strong> already has a listing page on SettleGrid. AI agents can discover it and pay per inference right now.</p>
 ${sourceLine}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-inference pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. No changes to your model hosting or deployment needed.</p>
 <p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and models are already indexed across 11 registries.</p>
@@ -2172,7 +2172,7 @@ export function claimPackageEmail(
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We index ${ecosystemDisplay} packages that AI agents use as tools. Your package <strong style="color:#1A1F3A">${escapeHtml(packageName)}</strong> already has a listing page on SettleGrid.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(packageName)}</strong> already has a listing page on SettleGrid. AI agents can discover it as a ${ecosystemDisplay} tool right now.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you can add per-call pricing for AI agent usage and get paid via Stripe. You keep 95&ndash;100% of the revenue. Nothing changes for your existing ${ecosystemDisplay} users&nbsp;&mdash; this is an additional revenue channel.</p>
 <p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and packages are indexed across 11 registries. Takes about 90 seconds to claim.</p>
 ${ctaButton('See your listing', claimUrl)}
@@ -2202,7 +2202,7 @@ export function claimApiServiceEmail(
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">SettleGrid indexes APIs and automation services so AI agents can discover and pay for them autonomously. Your service <strong style="color:#1A1F3A">${escapeHtml(serviceName)}</strong> already has a listing page.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(serviceName)}</strong> already has a listing page on SettleGrid. AI agents can discover and pay for it autonomously right now.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, agents can pay per call automatically via Stripe. You set the price, you keep 95&ndash;100% of revenue. No SDK integration required&nbsp;&mdash; agents handle billing through SettleGrid's protocol.</p>
 <p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools and services are indexed across 11 registries.</p>
 ${ctaButton('See your listing', claimUrl)}
@@ -2233,7 +2233,7 @@ export function claimAgentToolEmail(
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">We index ${escapeHtml(framework)} tools so AI agents across any framework can discover and pay for them. Your tool <strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on SettleGrid.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on SettleGrid. AI agents across any framework — not just ${escapeHtml(framework)} — can discover and pay for it right now.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you set per-call pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. Agents handle billing through SettleGrid's payment protocol&nbsp;&mdash; no changes to your tool code.</p>
 <p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Over 10,000 tools are indexed across 11 registries. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing', claimUrl)}
