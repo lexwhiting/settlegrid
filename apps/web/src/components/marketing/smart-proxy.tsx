@@ -1,3 +1,8 @@
+import { CopyButton } from "@/components/ui/copy-button"
+
+const proxyCode = `curl https://settlegrid.ai/api/proxy/my-tool \\
+  -H "Authorization: Bearer sg_live_..."`
+
 const features = [
   "Per-call metering & budget enforcement",
   "15-protocol payment detection",
@@ -7,12 +12,12 @@ const features = [
 
 export function SmartProxy() {
   return (
-    <section className="py-24 lg:py-32">
+    <section className="py-16 lg:py-24">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Left side - Text */}
           <div className="flex flex-col gap-6">
-            <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
+            <p className="text-sm font-medium tracking-[0.2em] uppercase text-muted-foreground">
               Smart Proxy
             </p>
             <h2 className="text-3xl sm:text-4xl font-medium tracking-tight text-foreground text-balance">
@@ -40,15 +45,18 @@ export function SmartProxy() {
           <div className="w-full">
             <div className="rounded-lg border border-border bg-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_40px_-12px_rgba(229,163,54,0.15)]">
               {/* Terminal header */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-                  <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-                  <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+                    <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+                    <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono ml-2">
+                    terminal
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground font-mono ml-2">
-                  terminal
-                </span>
+                <CopyButton text={proxyCode} />
               </div>
 
               {/* Terminal content */}

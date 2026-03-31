@@ -110,6 +110,12 @@
   background-color: rgba(26, 29, 46, 0.5);
 }
 
+/* ---- Subtle background dot grid (global) ---- */
+body {
+  background-image: radial-gradient(circle, rgba(229, 163, 54, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 /* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   .hero-gradient-mesh,
