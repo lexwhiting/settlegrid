@@ -38,7 +38,7 @@ export function SmartProxy() {
 
           {/* Right side - Terminal */}
           <div className="w-full">
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="rounded-lg border border-border bg-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_40px_-12px_rgba(229,163,54,0.15)]">
               {/* Terminal header */}
               <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                 <div className="flex gap-1.5">

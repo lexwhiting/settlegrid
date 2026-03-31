@@ -73,12 +73,16 @@ export default function HomePage() {
       />
       <Hero />
       <StatsBar />
+      <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <Features />
       <SmartProxy />
+      <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <Protocols />
       <UseCases />
+      <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <Onboarding />
       <PricingSection />
+      <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <CTASection />
       <Footer />
     </main>
