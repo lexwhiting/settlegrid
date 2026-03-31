@@ -25,6 +25,41 @@ const configureSchema = z.object({
   ).nullable().optional(),
 })
 
+/** GET /api/developer/notifications/configure — get current webhook config */
+export async function GET(request: NextRequest) {
+  try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const rl = await checkRateLimit(apiLimiter, `dev-notif-configure-get:${ip}`)
+    if (!rl.success) {
+      return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
+    let auth
+    try {
+      auth = await requireDeveloper(request)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Authentication required'
+      return errorResponse(message, 401, 'UNAUTHORIZED')
+    }
+
+    const [developer] = await db
+      .select({ notificationWebhooks: developers.notificationWebhooks })
+      .from(developers)
+      .where(eq(developers.id, auth.id))
+      .limit(1)
+
+    if (!developer) {
+      return errorResponse('Developer account not found.', 404, 'NOT_FOUND')
+    }
+
+    return successResponse({
+      notificationWebhooks: developer.notificationWebhooks ?? {},
+    })
+  } catch (error) {
+    return internalErrorResponse(error)
+  }
+}
+
 /** POST /api/developer/notifications/configure — set Slack/Discord webhook URLs */
 export async function POST(request: NextRequest) {
   try {

@@ -180,8 +180,9 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Calculate growth rate ───────────────────────────────────────────
-    // Compare last 15 days avg to first 15 days avg
-    const midpoint = Math.floor(dailyRevenue.length / 2)
+    // Compare second half avg to first half avg
+    // For a single data point, both halves are the same — growth rate is 0
+    const midpoint = Math.max(1, Math.floor(dailyRevenue.length / 2))
     const firstHalf = dailyRevenue.slice(0, midpoint)
     const secondHalf = dailyRevenue.slice(midpoint)
 
@@ -192,6 +193,7 @@ export async function GET(request: NextRequest) {
       ? secondHalf.reduce((s, d) => s + d.revenueCents, 0) / secondHalf.length
       : 0
 
+    // Guard against division by zero: if first half had zero revenue, growth rate is 0
     const growthRate = firstHalfAvg > 0
       ? Math.round(((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 10000) / 10000
       : 0

@@ -126,16 +126,21 @@ export async function GET(request: NextRequest) {
 
       const todayCount = todayCountMap.get(toolId) ?? 0
       if (todayCount < MIN_INVOCATIONS_FOR_DETECTION && dailyValues.every((v) => v < MIN_INVOCATIONS_FOR_DETECTION)) {
-        continue // Skip tools with very low traffic
+        continue // Skip tools with very low traffic across the board
       }
 
       // Calculate mean and standard deviation
       const n = dailyValues.length
       const mean = dailyValues.reduce((s, v) => s + v, 0) / n
+
+      // For very low traffic tools (mean < threshold), skip — z-scores on
+      // small counts produce too many false positives
+      if (mean < MIN_INVOCATIONS_FOR_DETECTION) continue
+
       const variance = dailyValues.reduce((s, v) => s + (v - mean) ** 2, 0) / n
       const stdDev = Math.sqrt(variance)
 
-      // Avoid division by zero
+      // Avoid division by zero — if stdDev is 0, all values are identical (no anomaly)
       if (stdDev === 0) continue
 
       const zScore = (todayCount - mean) / stdDev
