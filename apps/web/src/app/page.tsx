@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Navbar } from '@/components/marketing/navbar'
 import { Hero } from '@/components/marketing/hero'
 import { StatsBar } from '@/components/marketing/stats-bar'
 import { Features } from '@/components/marketing/features'
@@ -65,6 +66,7 @@ const jsonLd = {
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-background">
+      <Navbar />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
