@@ -1,12 +1,39 @@
-import Link from 'next/link'
+import Link from "next/link"
 
 export function Hero() {
   return (
-    <section className="min-h-screen flex items-center">
-      <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
+    <section className="min-h-screen flex items-center relative overflow-hidden">
+      {/* Dot grid background */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.18) 1px, transparent 1px)`,
+          backgroundSize: "24px 24px",
+          maskImage:
+            "radial-gradient(ellipse 85% 70% at 50% 40%, black 40%, transparent 100%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 85% 70% at 50% 40%, black 40%, transparent 100%)",
+        }}
+      />
+
+      {/* Amber glow behind headline */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          top: "20%",
+          left: "15%",
+          width: "600px",
+          height: "500px",
+          background:
+            "radial-gradient(ellipse at center, rgba(229,163,54,0.22) 0%, transparent 70%)",
+          filter: "blur(100px)",
+        }}
+      />
+
+      <div className="w-full max-w-7xl mx-auto px-6 lg:px-8 pt-14">
         <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
           {/* Left side - Copy */}
-          <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-8 relative z-10">
             <div className="flex flex-col gap-5">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-foreground text-balance leading-[1.1]">
                 The Settlement Layer for the{" "}
@@ -34,7 +61,7 @@ export function Hero() {
           </div>
 
           {/* Right side - Code snippet */}
-          <div className="w-full">
+          <div className="w-full relative z-10">
             <div className="rounded-lg border border-border bg-card overflow-hidden">
               {/* Terminal header */}
               <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
