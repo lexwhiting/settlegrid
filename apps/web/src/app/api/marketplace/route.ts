@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { eq, and, desc, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools } from '@/lib/db/schema'
+import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 
@@ -163,22 +163,30 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.max(Math.ceil(total / limitParam), 1)
     const offset = (pageParam - 1) * limitParam
 
-    // Determine sort order
+    // Tier boost: Builder tools get +10 sort score, Scale/Enterprise tools get +20
+    // This only affects 'popular' sort — paid-tier tools appear higher without a separate section
+    const tierBoost = sql<number>`CASE
+      WHEN ${developers.tier} IN ('scale', 'enterprise') THEN 20
+      WHEN ${developers.tier} IN ('builder', 'starter', 'growth') THEN 10
+      ELSE 0
+    END`
+
+    // Determine sort order (with tier boost for 'popular')
     let orderBy
     switch (sortParam) {
       case 'newest':
         orderBy = desc(tools.createdAt)
         break
       case 'revenue':
-        orderBy = desc(tools.totalRevenueCents)
+        orderBy = desc(sql`${tools.totalRevenueCents} + ${tierBoost}`)
         break
       case 'popular':
       default:
-        orderBy = desc(tools.totalInvocations)
+        orderBy = desc(sql`${tools.totalInvocations} + ${tierBoost}`)
         break
     }
 
-    // Fetch tools
+    // Fetch tools (left join developers for tier boost)
     const results = await db
       .select({
         id: tools.id,
@@ -195,6 +203,7 @@ export async function GET(request: NextRequest) {
         createdAt: tools.createdAt,
       })
       .from(tools)
+      .leftJoin(developers, eq(tools.developerId, developers.id))
       .where(whereClause)
       .orderBy(orderBy)
       .limit(limitParam)
