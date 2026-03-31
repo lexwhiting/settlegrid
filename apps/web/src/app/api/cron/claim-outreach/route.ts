@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { eq, and, isNull, isNotNull } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -24,7 +24,7 @@ export const maxDuration = 120
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Maximum tools to process per cron run */
-const MAX_TOOLS_PER_RUN = 20
+const MAX_TOOLS_PER_RUN = 50
 
 /** Maximum emails to send per calendar day (UTC). Prevents accidental spam. */
 const MAX_EMAILS_PER_DAY = 50
@@ -128,6 +128,9 @@ export async function GET(request: NextRequest) {
 
     // Query unclaimed tools that have not been emailed yet
     // Must have a sourceRepoUrl (otherwise we cannot find the creator)
+    // Prioritizes tools with GitHub URLs (highest email resolution success rate),
+    // then npm, then others. Orders by creation date to avoid re-processing
+    // the same tools on every run.
     const unclaimedTools = await db
       .select({
         id: tools.id,
@@ -145,6 +148,18 @@ export async function GET(request: NextRequest) {
           isNull(tools.claimEmailSentAt),
           isNotNull(tools.sourceRepoUrl)
         )
+      )
+      .orderBy(
+        // Prioritize sources with highest email resolution success rates
+        sql`CASE
+          WHEN source_repo_url LIKE '%npmjs.com%' THEN 1
+          WHEN source_repo_url LIKE '%github.com%' THEN 2
+          WHEN source_repo_url LIKE '%pypi.org%' THEN 3
+          WHEN source_repo_url LIKE '%huggingface%' THEN 4
+          WHEN source_repo_url LIKE '%smithery%' THEN 5
+          ELSE 6
+        END`,
+        tools.createdAt
       )
       .limit(MAX_TOOLS_PER_RUN)
 
@@ -227,6 +242,18 @@ export async function GET(request: NextRequest) {
             toolType: tool.toolType,
             sourceEcosystem: tool.sourceEcosystem,
           })
+
+          // Mark this tool with a sentinel claimEmailSentAt so it does not
+          // block the queue on subsequent runs. The epoch date (1970-01-01)
+          // distinguishes "no email found" from "email actually sent".
+          await db
+            .update(tools)
+            .set({
+              claimEmailSentAt: new Date(0),
+              updatedAt: new Date(),
+            })
+            .where(eq(tools.id, tool.id))
+
           noEmail++
           continue
         }
