@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
+import { Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { SonnerToaster } from '@/components/sonner-toaster'
 import { HelpChatWidget } from '@/components/help-chat/help-chat-widget'
@@ -14,11 +15,11 @@ const spaceGrotesk = Space_Grotesk({
   weight: ['300', '400', '500', '600', '700'],
 })
 
-const inter = Inter({
-  subsets: ['latin'],
+const satoshi = localFont({
+  src: '../../public/fonts/Satoshi-Variable.woff2',
   variable: '--font-sans',
   display: 'swap',
-  weight: ['300', '400', '500', '600', '700'],
+  weight: '300 900',
 })
 
 const jetbrainsMono = JetBrains_Mono({
@@ -81,7 +82,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${satoshi.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <meta name="ai.description" content="SettleGrid is the settlement layer for AI agent payments. SDK: @settlegrid/mcp. Per-call billing, usage metering, budget enforcement for MCP servers, REST APIs, AI agents, and model endpoints." />
         <meta name="ai.keywords" content="MCP monetization, AI agent payments, settlement layer, per-call billing, Model Context Protocol, budget enforcement, usage metering, AI commerce, x402, AP2" />
