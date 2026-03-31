@@ -2,11 +2,12 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { apiKeys } from '@/lib/db/schema'
+import { apiKeys, tools, developers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { isValidIpOrCidr } from '@/lib/ip-validation'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -55,7 +56,7 @@ export async function PATCH(
 
     // Verify key exists and belongs to consumer
     const [key] = await db
-      .select({ id: apiKeys.id, status: apiKeys.status })
+      .select({ id: apiKeys.id, status: apiKeys.status, toolId: apiKeys.toolId })
       .from(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.consumerId, auth.id)))
       .limit(1)
@@ -66,6 +67,31 @@ export async function PATCH(
 
     if (key.status !== 'active') {
       return errorResponse('Cannot modify a revoked API key.', 400, 'KEY_NOT_ACTIVE')
+    }
+
+    // ── Tier gate: ip_allowlisting requires Scale+ (checked via tool's developer) ──
+    const [tool] = await db
+      .select({ developerId: tools.developerId })
+      .from(tools)
+      .where(eq(tools.id, key.toolId))
+      .limit(1)
+
+    if (tool) {
+      const [developer] = await db
+        .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+        .from(developers)
+        .where(eq(developers.id, tool.developerId))
+        .limit(1)
+
+      if (developer && !hasFeature(developer.tier, 'ip_allowlisting', developer.isFoundingMember)) {
+        return errorResponse(
+          'This feature requires the Scale plan.',
+          403,
+          'TIER_REQUIRED',
+          undefined,
+          { requiredTier: 'scale', currentTier: developer.tier, upgradeUrl: '/pricing' }
+        )
+      }
     }
 
     const [updated] = await db

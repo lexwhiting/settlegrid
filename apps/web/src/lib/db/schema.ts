@@ -36,9 +36,9 @@ export const developers = pgTable('developers', {
   // Notification preferences — { eventType: boolean } pairs
   notificationPreferences: jsonb('notification_preferences').notNull().default('{}'),
   // Data retention preferences
-  logRetentionDays: integer('log_retention_days').notNull().default(90),
-  webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(30),
-  auditLogRetentionDays: integer('audit_log_retention_days').notNull().default(365),
+  logRetentionDays: integer('log_retention_days').notNull().default(7),
+  webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(7),
+  auditLogRetentionDays: integer('audit_log_retention_days').notNull().default(7),
   // R9: Developer Public Profiles
   publicProfile: boolean('public_profile').notNull().default(false),
   publicBio: text('public_bio'),

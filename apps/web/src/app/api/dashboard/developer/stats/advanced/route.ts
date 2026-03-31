@@ -5,6 +5,7 @@ import { developers, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -93,8 +94,7 @@ interface AdvancedAnalytics {
   periodDays: number
 }
 
-// Tiers that have access to advanced analytics
-const ADVANCED_TIERS = new Set(['scale', 'enterprise'])
+// Advanced analytics tier check now uses centralized tier-config
 
 /** GET /api/dashboard/developer/stats/advanced — advanced analytics (Scale+) */
 export async function GET(request: NextRequest) {
@@ -119,14 +119,13 @@ export async function GET(request: NextRequest) {
       return errorResponse('Developer account not found.', 404, 'NOT_FOUND')
     }
 
-    const effectiveTier = developer.isFoundingMember ? 'scale' : developer.tier
-    if (!ADVANCED_TIERS.has(effectiveTier)) {
+    if (!hasFeature(developer.tier, 'advanced_analytics', developer.isFoundingMember)) {
       return errorResponse(
         'Advanced Analytics is available on the Scale plan ($79/mo) and above. Upgrade to unlock period-over-period comparisons, consumer cohort analysis, latency percentiles per tool, error trend tracking, referral attribution, and more.',
         403,
         'TIER_REQUIRED',
         undefined,
-        { requiredTier: 'scale', currentTier: effectiveTier }
+        { requiredTier: 'scale', currentTier: developer.tier, upgradeUrl: '/pricing' }
       )
     }
 
