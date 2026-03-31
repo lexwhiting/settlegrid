@@ -1,5 +1,11 @@
 import Link from "next/link"
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect"
+import { CopyButton } from "@/components/ui/copy-button"
+
+const heroCode = `import { SettleGrid } from '@settlegrid/mcp'
+
+const sg = new SettleGrid({ apiKey: 'sg_...' })
+const tool = sg.wrap(myFunction, { costCents: 5 })`
 
 export function Hero() {
   return (
@@ -51,15 +57,18 @@ export function Hero() {
           <div className="w-full relative z-10">
             <div className="rounded-lg border border-border bg-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_40px_-12px_rgba(229,163,54,0.15)]">
               {/* Terminal header */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-                  <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-                  <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+                    <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+                    <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono ml-2">
+                    terminal
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground font-mono ml-2">
-                  terminal
-                </span>
+                <CopyButton text={heroCode} />
               </div>
 
               {/* Terminal content */}

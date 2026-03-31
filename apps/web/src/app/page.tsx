@@ -73,6 +73,7 @@ export default function HomePage() {
       />
       <Hero />
       <StatsBar />
+      <Onboarding />
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <Features />
       <SmartProxy />
@@ -80,7 +81,6 @@ export default function HomePage() {
       <Protocols />
       <UseCases />
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
-      <Onboarding />
       <PricingSection />
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <CTASection />
