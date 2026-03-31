@@ -35,6 +35,8 @@ export const developers = pgTable('developers', {
   payoutMinimumCents: integer('payout_minimum_cents').notNull().default(100), // $1 minimum — lowest in the industry
   // Notification preferences — { eventType: boolean } pairs
   notificationPreferences: jsonb('notification_preferences').notNull().default('{}'),
+  // Notification webhooks — { slack?: string, discord?: string }
+  notificationWebhooks: jsonb('notification_webhooks').notNull().default('{}'),
   // Data retention preferences
   logRetentionDays: integer('log_retention_days').notNull().default(7),
   webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(7),
