@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 
 const productLinks = [
   { label: "Get started", href: "/start" },
@@ -30,9 +31,13 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 lg:gap-16 mb-16">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1 flex flex-col gap-3">
-            <span className="text-lg font-medium text-foreground">
-              SettleGrid
-            </span>
+            <Image
+              src="/brand/wordmark-transparent.svg"
+              alt="SettleGrid"
+              width={120}
+              height={28}
+              className="h-7 w-auto"
+            />
             <p className="text-sm text-muted-foreground">
               The settlement layer for the AI economy.
             </p>
