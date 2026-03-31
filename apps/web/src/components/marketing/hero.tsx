@@ -4,30 +4,16 @@ import { TextGenerateEffect } from "@/components/ui/text-generate-effect"
 export function Hero() {
   return (
     <section className="min-h-screen flex items-center relative overflow-hidden">
-      {/* Dot grid background */}
+      {/* Hero background illustration */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.18) 1px, transparent 1px)`,
-          backgroundSize: "24px 24px",
-          maskImage:
-            "radial-gradient(ellipse 85% 70% at 50% 40%, black 40%, transparent 100%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 85% 70% at 50% 40%, black 40%, transparent 100%)",
-        }}
-      />
-
-      {/* Amber glow behind headline */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          top: "20%",
-          left: "15%",
-          width: "600px",
-          height: "500px",
-          background:
-            "radial-gradient(ellipse at center, rgba(229,163,54,0.22) 0%, transparent 70%)",
-          filter: "blur(100px)",
+          backgroundImage: 'url(/brand/hero-bg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.35,
+          maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
         }}
       />
 
