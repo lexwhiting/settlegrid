@@ -1,6 +1,7 @@
 'use client'
 
 import Link from "next/link"
+import Image from "next/image"
 import { useState } from "react"
 
 const navLinks = [
@@ -18,8 +19,15 @@ export function Navbar() {
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Wordmark */}
-          <Link href="/" className="text-base font-medium text-foreground">
-            SettleGrid
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/brand/wordmark-transparent.svg"
+              alt="SettleGrid"
+              width={120}
+              height={28}
+              className="h-7 w-auto"
+              priority
+            />
           </Link>
 
           {/* Desktop nav */}

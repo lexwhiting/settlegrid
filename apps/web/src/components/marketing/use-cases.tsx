@@ -1,3 +1,5 @@
+import { StaggerContainer } from "@/components/ui/stagger-container"
+
 const useCases = [
   {
     title: "MCP Server Developers",
@@ -36,7 +38,7 @@ export function UseCases() {
         </div>
 
         {/* Use cases grid */}
-        <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
+        <StaggerContainer className="grid md:grid-cols-2 gap-6 lg:gap-8">
           {useCases.map((useCase) => (
             <div
               key={useCase.title}
@@ -50,7 +52,7 @@ export function UseCases() {
               </p>
             </div>
           ))}
-        </div>
+        </StaggerContainer>
       </div>
     </section>
   )
