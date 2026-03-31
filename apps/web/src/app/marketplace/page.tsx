@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 import { MarketplaceContent } from './marketplace-content'
 
 export const metadata: Metadata = {
@@ -66,59 +67,9 @@ export default async function MarketplacePage({
 
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#0C0E14]/80 backdrop-blur-lg sticky top-0 z-50">
-        <nav className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-5">
-            <Link
-              href="/marketplace"
-              className="hidden sm:inline text-sm font-medium text-amber-400 transition-colors"
-            >
-              Marketplace
-            </Link>
-            <Link
-              href="/pricing"
-              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/tools"
-              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
-            >
-              Showcase
-            </Link>
-            <Link
-              href="/docs"
-              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
-            >
-              Docs
-            </Link>
-            <Link
-              href="/learn"
-              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors"
-            >
-              Learn
-            </Link>
-            <Link
-              href="/login"
-              className="hidden sm:inline text-sm font-medium text-gray-400 hover:text-gray-100"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm font-semibold bg-brand text-white px-5 py-2 rounded-lg hover:bg-brand-dark transition-colors shadow-sm shadow-brand/25"
-            >
-              Start Building
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
-      <main className="flex-1 px-6 py-12">
+      <main className="flex-1 px-6 py-12 pt-14">
         <div className="max-w-7xl mx-auto">
           <script
             type="application/ld+json"
@@ -201,34 +152,7 @@ export default async function MarketplacePage({
         </div>
       </main>
 
-      <footer className="border-t border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={32} />
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/marketplace" className="hover:text-gray-100 transition-colors">
-              Marketplace
-            </Link>
-            <Link href="/tools" className="hover:text-gray-100 transition-colors">
-              Showcase
-            </Link>
-            <Link href="/docs" className="hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link href="/learn" className="hover:text-gray-100 transition-colors">
-              Learn
-            </Link>
-            <Link href="/privacy" className="hover:text-gray-100 transition-colors">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-gray-100 transition-colors">
-              Terms
-            </Link>
-          </div>
-          <p className="text-sm text-gray-400">
-            &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
