@@ -1,5 +1,7 @@
 import { Check } from "lucide-react"
 import Link from "next/link"
+import { StaggerContainer } from "@/components/ui/stagger-container"
+import { SpotlightCard } from "@/components/ui/spotlight-card"
 
 const freeTier = [
   "50,000 ops/month",
@@ -50,7 +52,7 @@ export function PricingSection() {
         </div>
 
         {/* Pricing cards */}
-        <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-12">
+        <StaggerContainer className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-12">
           {/* Free tier */}
           <div className="rounded-lg border border-border bg-card p-6 lg:p-8 flex flex-col transition-all duration-200 hover:border-muted-foreground/50 hover:-translate-y-0.5">
             <div className="flex flex-col gap-1 mb-6">
@@ -112,7 +114,8 @@ export function PricingSection() {
           </div>
 
           {/* Scale tier */}
-          <div className="rounded-lg border border-border bg-card p-6 lg:p-8 flex flex-col transition-all duration-200 hover:border-[#E5A336]/30 hover:-translate-y-0.5">
+          <SpotlightCard className="rounded-lg border border-border bg-card transition-all duration-200 hover:border-[#E5A336]/30 hover:-translate-y-0.5">
+          <div className="p-6 lg:p-8 flex flex-col h-full">
             <div className="flex flex-col gap-1 mb-6">
               <h3 className="text-xl font-medium text-foreground">Scale</h3>
               <div className="flex items-baseline gap-1">
@@ -140,7 +143,8 @@ export function PricingSection() {
               Get started
             </Link>
           </div>
-        </div>
+          </SpotlightCard>
+        </StaggerContainer>
 
         {/* Footer note */}
         <p className="text-sm text-muted-foreground text-center max-w-2xl mx-auto">

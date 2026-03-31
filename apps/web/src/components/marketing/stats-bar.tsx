@@ -1,3 +1,5 @@
+import { AnimatedCounter } from "@/components/ui/animated-counter"
+
 const stats = [
   { value: "15", label: "Payment protocols" },
   { value: "< 50ms", label: "Metering latency" },
@@ -13,9 +15,10 @@ export function StatsBar() {
           {stats.map((stat, index) => (
             <div key={stat.label} className="flex items-center">
               <div className="flex flex-col items-center text-center px-6 lg:px-10">
-                <span className="text-2xl lg:text-3xl font-medium text-foreground">
-                  {stat.value}
-                </span>
+                <AnimatedCounter
+                  value={stat.value}
+                  className="text-2xl lg:text-3xl font-medium text-foreground"
+                />
                 <span className="text-sm text-muted-foreground mt-1">
                   {stat.label}
                 </span>
