@@ -1,10 +1,11 @@
 import { StaggerContainer } from "@/components/ui/stagger-container"
+import { CopyButton } from "@/components/ui/copy-button"
 
 export function Features() {
   return (
-    <section className="py-24 lg:py-32">
+    <section className="py-16 lg:py-24">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
-        <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground mb-16">
+        <p className="text-sm font-medium tracking-[0.2em] uppercase text-muted-foreground mb-16">
           How it works
         </p>
 
@@ -22,7 +23,8 @@ export function Features() {
                       Wrap any function in 2 lines of code.
                     </p>
                   </div>
-                  <div className="lg:flex-1 lg:max-w-lg">
+                  <div className="lg:flex-1 lg:max-w-lg relative">
+                    <CopyButton text="const tool = sg.wrap(fn, { costCents: 5 })" className="absolute top-2 right-2" />
                     <div className="rounded-md bg-background border border-border p-4 font-mono text-xs leading-relaxed">
                       <div>
                         <span className="text-[#c678dd]">const</span>

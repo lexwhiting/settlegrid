@@ -17,7 +17,7 @@ export function Onboarding() {
   }
 
   return (
-    <section className="py-24 lg:py-32">
+    <section className="py-16 lg:py-24">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
           {/* Label */}

@@ -25,14 +25,14 @@ const useCases = [
 
 export function UseCases() {
   return (
-    <section className="py-24 lg:py-32">
+    <section className="py-16 lg:py-24">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
         {/* Section header */}
         <div className="flex flex-col gap-4 mb-16">
-          <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
+          <p className="text-sm font-medium tracking-[0.2em] uppercase text-muted-foreground">
             Built for
           </p>
-          <p className="text-lg text-foreground max-w-xl">
+          <p className="text-xl text-foreground max-w-xl">
             Any developer monetizing AI capabilities.
           </p>
         </div>
