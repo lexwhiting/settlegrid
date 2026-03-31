@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -245,28 +246,10 @@ const SECTIONS: SectionCard[] = [
 export default function LearnPage() {
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      {/* ---- Header ---- */}
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
-        <nav className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Showcase
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
       {/* ---- Main content ---- */}
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-4xl mx-auto">
           {/* Hero */}
           <div className="text-center mb-16">
@@ -338,19 +321,7 @@ export default function LearnPage() {
         </div>
       </main>
 
-      {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
-          <Link href="/" className="hover:text-gray-300 transition-colors">
-            <SettleGridLogo variant="compact" size={32} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="hover:text-gray-300 transition-colors">Docs</Link>
-            <Link href="/learn/protocols" className="hover:text-gray-300 transition-colors">Protocols</Link>
-            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

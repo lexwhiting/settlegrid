@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { ApiEndpointRow } from '@/components/ui/api-endpoint-row'
 import { FaqAccordion } from '@/components/ui/faq-accordion'
@@ -741,28 +742,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
 export default function DocsPage() {
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 sticky top-0 bg-white dark:bg-[#161822] z-10">
-        <nav className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/tools" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Showcase
-            </Link>
-            <Link href="/learn" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Learn
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex pt-14">
         {/* Sidebar nav */}
-        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2A2D3E] p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2A2D3E] p-6 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
           <nav className="space-y-1 text-sm">
             {[
               { href: '#not-just-mcp', label: 'Not Just MCP' },
@@ -1953,11 +1937,7 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
         </main>
       </div>
 
-      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-5xl mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
-          &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
