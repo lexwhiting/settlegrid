@@ -3,6 +3,7 @@ import { developers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { isWebhookUrlSafe } from '@/lib/webhooks'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -169,22 +170,36 @@ export async function notifyDeveloper(params: {
       })
     }
 
-    // Send to Slack if configured
+    // Send to Slack if configured — validate URL to prevent SSRF
     if (webhooks.slack) {
-      sendSlackNotification(webhooks.slack, params.message).catch((err) => {
-        logger.error('notification.slack.dispatch_error', {
+      if (!isWebhookUrlSafe(webhooks.slack)) {
+        logger.warn('notification.slack.ssrf_blocked', {
           developerId: params.developerId,
-        }, err)
-      })
+          url: webhooks.slack.slice(0, 60),
+        })
+      } else {
+        sendSlackNotification(webhooks.slack, params.message).catch((err) => {
+          logger.error('notification.slack.dispatch_error', {
+            developerId: params.developerId,
+          }, err)
+        })
+      }
     }
 
-    // Send to Discord if configured
+    // Send to Discord if configured — validate URL to prevent SSRF
     if (webhooks.discord) {
-      sendDiscordNotification(webhooks.discord, params.message).catch((err) => {
-        logger.error('notification.discord.dispatch_error', {
+      if (!isWebhookUrlSafe(webhooks.discord)) {
+        logger.warn('notification.discord.ssrf_blocked', {
           developerId: params.developerId,
-        }, err)
-      })
+          url: webhooks.discord.slice(0, 60),
+        })
+      } else {
+        sendDiscordNotification(webhooks.discord, params.message).catch((err) => {
+          logger.error('notification.discord.dispatch_error', {
+            developerId: params.developerId,
+          }, err)
+        })
+      }
     }
   } catch (err) {
     logger.error('notification.notify_developer_failed', {

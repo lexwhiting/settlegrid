@@ -80,6 +80,32 @@ interface AnalyticsData {
   latencyPercentiles: { p50: number; p95: number; p99: number }
 }
 
+interface BenchmarkData {
+  benchmarks: Array<{
+    toolId: string
+    toolName: string
+    category: string
+    yourPrice: number
+    categoryMedian: number
+    singleToolCategory: boolean
+  }>
+  periodDays: number
+}
+
+interface ForecastData {
+  currentMonthRevenueCents: number
+  projectedNextMonthCents: number
+  growthRate: number
+  trend: 'growing' | 'stable' | 'declining'
+  dailyDataPoints: number
+  confidence: 'low' | 'medium' | 'high'
+}
+
+interface NotificationConfig {
+  slack?: string
+  discord?: string
+}
+
 function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -345,6 +371,9 @@ export default function DeveloperDashboardPage() {
   const [inviteCopied, setInviteCopied] = useState(false)
   const [achievementsData, setAchievementsData] = useState<AchievementsData | null>(null)
   const [shareAchievement, setShareAchievement] = useState<AchievementWithProgress | null>(null)
+  const [benchmarkData, setBenchmarkData] = useState<BenchmarkData | null>(null)
+  const [forecastData, setForecastData] = useState<ForecastData | null>(null)
+  const [notificationConfig, setNotificationConfig] = useState<NotificationConfig | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -359,7 +388,7 @@ export default function DeveloperDashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, analyticsRes, profileRes, toolsRes, usageRes, inviteRes, achievementsRes] = await Promise.all([
+        const [statsRes, analyticsRes, profileRes, toolsRes, usageRes, inviteRes, achievementsRes, benchmarkRes, forecastRes, notifConfigRes] = await Promise.all([
           fetch('/api/dashboard/developer/stats'),
           fetch('/api/dashboard/developer/stats/analytics'),
           fetch('/api/auth/developer/me'),
@@ -367,6 +396,9 @@ export default function DeveloperDashboardPage() {
           fetch('/api/dashboard/developer/usage'),
           fetch('/api/developer/invite'),
           fetch('/api/developer/achievements'),
+          fetch('/api/dashboard/developer/benchmarks'),
+          fetch('/api/dashboard/developer/stats/forecast'),
+          fetch('/api/developer/notifications/configure'),
         ])
         if (statsRes.ok) {
           const data = await statsRes.json()
@@ -401,6 +433,18 @@ export default function DeveloperDashboardPage() {
           if (data.newlyUnlocked && data.newlyUnlocked.length > 0) {
             showAchievementToasts(data.newlyUnlocked)
           }
+        }
+        if (benchmarkRes.ok) {
+          const data = await benchmarkRes.json()
+          setBenchmarkData(data as BenchmarkData)
+        }
+        if (forecastRes.ok) {
+          const data = await forecastRes.json()
+          setForecastData(data as ForecastData)
+        }
+        if (notifConfigRes.ok) {
+          const data = await notifConfigRes.json()
+          setNotificationConfig((data.notificationWebhooks ?? {}) as NotificationConfig)
         }
       } catch {
         setError('Network error loading dashboard')
@@ -712,6 +756,154 @@ export default function DeveloperDashboardPage() {
 
       {/* Savings Calculator */}
       <SavingsCard monthlyRevenueCents={stats?.totalRevenueCents ?? 0} />
+
+      {/* Phase 3 Cards: Benchmarking, Forecast, Notification Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Benchmarking Summary (Builder+) */}
+        {benchmarkData && benchmarkData.benchmarks.length > 0 ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+                <CardTitle className="text-base">Category Benchmark</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {benchmarkData.benchmarks.slice(0, 3).map((b) => {
+                const diff = b.categoryMedian > 0
+                  ? Math.round(((b.yourPrice - b.categoryMedian) / b.categoryMedian) * 100)
+                  : 0
+                const label = diff > 5 ? `${diff}% above` : diff < -5 ? `${Math.abs(diff)}% below` : 'at'
+                return (
+                  <div key={b.toolId} className="text-sm">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{b.toolName}</span>
+                    {b.singleToolCategory ? (
+                      <span className="text-gray-400 dark:text-gray-500 ml-1">(only tool in category)</span>
+                    ) : (
+                      <span className="text-gray-500 dark:text-gray-400 ml-1">
+                        priced {label} category median
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+              <Link href="/dashboard/analytics" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors mt-2">
+                View full benchmarks
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : benchmarkData === null && !loading ? (
+          <Card className="border-dashed border-gray-200 dark:border-[#2A2D3E]">
+            <CardContent className="p-6 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Category Benchmarking</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Upgrade to Builder to compare your tools against the market.</p>
+              <Link href="/pricing" className="inline-block mt-3">
+                <Button variant="outline" size="sm">Upgrade to Builder</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Revenue Forecast (Builder+) */}
+        {forecastData && forecastData.projectedNextMonthCents > 0 ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                </svg>
+                <CardTitle className="text-base">Revenue Forecast</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-bold text-indigo dark:text-gray-100">
+                {formatCents(forecastData.projectedNextMonthCents)}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Projected next month
+                {forecastData.growthRate !== 0 && (
+                  <span className={forecastData.growthRate > 0 ? 'text-green-600 dark:text-green-400 ml-1' : 'text-red-500 ml-1'}>
+                    ({forecastData.growthRate > 0 ? '+' : ''}{Math.round(forecastData.growthRate * 100)}%)
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  forecastData.trend === 'growing'
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : forecastData.trend === 'declining'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      : 'bg-gray-100 text-gray-600 dark:bg-[#252836] dark:text-gray-400'
+                }`}>
+                  {forecastData.trend}
+                </span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  {forecastData.confidence} confidence
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : forecastData === null && !loading ? (
+          <Card className="border-dashed border-gray-200 dark:border-[#2A2D3E]">
+            <CardContent className="p-6 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Revenue Forecasting</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Upgrade to Builder to see revenue projections.</p>
+              <Link href="/pricing" className="inline-block mt-3">
+                <Button variant="outline" size="sm">Upgrade to Builder</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Notification Status */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+              </svg>
+              <CardTitle className="text-base">Notifications</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-300">Slack</span>
+              {notificationConfig?.slack ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                  <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                  Connected
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 dark:text-gray-500">Not connected</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-300">Discord</span>
+              {notificationConfig?.discord ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                  <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                  Connected
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 dark:text-gray-500">Not connected</span>
+              )}
+            </div>
+            {!notificationConfig?.slack && !notificationConfig?.discord && (
+              <Link href="/dashboard/settings#notifications" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors">
+                Set up notifications
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Achievements */}
       {achievementsData && (
