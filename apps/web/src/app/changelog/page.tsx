@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -190,28 +190,10 @@ export default function ChangelogPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdWebPage) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
 
-      {/* ---- Header ---- */}
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
-        <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={32} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors"
-            >
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
       {/* ---- Main ---- */}
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-100 mb-4">
             Changelog
@@ -252,21 +234,7 @@ export default function ChangelogPage() {
         </div>
       </main>
 
-      {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2A2D3E] px-6 py-8 mt-16">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={32} />
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/tools" className="hover:text-gray-100 transition-colors">Showcase</Link>
-            <Link href="/docs" className="hover:text-gray-100 transition-colors">Documentation</Link>
-            <Link href="/privacy" className="hover:text-gray-100 transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-gray-100 transition-colors">Terms</Link>
-          </div>
-          <p className="text-sm text-gray-400">
-            &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

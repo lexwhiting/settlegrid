@@ -1,4 +1,21 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
 export function Onboarding() {
+  const [url, setUrl] = useState('')
+  const router = useRouter()
+
+  function handleGo() {
+    const trimmed = url.trim()
+    if (trimmed) {
+      router.push(`/start?url=${encodeURIComponent(trimmed)}`)
+    } else {
+      router.push('/start')
+    }
+  }
+
   return (
     <section className="py-24 lg:py-32">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-8">
@@ -20,21 +37,29 @@ export function Onboarding() {
           </p>
 
           {/* Input form */}
-          <div className="w-full max-w-lg mb-10">
+          <form
+            className="w-full max-w-lg mb-10"
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleGo()
+            }}
+          >
             <div className="flex items-center gap-2">
               <input
                 type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://your-api.com/endpoint"
                 className="flex-1 h-11 px-4 text-sm bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
               />
               <button
-                type="button"
+                type="submit"
                 className="h-11 px-6 text-sm font-medium bg-[#E5A336] text-[#0a0a0a] rounded-md hover:bg-[#d4922f] transition-colors shrink-0"
               >
                 Go
               </button>
             </div>
-          </div>
+          </form>
 
           {/* Steps */}
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
