@@ -7,7 +7,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { NpmInstallBar } from '@/components/marketing/npm-install-bar'
 import { CopyCommand } from '@/components/marketing/copy-command'
 import { ScreenshotCarousel } from '@/components/marketing/screenshot-carousel'
-
+import { Hero } from '@/components/marketing/hero'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { sql } from 'drizzle-orm'
@@ -543,9 +543,12 @@ export default async function HomePage() {
         )}
 
         {/* ================================================================ */}
-        {/*  1. Hero — Dark with animated gradient mesh + grid              */}
+        {/*  1. Hero                                                        */}
         {/* ================================================================ */}
-        <section className="relative px-6 pt-20 pb-24 bg-indigo overflow-hidden">
+        <Hero />
+
+        {/* OLD HERO PRESERVED BELOW — remove after confirming new hero */}
+        <section className="relative px-6 pt-20 pb-24 bg-indigo overflow-hidden hidden">
           {/* Background layers */}
           <div className="absolute inset-0 hero-gradient-mesh opacity-50" />
           <div
