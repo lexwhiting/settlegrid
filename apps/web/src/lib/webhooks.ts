@@ -72,8 +72,13 @@ const RESERVED_HEADERS = new Set([
   'x-settlegrid-event',
   'host',
   'authorization',
+  'proxy-authorization',
   'content-length',
   'transfer-encoding',
+  'cookie',
+  'set-cookie',
+  'connection',
+  'upgrade',
 ])
 
 /**
@@ -101,6 +106,8 @@ function sanitizeCustomHeaders(
     if (RESERVED_HEADERS.has(normalizedKey)) continue
     // Block headers starting with x-settlegrid- to prevent spoofing
     if (normalizedKey.startsWith('x-settlegrid-')) continue
+    // Block CRLF injection in header names and values
+    if (/[\r\n\0]/.test(key) || /[\r\n\0]/.test(value)) continue
     result[key] = value
     count++
   }
