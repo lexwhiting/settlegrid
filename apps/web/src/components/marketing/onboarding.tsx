@@ -50,7 +50,7 @@ export function Onboarding() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://your-api.com/endpoint"
-                className="flex-1 h-11 px-4 text-sm bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                className="flex-1 h-11 px-4 text-sm bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#E5A336]/40 focus:border-[#E5A336]/50"
               />
               <button
                 type="submit"
