@@ -240,6 +240,11 @@ function parseApifyUsername(url: string): string | null {
  */
 function detectEcosystemFromUrl(url: string): string | null {
   try {
+    // Handle git+https:// and git+ssh:// URLs that contain github.com
+    if (/^git\+/.test(url) && /github\.com/i.test(url)) {
+      return 'github'
+    }
+
     const parsed = new URL(url)
     const host = parsed.hostname.toLowerCase()
 
@@ -249,9 +254,12 @@ function detectEcosystemFromUrl(url: string): string | null {
     if (host === 'huggingface.co' || host === 'www.huggingface.co')
       return 'huggingface'
     if (host === 'apify.com' || host === 'www.apify.com') return 'apify'
+    if (host === 'gitlab.com' || host === 'www.gitlab.com') return 'gitlab'
 
     return null
   } catch {
+    // git+ssh:// URLs may fail to parse -- check for github.com pattern
+    if (/github\.com/i.test(url)) return 'github'
     return null
   }
 }
@@ -397,6 +405,11 @@ async function resolvePypiAuthorEmail(
  * Resolve email for HuggingFace authors.
  * No direct email API -- attempts to find a GitHub username from the
  * user's HuggingFace profile page, then delegates to GitHub resolver.
+ *
+ * Strategy order:
+ * 1. User API (/api/users/{author}/overview) -- check for GitHub username field
+ * 2. Org API (/api/organizations/{author}/overview) -- handles org accounts that 404 on user API
+ * 3. Profile HTML scraping -- look for GitHub link in the profile page HTML
  */
 async function resolveHuggingFaceEmail(
   sourceUrl: string
@@ -409,7 +422,7 @@ async function resolveHuggingFaceEmail(
     return null
   }
 
-  // Fetch the HuggingFace user/org API endpoint for GitHub link
+  // Strategy 1: Fetch the HuggingFace user API endpoint for GitHub link
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
@@ -423,24 +436,20 @@ async function resolveHuggingFaceEmail(
       },
     })
 
-    if (!response.ok) {
-      // Try fetching the HTML profile page as fallback
-      clearTimeout(timeout)
-      return await resolveHuggingFaceFromProfile(author)
-    }
+    if (response.ok) {
+      const data = (await response.json()) as Record<string, unknown>
 
-    const data = (await response.json()) as Record<string, unknown>
-
-    // Check for GitHub username in user data
-    if (typeof data.github === 'string' && data.github.length > 0) {
-      const githubUrl = `https://github.com/${data.github}`
-      const developer = await resolveDeveloperEmail(githubUrl)
-      if (developer) {
-        return {
-          email: developer.email,
-          name: developer.name,
-          username: author,
-          ecosystem: 'huggingface',
+      // Check for GitHub username in user data
+      if (typeof data.github === 'string' && data.github.length > 0) {
+        const githubUrl = `https://github.com/${data.github}`
+        const developer = await resolveDeveloperEmail(githubUrl)
+        if (developer) {
+          return {
+            email: developer.email,
+            name: developer.name,
+            username: author,
+            ecosystem: 'huggingface',
+          }
         }
       }
     }
@@ -455,8 +464,63 @@ async function resolveHuggingFaceEmail(
     clearTimeout(timeout)
   }
 
-  // Fallback: try fetching the HTML profile page
+  // Strategy 2: Try org API (many HF accounts are organizations, not users)
+  const orgResult = await resolveHuggingFaceOrg(author)
+  if (orgResult) return orgResult
+
+  // Strategy 3: Fallback to HTML profile page scraping
   return await resolveHuggingFaceFromProfile(author)
+}
+
+/**
+ * Try resolving via HuggingFace organization API.
+ * Many HF entities (sentence-transformers, google-bert, etc.) are orgs
+ * that return 404 on the /api/users/ endpoint. The org profile page
+ * may still contain a GitHub link.
+ */
+async function resolveHuggingFaceOrg(
+  author: string
+): Promise<ResolvedCreator | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(
+      `https://huggingface.co/api/organizations/${encodeURIComponent(author)}/overview`,
+      {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': USER_AGENT,
+        },
+      }
+    )
+
+    if (!response.ok) return null
+
+    const data = (await response.json()) as Record<string, unknown>
+
+    // Check for GitHub username in org data
+    if (typeof data.github === 'string' && data.github.length > 0) {
+      const githubUrl = `https://github.com/${data.github}`
+      const developer = await resolveDeveloperEmail(githubUrl)
+      if (developer) {
+        return {
+          email: developer.email,
+          name: developer.name,
+          username: author,
+          ecosystem: 'huggingface',
+        }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 /**
@@ -552,6 +616,90 @@ async function resolveGitHubEmail(
     name: developer.name,
     username: developer.githubUsername,
     ecosystem: 'github',
+  }
+}
+
+// ─── Website mailto: Scraper ─────────────────────────────────────────────────
+
+/**
+ * For direct website URLs (e.g. alpic.ai, aarna.ai), fetch the homepage HTML
+ * and look for mailto: links or common contact email patterns.
+ * This is the last-resort resolver for the "unknown/other" category.
+ */
+async function resolveWebsiteEmail(
+  sourceUrl: string
+): Promise<ResolvedCreator | null> {
+  let hostname: string
+  try {
+    hostname = new URL(sourceUrl).hostname
+  } catch {
+    return null
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(sourceUrl, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'text/html',
+      },
+    })
+
+    clearTimeout(timeout)
+    if (!response.ok) return null
+
+    const html = await response.text()
+
+    // Strategy 1: Extract mailto: links (most reliable)
+    const mailtoMatches = html.match(/mailto:([^\s"'<>?#]+)/gi)
+    if (mailtoMatches) {
+      for (const match of mailtoMatches) {
+        const email = match.replace(/^mailto:/i, '').trim()
+        if (isValidEmail(email)) {
+          logger.info('ecosystem_email_resolver.website_mailto_found', {
+            hostname,
+            email: email.split('@')[0]?.slice(0, 3) + '***@' + email.split('@')[1],
+          })
+          return {
+            email,
+            name: null,
+            username: hostname,
+            ecosystem: 'website',
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Look for GitHub links in the website HTML
+    const githubMatch = html.match(
+      /href="(https?:\/\/github\.com\/[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)?)"/
+    )
+    if (githubMatch) {
+      const githubUrl = githubMatch[1]
+      logger.info('ecosystem_email_resolver.website_github_found', {
+        hostname,
+        githubUrl: githubUrl.slice(0, 200),
+      })
+      const developer = await resolveDeveloperEmail(githubUrl)
+      if (developer) {
+        return {
+          email: developer.email,
+          name: developer.name,
+          username: developer.githubUsername,
+          ecosystem: 'website',
+        }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -669,10 +817,18 @@ export async function resolveCreatorEmail(
       }
 
       default: {
-        // Try GitHub resolution as last resort (many tools have GitHub URLs)
+        // Try GitHub resolution if the URL contains github.com
+        // (handles git+ prefixed URLs and other non-standard formats)
         const detected = detectEcosystemFromUrl(sourceUrl)
         if (detected === 'github') {
           return await resolveGitHubEmail(sourceUrl)
+        }
+
+        // For direct website URLs (alpic.ai, aarna.ai, etc.),
+        // try scraping the website for mailto: links or GitHub links
+        if (sourceUrl.startsWith('http')) {
+          const websiteResult = await resolveWebsiteEmail(sourceUrl)
+          if (websiteResult) return websiteResult
         }
 
         logger.info('ecosystem_email_resolver.unsupported_ecosystem', {

@@ -75,16 +75,46 @@ export function isValidEmail(email: string): boolean {
 const ALLOWED_HOSTS = new Set(['github.com', 'www.github.com'])
 
 /**
+ * Normalize Git-style URLs into standard HTTPS URLs.
+ *
+ * Handles common npm/package.json URL formats:
+ *   - `git+https://github.com/owner/repo.git` -> `https://github.com/owner/repo`
+ *   - `git+ssh://git@github.com/owner/repo.git` -> `https://github.com/owner/repo`
+ *   - `git://github.com/owner/repo.git` -> `https://github.com/owner/repo`
+ *   - `https://github.com/owner/repo.git` -> `https://github.com/owner/repo`
+ */
+function normalizeGitUrl(raw: string): string {
+  let url = raw.trim()
+
+  // Strip git+ prefix (handles git+https:// and git+ssh://)
+  url = url.replace(/^git\+/, '')
+
+  // Convert ssh://git@github.com/... to https://github.com/...
+  url = url.replace(/^ssh:\/\/git@github\.com\//i, 'https://github.com/')
+
+  // Convert git:// to https://
+  url = url.replace(/^git:\/\//, 'https://')
+
+  // Strip trailing .git and slashes
+  url = url.replace(/\.git$/, '').replace(/\/+$/, '')
+
+  return url
+}
+
+/**
  * Parse a GitHub URL into owner/repo. Returns null for invalid or non-GitHub URLs.
  * Validates against an allowlist of GitHub hostnames to prevent SSRF.
+ *
+ * Handles standard HTTPS URLs as well as git+https://, git+ssh://, and git://
+ * URL formats commonly found in npm package.json files.
  */
 export function parseGitHubRepoUrl(
   url: string
 ): { owner: string; repo: string } | null {
   if (!url || typeof url !== 'string') return null
 
-  // Strip trailing slashes, .git suffix
-  const cleaned = url.replace(/\/+$/, '').replace(/\.git$/, '')
+  // Normalize git-style URLs to standard HTTPS
+  const cleaned = normalizeGitUrl(url)
 
   let parsed: URL
   try {
@@ -220,6 +250,118 @@ async function getCommitEmail(
   return null
 }
 
+// ─── Strategy 3: npm Profile Email ──────────────────────────────────────────
+
+/** npm user API response shape (subset) */
+interface NpmUserProfile {
+  name?: string
+  email?: string
+}
+
+/**
+ * Many GitHub users publish npm packages. The npm user profile often has a
+ * public email even when GitHub does not. Query npm by the GitHub username.
+ */
+async function getNpmProfileEmail(
+  githubUsername: string
+): Promise<{ email: string; name: string | null } | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(
+      `https://registry.npmjs.org/-/user/org.couchdb.user:${encodeURIComponent(githubUsername)}`,
+      {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': USER_AGENT,
+        },
+      }
+    )
+
+    clearTimeout(timeout)
+    if (!response.ok) return null
+
+    const data = (await response.json()) as NpmUserProfile
+    if (data.email && isValidEmail(data.email)) {
+      return { email: data.email, name: data.name ?? null }
+    }
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// ─── Strategy 4: GitHub Repo metadata for npm package name ──────────────────
+
+/**
+ * For GitHub repos that are npm packages, look up the package name on npm
+ * and extract author/maintainer email from the npm registry.
+ */
+async function getNpmPackageEmailFromRepo(
+  owner: string,
+  repo: string
+): Promise<{ email: string; name: string | null } | null> {
+  // Check the GitHub repo metadata for a package.json name hint
+  // We try common npm package name patterns: repo name, @owner/repo
+  const candidates = [
+    repo,
+    `@${owner}/${repo}`,
+  ]
+
+  for (const packageName of candidates) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    try {
+      const encodedName = encodeURIComponent(packageName).replace(/%40/g, '@').replace(/%2f/gi, '/')
+      const response = await fetch(
+        `https://registry.npmjs.org/${encodedName}/latest`,
+        {
+          method: 'GET',
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': USER_AGENT,
+          },
+        }
+      )
+
+      clearTimeout(timeout)
+      if (!response.ok) continue
+
+      const data = (await response.json()) as Record<string, unknown>
+
+      // Check maintainers array (always populated on npm)
+      const maintainers = data.maintainers as Array<{ name?: string; email?: string }> | undefined
+      if (Array.isArray(maintainers)) {
+        for (const m of maintainers) {
+          if (m.email && isValidEmail(m.email)) {
+            return { email: m.email, name: m.name ?? null }
+          }
+        }
+      }
+
+      // Check author
+      const author = data.author as { name?: string; email?: string } | string | undefined
+      if (typeof author === 'object' && author !== null && author.email && isValidEmail(author.email)) {
+        return { email: author.email, name: author.name ?? null }
+      }
+    } catch {
+      // Continue to next candidate
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  return null
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
@@ -228,6 +370,8 @@ async function getCommitEmail(
  * Strategy order:
  * 1. GitHub user profile email (GET /users/{owner})
  * 2. Email from recent commits (GET /repos/{owner}/{repo}/commits?per_page=5)
+ * 3. npm user profile email (GET npm registry by GitHub username)
+ * 4. npm package metadata (check if repo name maps to an npm package)
  *
  * Returns null if no valid email can be found.
  */
@@ -268,6 +412,34 @@ export async function resolveDeveloperEmail(
     return {
       email: commitResult.email,
       name: commitResult.name,
+      githubUsername: owner,
+    }
+  }
+
+  // Strategy 3: npm user profile (many GitHub users have public npm emails)
+  const npmProfile = await getNpmProfileEmail(owner)
+  if (npmProfile) {
+    logger.info('developer_email_resolver.resolved_via_npm_profile', {
+      owner,
+      repo,
+    })
+    return {
+      email: npmProfile.email,
+      name: npmProfile.name,
+      githubUsername: owner,
+    }
+  }
+
+  // Strategy 4: npm package metadata (check if repo maps to an npm package)
+  const npmPackage = await getNpmPackageEmailFromRepo(owner, repo)
+  if (npmPackage) {
+    logger.info('developer_email_resolver.resolved_via_npm_package', {
+      owner,
+      repo,
+    })
+    return {
+      email: npmPackage.email,
+      name: npmPackage.name,
       githubUsername: owner,
     }
   }
