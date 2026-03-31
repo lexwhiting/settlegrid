@@ -115,11 +115,16 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
       const repoUrl = typeof repo?.url === 'string' ? repo.url : null
       const websiteUrl = typeof s.websiteUrl === 'string' ? s.websiteUrl : null
 
+      // Prefer the actual GitHub repo URL over the generic registry URL.
+      // The generic MCP_REGISTRY_URL is useless for email resolution;
+      // the repository.url is almost always a GitHub link we can resolve.
+      const effectiveSourceUrl = repoUrl ?? websiteUrl ?? MCP_REGISTRY_URL
+
       results.push({
         name,
         description:
           typeof s.description === 'string' ? s.description.trim().slice(0, 2000) : '',
-        sourceUrl: repoUrl ?? websiteUrl ?? MCP_REGISTRY_URL,
+        sourceUrl: effectiveSourceUrl,
         source: 'mcp-registry',
       })
     }
