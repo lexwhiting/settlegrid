@@ -25,6 +25,8 @@ interface ToolBenchmark {
   categoryAvgErrorRate: number
   yourAvgLatencyMs: number
   categoryAvgLatencyMs: number
+  /** True when there is only 1 tool in the category (benchmarks less meaningful) */
+  singleToolCategory: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -80,7 +82,9 @@ export async function GET(request: NextRequest) {
     }
 
     const toolIds = developerTools.map((t) => t.id)
-    const categories = [...new Set(developerTools.map((t) => t.category).filter(Boolean))] as string[]
+    // Tools without a category get 'uncategorized' — still include them in benchmarks
+    const categoriesRaw = developerTools.map((t) => t.category).filter(Boolean) as string[]
+    const categories = [...new Set(categoriesRaw)]
 
     const periodStart = new Date()
     periodStart.setDate(periodStart.getDate() - BENCHMARK_PERIOD_DAYS)
@@ -114,6 +118,7 @@ export async function GET(request: NextRequest) {
       avgInvocationsPerTool: number
       avgErrorRate: number
       avgLatencyMs: number
+      toolCount: number
     }
 
     let categoryStatsRows: CategoryStatsRow[] = []
@@ -142,6 +147,7 @@ export async function GET(request: NextRequest) {
             avgInvocationsPerTool: sql<number>`(count(*)::float / greatest(count(distinct ${invocations.toolId}), 1))::int`,
             avgErrorRate: sql<number>`round(100.0 * count(*) filter (where ${invocations.status} != 'success') / greatest(count(*), 1), 2)::float`,
             avgLatencyMs: sql<number>`coalesce(avg(${invocations.latencyMs}), 0)::int`,
+            toolCount: sql<number>`count(distinct ${invocations.toolId})::int`,
           })
           .from(invocations)
           .innerJoin(tools, eq(invocations.toolId, tools.id))
@@ -180,6 +186,7 @@ export async function GET(request: NextRequest) {
         categoryAvgErrorRate: catStats?.avgErrorRate ?? 0,
         yourAvgLatencyMs: yours?.avgLatencyMs ?? 0,
         categoryAvgLatencyMs: catStats?.avgLatencyMs ?? 0,
+        singleToolCategory: (catStats?.toolCount ?? 0) <= 1,
       }
     })
 

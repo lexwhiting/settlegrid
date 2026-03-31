@@ -371,6 +371,8 @@ export const webhookEndpoints = pgTable(
     url: text('url').notNull(),
     secret: text('secret').notNull(),
     events: jsonb('events').notNull().default('["invocation.completed","payout.initiated","tool.status_changed"]'),
+    /** Custom headers merged into webhook deliveries. Scale+ feature. */
+    customHeaders: jsonb('custom_headers'),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
