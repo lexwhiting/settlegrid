@@ -40,7 +40,7 @@ export function UseCases() {
           {useCases.map((useCase) => (
             <div
               key={useCase.title}
-              className="rounded-lg border border-border bg-card p-6 lg:p-8 flex flex-col gap-3"
+              className="rounded-lg border border-border bg-card p-6 lg:p-8 flex flex-col gap-3 transition-all duration-200 hover:border-muted-foreground/50 hover:-translate-y-0.5"
             >
               <h3 className="text-lg font-medium text-foreground">
                 {useCase.title}
