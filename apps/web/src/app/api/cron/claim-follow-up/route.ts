@@ -204,6 +204,15 @@ export async function GET(request: NextRequest) {
           continue
         }
 
+        // Check bounce suppression (set by webhook or previous send failure)
+        const bounceKey = `bounce:outreach:${creator.email.toLowerCase()}`
+        const isBounced = await redis.get<string>(bounceKey)
+        if (isBounced) {
+          logger.info('cron.claim_follow_up.bounced_email', { slug: tool.slug })
+          skipped++
+          continue
+        }
+
         const firstName = creator.name
           ? creator.name.split(/\s+/)[0] || creator.username
           : creator.username
@@ -238,6 +247,9 @@ export async function GET(request: NextRequest) {
         })
 
         if (!emailSent) {
+          // Track email delivery failure — suppress future follow-ups to this address
+          const failBounceKey = `bounce:outreach:${creator.email.toLowerCase()}`
+          await redis.set(failBounceKey, '1', { ex: 30 * 24 * 60 * 60 }) // 30-day suppression
           logger.warn('cron.claim_follow_up.email_failed', {
             slug: tool.slug,
             followUp: tool.claimFollowUpCount + 1,

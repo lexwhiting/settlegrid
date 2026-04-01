@@ -464,8 +464,9 @@ async function handleProxy(
         requestBody = ''
       }
     }
+    // Include cost in cache key so pricing changes automatically invalidate cached entries
     const cacheKey = cacheTtl > 0
-      ? `cache:proxy:${slug}:${hashBody(request.method + requestBody)}`
+      ? `cache:proxy:${slug}:c${costCents}:${hashBody(request.method + requestBody)}`
       : null
 
     if (cacheKey && cacheTtl > 0) {
