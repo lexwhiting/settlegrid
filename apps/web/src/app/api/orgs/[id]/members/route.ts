@@ -10,6 +10,7 @@ import { sendEmail, orgMemberInvitedEmail } from '@/lib/email'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 10
 
@@ -76,6 +77,23 @@ export async function POST(
     const allowed = await checkPermission(id, developer.id, 'org.manage_members')
     if (!allowed) {
       return errorResponse('Forbidden', 403, 'FORBIDDEN', requestId)
+    }
+
+    // ── Tier gate: team_access requires Scale+ ─────────────────────────
+    const [dev] = await db
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+      .from(developers)
+      .where(eq(developers.id, developer.id))
+      .limit(1)
+
+    if (dev && !hasFeature(dev.tier, 'team_access', dev.isFoundingMember)) {
+      return errorResponse(
+        'This feature requires the Scale plan.',
+        403,
+        'TIER_REQUIRED',
+        requestId,
+        { requiredTier: 'scale', currentTier: dev.tier, upgradeUrl: '/pricing' }
+      )
     }
 
     const body = await parseBody(request, addMemberSchema)
