@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import posthog from 'posthog-js'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -810,6 +811,57 @@ export default function ConsumerDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Quick Links — Schedules, Credit Packs, Referral */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Link href="/consumer/schedules" className="block">
+          <Card className="hover:border-brand/40 transition-colors h-full">
+            <CardContent className="p-5 flex items-start gap-3">
+              <div className="bg-brand/10 text-brand rounded-lg p-2.5 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Scheduled Invocations</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Automate tool calls on a cron schedule</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/consumer/credits" className="block">
+          <Card className="hover:border-brand/40 transition-colors h-full">
+            <CardContent className="p-5 flex items-start gap-3">
+              <div className="bg-green-500/10 text-green-600 dark:text-green-400 rounded-lg p-2.5 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Credit Packs</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Buy credits in bulk at a discount</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/consumer/referral" className="block">
+          <Card className="hover:border-brand/40 transition-colors h-full">
+            <CardContent className="p-5 flex items-start gap-3">
+              <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg p-2.5 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Referral Program</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Share SettleGrid and earn bonus credits</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
     </div>
   )
 }
