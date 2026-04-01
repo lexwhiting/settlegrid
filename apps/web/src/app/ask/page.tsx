@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import posthog from 'posthog-js'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { POSTHOG_EVENTS } from '@/lib/experiments'
 
 interface AskResult {
   answer: string
@@ -52,6 +54,13 @@ export default function AskSettleGridPage() {
       }
 
       setCaptureSuccess(true)
+
+      // Track email capture event
+      if (posthog.__loaded) {
+        posthog.capture(POSTHOG_EVENTS.ASK_EMAIL_CAPTURED, {
+          source: 'ask_page',
+        })
+      }
     } catch {
       setCaptureError('Network error. Please try again.')
     } finally {

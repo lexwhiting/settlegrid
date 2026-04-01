@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
+import posthog from 'posthog-js'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +12,7 @@ import { ConsumerStatBar } from '@/components/consumer/stat-bar'
 import { UsageAnalytics } from '@/components/consumer/usage-analytics'
 import { AlertsManager } from '@/components/consumer/alerts-manager'
 import { PurchaseHistory } from '@/components/consumer/purchase-history'
+import { POSTHOG_EVENTS } from '@/lib/experiments'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -81,6 +84,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function ConsumerDashboardPage() {
+  const searchParams = useSearchParams()
   const [balances, setBalances] = useState<ToolBalance[]>([])
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [budgets, setBudgets] = useState<BudgetLimit[]>([])
@@ -106,6 +110,18 @@ export default function ConsumerDashboardPage() {
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null)
   const [toolUsageData, setToolUsageData] = useState<Record<string, UsageInvocation[]>>({})
   const [toolUsageLoading, setToolUsageLoading] = useState<string | null>(null)
+
+  // Track credit purchase success via PostHog when redirected from Stripe
+  useEffect(() => {
+    const purchaseStatus = searchParams.get('purchase')
+    const packId = searchParams.get('pack')
+    if (purchaseStatus === 'success' && posthog.__loaded) {
+      posthog.capture(POSTHOG_EVENTS.CREDIT_PURCHASED, {
+        pack_id: packId ?? 'unknown',
+        source: 'stripe_checkout',
+      })
+    }
+  }, [searchParams])
 
   useEffect(() => {
     async function fetchData() {

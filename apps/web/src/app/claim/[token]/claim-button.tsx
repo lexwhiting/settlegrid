@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import posthog from 'posthog-js'
+import { POSTHOG_EVENTS } from '@/lib/experiments'
 
 interface ClaimButtonProps {
   token: string
@@ -54,6 +56,14 @@ export function ClaimButton({ token, toolName, toolSlug }: ClaimButtonProps) {
 
       setState('success')
 
+      // Track the claim event in PostHog
+      if (posthog.__loaded) {
+        posthog.capture(POSTHOG_EVENTS.TOOL_CLAIMED, {
+          tool_slug: toolSlug,
+          tool_name: toolName,
+        })
+      }
+
       // Redirect to dashboard to set pricing
       const redirectUrl = data?.redirectUrl ?? '/dashboard/tools'
       setTimeout(() => {
@@ -63,7 +73,7 @@ export function ClaimButton({ token, toolName, toolSlug }: ClaimButtonProps) {
       setState('error')
       setErrorMessage('Network error. Please check your connection and try again.')
     }
-  }, [token, router])
+  }, [token, toolName, toolSlug, router])
 
   if (state === 'success') {
     const badgeMarkdown = `[![SettleGrid](https://settlegrid.ai/api/badge/tool/${toolSlug})](https://settlegrid.ai/tools/${toolSlug})`
