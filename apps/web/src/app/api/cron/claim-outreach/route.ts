@@ -65,28 +65,29 @@ function selectEmailTemplate(
   toolType: string,
   sourceRepoUrl: string | null,
   sourceEcosystem: string | null,
-  recipientEmail: string
+  recipientEmail: string,
+  toolSlug: string
 ): EmailTemplate {
   const ecosystemDisplay =
     ECOSYSTEM_DISPLAY_NAMES[sourceEcosystem ?? ''] ?? sourceEcosystem ?? 'AI'
 
   switch (toolType) {
     case 'ai-model':
-      return claimAiModelEmail(firstName, toolName, claimToken, sourceRepoUrl, recipientEmail)
+      return claimAiModelEmail(firstName, toolName, claimToken, sourceRepoUrl, recipientEmail, toolSlug)
 
     case 'sdk-package':
-      return claimPackageEmail(firstName, toolName, claimToken, ecosystemDisplay, recipientEmail)
+      return claimPackageEmail(firstName, toolName, claimToken, ecosystemDisplay, recipientEmail, toolSlug)
 
     case 'rest-api':
     case 'automation':
-      return claimApiServiceEmail(firstName, toolName, claimToken, recipientEmail)
+      return claimApiServiceEmail(firstName, toolName, claimToken, recipientEmail, toolSlug)
 
     case 'agent-tool':
-      return claimAgentToolEmail(firstName, toolName, claimToken, ecosystemDisplay, recipientEmail)
+      return claimAgentToolEmail(firstName, toolName, claimToken, ecosystemDisplay, recipientEmail, toolSlug)
 
     case 'mcp-server':
     default:
-      return claimToolOutreachEmail(firstName, toolName, claimToken, sourceRepoUrl, recipientEmail)
+      return claimToolOutreachEmail(firstName, toolName, claimToken, sourceRepoUrl, recipientEmail, toolSlug)
   }
 }
 
@@ -283,7 +284,8 @@ export async function GET(request: NextRequest) {
           tool.toolType,
           tool.sourceRepoUrl,
           tool.sourceEcosystem,
-          creator.email
+          creator.email,
+          tool.slug
         )
 
         const sent = await sendEmail({

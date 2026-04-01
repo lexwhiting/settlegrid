@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { MarketplaceContent } from './marketplace-content'
+import { SpotlightCard } from './spotlight-card'
 
 export const metadata: Metadata = {
   title: 'AI Services Marketplace | SettleGrid',
@@ -89,6 +90,11 @@ export default async function MarketplacePage({
               universal settlement and transparent per-call pricing.
             </p>
           </div>
+
+          {/* Tool of the Week Spotlight */}
+          <Suspense fallback={null}>
+            <SpotlightCard />
+          </Suspense>
 
           {/* Marketplace Content (Server Component) */}
           <Suspense

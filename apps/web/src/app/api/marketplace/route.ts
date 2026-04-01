@@ -139,16 +139,23 @@ export async function GET(request: NextRequest) {
     }
 
     if (searchQuery && searchQuery.length > 0) {
-      // Escape SQL LIKE wildcards in user input to prevent pattern injection
-      const escaped = searchQuery.replace(/[%_\\]/g, '\\$&')
-      const pattern = `%${escaped}%`
-      conditions.push(
-        or(
-          ilike(tools.name, pattern),
-          ilike(tools.description, pattern),
-          ilike(tools.slug, pattern)
-        )!
-      )
+      // Use PostgreSQL full-text search with tsvector for relevance ranking
+      // Falls back to ILIKE for very short queries (< 2 chars)
+      if (searchQuery.length >= 2) {
+        conditions.push(
+          sql`search_vector @@ plainto_tsquery('english', ${searchQuery})`
+        )
+      } else {
+        const escaped = searchQuery.replace(/[%_\\]/g, '\\$&')
+        const pattern = `%${escaped}%`
+        conditions.push(
+          or(
+            ilike(tools.name, pattern),
+            ilike(tools.description, pattern),
+            ilike(tools.slug, pattern)
+          )!
+        )
+      }
     }
 
     const whereClause = and(...conditions)
@@ -171,7 +178,8 @@ export async function GET(request: NextRequest) {
       ELSE 0
     END`
 
-    // Determine sort order (with tier boost for 'popular')
+    // Determine sort order (with tier boost for 'popular', relevance blend for search)
+    const isFullTextSearch = searchQuery && searchQuery.length >= 2
     let orderBy
     switch (sortParam) {
       case 'newest':
@@ -182,7 +190,14 @@ export async function GET(request: NextRequest) {
         break
       case 'popular':
       default:
-        orderBy = desc(sql`${tools.totalInvocations} + ${tierBoost}`)
+        if (isFullTextSearch) {
+          // Blend full-text relevance with popularity and tier boost
+          orderBy = desc(
+            sql`ts_rank_cd(search_vector, plainto_tsquery('english', ${searchQuery})) * 1000 + ${tools.totalInvocations} + ${tierBoost}`
+          )
+        } else {
+          orderBy = desc(sql`${tools.totalInvocations} + ${tierBoost}`)
+        }
         break
     }
 
