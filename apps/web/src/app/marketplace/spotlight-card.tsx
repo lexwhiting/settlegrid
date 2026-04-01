@@ -92,7 +92,11 @@ export async function SpotlightCard() {
           </p>
         )}
         <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
-          <span>{spotlight.totalInvocations.toLocaleString()} invocations</span>
+          <span>
+            {spotlight.totalInvocations > 0
+              ? `${spotlight.totalInvocations.toLocaleString()} invocations`
+              : 'New this week'}
+          </span>
           <span className="text-amber-500 font-medium group-hover:underline">
             View tool &rarr;
           </span>

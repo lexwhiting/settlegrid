@@ -215,6 +215,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ),
 
 
+    // ── Trending ──────────────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/marketplace/trending`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
+
     // ── How-to guides ─────────────────────────────────────────────────────────
     {
       url: `${BASE_URL}/learn/how-to`,
