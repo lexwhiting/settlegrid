@@ -9,6 +9,10 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { notifyDeveloper } from '@/lib/notifications'
 import { hasFeature } from '@/lib/tier-config'
 import { baseEmailTemplate } from '@/lib/email'
+import { getRedis } from '@/lib/redis'
+
+/** Cooldown between alerts for the same tool: 4 hours in seconds */
+const ALERT_COOLDOWN_SECONDS = 4 * 60 * 60
 
 export const maxDuration = 60
 
@@ -116,12 +120,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // ── Notify developers when tools go down ─────────────────────────────
+    // ── Notify developers when tools go down (with 4h cooldown) ────────
     const downTools = results.filter((r) => r.status === 'down' || r.status === 'degraded')
 
-    // Group down tools by developer to avoid duplicate lookups
-    const byDeveloper = new Map<string, Array<{ toolName: string; status: string }>>()
+    // Filter out tools that were already alerted within the cooldown period
+    const redis = getRedis()
+    const toolsToAlert: typeof downTools = []
     for (const dt of downTools) {
+      const cooldownKey = `health:alert:${dt.toolId}`
+      const alreadyAlerted = await redis.get<string>(cooldownKey)
+      if (!alreadyAlerted) {
+        toolsToAlert.push(dt)
+        // Set cooldown so we don't alert again for 4 hours
+        await redis.set(cooldownKey, '1', { ex: ALERT_COOLDOWN_SECONDS })
+      }
+    }
+
+    // Group remaining tools by developer to avoid duplicate lookups
+    const byDeveloper = new Map<string, Array<{ toolName: string; status: string }>>()
+    for (const dt of toolsToAlert) {
       const existing = byDeveloper.get(dt.developerId) ?? []
       existing.push({ toolName: dt.toolName, status: dt.status })
       byDeveloper.set(dt.developerId, existing)
