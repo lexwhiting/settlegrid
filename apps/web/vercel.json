@@ -78,6 +78,10 @@
     {
       "path": "/api/cron/anomaly-detection",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/claim-follow-up",
+      "schedule": "0 14 * * *"
     }
   ]
 }
