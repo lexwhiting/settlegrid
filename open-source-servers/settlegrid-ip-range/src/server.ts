@@ -105,7 +105,7 @@ const ipInRange = sg.wrap(async (args: RangeCheckInput) => {
 
 const subnetInfo = sg.wrap(async (args: SubnetInput) => {
   if (!args.ip || args.mask === undefined) throw new Error('ip and mask required')
-  return parseCidr.fn({ cidr: `${args.ip}/${args.mask}` } as CidrInput)
+  return parseCidr({ cidr: `${args.ip}/${args.mask}` })
 }, { method: 'subnet_info' })
 
 const ipToIntMethod = sg.wrap(async (args: IpInput) => {
