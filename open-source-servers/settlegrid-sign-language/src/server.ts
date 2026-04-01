@@ -1,8 +1,60 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "sign-language", pricing: { defaultCostCents: 1, methods: { get_sign: { costCents: 1, displayName: "Get Sign" }, get_alphabet: { costCents: 1, displayName: "Get Finger Alphabet" } } } })
-const commonSigns: Record<string, { asl_description: string; handshape: string; movement: string }> = { hello: { asl_description: "Open hand at forehead, move outward (like salute)", handshape: "Open palm", movement: "Outward from forehead" }, thank_you: { asl_description: "Flat hand from chin, move forward", handshape: "Flat hand", movement: "Forward from chin" }, please: { asl_description: "Flat hand circles on chest", handshape: "Flat hand", movement: "Circular on chest" }, sorry: { asl_description: "Fist circles on chest", handshape: "A-hand (fist)", movement: "Circular on chest" }, yes: { asl_description: "Fist nods up and down", handshape: "S-hand", movement: "Nodding" }, no: { asl_description: "Index and middle finger snap to thumb", handshape: "U to N", movement: "Snapping" }, help: { asl_description: "Fist on flat palm, lift up", handshape: "A on B", movement: "Upward" }, water: { asl_description: "W-hand taps chin twice", handshape: "W-hand", movement: "Tap chin" } }
-const getSign = sg.wrap(async (args: { word: string }) => { if (!args.word) throw new Error("word required"); const s = commonSigns[args.word.toLowerCase().replace(/ /g, "_")]; if (!s) throw new Error(`Unknown word. Available: ${Object.keys(commonSigns).join(", ")}`); return { word: args.word, language: "ASL", ...s } }, { method: "get_sign" })
-const alphabet: Record<string, string> = { a: "Fist, thumb beside", b: "Flat hand, thumb tucked", c: "Curved hand (C shape)", d: "Index up, others circle thumb", e: "Fingers curled, thumb tucked", f: "OK sign (thumb+index circle)", g: "Index points sideways, thumb parallel", h: "Index+middle point sideways", i: "Pinky up, fist", j: "Pinky up, trace J", k: "Index+middle up, thumb between", l: "L-shape (index+thumb)", m: "Three fingers over thumb", n: "Two fingers over thumb", o: "All fingers touch thumb (O)", p: "K-hand points down", q: "G-hand points down", r: "Crossed index+middle", s: "Fist, thumb over fingers", t: "Thumb between index+middle", u: "Index+middle together up", v: "V-sign", w: "Three fingers up spread", x: "Index crooked (hook)", y: "Pinky+thumb out (hang loose)", z: "Index traces Z in air" }
-const getAlphabet = sg.wrap(async (args: { letter?: string }) => { if (args.letter) { const l = alphabet[args.letter.toLowerCase()]; if (!l) throw new Error("Must be a-z"); return { letter: args.letter, description: l, language: "ASL" } }; return { language: "ASL", alphabet } }, { method: "get_alphabet" })
-export { getSign, getAlphabet }
-console.log("settlegrid-sign-language MCP server ready | 1c/call | Powered by SettleGrid")
+/**
+ * settlegrid-sign-language — Sign Language Reference MCP Server
+ *
+ * Sign Language Reference tools with SettleGrid billing.
+ * Pricing: 1-3c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+const ASL_ALPHABET: Record<string, { description: string; hand_shape: string }> = {
+  A: { description: 'Fist with thumb on side', hand_shape: 'Closed fist, thumb alongside index finger' },
+  B: { description: 'Flat hand, fingers together', hand_shape: 'Open hand, fingers together pointing up, thumb across palm' },
+  C: { description: 'Curved hand like letter C', hand_shape: 'Hand curved in C shape, thumb and fingers apart' },
+  D: { description: 'Index up, others touch thumb', hand_shape: 'Index finger pointing up, others curved to touch thumb' },
+  I: { description: 'Pinky up', hand_shape: 'Fist with pinky extended upward' },
+  L: { description: 'L shape with thumb and index', hand_shape: 'Index finger up, thumb extended to side, forming L' },
+  O: { description: 'All fingers touch thumb in O', hand_shape: 'All fingertips touching thumb, forming O circle' },
+  Y: { description: 'Thumb and pinky extended', hand_shape: 'Fist with thumb and pinky extended (shaka/hang loose)' },
+}
+
+const COMMON_SIGNS: Record<string, string> = {
+  hello: 'Open hand, touch forehead and move outward (like a salute)',
+  thank_you: 'Touch chin/lips with flat hand, move forward and down',
+  please: 'Rub chest in circular motion with open hand',
+  sorry: 'Make fist, rub in circle on chest',
+  yes: 'Make S handshape, nod fist up and down',
+  no: 'Extend index and middle finger, snap closed to thumb',
+  help: 'Place fist on open palm, lift both up',
+  love: 'Cross arms over chest (ILY: thumb+index+pinky extended)',
+}
+
+const sg = settlegrid.init({ toolSlug: 'sign-language', pricing: { defaultCostCents: 1, methods: {
+  get_letter: { costCents: 1, displayName: 'Get ASL Letter' },
+  get_sign: { costCents: 1, displayName: 'Get Common Sign' },
+  spell_word: { costCents: 1, displayName: 'Spell Word in ASL' },
+}}})
+
+const getLetter = sg.wrap(async (args: { letter: string }) => {
+  if (!args.letter) throw new Error('letter required')
+  const l = args.letter.toUpperCase()[0]
+  const info = ASL_ALPHABET[l]
+  if (!info) return { letter: l, note: 'Not in reduced database. Full ASL fingerspelling covers A-Z.' }
+  return { letter: l, ...info }
+}, { method: 'get_letter' })
+
+const getSign = sg.wrap(async (args: { word: string }) => {
+  if (!args.word) throw new Error('word required')
+  const sign = COMMON_SIGNS[args.word.toLowerCase().replace(/ /g, '_')]
+  if (!sign) throw new Error(`Not found. Available: ${Object.keys(COMMON_SIGNS).join(', ')}`)
+  return { word: args.word, description: sign, language: 'ASL (American Sign Language)' }
+}, { method: 'get_sign' })
+
+const spellWord = sg.wrap(async (args: { word: string }) => {
+  if (!args.word) throw new Error('word required')
+  const letters = args.word.toUpperCase().split('').map(l => ({ letter: l, description: ASL_ALPHABET[l]?.hand_shape ?? 'See ASL alphabet chart' }))
+  return { word: args.word, fingerspelling: letters, count: letters.length }
+}, { method: 'spell_word' })
+
+export { getLetter, getSign, spellWord }
+console.log('settlegrid-sign-language MCP server ready | Powered by SettleGrid')

@@ -1,7 +1,50 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "quiz-generator", pricing: { defaultCostCents: 1, methods: { generate_quiz: { costCents: 1, displayName: "Generate Quiz" }, check_answers: { costCents: 1, displayName: "Check Answers" } } } })
-const templates: Record<string, Array<{ q: string; options: string[]; correct: number }>> = { math: [{ q: "Derivative of x squared?", options: ["x", "2x", "x^2", "2x^2"], correct: 1 }, { q: "Square root of 144?", options: ["10", "11", "12", "13"], correct: 2 }], science: [{ q: "Chemical symbol for gold?", options: ["Ag", "Au", "Fe", "Cu"], correct: 1 }, { q: "Speed of light (approx)?", options: ["300k km/s", "300k m/s", "150k km/s", "300k mph"], correct: 0 }], history: [{ q: "Year WWII ended?", options: ["1943", "1944", "1945", "1946"], correct: 2 }, { q: "First US president?", options: ["Adams", "Jefferson", "Washington", "Franklin"], correct: 2 }] }
-const generateQuiz = sg.wrap(async (args: { topic: string; count?: number }) => { if (!args.topic) throw new Error("topic required"); const pool = templates[args.topic.toLowerCase()] ?? templates.science!; const count = Math.min(args.count ?? 5, pool.length); return { topic: args.topic, questions: pool.slice(0, count).map((q, i) => ({ id: i + 1, ...q })) } }, { method: "generate_quiz" })
-const checkAnswers = sg.wrap(async (args: { answers: { id: number; selected: number }[]; correct: { id: number; correct: number }[] }) => { if (!args.answers || !args.correct) throw new Error("answers and correct required"); let score = 0; args.answers.forEach(a => { if (args.correct.find(c => c.id === a.id)?.correct === a.selected) score++ }); return { score, total: args.answers.length, pct: Math.round(score / args.answers.length * 100) } }, { method: "check_answers" })
-export { generateQuiz, checkAnswers }
-console.log("settlegrid-quiz-generator MCP server ready | 1c/call | Powered by SettleGrid")
+/**
+ * settlegrid-quiz-generator — Quiz Generator MCP Server
+ *
+ * Quiz Generator tools with SettleGrid billing.
+ * Pricing: 1-3c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+interface GenerateInput { topic: string; count?: number; difficulty?: string }
+
+const QUIZ_DB: Record<string, Array<{ question: string; options: string[]; answer: number; explanation: string }>> = {
+  javascript: [
+    { question: 'What does typeof null return?', options: ['null', 'undefined', 'object', 'number'], answer: 2, explanation: 'This is a known bug in JavaScript. typeof null returns "object".' },
+    { question: 'Which method converts JSON string to object?', options: ['JSON.parse()', 'JSON.stringify()', 'JSON.toObject()', 'JSON.convert()'], answer: 0, explanation: 'JSON.parse() parses a JSON string to a JavaScript object.' },
+    { question: 'What is the output of 0.1 + 0.2 === 0.3?', options: ['true', 'false', 'undefined', 'NaN'], answer: 1, explanation: 'Due to floating point precision, 0.1 + 0.2 is 0.30000000000000004.' },
+    { question: 'Which is NOT a primitive type?', options: ['string', 'boolean', 'object', 'symbol'], answer: 2, explanation: 'Object is not a primitive type — it is a reference type.' },
+  ],
+  python: [
+    { question: 'What does len([]) return?', options: ['None', '0', 'False', 'Error'], answer: 1, explanation: 'len() of an empty list returns 0.' },
+    { question: 'Which keyword creates a generator?', options: ['return', 'yield', 'generate', 'async'], answer: 1, explanation: 'yield pauses function execution and returns a value to the caller.' },
+    { question: 'What is the output of bool("")?', options: ['True', 'False', 'None', 'Error'], answer: 1, explanation: 'Empty strings are falsy in Python.' },
+  ],
+  general_knowledge: [
+    { question: 'What is the largest planet in our solar system?', options: ['Saturn', 'Jupiter', 'Neptune', 'Uranus'], answer: 1, explanation: 'Jupiter has a mass of 1.898 x 10^27 kg.' },
+    { question: 'Which element has the chemical symbol Au?', options: ['Silver', 'Aluminum', 'Gold', 'Argon'], answer: 2, explanation: 'Au comes from the Latin "aurum".' },
+    { question: 'In which year did World War II end?', options: ['1943', '1944', '1945', '1946'], answer: 2, explanation: 'WWII ended in 1945 with the surrender of Japan.' },
+  ],
+}
+
+const sg = settlegrid.init({ toolSlug: 'quiz-generator', pricing: { defaultCostCents: 1, methods: {
+  generate_quiz: { costCents: 1, displayName: 'Generate Quiz' },
+  list_topics: { costCents: 1, displayName: 'List Topics' },
+}}})
+
+const generateQuiz = sg.wrap(async (args: GenerateInput) => {
+  if (!args.topic) throw new Error('topic required')
+  const questions = QUIZ_DB[args.topic.toLowerCase().replace(/ /g, '_')]
+  if (!questions) throw new Error(`Unknown topic. Available: ${Object.keys(QUIZ_DB).join(', ')}`)
+  const count = Math.min(args.count ?? questions.length, questions.length)
+  const shuffled = [...questions].sort(() => Math.random() - 0.5).slice(0, count)
+  return { topic: args.topic, questions: shuffled, count: shuffled.length, difficulty: args.difficulty ?? 'mixed' }
+}, { method: 'generate_quiz' })
+
+const listTopics = sg.wrap(async (_a: Record<string, never>) => {
+  return { topics: Object.entries(QUIZ_DB).map(([name, qs]) => ({ name, question_count: qs.length })), count: Object.keys(QUIZ_DB).length }
+}, { method: 'list_topics' })
+
+export { generateQuiz, listTopics }
+console.log('settlegrid-quiz-generator MCP server ready | Powered by SettleGrid')
