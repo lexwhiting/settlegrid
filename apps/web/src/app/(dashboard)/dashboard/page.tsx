@@ -106,6 +106,30 @@ interface NotificationConfig {
   discord?: string
 }
 
+interface ConsumerInsightsData {
+  totalConsumers: number
+  activeConsumers: number
+  churnRate: number
+  avgLifetimeValueCents: number
+  atRiskConsumers: number
+}
+
+interface FraudSignalsData {
+  totalSignals: number
+  highSeverity: number
+  mediumSeverity: number
+  lowSeverity: number
+  lastCheckedAt: string | null
+}
+
+interface HealthStatusData {
+  totalTools: number
+  healthy: number
+  degraded: number
+  down: number
+  lastCheckAt: string | null
+}
+
 function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -374,6 +398,10 @@ export default function DeveloperDashboardPage() {
   const [benchmarkData, setBenchmarkData] = useState<BenchmarkData | null>(null)
   const [forecastData, setForecastData] = useState<ForecastData | null>(null)
   const [notificationConfig, setNotificationConfig] = useState<NotificationConfig | null>(null)
+  const [consumerInsights, setConsumerInsights] = useState<ConsumerInsightsData | null>(null)
+  const [fraudSignals, setFraudSignals] = useState<FraudSignalsData | null>(null)
+  const [healthStatus, setHealthStatus] = useState<HealthStatusData | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -445,6 +473,27 @@ export default function DeveloperDashboardPage() {
         if (notifConfigRes.ok) {
           const data = await notifConfigRes.json()
           setNotificationConfig((data.notificationWebhooks ?? {}) as NotificationConfig)
+        }
+
+        // Secondary fetches (non-critical, don't block dashboard)
+        const [insightsRes, fraudRes, healthRes] = await Promise.all([
+          fetch('/api/dashboard/developer/consumers/insights').catch(() => null),
+          fetch('/api/dashboard/developer/fraud/signals').catch(() => null),
+          fetch('/api/dashboard/developer/stats/advanced').catch(() => null),
+        ])
+        if (insightsRes?.ok) {
+          const data = await insightsRes.json()
+          setConsumerInsights(data as ConsumerInsightsData)
+        }
+        if (fraudRes?.ok) {
+          const data = await fraudRes.json()
+          setFraudSignals(data as FraudSignalsData)
+        }
+        if (healthRes?.ok) {
+          const data = await healthRes.json()
+          if (data.healthSummary) {
+            setHealthStatus(data.healthSummary as HealthStatusData)
+          }
         }
       } catch {
         setError('Network error loading dashboard')
@@ -901,6 +950,187 @@ export default function DeveloperDashboardPage() {
                 </svg>
               </Link>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Consumer Insights, Fraud Signals, Health Status, Data Export */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Consumer Insights */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-cyan-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+              </svg>
+              <CardTitle className="text-base">Consumer Insights</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {consumerInsights ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Active</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{consumerInsights.activeConsumers}/{consumerInsights.totalConsumers}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Avg LTV</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatCents(consumerInsights.avgLifetimeValueCents)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">At-risk</span>
+                  <span className={`font-medium ${consumerInsights.atRiskConsumers > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                    {consumerInsights.atRiskConsumers}
+                  </span>
+                </div>
+                <Link href="/dashboard/analytics" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors mt-1">
+                  Full insights
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-gray-500">Upgrade to Scale for consumer insights.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Fraud Signals */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Zm0 13.036h.008v.008H12v-.008Z" />
+              </svg>
+              <CardTitle className="text-base">Fraud Signals</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {fraudSignals ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Total signals</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{fraudSignals.totalSignals}</span>
+                </div>
+                {fraudSignals.highSeverity > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">High severity</span>
+                    <span className="font-medium text-red-600 dark:text-red-400">{fraudSignals.highSeverity}</span>
+                  </div>
+                )}
+                <Link href="/dashboard/fraud" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors mt-1">
+                  View details
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-gray-500">Upgrade to Scale for fraud detection.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tool Health */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+              </svg>
+              <CardTitle className="text-base">Tool Health</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {healthStatus ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                  <span className="text-sm text-gray-600 dark:text-gray-300">{healthStatus.healthy} healthy</span>
+                </div>
+                {healthStatus.degraded > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                    <span className="text-sm text-amber-600 dark:text-amber-400">{healthStatus.degraded} degraded</span>
+                  </div>
+                )}
+                {healthStatus.down > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                    <span className="text-sm text-red-600 dark:text-red-400">{healthStatus.down} down</span>
+                  </div>
+                )}
+                <Link href="/dashboard/health" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors mt-1">
+                  Health dashboard
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
+                <span className="text-sm text-gray-500 dark:text-gray-400">No health data yet</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Data Export */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              <CardTitle className="text-base">Data Export</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Download your invocation history, revenue data, and consumer records as CSV.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true)
+                try {
+                  const res = await fetch('/api/dashboard/developer/data-export', { method: 'POST' })
+                  if (res.ok) {
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `settlegrid-export-${new Date().toISOString().slice(0, 10)}.csv`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }
+                } catch {
+                  // Silently fail
+                } finally {
+                  setExporting(false)
+                }
+              }}
+            >
+              {exporting ? 'Exporting...' : 'Export CSV'}
+            </Button>
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard/audit-log" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors">
+                Audit Log
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+              <Link href="/dashboard/settings#security" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors">
+                Security
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
