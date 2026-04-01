@@ -1,24 +1,47 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "microfinance", pricing: { defaultCostCents: 2, methods: {
-  get_country_stats: { costCents: 2, displayName: "Get Country Stats" },
-  get_global_overview: { costCents: 2, displayName: "Get Global Overview" },
-}}})
-const countries: Record<string, { borrowers_million: number; avg_loan_usd: number; portfolio_billion_usd: number; repayment_rate_pct: number; mfi_count: number }> = {
-  india: { borrowers_million: 59.3, avg_loan_usd: 148, portfolio_billion_usd: 33.4, repayment_rate_pct: 96.2, mfi_count: 234 },
-  bangladesh: { borrowers_million: 33.7, avg_loan_usd: 186, portfolio_billion_usd: 12.8, repayment_rate_pct: 97.1, mfi_count: 156 },
-  vietnam: { borrowers_million: 7.4, avg_loan_usd: 632, portfolio_billion_usd: 4.7, repayment_rate_pct: 98.5, mfi_count: 48 },
-  peru: { borrowers_million: 5.2, avg_loan_usd: 2450, portfolio_billion_usd: 12.7, repayment_rate_pct: 95.3, mfi_count: 82 },
-  kenya: { borrowers_million: 4.8, avg_loan_usd: 245, portfolio_billion_usd: 5.1, repayment_rate_pct: 94.8, mfi_count: 67 },
-  cambodia: { borrowers_million: 2.9, avg_loan_usd: 4120, portfolio_billion_usd: 12.0, repayment_rate_pct: 97.8, mfi_count: 35 },
-}
-const getCountryStats = sg.wrap(async (args: { country: string }) => {
-  if (!args.country) throw new Error("country is required")
-  const d = countries[args.country.toLowerCase()]
-  if (!d) throw new Error(`Unknown. Available: ${Object.keys(countries).join(", ")}`)
-  return { country: args.country, ...d }
-}, { method: "get_country_stats" })
-const getGlobalOverview = sg.wrap(async (_args: Record<string, never>) => {
-  return { total_borrowers_million: 140, total_portfolio_billion_usd: 185, avg_repayment_rate_pct: 96.5, mfi_count_global: 10000, women_borrowers_pct: 80, countries_served: 100 }
-}, { method: "get_global_overview" })
-export { getCountryStats, getGlobalOverview }
-console.log("settlegrid-microfinance MCP server ready | 2c/call | Powered by SettleGrid")
+/**
+ * settlegrid-microfinance — Microfinance Data MCP Server
+ *
+ * Microfinance Data tools with SettleGrid billing.
+ *
+ * Pricing: 1-2c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+const INSTITUTIONS = [
+  { name: 'Grameen Bank', country: 'Bangladesh', borrowers: 9400000, avg_loan_usd: 271, women_pct: 97, founded: 1983 },
+  { name: 'BRAC', country: 'Bangladesh', borrowers: 7800000, avg_loan_usd: 185, women_pct: 84, founded: 1972 },
+  { name: 'BancoSol', country: 'Bolivia', borrowers: 1200000, avg_loan_usd: 2100, women_pct: 51, founded: 1992 },
+  { name: 'ASA', country: 'Bangladesh', borrowers: 6200000, avg_loan_usd: 180, women_pct: 90, founded: 1978 },
+  { name: 'SKS Microfinance', country: 'India', borrowers: 5800000, avg_loan_usd: 210, women_pct: 100, founded: 1998 },
+  { name: 'Compartamos Banco', country: 'Mexico', borrowers: 2900000, avg_loan_usd: 450, women_pct: 90, founded: 1990 },
+]
+
+const sg = settlegrid.init({
+  toolSlug: 'microfinance',
+  pricing: { defaultCostCents: 2, methods: {
+    get_institution: { costCents: 2, displayName: 'Get Institution' },
+    list_institutions: { costCents: 2, displayName: 'List Institutions' },
+    get_global_stats: { costCents: 2, displayName: 'Get Global Stats' },
+  }},
+})
+
+const getInstitution = sg.wrap(async (args: { name: string }) => {
+  if (!args.name) throw new Error('name required')
+  const inst = INSTITUTIONS.find(i => i.name.toLowerCase().includes(args.name.toLowerCase()))
+  if (!inst) throw new Error(`Not found. Available: ${INSTITUTIONS.map(i => i.name).join(', ')}`)
+  return inst
+}, { method: 'get_institution' })
+
+const listInstitutions = sg.wrap(async (args: { country?: string }) => {
+  let results = [...INSTITUTIONS]
+  if (args.country) results = results.filter(i => i.country.toLowerCase().includes(args.country!.toLowerCase()))
+  return { count: results.length, institutions: results }
+}, { method: 'list_institutions' })
+
+const getGlobalStats = sg.wrap(async (_a: Record<string, never>) => {
+  return { total_borrowers_million: 140, total_institutions: 10000, avg_loan_size_usd: 500, women_borrowers_pct: 80, global_portfolio_billion_usd: 124, countries_served: 100 }
+}, { method: 'get_global_stats' })
+
+export { getInstitution, listInstitutions, getGlobalStats }
+console.log('settlegrid-microfinance MCP server ready | Powered by SettleGrid')

@@ -1,7 +1,46 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "numeral-systems", pricing: { defaultCostCents: 1, methods: { convert_base: { costCents: 1, displayName: "Convert Number Base" }, explain_base: { costCents: 1, displayName: "Explain Base System" } } } })
-const convertBase = sg.wrap(async (args: { value: string; from_base: number; to_base: number }) => { if (!args.value || !args.from_base || !args.to_base) throw new Error("value, from_base, to_base required"); if (args.from_base < 2 || args.from_base > 36 || args.to_base < 2 || args.to_base > 36) throw new Error("Base must be 2-36"); const decimal = parseInt(args.value, args.from_base); if (isNaN(decimal)) throw new Error(`Invalid value for base ${args.from_base}`); return { input: args.value, from_base: args.from_base, to_base: args.to_base, result: decimal.toString(args.to_base).toUpperCase(), decimal: decimal } }, { method: "convert_base" })
-const bases: Record<number, { name: string; digits: string; uses: string[] }> = { 2: { name: "Binary", digits: "0-1", uses: ["computing", "digital electronics"] }, 8: { name: "Octal", digits: "0-7", uses: ["Unix permissions", "legacy computing"] }, 10: { name: "Decimal", digits: "0-9", uses: ["everyday counting", "finance"] }, 16: { name: "Hexadecimal", digits: "0-9, A-F", uses: ["colors", "memory addresses", "MAC addresses"] }, 12: { name: "Duodecimal", digits: "0-9, A-B", uses: ["timekeeping (12 hours)", "measurement (12 inches)"] }, 60: { name: "Sexagesimal", digits: "0-59", uses: ["time (60 minutes)", "angles (360 degrees)"] } }
-const explainBase = sg.wrap(async (args: { base: number }) => { if (!args.base) throw new Error("base required"); const b = bases[args.base]; if (!b) throw new Error(`No info for base ${args.base}. Available: ${Object.keys(bases).join(", ")}`); return { base: args.base, ...b } }, { method: "explain_base" })
-export { convertBase, explainBase }
-console.log("settlegrid-numeral-systems MCP server ready | 1c/call | Powered by SettleGrid")
+/**
+ * settlegrid-numeral-systems — Numeral System Converter MCP Server
+ *
+ * Numeral System Converter tools with SettleGrid billing.
+ * Pricing: 1-2c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+interface ConvertInput { value: string; from: number; to: number }
+interface ExplainInput { value: string; base: number }
+
+const sg = settlegrid.init({ toolSlug: 'numeral-systems', pricing: { defaultCostCents: 1, methods: {
+  convert: { costCents: 1, displayName: 'Convert Base' },
+  explain: { costCents: 1, displayName: 'Explain Number' },
+  common_conversions: { costCents: 1, displayName: 'Common Conversions' },
+}}})
+
+const convert = sg.wrap(async (args: ConvertInput) => {
+  if (!args.value || !Number.isFinite(args.from) || !Number.isFinite(args.to)) throw new Error('value, from (base), to (base) required')
+  if (args.from < 2 || args.from > 36 || args.to < 2 || args.to > 36) throw new Error('Bases must be 2-36')
+  const decimal = parseInt(args.value, args.from)
+  if (isNaN(decimal)) throw new Error(`Invalid value "${args.value}" for base ${args.from}`)
+  return { value: args.value, from_base: args.from, to_base: args.to, result: decimal.toString(args.to).toUpperCase(), decimal: decimal }
+}, { method: 'convert' })
+
+const explain = sg.wrap(async (args: ExplainInput) => {
+  if (!args.value || !Number.isFinite(args.base)) throw new Error('value and base required')
+  const decimal = parseInt(args.value, args.base)
+  if (isNaN(decimal)) throw new Error('Invalid value for given base')
+  return {
+    value: args.value, base: args.base, decimal,
+    binary: decimal.toString(2), octal: decimal.toString(8),
+    hex: decimal.toString(16).toUpperCase(),
+    digits: args.value.split('').map((d, i) => ({ digit: d, position: args.value.length - 1 - i, value: parseInt(d, args.base) * Math.pow(args.base, args.value.length - 1 - i) }))
+  }
+}, { method: 'explain' })
+
+const commonConversions = sg.wrap(async (args: { decimal: number }) => {
+  if (!Number.isFinite(args.decimal)) throw new Error('decimal number required')
+  const n = args.decimal
+  return { decimal: n, binary: n.toString(2), octal: n.toString(8), hex: n.toString(16).toUpperCase(), base36: n.toString(36).toUpperCase() }
+}, { method: 'common_conversions' })
+
+export { convert, explain, commonConversions }
+console.log('settlegrid-numeral-systems MCP server ready | Powered by SettleGrid')

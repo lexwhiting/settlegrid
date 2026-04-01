@@ -1,24 +1,138 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "iceland-data", pricing: { defaultCostCents: 2, methods: {
-  get_demographics: { costCents: 2, displayName: "Get Demographics" },
-  get_energy: { costCents: 2, displayName: "Get Energy Stats" },
-}}})
-const getDemographics = sg.wrap(async (args: { year?: number }) => {
-  const pop: Record<number, number> = { 2020: 366463, 2021: 372520, 2022: 382003, 2023: 393600, 2024: 404000 }
-  const y = args.year ?? 2023
-  return { country: "Iceland", year: y, population: pop[y] ?? 393600, capital: "Reykjavik", area_km2: 103000, density_per_km2: 3.8 }
-}, { method: "get_demographics" })
-const getEnergy = sg.wrap(async (args: { source?: string }) => {
-  const sources: Record<string, { share: number; capacity_mw: number }> = {
-    geothermal: { share: 66, capacity_mw: 755 }, hydro: { share: 20, capacity_mw: 2127 },
-    wind: { share: 0.1, capacity_mw: 3 }, total_renewable: { share: 99.99, capacity_mw: 2885 },
+/**
+ * settlegrid-iceland-data — Iceland Country Data MCP Server
+ *
+ * Provides demographic, economic, and general data about Iceland.
+ * Uses REST Countries API for live data with local enrichment.
+ *
+ * Methods:
+ *   get_demographics(region?)   — Population and demographic data  (2c)
+ *   get_economy(indicator)        — Economic indicators              (2c)
+ *   get_country_info()            — General country information      (2c)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+// --- Types ------------------------------------------------------------------
+
+interface GetDemographicsInput {
+  region?: string
+}
+
+interface GetEconomyInput {
+  indicator: string
+}
+
+// --- Data -------------------------------------------------------------------
+
+const REGIONS: Record<string, number> = {
+  capital_region: 233034, southern_peninsula: 28990, western: 16942,
+  westfjords: 6870, northwestern: 7340, northeastern: 30353, eastern: 13790, southern: 28890,
+}
+
+const ECONOMY: Record<string, { value: number; unit: string }> = {
+  gdp: { value: 28.1, unit: 'billion USD' },
+  gdp_per_capita: { value: 75180, unit: 'USD' },
+  tourism_revenue: { value: 3.2, unit: 'billion USD' },
+  fish_exports: { value: 2.4, unit: 'billion USD' },
+  inflation: { value: 8.7, unit: 'percent' },
+  unemployment: { value: 3.4, unit: 'percent' },
+  renewable_energy: { value: 100, unit: 'percent of electricity' },
+  geothermal_share: { value: 66, unit: 'percent of primary energy' },
+}
+
+// --- Helpers ----------------------------------------------------------------
+
+async function fetchCountryInfo(): Promise<Record<string, unknown>> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const res = await fetch(
+      'https://restcountries.com/v3.1/name/Iceland?fullText=true',
+      { signal: controller.signal, headers: { Accept: 'application/json' } }
+    )
+    if (!res.ok) throw new Error(`REST Countries API ${res.status}`)
+    const data = (await res.json()) as Record<string, unknown>[]
+    return data[0] ?? {}
+  } finally {
+    clearTimeout(timeout)
   }
-  if (args.source) {
-    const d = sources[args.source.toLowerCase()]
-    if (!d) throw new Error(`Unknown. Available: ${Object.keys(sources).join(", ")}`)
-    return { country: "Iceland", source: args.source, ...d }
+}
+
+// --- SettleGrid Init --------------------------------------------------------
+
+const sg = settlegrid.init({
+  toolSlug: 'iceland-data',
+  pricing: {
+    defaultCostCents: 2,
+    methods: {
+      get_demographics: { costCents: 2, displayName: 'Get Demographics' },
+      get_economy: { costCents: 2, displayName: 'Get Economy' },
+      get_country_info: { costCents: 2, displayName: 'Get Country Info' },
+    },
+  },
+})
+
+// --- Handlers ---------------------------------------------------------------
+
+const getDemographics = sg.wrap(async (args: GetDemographicsInput) => {
+  if (args.region) {
+    const key = args.region.toLowerCase().replace(/ /g, '_')
+    const pop = REGIONS[key]
+    if (!pop) {
+      throw new Error(`Unknown region. Available: ${Object.keys(REGIONS).join(', ')}`)
+    }
+    return { country: 'Iceland', region: args.region, population: pop }
   }
-  return { country: "Iceland", renewable_percent: 99.99, sources, aluminum_smelting_gwh: 4800 }
-}, { method: "get_energy" })
-export { getDemographics, getEnergy }
-console.log("settlegrid-iceland-data MCP server ready | 2c/call | Powered by SettleGrid")
+  return {
+    country: 'Iceland',
+    population: 376248,
+    year: 2023,
+    median_age: 37.5, life_expectancy: 83.3,
+    regions: Object.keys(REGIONS),
+  }
+}, { method: 'get_demographics' })
+
+const getEconomy = sg.wrap(async (args: GetEconomyInput) => {
+  if (!args.indicator || typeof args.indicator !== 'string') {
+    throw new Error('indicator is required')
+  }
+  const key = args.indicator.toLowerCase().replace(/ /g, '_')
+  const data = ECONOMY[key]
+  if (!data) {
+    throw new Error(`Unknown indicator. Available: ${Object.keys(ECONOMY).join(', ')}`)
+  }
+  return { country: 'Iceland', year: 2023, indicator: args.indicator, ...data }
+}, { method: 'get_economy' })
+
+const getCountryInfo = sg.wrap(async (_args: Record<string, never>) => {
+  try {
+    const info = await fetchCountryInfo()
+    const name = info.name as Record<string, unknown> | undefined
+    const flags = info.flags as Record<string, string> | undefined
+    const currencies = info.currencies as Record<string, Record<string, string>> | undefined
+    const languages = info.languages as Record<string, string> | undefined
+    return {
+      name: (name?.common as string) ?? 'Iceland',
+      official_name: (name?.official as string) ?? 'Iceland',
+      capital: (info.capital as string[]) ?? [],
+      region: info.region,
+      subregion: info.subregion,
+      population: info.population,
+      area_km2: info.area,
+      currencies: currencies ? Object.entries(currencies).map(([code, c]) => ({ code, name: c.name, symbol: c.symbol })) : [],
+      languages: languages ? Object.values(languages) : [],
+      flag_url: flags?.svg ?? flags?.png ?? null,
+      timezones: info.timezones,
+    }
+  } catch {
+    return { name: 'Iceland', population: 376248, note: 'Live data unavailable' }
+  }
+}, { method: 'get_country_info' })
+
+// --- Exports ----------------------------------------------------------------
+
+export { getDemographics, getEconomy, getCountryInfo }
+
+console.log('settlegrid-iceland-data MCP server ready')
+console.log('Methods: get_demographics, get_economy, get_country_info')
+console.log('Pricing: 2c per call | Powered by SettleGrid')
