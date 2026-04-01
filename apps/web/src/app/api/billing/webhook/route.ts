@@ -145,6 +145,34 @@ export async function POST(request: NextRequest) {
           break
         }
 
+        // ── Consumer credit pack purchase ──────────────────────────────
+        if (session.metadata?.type === 'credit_pack') {
+          const cpConsumerId = session.metadata.consumerId
+          const packId = session.metadata.packId
+          const creditAmountCents = parseInt(session.metadata.creditAmountCents ?? '0', 10)
+
+          if (cpConsumerId && creditAmountCents > 0) {
+            await db
+              .update(consumers)
+              .set({
+                globalBalanceCents: sql`${consumers.globalBalanceCents} + ${creditAmountCents}`,
+              })
+              .where(eq(consumers.id, cpConsumerId))
+
+            logger.info('stripe.webhook.credit_pack_completed', {
+              consumerId: cpConsumerId,
+              packId,
+              creditAmountCents,
+              sessionId: session.id,
+            })
+          } else {
+            logger.error('stripe.webhook.credit_pack_missing_metadata', {
+              sessionId: session.id,
+            })
+          }
+          break
+        }
+
         // ── Consumer credit purchase checkout ──────────────────────────
         const purchaseId = session.metadata?.purchaseId
         const consumerId = session.metadata?.consumerId

@@ -144,8 +144,15 @@ export const consumers = pgTable('consumers', {
   stripeCustomerId: text('stripe_customer_id'),
   // S5: Auto-Refill default payment method
   defaultPaymentMethodId: text('default_payment_method_id'),
+  // Consumer Referral Program
+  referralCode: text('referral_code').unique(), // format: ref_{12 hex chars}
+  referredByConsumerId: uuid('referred_by_consumer_id'), // FK intentionally omitted to avoid circular ref
+  // Global Balance (Volume Discount Credit Packs)
+  globalBalanceCents: integer('global_balance_cents').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('consumers_referral_code_idx').on(table.referralCode),
+])
 
 export const consumersRelations = relations(consumers, ({ many }) => ({
   consumerToolBalances: many(consumerToolBalances),
