@@ -1,6 +1,54 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "rss-gen", pricing: { defaultCostCents: 1, methods: { generate_feed: { costCents: 1, displayName: "Generate RSS Feed" }, validate_feed: { costCents: 1, displayName: "Validate Feed" } } } })
-const generateFeed = sg.wrap(async (args: { title: string; link: string; description: string; items: { title: string; link: string; description: string; pubDate?: string }[] }) => { if (!args.title || !args.link || !args.items?.length) throw new Error("title, link, items required"); const itemsXml = args.items.map(i => `    <item>\n      <title>${i.title}</title>\n      <link>${i.link}</link>\n      <description>${i.description}</description>\n      <pubDate>${i.pubDate ?? new Date().toUTCString()}</pubDate>\n    </item>`).join("\n"); const rss = `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0">\n  <channel>\n    <title>${args.title}</title>\n    <link>${args.link}</link>\n    <description>${args.description}</description>\n    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n${itemsXml}\n  </channel>\n</rss>`; return { rss, item_count: args.items.length, content_type: "application/rss+xml" } }, { method: "generate_feed" })
-const validateFeed = sg.wrap(async (args: { xml: string }) => { if (!args.xml) throw new Error("xml required"); const errors: string[] = []; if (!args.xml.includes("<rss")) errors.push("Missing <rss> root element"); if (!args.xml.includes("<channel>")) errors.push("Missing <channel> element"); if (!args.xml.includes("<title>")) errors.push("Missing <title> element"); if (!args.xml.includes("<link>")) errors.push("Missing <link> element"); const itemCount = (args.xml.match(/<item>/g) ?? []).length; return { valid: errors.length === 0, errors, item_count: itemCount } }, { method: "validate_feed" })
-export { generateFeed, validateFeed }
-console.log("settlegrid-rss-gen MCP server ready | 1c/call | Powered by SettleGrid")
+/**
+ * settlegrid-rss-gen — RSS Feed Generator MCP Server
+ *
+ * RSS Feed Generator tools with SettleGrid billing.
+ * Pricing: 1-3c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+interface GenerateInput { title: string; link: string; description: string; items: Array<{ title: string; link: string; description: string; pubDate?: string }> }
+interface ValidateInput { url: string }
+
+const sg = settlegrid.init({ toolSlug: 'rss-gen', pricing: { defaultCostCents: 1, methods: {
+  generate_feed: { costCents: 1, displayName: 'Generate RSS Feed' },
+  validate_url: { costCents: 1, displayName: 'Validate Feed URL' },
+}}})
+
+const generateFeed = sg.wrap(async (args: GenerateInput) => {
+  if (!args.title || !args.link || !args.items?.length) throw new Error('title, link, and items required')
+  const itemsXml = args.items.slice(0, 50).map(i => `    <item>
+      <title><![CDATA[${i.title}]]></title>
+      <link>${i.link}</link>
+      <description><![CDATA[${i.description}]]></description>
+      <pubDate>${i.pubDate ?? new Date().toUTCString()}</pubDate>
+    </item>`).join('\n')
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title><![CDATA[${args.title}]]></title>
+    <link>${args.link}</link>
+    <description><![CDATA[${args.description}]]></description>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+    <generator>settlegrid-rss-gen</generator>
+${itemsXml}
+  </channel>
+</rss>`
+  return { xml, items: args.items.length, bytes: xml.length }
+}, { method: 'generate_feed' })
+
+const validateUrl = sg.wrap(async (args: ValidateInput) => {
+  if (!args.url) throw new Error('url required')
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const res = await fetch(args.url, { signal: controller.signal, headers: { Accept: 'application/rss+xml, application/xml, text/xml' } })
+    const text = await res.text()
+    const isRss = text.includes('<rss') || text.includes('<feed')
+    return { url: args.url, status: res.status, is_feed: isRss, content_type: res.headers.get('content-type') ?? 'unknown', size_bytes: text.length }
+  } catch { return { url: args.url, valid: false, error: 'Could not fetch URL' } }
+  finally { clearTimeout(timeout) }
+}, { method: 'validate_url' })
+
+export { generateFeed, validateUrl }
+console.log('settlegrid-rss-gen MCP server ready | Powered by SettleGrid')
