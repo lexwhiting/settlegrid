@@ -22,33 +22,47 @@ const ACADEMIC_CREDIT_CENTS = 50_000
 /** Rate limit: 3 academic signups per day per IP */
 const academicLimiter = createRateLimiter(3, '1 d')
 
+/** Rate limit: 2 attempts per email per day (prevent enumeration) */
+const academicEmailLimiter = createRateLimiter(2, '1 d')
+
 // ── Validation ───────────────────────────────────────────────────────────────
 
 /**
  * Validates that an email address belongs to an academic institution.
  * Checks for .edu TLD and common international academic domains.
  */
+/** Academic domain suffixes recognized worldwide */
+const ACADEMIC_SUFFIXES = [
+  // Direct .edu (US)
+  '.edu',
+  // Country-code .edu variants
+  '.edu.au', '.edu.cn', '.edu.br', '.edu.mx', '.edu.co', '.edu.ar',
+  '.edu.in', '.edu.sg', '.edu.hk', '.edu.tw', '.edu.my', '.edu.pk',
+  '.edu.ph', '.edu.ng', '.edu.gh', '.edu.eg', '.edu.za', '.edu.tr',
+  '.edu.pl', '.edu.pe', '.edu.ve', '.edu.ec', '.edu.uy', '.edu.do',
+  '.edu.gt', '.edu.hn', '.edu.sv', '.edu.ni', '.edu.bo', '.edu.py',
+  '.edu.sa', '.edu.kw', '.edu.qa', '.edu.om', '.edu.bh', '.edu.lb',
+  '.edu.jo', '.edu.vn', '.edu.kh', '.edu.mm',
+  // .ac.* domains (UK, Japan, Korea, NZ, South Africa, Israel, Thailand, etc.)
+  '.ac.uk', '.ac.jp', '.ac.kr', '.ac.nz', '.ac.za', '.ac.il', '.ac.th',
+  '.ac.in', '.ac.at', '.ac.be', '.ac.id', '.ac.ir', '.ac.ke', '.ac.tz',
+  '.ac.ug', '.ac.rw', '.ac.bd', '.ac.lk', '.ac.cy', '.ac.cr', '.ac.fj',
+  // European university domains
+  '.uni-', // German universities (e.g., uni-heidelberg.de)
+  '.univ-', // French universities (e.g., univ-paris.fr)
+] as const
+
 function isAcademicEmail(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return false
 
-  // Direct .edu domain
-  if (domain.endsWith('.edu')) return true
-  // Country-code .edu variants
-  if (domain.endsWith('.edu.au')) return true
-  if (domain.endsWith('.edu.cn')) return true
-  if (domain.endsWith('.edu.br')) return true
-  if (domain.endsWith('.edu.mx')) return true
-  if (domain.endsWith('.edu.co')) return true
-  if (domain.endsWith('.edu.ar')) return true
-  if (domain.endsWith('.edu.in')) return true
-  // UK academic domain
-  if (domain.endsWith('.ac.uk')) return true
-  // European academic domains
-  if (domain.endsWith('.ac.jp')) return true
-  if (domain.endsWith('.ac.kr')) return true
-  if (domain.endsWith('.ac.nz')) return true
-  if (domain.endsWith('.ac.za')) return true
+  for (const suffix of ACADEMIC_SUFFIXES) {
+    // For prefix patterns like '.uni-' and '.univ-', check if domain contains them
+    if (suffix.startsWith('.uni') && domain.includes(suffix.slice(1))) return true
+    // For suffix patterns, check if domain ends with them
+    if (!suffix.startsWith('.uni') && domain.endsWith(suffix)) return true
+  }
+
   return false
 }
 
@@ -135,6 +149,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Please provide a valid .edu email and institution name.' },
         { status: 400 }
+      )
+    }
+
+    // Per-email rate limit to prevent enumeration attacks
+    const emailRl = await checkRateLimit(academicEmailLimiter, `academic-email:${body.email}`)
+    if (!emailRl.success) {
+      return NextResponse.json(
+        { error: 'Too many requests for this email. Please try again tomorrow.' },
+        { status: 429 }
       )
     }
 

@@ -68,7 +68,7 @@ interface SOQuestion {
 interface SOSearchResponse {
   items: SOQuestion[]
   has_more: boolean
-  quota_remaining: number
+  quota_remaining: number | null
 }
 
 interface SOMatch {
@@ -82,10 +82,16 @@ interface SOMatch {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
+interface SOSearchResult {
+  questions: SOQuestion[]
+  quotaRemaining: number | null
+}
+
 /**
  * Searches Stack Overflow for recent questions matching a tag group.
+ * Returns questions plus the API quota remaining for rate limit awareness.
  */
-async function searchStackOverflow(tagged: string): Promise<SOQuestion[]> {
+async function searchStackOverflow(tagged: string): Promise<SOSearchResult> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -114,14 +120,16 @@ async function searchStackOverflow(tagged: string): Promise<SOQuestion[]> {
 
     if (!res.ok) {
       logger.warn('cron.stackoverflow.fetch_failed', { tagged, status: res.status })
-      return []
+      return { questions: [], quotaRemaining: null }
     }
 
     const data: unknown = await res.json()
-    if (typeof data !== 'object' || data === null) return []
+    if (typeof data !== 'object' || data === null) return { questions: [], quotaRemaining: null }
 
     const parsed = data as Partial<SOSearchResponse>
-    if (!Array.isArray(parsed.items)) return []
+    if (!Array.isArray(parsed.items)) return { questions: [], quotaRemaining: null }
+
+    const quota = typeof parsed.quota_remaining === 'number' ? parsed.quota_remaining : null
 
     const questions: SOQuestion[] = []
     for (const item of parsed.items) {
@@ -143,7 +151,7 @@ async function searchStackOverflow(tagged: string): Promise<SOQuestion[]> {
       })
     }
 
-    return questions
+    return { questions, quotaRemaining: quota }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('cron.stackoverflow.fetch_error', {
@@ -151,7 +159,7 @@ async function searchStackOverflow(tagged: string): Promise<SOQuestion[]> {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { questions: [], quotaRemaining: null }
   }
 }
 
@@ -220,11 +228,24 @@ export async function GET(request: NextRequest) {
     let totalMatched = 0
     let totalAlerted = 0
     let totalDuplicates = 0
+    let quotaRemaining: number | null = null
 
     for (const tagGroup of TAG_GROUPS) {
-      const questions = await searchStackOverflow(tagGroup)
+      // Respect SO API quota: stop if below safety margin (10 remaining)
+      if (quotaRemaining !== null && quotaRemaining < 10) {
+        logger.warn('cron.stackoverflow.quota_low', {
+          quotaRemaining,
+          remainingTagGroups: TAG_GROUPS.length - TAG_GROUPS.indexOf(tagGroup),
+        })
+        break
+      }
 
-      for (const question of questions) {
+      const result = await searchStackOverflow(tagGroup)
+      if (result.quotaRemaining !== null) {
+        quotaRemaining = result.quotaRemaining
+      }
+
+      for (const question of result.questions) {
         if (!question.question_id) continue
         totalScanned++
 

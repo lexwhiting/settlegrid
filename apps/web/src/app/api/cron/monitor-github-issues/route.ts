@@ -66,10 +66,16 @@ function getYesterdayDateString(): string {
   return d.toISOString().slice(0, 10)
 }
 
+interface GitHubSearchResult {
+  issues: GitHubIssue[]
+  rateLimitRemaining: number | null
+}
+
 /**
  * Searches GitHub Issues for a query, filtering to items created since yesterday.
+ * Returns issues plus the X-RateLimit-Remaining header for rate limit awareness.
  */
-async function searchGitHubIssues(query: string): Promise<GitHubIssue[]> {
+async function searchGitHubIssues(query: string): Promise<GitHubSearchResult> {
   try {
     const yesterday = getYesterdayDateString()
     const controller = new AbortController()
@@ -98,16 +104,20 @@ async function searchGitHubIssues(query: string): Promise<GitHubIssue[]> {
 
     clearTimeout(timeout)
 
+    // Extract rate limit remaining from GitHub response headers
+    const rlRemaining = res.headers.get('x-ratelimit-remaining')
+    const rateLimitRemaining = rlRemaining ? parseInt(rlRemaining, 10) : null
+
     if (!res.ok) {
-      logger.warn('cron.github_issues.fetch_failed', { query, status: res.status })
-      return []
+      logger.warn('cron.github_issues.fetch_failed', { query, status: res.status, rateLimitRemaining })
+      return { issues: [], rateLimitRemaining }
     }
 
     const data: unknown = await res.json()
-    if (typeof data !== 'object' || data === null) return []
+    if (typeof data !== 'object' || data === null) return { issues: [], rateLimitRemaining }
 
     const parsed = data as Partial<GitHubSearchResponse>
-    if (!Array.isArray(parsed.items)) return []
+    if (!Array.isArray(parsed.items)) return { issues: [], rateLimitRemaining }
 
     const issues: GitHubIssue[] = []
     for (const item of parsed.items) {
@@ -131,7 +141,7 @@ async function searchGitHubIssues(query: string): Promise<GitHubIssue[]> {
       })
     }
 
-    return issues
+    return { issues, rateLimitRemaining }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('cron.github_issues.fetch_error', {
@@ -139,7 +149,7 @@ async function searchGitHubIssues(query: string): Promise<GitHubIssue[]> {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { issues: [], rateLimitRemaining: null }
   }
 }
 
@@ -206,11 +216,24 @@ export async function GET(request: NextRequest) {
     let totalScanned = 0
     let totalAlerted = 0
     let totalDuplicates = 0
+    let rateLimitRemaining: number | null = null
 
     for (const query of SEARCH_QUERIES) {
-      const issues = await searchGitHubIssues(query)
+      // Respect GitHub API rate limits: stop if below safety margin
+      if (rateLimitRemaining !== null && rateLimitRemaining < 5) {
+        logger.warn('cron.github_issues.rate_limit_low', {
+          rateLimitRemaining,
+          remainingQueries: SEARCH_QUERIES.length - SEARCH_QUERIES.indexOf(query),
+        })
+        break
+      }
 
-      for (const issue of issues) {
+      const result = await searchGitHubIssues(query)
+      if (result.rateLimitRemaining !== null) {
+        rateLimitRemaining = result.rateLimitRemaining
+      }
+
+      for (const issue of result.issues) {
         if (!issue.id || !issue.html_url) continue
         totalScanned++
 

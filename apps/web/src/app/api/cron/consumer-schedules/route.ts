@@ -15,6 +15,9 @@ export const maxDuration = 120
 /** Maximum schedules to process per cron run (prevent timeout) */
 const MAX_PER_RUN = 100
 
+/** Maximum schedules per consumer per cron run (prevent monopolization) */
+const MAX_PER_CONSUMER_PER_RUN = 10
+
 /** Invocation timeout for each tool call */
 const INVOKE_TIMEOUT_MS = 15_000
 
@@ -132,8 +135,21 @@ export async function GET(request: NextRequest) {
     let succeeded = 0
     let failed = 0
 
+    // Track per-consumer invocation counts to prevent monopolization
+    const consumerRunCounts = new Map<string, number>()
+
     for (const schedule of dueSchedules) {
       try {
+        // Enforce per-consumer cap
+        const consumerRuns = consumerRunCounts.get(schedule.consumerId) ?? 0
+        if (consumerRuns >= MAX_PER_CONSUMER_PER_RUN) {
+          logger.info('cron.consumer_schedules.consumer_cap_reached', {
+            consumerId: schedule.consumerId,
+            scheduleId: schedule.id,
+          })
+          continue
+        }
+        consumerRunCounts.set(schedule.consumerId, consumerRuns + 1)
         // Verify tool is still active
         const [tool] = await db
           .select({ status: tools.status })
@@ -164,6 +180,22 @@ export async function GET(request: NextRequest) {
 
         // Compute next run
         const nextRun = computeNextRun(schedule.cronExpression)
+
+        // If cron expression is unparseable, disable the schedule to prevent
+        // it from being selected on every tick (nextRunAt would be null -> always due)
+        if (!nextRun) {
+          logger.warn('cron.consumer_schedules.invalid_cron_expression', {
+            scheduleId: schedule.id,
+            slug: schedule.slug,
+            cronExpression: schedule.cronExpression,
+          })
+          await db
+            .update(consumerSchedules)
+            .set({ enabled: false, lastRunAt: now })
+            .where(eq(consumerSchedules.id, schedule.id))
+          failed++
+          continue
+        }
 
         if (result.success) {
           await db
