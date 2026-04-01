@@ -108,6 +108,20 @@ export default async function MarketplacePage({
             <MarketplaceContent searchParams={normalizedParams} />
           </Suspense>
 
+          {/* Trending link */}
+          <div className="mt-10 mb-4 flex justify-center">
+            <Link
+              href="/marketplace/trending"
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-5 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                <path d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z" />
+              </svg>
+              View Trending Tools
+            </Link>
+          </div>
+
           {/* Browse by type */}
           <div className="mt-16 mb-8">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">

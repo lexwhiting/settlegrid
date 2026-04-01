@@ -82,6 +82,14 @@
     {
       "path": "/api/cron/claim-follow-up",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/consumer-schedules",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/consumer-digest",
+      "schedule": "0 10 * * 1"
     }
   ]
 }

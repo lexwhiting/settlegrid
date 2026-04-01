@@ -1042,3 +1042,44 @@ export const achievementsRelations = relations(achievements, ({ one }) => ({
     references: [developers.id],
   }),
 }))
+
+// ─── Consumer Schedules (Cron-as-a-Service) ──────────────────────────────────
+
+export const consumerSchedules = pgTable(
+  'consumer_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(), // tool slug for display/routing
+    method: text('method'), // tool method to invoke (null = default)
+    payload: jsonb('payload').notNull().default('{}'), // request payload
+    cronExpression: varchar('cron_expression', { length: 50 }).notNull(), // e.g., '0 * * * *' (hourly)
+    enabled: boolean('enabled').notNull().default(true),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    failCount: integer('fail_count').notNull().default(0),
+    maxFailures: integer('max_failures').notNull().default(5),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('consumer_schedules_consumer_id_idx').on(table.consumerId),
+    index('consumer_schedules_tool_id_idx').on(table.toolId),
+    index('consumer_schedules_enabled_next_run_idx').on(table.enabled, table.nextRunAt),
+  ]
+)
+
+export const consumerSchedulesRelations = relations(consumerSchedules, ({ one }) => ({
+  consumer: one(consumers, {
+    fields: [consumerSchedules.consumerId],
+    references: [consumers.id],
+  }),
+  tool: one(tools, {
+    fields: [consumerSchedules.toolId],
+    references: [tools.id],
+  }),
+}))

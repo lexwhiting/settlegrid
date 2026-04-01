@@ -218,12 +218,12 @@ export async function GET(request: NextRequest) {
             break
           case 1:
             emailTemplate = claimFollowUpE3(
-              firstName, tool.name, tool.claimToken, toolCount, creator.email
+              firstName, tool.name, tool.claimToken, toolCount, creator.email, tool.slug
             )
             break
           case 2:
             emailTemplate = claimFollowUpE4(
-              firstName, tool.name, tool.claimToken, creator.email
+              firstName, tool.name, tool.claimToken, creator.email, tool.slug
             )
             break
           default:
