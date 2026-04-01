@@ -1,29 +1,161 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "ci-status", pricing: { defaultCostCents: 2, methods: {
-  get_github_status: { costCents: 2, displayName: "Get GitHub Actions Status" },
-  get_service_status: { costCents: 2, displayName: "Get CI Service Status" },
-}}})
-const getGithubStatus = sg.wrap(async (args: { owner: string; repo: string }) => {
-  if (!args.owner || !args.repo) throw new Error("owner and repo are required")
-  const res = await fetch(`https://api.github.com/repos/${args.owner}/${args.repo}/actions/runs?per_page=5`, { headers: { Accept: "application/vnd.github.v3+json" } })
-  if (!res.ok) throw new Error(`GitHub API ${res.status}`)
-  const data = await res.json()
-  return { repo: `${args.owner}/${args.repo}`, runs: (data.workflow_runs ?? []).map((r: any) => ({ id: r.id, name: r.name, status: r.status, conclusion: r.conclusion, branch: r.head_branch, created_at: r.created_at, updated_at: r.updated_at })) }
-}, { method: "get_github_status" })
-const getServiceStatus = sg.wrap(async (args: { service: string }) => {
-  if (!args.service) throw new Error("service is required (github, vercel, netlify, circleci)")
-  const statusPages: Record<string, string> = {
-    github: "https://www.githubstatus.com/api/v2/status.json",
-    vercel: "https://www.vercel-status.com/api/v2/status.json",
-    netlify: "https://www.netlifystatus.com/api/v2/status.json",
-    circleci: "https://status.circleci.com/api/v2/status.json",
+/**
+ * settlegrid-ci-status — CI/CD Status Checker MCP Server
+ *
+ * Checks GitHub Actions workflow status via the GitHub API.
+ * Provides workflow run status, job details, and build summaries.
+ *
+ * Methods:
+ *   get_workflow_status(owner, repo)    — Get latest workflow runs     (2c)
+ *   get_run_details(owner, repo, id)    — Get specific run details    (2c)
+ *   list_workflows(owner, repo)         — List repository workflows   (2c)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+// --- Types ------------------------------------------------------------------
+
+interface GetStatusInput {
+  owner: string
+  repo: string
+  branch?: string
+  per_page?: number
+}
+
+interface GetRunInput {
+  owner: string
+  repo: string
+  run_id: number
+}
+
+interface ListWorkflowsInput {
+  owner: string
+  repo: string
+}
+
+// --- Helpers ----------------------------------------------------------------
+
+async function githubFetch<T>(path: string): Promise<T> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  try {
+    const res = await fetch(`https://api.github.com${path}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'settlegrid-ci-status/1.0',
+      },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`)
+    }
+    return res.json() as Promise<T>
+  } finally {
+    clearTimeout(timeout)
   }
-  const url = statusPages[args.service.toLowerCase()]
-  if (!url) throw new Error(`Unknown. Available: ${Object.keys(statusPages).join(", ")}`)
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Status page ${res.status}`)
-  const data = await res.json()
-  return { service: args.service, status: data.status?.indicator, description: data.status?.description, updated_at: data.page?.updated_at }
-}, { method: "get_service_status" })
-export { getGithubStatus, getServiceStatus }
-console.log("settlegrid-ci-status MCP server ready | 2c/call | Powered by SettleGrid")
+}
+
+// --- SettleGrid Init --------------------------------------------------------
+
+const sg = settlegrid.init({
+  toolSlug: 'ci-status',
+  pricing: {
+    defaultCostCents: 2,
+    methods: {
+      get_workflow_status: { costCents: 2, displayName: 'Get Workflow Status' },
+      get_run_details: { costCents: 2, displayName: 'Get Run Details' },
+      list_workflows: { costCents: 2, displayName: 'List Workflows' },
+    },
+  },
+})
+
+// --- Handlers ---------------------------------------------------------------
+
+const getWorkflowStatus = sg.wrap(async (args: GetStatusInput) => {
+  if (!args.owner || !args.repo) throw new Error('owner and repo are required')
+  const perPage = Math.min(args.per_page ?? 5, 20)
+  const branchParam = args.branch ? `&branch=${encodeURIComponent(args.branch)}` : ''
+  const data = await githubFetch<{ workflow_runs: Array<{
+    id: number; name: string; status: string; conclusion: string | null;
+    head_branch: string; created_at: string; updated_at: string;
+    html_url: string; run_number: number
+  }> }>(`/repos/${args.owner}/${args.repo}/actions/runs?per_page=${perPage}${branchParam}`)
+
+  return {
+    repository: `${args.owner}/${args.repo}`,
+    runs: data.workflow_runs.map(r => ({
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      conclusion: r.conclusion,
+      branch: r.head_branch,
+      run_number: r.run_number,
+      created_at: r.created_at,
+      url: r.html_url,
+    })),
+    count: data.workflow_runs.length,
+  }
+}, { method: 'get_workflow_status' })
+
+const getRunDetails = sg.wrap(async (args: GetRunInput) => {
+  if (!args.owner || !args.repo || !args.run_id) throw new Error('owner, repo, and run_id required')
+  const [run, jobs] = await Promise.all([
+    githubFetch<{
+      id: number; name: string; status: string; conclusion: string | null;
+      head_branch: string; head_sha: string; created_at: string;
+      updated_at: string; html_url: string; run_number: number
+    }>(`/repos/${args.owner}/${args.repo}/actions/runs/${args.run_id}`),
+    githubFetch<{ jobs: Array<{
+      id: number; name: string; status: string; conclusion: string | null;
+      started_at: string; completed_at: string | null
+    }> }>(`/repos/${args.owner}/${args.repo}/actions/runs/${args.run_id}/jobs`),
+  ])
+
+  return {
+    id: run.id,
+    name: run.name,
+    status: run.status,
+    conclusion: run.conclusion,
+    branch: run.head_branch,
+    commit_sha: run.head_sha.slice(0, 8),
+    run_number: run.run_number,
+    created_at: run.created_at,
+    updated_at: run.updated_at,
+    url: run.html_url,
+    jobs: jobs.jobs.map(j => ({
+      id: j.id,
+      name: j.name,
+      status: j.status,
+      conclusion: j.conclusion,
+      started_at: j.started_at,
+      completed_at: j.completed_at,
+    })),
+    job_count: jobs.jobs.length,
+  }
+}, { method: 'get_run_details' })
+
+const listWorkflows = sg.wrap(async (args: ListWorkflowsInput) => {
+  if (!args.owner || !args.repo) throw new Error('owner and repo are required')
+  const data = await githubFetch<{ workflows: Array<{
+    id: number; name: string; path: string; state: string; created_at: string
+  }> }>(`/repos/${args.owner}/${args.repo}/actions/workflows`)
+
+  return {
+    repository: `${args.owner}/${args.repo}`,
+    workflows: data.workflows.map(w => ({
+      id: w.id,
+      name: w.name,
+      path: w.path,
+      state: w.state,
+    })),
+    count: data.workflows.length,
+  }
+}, { method: 'list_workflows' })
+
+// --- Exports ----------------------------------------------------------------
+
+export { getWorkflowStatus, getRunDetails, listWorkflows }
+
+console.log('settlegrid-ci-status MCP server ready')
+console.log('Methods: get_workflow_status, get_run_details, list_workflows')
+console.log('Pricing: 2c per call | Powered by SettleGrid')

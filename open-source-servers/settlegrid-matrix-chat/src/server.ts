@@ -1,6 +1,59 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "matrix-chat", pricing: { defaultCostCents: 2, methods: { search_rooms: { costCents: 2, displayName: "Search Rooms" }, get_server_info: { costCents: 2, displayName: "Get Server Info" } } } })
-const searchRooms = sg.wrap(async (args: { query: string; limit?: number }) => { if (!args.query) throw new Error("query required"); const limit = Math.min(args.limit ?? 10, 50); const res = await fetch(`https://matrix.org/_matrix/client/v3/publicRooms`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filter: { generic_search_term: args.query }, limit }) }); if (!res.ok) throw new Error(`Matrix API ${res.status}`); const data = await res.json(); return { query: args.query, count: data.chunk?.length ?? 0, rooms: (data.chunk ?? []).map((r: any) => ({ alias: r.canonical_alias, name: r.name, members: r.num_joined_members, topic: r.topic?.slice(0, 200) })) } }, { method: "search_rooms" })
-const getServerInfo = sg.wrap(async (args: { server?: string }) => { const server = args.server ?? "matrix.org"; const res = await fetch(`https://${server}/_matrix/client/versions`); if (!res.ok) throw new Error(`Server ${res.status}`); const data = await res.json(); return { server, versions: data.versions, unstable_features: Object.keys(data.unstable_features ?? {}).length } }, { method: "get_server_info" })
-export { searchRooms, getServerInfo }
-console.log("settlegrid-matrix-chat MCP server ready | 2c/call | Powered by SettleGrid")
+/**
+ * settlegrid-matrix-chat — Matrix Protocol Tools MCP Server
+ *
+ * Provides Matrix chat protocol formatting, room alias resolution,
+ * and message formatting utilities.
+ *
+ * Methods:
+ *   format_message(text, format?)  — Format Matrix message           (1c)
+ *   parse_matrix_id(id)            — Parse Matrix identifier        (1c)
+ *   get_homeservers()              — List public homeservers        (1c)
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+interface FormatInput { text: string; format?: string }
+interface ParseIdInput { id: string }
+
+const HOMESERVERS = [
+  { name: 'matrix.org', url: 'https://matrix.org', registration: 'open', description: 'Official Matrix.org server' },
+  { name: 'envs.net', url: 'https://matrix.envs.net', registration: 'open', description: 'Community server' },
+  { name: 'tchncs.de', url: 'https://tchncs.de', registration: 'open', description: 'German community server' },
+  { name: 'nitro.chat', url: 'https://nitro.chat', registration: 'open', description: 'Privacy-focused server' },
+]
+
+const sg = settlegrid.init({
+  toolSlug: 'matrix-chat',
+  pricing: { defaultCostCents: 1, methods: {
+    format_message: { costCents: 1, displayName: 'Format Message' },
+    parse_matrix_id: { costCents: 1, displayName: 'Parse Matrix ID' },
+    get_homeservers: { costCents: 1, displayName: 'Get Homeservers' },
+  }},
+})
+
+const formatMessage = sg.wrap(async (args: FormatInput) => {
+  if (!args.text) throw new Error('text required')
+  const fmt = (args.format ?? 'markdown').toLowerCase()
+  let html = args.text
+  if (fmt === 'html') {
+    html = args.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/`(.*?)`/g, '<code>$1</code>').replace(/\n/g, '<br/>')
+  }
+  return { original: args.text, formatted: html, format: fmt, msgtype: 'm.text', body: args.text, formatted_body: html }
+}, { method: 'format_message' })
+
+const parseMatrixId = sg.wrap(async (args: ParseIdInput) => {
+  if (!args.id) throw new Error('id required (e.g. @user:matrix.org or #room:matrix.org)')
+  const sigil = args.id[0]
+  const types: Record<string, string> = { '@': 'user', '#': 'room_alias', '!': 'room_id', '+': 'community', '$': 'event' }
+  const type = types[sigil] ?? 'unknown'
+  const parts = args.id.slice(1).split(':')
+  return { id: args.id, type, localpart: parts[0] ?? '', server: parts[1] ?? '', valid: parts.length === 2 && !!parts[0] && !!parts[1] }
+}, { method: 'parse_matrix_id' })
+
+const getHomeservers = sg.wrap(async (_a: Record<string, never>) => {
+  return { homeservers: HOMESERVERS, count: HOMESERVERS.length, protocol_version: 'Matrix v1.8' }
+}, { method: 'get_homeservers' })
+
+export { formatMessage, parseMatrixId, getHomeservers }
+console.log('settlegrid-matrix-chat MCP server ready')
+console.log('Pricing: 1c per call | Powered by SettleGrid')

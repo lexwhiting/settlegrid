@@ -1,6 +1,49 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "qr-decode", pricing: { defaultCostCents: 2, methods: { generate_qr_data: { costCents: 2, displayName: "Generate QR Data" }, analyze_qr_content: { costCents: 2, displayName: "Analyze QR Content" } } } })
-const generateQrData = sg.wrap(async (args: { content: string; type?: string }) => { if (!args.content) throw new Error("content required"); const type = args.type ?? "text"; const templates: Record<string, (c: string) => string> = { url: (c) => c.startsWith("http") ? c : `https://${c}`, email: (c) => `mailto:${c}`, phone: (c) => `tel:${c}`, wifi: (c) => `WIFI:T:WPA;S:${c};P:password;;`, vcard: (c) => `BEGIN:VCARD\nVERSION:3.0\nFN:${c}\nEND:VCARD`, text: (c) => c }; const formatter = templates[type]; if (!formatter) throw new Error(`Unknown type. Available: ${Object.keys(templates).join(", ")}`); const data = formatter(args.content); return { content: args.content, type, qr_data: data, length: data.length, api_url: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(data)}` } }, { method: "generate_qr_data" })
-const analyzeQrContent = sg.wrap(async (args: { data: string }) => { if (!args.data) throw new Error("data required"); let type = "text"; if (args.data.startsWith("http")) type = "url"; else if (args.data.startsWith("mailto:")) type = "email"; else if (args.data.startsWith("tel:")) type = "phone"; else if (args.data.startsWith("WIFI:")) type = "wifi"; else if (args.data.startsWith("BEGIN:VCARD")) type = "vcard"; return { data: args.data, detected_type: type, length: args.data.length, is_safe: !args.data.includes("javascript:") && !args.data.includes("<script") } }, { method: "analyze_qr_content" })
-export { generateQrData, analyzeQrContent }
-console.log("settlegrid-qr-decode MCP server ready | 2c/call | Powered by SettleGrid")
+/**
+ * settlegrid-qr-decode — QR Code Data Analyzer MCP Server
+ *
+ * QR Code Data Analyzer tools with SettleGrid billing.
+ * Pricing: 1-3c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+interface AnalyzeInput { data: string }
+interface GenerateUrlInput { content: string; size?: number }
+
+const sg = settlegrid.init({ toolSlug: 'qr-decode', pricing: { defaultCostCents: 1, methods: {
+  analyze_data: { costCents: 1, displayName: 'Analyze QR Data' },
+  generate_url: { costCents: 1, displayName: 'Generate QR URL' },
+  detect_type: { costCents: 1, displayName: 'Detect Data Type' },
+}}})
+
+function detectDataType(data: string): { type: string; parsed: Record<string, unknown> } {
+  if (data.startsWith('http://') || data.startsWith('https://')) return { type: 'URL', parsed: { url: data, protocol: data.split('://')[0] } }
+  if (data.startsWith('WIFI:')) { const parts: Record<string, string> = {}; data.replace(/WIFI:/, '').split(';').forEach(p => { const [k, v] = p.split(':'); if (k && v) parts[k] = v }); return { type: 'WiFi', parsed: parts } }
+  if (data.startsWith('mailto:')) return { type: 'Email', parsed: { email: data.replace('mailto:', '') } }
+  if (data.startsWith('tel:')) return { type: 'Phone', parsed: { number: data.replace('tel:', '') } }
+  if (data.startsWith('BEGIN:VCARD')) return { type: 'vCard', parsed: { format: 'vCard contact' } }
+  if (data.startsWith('BEGIN:VEVENT')) return { type: 'Calendar Event', parsed: { format: 'iCalendar event' } }
+  if (/^\d{8,14}$/.test(data)) return { type: 'Barcode/EAN', parsed: { digits: data.length } }
+  return { type: 'Text', parsed: { length: data.length } }
+}
+
+const analyzeData = sg.wrap(async (args: AnalyzeInput) => {
+  if (!args.data) throw new Error('data (QR content string) required')
+  const detection = detectDataType(args.data)
+  return { data: args.data, ...detection, char_count: args.data.length, encoding: /[^\x00-\x7F]/.test(args.data) ? 'UTF-8' : 'ASCII' }
+}, { method: 'analyze_data' })
+
+const generateUrl = sg.wrap(async (args: GenerateUrlInput) => {
+  if (!args.content) throw new Error('content required')
+  const size = Math.min(Math.max(args.size ?? 200, 100), 1000)
+  const encoded = encodeURIComponent(args.content)
+  return { content: args.content, qr_url: `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}`, size: `${size}x${size}`, api: 'goqr.me (free)' }
+}, { method: 'generate_url' })
+
+const detectType = sg.wrap(async (args: { data: string }) => {
+  if (!args.data) throw new Error('data required')
+  return detectDataType(args.data)
+}, { method: 'detect_type' })
+
+export { analyzeData, generateUrl, detectType }
+console.log('settlegrid-qr-decode MCP server ready | Powered by SettleGrid')
