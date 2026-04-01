@@ -667,6 +667,7 @@ export async function GET(request: NextRequest) {
     if (top5Tools.length > 0) {
       try {
         const topSlug = top5Tools[0].slug
+        const topInvocations = top5Tools[0].invocations
         const [spotlightTool] = await db
           .select({
             id: tools.id,
@@ -676,6 +677,7 @@ export async function GET(request: NextRequest) {
             category: tools.category,
             toolType: tools.toolType,
             totalInvocations: tools.totalInvocations,
+            developerId: tools.developerId,
           })
           .from(tools)
           .where(eq(tools.slug, topSlug))
@@ -695,6 +697,112 @@ export async function GET(request: NextRequest) {
           }), { ex: SPOTLIGHT_TTL_SECONDS })
 
           logger.info('cron.weekly_report.spotlight_set', { slug: spotlightTool.slug })
+
+          // Get this week's revenue for the spotlight tool
+          const [spotlightRevenue] = await db
+            .select({
+              revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
+            })
+            .from(invocations)
+            .where(
+              and(
+                eq(invocations.toolId, spotlightTool.id),
+                gte(invocations.createdAt, weekAgo),
+                eq(invocations.isTest, false)
+              )
+            )
+            .limit(1)
+
+          const weekRevenueCents = spotlightRevenue?.revenueCents ?? 0
+
+          // Send Tool of the Week section in a follow-up admin email
+          const totwSubject = sanitizeSubject(
+            `Tool of the Week: ${spotlightTool.name}`
+          )
+          const totwHtml = baseEmailTemplate(
+            `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 8px">Tool of the Week</h2>
+<p class="sg-text" style="color:#9ca3af;font-size:13px;margin:0 0 24px">${escapeHtml(periodStart)} &mdash; ${escapeHtml(periodEnd)}</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+${dataRow('Tool Name', escapeHtml(spotlightTool.name))}
+${dataRow('Category', escapeHtml(spotlightTool.category ?? 'uncategorized'))}
+${dataRow('Invocations This Week', topInvocations.toLocaleString())}
+${dataRow('Revenue This Week', formatCents(weekRevenueCents))}
+</table>
+
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 8px">
+${escapeHtml(spotlightTool.description ?? 'No description available.')}
+</p>
+
+<p style="margin:16px 0">
+<a href="https://settlegrid.ai/tools/${escapeHtml(spotlightTool.slug)}" style="color:#E5A336;font-weight:600;text-decoration:underline">
+View Tool Page
+</a>
+</p>
+`,
+            { preheader: `Tool of the Week: ${spotlightTool.name} (${topInvocations.toLocaleString()} invocations)` }
+          )
+
+          try {
+            await sendEmail({ to: ADMIN_EMAIL, subject: totwSubject, html: totwHtml })
+            logger.info('cron.weekly_report.totw_email_sent')
+          } catch (totwErr) {
+            logger.error('cron.weekly_report.totw_email_failed', {}, totwErr)
+          }
+
+          // Send congratulations email to the developer
+          const [spotlightDev] = await db
+            .select({
+              email: developers.email,
+              name: developers.name,
+            })
+            .from(developers)
+            .where(eq(developers.id, spotlightTool.developerId))
+            .limit(1)
+
+          if (spotlightDev) {
+            const congratsSubject = sanitizeSubject(
+              `Congratulations! ${spotlightTool.name} is SettleGrid's Tool of the Week`
+            )
+            const congratsHtml = baseEmailTemplate(
+              `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px">Your Tool is Tool of the Week!</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 8px">
+Hi ${escapeHtml(spotlightDev.name ?? 'Developer')},
+</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">
+Congratulations! <strong>${escapeHtml(spotlightTool.name)}</strong> has been selected as
+SettleGrid's <strong>Tool of the Week</strong> for the period ${escapeHtml(periodStart)} to ${escapeHtml(periodEnd)}.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+${dataRow('Invocations This Week', topInvocations.toLocaleString())}
+${dataRow('Revenue This Week', formatCents(weekRevenueCents))}
+${dataRow('Total Invocations (All Time)', spotlightTool.totalInvocations.toLocaleString())}
+</table>
+
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">
+Your tool is being featured on the SettleGrid homepage and in our marketplace spotlight.
+Keep up the great work!
+</p>
+
+<p style="margin:16px 0">
+<a href="https://settlegrid.ai/tools/${escapeHtml(spotlightTool.slug)}" style="display:inline-block;background:#E5A336;color:white;padding:10px 24px;border-radius:8px;font-weight:600;text-decoration:none">
+View Your Tool Page
+</a>
+</p>
+`,
+              { preheader: `${spotlightTool.name} is SettleGrid's Tool of the Week!` }
+            )
+
+            try {
+              await sendEmail({ to: spotlightDev.email, subject: congratsSubject, html: congratsHtml })
+              logger.info('cron.weekly_report.congrats_email_sent', { to: spotlightDev.email })
+            } catch (congratsErr) {
+              logger.error('cron.weekly_report.congrats_email_failed', { to: spotlightDev.email }, congratsErr)
+            }
+          }
         }
       } catch (spotlightErr) {
         logger.error('cron.weekly_report.spotlight_failed', {}, spotlightErr)

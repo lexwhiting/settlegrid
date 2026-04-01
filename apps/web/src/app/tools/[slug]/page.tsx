@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
+import { SocialShare } from '@/components/ui/social-share'
 import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
 import { ReviewForm } from '@/components/storefront/review-form'
 import { db } from '@/lib/db'
@@ -643,6 +644,17 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Share Section */}
+          <div className="mt-8">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
+              <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-2">Share This Tool</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Help others discover {tool.name} on SettleGrid.
+              </p>
+              <SocialShare type="tool" toolName={tool.name} toolSlug={tool.slug} />
             </div>
           </div>
 
