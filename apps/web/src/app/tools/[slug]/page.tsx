@@ -233,6 +233,78 @@ export default async function ToolStorefrontPage({
     ],
   }
 
+  // ─── SoftwareApplication JSON-LD ─────────────────────────────────────────
+
+  const jsonLdSoftwareApp = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: tool.name,
+    description: tool.description,
+    applicationCategory: categoryDef?.name ?? tool.category ?? 'DeveloperApplication',
+    operatingSystem: 'Any',
+    url: `https://settlegrid.ai/tools/${tool.slug}`,
+    softwareVersion: tool.currentVersion,
+    author: {
+      '@type': 'Organization',
+      name: tool.developerName,
+    },
+    offers: {
+      '@type': 'Offer',
+      price: priceUsd,
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+    },
+  }
+
+  // ─── FAQ entries ─────────────────────────────────────────────────────────
+
+  const hasFreeInvocations = (tool.pricingConfig.defaultCostCents ?? 0) === 0
+  const priceDisplay = tool.pricingConfig.defaultCostCents != null && tool.pricingConfig.defaultCostCents > 0
+    ? formatCents(tool.pricingConfig.defaultCostCents)
+    : 'free'
+
+  const faqEntries: { question: string; answer: string }[] = [
+    {
+      question: `How much does ${tool.name} cost?`,
+      answer: tool.pricingConfig.defaultCostCents != null && tool.pricingConfig.defaultCostCents > 0
+        ? `${tool.name} costs ${priceDisplay} per call on SettleGrid using the ${pricingModelLabel(pricingModel).toLowerCase()} pricing model. Credits never expire and you can buy more at any time.`
+        : `${tool.name} is currently free to use on SettleGrid. Pricing may change as the developer updates their configuration.`,
+    },
+    {
+      question: `How do I call ${tool.name} from my AI agent?`,
+      answer: `Install the SettleGrid SDK with \`npm install @settlegrid/mcp\`, then wrap your handler: \`const sg = settlegrid.init({ toolSlug: '${tool.slug}', pricing: { defaultCostCents: ${tool.pricingConfig.defaultCostCents ?? 5} } })\`. Use your API key in the \`x-api-key\` header when calling the tool endpoint. Full guide at settlegrid.ai/docs.`,
+    },
+    {
+      question: `What payment methods does ${tool.name} accept?`,
+      answer: 'SettleGrid supports 15 payment protocols including MCP, MPP (Stripe/Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN. Consumers can fund credits via Stripe.',
+    },
+    {
+      question: `Is ${tool.name} free to try?`,
+      answer: hasFreeInvocations
+        ? `Yes, ${tool.name} is currently free to use with no per-call cost. You can start using it immediately by creating a SettleGrid account and generating an API key.`
+        : `SettleGrid offers a free tier with 50,000 operations per month. You can buy credits starting at $5.00 to try ${tool.name}, and credits never expire.`,
+    },
+    {
+      question: `Who built ${tool.name}?`,
+      answer: tool.developerSlug
+        ? `${tool.name} was built by ${tool.developerName}. View their full profile and other tools at settlegrid.ai/dev/${tool.developerSlug}.`
+        : `${tool.name} was built by ${tool.developerName} and is available on the SettleGrid marketplace.`,
+    },
+  ]
+
+  const jsonLdFaq = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqEntries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: entry.answer,
+      },
+    })),
+  }
+
   const changeTypeBadge = (type: string) => {
     switch (type) {
       case 'feature': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
@@ -268,6 +340,8 @@ export default async function ToolStorefrontPage({
         <div className="max-w-4xl mx-auto">
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdSoftwareApp) }} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }} />
 
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm text-gray-400 mb-6" aria-label="Breadcrumb">
@@ -568,6 +642,33 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                     A generic badge that links back to SettleGrid. Works in any project README.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="mt-8">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
+              <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-6">Frequently Asked Questions</h2>
+              <div className="divide-y divide-gray-100 dark:divide-[#252836]">
+                {faqEntries.map((entry, i) => (
+                  <details key={i} className="group py-4 first:pt-0 last:pb-0">
+                    <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-brand transition-colors list-none [&::-webkit-details-marker]:hidden">
+                      <span>{entry.question}</span>
+                      <svg
+                        className="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform shrink-0 ml-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </summary>
+                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{entry.answer}</p>
+                  </details>
+                ))}
               </div>
             </div>
           </div>
