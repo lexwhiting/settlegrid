@@ -5,6 +5,7 @@ import { COLLECTION_SLUGS } from '@/lib/collections'
 import { HOWTO_SLUGS } from '@/lib/howto-guides'
 import { BLOG_SLUGS } from '@/lib/blog-posts'
 import { INTEGRATION_SLUGS } from '@/lib/integration-guides'
+import { FRAMEWORK_SLUGS } from '@/lib/frameworks'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -176,6 +177,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...COLLECTION_SLUGS.map((slug) => ({
       url: `${BASE_URL}/explore/collections/${slug}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
+
+    // ── Framework integration pages ──────────────────────────────────────────
+    ...FRAMEWORK_SLUGS.map((fw) => ({
+      url: `${BASE_URL}/explore/for/${fw}`,
       lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.7,
