@@ -93,8 +93,16 @@ export async function MarketplaceContent({
   }
 
   if (searchQuery) {
-    const pattern = `%${searchQuery}%`
-    conditions.push(or(ilike(tools.name, pattern), ilike(tools.description, pattern))!)
+    // Use PostgreSQL full-text search with tsvector for relevance ranking
+    // Falls back to ILIKE for very short queries (< 2 chars)
+    if (searchQuery.length >= 2) {
+      conditions.push(
+        sql`search_vector @@ plainto_tsquery('english', ${searchQuery})`
+      )
+    } else {
+      const pattern = `%${searchQuery}%`
+      conditions.push(or(ilike(tools.name, pattern), ilike(tools.description, pattern))!)
+    }
   }
 
   const whereClause = and(...conditions)
@@ -123,8 +131,9 @@ export async function MarketplaceContent({
     totalAll = totalResult[0]?.count ?? 0
     ecosystemCounts = ecosystemCountsResult
 
-    // Determine sort
+    // Determine sort — blend full-text relevance with popularity when searching
     let orderBy
+    const isFullTextSearch = searchQuery && searchQuery.length >= 2
     switch (sortParam) {
       case 'newest':
         orderBy = desc(tools.createdAt)
@@ -133,7 +142,14 @@ export async function MarketplaceContent({
         orderBy = desc(tools.totalRevenueCents)
         break
       default:
-        orderBy = desc(tools.totalInvocations)
+        if (isFullTextSearch) {
+          // Combine full-text relevance (0-1 range, weighted x1000) with popularity
+          orderBy = desc(
+            sql`ts_rank_cd(search_vector, plainto_tsquery('english', ${searchQuery})) * 1000 + ${tools.totalInvocations}`
+          )
+        } else {
+          orderBy = desc(tools.totalInvocations)
+        }
     }
 
     const offset = (pageParam - 1) * limitParam

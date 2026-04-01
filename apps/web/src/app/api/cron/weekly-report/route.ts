@@ -8,6 +8,7 @@ import { getCronSecret } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { sendEmail, baseEmailTemplate, escapeHtml, sanitizeSubject, dataRow, dividerLine } from '@/lib/email'
 import { hasFeature } from '@/lib/tier-config'
+import { getRedis } from '@/lib/redis'
 
 export const maxDuration = 120
 
@@ -659,6 +660,45 @@ export async function GET(request: NextRequest) {
       logger.info('cron.weekly_report.email_sent', { to: ADMIN_EMAIL })
     } catch (emailErr) {
       logger.error('cron.weekly_report.email_failed', {}, emailErr)
+    }
+
+    // ── Set Tool of the Week spotlight ─────────────────────────────────
+    // The top tool by invocations this week becomes the spotlight tool
+    if (top5Tools.length > 0) {
+      try {
+        const topSlug = top5Tools[0].slug
+        const [spotlightTool] = await db
+          .select({
+            id: tools.id,
+            name: tools.name,
+            slug: tools.slug,
+            description: tools.description,
+            category: tools.category,
+            toolType: tools.toolType,
+            totalInvocations: tools.totalInvocations,
+          })
+          .from(tools)
+          .where(eq(tools.slug, topSlug))
+          .limit(1)
+
+        if (spotlightTool) {
+          const redis = getRedis()
+          const SPOTLIGHT_TTL_SECONDS = 8 * 24 * 60 * 60 // 8 days
+          await redis.set('spotlight:current', JSON.stringify({
+            id: spotlightTool.id,
+            name: spotlightTool.name,
+            slug: spotlightTool.slug,
+            description: spotlightTool.description,
+            category: spotlightTool.category,
+            toolType: spotlightTool.toolType,
+            totalInvocations: spotlightTool.totalInvocations,
+          }), { ex: SPOTLIGHT_TTL_SECONDS })
+
+          logger.info('cron.weekly_report.spotlight_set', { slug: spotlightTool.slug })
+        }
+      } catch (spotlightErr) {
+        logger.error('cron.weekly_report.spotlight_failed', {}, spotlightErr)
+      }
     }
 
     // ── Enhanced per-developer reports for Scale+ ──────────────────────
