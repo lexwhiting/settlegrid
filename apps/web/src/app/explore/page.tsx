@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 import { CATEGORIES } from '@/lib/categories'
 import { COLLECTIONS } from '@/lib/collections'
 import { ExploreCategoryFilter } from '@/components/explore-category-filter'
@@ -118,21 +119,9 @@ export default async function ExplorePage() {
 
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
-        <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/"><SettleGridLogo variant="horizontal" size={28} /></Link>
-          <div className="flex items-center gap-4">
-            <Link href="/marketplace" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Marketplace</Link>
-            <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Showcase</Link>
-            <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Docs</Link>
-            <Link href="/learn" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">Learn</Link>
-            <Link href="/login" className="text-sm font-medium text-gray-400 hover:text-gray-100">Log in</Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">Sign up</Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-6xl mx-auto">
           <script
             type="application/ld+json"
@@ -282,20 +271,7 @@ export default async function ExplorePage() {
         </div>
       </main>
 
-      <footer className="border-t border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={32} />
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/marketplace" className="hover:text-gray-100 transition-colors">Marketplace</Link>
-            <Link href="/tools" className="hover:text-gray-100 transition-colors">Showcase</Link>
-            <Link href="/docs" className="hover:text-gray-100 transition-colors">Docs</Link>
-            <Link href="/learn" className="hover:text-gray-100 transition-colors">Learn</Link>
-            <Link href="/privacy" className="hover:text-gray-100 transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-gray-100 transition-colors">Terms</Link>
-          </div>
-          <p className="text-sm text-gray-400">&copy; {new Date().getFullYear()} SettleGrid. All rights reserved.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

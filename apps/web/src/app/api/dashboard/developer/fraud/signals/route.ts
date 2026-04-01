@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 import { eq, sql, gte, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations } from '@/lib/db/schema'
+import { tools, invocations, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 30
 
@@ -201,6 +202,27 @@ export async function GET(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')
+    }
+
+    // ── Tier gate: fraud_detection requires Scale+ ─────────────────────
+    const [developer] = await db
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+      .from(developers)
+      .where(eq(developers.id, auth.id))
+      .limit(1)
+
+    if (!developer) {
+      return errorResponse('Developer account not found.', 404, 'NOT_FOUND')
+    }
+
+    if (!hasFeature(developer.tier, 'fraud_detection', developer.isFoundingMember)) {
+      return errorResponse(
+        'This feature requires the Scale plan.',
+        403,
+        'TIER_REQUIRED',
+        undefined,
+        { requiredTier: 'scale', currentTier: developer.tier, upgradeUrl: '/pricing' }
+      )
     }
 
     // Check Redis health

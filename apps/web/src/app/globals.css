@@ -35,7 +35,7 @@
   --color-text-muted: #6B7280;
 
   /* ---- Typography ---- */
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Satoshi', system-ui, sans-serif;
   --font-display: 'Space Grotesk', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
@@ -108,6 +108,12 @@
 }
 .dark .comparison-row:hover {
   background-color: rgba(26, 29, 46, 0.5);
+}
+
+/* ---- Subtle background dot grid (global) ---- */
+body {
+  background-image: radial-gradient(circle, rgba(229, 163, 54, 0.09) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* ---- Reduced motion ---- */

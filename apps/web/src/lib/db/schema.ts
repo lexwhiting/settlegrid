@@ -35,10 +35,12 @@ export const developers = pgTable('developers', {
   payoutMinimumCents: integer('payout_minimum_cents').notNull().default(100), // $1 minimum — lowest in the industry
   // Notification preferences — { eventType: boolean } pairs
   notificationPreferences: jsonb('notification_preferences').notNull().default('{}'),
+  // Notification webhooks — { slack?: string, discord?: string }
+  notificationWebhooks: jsonb('notification_webhooks').notNull().default('{}'),
   // Data retention preferences
-  logRetentionDays: integer('log_retention_days').notNull().default(90),
-  webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(30),
-  auditLogRetentionDays: integer('audit_log_retention_days').notNull().default(365),
+  logRetentionDays: integer('log_retention_days').notNull().default(7),
+  webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(7),
+  auditLogRetentionDays: integer('audit_log_retention_days').notNull().default(7),
   // R9: Developer Public Profiles
   publicProfile: boolean('public_profile').notNull().default(false),
   publicBio: text('public_bio'),
@@ -369,6 +371,8 @@ export const webhookEndpoints = pgTable(
     url: text('url').notNull(),
     secret: text('secret').notNull(),
     events: jsonb('events').notNull().default('["invocation.completed","payout.initiated","tool.status_changed"]'),
+    /** Custom headers merged into webhook deliveries. Scale+ feature. */
+    customHeaders: jsonb('custom_headers'),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
