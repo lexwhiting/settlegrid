@@ -72,47 +72,55 @@ function validateCoord(val: number, name: string, min: number, max: number): num
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
-const sg = settlegrid.init({ toolSlug: 'iss-tracker' })
+const sg = settlegrid.init({
+  toolSlug: 'iss-tracker',
+  pricing: {
+    defaultCostCents: 1,
+    methods: {
+      get_position: { costCents: 1, displayName: 'ISS Position' },
+      get_crew: { costCents: 1, displayName: 'ISS Crew' },
+      get_passes: { costCents: 1, displayName: 'ISS Passes' },
+    },
+  },
+})
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
-export async function get_position(): Promise<FormattedPosition> {
-  return sg.wrap('get_position', async () => {
-    const data = await fetchJSON<IssPosition>(`${API}/iss-now.json`)
-    return {
-      latitude: parseFloat(data.iss_position.latitude),
-      longitude: parseFloat(data.iss_position.longitude),
-      timestamp: new Date(data.timestamp * 1000).toISOString(),
-      unix_timestamp: data.timestamp,
-    }
-  })
-}
 
-export async function get_crew(): Promise<FormattedCrew> {
-  return sg.wrap('get_crew', async () => {
-    const data = await fetchJSON<IssCrew>(`${API}/astros.json`)
-    return { total: data.number, people: data.people }
-  })
-}
+interface EmptyInput {}
+interface GetPassesInput { lat: number; lon: number; count?: number }
 
-export async function get_passes(lat: number, lon: number, count?: number): Promise<FormattedPasses> {
-  const validLat = validateCoord(lat, 'Latitude', -90, 90)
-  const validLon = validateCoord(lon, 'Longitude', -180, 180)
-  const n = count ?? 5
+export const get_position = sg.wrap(async (_args: EmptyInput) => {
+  const data = await fetchJSON<IssPosition>(`${API}/iss-now.json`)
+  return {
+    latitude: parseFloat(data.iss_position.latitude),
+    longitude: parseFloat(data.iss_position.longitude),
+    timestamp: new Date(data.timestamp * 1000).toISOString(),
+    unix_timestamp: data.timestamp,
+  }
+}, { method: 'get_position' })
+
+export const get_crew = sg.wrap(async (_args: EmptyInput) => {
+  const data = await fetchJSON<IssCrew>(`${API}/astros.json`)
+  return { total: data.number, people: data.people }
+}, { method: 'get_crew' })
+
+export const get_passes = sg.wrap(async (args: GetPassesInput) => {
+  const validLat = validateCoord(args.lat, 'Latitude', -90, 90)
+  const validLon = validateCoord(args.lon, 'Longitude', -180, 180)
+  const n = args.count ?? 5
   if (n < 1 || n > 100) throw new Error('Count must be between 1 and 100')
-  return sg.wrap('get_passes', async () => {
-    const data = await fetchJSON<IssPass>(
-      `${API}/iss-pass.json?lat=${validLat}&lon=${validLon}&n=${n}`
-    )
-    return {
-      observer: { lat: validLat, lon: validLon },
-      count: data.passes,
-      passes: (data.results || []).map(p => ({
-        rise_time: new Date(p.risetime * 1000).toISOString(),
-        duration_seconds: p.duration,
-        duration_minutes: Math.round(p.duration / 60 * 10) / 10,
-      })),
-    }
-  })
-}
+  const data = await fetchJSON<IssPass>(
+    `${API}/iss-pass.json?lat=${validLat}&lon=${validLon}&n=${n}`
+  )
+  return {
+    observer: { lat: validLat, lon: validLon },
+    count: data.passes,
+    passes: (data.results || []).map(p => ({
+      rise_time: new Date(p.risetime * 1000).toISOString(),
+      duration_seconds: p.duration,
+      duration_minutes: Math.round(p.duration / 60 * 10) / 10,
+    })),
+  }
+}, { method: 'get_passes' })
 
 console.log('settlegrid-iss-tracker MCP server loaded')
