@@ -65,44 +65,53 @@ async function fetchJSON<T>(url: string): Promise<T> {
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
-const sg = settlegrid.init({ toolSlug: 'forex-rates' })
+const sg = settlegrid.init({
+  toolSlug: 'forex-rates',
+  pricing: {
+    defaultCostCents: 1,
+    methods: {
+      get_rates: { costCents: 1, displayName: 'Get Rates' },
+      convert: { costCents: 1, displayName: 'Convert Currency' },
+      get_historical: { costCents: 1, displayName: 'Historical Rates' },
+    },
+  },
+})
 
 // ─── Handlers ───────────────────────────────────────────────────────────────
-async function getRates(base?: string, symbols?: string): Promise<RatesResponse> {
-  return sg.wrap('get_rates', async () => {
-    const params = new URLSearchParams()
-    if (base) params.set('from', validateCurrencyCode(base))
-    if (symbols) {
-      const validated = symbols.split(',').map(s => validateCurrencyCode(s)).join(',')
-      params.set('to', validated)
-    }
-    const qs = params.toString()
-    return fetchJSON<RatesResponse>(`${API}/latest${qs ? '?' + qs : ''}`)
-  })
-}
 
-async function convert(from: string, to: string, amount: number): Promise<ConvertResult> {
-  const fromCode = validateCurrencyCode(from)
-  const toCode = validateCurrencyCode(to)
-  if (typeof amount !== 'number' || amount <= 0) throw new Error('Amount must be a positive number')
+interface GetRatesInput { base?: string; symbols?: string }
+interface ConvertInput { from: string; to: string; amount: number }
+interface GetHistoricalInput { date: string; base?: string }
+
+const getRates = sg.wrap(async (args: GetRatesInput) => {
+  const params = new URLSearchParams()
+  if (args.base) params.set('from', validateCurrencyCode(args.base))
+  if (args.symbols) {
+    const validated = args.symbols.split(',').map(s => validateCurrencyCode(s)).join(',')
+    params.set('to', validated)
+  }
+  const qs = params.toString()
+  return fetchJSON<RatesResponse>(`${API}/latest${qs ? '?' + qs : ''}`)
+}, { method: 'get_rates' })
+
+const convert = sg.wrap(async (args: ConvertInput) => {
+  const fromCode = validateCurrencyCode(args.from)
+  const toCode = validateCurrencyCode(args.to)
+  if (typeof args.amount !== 'number' || args.amount <= 0) throw new Error('Amount must be a positive number')
   if (fromCode === toCode) throw new Error('Source and target currencies must be different')
-  return sg.wrap('convert', async () => {
-    const data = await fetchJSON<RatesResponse>(
-      `${API}/latest?from=${fromCode}&to=${toCode}`
-    )
-    const rate = data.rates[toCode]
-    if (!rate) throw new Error(`No rate found for ${toCode}`)
-    return { from: fromCode, to: toCode, amount, result: Math.round(amount * rate * 100) / 100, rate, date: data.date }
-  })
-}
+  const data = await fetchJSON<RatesResponse>(
+    `${API}/latest?from=${fromCode}&to=${toCode}`
+  )
+  const rate = data.rates[toCode]
+  if (!rate) throw new Error(`No rate found for ${toCode}`)
+  return { from: fromCode, to: toCode, amount: args.amount, result: Math.round(args.amount * rate * 100) / 100, rate, date: data.date }
+}, { method: 'convert' })
 
-async function getHistorical(date: string, base?: string): Promise<RatesResponse> {
-  const validDate = validateDate(date)
-  return sg.wrap('get_historical', async () => {
-    const params = base ? `?from=${validateCurrencyCode(base)}` : ''
-    return fetchJSON<RatesResponse>(`${API}/${validDate}${params}`)
-  })
-}
+const getHistorical = sg.wrap(async (args: GetHistoricalInput) => {
+  const validDate = validateDate(args.date)
+  const params = args.base ? `?from=${validateCurrencyCode(args.base)}` : ''
+  return fetchJSON<RatesResponse>(`${API}/${validDate}${params}`)
+}, { method: 'get_historical' })
 
 // ─── Exports ────────────────────────────────────────────────────────────────
 export { getRates, convert, getHistorical, SUPPORTED_CURRENCIES }
