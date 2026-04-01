@@ -1,0 +1,24 @@
+{
+  "name": "settlegrid-code-reviewer",
+  "version": "1.0.0",
+  "description": "MCP server for AI-powered code review with SettleGrid billing. Analyze code quality, estimate complexity, and get refactoring suggestions.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["settlegrid", "mcp", "ai", "code-review", "static-analysis", "refactoring", "complexity"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-code-reviewer"
+  }
+}
