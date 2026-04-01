@@ -83,7 +83,7 @@ function deepDiff(a: unknown, b: unknown, path: string = ''): DiffEntry[] {
 function countNodes(obj: unknown): number {
   if (obj === null || typeof obj !== 'object') return 1
   if (Array.isArray(obj)) return 1 + obj.reduce((s, v) => s + countNodes(v), 0)
-  return 1 + Object.values(obj as Record<string, unknown>).reduce((s, v) => s + countNodes(v), 0)
+  return 1 + Object.values(obj as Record<string, unknown>).reduce((s: number, v: unknown) => s + countNodes(v), 0)
 }
 
 // ─── SettleGrid Init ────────────────────────────────────────────────────────
