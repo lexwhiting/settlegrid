@@ -27,6 +27,13 @@ export const TIER_LIMITS = {
     maxTeamMembers: Infinity,
     features: ['basic_dashboard', 'progressive_take_rate', 'sandbox_mode', 'slack_notifications', 'health_alerts', 'category_benchmarking', 'revenue_forecasting', 'priority_listing', 'whitelabel_widget', 'advanced_analytics', 'consumer_insights', 'anomaly_detection', 'fraud_detection', 'data_export', 'audit_logs', 'ip_allowlisting', 'weekly_report', 'custom_webhook_headers', 'team_access'] as const,
   },
+  academic: {
+    opsPerMonth: 500_000,
+    logRetentionDays: 90,
+    maxWebhookEndpoints: 10,
+    maxTeamMembers: 5,
+    features: ['basic_dashboard', 'progressive_take_rate', 'sandbox_mode', 'slack_notifications', 'health_alerts', 'category_benchmarking', 'revenue_forecasting', 'priority_listing', 'whitelabel_widget', 'advanced_analytics', 'consumer_insights', 'anomaly_detection', 'fraud_detection', 'data_export', 'audit_logs', 'ip_allowlisting', 'weekly_report', 'custom_webhook_headers', 'team_access'] as const,
+  },
 } as const
 
 export type PlanTier = keyof typeof TIER_LIMITS
@@ -37,6 +44,7 @@ export function getTierConfig(tier: string) {
   // Handle legacy tier names
   if (normalized === 'starter' || normalized === 'growth') return TIER_LIMITS.builder
   if (normalized === 'standard') return TIER_LIMITS.free
+  if (normalized === 'academic') return TIER_LIMITS.academic
   return TIER_LIMITS[normalized as PlanTier] ?? TIER_LIMITS.free
 }
 

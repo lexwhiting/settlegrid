@@ -11,6 +11,13 @@ import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { isIpInAllowlist } from '@/lib/ip-validation'
 import { detectFraud, isIpBlocked, trackFailedAuth } from '@/lib/fraud'
+import {
+  findFallbackTool,
+  shouldAttemptFailover,
+  consumerCanAffordFailover,
+  addFailoverHeaders,
+  logFailoverEvent,
+} from '@/lib/failover'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
@@ -570,6 +577,7 @@ async function handleProxy(
     } catch (err) {
       clearTimeout(timeout)
       const latencyMs = Date.now() - startTime
+      const isAbort = err instanceof Error && err.name === 'AbortError'
 
       logger.error('proxy.upstream_error', {
         slug,
@@ -596,7 +604,42 @@ async function handleProxy(
         .then(() => {})
         .catch(() => {})
 
-      if (err instanceof Error && err.name === 'AbortError') {
+      // ── SLA Failover on upstream error ──────────────────────────────
+      if (shouldAttemptFailover(0, isAbort)) {
+        const pricingConfig = auth.tool.pricingConfig as Record<string, unknown> | null
+        const toolCategory = typeof pricingConfig?.category === 'string'
+          ? pricingConfig.category
+          : null
+
+        // Look up category from the tool itself if not in pricing config
+        const effectiveCategory = toolCategory ?? await getToolCategory(auth.toolId)
+
+        if (effectiveCategory) {
+          const canAfford = auth.isTestKey || costCents <= 0 || await consumerCanAffordFailover(auth.consumerId, costCents)
+          if (canAfford) {
+            const fallbackResult = await attemptFailover({
+              slug,
+              category: effectiveCategory,
+              consumerId: auth.consumerId,
+              costCents,
+              request,
+              requestBody,
+              startTime,
+              requestId,
+              isTestKey: auth.isTestKey,
+              keyId: auth.keyId,
+              toolId: auth.toolId,
+              developerId: auth.tool.developerId,
+              developerRevenueSharePct: auth.developerRevenueSharePct,
+              flagged: fraudResult.flagged,
+              originalStatus: null,
+            })
+            if (fallbackResult) return fallbackResult
+          }
+        }
+      }
+
+      if (isAbort) {
         return errorResponse(
           'Upstream tool timed out after 30 seconds.',
           504,
@@ -618,6 +661,34 @@ async function handleProxy(
     const latencyMs = Date.now() - startTime
     const upstreamStatus = upstreamResponse.status
     const upstreamOk = upstreamStatus >= 200 && upstreamStatus < 300
+
+    // ── SLA Failover on 5xx response ──────────────────────────────────
+    if (!upstreamOk && shouldAttemptFailover(upstreamStatus, false)) {
+      const effectiveCategory = await getToolCategory(auth.toolId)
+      if (effectiveCategory) {
+        const canAfford = auth.isTestKey || costCents <= 0 || await consumerCanAffordFailover(auth.consumerId, costCents)
+        if (canAfford) {
+          const fallbackResult = await attemptFailover({
+            slug,
+            category: effectiveCategory,
+            consumerId: auth.consumerId,
+            costCents,
+            request,
+            requestBody,
+            startTime,
+            requestId,
+            isTestKey: auth.isTestKey,
+            keyId: auth.keyId,
+            toolId: auth.toolId,
+            developerId: auth.tool.developerId,
+            developerRevenueSharePct: auth.developerRevenueSharePct,
+            flagged: fraudResult.flagged,
+            originalStatus: upstreamStatus,
+          })
+          if (fallbackResult) return fallbackResult
+        }
+      }
+    }
 
     // Only charge if upstream returned success
     const actualCost = upstreamOk && !auth.isTestKey ? costCents : 0
@@ -1796,6 +1867,212 @@ async function handleL402Proxy(
       l402AmountSats: l402Result.amountSats ?? null,
     }
   )
+}
+
+// ── SLA Failover Helpers ───────────────────────────────────────────────────
+
+/**
+ * Look up a tool's category from the database.
+ */
+async function getToolCategory(toolId: string): Promise<string | null> {
+  try {
+    const [row] = await db
+      .select({ category: tools.category })
+      .from(tools)
+      .where(eq(tools.id, toolId))
+      .limit(1)
+    return row?.category ?? null
+  } catch {
+    return null
+  }
+}
+
+interface FailoverParams {
+  slug: string
+  category: string
+  consumerId: string
+  costCents: number
+  request: NextRequest
+  requestBody: string
+  startTime: number
+  requestId: string
+  isTestKey: boolean
+  keyId: string
+  toolId: string
+  developerId: string
+  developerRevenueSharePct: number
+  flagged: boolean
+  originalStatus: number | null
+}
+
+/**
+ * Attempts a single failover to a fallback tool in the same category.
+ * Returns a NextResponse if failover succeeds, or null if it fails.
+ * Bills at the ORIGINAL tool's rate, not the fallback's rate.
+ */
+async function attemptFailover(params: FailoverParams): Promise<NextResponse | null> {
+  const {
+    slug, category, consumerId, costCents, request, requestBody,
+    startTime, requestId, isTestKey, keyId, toolId, developerId,
+    developerRevenueSharePct, flagged, originalStatus,
+  } = params
+
+  try {
+    const fallback = await findFallbackTool(slug, category)
+    if (!fallback) return null
+
+    logger.info('proxy.failover_attempt', {
+      originalSlug: slug,
+      fallbackSlug: fallback.slug,
+      consumerId,
+      requestId,
+    })
+
+    // Call the fallback tool
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
+
+    let fallbackResponse: Response
+    try {
+      const fetchInit: RequestInit = {
+        method: request.method,
+        headers: buildUpstreamHeaders(request),
+        signal: controller.signal,
+      }
+
+      if (request.method !== 'GET' && request.method !== 'HEAD' && requestBody) {
+        fetchInit.body = requestBody
+      }
+
+      fallbackResponse = await fetch(fallback.proxyEndpoint, fetchInit)
+    } catch {
+      clearTimeout(timer)
+      return null // Fallback also failed — give up
+    } finally {
+      clearTimeout(timer)
+    }
+
+    const fallbackStatus = fallbackResponse.status
+    const fallbackOk = fallbackStatus >= 200 && fallbackStatus < 300
+
+    if (!fallbackOk) {
+      return null // Fallback returned an error — give up
+    }
+
+    const latencyMs = Date.now() - startTime
+    const actualCost = !isTestKey ? costCents : 0
+
+    // Bill at original tool's rate
+    if (actualCost > 0) {
+      const [updatedBalance] = await db
+        .update(consumerToolBalances)
+        .set({
+          balanceCents: sql`${consumerToolBalances.balanceCents} - ${actualCost}`,
+          currentPeriodSpendCents: sql`${consumerToolBalances.currentPeriodSpendCents} + ${actualCost}`,
+        })
+        .where(
+          and(
+            eq(consumerToolBalances.consumerId, consumerId),
+            eq(consumerToolBalances.toolId, toolId),
+            sql`${consumerToolBalances.balanceCents} >= ${actualCost}`
+          )
+        )
+        .returning({ balanceCents: consumerToolBalances.balanceCents })
+
+      if (!updatedBalance) {
+        await db
+          .update(consumers)
+          .set({
+            globalBalanceCents: sql`${consumers.globalBalanceCents} - ${actualCost}`,
+          })
+          .where(
+            and(
+              eq(consumers.id, consumerId),
+              sql`${consumers.globalBalanceCents} >= ${actualCost}`
+            )
+          )
+      }
+
+      // Credit the original developer
+      const developerShareCents = Math.floor(actualCost * (developerRevenueSharePct / 100))
+      Promise.all([
+        db.update(tools).set({
+          totalInvocations: sql`${tools.totalInvocations} + 1`,
+          totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+          updatedAt: new Date(),
+        }).where(eq(tools.id, toolId)),
+        db.update(developers).set({
+          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+          updatedAt: new Date(),
+        }).where(eq(developers.id, developerId)),
+      ]).catch(() => {})
+    }
+
+    // Record the invocation
+    db.insert(invocations).values({
+      toolId,
+      consumerId,
+      apiKeyId: keyId,
+      method: `proxy:${request.method}`,
+      costCents: actualCost,
+      latencyMs,
+      status: 'success',
+      isTest: isTestKey,
+      isFlagged: flagged,
+      metadata: {
+        proxy: true,
+        failover: true,
+        originalSlug: slug,
+        fallbackSlug: fallback.slug,
+        originalStatus,
+      },
+    }).then(() => {}).catch(() => {})
+
+    // Log the failover event
+    logFailoverEvent({
+      originalSlug: slug,
+      fallbackSlug: fallback.slug,
+      consumerId,
+      costCents: actualCost,
+      originalStatus,
+      fallbackStatus,
+      latencyMs,
+      requestId,
+    })
+
+    // Build response with failover headers
+    const responseHeaders = new Headers()
+    fallbackResponse.headers.forEach((value, key) => {
+      const lower = key.toLowerCase()
+      if (lower !== 'transfer-encoding' && lower !== 'connection') {
+        responseHeaders.set(key, value)
+      }
+    })
+
+    responseHeaders.set('X-SettleGrid-Proxy', 'true')
+    responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
+    responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
+    responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
+    responseHeaders.set('X-SettleGrid-Tool', slug)
+    responseHeaders.set('X-SettleGrid-Protocol', 'api-key')
+    responseHeaders.set('X-SettleGrid-Cache', 'MISS')
+    addFailoverHeaders(responseHeaders, fallback.slug)
+    if (requestId) responseHeaders.set('x-request-id', requestId)
+
+    // Return the fallback response
+    return injectAttributionAndReturn(
+      fallbackResponse, responseHeaders, fallbackStatus, slug, actualCost, 'api-key'
+    )
+  } catch (err) {
+    logger.error('proxy.failover_error', {
+      slug,
+      category,
+      consumerId,
+      error: err instanceof Error ? err.message : String(err),
+      requestId,
+    })
+    return null
+  }
 }
 
 export async function POST(
