@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import Stripe from 'stripe'
 import { db } from '@/lib/db'
-import { developers } from '@/lib/db/schema'
+import { developers, webhookEndpoints } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getStripeSecretKey } from '@/lib/env'
@@ -12,6 +12,7 @@ import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { planChangedEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
+import { getTierConfig } from '@/lib/tier-config'
 
 export const maxDuration = 30
 
@@ -139,14 +140,43 @@ export async function POST(request: NextRequest) {
     // Update the developer tier in the database immediately.
     // The webhook (customer.subscription.updated) will also fire and confirm this,
     // but we update eagerly so the UI reflects the change instantly.
+    const newTierConfig = getTierConfig(body.plan)
     await db
       .update(developers)
       .set({
         tier: body.plan,
+        logRetentionDays: newTierConfig.logRetentionDays,
         // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
         updatedAt: new Date(),
       })
       .where(eq(developers.id, auth.id))
+
+    // ── Downgrade: disable excess webhook endpoints ────────────────────
+    if (!isUpgrade) {
+      const maxEndpoints = newTierConfig.maxWebhookEndpoints
+      const allEndpoints = await db
+        .select({ id: webhookEndpoints.id, createdAt: webhookEndpoints.createdAt })
+        .from(webhookEndpoints)
+        .where(eq(webhookEndpoints.developerId, auth.id))
+        .orderBy(webhookEndpoints.createdAt)
+        .limit(100)
+
+      if (allEndpoints.length > maxEndpoints) {
+        // Keep the oldest N endpoints active, disable the rest
+        const toDisable = allEndpoints.slice(maxEndpoints).map((e) => e.id)
+        for (const epId of toDisable) {
+          await db
+            .update(webhookEndpoints)
+            .set({ status: 'disabled', updatedAt: new Date() })
+            .where(eq(webhookEndpoints.id, epId))
+        }
+        logger.info('billing.downgrade.webhooks_disabled', {
+          developerId: auth.id,
+          disabledCount: toDisable.length,
+          maxEndpoints,
+        })
+      }
+    }
 
     logger.info('billing.change_plan.success', {
       developerId: auth.id,

@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 import { ShowcaseSearch } from '@/components/showcase-search'
 import type { ShowcaseTool } from '@/components/showcase-search'
 import { db } from '@/lib/db'
@@ -48,35 +49,9 @@ export default async function ShowcasePage() {
 
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 dark:bg-[#161822]">
-        <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/marketplace" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Marketplace
-            </Link>
-            <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link href="/learn" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Learn
-            </Link>
-            <Link href="/faq" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              FAQ
-            </Link>
-            <Link href="/login" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100">
-              Log in
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">
-              Sign up
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-6xl mx-auto">
           {/* Hero */}
           <div className="text-center mb-14">
@@ -207,22 +182,7 @@ export default async function ShowcasePage() {
         </div>
       </main>
 
-      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={32} />
-          <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-            <Link href="/tools" className="hover:text-indigo dark:text-gray-100 transition-colors">Showcase</Link>
-            <Link href="/docs" className="hover:text-indigo dark:text-gray-100 transition-colors">Documentation</Link>
-            <Link href="/learn" className="hover:text-indigo dark:text-gray-100 transition-colors">Learn</Link>
-            <Link href="/faq" className="hover:text-indigo dark:text-gray-100 transition-colors">FAQ</Link>
-            <Link href="/privacy" className="hover:text-indigo dark:text-gray-100 transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-indigo dark:text-gray-100 transition-colors">Terms</Link>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
