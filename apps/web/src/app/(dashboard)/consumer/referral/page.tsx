@@ -11,10 +11,9 @@ import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 interface ReferralData {
   referralCode: string
-  referralUrl: string
-  totalReferrals: number
+  shareUrl: string
+  referralsMade: number
   creditsEarnedCents: number
-  creditsBalanceCents: number
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -53,9 +52,9 @@ export default function ConsumerReferralPage() {
   }, [fetchData])
 
   async function copyLink() {
-    if (!data?.referralUrl) return
+    if (!data?.shareUrl) return
     try {
-      await navigator.clipboard.writeText(data.referralUrl)
+      await navigator.clipboard.writeText(data.shareUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -103,7 +102,7 @@ export default function ConsumerReferralPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-sm bg-gray-100 dark:bg-[#252836] border border-gray-200 dark:border-[#2A2D3E] px-3 py-2.5 rounded-lg font-mono text-gray-700 dark:text-gray-300 truncate">
-                  {data.referralUrl}
+                  {data.shareUrl}
                 </code>
                 <Button onClick={copyLink} className="shrink-0">
                   {copied ? 'Copied!' : 'Copy'}
@@ -116,10 +115,10 @@ export default function ConsumerReferralPage() {
           </Card>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
               <CardContent className="p-6 text-center">
-                <p className="text-3xl font-bold text-indigo dark:text-gray-100">{data.totalReferrals}</p>
+                <p className="text-3xl font-bold text-indigo dark:text-gray-100">{data.referralsMade}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Referrals</p>
               </CardContent>
             </Card>
@@ -127,12 +126,6 @@ export default function ConsumerReferralPage() {
               <CardContent className="p-6 text-center">
                 <p className="text-3xl font-bold text-green-600 dark:text-green-400">{formatCents(data.creditsEarnedCents)}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Credits Earned</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6 text-center">
-                <p className="text-3xl font-bold text-indigo dark:text-gray-100">{formatCents(data.creditsBalanceCents)}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Credits Balance</p>
               </CardContent>
             </Card>
           </div>
