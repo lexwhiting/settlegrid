@@ -6,6 +6,7 @@ import { Features } from '@/components/marketing/features'
 import { SmartProxy } from '@/components/marketing/smart-proxy'
 import { Protocols } from '@/components/marketing/protocols'
 import { UseCases } from '@/components/marketing/use-cases'
+import { Distribution } from '@/components/marketing/distribution'
 import { Onboarding } from '@/components/marketing/onboarding'
 import { PricingSection } from '@/components/marketing/pricing-section'
 import { CTASection } from '@/components/marketing/cta-section'
@@ -80,6 +81,8 @@ export default function HomePage() {
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <Protocols />
       <UseCases />
+      <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
+      <Distribution />
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
       <PricingSection />
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>
