@@ -84,13 +84,13 @@ interface DiscoverTool {
 
 server.tool(
   "search_tools",
-  "Search for monetized AI tools on the SettleGrid marketplace",
+  "Search the SettleGrid marketplace for AI tools by keyword, category, price, or rating. Returns tool names, slugs, descriptions, pricing, and developer info.",
   {
-    query: z.string().optional().describe("Free-text search query"),
+    query: z.string().optional().describe("Free-text search query (e.g. 'weather', 'translate', 'sentiment')"),
     category: z
       .string()
       .optional()
-      .describe("Filter by tool category (e.g. finance, weather, ai)"),
+      .describe("Filter by tool category (e.g. finance, weather, ai). Use list_categories to see all options."),
     limit: z
       .number()
       .int()
@@ -135,11 +135,13 @@ interface ToolDetail {
 
 server.tool(
   "get_tool",
-  "Get full details for a specific tool on SettleGrid by its slug",
+  "Retrieve full details for a specific tool by its slug, including description, pricing, developer info, reviews, and quick-start code snippets.",
   {
     slug: z
       .string()
-      .describe("The unique slug of the tool (e.g. settlegrid-weather-api)"),
+      .min(1)
+      .max(128)
+      .describe("The unique slug of the tool (e.g. 'wikipedia', 'forex-rates', 'dad-jokes')"),
   },
   async ({ slug }) => {
     try {
@@ -164,7 +166,7 @@ interface Category {
 
 server.tool(
   "list_categories",
-  "List all available tool categories on the SettleGrid marketplace",
+  "List all available tool categories on the SettleGrid marketplace with the number of tools in each category.",
   {},
   async () => {
     try {
@@ -191,11 +193,13 @@ interface DeveloperProfile {
 
 server.tool(
   "get_developer",
-  "Get a developer's public profile and published tools on SettleGrid",
+  "Get a developer's public profile, bio, reputation score, and their published tools on SettleGrid.",
   {
     slug: z
       .string()
-      .describe("The developer's unique profile slug"),
+      .min(1)
+      .max(128)
+      .describe("The developer's unique profile slug (returned by search_tools and get_tool)"),
   },
   async ({ slug }) => {
     try {
