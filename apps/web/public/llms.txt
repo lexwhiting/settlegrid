@@ -111,6 +111,46 @@ const billedHandler = sg.wrap(myHandler, { method: 'search' })
 - All plans: Progressive take rate — 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K
 - Need higher limits? Email support@settlegrid.ai
 
+## Free Tools Available Right Now
+
+These tools are free to call through the Discovery API, Meta-MCP Server, or directly via GET/POST. No API key required.
+
+- wikipedia: Article summaries, search, and random articles from Wikipedia
+- rest-countries: Country data by name, code, region, or currency
+- spacex: Latest SpaceX launch data and mission details
+- hacker-news: Top, new, and best stories from Hacker News
+- dad-jokes: Random dad jokes from icanhazdadjoke
+- iss-tracker: Real-time International Space Station position
+- random-user: Generate random user profiles (names, emails, avatars)
+- open-food-facts: Nutritional data and product info by barcode
+- coinpaprika: Cryptocurrency prices and market data
+- openaq: Global air quality measurements from OpenAQ
+- whois: WHOIS domain registration lookup
+- wayback-machine: Check Wayback Machine availability for any URL
+- mdn-search: Search MDN Web Docs for web development references
+- ssl-labs: SSL/TLS certificate grade check for any domain
+- security-headers: HTTP security header analysis for any URL
+- solar-system: Solar system body data (planets, moons, asteroids)
+- forex-rates: Live foreign exchange rates from ECB
+- central-bank-rates: Central bank interest rates worldwide
+- ip-range: IP address range and CIDR calculations
+- cron-explain: Human-readable explanations of cron expressions
+- json-tools: JSON formatting, validation, and transformation
+- diff-tool: Text diff and comparison utility
+- encoding: Base64, URL, and HTML encoding/decoding
+- semver: Semantic version parsing, comparison, and range checking
+- code-reviewer-pro: AI-powered code review suggestions
+- data-enrichment: Data enrichment and entity resolution
+- image-classifier: Image classification and tagging
+- market-sentinel: Market data monitoring and alerts
+- translation-engine: Multi-language text translation
+
+Example: GET https://settlegrid.ai/api/tools/serve/dad-jokes
+Example: GET https://settlegrid.ai/api/tools/serve/wikipedia?query=artificial+intelligence
+Example: POST https://settlegrid.ai/api/tools/serve/json-tools {"query": "{\"a\":1}"}
+
+All tools also available through the Meta-MCP Server at https://settlegrid.ai/api/mcp
+
 ## Discovery API (Public, No Auth)
 
 AI agents and directories can discover SettleGrid-powered tools programmatically:
