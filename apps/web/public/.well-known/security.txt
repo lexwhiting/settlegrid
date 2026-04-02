@@ -1,0 +1,5 @@
+Contact: mailto:security@settlegrid.ai
+Expires: 2027-04-02T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://settlegrid.ai/.well-known/security.txt
+Policy: https://settlegrid.ai/privacy
