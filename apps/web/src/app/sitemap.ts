@@ -116,6 +116,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // ── Standalone pages ─────────────────────────────────────────────────────
     {
+      url: `${BASE_URL}/free-tools`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
       url: `${BASE_URL}/pricing`,
       lastModified: now,
       changeFrequency: 'weekly',

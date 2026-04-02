@@ -2511,3 +2511,75 @@ ${dividerLine()}
     ),
   }
 }
+
+// ── Ecosystem Newsletter ──────────────────────────────────────────────────
+
+export interface EcosystemNewsletterData {
+  npmDownloads: number | null
+  githubStars: number | null
+  newToolsCount: number
+  totalActiveTools: number
+  trendingCategories: string[]
+  highlightTools: Array<{ name: string; slug: string; description: string }>
+  recipientEmail: string
+}
+
+export function ecosystemNewsletterEmail(data: EcosystemNewsletterData): EmailTemplate {
+  const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  const statsHtml = [
+    data.npmDownloads !== null
+      ? `<td align="center" style="padding:8px 12px"><div style="font-size:20px;font-weight:700;color:#E5A336;font-family:${FONT_STACK}">${data.npmDownloads.toLocaleString()}</div><div style="font-size:11px;color:#9ca3af;font-family:${FONT_STACK}">npm downloads/week</div></td>`
+      : '',
+    data.githubStars !== null
+      ? `<td align="center" style="padding:8px 12px"><div style="font-size:20px;font-weight:700;color:#E5A336;font-family:${FONT_STACK}">${data.githubStars.toLocaleString()}</div><div style="font-size:11px;color:#9ca3af;font-family:${FONT_STACK}">GitHub stars</div></td>`
+      : '',
+    `<td align="center" style="padding:8px 12px"><div style="font-size:20px;font-weight:700;color:#E5A336;font-family:${FONT_STACK}">${data.totalActiveTools.toLocaleString()}</div><div style="font-size:11px;color:#9ca3af;font-family:${FONT_STACK}">active tools</div></td>`,
+    `<td align="center" style="padding:8px 12px"><div style="font-size:20px;font-weight:700;color:#E5A336;font-family:${FONT_STACK}">+${data.newToolsCount}</div><div style="font-size:11px;color:#9ca3af;font-family:${FONT_STACK}">new this month</div></td>`,
+  ]
+    .filter(Boolean)
+    .join('')
+
+  const toolsListHtml = data.highlightTools.length > 0
+    ? `<p class="sg-text" style="color:#374151;font-size:14px;font-weight:600;margin:16px 0 8px;font-family:${FONT_STACK}">Notable new tools</p>
+<ul style="padding-left:20px;margin:0 0 16px">${data.highlightTools
+        .slice(0, 5)
+        .map(
+          (t) =>
+            `<li style="margin-bottom:6px;font-size:13px;color:#374151;font-family:${FONT_STACK}"><a href="https://settlegrid.ai/tools/${escapeHtml(t.slug)}" style="color:#E5A336;text-decoration:none;font-weight:600">${escapeHtml(t.name)}</a> &mdash; ${escapeHtml(t.description.slice(0, 100))}</li>`,
+        )
+        .join('')}</ul>`
+    : ''
+
+  const categoriesHtml = data.trendingCategories.length > 0
+    ? `<p class="sg-text" style="color:#374151;font-size:14px;font-weight:600;margin:16px 0 8px;font-family:${FONT_STACK}">Trending categories</p>
+<p style="font-size:13px;color:#6b7280;margin:0 0 16px;font-family:${FONT_STACK}">${data.trendingCategories.map((c) => escapeHtml(c)).join(', ')}</p>`
+    : ''
+
+  return {
+    subject: `State of AI Tools - ${month} | SettleGrid`,
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;font-size:20px;font-weight:700;margin:0 0 8px;font-family:${FONT_STACK}">State of AI Tools - ${escapeHtml(month)}</h2>
+<p class="sg-text" style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 20px;font-family:${FONT_STACK}">
+  Here is what happened in the AI tools ecosystem this month.
+</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px;background:#f9fafb;border-radius:8px">
+  <tr>${statsHtml}</tr>
+</table>
+
+${toolsListHtml}
+${categoriesHtml}
+
+${ctaButton('Explore the marketplace', 'https://settlegrid.ai/marketplace')}
+${dividerLine()}
+<p style="color:#9ca3af;font-size:11px;line-height:1.5;margin:8px 0 0;text-align:center;font-family:${FONT_STACK}">
+  You are receiving this because you subscribed to the SettleGrid newsletter.
+  <a href="https://settlegrid.ai/api/newsletter/unsubscribe?email=${encodeURIComponent(data.recipientEmail)}" style="color:#9ca3af;text-decoration:underline">Unsubscribe</a>
+</p>
+`,
+      { preheader: `${data.totalActiveTools} tools, +${data.newToolsCount} new this month on SettleGrid.` },
+    ),
+  }
+}

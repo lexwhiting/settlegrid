@@ -24,6 +24,13 @@ interface CreditPack {
 
 const CREDIT_PACKS: CreditPack[] = [
   {
+    id: 'pack_20',
+    label: '$20 Starter Pack',
+    creditAmountCents: 2000,
+    priceCents: 2000,   // $20 (no discount — low-commitment entry)
+    discountPct: 0,
+  },
+  {
     id: 'pack_100',
     label: '$100 Credit Pack',
     creditAmountCents: 10000,
@@ -50,8 +57,10 @@ function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey())
 }
 
+const VALID_PACK_IDS = ['pack_20', 'pack_100', 'pack_500', 'pack_1000'] as const
+
 const purchaseSchema = z.object({
-  packId: z.enum(['pack_100', 'pack_500', 'pack_1000']),
+  packId: z.enum(VALID_PACK_IDS),
 })
 
 // ─── Route Handlers ──────────────────────────────────────────────────────────

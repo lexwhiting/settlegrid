@@ -3,8 +3,24 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import { getRedis, tryRedis } from '@/lib/redis'
 
 export const maxDuration = 10
+
+const BADGE_TTL_SECONDS = 90 * 24 * 60 * 60 // 90 days
+
+/** Fire-and-forget Redis tracking for embed badge impressions */
+function trackEmbedImpression(slug: string): void {
+  const date = new Date().toISOString().slice(0, 10)
+  void tryRedis(async () => {
+    const redis = getRedis()
+    const key = `badge:impressions:${slug}:${date}`
+    const pipeline = redis.pipeline()
+    pipeline.incr(key)
+    pipeline.expire(key, BADGE_TTL_SECONDS)
+    await pipeline.exec()
+  })
+}
 
 function escapeJsString(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n')
@@ -74,6 +90,9 @@ export async function GET(request: NextRequest) {
     const price = escapeJsString(formatCents(costCents))
     const calls = escapeJsString(formatCallCount(tool.totalInvocations))
     const toolUrl = `https://settlegrid.ai/tools/${escapeJsString(tool.slug)}`
+
+    // Fire-and-forget embed impression tracking
+    trackEmbedImpression(tool.slug)
 
     logger.info('badge.embed_served', { slug })
 
