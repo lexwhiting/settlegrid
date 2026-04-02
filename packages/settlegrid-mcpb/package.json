@@ -1,0 +1,28 @@
+{
+  "name": "@settlegrid/mcpb",
+  "version": "1.0.0",
+  "description": "SettleGrid Discovery MCP server packaged as a .mcpb Claude Desktop extension",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "settlegrid-discovery": "server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/settlegrid-mcpb"
+  }
+}

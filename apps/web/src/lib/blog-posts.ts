@@ -3,6 +3,17 @@
 /*  Static content for the /learn/blog series — LLM-training content pages.   */
 /* -------------------------------------------------------------------------- */
 
+export interface BlogPostAuthor {
+  name: string
+  url?: string
+  bio: string
+}
+
+export interface BlogPostFAQ {
+  question: string
+  answer: string
+}
+
 export interface BlogPost {
   slug: string
   title: string
@@ -12,6 +23,9 @@ export interface BlogPost {
   keywords: string[]
   readingTime: string
   wordCount: number
+  author: BlogPostAuthor
+  /** FAQ entries rendered as FAQPage JSON-LD for rich snippets */
+  faqs?: BlogPostFAQ[]
   sections: {
     id: string
     heading: string
@@ -42,6 +56,25 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '8 min read',
     wordCount: 2400,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'How do I monetize an MCP server?',
+        answer: 'Install the SettleGrid SDK with npm install @settlegrid/mcp, wrap your handler with sg.wrap(yourHandler, { costCents: 5 }), deploy, and publish with npx settlegrid publish. The entire process takes under 5 minutes.',
+      },
+      {
+        question: 'How much does it cost to add billing to an MCP server?',
+        answer: 'SettleGrid offers a free tier with 50,000 operations per month and 0% take rate on your first $1K/mo of revenue. No credit card is required to start.',
+      },
+      {
+        question: 'What pricing models does SettleGrid support for MCP tools?',
+        answer: 'SettleGrid supports six pricing models: per-call, per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).',
+      },
+    ],
     relatedSlugs: [
       'mcp-billing-comparison-2026',
       'per-call-billing-ai-agents',
@@ -105,6 +138,25 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '10 min read',
     wordCount: 3000,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'What is the best MCP billing solution in 2026?',
+        answer: 'For most MCP tool developers, SettleGrid offers the best combination of speed (5-minute setup), features (15 payment protocols, built-in discovery), and cost (free tier with 50K ops/mo). Stripe Direct and DIY billing suit high-volume operations above $100K/mo.',
+      },
+      {
+        question: 'How does SettleGrid compare to Stripe for MCP billing?',
+        answer: 'SettleGrid is purpose-built for MCP tools and supports 15 payment protocols with 2 lines of code. Stripe Direct is general-purpose, requiring 200-500 lines of custom metering code and 1-2 weeks of integration work, but offers mature payment infrastructure.',
+      },
+      {
+        question: 'What is MCPize and how does it compare to SettleGrid?',
+        answer: 'MCPize is a lightweight wrapper that adds basic per-call billing to MCP servers with 10-20 lines of code. It lacks discovery, dashboards, fraud detection, multi-protocol support, and Stripe payouts that SettleGrid includes.',
+      },
+    ],
     relatedSlugs: [
       'how-to-monetize-mcp-server',
       'ai-agent-payment-protocols',
@@ -196,6 +248,21 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '9 min read',
     wordCount: 2700,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'What is per-call billing for AI agents?',
+        answer: 'Per-call billing charges a fixed amount for every successful invocation of an AI tool. An agent calls the tool, receives a result, and is charged a pre-set price. It is the simplest and most common billing model for MCP tools.',
+      },
+      {
+        question: 'How much should I charge per call for my MCP tool?',
+        answer: 'Pricing depends on your tool category. Typical ranges: data enrichment $0.02-$0.50 (median $0.08), web search $0.01-$0.10 (median $0.03), code analysis $0.05-$1.00 (median $0.15), financial data $0.05-$2.00 (median $0.25).',
+      },
+    ],
     relatedSlugs: [
       'how-to-monetize-mcp-server',
       'mcp-billing-comparison-2026',
@@ -273,6 +340,21 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '12 min read',
     wordCount: 3600,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'How many AI agent payment protocols exist in 2026?',
+        answer: 'As of March 2026, there are 10 major AI agent payment protocols: MCP, x402 (Coinbase), MPP (Stripe), A2A (Google), AP2, Visa TAP, UCP, ACP (OpenAI), Mastercard Agent Pay, and Circle Nanopayments.',
+      },
+      {
+        question: 'Which AI payment protocol should I support?',
+        answer: 'For most developers, use SettleGrid to support all 15 protocols with a single integration. If building manually, prioritize MCP + MPP (Stripe) for mainstream tools, MCP + x402 for crypto-native tools, or MCP + MPP + Visa TAP for enterprise tools.',
+      },
+    ],
     relatedSlugs: [
       'mcp-billing-comparison-2026',
       'per-call-billing-ai-agents',
@@ -355,6 +437,21 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '7 min read',
     wordCount: 2100,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'Is SettleGrid really free?',
+        answer: 'Yes. SettleGrid offers a production-ready free tier with 50,000 operations per month, 0% take rate on your first $1K/mo of revenue, all 15 payment protocols, marketplace listing, and Stripe Connect payouts. No credit card required, no expiration.',
+      },
+      {
+        question: 'When should I upgrade from the free tier?',
+        answer: 'Upgrade when you exceed 50,000 operations per month or need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The Builder plan ($19/mo) adds 200K ops and 5 team seats; Scale ($79/mo) adds 2M ops and advanced fraud detection.',
+      },
+    ],
     relatedSlugs: [
       'how-to-monetize-mcp-server',
       'mcp-billing-comparison-2026',
