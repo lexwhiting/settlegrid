@@ -17,7 +17,7 @@ import {
   claimAgentToolEmail,
   type EmailTemplate,
 } from '@/lib/email'
-import { resolveCreatorEmail } from '@/lib/ecosystem-email-resolver'
+import { resolveCreatorEmailWithBackfill } from '@/lib/ecosystem-email-resolver'
 
 export const maxDuration = 120
 
@@ -232,10 +232,29 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        const creator = await resolveCreatorEmail(
+        const { creator, discoveredGitHubUrl } = await resolveCreatorEmailWithBackfill(
           tool.sourceRepoUrl,
           tool.sourceEcosystem
         )
+
+        // Backfill: if we discovered a better GitHub URL for a non-GitHub source,
+        // update the tool's source_repo_url so future runs don't need cross-referencing.
+        if (discoveredGitHubUrl && !tool.sourceRepoUrl.includes('github.com')) {
+          await db
+            .update(tools)
+            .set({
+              sourceRepoUrl: discoveredGitHubUrl,
+              updatedAt: new Date(),
+            })
+            .where(eq(tools.id, tool.id))
+
+          logger.info('cron.claim_outreach.backfill_source_url', {
+            slug: tool.slug,
+            oldUrl: tool.sourceRepoUrl.slice(0, 100),
+            newUrl: discoveredGitHubUrl.slice(0, 100),
+          })
+        }
+
         if (!creator) {
           logger.info('cron.claim_outreach.no_email', {
             slug: tool.slug,
@@ -276,13 +295,16 @@ export async function GET(request: NextRequest) {
           continue
         }
 
+        // Use the discovered GitHub URL in the email template if we backfilled it
+        const effectiveSourceUrl = discoveredGitHubUrl ?? tool.sourceRepoUrl
+
         // Select and build the appropriate email template
         const emailTemplate = selectEmailTemplate(
           firstName,
           tool.name,
           claimToken,
           tool.toolType,
-          tool.sourceRepoUrl,
+          effectiveSourceUrl,
           tool.sourceEcosystem,
           creator.email,
           tool.slug
