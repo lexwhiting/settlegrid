@@ -101,7 +101,7 @@
     },
     {
       "path": "/api/cron/newsletter",
-      "schedule": "0 12 1 * *"
+      "schedule": "0 12 * * 1"
     }
   ]
 }

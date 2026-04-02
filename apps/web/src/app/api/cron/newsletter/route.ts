@@ -45,9 +45,11 @@ async function getEcosystemMetrics(): Promise<{
 }
 
 /**
- * Vercel Cron handler: sends monthly ecosystem newsletter.
+ * Vercel Cron handler: sends ecosystem newsletter.
  *
- * Schedule: 1st of month at noon UTC (0 12 1 * *)
+ * Schedule: every Monday at noon UTC (0 12 * * 1)
+ * Weekly subscribers get it every Monday.
+ * Monthly subscribers get it only on the first Monday of the month (day <= 7).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -119,13 +121,21 @@ export async function GET(request: NextRequest) {
     // Get ecosystem metrics from Redis
     const ecosystemMetrics = await getEcosystemMetrics()
 
-    // Get subscribed consumers
+    // Determine which frequency group to send to this run
+    // Weekly: every Monday. Monthly: only first Monday of the month (day <= 7).
+    const today = new Date()
+    const isFirstWeekOfMonth = today.getUTCDate() <= 7
+    const frequencyFilter = isFirstWeekOfMonth
+      ? sql`${consumers.newsletterFrequency} IN ('weekly', 'monthly')` // Both groups
+      : eq(consumers.newsletterFrequency, 'weekly') // Weekly only
+
+    // Get subscribed consumers matching frequency
     const subscribers = await db
       .select({
         email: consumers.email,
       })
       .from(consumers)
-      .where(eq(consumers.newsletterSubscribed, true))
+      .where(sql`${consumers.newsletterSubscribed} = true AND ${frequencyFilter}`)
       .limit(MAX_RECIPIENTS_PER_RUN)
 
     if (subscribers.length === 0) {
