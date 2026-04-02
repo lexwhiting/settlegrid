@@ -6,6 +6,15 @@
  *
  * Delegates to ecosystem-specific resolvers, falling back to GitHub
  * when a repository link is discovered in package metadata.
+ *
+ * Smithery resolution pipeline (in order):
+ *   0. qualifiedName → GitHub repo (e.g. "upstash/context7-mcp" → github.com/upstash/context7-mcp)
+ *   1. Smithery API connections[] for GitHub URLs
+ *   2. Smithery HTML page scraping for GitHub links
+ *   3. Official MCP Registry cross-reference for repository.url
+ *   4. npm search by tool name for author/maintainer email
+ *   5. GitHub Search API for repos matching tool name
+ *   6. PulseMCP v0beta (sunset fallback)
  */
 
 import { logger } from '@/lib/logger'
@@ -26,6 +35,8 @@ export interface ResolvedCreator {
   name: string | null
   username: string
   ecosystem: string
+  /** Internal: GitHub URL discovered during Smithery cross-referencing, for source_repo_url backfill */
+  _discoveredGitHubUrl?: string
 }
 
 // ─── npm Types ──────────────────────────────────────────────────────────────
@@ -44,6 +55,67 @@ interface NpmPackageMetadata {
   author?: NpmAuthor | string
   maintainers?: NpmMaintainer[]
   name?: string
+}
+
+// ─── npm Search Types ──────────────────────────────────────────────────────
+
+interface NpmSearchPublisher {
+  email?: string
+  username?: string
+}
+
+interface NpmSearchPackage {
+  name: string
+  publisher?: NpmSearchPublisher
+  maintainers?: NpmMaintainer[]
+  author?: NpmAuthor | string
+}
+
+interface NpmSearchObject {
+  package: NpmSearchPackage
+  searchScore?: number
+}
+
+interface NpmSearchResult {
+  objects?: NpmSearchObject[]
+}
+
+// ─── MCP Registry Types ────────────────────────────────────────────────────
+
+interface McpRegistryRepository {
+  url?: string
+  source?: string
+}
+
+interface McpRegistryServer {
+  name?: string
+  repository?: McpRegistryRepository
+}
+
+interface McpRegistryEntry {
+  server: McpRegistryServer
+}
+
+interface McpRegistrySearchResult {
+  servers?: McpRegistryEntry[]
+}
+
+// ─── GitHub Search Types ────────────────────────────────────────────────────
+
+interface GitHubSearchRepoOwner {
+  login: string
+}
+
+interface GitHubSearchRepoItem {
+  full_name: string
+  name: string
+  owner: GitHubSearchRepoOwner
+  html_url: string
+}
+
+interface GitHubSearchResult {
+  total_count: number
+  items?: GitHubSearchRepoItem[]
 }
 
 // ─── PyPI Types ─────────────────────────────────────────────────────────────
@@ -255,6 +327,7 @@ function detectEcosystemFromUrl(url: string): string | null {
       return 'huggingface'
     if (host === 'apify.com' || host === 'www.apify.com') return 'apify'
     if (host === 'gitlab.com' || host === 'www.gitlab.com') return 'gitlab'
+    if (host === 'smithery.ai' || host === 'www.smithery.ai' || host === 'registry.smithery.ai') return 'smithery'
 
     return null
   } catch {
@@ -707,17 +780,164 @@ async function resolveWebsiteEmail(
 
 // ─── Smithery → GitHub Cross-Reference ───────────────────────────────────────
 
+/** GitHub-generic exclusion patterns for filtering out framework/docs repos */
+const GITHUB_GENERIC_OWNERS = new Set([
+  'smithery',
+  'smithery-ai',
+  'modelcontextprotocol',
+  'anthropics',
+  'anthropic',
+])
+
 /**
- * Cross-references a Smithery server URL with PulseMCP to find the GitHub source repo.
- * Smithery URLs like "smithery.ai/servers/foo" don't contain developer contact info,
- * but PulseMCP indexes the same servers and provides source_code_url (usually GitHub).
+ * Cross-references a Smithery server URL with multiple sources to find the GitHub repo.
+ * Smithery URLs like "smithery.ai/servers/foo" don't contain developer contact info.
+ *
+ * Strategy order (most reliable first):
+ *   0. qualifiedName → GitHub (e.g. "upstash/context7-mcp" → github.com/upstash/context7-mcp)
+ *   1. Smithery registry API connections[] for GitHub URLs
+ *   2. Smithery HTML page scraping for GitHub links
+ *   3. Official MCP Registry cross-reference for repository.url
+ *   4. GitHub Search API for repos matching tool name
+ *   5. PulseMCP v0beta (sunset fallback, ~10% failure rate)
  */
 async function resolveSmitheryToGitHub(smitheryUrl: string): Promise<string | null> {
-  // Extract server name from URL: "https://smithery.ai/servers/agentmail" → "agentmail"
-  const match = smitheryUrl.match(/smithery\.ai\/servers?\/([^/?#]+)/)
+  // Extract server path from URL: "https://smithery.ai/servers/upstash/context7-mcp" → "upstash/context7-mcp"
+  const match = smitheryUrl.match(/smithery\.ai\/servers?\/(.+?)(?:\?|#|$)/)
   if (!match) return null
-  const serverName = match[1]
+  const serverPath = match[1].replace(/\/+$/, '')
 
+  // Strategy 0: qualifiedName → GitHub repo
+  // Many Smithery qualifiedNames are "{githubOwner}/{repoName}" (81 of 97 pending).
+  // Try GitHub API HEAD request to verify the repo exists.
+  if (serverPath.includes('/')) {
+    const [owner, repo] = serverPath.split('/')
+    if (owner && repo) {
+      const githubUrl = `https://github.com/${owner}/${repo}`
+      const verified = await verifyGitHubRepo(owner, repo)
+      if (verified) {
+        logger.info('ecosystem_email_resolver.smithery_qualifiedname_github', {
+          serverPath,
+          githubUrl,
+        })
+        return githubUrl
+      }
+
+      // The owner might be the GitHub user but repo name differs slightly.
+      // Try the owner's GitHub profile — if it exists, it's a valid lead.
+      const ownerExists = await verifyGitHubUser(owner)
+      if (ownerExists) {
+        // Search the owner's repos for a matching name
+        const repoUrl = await searchOwnerRepos(owner, repo)
+        if (repoUrl) {
+          logger.info('ecosystem_email_resolver.smithery_owner_repo_search', {
+            serverPath,
+            githubUrl: repoUrl,
+          })
+          return repoUrl
+        }
+      }
+    }
+  }
+
+  // Strategy 1: Smithery registry API (connections may contain GitHub URLs)
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    const res = await fetch(
+      `https://registry.smithery.ai/servers/${encodeURIComponent(serverPath)}`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      }
+    )
+
+    clearTimeout(timeout)
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, unknown>
+      // Check connections for GitHub URLs
+      if (Array.isArray(data.connections)) {
+        for (const conn of data.connections) {
+          const url =
+            typeof (conn as Record<string, unknown>)?.url === 'string'
+              ? ((conn as Record<string, unknown>).url as string)
+              : ''
+          if (url.includes('github.com')) {
+            logger.info('ecosystem_email_resolver.smithery_api_github_found', {
+              serverPath,
+              githubUrl: url,
+            })
+            return url
+          }
+        }
+      }
+    }
+  } catch {
+    // Continue to next strategy
+  }
+
+  // Strategy 2: Scrape the Smithery HTML page for GitHub links
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    const res = await fetch(
+      `https://smithery.ai/server/${encodeURIComponent(serverPath)}`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'text/html' },
+      }
+    )
+
+    clearTimeout(timeout)
+    if (res.ok) {
+      const html = await res.text()
+      const githubMatches = html.match(
+        /https:\/\/github\.com\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+/g
+      )
+      if (githubMatches && githubMatches.length > 0) {
+        const repoUrl =
+          githubMatches.find(
+            (url) =>
+              !GITHUB_GENERIC_OWNERS.has(
+                url.split('/')[3]?.toLowerCase() ?? ''
+              )
+          ) ?? githubMatches[0]
+
+        logger.info('ecosystem_email_resolver.smithery_html_github_found', {
+          serverPath,
+          githubUrl: repoUrl,
+        })
+        return repoUrl
+      }
+    }
+  } catch {
+    // Continue to fallback
+  }
+
+  // Strategy 3: Official MCP Registry cross-reference
+  const serverName = serverPath.split('/').pop() ?? serverPath
+  const mcpRegistryUrl = await resolveViaMcpRegistry(serverName)
+  if (mcpRegistryUrl) {
+    logger.info('ecosystem_email_resolver.smithery_mcp_registry_found', {
+      serverPath,
+      githubUrl: mcpRegistryUrl,
+    })
+    return mcpRegistryUrl
+  }
+
+  // Strategy 4: GitHub Search API for repos matching tool name
+  const githubSearchUrl = await resolveViaGitHubSearch(serverName)
+  if (githubSearchUrl) {
+    logger.info('ecosystem_email_resolver.smithery_github_search_found', {
+      serverPath,
+      githubUrl: githubSearchUrl,
+    })
+    return githubSearchUrl
+  }
+
+  // Strategy 5: PulseMCP v0beta as last resort (being sunset, ~10% failures)
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -731,23 +951,398 @@ async function resolveSmitheryToGitHub(smitheryUrl: string): Promise<string | nu
     )
 
     clearTimeout(timeout)
-    if (!res.ok) return null
-
-    const data = (await res.json()) as { servers?: Array<{ name?: string; source_code_url?: string }> }
-    if (!Array.isArray(data.servers)) return null
-
-    // Find a matching server with a GitHub source_code_url
-    for (const server of data.servers) {
-      const name = typeof server.name === 'string' ? server.name.toLowerCase() : ''
-      if (name.includes(serverName.toLowerCase()) || serverName.toLowerCase().includes(name)) {
-        if (typeof server.source_code_url === 'string' && server.source_code_url.includes('github.com')) {
-          logger.info('ecosystem_email_resolver.smithery_cross_ref_found', {
-            smitheryServer: serverName,
-            githubUrl: server.source_code_url,
-          })
-          return server.source_code_url
+    if (res.ok) {
+      const data = (await res.json()) as {
+        servers?: Array<{ name?: string; source_code_url?: string }>
+      }
+      if (Array.isArray(data.servers)) {
+        for (const server of data.servers) {
+          const name =
+            typeof server.name === 'string' ? server.name.toLowerCase() : ''
+          if (
+            name.includes(serverName.toLowerCase()) ||
+            serverName.toLowerCase().includes(name)
+          ) {
+            if (
+              typeof server.source_code_url === 'string' &&
+              server.source_code_url.includes('github.com')
+            ) {
+              logger.info('ecosystem_email_resolver.smithery_pulsemcp_found', {
+                serverPath,
+                githubUrl: server.source_code_url,
+              })
+              return server.source_code_url
+            }
+          }
         }
       }
+    }
+  } catch {
+    // All strategies exhausted
+  }
+
+  logger.info('ecosystem_email_resolver.smithery_no_github', { serverPath })
+  return null
+}
+
+// ─── GitHub Verification Helpers ─────────────────────────────────────────────
+
+/**
+ * Verify that a GitHub repo exists using a HEAD request (minimal API cost).
+ * Returns true if the repo exists (200 or 301 redirect).
+ */
+async function verifyGitHubRepo(owner: string, repo: string): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+      {
+        method: 'HEAD',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    )
+    clearTimeout(timeout)
+    // 200 = exists, 301 = moved/renamed (still valid)
+    return res.status === 200 || res.status === 301
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Verify that a GitHub user/org exists.
+ */
+async function verifyGitHubUser(username: string): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/users/${encodeURIComponent(username)}`,
+      {
+        method: 'HEAD',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    )
+    clearTimeout(timeout)
+    return res.status === 200
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Search a GitHub user/org's repos for a name matching the tool.
+ * Handles cases where the repo name slightly differs from the Smithery qualifiedName.
+ */
+async function searchOwnerRepos(
+  owner: string,
+  toolName: string
+): Promise<string | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/search/repositories?q=user:${encodeURIComponent(owner)}+${encodeURIComponent(toolName)}+in:name&per_page=5`,
+      {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    )
+    clearTimeout(timeout)
+    if (!res.ok) return null
+
+    const data = (await res.json()) as GitHubSearchResult
+    if (!data.items || data.items.length === 0) return null
+
+    // Prefer exact name match, then closest partial match
+    const exactMatch = data.items.find(
+      (item) => item.name.toLowerCase() === toolName.toLowerCase()
+    )
+    if (exactMatch) return exactMatch.html_url
+
+    // Accept first result if the name contains the tool name
+    const partialMatch = data.items.find((item) =>
+      item.name.toLowerCase().includes(toolName.toLowerCase())
+    )
+    if (partialMatch) return partialMatch.html_url
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// ─── Cross-Ecosystem Resolvers ──────────────────────────────────────────────
+
+/**
+ * Search the Official MCP Registry for a tool by name and extract its repository URL.
+ * The registry indexes MCP servers from multiple sources and often provides GitHub URLs.
+ */
+async function resolveViaMcpRegistry(
+  toolName: string
+): Promise<string | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(
+      `https://registry.modelcontextprotocol.io/v0.1/servers?search=${encodeURIComponent(toolName)}`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      }
+    )
+    clearTimeout(timeout)
+    if (!res.ok) return null
+
+    const data = (await res.json()) as McpRegistrySearchResult
+    if (!Array.isArray(data.servers) || data.servers.length === 0) return null
+
+    // Find the best matching server with a GitHub repository URL
+    const toolNameLower = toolName.toLowerCase()
+    for (const entry of data.servers) {
+      const serverName = entry.server.name?.toLowerCase() ?? ''
+      // Check if the server name contains our tool name (or vice versa)
+      if (
+        serverName.includes(toolNameLower) ||
+        toolNameLower.includes(serverName.split('/').pop() ?? '')
+      ) {
+        const repoUrl = entry.server.repository?.url
+        if (
+          typeof repoUrl === 'string' &&
+          repoUrl.includes('github.com')
+        ) {
+          return repoUrl
+        }
+      }
+    }
+
+    // Fallback: return first result with a GitHub repo URL
+    for (const entry of data.servers) {
+      const repoUrl = entry.server.repository?.url
+      if (typeof repoUrl === 'string' && repoUrl.includes('github.com')) {
+        // Only use if the name is reasonably close
+        const serverNameParts = (entry.server.name ?? '').split('/')
+        const lastPart = serverNameParts[serverNameParts.length - 1]?.toLowerCase() ?? ''
+        if (
+          lastPart.includes(toolNameLower) ||
+          toolNameLower.includes(lastPart)
+        ) {
+          return repoUrl
+        }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Search npm for a tool by name and extract author/maintainer email.
+ * Handles scoped packages (@org/name) and unscoped packages.
+ * Returns a ResolvedCreator directly (no GitHub intermediary needed).
+ */
+async function resolveViaNpmSearch(
+  toolName: string
+): Promise<ResolvedCreator | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(
+      `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(toolName)}&size=5`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      }
+    )
+    clearTimeout(timeout)
+    if (!res.ok) return null
+
+    const data = (await res.json()) as NpmSearchResult
+    if (!Array.isArray(data.objects) || data.objects.length === 0) return null
+
+    const toolNameLower = toolName.toLowerCase()
+
+    for (const obj of data.objects) {
+      const pkg = obj.package
+      const pkgNameLower = pkg.name.toLowerCase()
+
+      // Only consider packages whose name contains the tool name (or vice versa)
+      const pkgBaseName = pkgNameLower.includes('/')
+        ? pkgNameLower.split('/').pop() ?? pkgNameLower
+        : pkgNameLower
+      if (
+        !pkgBaseName.includes(toolNameLower) &&
+        !toolNameLower.includes(pkgBaseName)
+      ) {
+        continue
+      }
+
+      // Try publisher.email (most reliable — current owner)
+      if (pkg.publisher?.email && isValidEmail(pkg.publisher.email)) {
+        return {
+          email: pkg.publisher.email,
+          name: pkg.publisher.username ?? null,
+          username: pkg.publisher.username ?? pkg.name,
+          ecosystem: 'npm',
+        }
+      }
+
+      // Try maintainers
+      if (Array.isArray(pkg.maintainers)) {
+        for (const m of pkg.maintainers) {
+          if (m.email && isValidEmail(m.email)) {
+            return {
+              email: m.email,
+              name: m.name ?? null,
+              username: m.name ?? pkg.name,
+              ecosystem: 'npm',
+            }
+          }
+        }
+      }
+
+      // Try author
+      if (pkg.author) {
+        if (typeof pkg.author === 'object' && pkg.author.email && isValidEmail(pkg.author.email)) {
+          return {
+            email: pkg.author.email,
+            name: pkg.author.name ?? null,
+            username: pkg.name,
+            ecosystem: 'npm',
+          }
+        }
+        if (typeof pkg.author === 'string') {
+          const emailMatch = pkg.author.match(/<([^>]+)>/)
+          if (emailMatch && isValidEmail(emailMatch[1])) {
+            const nameMatch = pkg.author.match(/^([^<]+)/)
+            return {
+              email: emailMatch[1],
+              name: nameMatch ? nameMatch[1].trim() : null,
+              username: pkg.name,
+              ecosystem: 'npm',
+            }
+          }
+        }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Search GitHub for repos matching a tool name.
+ * Returns the first matching repo URL (for tools that might have a GitHub repo
+ * but no other cross-reference available).
+ */
+async function resolveViaGitHubSearch(
+  toolName: string
+): Promise<string | null> {
+  // Only search for names that are specific enough (avoid generic terms)
+  if (toolName.length < 4) return null
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/search/repositories?q=${encodeURIComponent(toolName)}+in:name&per_page=5&sort=stars&order=desc`,
+      {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    )
+    clearTimeout(timeout)
+    if (!res.ok) return null
+
+    const data = (await res.json()) as GitHubSearchResult
+    if (!data.items || data.items.length === 0) return null
+
+    const toolNameLower = toolName.toLowerCase()
+
+    // Prefer exact name match
+    const exactMatch = data.items.find(
+      (item) => item.name.toLowerCase() === toolNameLower
+    )
+    if (exactMatch) return exactMatch.html_url
+
+    // Accept the first result if it closely matches
+    const closeMatch = data.items.find((item) => {
+      const itemName = item.name.toLowerCase()
+      return (
+        itemName.includes(toolNameLower) ||
+        toolNameLower.includes(itemName)
+      )
+    })
+    if (closeMatch) return closeMatch.html_url
+
+    return null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Extract the tool name from a source URL for cross-ecosystem lookups.
+ * Used when the primary resolver fails and we need to search npm/GitHub/MCP Registry.
+ */
+function extractToolNameFromUrl(sourceUrl: string): string | null {
+  try {
+    const parsed = new URL(sourceUrl)
+    const segments = parsed.pathname.split('/').filter((s) => s.length > 0)
+
+    // Smithery: /servers/owner/name or /servers/name
+    if (parsed.hostname.includes('smithery')) {
+      const idx = segments.indexOf('servers') ?? segments.indexOf('server')
+      if (idx !== -1 && segments.length > idx + 1) {
+        return segments[segments.length - 1]
+      }
+    }
+
+    // MCP Registry: name is usually the tool name itself
+    if (parsed.hostname.includes('modelcontextprotocol')) {
+      return null // No useful name in the registry base URL
+    }
+
+    // Generic: last path segment
+    if (segments.length > 0) {
+      return segments[segments.length - 1]
     }
 
     return null
@@ -762,10 +1357,10 @@ async function resolveSmitheryToGitHub(smitheryUrl: string): Promise<string | nu
  * Strategy:
  * 1. Detect ecosystem from sourceEcosystem or URL
  * 2. Dispatch to ecosystem-specific resolver
- * 3. Return ResolvedCreator or null if no email found
+ * 3. If primary fails, try cross-ecosystem fallbacks (npm search, MCP Registry, GitHub search)
+ * 4. Return ResolvedCreator or null if no email found
  *
  * Supported ecosystems: github, npm, pypi, huggingface, apify, smithery
- * Smithery cross-references with PulseMCP to find GitHub repos.
  */
 export async function resolveCreatorEmail(
   sourceUrl: string,
@@ -786,58 +1381,98 @@ export async function resolveCreatorEmail(
   })
 
   try {
+    let result: ResolvedCreator | null = null
+
     switch (resolvedEcosystem) {
       case 'npm':
-        return await resolveNpmAuthorEmail(sourceUrl)
+        result = await resolveNpmAuthorEmail(sourceUrl)
+        break
 
       case 'pypi':
-        return await resolvePypiAuthorEmail(sourceUrl)
+        result = await resolvePypiAuthorEmail(sourceUrl)
+        break
 
       case 'huggingface':
       case 'replicate':
-        return await resolveHuggingFaceEmail(sourceUrl)
+        result = await resolveHuggingFaceEmail(sourceUrl)
+        break
 
       case 'apify':
-        return resolveApifyEmail(sourceUrl)
+        result = resolveApifyEmail(sourceUrl)
+        break
 
       case 'github':
       case 'mcp-registry':
       case 'pulsemcp':
-        return await resolveGitHubEmail(sourceUrl)
+        result = await resolveGitHubEmail(sourceUrl)
+        break
 
       case 'smithery': {
-        // Smithery URLs (smithery.ai/servers/foo) don't contain GitHub info.
-        // Cross-reference with PulseMCP to find the GitHub source_code_url.
+        // Smithery URLs require multi-strategy GitHub cross-referencing.
         const githubUrl = await resolveSmitheryToGitHub(sourceUrl)
         if (githubUrl) {
-          return await resolveGitHubEmail(githubUrl)
+          result = await resolveGitHubEmail(githubUrl)
+          if (result) {
+            // Store the discovered GitHub URL for backfill
+            result._discoveredGitHubUrl = githubUrl
+          }
         }
-        logger.info('ecosystem_email_resolver.smithery_no_github', { url: sourceUrl.slice(0, 200) })
-        return null
+
+        // If GitHub resolution failed but we found a GitHub URL,
+        // try npm search as fallback
+        if (!result) {
+          const toolName = extractToolNameFromUrl(sourceUrl)
+          if (toolName) {
+            // Try npm search for direct email
+            result = await resolveViaNpmSearch(toolName)
+            if (result) {
+              logger.info('ecosystem_email_resolver.smithery_npm_search_resolved', {
+                toolName,
+                email: result.email.split('@')[0]?.slice(0, 3) + '***',
+              })
+            }
+          }
+        }
+        break
       }
 
       default: {
         // Try GitHub resolution if the URL contains github.com
-        // (handles git+ prefixed URLs and other non-standard formats)
         const detected = detectEcosystemFromUrl(sourceUrl)
         if (detected === 'github') {
-          return await resolveGitHubEmail(sourceUrl)
+          result = await resolveGitHubEmail(sourceUrl)
         }
 
-        // For direct website URLs (alpic.ai, aarna.ai, etc.),
-        // try scraping the website for mailto: links or GitHub links
-        if (sourceUrl.startsWith('http')) {
-          const websiteResult = await resolveWebsiteEmail(sourceUrl)
-          if (websiteResult) return websiteResult
+        // For direct website URLs, try scraping for mailto: or GitHub links
+        if (!result && sourceUrl.startsWith('http')) {
+          result = await resolveWebsiteEmail(sourceUrl)
         }
 
-        logger.info('ecosystem_email_resolver.unsupported_ecosystem', {
-          ecosystem: resolvedEcosystem,
-          url: sourceUrl.slice(0, 200),
-        })
-        return null
+        if (!result) {
+          logger.info('ecosystem_email_resolver.unsupported_ecosystem', {
+            ecosystem: resolvedEcosystem,
+            url: sourceUrl.slice(0, 200),
+          })
+        }
+        break
       }
     }
+
+    // Cross-ecosystem fallback: try npm search for any ecosystem that failed
+    if (!result && resolvedEcosystem !== 'npm' && resolvedEcosystem !== 'apify') {
+      const toolName = extractToolNameFromUrl(sourceUrl)
+      if (toolName && toolName.length >= 3) {
+        result = await resolveViaNpmSearch(toolName)
+        if (result) {
+          logger.info('ecosystem_email_resolver.npm_search_fallback_resolved', {
+            ecosystem: resolvedEcosystem,
+            toolName,
+          })
+        }
+      }
+    }
+
+    return result
   } catch (err) {
     logger.error(
       'ecosystem_email_resolver.resolver_error',
@@ -846,4 +1481,20 @@ export async function resolveCreatorEmail(
     )
     return null
   }
+}
+
+/**
+ * Resolves the creator's email and returns any discovered GitHub URL for backfill.
+ * Used by the claim-outreach cron to update source_repo_url when a better URL is found.
+ */
+export async function resolveCreatorEmailWithBackfill(
+  sourceUrl: string,
+  ecosystem: string | null
+): Promise<{ creator: ResolvedCreator | null; discoveredGitHubUrl: string | null }> {
+  const creator = await resolveCreatorEmail(sourceUrl, ecosystem)
+
+  // Extract discovered GitHub URL from the creator result
+  const discoveredGitHubUrl = creator?._discoveredGitHubUrl ?? null
+
+  return { creator, discoveredGitHubUrl }
 }
