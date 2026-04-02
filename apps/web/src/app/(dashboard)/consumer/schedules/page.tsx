@@ -44,6 +44,7 @@ export default function ConsumerSchedulesPage() {
 
   // Create form
   const [formToolId, setFormToolId] = useState('')
+  const [formSlug, setFormSlug] = useState('')
   const [formMethod, setFormMethod] = useState('')
   const [formCron, setFormCron] = useState('')
   const [formError, setFormError] = useState('')
@@ -70,8 +71,8 @@ export default function ConsumerSchedulesPage() {
 
   async function createSchedule() {
     setFormError('')
-    if (!formToolId.trim() || !formMethod.trim() || !formCron.trim()) {
-      setFormError('All fields are required.')
+    if (!formToolId.trim() || !formSlug.trim() || !formCron.trim()) {
+      setFormError('Tool ID, slug, and cron expression are required.')
       return
     }
     setCreating(true)
@@ -81,12 +82,14 @@ export default function ConsumerSchedulesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           toolId: formToolId.trim(),
-          method: formMethod.trim(),
+          slug: formSlug.trim(),
+          method: formMethod.trim() || null,
           cronExpression: formCron.trim(),
         }),
       })
       if (res.ok) {
         setFormToolId('')
+        setFormSlug('')
         setFormMethod('')
         setFormCron('')
         fetchSchedules()
@@ -103,10 +106,10 @@ export default function ConsumerSchedulesPage() {
 
   async function toggleSchedule(id: string, enabled: boolean) {
     try {
-      await fetch('/api/consumer/schedules', {
+      await fetch(`/api/consumer/schedules/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scheduleId: id, enabled: !enabled }),
+        body: JSON.stringify({ enabled: !enabled }),
       })
       setSchedules((prev) =>
         prev.map((s) => (s.id === id ? { ...s, enabled: !enabled } : s))
@@ -118,10 +121,8 @@ export default function ConsumerSchedulesPage() {
 
   async function deleteSchedule(id: string) {
     try {
-      const res = await fetch('/api/consumer/schedules', {
+      const res = await fetch(`/api/consumer/schedules/${id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scheduleId: id }),
       })
       if (res.ok) {
         setSchedules((prev) => prev.filter((s) => s.id !== id))
@@ -165,17 +166,25 @@ export default function ConsumerSchedulesPage() {
           <CardDescription>Set up a cron-based automatic invocation for any tool you have credits for.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">Tool ID</label>
               <Input
                 value={formToolId}
                 onChange={(e) => setFormToolId(e.target.value)}
-                placeholder="tool_abc123"
+                placeholder="550e8400-e29b-41d4-a716-..."
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">Method</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">Tool Slug</label>
+              <Input
+                value={formSlug}
+                onChange={(e) => setFormSlug(e.target.value)}
+                placeholder="web-search-pro"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">Method (optional)</label>
               <Input
                 value={formMethod}
                 onChange={(e) => setFormMethod(e.target.value)}

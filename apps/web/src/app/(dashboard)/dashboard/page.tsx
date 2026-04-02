@@ -131,10 +131,11 @@ interface HealthStatusData {
 }
 
 function formatCents(cents: number): string {
+  const safe = Number.isFinite(cents) ? cents : 0
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(cents / 100)
+  }).format(safe / 100)
 }
 
 type Period = '7' | '30' | '90'
