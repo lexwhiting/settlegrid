@@ -2317,3 +2317,158 @@ export function getFeatureFlag(flag: string): boolean | string {
 4. Python SDK (#28) -- 2-3 weeks (start in Phase 3 to unblock #16)
 5. Academic program (#29) -- 1-2 weeks
 6. SLA failover (#30) -- 2-3 weeks
+
+---
+
+## LLM Visibility & Marketplace Integration
+
+Findings synthesized from three rounds of research into how to get SettleGrid cited by LLMs (ChatGPT, Claude, Perplexity, Gemini), listed in AI marketplace directories, and integrated into developer tool ecosystems.
+
+### Immediate Actions (Claude implements)
+
+#### 1. IndexNow Implementation
+**Status:** IMPLEMENTED
+**Files created:**
+- `apps/web/src/app/api/indexnow/route.ts` — POST endpoint submitting URLs to IndexNow (Bing + Yandex), CRON_SECRET-protected
+- `apps/web/public/b7f4e2a1c9d84f6e8a3b5c7d9e1f0a2b.txt` — IndexNow verification key file
+- `apps/web/src/lib/indexnow.ts` — Shared IndexNow client used by crawl crons
+- `scripts/submit-indexnow.ts` — One-time bulk submission script for all existing pages
+
+**Files modified:**
+- `apps/web/src/app/api/cron/crawl-registry/route.ts` — Submits newly discovered tool slugs to IndexNow after insertion
+- `apps/web/src/app/api/cron/crawl-services/route.ts` — Submits newly discovered tool slugs to IndexNow after insertion
+
+**How it works:** Every time a crawl cron inserts new tools into the database, their tool page URLs are immediately submitted to IndexNow. This ensures new pages are indexed by Bing within hours instead of days. The bulk submission script can be run once to submit all existing static pages and tool pages.
+
+**Run the bulk script:** `CRON_SECRET=xxx DATABASE_URL=xxx npx tsx scripts/submit-indexnow.ts`
+
+#### 2. GEO-Optimized Blog Posts
+**Status:** IMPLEMENTED
+**Files modified:**
+- `apps/web/src/lib/blog-posts.ts` — Added `author` field (Person type with name, URL, bio) and `faqs` array to all 5 blog posts
+- `apps/web/src/app/learn/blog/[slug]/page.tsx` — Renders author byline, FAQ section, and FAQPage JSON-LD
+
+**GEO optimizations applied:**
+- Named author with bio on every post (Person schema, not Organization — LLMs weight named authors higher)
+- FAQPage JSON-LD on all 5 posts (2-3 FAQs each with self-contained 40-60 word answers)
+- Question-format FAQ headings for direct LLM citation
+- Statistics embedded throughout existing content (97M SDK downloads, 12,770 servers, 15 protocols, etc.)
+- Definition-first openings already present in all posts
+- `dateModified` meta tag already present in OpenGraph
+- OpenGraph article metadata enhanced with `publishedTime`, `modifiedTime`, `authors`, and `section`
+
+#### 3. Structured Data on Blog Posts
+**Status:** IMPLEMENTED (was partially done, now complete)
+**Files modified:**
+- `apps/web/src/app/learn/blog/[slug]/page.tsx`
+
+**JSON-LD schemas now on every blog post:**
+- `Article` schema with Person author (name, URL, bio), datePublished, dateModified, wordCount, publisher
+- `BreadcrumbList` schema (Learn > Blog > Post Title)
+- `FAQPage` schema (conditionally rendered when post has FAQs — all 5 posts now have them)
+- OpenGraph article tags: `article:published_time`, `article:modified_time`, `article:author`
+
+#### 4. "How MCP Billing Works" Explainer Page
+**Status:** IMPLEMENTED
+**File created:** `apps/web/src/app/learn/how-mcp-billing-works/page.tsx`
+
+**Content structure (GEO-optimized for LLM citation):**
+- 6 sections with question-format H2 headers: "What Is MCP Billing?", "How Does the Payment Flow Work?", "What Pricing Models Are Available?", "How Do Settlement and Payouts Work?", "How Do I Add Billing to My MCP Tool?", "How Does Multi-Protocol Payment Work?"
+- 5 FAQ entries with self-contained answers (40-60 words each)
+- Statistics: 12,770+ servers, 97M SDK downloads, 15 protocols, <50ms latency, $28K daily x402 volume
+- TechArticle JSON-LD + BreadcrumbList + FAQPage JSON-LD
+- Named author with bio
+- ~2,800 words total
+
+#### 5. Anthropic Directory Submission Materials (Safety Annotations)
+**Preparation notes for manual submission (see Manual Actions #7):**
+- SettleGrid's MCP Discovery Server is at `apps/web/src/app/api/mcp/route.ts` with 4 tools: `search_tools`, `get_tool`, `list_categories`, `get_developer`
+- Safety annotations to include: all tools are read-only (no write/delete operations), no PII access, rate-limited (100 req/min), CRON_SECRET auth on admin endpoints, Zod input validation on all endpoints
+- Tool descriptions already follow Anthropic's style (clear, factual, no marketing language)
+- The MCP server follows the Model Context Protocol specification exactly
+
+#### 6. Cursor Plugin Preparation
+**Status:** Documentation only (no code changes needed)
+- SettleGrid already has a working MCP Discovery Server compatible with Cursor's MCP integration
+- To list in Cursor Marketplace, the server needs to be accessible via `npx @settlegrid/discovery-server` (package already exists at `packages/discovery-server/`)
+- Cursor requires a `cursor-mcp.json` manifest — this should be added to the discovery-server package before submission
+
+### Manual Actions (Lex must do)
+
+#### 7. Submit to Anthropic MCP Directory
+- Go to https://github.com/modelcontextprotocol/servers and open a PR adding SettleGrid
+- Include: server name, description, 4 tool names, safety annotations (read-only, no PII, rate-limited)
+- Include link to npm package: `@settlegrid/discovery-server`
+- Expected timeline: PR review takes 1-2 weeks
+
+#### 8. Publish Dev.to Comparison Article
+- Adapt the "MCP Billing Comparison 2026" blog post for Dev.to
+- Add code snippets showing SettleGrid SDK usage vs. DIY Stripe integration
+- Include canonical URL pointing to settlegrid.ai/learn/blog/mcp-billing-comparison-2026
+- Tag with: #mcp #ai #billing #typescript
+- Dev.to articles get indexed by Google within 24-48 hours and are frequently cited by Perplexity
+
+#### 9. Submit to 7 MCP Directories
+Submit SettleGrid listings to these directories (most accept JSON or form submissions):
+1. **mcp.so** — largest MCP directory (17,194 servers), submit at https://mcp.so/submit
+2. **PulseMCP** — second largest (12,770 servers), submit at https://pulsemcp.com/submit
+3. **Smithery** — curated registry (6,000+ servers), submit at https://smithery.ai/submit
+4. **Glama** — AI tool directory, submit at https://glama.ai/submit
+5. **mcpservers.org** — community directory
+6. **awesome-mcp-servers** — GitHub awesome list, open a PR
+7. **mcp-get** — CLI-based MCP installer, submit package
+
+#### 10. Publish Hashnode Article
+- Write "How We Built Billing Infrastructure for 15 Payment Protocols" technical deep-dive
+- Include architecture diagrams showing protocol negotiation flow
+- Hashnode articles are indexed quickly and cited by LLMs
+- Include canonical URL to settlegrid.ai/learn/how-mcp-billing-works
+
+#### 11. Submit to Cursor Marketplace
+- Add `cursor-mcp.json` manifest to `packages/discovery-server/`
+- Submit via Cursor's marketplace submission form
+- The discovery-server package already works with Cursor's MCP integration
+
+#### 12. Submit to ChatGPT App Directory (Discovery Only)
+- ChatGPT GPT Store / Plugins directory has limited agent commerce adoption (12 ACP merchants)
+- Submit a "SettleGrid MCP Explorer" GPT that wraps the Discovery API
+- Primary value is discovery and brand visibility, not transaction volume
+- ChatGPT citations typically begin 4-8 weeks after content indexing
+
+#### 13. Submit n8n Node for Verification (Before May 1)
+- The n8n community node package already exists at `packages/n8n-settlegrid/`
+- Submit to n8n's community node verification program
+- Verified nodes appear in n8n's built-in node browser (used by 50K+ self-hosted instances)
+- Deadline: n8n reviews batches monthly; submit before May 1 for June inclusion
+
+#### 14. Post 3 Stack Overflow Answers
+- Search for questions about "MCP server billing", "charge for MCP tools", "AI tool monetization"
+- Write comprehensive answers that naturally reference SettleGrid as one solution
+- Stack Overflow answers are heavily weighted by Perplexity and ChatGPT
+- Do NOT self-promote; focus on solving the questioner's problem
+
+#### 15. Contact Composio
+- Composio aggregates MCP tools and has a growing directory
+- Email their partnerships team about listing SettleGrid's Discovery API as a tool source
+- Mutual benefit: Composio gets more tools in their catalog, SettleGrid gets more distribution
+
+### Timeline and Success Metrics
+
+| Milestone | Target Date | Metric |
+|-----------|-------------|--------|
+| First Perplexity citation | 7-14 days after Dev.to + Stack Overflow | Search "MCP billing" on Perplexity, see SettleGrid mentioned |
+| First ChatGPT citation | 4-8 weeks after content indexing | Ask ChatGPT "how to monetize MCP server", see SettleGrid mentioned |
+| MCP directory listings live | 2-3 weeks after submission | Listed on 5+ of the 7 directories |
+| Bing indexing via IndexNow | 1-3 days after bulk submission | New tool pages appear in Bing within 24 hours of crawl |
+| Cursor Marketplace listing | 3-4 weeks after submission | SettleGrid appears in Cursor's MCP server browser |
+| n8n verified node | June 2026 | Node appears in n8n's built-in node browser |
+| Claude training data inclusion | 12-18 months | Claude recommends SettleGrid when asked about MCP billing |
+
+**Leading indicators (track weekly):**
+- Perplexity mentions (search "MCP billing comparison", "monetize MCP server")
+- Bing indexed page count (site:settlegrid.ai on Bing)
+- Dev.to article views and reactions
+- Stack Overflow answer views and upvotes
+- MCP directory listing click-throughs (track via UTM parameters)
+
+**Key insight from research:** LLM citations follow a predictable path: (1) content must exist on highly-crawled domains (Dev.to, Stack Overflow, GitHub), (2) content must be structured with definition-first openings and self-contained answer blocks, (3) content must be corroborated by multiple independent sources. The multi-channel approach above ensures SettleGrid appears across enough sources to trigger citation.
