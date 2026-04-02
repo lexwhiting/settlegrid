@@ -100,6 +100,8 @@ export const tools = pgTable(
     sourceRepoUrl: text('source_repo_url'), // GitHub repo URL the tool was crawled from
     claimToken: text('claim_token'), // Unique token for claiming this tool
     claimEmailSentAt: timestamp('claim_email_sent_at', { withTimezone: true }), // When claim email was sent
+    claimFollowUpCount: integer('claim_follow_up_count').notNull().default(0), // Number of follow-up emails sent (0-3)
+    lastFollowUpAt: timestamp('last_follow_up_at', { withTimezone: true }), // When last follow-up email was sent
     // Enrichment metadata from crawlers (popularity, stars, license, etc.)
     crawlMetadata: jsonb('crawl_metadata'),
     // Quality gate: set to true after first real (non-test) invocation
@@ -142,8 +144,15 @@ export const consumers = pgTable('consumers', {
   stripeCustomerId: text('stripe_customer_id'),
   // S5: Auto-Refill default payment method
   defaultPaymentMethodId: text('default_payment_method_id'),
+  // Consumer Referral Program
+  referralCode: text('referral_code').unique(), // format: ref_{12 hex chars}
+  referredByConsumerId: uuid('referred_by_consumer_id'), // FK intentionally omitted to avoid circular ref
+  // Global Balance (Volume Discount Credit Packs)
+  globalBalanceCents: integer('global_balance_cents').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('consumers_referral_code_idx').on(table.referralCode),
+])
 
 export const consumersRelations = relations(consumers, ({ many }) => ({
   consumerToolBalances: many(consumerToolBalances),
@@ -1038,5 +1047,46 @@ export const achievementsRelations = relations(achievements, ({ one }) => ({
   developer: one(developers, {
     fields: [achievements.developerId],
     references: [developers.id],
+  }),
+}))
+
+// ─── Consumer Schedules (Cron-as-a-Service) ──────────────────────────────────
+
+export const consumerSchedules = pgTable(
+  'consumer_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(), // tool slug for display/routing
+    method: text('method'), // tool method to invoke (null = default)
+    payload: jsonb('payload').notNull().default('{}'), // request payload
+    cronExpression: varchar('cron_expression', { length: 50 }).notNull(), // e.g., '0 * * * *' (hourly)
+    enabled: boolean('enabled').notNull().default(true),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    failCount: integer('fail_count').notNull().default(0),
+    maxFailures: integer('max_failures').notNull().default(5),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('consumer_schedules_consumer_id_idx').on(table.consumerId),
+    index('consumer_schedules_tool_id_idx').on(table.toolId),
+    index('consumer_schedules_enabled_next_run_idx').on(table.enabled, table.nextRunAt),
+  ]
+)
+
+export const consumerSchedulesRelations = relations(consumerSchedules, ({ one }) => ({
+  consumer: one(consumers, {
+    fields: [consumerSchedules.consumerId],
+    references: [consumers.id],
+  }),
+  tool: one(tools, {
+    fields: [consumerSchedules.toolId],
+    references: [tools.id],
   }),
 }))

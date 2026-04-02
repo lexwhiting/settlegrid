@@ -2,10 +2,13 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import posthog from 'posthog-js'
+import { POSTHOG_EVENTS } from '@/lib/experiments'
 
 interface ClaimButtonProps {
   token: string
   toolName: string
+  toolSlug: string
 }
 
 /**
@@ -18,7 +21,7 @@ interface ClaimButtonProps {
  * 4. If success: redirect to dashboard/tools to set pricing
  * 5. If already claimed: show error message
  */
-export function ClaimButton({ token, toolName }: ClaimButtonProps) {
+export function ClaimButton({ token, toolName, toolSlug }: ClaimButtonProps) {
   const router = useRouter()
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -53,6 +56,14 @@ export function ClaimButton({ token, toolName }: ClaimButtonProps) {
 
       setState('success')
 
+      // Track the claim event in PostHog
+      if (posthog.__loaded) {
+        posthog.capture(POSTHOG_EVENTS.TOOL_CLAIMED, {
+          tool_slug: toolSlug,
+          tool_name: toolName,
+        })
+      }
+
       // Redirect to dashboard to set pricing
       const redirectUrl = data?.redirectUrl ?? '/dashboard/tools'
       setTimeout(() => {
@@ -62,9 +73,11 @@ export function ClaimButton({ token, toolName }: ClaimButtonProps) {
       setState('error')
       setErrorMessage('Network error. Please check your connection and try again.')
     }
-  }, [token, router])
+  }, [token, toolName, toolSlug, router])
 
   if (state === 'success') {
+    const badgeMarkdown = `[![SettleGrid](https://settlegrid.ai/api/badge/tool/${toolSlug})](https://settlegrid.ai/tools/${toolSlug})`
+
     return (
       <div className="text-center">
         <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -78,6 +91,27 @@ export function ClaimButton({ token, toolName }: ClaimButtonProps) {
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Redirecting to your dashboard...
         </p>
+
+        {/* Badge markdown section */}
+        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-left">
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Add a SettleGrid badge to your README:
+          </p>
+          <pre className="p-2 bg-gray-900 text-gray-100 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono">
+            {badgeMarkdown}
+          </pre>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(badgeMarkdown).catch(() => {
+                // Clipboard API not available in some contexts
+              })
+            }}
+            className="mt-2 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+          >
+            Copy to clipboard
+          </button>
+        </div>
       </div>
     )
   }

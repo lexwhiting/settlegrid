@@ -290,7 +290,7 @@ export default async function ClaimPage({
 
           {/* Claim action */}
           <div className="p-6">
-            <ClaimButton token={token} toolName={tool.name} />
+            <ClaimButton token={token} toolName={tool.name} toolSlug={tool.slug} />
             <p className="text-center text-xs text-gray-400 dark:text-gray-600 mt-3">
               Takes about 2 minutes. You will set pricing after claiming.
             </p>

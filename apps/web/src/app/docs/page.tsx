@@ -766,6 +766,9 @@ export default function DocsPage() {
               { href: '#smart-proxy', label: 'Smart Proxy' },
               { href: '#service-templates', label: 'Service Templates' },
               { href: '#a2a-settlement', label: 'A2A Settlement' },
+              { href: '#scheduled-invocations', label: 'Scheduled Invocations' },
+              { href: '#edge-caching', label: 'Edge Caching' },
+              { href: '#meta-mcp', label: 'Meta-MCP Server' },
               { href: '#faq', label: 'FAQ' },
             ].map((item) => (
               <a
@@ -1928,6 +1931,54 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
             <p className="text-sm text-gray-400">
               Learn more in the{' '}
               <Link href="/solutions/agent-to-agent" className="text-brand-text hover:text-brand-dark font-medium">Agent-to-Agent solutions page</Link>.
+            </p>
+          </Section>
+
+          <Section title="Scheduled Invocations" id="scheduled-invocations">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Consumers can schedule automatic tool invocations using cron expressions. This enables recurring data pulls, periodic analysis, and automated workflows without building custom infrastructure.
+            </p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">How It Works</h3>
+            <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-4 list-decimal list-inside">
+              <li>Navigate to <strong>Consumer &gt; Schedules</strong> in your dashboard.</li>
+              <li>Create a schedule by specifying a tool ID, method, and cron expression (e.g., <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">0 */6 * * *</code> for every 6 hours).</li>
+              <li>Credits are deducted from your balance on each scheduled invocation.</li>
+              <li>You can pause, resume, or delete schedules at any time.</li>
+            </ol>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Free plan: up to 10 schedules. Builder plan: up to 50 schedules. Minimum interval: 5 minutes.
+            </p>
+          </Section>
+
+          <Section title="Edge Caching" id="edge-caching">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              SettleGrid&apos;s Smart Proxy includes an edge caching layer that reduces latency for frequently accessed tool responses. When a tool response is cacheable, subsequent identical requests are served from the edge, resulting in sub-10ms response times.
+            </p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Cache Behavior</h3>
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-4 list-disc list-inside">
+              <li>Caching is opt-in per tool method via the <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">cache-control</code> header.</li>
+              <li>Cache keys include the tool ID, method, and input hash.</li>
+              <li>TTL is configurable from 1 second to 24 hours.</li>
+              <li>Cached responses still count as invocations for billing purposes.</li>
+            </ul>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Available on Scale plan and above. Contact support for custom cache configurations.
+            </p>
+          </Section>
+
+          <Section title="Meta-MCP Server" id="meta-mcp">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The Meta-MCP Server is a discovery endpoint that exposes all active SettleGrid tools as a single MCP server. AI agents can connect to one URL and gain access to the entire marketplace of tools.
+            </p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Connection</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              Point your MCP client at:
+            </p>
+            <code className="block bg-[#252836] px-3 py-2 rounded text-sm font-mono text-gray-300 mb-4">
+              https://settlegrid.ai/api/mcp
+            </code>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The Meta-MCP Server dynamically lists available tools, their pricing, and capabilities. Authentication is via consumer API key passed in the request headers.
             </p>
           </Section>
 
