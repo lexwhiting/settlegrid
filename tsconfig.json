@@ -18,6 +18,7 @@
     { "path": "apps/web" },
     { "path": "packages/mcp" },
     { "path": "packages/create-settlegrid-tool" },
-    { "path": "packages/discovery-server" }
+    { "path": "packages/discovery-server" },
+    { "path": "packages/settlegrid-cursor" }
   ]
 }

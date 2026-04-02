@@ -1,0 +1,62 @@
+{
+  "name": "settlegrid-cursor",
+  "version": "1.0.0",
+  "description": "Cursor-compatible MCP plugin for SettleGrid Discovery — search, browse, and invoke monetized AI tools from inside Cursor.",
+  "keywords": [
+    "settlegrid",
+    "cursor",
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "cursor-plugin",
+    "ai-tools",
+    "tool-discovery",
+    "ai-marketplace",
+    "cursor-mcp"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/settlegrid-cursor"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "settlegrid-cursor": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
