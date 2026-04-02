@@ -6,11 +6,10 @@ import { useState } from "react"
 
 const navLinks = [
   { label: "Marketplace", href: "/marketplace" },
-  { label: "Free Tools", href: "/free-tools" },
+  { label: "Platform", href: "/platform" },
   { label: "Templates", href: "/templates" },
   { label: "Pricing", href: "/pricing" },
   { label: "Docs", href: "/docs" },
-  { label: "Learn", href: "/learn" },
 ]
 
 export function Navbar() {
