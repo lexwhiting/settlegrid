@@ -12,6 +12,7 @@ import {
   type CrawledServer,
   type RegistrySource,
 } from '@/lib/registry-crawlers'
+import { submitToolSlugsToIndexNow } from '@/lib/indexnow'
 
 export const maxDuration = 300
 
@@ -98,7 +99,7 @@ async function processBatch(
   servers: CrawledServer[],
   source: RegistrySource,
   systemDeveloperId: string
-): Promise<{ inserted: number; skipped: number }> {
+): Promise<{ inserted: number; skipped: number; insertedSlugs: string[] }> {
   // Cap to MAX_SERVERS_PER_RUN
   const batch = servers.slice(0, MAX_SERVERS_PER_RUN)
 
@@ -109,6 +110,7 @@ async function processBatch(
 
   let inserted = 0
   let skipped = 0
+  const insertedSlugs: string[] = []
 
   for (const server of batch) {
     const rawName = server.name.trim()
@@ -159,6 +161,7 @@ async function processBatch(
 
       // Track the slug so later servers in the same batch don't duplicate
       existingSlugs.add(slug)
+      insertedSlugs.push(slug)
       inserted++
     } catch (insertError) {
       // Unique constraint violation — another run may have inserted it concurrently
@@ -171,7 +174,7 @@ async function processBatch(
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, skipped, insertedSlugs }
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────────
@@ -231,13 +234,17 @@ export async function GET(request: NextRequest) {
     const systemDeveloperId = await ensureSystemDeveloper()
 
     // Process and insert new tools
-    const { inserted, skipped } = await processBatch(servers, source, systemDeveloperId)
+    const { inserted, skipped, insertedSlugs } = await processBatch(servers, source, systemDeveloperId)
+
+    // Submit newly inserted tool pages to IndexNow for rapid search engine indexing
+    const indexNowResult = await submitToolSlugsToIndexNow(insertedSlugs)
 
     logger.info('cron.crawl_registry.completed', {
       source,
       discovered: servers.length,
       inserted,
       skipped,
+      indexNowSubmitted: indexNowResult?.submitted ?? 0,
     })
 
     return successResponse({
@@ -245,6 +252,9 @@ export async function GET(request: NextRequest) {
       discovered: servers.length,
       inserted,
       skipped,
+      indexNow: indexNowResult
+        ? { submitted: indexNowResult.submitted, ok: indexNowResult.ok }
+        : null,
     })
   } catch (error) {
     return internalErrorResponse(error)

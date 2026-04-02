@@ -13,6 +13,7 @@ import {
   type CrawledService,
   type UniversalSource,
 } from '@/lib/universal-crawlers'
+import { submitToolSlugsToIndexNow } from '@/lib/indexnow'
 
 export const maxDuration = 300
 
@@ -101,7 +102,7 @@ async function processBatch(
   services: CrawledService[],
   universalSource: UniversalSource,
   systemDeveloperId: string,
-): Promise<{ inserted: number; skipped: number }> {
+): Promise<{ inserted: number; skipped: number; insertedSlugs: string[] }> {
   const batch = services.slice(0, MAX_SERVICES_PER_RUN)
 
   // Fetch existing slugs in one bounded query to avoid N+1
@@ -111,6 +112,7 @@ async function processBatch(
 
   let inserted = 0
   let skipped = 0
+  const insertedSlugs: string[] = []
 
   for (const service of batch) {
     const rawName = service.name.trim()
@@ -158,6 +160,7 @@ async function processBatch(
       })
 
       existingSlugs.add(slug)
+      insertedSlugs.push(slug)
       inserted++
     } catch (insertError) {
       // Unique constraint violation — another run may have inserted it concurrently
@@ -170,7 +173,7 @@ async function processBatch(
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, skipped, insertedSlugs }
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────────
@@ -231,6 +234,7 @@ export async function GET(request: NextRequest) {
     }> = []
 
     let totalInserted = 0
+    const allInsertedSlugs: string[] = []
 
     for (const source of sourcesToCrawl) {
       try {
@@ -247,7 +251,7 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        const { inserted, skipped } = await processBatch(services, source, systemDeveloperId)
+        const { inserted, skipped, insertedSlugs } = await processBatch(services, source, systemDeveloperId)
 
         logger.info('cron.crawl_services.source_completed', {
           source,
@@ -258,6 +262,7 @@ export async function GET(request: NextRequest) {
 
         sourceResults.push({ source, discovered: services.length, inserted, skipped })
         totalInserted += inserted
+        allInsertedSlugs.push(...insertedSlugs)
       } catch (sourceError) {
         logger.warn('cron.crawl_services.source_failed', {
           source,
@@ -268,14 +273,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Submit newly inserted tool pages to IndexNow for rapid search engine indexing
+    const indexNowResult = await submitToolSlugsToIndexNow(allInsertedSlugs)
+
     logger.info('cron.crawl_services.completed', {
       sourcesRun: sourceResults.length,
       totalInserted,
+      indexNowSubmitted: indexNowResult?.submitted ?? 0,
     })
 
     return successResponse({
       sources: sourceResults,
       totalInserted,
+      indexNow: indexNowResult
+        ? { submitted: indexNowResult.submitted, ok: indexNowResult.ok }
+        : null,
     })
   } catch (error) {
     return internalErrorResponse(error)
