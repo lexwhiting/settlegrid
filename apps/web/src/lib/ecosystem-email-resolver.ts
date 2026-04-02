@@ -714,14 +714,82 @@ async function resolveWebsiteEmail(
  */
 async function resolveSmitheryToGitHub(smitheryUrl: string): Promise<string | null> {
   // Extract server name from URL: "https://smithery.ai/servers/agentmail" → "agentmail"
-  const match = smitheryUrl.match(/smithery\.ai\/servers?\/([^/?#]+)/)
+  // Also handle nested paths: "https://smithery.ai/servers/owner/server-name"
+  const match = smitheryUrl.match(/smithery\.ai\/servers?\/(.+?)(?:\?|#|$)/)
   if (!match) return null
-  const serverName = match[1]
+  const serverPath = match[1].replace(/\/+$/, '')
 
+  // Strategy 1: Smithery API (returns homepage which is often GitHub)
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
+    const res = await fetch(
+      `https://registry.smithery.ai/servers/${encodeURIComponent(serverPath)}`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      }
+    )
+
+    clearTimeout(timeout)
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, unknown>
+      // Check connections for GitHub URLs
+      if (Array.isArray(data.connections)) {
+        for (const conn of data.connections) {
+          const url = typeof (conn as Record<string, unknown>)?.url === 'string' ? (conn as Record<string, unknown>).url as string : ''
+          if (url.includes('github.com')) {
+            logger.info('ecosystem_email_resolver.smithery_api_github_found', { serverPath, githubUrl: url })
+            return url
+          }
+        }
+      }
+    }
+  } catch {
+    // Continue to next strategy
+  }
+
+  // Strategy 2: Scrape the Smithery HTML page for GitHub links
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    const res = await fetch(
+      `https://smithery.ai/server/${encodeURIComponent(serverPath)}`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'text/html' },
+      }
+    )
+
+    clearTimeout(timeout)
+    if (res.ok) {
+      const html = await res.text()
+      // Look for GitHub repo links in the HTML
+      const githubMatches = html.match(/https:\/\/github\.com\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+/g)
+      if (githubMatches && githubMatches.length > 0) {
+        // Filter out generic GitHub links (smithery's own, etc.)
+        const repoUrl = githubMatches.find(url =>
+          !url.includes('github.com/smithery') &&
+          !url.includes('github.com/modelcontextprotocol') &&
+          !url.includes('github.com/anthropics')
+        ) ?? githubMatches[0]
+
+        logger.info('ecosystem_email_resolver.smithery_html_github_found', { serverPath, githubUrl: repoUrl })
+        return repoUrl
+      }
+    }
+  } catch {
+    // Continue to fallback
+  }
+
+  // Strategy 3: Try PulseMCP v0beta as last resort (being sunset but still partially works)
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    const serverName = serverPath.split('/').pop() ?? serverPath
     const res = await fetch(
       `https://api.pulsemcp.com/v0beta/servers?query=${encodeURIComponent(serverName)}&count_per_page=5`,
       {
@@ -731,29 +799,26 @@ async function resolveSmitheryToGitHub(smitheryUrl: string): Promise<string | nu
     )
 
     clearTimeout(timeout)
-    if (!res.ok) return null
-
-    const data = (await res.json()) as { servers?: Array<{ name?: string; source_code_url?: string }> }
-    if (!Array.isArray(data.servers)) return null
-
-    // Find a matching server with a GitHub source_code_url
-    for (const server of data.servers) {
-      const name = typeof server.name === 'string' ? server.name.toLowerCase() : ''
-      if (name.includes(serverName.toLowerCase()) || serverName.toLowerCase().includes(name)) {
-        if (typeof server.source_code_url === 'string' && server.source_code_url.includes('github.com')) {
-          logger.info('ecosystem_email_resolver.smithery_cross_ref_found', {
-            smitheryServer: serverName,
-            githubUrl: server.source_code_url,
-          })
-          return server.source_code_url
+    if (res.ok) {
+      const data = (await res.json()) as { servers?: Array<{ name?: string; source_code_url?: string }> }
+      if (Array.isArray(data.servers)) {
+        for (const server of data.servers) {
+          const name = typeof server.name === 'string' ? server.name.toLowerCase() : ''
+          if (name.includes(serverName.toLowerCase()) || serverName.toLowerCase().includes(name)) {
+            if (typeof server.source_code_url === 'string' && server.source_code_url.includes('github.com')) {
+              logger.info('ecosystem_email_resolver.smithery_pulsemcp_found', { serverPath, githubUrl: server.source_code_url })
+              return server.source_code_url
+            }
+          }
         }
       }
     }
-
-    return null
   } catch {
-    return null
+    // All strategies exhausted
   }
+
+  logger.info('ecosystem_email_resolver.smithery_no_github', { serverPath })
+  return null
 }
 
 /**
