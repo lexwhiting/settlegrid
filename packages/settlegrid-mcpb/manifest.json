@@ -1,0 +1,77 @@
+{
+  "name": "settlegrid-discovery",
+  "display_name": "SettleGrid Discovery",
+  "description": "Search, browse, and invoke 1,444+ AI tools across 24 categories through a single MCP connection. Covers MCP servers, REST APIs, AI models, agent tools, and SDK packages with per-call billing.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "server": {
+    "type": "node",
+    "entry": "server.js"
+  },
+  "tools": [
+    {
+      "name": "search_tools",
+      "description": "Search the SettleGrid marketplace for AI tools by keyword, category, price, or rating.",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    {
+      "name": "get_tool",
+      "description": "Retrieve full details for a specific tool by its slug, including pricing, reviews, and quick-start code.",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    {
+      "name": "list_categories",
+      "description": "List all available tool categories on the marketplace with tool counts.",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    {
+      "name": "get_developer",
+      "description": "Get a developer's public profile, reputation score, and published tools.",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    {
+      "name": "list_marketplace_tools",
+      "description": "Browse popular marketplace tools with cost-per-call and availability info.",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true
+    },
+    {
+      "name": "call_tool",
+      "description": "Invoke any marketplace tool by slug. Free tools work without a key; paid tools require an API key.",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  ],
+  "privacy_policy": "https://settlegrid.ai/privacy",
+  "homepage": "https://settlegrid.ai",
+  "repository": "https://github.com/lexwhiting/settlegrid",
+  "license": "MIT",
+  "categories": ["developer-tools", "search", "marketplace"],
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai-tools",
+    "marketplace",
+    "discovery",
+    "tool-discovery",
+    "model-context-protocol"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

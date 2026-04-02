@@ -28,11 +28,20 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
 
   server.registerTool('search_tools', {
     title: 'Search Tools',
-    description: 'Search for monetized AI tools on SettleGrid',
+    description:
+      'Search the SettleGrid marketplace for AI tools by keyword, category, price, or rating. ' +
+      'Returns tool names, slugs, descriptions, pricing, and developer info. ' +
+      'Use this as your starting point to find tools for any task.',
     inputSchema: {
-      query: z.string().optional().describe('Search query'),
-      category: z.string().optional().describe('Filter by category'),
-      limit: z.number().min(1).max(100).default(20).describe('Max results'),
+      query: z.string().optional().describe('Free-text search query (e.g. "weather", "translate", "sentiment")'),
+      category: z.string().optional().describe('Filter by category slug (e.g. "data", "nlp", "finance"). Use list_categories to see all options.'),
+      limit: z.number().min(1).max(100).default(20).describe('Maximum number of results to return (1-100, default 20)'),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     },
   }, async ({ query, category, limit }) => {
     const params = new URLSearchParams()
@@ -46,9 +55,18 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
 
   server.registerTool('get_tool', {
     title: 'Get Tool Details',
-    description: 'Get full details for a specific tool by slug',
+    description:
+      'Retrieve full details for a specific tool by its slug, including description, pricing breakdown, ' +
+      'developer info, recent reviews, changelog history, and quick-start code snippets. ' +
+      'Use after search_tools to get deeper information before deciding to invoke a tool.',
     inputSchema: {
-      slug: z.string().describe('Tool slug'),
+      slug: z.string().min(1).max(128).describe('The unique slug of the tool (e.g. "wikipedia", "forex-rates", "dad-jokes")'),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     },
   }, async ({ slug }) => {
     const res = await fetch(`${BASE_URL}/api/v1/discover/${encodeURIComponent(slug)}`)
@@ -58,8 +76,16 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
 
   server.registerTool('list_categories', {
     title: 'List Categories',
-    description: 'List all tool categories with counts',
+    description:
+      'List all available tool categories on the SettleGrid marketplace with the number of tools in each. ' +
+      'Use this to understand what types of tools are available before searching.',
     inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   }, async () => {
     const res = await fetch(`${BASE_URL}/api/v1/discover/categories`)
     const data = await res.json()
@@ -68,9 +94,17 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
 
   server.registerTool('get_developer', {
     title: 'Get Developer Profile',
-    description: 'Get a developer profile and their published tools',
+    description:
+      'Get a developer\'s public profile, bio, reputation score, and their published tools on SettleGrid. ' +
+      'Useful for evaluating tool quality by checking the developer\'s track record.',
     inputSchema: {
-      slug: z.string().describe('Developer slug'),
+      slug: z.string().min(1).max(128).describe('The developer\'s unique profile slug (returned by search_tools and get_tool)'),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     },
   }, async ({ slug }) => {
     const res = await fetch(`${BASE_URL}/api/v1/discover/developers/${encodeURIComponent(slug)}`)
@@ -83,24 +117,32 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
   server.registerTool('call_tool', {
     title: 'Call Marketplace Tool',
     description:
-      'Invoke any marketplace tool by slug. For tools with a proxy endpoint, ' +
-      'routes through the Smart Proxy (requires API key). For showcase tools ' +
-      'without a proxy endpoint, calls the internal serve endpoint directly.',
+      'Invoke any tool on the SettleGrid marketplace by its slug. Pass arguments as a JSON object. ' +
+      'Free showcase tools work without an API key. Paid tools route through the Smart Proxy and ' +
+      'require an API key (passed via the x-api-key header on the MCP connection). ' +
+      'Use search_tools or list_marketplace_tools first to find the right tool and its slug.',
     inputSchema: {
       slug: z
         .string()
         .min(1)
         .max(128)
-        .describe('Tool slug (e.g. "wikipedia-lookup", "rest-countries")'),
+        .regex(/^[a-z0-9][a-z0-9._-]{0,127}$/, 'Slug must contain only lowercase letters, numbers, dots, hyphens, and underscores')
+        .describe('Tool slug (e.g. "wikipedia", "dad-jokes", "forex-rates")'),
       method: z
         .string()
         .max(64)
         .optional()
-        .describe('Specific method or action to call on the tool'),
+        .describe('Specific method or action to call on the tool (e.g. "search", "get_random")'),
       args: z
         .record(z.unknown())
         .optional()
-        .describe('Arguments to pass to the tool as a JSON object'),
+        .describe('Arguments to pass to the tool as a JSON object (e.g. { "query": "Einstein" })'),
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
     },
   }, async ({ slug, method, args }) => {
     // Validate slug to prevent path traversal / injection
@@ -213,11 +255,18 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
   server.registerTool('list_marketplace_tools', {
     title: 'List Marketplace Tools',
     description:
-      'Returns available marketplace tools with pricing info. ' +
-      'Optionally filter by category. Use this to browse tools before calling them.',
+      'Browse the most popular tools on the SettleGrid marketplace with pricing and availability info. ' +
+      'Each result includes cost-per-call, total invocations, and whether the tool requires an API key. ' +
+      'Optionally filter by category. Use this to find callable tools before invoking them with call_tool.',
     inputSchema: {
-      category: z.string().optional().describe('Filter by category (e.g. "data", "nlp", "search")'),
-      limit: z.number().min(1).max(50).default(20).describe('Max tools to return (default 20)'),
+      category: z.string().optional().describe('Filter by category slug (e.g. "data", "nlp", "search", "finance")'),
+      limit: z.number().min(1).max(50).default(20).describe('Maximum number of tools to return (1-50, default 20)'),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     },
   }, async ({ category, limit }) => {
     const params = new URLSearchParams()
