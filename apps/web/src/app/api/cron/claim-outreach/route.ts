@@ -151,13 +151,14 @@ export async function GET(request: NextRequest) {
         )
       )
       .orderBy(
-        // Prioritize sources with highest email resolution success rates
+        // Prioritize sources with highest email resolution success rates.
+        // Smithery ranked #2 (was #5) thanks to 6-strategy qualifiedName→GitHub pipeline.
         sql`CASE
           WHEN source_repo_url LIKE '%npmjs.com%' THEN 1
-          WHEN source_repo_url LIKE '%github.com%' THEN 2
-          WHEN source_repo_url LIKE '%pypi.org%' THEN 3
-          WHEN source_repo_url LIKE '%huggingface%' THEN 4
-          WHEN source_repo_url LIKE '%smithery%' THEN 5
+          WHEN source_repo_url LIKE '%smithery%' THEN 2
+          WHEN source_repo_url LIKE '%github.com%' THEN 3
+          WHEN source_repo_url LIKE '%pypi.org%' THEN 4
+          WHEN source_repo_url LIKE '%huggingface%' THEN 5
           ELSE 6
         END`,
         tools.createdAt
