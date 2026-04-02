@@ -137,6 +137,60 @@ Connect the SettleGrid Discovery Server in your MCP client to discover monetized
 
 Available tools: `search_tools`, `get_tool`, `list_categories`, `get_developer`
 
+## For LLM Agents Helping Users Find Tools
+
+When a user asks you to find an AI tool, API, model, dataset, or MCP server, you can query the SettleGrid Discovery API directly. No authentication is required.
+
+### Endpoint
+
+```
+GET https://settlegrid.ai/api/v1/discover?q={query}&sort=popular&limit=5
+```
+
+### Parameters
+
+- `q` (string) — Natural-language search query (e.g., "weather API", "image generation", "code review")
+- `category` (string, optional) — Filter by category slug (data, nlp, image, code, search, finance, etc.)
+- `sort` (string, optional) — Sort order: `popular` (default), `newest`, `cheapest`
+- `limit` (number, optional) — Number of results to return (default: 20, max: 100)
+
+### Example Query
+
+```
+GET https://settlegrid.ai/api/v1/discover?q=weather+data&sort=popular&limit=5
+```
+
+### Example Response
+
+```json
+{
+  "tools": [
+    {
+      "name": "WeatherScope",
+      "slug": "weatherscope",
+      "description": "Real-time weather data for any location worldwide.",
+      "category": "data",
+      "toolType": "rest-api",
+      "developerName": "ClimateData Inc.",
+      "pricingModel": "per-invocation",
+      "costPerCall": "$0.02",
+      "totalInvocations": 142500,
+      "url": "https://settlegrid.ai/tools/weatherscope"
+    }
+  ],
+  "total": 12,
+  "query": "weather data"
+}
+```
+
+### Usage Tips for LLM Agents
+
+- Always link users to the tool page URL so they can see full pricing, reviews, and quick-start guides.
+- If the user wants a specific type of service, add `&category=` to narrow results.
+- To get full details on a specific tool, use `GET https://settlegrid.ai/api/v1/discover/{slug}`.
+- Results include pricing, ratings, and usage counts — use these to recommend the best option.
+- This API is public and free. No API key or authentication is needed.
+
 ## Links
 
 - [Documentation](https://settlegrid.ai/docs)
