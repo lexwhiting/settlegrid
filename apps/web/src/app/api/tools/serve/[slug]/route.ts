@@ -11,9 +11,28 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { handlers } from './handlers'
+import { getRedis, tryRedis } from '@/lib/redis'
 
 export const maxDuration = 15
 export const dynamic = 'force-dynamic'
+
+const TTL_SECONDS = 90 * 24 * 60 * 60 // 90 days
+
+/** Fire-and-forget Redis tracking for serve calls */
+function trackServeCall(slug: string): void {
+  const date = new Date().toISOString().slice(0, 10)
+  void tryRedis(async () => {
+    const redis = getRedis()
+    const slugKey = `serve:calls:${slug}:${date}`
+    const totalKey = `serve:calls:total:${date}`
+    const pipeline = redis.pipeline()
+    pipeline.incr(slugKey)
+    pipeline.expire(slugKey, TTL_SECONDS)
+    pipeline.incr(totalKey)
+    pipeline.expire(totalKey, TTL_SECONDS)
+    await pipeline.exec()
+  })
+}
 
 interface RouteContext {
   params: Promise<{ slug: string }>
@@ -79,10 +98,15 @@ async function handle(request: NextRequest, ctx: RouteContext): Promise<NextResp
     }
   }
 
+  // Track the serve call (fire-and-forget)
+  trackServeCall(slug)
+
   // Execute handler
   try {
     const result = await handler(params)
-    return jsonResponse({ data: result, tool: slug, timestamp: new Date().toISOString() })
+    const response = jsonResponse({ data: result, tool: slug, timestamp: new Date().toISOString() })
+    response.headers.set('X-SettleGrid-Tracked', 'true')
+    return response
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal handler error'
 

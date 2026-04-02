@@ -769,6 +769,7 @@ export default function DocsPage() {
               { href: '#scheduled-invocations', label: 'Scheduled Invocations' },
               { href: '#edge-caching', label: 'Edge Caching' },
               { href: '#meta-mcp', label: 'Meta-MCP Server' },
+              { href: '#mcp-config', label: 'MCP Config' },
               { href: '#faq', label: 'FAQ' },
             ].map((item) => (
               <a
@@ -1980,6 +1981,42 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               The Meta-MCP Server dynamically lists available tools, their pricing, and capabilities. Authentication is via consumer API key passed in the request headers.
             </p>
+          </Section>
+
+          <Section title="One-Line MCP Config" id="mcp-config">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Add this to your Claude Desktop, Cursor, or any MCP client config. One connection gives you access to every tool in the marketplace.
+            </p>
+            <CopyableCodeBlock
+              code={`{
+  "mcpServers": {
+    "settlegrid": {
+      "url": "https://settlegrid.ai/api/mcp"
+    }
+  }
+}`}
+              language="json"
+            />
+            <div className="mt-6 space-y-4">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100">How it works</h3>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li className="flex gap-2">
+                  <span className="text-[#E5A336] font-bold">1.</span>
+                  <span>Add the config above to your MCP client settings file.</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-[#E5A336] font-bold">2.</span>
+                  <span>The Meta-MCP Server dynamically exposes all active SettleGrid tools.</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-[#E5A336] font-bold">3.</span>
+                  <span>Your AI agent can discover and call any tool in the marketplace through this single connection.</span>
+                </li>
+              </ul>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                For authenticated access with billing, pass your API key via the <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs font-mono text-gray-300">x-api-key</code> header. Free tools work without authentication.
+              </p>
+            </div>
           </Section>
 
           <Section title="FAQ" id="faq">

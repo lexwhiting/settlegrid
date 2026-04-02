@@ -104,6 +104,9 @@ export const tools = pgTable(
     lastFollowUpAt: timestamp('last_follow_up_at', { withTimezone: true }), // When last follow-up email was sent
     // Enrichment metadata from crawlers (popularity, stars, license, etc.)
     crawlMetadata: jsonb('crawl_metadata'),
+    // Premium templates: gated behind one-time purchase
+    isPremium: boolean('is_premium').notNull().default(false),
+    premiumPriceCents: integer('premium_price_cents'), // one-time price for premium templates
     // Quality gate: set to true after first real (non-test) invocation
     verified: boolean('verified').notNull().default(false),
     // Manual escalation: timestamp of most recent report
@@ -149,6 +152,12 @@ export const consumers = pgTable('consumers', {
   referredByConsumerId: uuid('referred_by_consumer_id'), // FK intentionally omitted to avoid circular ref
   // Global Balance (Volume Discount Credit Packs)
   globalBalanceCents: integer('global_balance_cents').notNull().default(0),
+  // Auto-refill configuration for global balance
+  autoRefillPackId: text('auto_refill_pack_id'), // pack_20 | pack_100 | pack_500 | pack_1000
+  autoRefillTriggerCents: integer('auto_refill_trigger_cents'), // trigger when balance drops below this
+  // Newsletter subscription
+  newsletterSubscribed: boolean('newsletter_subscribed').notNull().default(true),
+  newsletterFrequency: text('newsletter_frequency').notNull().default('weekly'), // 'weekly' | 'monthly'
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('consumers_referral_code_idx').on(table.referralCode),
