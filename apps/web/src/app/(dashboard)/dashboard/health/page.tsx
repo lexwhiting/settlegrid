@@ -316,7 +316,7 @@ export default function HealthPage() {
                         <div
                           className={`h-2 rounded-full transition-all ${
                             health.uptimePct30d >= 99.5 ? 'bg-green-500' :
-                            health.uptimePct30d >= 95 ? 'bg-yellow-500' : 'bg-red-50 dark:bg-red-900/200'
+                            health.uptimePct30d >= 95 ? 'bg-yellow-500' : 'bg-red-500'
                           }`}
                           style={{ width: `${Math.min(100, health.uptimePct30d)}%` }}
                         />

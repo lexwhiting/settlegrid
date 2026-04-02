@@ -4,6 +4,7 @@ import Image from "next/image"
 const productLinks = [
   { label: "Get started", href: "/start" },
   { label: "Marketplace", href: "/marketplace" },
+  { label: "Trending", href: "/marketplace/trending" },
   { label: "Templates", href: "/templates" },
   { label: "Pricing", href: "/pricing" },
   { label: "Docs", href: "/docs" },
@@ -13,6 +14,9 @@ const resourceLinks = [
   { label: "Learn", href: "/learn" },
   { label: "Glossary", href: "/learn/glossary" },
   { label: "FAQ", href: "/faq" },
+  { label: "Ask", href: "/ask" },
+  { label: "Activity", href: "/activity" },
+  { label: "Academic Program", href: "/academic" },
   { label: "Status", href: "/status" },
 ]
 

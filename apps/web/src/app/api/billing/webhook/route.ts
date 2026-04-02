@@ -145,6 +145,67 @@ export async function POST(request: NextRequest) {
           break
         }
 
+        // ── Consumer credit pack purchase ──────────────────────────────
+        if (session.metadata?.type === 'credit_pack') {
+          const cpConsumerId = session.metadata.consumerId
+          const packId = session.metadata.packId
+          const creditAmountCents = parseInt(session.metadata.creditAmountCents ?? '0', 10)
+
+          // Server-side validation: verify the actual amount paid matches expected pack price.
+          // This prevents manipulation of the checkout session metadata.
+          const PACK_PRICES: Record<string, { priceCents: number; creditCents: number }> = {
+            pack_100: { priceCents: 9500, creditCents: 10000 },
+            pack_500: { priceCents: 45000, creditCents: 50000 },
+            pack_1000: { priceCents: 85000, creditCents: 100000 },
+          }
+
+          const expectedPack = packId ? PACK_PRICES[packId] : null
+          const amountPaid = session.amount_total ?? 0
+
+          if (expectedPack && amountPaid !== expectedPack.priceCents) {
+            logger.error('stripe.webhook.credit_pack_amount_mismatch', {
+              sessionId: session.id,
+              packId,
+              expectedPriceCents: expectedPack.priceCents,
+              actualAmountCents: amountPaid,
+            })
+            // Do NOT credit — potential manipulation attempt
+            return successResponse({ received: true })
+          }
+
+          // Also verify creditAmountCents matches the expected pack
+          if (expectedPack && creditAmountCents !== expectedPack.creditCents) {
+            logger.error('stripe.webhook.credit_pack_credit_mismatch', {
+              sessionId: session.id,
+              packId,
+              expectedCreditCents: expectedPack.creditCents,
+              metadataCreditCents: creditAmountCents,
+            })
+            return successResponse({ received: true })
+          }
+
+          if (cpConsumerId && creditAmountCents > 0) {
+            await db
+              .update(consumers)
+              .set({
+                globalBalanceCents: sql`${consumers.globalBalanceCents} + ${creditAmountCents}`,
+              })
+              .where(eq(consumers.id, cpConsumerId))
+
+            logger.info('stripe.webhook.credit_pack_completed', {
+              consumerId: cpConsumerId,
+              packId,
+              creditAmountCents,
+              sessionId: session.id,
+            })
+          } else {
+            logger.error('stripe.webhook.credit_pack_missing_metadata', {
+              sessionId: session.id,
+            })
+          }
+          break
+        }
+
         // ── Consumer credit purchase checkout ──────────────────────────
         const purchaseId = session.metadata?.purchaseId
         const consumerId = session.metadata?.consumerId

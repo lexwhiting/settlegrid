@@ -2076,6 +2076,125 @@ function outreachFooter(itemName: string, recipientEmail?: string): string {
 <p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>`
 }
 
+// ── Claim Follow-Up Email Templates (E2, E3, E4) ────────────────────────────
+
+function followUpFooter(itemName: string, recipientEmail?: string): string {
+  const unsubUrl = recipientEmail
+    ? `https://settlegrid.ai/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
+    : 'https://settlegrid.ai/unsubscribe'
+  return `<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:0;text-align:center">We contact you under legitimate interest as the creator of a publicly listed tool. <a href="${unsubUrl}" style="color:#E5A336;text-decoration:underline">Unsubscribe</a></p>
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">You received this because <strong>${escapeHtml(itemName)}</strong> was auto-indexed on SettleGrid from a public registry.</p>
+<p class="sg-muted" style="color:#9ca3af;font-size:11px;margin:4px 0 0;text-align:center">Alerterra, LLC &middot; 2810 N Church St, Wilmington, DE 19802, PMB #481712</p>`
+}
+
+/**
+ * Follow-up E2 (Day 3): "What agents see when they find {toolName}"
+ *
+ * Shows the listing URL and includes a "Reply Yes" alternative for low-friction claim.
+ */
+export function claimFollowUpE2(
+  firstName: string,
+  toolName: string,
+  toolSlug: string,
+  claimToken: string,
+  recipientEmail?: string
+): EmailTemplate {
+  const listingUrl = `https://settlegrid.ai/tools/${encodeURIComponent(toolSlug)}`
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+
+  return {
+    subject: sanitizeSubject(`What agents see for ${toolName}`),
+    html: baseEmailTemplate(
+      `
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">When an AI agent searches for tools like <strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong>, this is the listing page they find:</p>
+<p class="sg-text" style="margin:0 0 16px"><a href="${escapeHtml(listingUrl)}" style="color:#E5A336;text-decoration:underline;font-weight:600">${escapeHtml(listingUrl)}</a></p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Right now, agents can discover it but cannot pay for it. Claiming takes 90 seconds and lets you set per-call pricing. Or just reply "Yes" to this email and we will walk you through it.</p>
+${ctaButton('Claim your listing', claimUrl)}
+${badgeMarkdownSection(toolSlug)}
+${dividerLine()}
+${followUpFooter(toolName, recipientEmail)}
+`,
+      { preheader: `Here is what AI agents see when they find ${toolName}.` }
+    ),
+  }
+}
+
+/**
+ * Follow-up E3 (Day 10): "{toolCount} tools now listed" — social proof with real marketplace count.
+ */
+export function claimFollowUpE3(
+  firstName: string,
+  toolName: string,
+  claimToken: string,
+  toolCount: number,
+  recipientEmail?: string,
+  toolSlug?: string
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+  const countDisplay = toolCount.toLocaleString()
+
+  return {
+    subject: sanitizeSubject(`${countDisplay} tools now listed`),
+    html: baseEmailTemplate(
+      `
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">SettleGrid now lists <strong style="color:#1A1F3A">${countDisplay}</strong> AI tools. Developers who claim their listing earn 95&ndash;100% of per-call revenue via Stripe with zero infrastructure work.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> is still unclaimed. If you would like to set pricing, it takes about 90 seconds.</p>
+${ctaButton('Claim your listing', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
+${dividerLine()}
+${followUpFooter(toolName, recipientEmail)}
+`,
+      { preheader: `${countDisplay} tools listed on SettleGrid. ${toolName} is still unclaimed.` }
+    ),
+  }
+}
+
+/**
+ * Follow-up E4 (Day 24): "Last note about {toolName}" — breakup email, 4 sentences max.
+ */
+export function claimFollowUpE4(
+  firstName: string,
+  toolName: string,
+  claimToken: string,
+  recipientEmail?: string,
+  toolSlug?: string
+): EmailTemplate {
+  const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
+
+  return {
+    subject: sanitizeSubject(`Last note about ${toolName}`),
+    html: baseEmailTemplate(
+      `
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">This is my last email about <strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong>. The listing will stay live on SettleGrid either way. If you ever want to claim it, the link below will still work. No hard feelings.</p>
+${ctaButton('Claim your listing', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
+${dividerLine()}
+${followUpFooter(toolName, recipientEmail)}
+`,
+      { preheader: `Last note about ${toolName}. No more follow-ups after this.` }
+    ),
+  }
+}
+
+/**
+ * Badge markdown section for claim outreach emails.
+ * Provides copy-paste badge markdown to encourage README backlinks.
+ */
+function badgeMarkdownSection(slug: string): string {
+  const badgeUrl = `https://settlegrid.ai/api/badge/tool/${encodeURIComponent(slug)}`
+  const toolUrl = `https://settlegrid.ai/tools/${encodeURIComponent(slug)}`
+  const markdownText = `[![SettleGrid](${badgeUrl})](${toolUrl})`
+  return `<div style="margin-top:16px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px">
+<p style="color:#374151;font-size:13px;margin:0 0 8px;font-weight:600">Add a SettleGrid badge to your README:</p>
+<pre style="margin:0;padding:8px;background:#1A1F3A;color:#f9fafb;border-radius:4px;font-size:12px;line-height:1.4;font-family:${CODE_FONT};white-space:pre-wrap;word-break:break-all">${escapeHtml(markdownText)}</pre>
+</div>`
+}
+
+// ── Claim Outreach Templates (Initial E1) ────────────────────────────────────
+
 /**
  * Outreach email sent to developers whose MCP server has been auto-indexed.
  *
@@ -2094,7 +2213,8 @@ export function claimToolOutreachEmail(
   toolName: string,
   claimToken: string,
   sourceRepoUrl: string | null,
-  recipientEmail?: string
+  recipientEmail?: string,
+  toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const repoLine = sourceRepoUrl
@@ -2110,6 +2230,7 @@ export function claimToolOutreachEmail(
 ${repoLine}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-call pricing and get paid via Stripe whenever an AI agent uses it. You keep 95&ndash;100% of revenue. No code changes or infrastructure work required. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your project? No worries — just ignore this email and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace" style="color:#E5A336;text-decoration:underline">Browse the marketplace</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
@@ -2132,7 +2253,8 @@ export function claimAiModelEmail(
   modelName: string,
   claimToken: string,
   sourceUrl: string | null,
-  recipientEmail?: string
+  recipientEmail?: string,
+  toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const sourceLine = sourceUrl
@@ -2148,6 +2270,7 @@ export function claimAiModelEmail(
 ${sourceLine}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-inference pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. No changes to your model hosting or deployment needed. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your model? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/ai-models" style="color:#E5A336;text-decoration:underline">Browse AI models</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
@@ -2168,7 +2291,8 @@ export function claimPackageEmail(
   packageName: string,
   claimToken: string,
   ecosystem: string,
-  recipientEmail?: string
+  recipientEmail?: string,
+  toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
   const ecosystemDisplay = escapeHtml(ecosystem)
@@ -2181,6 +2305,7 @@ export function claimPackageEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(packageName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for ${ecosystemDisplay} tools per call.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you can add per-call pricing for AI agent usage and get paid via Stripe. You keep 95&ndash;100% of the revenue. Nothing changes for your existing ${ecosystemDisplay} users&nbsp;&mdash; this is an additional revenue channel. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your package? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/packages" style="color:#E5A336;text-decoration:underline">Browse packages</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
@@ -2200,7 +2325,8 @@ export function claimApiServiceEmail(
   firstName: string,
   serviceName: string,
   claimToken: string,
-  recipientEmail?: string
+  recipientEmail?: string,
+  toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
 
@@ -2212,6 +2338,7 @@ export function claimApiServiceEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(serviceName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for services autonomously.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, agents can pay per call automatically via Stripe. You set the price, you keep 95&ndash;100% of revenue. No SDK integration required&nbsp;&mdash; agents handle billing through SettleGrid's protocol. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your service? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/apis" style="color:#E5A336;text-decoration:underline">Browse APIs</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
@@ -2232,7 +2359,8 @@ export function claimAgentToolEmail(
   toolName: string,
   claimToken: string,
   _framework: string,
-  recipientEmail?: string
+  recipientEmail?: string,
+  toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
 
@@ -2244,6 +2372,7 @@ export function claimAgentToolEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents across any framework can discover and pay for tools per call.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">If you claim it, you set per-call pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. Agents handle billing through SettleGrid's payment protocol&nbsp;&mdash; no changes to your tool code. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
+${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0">Not your tool? No worries — just ignore this and we won't follow up.</p>
 <p class="sg-text" style="color:#9ca3af;font-size:12px;line-height:1.5;margin:8px 0 0;text-align:center"><a href="https://settlegrid.ai/marketplace/agent-tools" style="color:#E5A336;text-decoration:underline">Browse agent tools</a> &nbsp;&middot;&nbsp; <a href="https://settlegrid.ai/docs" style="color:#E5A336;text-decoration:underline">How it works</a></p>
 ${dividerLine()}
@@ -2279,4 +2408,106 @@ export function formatCurrency(cents: number): string {
     style: 'currency',
     currency: 'USD',
   }).format(cents / 100)
+}
+
+// ── Consumer Weekly Digest ──────────────────────────────────────────────────
+
+export interface DigestToolUsage {
+  name: string
+  slug: string
+  invocations: number
+  spendCents: number
+}
+
+export interface DigestNewTool {
+  name: string
+  slug: string
+  category: string | null
+  description: string | null
+}
+
+export function consumerWeeklyDigest(
+  consumerEmail: string,
+  totalInvocations: number,
+  totalSpendCents: number,
+  topTools: DigestToolUsage[],
+  newTools: DigestNewTool[]
+): EmailTemplate {
+  const spendFormatted = formatCurrency(totalSpendCents)
+  const invocationsFormatted = totalInvocations.toLocaleString()
+
+  const topToolRows = topTools
+    .slice(0, 5)
+    .map(
+      (t) =>
+        `<tr>
+          <td style="padding:6px 8px;font-size:13px;color:#374151;font-family:${FONT_STACK};border-bottom:1px solid #e5e7eb">
+            <a href="https://settlegrid.ai/tools/${encodeURIComponent(t.slug)}" style="color:#E5A336;text-decoration:none;font-weight:600">${escapeHtml(t.name)}</a>
+          </td>
+          <td align="right" style="padding:6px 8px;font-size:13px;color:#374151;font-family:${FONT_STACK};border-bottom:1px solid #e5e7eb">${t.invocations.toLocaleString()}</td>
+          <td align="right" style="padding:6px 8px;font-size:13px;color:#374151;font-family:${FONT_STACK};border-bottom:1px solid #e5e7eb">${formatCurrency(t.spendCents)}</td>
+        </tr>`
+    )
+    .join('')
+
+  const newToolsList = newTools
+    .slice(0, 5)
+    .map(
+      (t) =>
+        `<li style="margin:0 0 8px;color:#4b5563;font-size:13px;font-family:${FONT_STACK}">
+          <a href="https://settlegrid.ai/tools/${encodeURIComponent(t.slug)}" style="color:#E5A336;text-decoration:none;font-weight:600">${escapeHtml(t.name)}</a>
+          ${t.category ? `<span style="color:#9ca3af"> &middot; ${escapeHtml(t.category)}</span>` : ''}
+          ${t.description ? `<br/><span style="color:#6b7280;font-size:12px">${escapeHtml(t.description.slice(0, 120))}${t.description.length > 120 ? '...' : ''}</span>` : ''}
+        </li>`
+    )
+    .join('')
+
+  return {
+    subject: sanitizeSubject(`Your week on SettleGrid: ${invocationsFormatted} invocations`),
+    html: baseEmailTemplate(
+      `
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Here is your weekly usage summary.</p>
+
+<div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:0 0 16px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+    <tr>
+      <td style="padding:4px 0;font-size:14px;color:#374151;font-family:${FONT_STACK}">Total invocations</td>
+      <td align="right" style="padding:4px 0;font-size:14px;font-weight:700;color:#1A1F3A;font-family:${FONT_STACK}">${invocationsFormatted}</td>
+    </tr>
+    <tr>
+      <td style="padding:4px 0;font-size:14px;color:#374151;font-family:${FONT_STACK}">Total spend</td>
+      <td align="right" style="padding:4px 0;font-size:14px;font-weight:700;color:#1A1F3A;font-family:${FONT_STACK}">${spendFormatted}</td>
+    </tr>
+  </table>
+</div>
+
+${topTools.length > 0 ? `
+<p class="sg-text" style="color:#374151;font-size:14px;font-weight:600;margin:0 0 8px">Your top tools this week</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px">
+  <tr>
+    <th align="left" style="padding:6px 8px;font-size:11px;color:#9ca3af;font-family:${FONT_STACK};border-bottom:2px solid #e5e7eb;text-transform:uppercase">Tool</th>
+    <th align="right" style="padding:6px 8px;font-size:11px;color:#9ca3af;font-family:${FONT_STACK};border-bottom:2px solid #e5e7eb;text-transform:uppercase">Calls</th>
+    <th align="right" style="padding:6px 8px;font-size:11px;color:#9ca3af;font-family:${FONT_STACK};border-bottom:2px solid #e5e7eb;text-transform:uppercase">Spend</th>
+  </tr>
+  ${topToolRows}
+</table>
+` : ''}
+
+${newTools.length > 0 ? `
+<p class="sg-text" style="color:#374151;font-size:14px;font-weight:600;margin:0 0 8px">New tools you might like</p>
+<ul style="padding-left:20px;margin:0 0 16px">
+  ${newToolsList}
+</ul>
+` : ''}
+
+${ctaButton('Explore the marketplace', 'https://settlegrid.ai/marketplace')}
+${dividerLine()}
+<p style="color:#9ca3af;font-size:11px;line-height:1.5;margin:8px 0 0;text-align:center;font-family:${FONT_STACK}">
+  You are receiving this because you used tools on SettleGrid this week.
+  <a href="https://settlegrid.ai/unsubscribe?email=${encodeURIComponent(consumerEmail)}&type=consumer-digest" style="color:#9ca3af;text-decoration:underline">Unsubscribe</a>
+</p>
+`,
+      { preheader: `${invocationsFormatted} invocations, ${spendFormatted} spent this week on SettleGrid.` }
+    ),
+  }
 }

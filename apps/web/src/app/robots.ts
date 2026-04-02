@@ -5,7 +5,17 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        allow: [
+          '/',
+          '/api/v1/discover',
+          '/api/feed',
+          '/api/openapi.json',
+          '/api/badge/',
+          '/api/widget/',
+          '/api/marketplace/stats',
+          '/api/marketplace/bundles',
+          '/api/tools/serve/',
+        ],
         disallow: [
           '/api/',
           '/dashboard/',

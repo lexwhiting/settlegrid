@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import posthog from 'posthog-js'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { POSTHOG_EVENTS } from '@/lib/experiments'
 
 interface AskResult {
   answer: string
@@ -20,11 +22,51 @@ export default function AskSettleGridPage() {
   const [result, setResult] = useState<AskResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [remaining, setRemaining] = useState<number | null>(null)
+  const [captureEmail, setCaptureEmail] = useState('')
+  const [captureLoading, setCaptureLoading] = useState(false)
+  const [captureSuccess, setCaptureSuccess] = useState(false)
+  const [captureError, setCaptureError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  async function handleCapture(e: React.FormEvent) {
+    e.preventDefault()
+    if (!captureEmail.trim() || captureLoading) return
+
+    setCaptureLoading(true)
+    setCaptureError(null)
+
+    try {
+      const res = await fetch('/api/ask/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: captureEmail.trim() }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setCaptureError(data.error ?? 'Something went wrong.')
+        return
+      }
+
+      setCaptureSuccess(true)
+
+      // Track email capture event
+      if (posthog.__loaded) {
+        posthog.capture(POSTHOG_EVENTS.ASK_EMAIL_CAPTURED, {
+          source: 'ask_page',
+        })
+      }
+    } catch {
+      setCaptureError('Network error. Please try again.')
+    } finally {
+      setCaptureLoading(false)
+    }
+  }
 
   async function handleAsk(e: React.FormEvent) {
     e.preventDefault()
@@ -149,6 +191,48 @@ export default function AskSettleGridPage() {
                   Build tools like this
                 </Link>
               </div>
+            </div>
+          )}
+
+          {/* Email capture — shown after a successful result */}
+          {result && !captureSuccess && (
+            <div className="mt-6 bg-gradient-to-br from-[#161822] to-[#1E2030] border border-[#2A2D3E] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-gray-100 mb-1">Want unlimited access?</h3>
+              <p className="text-sm text-gray-400 mb-4">
+                Enter your email for $25 in free credits across the marketplace.
+              </p>
+              <form onSubmit={handleCapture} className="flex gap-3">
+                <input
+                  type="email"
+                  value={captureEmail}
+                  onChange={(e) => setCaptureEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="flex-1 h-10 px-4 rounded-lg bg-[#0C0E14] border border-[#2A2D3E] text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors text-sm"
+                  required
+                  disabled={captureLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={captureLoading || !captureEmail.trim()}
+                  className="h-10 px-5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                >
+                  {captureLoading ? 'Sending...' : 'Get credits'}
+                </button>
+              </form>
+              {captureError && (
+                <p className="mt-2 text-xs text-red-400">{captureError}</p>
+              )}
+              <p className="mt-3 text-[11px] text-gray-600">
+                No spam. We will send you a welcome email with your credits.
+              </p>
+            </div>
+          )}
+
+          {/* Capture success state */}
+          {captureSuccess && (
+            <div className="mt-6 bg-green-900/20 border border-green-800/40 rounded-xl p-6 text-center">
+              <p className="text-sm text-green-300 font-medium">Check your email for next steps!</p>
+              <p className="text-xs text-green-400/70 mt-1">$25 in credits will be available when you activate your account.</p>
             </div>
           )}
 

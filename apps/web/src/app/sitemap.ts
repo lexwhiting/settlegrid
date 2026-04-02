@@ -5,6 +5,7 @@ import { COLLECTION_SLUGS } from '@/lib/collections'
 import { HOWTO_SLUGS } from '@/lib/howto-guides'
 import { BLOG_SLUGS } from '@/lib/blog-posts'
 import { INTEGRATION_SLUGS } from '@/lib/integration-guides'
+import { FRAMEWORK_SLUGS } from '@/lib/frameworks'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -181,6 +182,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     })),
 
+    // ── Framework integration pages ──────────────────────────────────────────
+    ...FRAMEWORK_SLUGS.map((fw) => ({
+      url: `${BASE_URL}/explore/for/${fw}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
+
     // ── Marketplace ────────────────────────────────────────────────────────────
     {
       url: `${BASE_URL}/marketplace`,
@@ -205,6 +214,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     ),
 
+
+    // ── Trending ──────────────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/marketplace/trending`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
 
     // ── How-to guides ─────────────────────────────────────────────────────────
     {
