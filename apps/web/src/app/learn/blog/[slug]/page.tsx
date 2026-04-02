@@ -33,11 +33,21 @@ export async function generateMetadata({
       description: post.description,
       type: 'article',
       url: `https://settlegrid.ai/learn/blog/${slug}`,
+      siteName: 'SettleGrid',
+      publishedTime: post.datePublished,
+      modifiedTime: post.dateModified,
+      authors: [post.author.name],
+      section: 'Developer Guides',
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description: post.description,
+    },
+    other: {
+      'article:published_time': post.datePublished,
+      'article:modified_time': post.dateModified,
+      'article:author': post.author.name,
     },
   }
 }
@@ -94,9 +104,10 @@ export default async function BlogPostPage({
     keywords: post.keywords,
     articleSection: 'Developer Guides',
     author: {
-      '@type': 'Organization',
-      name: 'SettleGrid',
-      url: 'https://settlegrid.ai',
+      '@type': 'Person',
+      name: post.author.name,
+      ...(post.author.url ? { url: post.author.url } : {}),
+      ...(post.author.bio ? { description: post.author.bio } : {}),
     },
     publisher: {
       '@type': 'Organization',
@@ -121,6 +132,22 @@ export default async function BlogPostPage({
     ],
   }
 
+  // ── JSON-LD: FAQPage (if the post has FAQ entries) ────────────────────
+  const jsonLdFaq = post.faqs && post.faqs.length > 0
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: post.faqs.map((faq) => ({
+          '@type': 'Question',
+          name: faq.question,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: faq.answer,
+          },
+        })),
+      }
+    : null
+
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
@@ -142,6 +169,9 @@ export default async function BlogPostPage({
         <div className="max-w-3xl mx-auto">
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdArticle) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
+          {jsonLdFaq && (
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }} />
+          )}
 
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm text-gray-400 mb-8" aria-label="Breadcrumb">
@@ -160,6 +190,16 @@ export default async function BlogPostPage({
               </span>
               <span className="text-[10px] text-gray-500">
                 {new Date(post.datePublished).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {'by '}
+                {post.author.url ? (
+                  <a href={post.author.url} className="text-gray-400 hover:text-gray-100 transition-colors">
+                    {post.author.name}
+                  </a>
+                ) : (
+                  post.author.name
+                )}
               </span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-4">
@@ -244,6 +284,21 @@ export default async function BlogPostPage({
               </section>
             ))}
           </div>
+
+          {/* FAQ Section */}
+          {post.faqs && post.faqs.length > 0 && (
+            <div className="mt-14 mb-10">
+              <h2 className="text-xl font-bold text-gray-100 mb-6">Frequently Asked Questions</h2>
+              <div className="space-y-6">
+                {post.faqs.map((faq, i) => (
+                  <div key={i} className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6">
+                    <h3 className="text-base font-semibold text-gray-100 mb-2">{faq.question}</h3>
+                    <p className="text-gray-300 leading-relaxed">{faq.answer}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* CTA */}
           <div className="mt-14 mb-10 rounded-xl border border-[#2A2D3E] bg-gradient-to-br from-[#161822] to-[#0C0E14] p-8 text-center">
