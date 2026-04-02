@@ -12,6 +12,7 @@ export const maxDuration = 15
 const subscribeSchema = z.object({
   email: z.string().email().max(320),
   name: z.string().max(200).optional(),
+  frequency: z.enum(['weekly', 'monthly']).optional(),
 })
 
 /**
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid request body.', 400, 'VALIDATION_ERROR')
     }
 
-    const { email } = parsed
+    const { email, frequency = 'weekly' } = parsed
 
     // Check if consumer already exists
     const [existing] = await db
@@ -50,17 +51,18 @@ export async function POST(request: NextRequest) {
 
       await db
         .update(consumers)
-        .set({ newsletterSubscribed: true })
+        .set({ newsletterSubscribed: true, newsletterFrequency: frequency })
         .where(eq(consumers.id, existing.id))
 
-      logger.info('newsletter.resubscribed', { email })
-      return successResponse({ message: 'Successfully resubscribed.', subscribed: true })
+      logger.info('newsletter.resubscribed', { email, frequency })
+      return successResponse({ message: 'Successfully resubscribed.', subscribed: true, frequency })
     }
 
     // Create a minimal consumer record for newsletter-only subscribers
     await db.insert(consumers).values({
       email,
       newsletterSubscribed: true,
+      newsletterFrequency: frequency,
     })
 
     logger.info('newsletter.subscribed', { email })

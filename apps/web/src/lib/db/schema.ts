@@ -157,6 +157,7 @@ export const consumers = pgTable('consumers', {
   autoRefillTriggerCents: integer('auto_refill_trigger_cents'), // trigger when balance drops below this
   // Newsletter subscription
   newsletterSubscribed: boolean('newsletter_subscribed').notNull().default(true),
+  newsletterFrequency: text('newsletter_frequency').notNull().default('weekly'), // 'weekly' | 'monthly'
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('consumers_referral_code_idx').on(table.referralCode),
