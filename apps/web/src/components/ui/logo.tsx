@@ -157,20 +157,16 @@ export function SettleGridLogo({
     return <FlowGrid size={size} theme={theme} className={className} />
   }
 
-  if (variant === 'compact') {
-    return (
-      <div className={cn('inline-flex items-center gap-1.5', className)}>
-        <FlowGrid size={size * 0.75} theme={theme} />
-        <Wordmark size={size * 0.7} theme={theme} />
-      </div>
-    )
-  }
-
-  // horizontal (default)
+  // Both horizontal and compact now use the Recraft SVG wordmark
+  const height = variant === 'compact' ? size * 0.7 : size * 0.8
   return (
-    <div className={cn('inline-flex items-center gap-2', className)}>
-      <FlowGrid size={size} theme={theme} />
-      <Wordmark size={size} theme={theme} />
-    </div>
+    <img
+      src="/brand/wordmark-transparent.svg"
+      alt="SettleGrid"
+      width={height * (916 / 180)}
+      height={height}
+      className={cn('inline-block', className)}
+      style={{ height: `${height}px`, width: 'auto' }}
+    />
   )
 }
