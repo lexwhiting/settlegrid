@@ -84,55 +84,7 @@ function FlowGrid({ size, theme, className }: { size: number; theme: 'light' | '
   )
 }
 
-/**
- * SettleGrid wordmark: "Settle" (bold 700) + "Grid" (regular 400).
- * Auto theme: uses Tailwind dark: classes to swap colors.
- * Light: "Settle" is Deep Indigo, "Grid" is Amber-Gold.
- * Dark: "Settle" is White, "Grid" is lighter Amber-Gold.
- */
-function Wordmark({
-  size,
-  theme,
-  className,
-}: {
-  size: number
-  theme: 'light' | 'dark' | 'auto'
-  className?: string
-}) {
-  const fontSize = size * 0.6
-
-  if (theme === 'auto') {
-    return (
-      <span
-        className={cn('select-none text-[#1A1F3A] dark:text-white', className)}
-        style={{
-          fontSize,
-          lineHeight: 1,
-          fontWeight: 700,
-          letterSpacing: '-0.5px',
-        }}
-      >
-        Settle<span className="text-[#E5A336] dark:text-[#F5C963]" style={{ fontWeight: 400 }}>Grid</span>
-      </span>
-    )
-  }
-
-  const settleColor = theme === 'dark' ? '#FFFFFF' : '#1A1F3A'
-  return (
-    <span
-      className={cn('select-none', className)}
-      style={{
-        fontSize,
-        lineHeight: 1,
-        fontWeight: 700,
-        letterSpacing: '-0.5px',
-        color: settleColor,
-      }}
-    >
-      Settle<span style={{ color: theme === 'dark' ? '#F5C963' : '#E5A336', fontWeight: 400 }}>Grid</span>
-    </span>
-  )
-}
+// Wordmark function removed — now using Recraft SVG wordmark image
 
 /**
  * SettleGrid logo component with three variants and theme support.
