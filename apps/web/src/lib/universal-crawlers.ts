@@ -6,6 +6,10 @@
  * catalog. Each crawler handles errors gracefully (returns empty array on
  * failure), uses a 10-second fetch timeout, and returns normalized
  * CrawledService entries.
+ *
+ * Pagination: Each crawler accepts an `offset` parameter so that successive
+ * cron runs continue from where the last run left off, progressively walking
+ * through the full catalog instead of re-fetching page 1 every time.
  */
 
 import { logger } from '@/lib/logger'
@@ -53,10 +57,22 @@ export interface CrawledService {
   enrichment?: CrawledServiceEnrichment
 }
 
+/** Result from a paginated crawl, including the next offset for the following run */
+export interface PaginatedServiceResult {
+  services: CrawledService[]
+  /** Next offset to store — if null, the end of catalog was reached (reset to 0) */
+  nextOffset: number | null
+  /** Whether the end of the catalog was reached on this run */
+  endOfCatalog: boolean
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const FETCH_TIMEOUT_MS = 10_000
 const USER_AGENT = 'SettleGrid-Crawler/1.0 (https://settlegrid.ai)'
+
+/** HuggingFace: limit to top models by downloads (beyond this, quality drops) */
+const HF_MAX_OFFSET = 10_000
 
 /** All universal sources in rotation order */
 export const UNIVERSAL_SOURCES = [
@@ -99,8 +115,7 @@ const CATEGORY_KEYWORD_MAP: ReadonlyArray<{
 /**
  * Classifies a tool into a category based on keyword analysis of its
  * name, description, and source tags. Returns the best matching category
- * with confidence score. This is a local, zero-cost alternative to AI
- * classification that runs on every crawled tool.
+ * with confidence score.
  */
 export function classifyByKeywords(
   name: string,
@@ -120,7 +135,6 @@ export function classifyByKeywords(
     }
     if (matchCount === 0) continue
 
-    // Score = (matched keywords / total keywords) * weight
     const score = (matchCount / entry.keywords.length) * entry.weight
     if (score > bestScore) {
       bestScore = score
@@ -164,21 +178,18 @@ const PAID_DESCRIPTION_PATTERNS: ReadonlyArray<RegExp> = [
 ]
 
 /**
- * Detects whether a tool is already monetized elsewhere based on
- * URL patterns and description text analysis.
+ * Detects whether a tool is already monetized elsewhere.
  */
 export function detectMonetization(
   sourceUrl: string,
   description: string,
 ): { isMonetized: boolean; source?: string } {
-  // Check URL patterns
   for (const indicator of MONETIZATION_INDICATORS) {
     if (indicator.pattern.test(sourceUrl)) {
       return { isMonetized: true, source: indicator.source }
     }
   }
 
-  // Check description for pricing language
   for (const pattern of PAID_DESCRIPTION_PATTERNS) {
     if (pattern.test(description)) {
       return { isMonetized: true, source: 'description-detected' }
@@ -203,7 +214,6 @@ const PRICE_PATTERNS: ReadonlyArray<{
 
 /**
  * Attempts to extract pricing information from a tool's description text.
- * Returns detected price in cents and pricing model, or null if not found.
  */
 export function detectPricingFromDescription(
   description: string,
@@ -213,7 +223,6 @@ export function detectPricingFromDescription(
     if (match?.[1]) {
       const value = parseFloat(match[1])
       if (Number.isFinite(value) && value > 0 && value < 10000) {
-        // If the pattern matched dollars, convert to cents
         const isCents = pattern.source.includes('cent')
         const cents = isCents ? Math.round(value) : Math.round(value * 100)
         return { priceCents: cents, model }
@@ -269,25 +278,33 @@ interface HfModel {
 
 /**
  * Crawls HuggingFace for popular models sorted by downloads.
- * Filters to models with >1000 downloads.
+ * API supports offset-based pagination via the `offset` parameter.
+ * Limited to top 10,000 models by downloads (beyond that, quality drops).
  */
-export async function crawlHuggingFaceModels(limit: number): Promise<CrawledService[]> {
+export async function crawlHuggingFaceModels(limit: number, offset = 0): Promise<PaginatedServiceResult> {
+  // Cap at HF_MAX_OFFSET to avoid indexing low-quality models
+  if (offset >= HF_MAX_OFFSET) {
+    logger.info('crawler.hf_models.max_offset_reached', { offset, maxOffset: HF_MAX_OFFSET })
+    return { services: [], nextOffset: null, endOfCatalog: true }
+  }
+
   try {
     const url = new URL(HF_MODELS_URL)
     url.searchParams.set('sort', 'downloads')
     url.searchParams.set('direction', '-1')
     url.searchParams.set('limit', String(Math.min(limit * 2, 200)))
+    url.searchParams.set('offset', String(offset))
 
     const res = await fetchWithTimeout(url.toString())
     if (!res.ok) {
       logger.warn('crawler.hf_models.fetch_failed', { status: res.status })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
     if (!Array.isArray(data)) {
       logger.warn('crawler.hf_models.unexpected_format', { msg: 'Expected array response' })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const results: CrawledService[] = []
@@ -306,7 +323,6 @@ export async function crawlHuggingFaceModels(limit: number): Promise<CrawledServ
           ? model.downloads
           : 0
 
-      // Filter: only include models with significant usage
       if (downloads < HF_MIN_DOWNLOADS) continue
 
       const author = typeof model.author === 'string' ? model.author : id.split('/')[0] ?? 'unknown'
@@ -319,7 +335,6 @@ export async function crawlHuggingFaceModels(limit: number): Promise<CrawledServ
         `${downloads.toLocaleString()} downloads.`,
       ].filter(Boolean)
 
-      // Enrichment: extract metadata that makes SettleGrid's directory richer
       const tags: string[] = Array.isArray(model.tags)
         ? model.tags.filter((t): t is string => typeof t === 'string')
         : []
@@ -355,15 +370,31 @@ export async function crawlHuggingFaceModels(limit: number): Promise<CrawledServ
       })
     }
 
-    logger.info('crawler.hf_models.completed', { count: results.length })
-    return results
+    // End of catalog: fewer results returned than requested, or we've hit the cap
+    const returnedCount = (data as unknown[]).length
+    const requestedCount = Math.min(limit * 2, 200)
+    const newOffset = offset + returnedCount
+    const endOfCatalog = returnedCount < requestedCount || newOffset >= HF_MAX_OFFSET
+
+    logger.info('crawler.hf_models.completed', {
+      count: results.length,
+      offset,
+      returnedFromApi: returnedCount,
+      endOfCatalog,
+    })
+
+    return {
+      services: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.hf_models.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { services: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -389,25 +420,26 @@ interface HfSpace {
 
 /**
  * Crawls HuggingFace Spaces sorted by likes, filtering for spaces
- * with API/inference tags.
+ * with API/inference tags. Supports offset-based pagination.
  */
-export async function crawlHuggingFaceSpaces(limit: number): Promise<CrawledService[]> {
+export async function crawlHuggingFaceSpaces(limit: number, offset = 0): Promise<PaginatedServiceResult> {
   try {
     const url = new URL(HF_SPACES_URL)
     url.searchParams.set('sort', 'likes')
     url.searchParams.set('direction', '-1')
     url.searchParams.set('limit', String(Math.min(limit * 2, 200)))
+    url.searchParams.set('offset', String(offset))
 
     const res = await fetchWithTimeout(url.toString())
     if (!res.ok) {
       logger.warn('crawler.hf_spaces.fetch_failed', { status: res.status })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
     if (!Array.isArray(data)) {
       logger.warn('crawler.hf_spaces.unexpected_format', { msg: 'Expected array response' })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const results: CrawledService[] = []
@@ -420,7 +452,6 @@ export async function crawlHuggingFaceSpaces(limit: number): Promise<CrawledServ
 
       if (typeof space.id !== 'string' || space.id.trim().length === 0) continue
 
-      // Collect all tags from both top-level and cardData
       const allTags: string[] = []
       if (Array.isArray(space.tags)) {
         for (const t of space.tags) {
@@ -436,7 +467,6 @@ export async function crawlHuggingFaceSpaces(limit: number): Promise<CrawledServ
         allTags.push(space.sdk.toLowerCase())
       }
 
-      // Filter: must have at least one API/inference-related tag
       const hasApiTag = allTags.some((tag) => SPACE_API_TAGS.has(tag))
       if (!hasApiTag) continue
 
@@ -479,15 +509,30 @@ export async function crawlHuggingFaceSpaces(limit: number): Promise<CrawledServ
       })
     }
 
-    logger.info('crawler.hf_spaces.completed', { count: results.length })
-    return results
+    const returnedCount = (data as unknown[]).length
+    const requestedCount = Math.min(limit * 2, 200)
+    const newOffset = offset + returnedCount
+    const endOfCatalog = returnedCount < requestedCount
+
+    logger.info('crawler.hf_spaces.completed', {
+      count: results.length,
+      offset,
+      returnedFromApi: returnedCount,
+      endOfCatalog,
+    })
+
+    return {
+      services: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.hf_spaces.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { services: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -515,41 +560,48 @@ interface ApifyItem {
 interface ApifyStoreResponse {
   data?: {
     items?: ApifyItem[]
+    total?: number
+    offset?: number
+    count?: number
+    limit?: number
   }
 }
 
 /**
- * Crawls the Apify Actor Store for popular automation actors.
+ * Crawls the Apify Actor Store with offset-based pagination.
+ * API supports `limit` and `offset` parameters.
  */
-export async function crawlApifyActors(limit: number): Promise<CrawledService[]> {
+export async function crawlApifyActors(limit: number, offset = 0): Promise<PaginatedServiceResult> {
   try {
+    const pageSize = Math.min(limit, 100)
     const url = new URL(APIFY_STORE_URL)
-    url.searchParams.set('limit', String(Math.min(limit, 100)))
-    url.searchParams.set('offset', '0')
+    url.searchParams.set('limit', String(pageSize))
+    url.searchParams.set('offset', String(offset))
     url.searchParams.set('sortBy', 'popularity')
 
     const res = await fetchWithTimeout(url.toString())
     if (!res.ok) {
       logger.warn('crawler.apify.fetch_failed', { status: res.status })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
     if (typeof data !== 'object' || data === null) {
       logger.warn('crawler.apify.unexpected_format', { msg: 'Expected object response' })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const response = data as ApifyStoreResponse
 
-    // Apify returns { data: { items: [...] } }
     const items: unknown[] = Array.isArray(response.data?.items)
       ? response.data.items
       : []
 
+    const totalAvailable = typeof response.data?.total === 'number' ? response.data.total : undefined
+
     if (items.length === 0) {
-      logger.info('crawler.apify.no_data', { msg: 'Store returned 0 actors' })
-      return []
+      logger.info('crawler.apify.no_data', { msg: 'Store returned 0 actors', offset })
+      return { services: [], nextOffset: null, endOfCatalog: true }
     }
 
     const results: CrawledService[] = []
@@ -567,7 +619,6 @@ export async function crawlApifyActors(limit: number): Promise<CrawledService[]>
 
       if (!name || !username) continue
 
-      // Deduplicate by username/name
       const key = `${username}/${name}`.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
@@ -609,15 +660,29 @@ export async function crawlApifyActors(limit: number): Promise<CrawledService[]>
       })
     }
 
-    logger.info('crawler.apify.completed', { count: results.length })
-    return results
+    const endOfCatalog = items.length < pageSize
+      || (totalAvailable !== undefined && offset + items.length >= totalAvailable)
+    const newOffset = offset + items.length
+
+    logger.info('crawler.apify.completed', {
+      count: results.length,
+      offset,
+      totalAvailable,
+      endOfCatalog,
+    })
+
+    return {
+      services: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.apify.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { services: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -685,23 +750,28 @@ interface PypiPackageInfo {
 }
 
 /**
- * Crawls PyPI for known AI packages by fetching metadata for each
- * package in the curated list. PyPI has no search API, so we check
- * individual package endpoints.
+ * Crawls PyPI for known AI packages.
+ *
+ * PyPI has no search API, so we check individual package endpoints
+ * from a curated list. The offset parameter determines which slice
+ * of the list to check on this run.
  */
-export async function crawlPypiAiPackages(limit: number): Promise<CrawledService[]> {
+export async function crawlPypiAiPackages(limit: number, offset = 0): Promise<PaginatedServiceResult> {
+  // Slice the curated list from the offset
+  const packagesToCheck = PYPI_AI_PACKAGES.slice(offset, offset + Math.min(limit * 2, 50))
+
+  if (packagesToCheck.length === 0) {
+    return { services: [], nextOffset: null, endOfCatalog: true }
+  }
+
   const results: CrawledService[] = []
-  const packagesToCheck = PYPI_AI_PACKAGES.slice(0, Math.min(limit * 2, PYPI_AI_PACKAGES.length))
 
   for (const pkgName of packagesToCheck) {
     if (results.length >= limit) break
 
     try {
       const res = await fetchWithTimeout(`${PYPI_PACKAGE_URL}/${pkgName}/json`)
-      if (!res.ok) {
-        // Package may not exist or API may be throttling — skip silently
-        continue
-      }
+      if (!res.ok) continue
 
       const data: unknown = await res.json()
       if (typeof data !== 'object' || data === null) continue
@@ -716,7 +786,6 @@ export async function crawlPypiAiPackages(limit: number): Promise<CrawledService
       const summary = typeof info.summary === 'string' ? info.summary.trim().slice(0, 2000) : ''
       const authorEmail = typeof info.author_email === 'string' ? info.author_email.trim() : undefined
 
-      // Resolve source URL: prefer repository, then home_page
       const projectUrls = typeof info.project_urls === 'object' && info.project_urls !== null
         ? info.project_urls
         : {}
@@ -733,9 +802,8 @@ export async function crawlPypiAiPackages(limit: number): Promise<CrawledService
       const pypiKeywords = typeof info.keywords === 'string'
         ? info.keywords.split(',').map((k) => k.trim()).filter(Boolean)
         : []
-      // Count maintainers from classifiers or email presence
       const hasMaintainer = typeof info.maintainer === 'string' && info.maintainer.length > 0
-      const maintainerCount = hasMaintainer ? 2 : 1 // Author + optional maintainer
+      const maintainerCount = hasMaintainer ? 2 : 1
 
       const fullDesc = summary || `Python package: ${name}`
       const categoryResult = classifyByKeywords(name, fullDesc, pypiKeywords)
@@ -760,7 +828,6 @@ export async function crawlPypiAiPackages(limit: number): Promise<CrawledService
         },
       })
     } catch (err) {
-      // Individual package failure — log and continue
       const isTimeout = err instanceof Error && err.name === 'AbortError'
       logger.warn('crawler.pypi.package_error', {
         package: pkgName,
@@ -770,8 +837,22 @@ export async function crawlPypiAiPackages(limit: number): Promise<CrawledService
     }
   }
 
-  logger.info('crawler.pypi.completed', { count: results.length })
-  return results
+  const newOffset = offset + packagesToCheck.length
+  const endOfCatalog = newOffset >= PYPI_AI_PACKAGES.length
+
+  logger.info('crawler.pypi.completed', {
+    count: results.length,
+    offset,
+    checked: packagesToCheck.length,
+    totalPackages: PYPI_AI_PACKAGES.length,
+    endOfCatalog,
+  })
+
+  return {
+    services: results,
+    nextOffset: endOfCatalog ? null : newOffset,
+    endOfCatalog,
+  }
 }
 
 // ─── Source 5: Replicate Models ─────────────────────────────────────────────
@@ -801,34 +882,42 @@ interface ReplicateListResponse {
 }
 
 /**
- * Crawls Replicate for popular models sorted by run count.
- * Requires REPLICATE_API_TOKEN — returns empty array if not configured.
+ * Crawls Replicate for popular models.
+ * Replicate API supports cursor-based pagination via `next` URL.
+ * We use offset to track page number (each page is ~100 models).
+ * Requires REPLICATE_API_TOKEN.
  */
-export async function crawlReplicateModels(limit: number): Promise<CrawledService[]> {
+export async function crawlReplicateModels(limit: number, offset = 0): Promise<PaginatedServiceResult> {
   const token = getReplicateToken()
   if (!token) {
     logger.info('crawler.replicate.skipped', {
       msg: 'REPLICATE_API_TOKEN not configured — skipping Replicate crawler',
     })
-    return []
+    return { services: [], nextOffset: null, endOfCatalog: true }
   }
 
   try {
+    const pageSize = Math.min(limit * 2, 100)
+    // Replicate uses cursor-based pagination; we track page number in offset
+    const page = Math.floor(offset / pageSize) + 1
+
     const url = new URL(REPLICATE_API_URL)
-    url.searchParams.set('page_size', String(Math.min(limit * 2, 100)))
+    url.searchParams.set('page_size', String(pageSize))
+    // Replicate doesn't expose a simple page param, but the API returns a `next` cursor URL.
+    // For our offset-based approach, we'll use the API's default sort and skip via offset.
 
     const res = await fetchWithTimeout(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {
       logger.warn('crawler.replicate.fetch_failed', { status: res.status })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
     if (typeof data !== 'object' || data === null) {
       logger.warn('crawler.replicate.unexpected_format', { msg: 'Expected object response' })
-      return []
+      return { services: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const response = data as ReplicateListResponse
@@ -837,10 +926,11 @@ export async function crawlReplicateModels(limit: number): Promise<CrawledServic
       : Array.isArray(data)
         ? (data as unknown[])
         : []
+    const hasNext = typeof response.next === 'string' && response.next.length > 0
 
     if (models.length === 0) {
       logger.info('crawler.replicate.no_data', { msg: 'API returned 0 models' })
-      return []
+      return { services: [], nextOffset: null, endOfCatalog: true }
     }
 
     // Sort by run count descending
@@ -904,7 +994,6 @@ export async function crawlReplicateModels(limit: number): Promise<CrawledServic
         enrichment: {
           popularityCount: runCount,
           lastUpdatedAt: lastUpdated,
-          // Replicate models are always monetized (pay-per-prediction)
           isAlreadyMonetized: true,
           monetizationSource: 'replicate',
           detectedCategory: categoryResult?.category,
@@ -914,15 +1003,29 @@ export async function crawlReplicateModels(limit: number): Promise<CrawledServic
       })
     }
 
-    logger.info('crawler.replicate.completed', { count: results.length })
-    return results
+    const newOffset = offset + models.length
+    const endOfCatalog = !hasNext || models.length < pageSize
+
+    logger.info('crawler.replicate.completed', {
+      count: results.length,
+      offset,
+      page,
+      hasNext,
+      endOfCatalog,
+    })
+
+    return {
+      services: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.replicate.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { services: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -947,7 +1050,7 @@ const NPM_AI_QUERIES = [
 ] as const
 
 /** Max results per npm query (API caps at 250) */
-const NPM_RESULTS_PER_QUERY = 50
+const NPM_RESULTS_PER_QUERY = 250
 
 interface NpmSearchObject {
   package?: {
@@ -967,12 +1070,11 @@ interface NpmSearchObject {
 
 interface NpmSearchResponse {
   objects?: NpmSearchObject[]
+  total?: number
 }
 
 /**
  * Determines tool type from npm package keywords.
- * Returns 'agent-tool' if keywords contain 'tool' or 'agent',
- * otherwise 'sdk-package'.
  */
 function inferNpmToolType(keywords: string[]): string {
   const lower = keywords.map((k) => k.toLowerCase())
@@ -983,32 +1085,54 @@ function inferNpmToolType(keywords: string[]): string {
 }
 
 /**
- * Crawls npm for AI-related packages across multiple keyword queries.
- * Deduplicates by package name and returns up to `limit` results.
+ * Crawls npm for AI-related packages with offset-based pagination.
+ *
+ * The offset encodes both which query we're on and where within that query:
+ *   offset = queryIndex * 10000 + withinQueryOffset
  */
-export async function crawlNpmAiPackages(limit: number): Promise<CrawledService[]> {
+export async function crawlNpmAiPackages(limit: number, offset = 0): Promise<PaginatedServiceResult> {
   try {
     const seen = new Set<string>()
     const results: CrawledService[] = []
 
-    for (const query of NPM_AI_QUERIES) {
-      if (results.length >= limit) break
+    // Decode compound offset
+    const queryIndex = Math.floor(offset / 10000)
+    const withinQueryOffset = offset % 10000
 
+    let currentQueryIdx = queryIndex
+    let currentWithinOffset = withinQueryOffset
+    let endOfCatalog = false
+
+    while (currentQueryIdx < NPM_AI_QUERIES.length && results.length < limit) {
+      const query = NPM_AI_QUERIES[currentQueryIdx]
       try {
         const url = new URL(NPM_SEARCH_URL)
         url.searchParams.set('text', query)
         url.searchParams.set('size', String(Math.min(NPM_RESULTS_PER_QUERY, 250)))
+        url.searchParams.set('from', String(currentWithinOffset))
 
         const res = await fetchWithTimeout(url.toString())
         if (!res.ok) {
           logger.warn('crawler.npm_ai.query_failed', { query, status: res.status })
+          currentQueryIdx++
+          currentWithinOffset = 0
           continue
         }
 
         const data: unknown = await res.json()
-        if (typeof data !== 'object' || data === null) continue
+        if (typeof data !== 'object' || data === null) {
+          currentQueryIdx++
+          currentWithinOffset = 0
+          continue
+        }
         const npmResponse = data as NpmSearchResponse
-        if (!Array.isArray(npmResponse.objects)) continue
+        if (!Array.isArray(npmResponse.objects)) {
+          currentQueryIdx++
+          currentWithinOffset = 0
+          continue
+        }
+
+        const total = typeof npmResponse.total === 'number' ? npmResponse.total : 0
 
         for (const obj of npmResponse.objects) {
           if (results.length >= limit) break
@@ -1066,25 +1190,55 @@ export async function crawlNpmAiPackages(limit: number): Promise<CrawledService[
 
         logger.info('crawler.npm_ai.query_completed', {
           query,
+          from: currentWithinOffset,
+          total,
           totalSoFar: results.length,
         })
+
+        // If this query is exhausted, move to the next query
+        const returnedCount = npmResponse.objects.length
+        if (returnedCount < NPM_RESULTS_PER_QUERY || currentWithinOffset + returnedCount >= total) {
+          currentQueryIdx++
+          currentWithinOffset = 0
+        } else {
+          currentWithinOffset += returnedCount
+          break // Stop for this run, continue next run
+        }
       } catch (queryErr) {
         logger.warn('crawler.npm_ai.query_error', {
           query,
           error: queryErr instanceof Error ? queryErr.message : String(queryErr),
         })
+        currentQueryIdx++
+        currentWithinOffset = 0
       }
     }
 
-    logger.info('crawler.npm_ai.completed', { count: results.length })
-    return results
+    if (currentQueryIdx >= NPM_AI_QUERIES.length) {
+      endOfCatalog = true
+    }
+
+    const newOffset = endOfCatalog ? null : currentQueryIdx * 10000 + currentWithinOffset
+
+    logger.info('crawler.npm_ai.completed', {
+      count: results.length,
+      offset,
+      newOffset,
+      endOfCatalog,
+    })
+
+    return {
+      services: results,
+      nextOffset: newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.npm_ai.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { services: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -1162,10 +1316,14 @@ function inferGitHubToolType(topics: string[]): string {
 }
 
 /**
- * Crawls GitHub for AI-related repositories using topic-based search.
- * Uses GITHUB_TOKEN from env for authenticated requests (higher rate limit).
+ * Crawls GitHub for AI-related repositories with page-based pagination.
+ *
+ * The offset encodes both which query we're on and which page within that query:
+ *   offset = queryIndex * 1000 + pageNumber
+ *
+ * GitHub API: max 100 results per page, max 1000 results per query.
  */
-export async function crawlGitHubAiRepos(limit: number): Promise<CrawledService[]> {
+export async function crawlGitHubAiRepos(limit: number, offset = 0): Promise<PaginatedServiceResult> {
   const token = getGitHubToken()
   const headers: Record<string, string> = {}
   if (token) {
@@ -1175,26 +1333,47 @@ export async function crawlGitHubAiRepos(limit: number): Promise<CrawledService[
   const seen = new Set<string>()
   const results: CrawledService[] = []
 
-  for (const query of GITHUB_TOPIC_QUERIES) {
-    if (results.length >= limit) break
+  // Decode compound offset: queryIndex * 1000 + page
+  const queryIndex = Math.floor(offset / 1000)
+  const pageWithinQuery = (offset % 1000) || 1
+
+  let currentQueryIdx = queryIndex
+  let currentPage = pageWithinQuery
+  let endOfCatalog = false
+
+  while (currentQueryIdx < GITHUB_TOPIC_QUERIES.length && results.length < limit) {
+    const query = GITHUB_TOPIC_QUERIES[currentQueryIdx]
 
     try {
       const url = new URL(GITHUB_SEARCH_URL)
       url.searchParams.set('q', query)
       url.searchParams.set('sort', 'updated')
       url.searchParams.set('per_page', String(Math.min(100, limit)))
+      url.searchParams.set('page', String(currentPage))
 
       const res = await fetchWithTimeout(url.toString(), { headers })
       if (!res.ok) {
         // GitHub returns 403 on rate limit, 422 on bad query
-        logger.warn('crawler.github.query_failed', { query, status: res.status })
+        logger.warn('crawler.github.query_failed', { query, status: res.status, page: currentPage })
+        currentQueryIdx++
+        currentPage = 1
         continue
       }
 
       const data: unknown = await res.json()
-      if (typeof data !== 'object' || data === null) continue
+      if (typeof data !== 'object' || data === null) {
+        currentQueryIdx++
+        currentPage = 1
+        continue
+      }
       const ghResponse = data as GitHubSearchResponse
-      if (!Array.isArray(ghResponse.items)) continue
+      if (!Array.isArray(ghResponse.items)) {
+        currentQueryIdx++
+        currentPage = 1
+        continue
+      }
+
+      const totalCount = typeof ghResponse.total_count === 'number' ? ghResponse.total_count : 0
 
       for (const repo of ghResponse.items) {
         if (results.length >= limit) break
@@ -1259,50 +1438,82 @@ export async function crawlGitHubAiRepos(limit: number): Promise<CrawledService[
 
       logger.info('crawler.github.query_completed', {
         query,
+        page: currentPage,
+        totalCount,
         totalSoFar: results.length,
       })
+
+      // GitHub caps at 1000 results per query (10 pages of 100)
+      const maxPage = Math.min(Math.ceil(totalCount / 100), 10)
+      if (currentPage >= maxPage || ghResponse.items.length < 100) {
+        currentQueryIdx++
+        currentPage = 1
+      } else {
+        currentPage++
+        break // Stop for this run, continue next run
+      }
     } catch (queryErr) {
       const isTimeout = queryErr instanceof Error && queryErr.name === 'AbortError'
       logger.warn('crawler.github.query_error', {
         query,
+        page: currentPage,
         msg: isTimeout ? 'Timed out' : 'Fetch failed',
         error: queryErr instanceof Error ? queryErr.message : String(queryErr),
       })
+      currentQueryIdx++
+      currentPage = 1
     }
   }
 
-  logger.info('crawler.github.completed', { count: results.length })
-  return results
+  if (currentQueryIdx >= GITHUB_TOPIC_QUERIES.length) {
+    endOfCatalog = true
+  }
+
+  const newOffset = endOfCatalog ? null : currentQueryIdx * 1000 + currentPage
+
+  logger.info('crawler.github.completed', {
+    count: results.length,
+    offset,
+    newOffset,
+    endOfCatalog,
+  })
+
+  return {
+    services: results,
+    nextOffset: newOffset,
+    endOfCatalog,
+  }
 }
 
 // ─── Unified dispatcher ────────────────────────────────────────────────────
 
 /**
- * Crawls a specific universal source.
- * Returns normalized service entries, up to `limit`.
+ * Crawls a specific universal source with pagination support.
+ * Returns normalized service entries plus pagination metadata.
  */
 export async function crawlUniversalSource(
   source: UniversalSource,
   limit: number,
-): Promise<CrawledService[]> {
+  offset = 0,
+): Promise<PaginatedServiceResult> {
   switch (source) {
     case 'huggingface-models':
-      return crawlHuggingFaceModels(limit)
+      return crawlHuggingFaceModels(limit, offset)
     case 'huggingface-spaces':
-      return crawlHuggingFaceSpaces(limit)
+      return crawlHuggingFaceSpaces(limit, offset)
     case 'apify':
-      return crawlApifyActors(limit)
+      return crawlApifyActors(limit, offset)
     case 'pypi':
-      return crawlPypiAiPackages(limit)
+      return crawlPypiAiPackages(limit, offset)
     case 'replicate':
-      return crawlReplicateModels(limit)
+      return crawlReplicateModels(limit, offset)
     case 'npm-ai':
-      return crawlNpmAiPackages(limit)
+      return crawlNpmAiPackages(limit, offset)
     case 'github':
-      return crawlGitHubAiRepos(limit)
+      return crawlGitHubAiRepos(limit, offset)
     default:
       logger.warn('crawler.universal.unknown_source', { source })
-      return []
+      return { services: [], nextOffset: null, endOfCatalog: true }
   }
 }
 
@@ -1321,8 +1532,6 @@ export function getUniversalSourceForDay(): UniversalSource {
 
 /**
  * High-priority sources that should run more frequently than once per week.
- * HuggingFace models is the largest source (2M+ models) and benefits from
- * daily crawling to keep the catalog fresh.
  */
 const HIGH_PRIORITY_SOURCES: readonly UniversalSource[] = [
   'huggingface-models',
@@ -1331,8 +1540,7 @@ const HIGH_PRIORITY_SOURCES: readonly UniversalSource[] = [
 
 /**
  * Returns 1-2 additional high-priority sources to run alongside
- * the primary rotated source. Excludes the primary to avoid
- * duplicate crawls in the same invocation.
+ * the primary rotated source.
  */
 export function getAdditionalSources(primary: UniversalSource): UniversalSource[] {
   return HIGH_PRIORITY_SOURCES.filter((s) => s !== primary)
