@@ -120,21 +120,20 @@ Server URL: `https://settlegrid.ai/api/mcp`
 
 ---
 
-## Example 3: Tool Invocation -- Getting a Dad Joke
+## Example 3: Tool Details -- Evaluating a Specific Tool
 
 **User prompt:**
-> "Get me a random dad joke from SettleGrid"
+> "Tell me about the Dad Jokes tool on SettleGrid — what does it cost and how popular is it?"
 
-**Step 1 -- Agent calls `search_tools` to find the tool:**
+**Agent calls `get_tool`:**
 
 ```json
 {
   "method": "tools/call",
   "params": {
-    "name": "search_tools",
+    "name": "get_tool",
     "arguments": {
-      "query": "jokes",
-      "limit": 5
+      "slug": "dad-jokes"
     }
   }
 }
@@ -147,42 +146,14 @@ Server URL: `https://settlegrid.ai/api/mcp`
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"tools\": [\n    {\n      \"name\": \"Dad Jokes\",\n      \"slug\": \"dad-jokes\",\n      \"description\": \"Random dad jokes and joke search. Get a random joke or search for jokes by keyword.\",\n      \"category\": \"data\",\n      \"costCents\": 0,\n      \"invocations\": 15820,\n      \"averageRating\": 4.8\n    }\n  ],\n  \"total\": 1,\n  \"limit\": 5,\n  \"offset\": 0,\n  \"hasMore\": false\n}"
-    }
-  ]
-}
-```
-
-**Step 2 -- Agent calls `call_tool` to invoke the joke tool:**
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "call_tool",
-    "arguments": {
-      "slug": "dad-jokes",
-      "args": {}
-    }
-  }
-}
-```
-
-**Expected response:**
-
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "{\n  \"id\": \"R7UfaahVfFd\",\n  \"joke\": \"My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.\",\n  \"status\": 200\n}"
+      "text": "{\n  \"name\": \"Dad Jokes\",\n  \"slug\": \"dad-jokes\",\n  \"description\": \"Random dad jokes and joke search. Get a random joke or search for jokes by keyword.\",\n  \"category\": \"data\",\n  \"costCents\": 0,\n  \"invocations\": 15820,\n  \"averageRating\": 4.8,\n  \"developer\": {\n    \"name\": \"SettleGrid System\",\n    \"slug\": \"settlegrid-system\"\n  },\n  \"url\": \"https://settlegrid.ai/tools/dad-jokes\"\n}"
     }
   ]
 }
 ```
 
 **What Claude tells the user:**
-> Here's a dad joke from SettleGrid: "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away."
+> The Dad Jokes tool on SettleGrid is free to use (0¢ per call), has been invoked over 15,000 times, and has a 4.8 star rating. It offers random jokes and keyword search. You can try it at settlegrid.ai/tools/dad-jokes.
 
 ---
 
@@ -221,43 +192,44 @@ Server URL: `https://settlegrid.ai/api/mcp`
 
 ---
 
-## Example 5: Multi-Step Workflow -- Wikipedia Lookup via call_tool
+## Example 5: Multi-Step Discovery -- Finding and Comparing Finance Tools
 
 **User prompt:**
-> "Look up Albert Einstein on Wikipedia through SettleGrid"
+> "What finance tools are available on SettleGrid? Show me the top 3."
 
-**Step 1 -- Agent calls `call_tool` directly (knows the slug):**
+**Step 1 -- Agent calls `list_marketplace_tools` filtered by finance:**
 
 ```json
 {
   "method": "tools/call",
   "params": {
-    "name": "call_tool",
+    "name": "list_marketplace_tools",
     "arguments": {
-      "slug": "wikipedia",
-      "args": {
-        "query": "Albert Einstein"
-      }
+      "category": "finance",
+      "limit": 3
     }
   }
 }
 ```
 
-**Expected response:**
+**Expected response (abbreviated):**
 
 ```json
 {
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"type\": \"standard\",\n  \"title\": \"Albert Einstein\",\n  \"displaytitle\": \"Albert Einstein\",\n  \"namespace\": { \"id\": 0, \"text\": \"\" },\n  \"wikibase_item\": \"Q937\",\n  \"titles\": {\n    \"canonical\": \"Albert_Einstein\",\n    \"normalized\": \"Albert Einstein\",\n    \"display\": \"Albert Einstein\"\n  },\n  \"pageid\": 736,\n  \"thumbnail\": {\n    \"source\": \"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Einstein_1921_by_F_Schmutzer_-_restoration.jpg/213px-Einstein_1921_by_F_Schmutzer_-_restoration.jpg\",\n    \"width\": 213,\n    \"height\": 300\n  },\n  \"lang\": \"en\",\n  \"dir\": \"ltr\",\n  \"extract\": \"Albert Einstein was a German-born theoretical physicist who is widely held to be one of the greatest and most influential scientists of all time. Best known for developing the theory of relativity, Einstein also made important contributions to quantum mechanics.\",\n  \"extract_html\": \"<p><b>Albert Einstein</b> was a German-born theoretical physicist who is widely held to be one of the greatest and most influential scientists of all time.</p>\",\n  \"content_urls\": {\n    \"desktop\": {\n      \"page\": \"https://en.wikipedia.org/wiki/Albert_Einstein\"\n    }\n  }\n}"
+      "text": "{\n  \"tools\": [\n    {\n      \"name\": \"Forex Rates\",\n      \"slug\": \"forex-rates\",\n      \"description\": \"Live exchange rates from the European Central Bank.\",\n      \"costCents\": 1,\n      \"invocations\": 64970\n    },\n    {\n      \"name\": \"Central Bank Rates\",\n      \"slug\": \"central-bank-rates\",\n      \"description\": \"Currency conversion using ECB reference rates.\",\n      \"costCents\": 1,\n      \"invocations\": 12340\n    },\n    {\n      \"name\": \"Coinpaprika\",\n      \"slug\": \"coinpaprika\",\n      \"description\": \"Cryptocurrency market data, prices, and ticker info.\",\n      \"costCents\": 1,\n      \"invocations\": 8920\n    }\n  ]\n}"
     }
   ]
 }
 ```
 
 **What Claude tells the user:**
-> According to Wikipedia (via SettleGrid), Albert Einstein was a German-born theoretical physicist widely held to be one of the greatest and most influential scientists of all time. He is best known for developing the theory of relativity and also made important contributions to quantum mechanics.
+> Here are the top 3 finance tools on SettleGrid:
+> 1. **Forex Rates** — Live ECB exchange rates (1¢/call, 65K+ invocations)
+> 2. **Central Bank Rates** — Currency conversion via ECB (1¢/call, 12K+ invocations)
+> 3. **Coinpaprika** — Crypto market data and prices (1¢/call, 9K+ invocations)
 
 ---
 
