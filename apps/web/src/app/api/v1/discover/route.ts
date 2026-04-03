@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, asc, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { eq, and, desc, asc, ilike, or, sql, inArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews } from '@/lib/db/schema'
@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
     const { q, category, limit, offset, sort, max_cost, min_rating, verified_only } = parsed.data
 
     // ─── Build WHERE conditions ─────────────────────────────────────────────
-    const conditions: SQL[] = [eq(tools.status, 'active')]
+    // Include both active (live, callable) and unclaimed (indexed, discoverable) tools
+    const conditions: SQL[] = [inArray(tools.status, ['active', 'unclaimed'])]
 
     if (category) {
       conditions.push(eq(tools.category, category))
@@ -134,6 +135,7 @@ export async function GET(request: NextRequest) {
         description: tools.description,
         category: tools.category,
         tags: tools.tags,
+        status: tools.status,
         version: tools.currentVersion,
         pricing: tools.pricingConfig,
         invocations: tools.totalInvocations,
@@ -167,9 +169,10 @@ export async function GET(request: NextRequest) {
         description: t.description,
         category: t.category,
         tags: t.tags,
+        status: t.status,
         version: t.version,
-        pricing: t.pricing,
-        costCents,
+        pricing: t.status === 'active' ? t.pricing : null,
+        costCents: t.status === 'active' ? costCents : null,
         invocations: t.invocations,
         verified: t.verified,
         averageRating: Number(t.averageRating),
