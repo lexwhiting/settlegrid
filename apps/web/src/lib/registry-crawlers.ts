@@ -5,6 +5,10 @@
  * normalizes it into a common shape, and returns up to `limit` entries.
  * All adapters handle errors gracefully (return empty array on failure)
  * and enforce a 10-second timeout.
+ *
+ * Pagination: Each crawler accepts an `offset` parameter so that successive
+ * cron runs continue from where the last run left off, progressively walking
+ * through the full catalog instead of re-fetching page 1 every time.
  */
 
 import { logger } from '@/lib/logger'
@@ -35,10 +39,22 @@ export interface CrawledServer {
   enrichment?: CrawledServerEnrichment
 }
 
+/** Result from a paginated crawl, including the next offset for the following run */
+export interface PaginatedCrawlResult {
+  servers: CrawledServer[]
+  /** Next offset to store — if null, the end of catalog was reached (reset to 0) */
+  nextOffset: number | null
+  /** Whether the end of the catalog was reached on this run */
+  endOfCatalog: boolean
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const FETCH_TIMEOUT_MS = 10_000
 const USER_AGENT = 'SettleGrid-Crawler/1.0 (https://settlegrid.ai)'
+
+/** Page size for APIs that support pagination */
+const DEFAULT_PAGE_SIZE = 200
 
 /** Available registry sources in rotation order */
 export const REGISTRY_SOURCES = [
@@ -78,22 +94,37 @@ async function fetchWithTimeout(
 
 const MCP_REGISTRY_URL = 'https://registry.modelcontextprotocol.io/v0.1/servers'
 
-export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> {
+/**
+ * Crawls the official MCP Registry.
+ *
+ * The MCP registry returns all servers in a single response (no pagination
+ * at the API level). We simulate pagination by slicing the full list using
+ * the offset parameter.
+ */
+export async function crawlMcpRegistry(limit: number, offset = 0): Promise<PaginatedCrawlResult> {
   try {
     const res = await fetchWithTimeout(MCP_REGISTRY_URL)
     if (!res.ok) {
       logger.warn('crawler.mcp_registry.fetch_failed', { status: res.status })
-      return []
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
-    if (typeof data !== 'object' || data === null) return []
+    if (typeof data !== 'object' || data === null) {
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
+    }
 
     const servers = (data as { servers?: unknown[] }).servers
-    if (!Array.isArray(servers)) return []
+    if (!Array.isArray(servers)) {
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
+    }
+
+    // Slice from offset for progressive pagination through the full list
+    const totalAvailable = servers.length
+    const pageSlice = servers.slice(offset, offset + limit)
 
     const results: CrawledServer[] = []
-    for (const entry of servers) {
+    for (const entry of pageSlice) {
       if (results.length >= limit) break
       if (typeof entry !== 'object' || entry === null) continue
 
@@ -116,8 +147,6 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
       const websiteUrl = typeof s.websiteUrl === 'string' ? s.websiteUrl : null
 
       // Prefer the actual GitHub repo URL over the generic registry URL.
-      // The generic MCP_REGISTRY_URL is useless for email resolution;
-      // the repository.url is almost always a GitHub link we can resolve.
       const effectiveSourceUrl = repoUrl ?? websiteUrl ?? MCP_REGISTRY_URL
 
       results.push({
@@ -129,15 +158,28 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
       })
     }
 
-    logger.info('crawler.mcp_registry.completed', { count: results.length })
-    return results
+    const newOffset = offset + results.length
+    const endOfCatalog = newOffset >= totalAvailable
+
+    logger.info('crawler.mcp_registry.completed', {
+      count: results.length,
+      offset,
+      totalAvailable,
+      endOfCatalog,
+    })
+
+    return {
+      servers: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.mcp_registry.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { servers: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -145,23 +187,32 @@ export async function crawlMcpRegistry(limit: number): Promise<CrawledServer[]> 
 
 const PULSEMCP_API_URL = 'https://api.pulsemcp.com/v0beta/servers'
 
-export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
+/**
+ * Crawls PulseMCP with offset-based pagination.
+ * API supports `count_per_page` and `offset` parameters.
+ */
+export async function crawlPulseMcp(limit: number, offset = 0): Promise<PaginatedCrawlResult> {
   try {
+    const pageSize = Math.min(limit, DEFAULT_PAGE_SIZE)
     const url = new URL(PULSEMCP_API_URL)
-    url.searchParams.set('count_per_page', String(Math.min(limit, 5000)))
+    url.searchParams.set('count_per_page', String(pageSize))
+    url.searchParams.set('offset', String(offset))
 
     const res = await fetchWithTimeout(url.toString())
     if (!res.ok) {
       logger.warn('crawler.pulsemcp.fetch_failed', { status: res.status })
-      return []
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
-    if (typeof data !== 'object' || data === null) return []
+    if (typeof data !== 'object' || data === null) {
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
+    }
 
     // PulseMCP v0beta returns { servers: [...], total_count, next }
     const raw = data as Record<string, unknown>
     const servers = Array.isArray(raw.servers) ? raw.servers : []
+    const totalCount = typeof raw.total_count === 'number' ? raw.total_count : undefined
 
     const results: CrawledServer[] = []
     for (const server of servers) {
@@ -199,7 +250,6 @@ export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
           starCount: githubStars,
           lastUpdatedAt: updatedAt,
           sourceTags: tags.slice(0, 20),
-          // If it has a source_code_url, it exists on GitHub too
           crossListedSources: sourceCodeUrl
             ? ['github']
             : undefined,
@@ -207,15 +257,30 @@ export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
       })
     }
 
-    logger.info('crawler.pulsemcp.completed', { count: results.length, total: raw.total_count })
-    return results
+    // End of catalog: returned fewer results than requested page size, or offset exceeds total
+    const endOfCatalog = servers.length < pageSize
+      || (totalCount !== undefined && offset + servers.length >= totalCount)
+    const newOffset = offset + results.length
+
+    logger.info('crawler.pulsemcp.completed', {
+      count: results.length,
+      offset,
+      totalCount,
+      endOfCatalog,
+    })
+
+    return {
+      servers: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.pulsemcp.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { servers: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -223,19 +288,31 @@ export async function crawlPulseMcp(limit: number): Promise<CrawledServer[]> {
 
 const SMITHERY_API_URL = 'https://registry.smithery.ai/servers'
 
-export async function crawlSmithery(limit: number): Promise<CrawledServer[]> {
+/**
+ * Crawls Smithery with page-based pagination.
+ * API supports `pageSize` and `page` parameters.
+ * Offset is translated to a 1-based page number.
+ */
+export async function crawlSmithery(limit: number, offset = 0): Promise<PaginatedCrawlResult> {
   try {
+    const pageSize = Math.min(limit, 100) // Smithery caps at 100 per page
+    // Convert offset to 1-based page number
+    const page = Math.floor(offset / pageSize) + 1
+
     const url = new URL(SMITHERY_API_URL)
-    url.searchParams.set('pageSize', String(Math.min(limit, 100)))
+    url.searchParams.set('pageSize', String(pageSize))
+    url.searchParams.set('page', String(page))
 
     const res = await fetchWithTimeout(url.toString())
     if (!res.ok) {
       logger.warn('crawler.smithery.fetch_failed', { status: res.status })
-      return []
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
     }
 
     const data: unknown = await res.json()
-    if (typeof data !== 'object' || data === null) return []
+    if (typeof data !== 'object' || data === null) {
+      return { servers: [], nextOffset: offset, endOfCatalog: false }
+    }
 
     // Smithery returns { servers: [...] } or { items: [...] }
     const raw = data as Record<string, unknown>
@@ -246,6 +323,10 @@ export async function crawlSmithery(limit: number): Promise<CrawledServer[]> {
         : Array.isArray(data)
           ? (data as unknown[])
           : []
+
+    const totalCount = typeof raw.totalCount === 'number' ? raw.totalCount
+      : typeof raw.total === 'number' ? raw.total
+      : undefined
 
     const results: CrawledServer[] = []
     for (const server of servers) {
@@ -292,15 +373,31 @@ export async function crawlSmithery(limit: number): Promise<CrawledServer[]> {
       })
     }
 
-    logger.info('crawler.smithery.completed', { count: results.length })
-    return results
+    // End of catalog: fewer results than page size, or reached total
+    const endOfCatalog = servers.length < pageSize
+      || (totalCount !== undefined && page * pageSize >= totalCount)
+    const newOffset = offset + results.length
+
+    logger.info('crawler.smithery.completed', {
+      count: results.length,
+      page,
+      offset,
+      totalCount,
+      endOfCatalog,
+    })
+
+    return {
+      servers: results,
+      nextOffset: endOfCatalog ? null : newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.smithery.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { servers: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
@@ -316,31 +413,35 @@ const NPM_MCP_QUERIES = [
 ] as const
 
 /** Max results per npm query (API caps at 250) */
-const NPM_RESULTS_PER_QUERY = 100
+const NPM_RESULTS_PER_QUERY = 250
 
 /**
- * Runs a single npm search query and returns MCP-related results.
+ * Runs a single npm search query with offset-based pagination.
+ * npm search API supports `from` offset parameter.
  */
 async function searchNpmMcp(
   query: string,
   size: number,
-): Promise<CrawledServer[]> {
+  from: number,
+): Promise<{ servers: CrawledServer[]; total: number }> {
   const url = new URL(NPM_SEARCH_URL)
   url.searchParams.set('text', query)
   url.searchParams.set('size', String(Math.min(size, 250)))
+  url.searchParams.set('from', String(from))
 
   const res = await fetchWithTimeout(url.toString())
   if (!res.ok) {
     logger.warn('crawler.npm.query_failed', { query, status: res.status })
-    return []
+    return { servers: [], total: 0 }
   }
 
   const data: unknown = await res.json()
-  if (typeof data !== 'object' || data === null) return []
+  if (typeof data !== 'object' || data === null) return { servers: [], total: 0 }
 
-  const raw = data as { objects?: unknown[] }
-  if (!Array.isArray(raw.objects)) return []
+  const raw = data as { objects?: unknown[]; total?: number }
+  if (!Array.isArray(raw.objects)) return { servers: [], total: 0 }
 
+  const total = typeof raw.total === 'number' ? raw.total : 0
   const results: CrawledServer[] = []
 
   for (const obj of raw.objects) {
@@ -386,7 +487,6 @@ async function searchNpmMcp(
       source: 'npm',
       enrichment: {
         sourceTags: npmKeywords.slice(0, 20),
-        // npm MCP packages with GitHub repos are cross-listed
         crossListedSources: typeof repoUrl === 'string' && repoUrl.includes('github.com')
           ? ['github']
           : undefined,
@@ -394,29 +494,43 @@ async function searchNpmMcp(
     })
   }
 
-  return results
+  return { servers: results, total }
 }
 
 /**
- * Crawls npm for MCP-related packages across multiple search queries.
- * Deduplicates by package name across queries and returns up to `limit` results.
+ * Crawls npm for MCP-related packages with offset-based pagination.
+ *
+ * The offset encodes both which query we're on and where within that query:
+ *   offset = queryIndex * 10000 + withinQueryOffset
+ *
+ * This lets us paginate across multiple search queries progressively.
  */
-export async function crawlNpmSearch(limit: number): Promise<CrawledServer[]> {
+export async function crawlNpmSearch(limit: number, offset = 0): Promise<PaginatedCrawlResult> {
   try {
     const seen = new Set<string>()
     const results: CrawledServer[] = []
 
-    for (const query of NPM_MCP_QUERIES) {
-      if (results.length >= limit) break
+    // Decode compound offset: queryIndex * 10000 + withinQueryOffset
+    const queryIndex = Math.floor(offset / 10000)
+    const withinQueryOffset = offset % 10000
 
+    let currentQueryIdx = queryIndex
+    let currentWithinOffset = withinQueryOffset
+    let endOfCatalog = false
+
+    while (currentQueryIdx < NPM_MCP_QUERIES.length && results.length < limit) {
+      const query = NPM_MCP_QUERIES[currentQueryIdx]
       try {
         const remaining = limit - results.length
-        const servers = await searchNpmMcp(query, Math.min(remaining, NPM_RESULTS_PER_QUERY))
+        const { servers, total } = await searchNpmMcp(
+          query,
+          Math.min(remaining, NPM_RESULTS_PER_QUERY),
+          currentWithinOffset,
+        )
 
         for (const server of servers) {
           if (results.length >= limit) break
 
-          // Deduplicate by name across queries
           const key = server.name.toLowerCase()
           if (seen.has(key)) continue
           seen.add(key)
@@ -427,51 +541,83 @@ export async function crawlNpmSearch(limit: number): Promise<CrawledServer[]> {
         logger.info('crawler.npm.query_completed', {
           query,
           found: servers.length,
+          from: currentWithinOffset,
+          total,
           totalSoFar: results.length,
         })
+
+        // If this query is exhausted, move to the next query
+        if (servers.length < NPM_RESULTS_PER_QUERY || currentWithinOffset + servers.length >= total) {
+          currentQueryIdx++
+          currentWithinOffset = 0
+        } else {
+          // More pages in this query
+          currentWithinOffset += servers.length
+          break // Stop for this run, continue next run
+        }
       } catch (queryErr) {
-        // Log but continue to next query
         logger.warn('crawler.npm.query_error', {
           query,
           error: queryErr instanceof Error ? queryErr.message : String(queryErr),
         })
+        // Move to next query on error
+        currentQueryIdx++
+        currentWithinOffset = 0
       }
     }
 
-    logger.info('crawler.npm.completed', { count: results.length })
-    return results
+    // If we've exhausted all queries, reset
+    if (currentQueryIdx >= NPM_MCP_QUERIES.length) {
+      endOfCatalog = true
+    }
+
+    const newOffset = endOfCatalog ? null : currentQueryIdx * 10000 + currentWithinOffset
+
+    logger.info('crawler.npm.completed', {
+      count: results.length,
+      offset,
+      newOffset,
+      endOfCatalog,
+    })
+
+    return {
+      servers: results,
+      nextOffset: newOffset,
+      endOfCatalog,
+    }
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === 'AbortError'
     logger.warn('crawler.npm.error', {
       msg: isTimeout ? 'Timed out' : 'Fetch failed',
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { servers: [], nextOffset: offset, endOfCatalog: false }
   }
 }
 
 // ─── Unified dispatcher ────────────────────────────────────────────────────
 
 /**
- * Crawls a specific registry source.
- * Returns normalized server entries, up to `limit`.
+ * Crawls a specific registry source with pagination support.
+ * Returns normalized server entries plus pagination metadata.
  */
 export async function crawlSource(
   source: RegistrySource,
-  limit: number
-): Promise<CrawledServer[]> {
+  limit: number,
+  offset = 0
+): Promise<PaginatedCrawlResult> {
   switch (source) {
     case 'mcp-registry':
-      return crawlMcpRegistry(limit)
+      return crawlMcpRegistry(limit, offset)
     case 'pulsemcp':
-      return crawlPulseMcp(limit)
+      return crawlPulseMcp(limit, offset)
     case 'smithery':
-      return crawlSmithery(limit)
+      return crawlSmithery(limit, offset)
     case 'npm':
-      return crawlNpmSearch(limit)
+      return crawlNpmSearch(limit, offset)
     default:
       logger.warn('crawler.unknown_source', { source })
-      return []
+      return { servers: [], nextOffset: null, endOfCatalog: true }
   }
 }
 
