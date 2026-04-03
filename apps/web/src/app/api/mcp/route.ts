@@ -30,6 +30,7 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
     title: 'Search Tools',
     description:
       'Search the SettleGrid marketplace for AI tools by keyword, category, price, or rating. ' +
+      'The catalog grows daily through auto-indexing from npm, HuggingFace, Smithery, and other registries. ' +
       'Returns tool names, slugs, descriptions, pricing, and developer info. ' +
       'Use this as your starting point to find tools for any task.',
     inputSchema: {
@@ -113,6 +114,10 @@ function createDiscoveryServer(apiKey: string | null): McpServer {
   })
 
   // ── Meta-MCP: Call Any Marketplace Tool ───────────────────────────────────
+  // NOTE: call_tool is excluded from the Anthropic MCP Directory submission
+  // because it involves financial transactions (#28) and cross-service
+  // automation (#30), both disallowed per Anthropic's directory policy.
+  // It remains available for direct MCP connections outside the directory.
 
   server.registerTool('call_tool', {
     title: 'Call Marketplace Tool',

@@ -14,7 +14,7 @@ SettleGrid Discovery
 ## Server Description (short, for listings)
 
 ```
-Search, browse, and invoke 1,444+ AI tools across 24 categories through a single MCP connection. Covers MCP servers, REST APIs, AI models, agent tools, and SDK packages.
+Search and browse 1,400+ AI tools across 24 categories through a single MCP connection. The catalog grows daily through auto-indexing from npm, HuggingFace, Smithery, and other registries. Covers MCP servers, REST APIs, AI models, agent tools, and SDK packages.
 ```
 
 ## Server URL
@@ -44,7 +44,7 @@ https://settlegrid.ai/privacy
 ## GitHub Repository
 
 ```
-https://github.com/lexwhiting/settlegrid
+https://github.com/lexwhiting/settlegrid-discovery
 ```
 
 ## Categories
@@ -56,7 +56,7 @@ Developer Tools, Search, Marketplace
 ## Authentication
 
 ```
-Optional API key via x-api-key header. All discovery tools (search, browse, categories, developer profiles) work without authentication. An API key is required only for invoking paid marketplace tools through call_tool. Free showcase tools can be invoked without a key.
+No authentication required. All five tools are read-only discovery endpoints that work without any API key or credentials.
 ```
 
 ---
@@ -64,11 +64,11 @@ Optional API key via x-api-key header. All discovery tools (search, browse, cate
 ## What does this server do?
 
 ```
-SettleGrid Discovery gives Claude access to a marketplace of 1,444+ specialized AI tools through a single MCP connection. Instead of configuring dozens of individual MCP servers, Claude users connect once and can immediately search for tools by keyword, category, price, or rating -- then invoke them on the spot.
+SettleGrid Discovery gives Claude access to a growing catalog of 1,400+ specialized AI tools through a single MCP connection. The catalog expands daily through auto-indexing from npm, HuggingFace, Smithery, the Official MCP Registry, and other sources. Instead of configuring dozens of individual MCP servers, Claude users connect once and can immediately search for tools by keyword, category, price, or rating.
 
-The server exposes six tools. Four are read-only discovery tools: search_tools finds tools by keyword and filters, get_tool retrieves full details including reviews and pricing, list_categories shows what types of tools are available, and get_developer reveals a tool author's track record. The fifth tool, list_marketplace_tools, provides a browsable view with cost-per-call and popularity data. The sixth, call_tool, lets Claude invoke any tool on the marketplace by its slug, passing arguments and receiving results inline.
+The server exposes five read-only discovery tools: search_tools finds tools by keyword and filters, get_tool retrieves full details including reviews and pricing, list_categories shows what types of tools are available, get_developer reveals a tool author's track record, and list_marketplace_tools provides a browsable view with cost-per-call and popularity data.
 
-Tools on the marketplace span 24 categories including Data & APIs, Natural Language Processing, Code & Development, Finance, Image & Vision, Security, and Analytics. Many tools are free. Paid tools use transparent per-call pricing (typically 1-5 cents) with no subscriptions or monthly commitments. Claude users with a SettleGrid API key get seamless billing; users without a key can still search, compare, and invoke all free tools.
+Tools on the marketplace span 24 categories including Data & APIs, Natural Language Processing, Code & Development, Finance, Image & Vision, Security, and Analytics. All discovery operations are free and require no authentication.
 ```
 
 ## Who is the target audience?
@@ -84,11 +84,9 @@ The server is also useful for Claude-powered agents and automation pipelines tha
 ## What data does this server access?
 
 ```
-The server provides read-only access to SettleGrid's public tool catalog -- the same information visible on settlegrid.ai/tools to any visitor. This includes tool names, descriptions, categories, pricing, developer profiles, and aggregated ratings.
+The server provides read-only access to SettleGrid's public tool catalog -- the same information visible on settlegrid.ai/marketplace to any visitor. This includes tool names, descriptions, categories, pricing, developer profiles, and aggregated ratings.
 
-No user data is collected, stored, or transmitted by the discovery tools. The server does not access the user's filesystem, browser history, clipboard, or any local resources.
-
-When a user invokes a paid tool via call_tool with an API key, the API key is used solely to authenticate the billing transaction. Usage is logged as an anonymized invocation count. The full privacy policy is available at settlegrid.ai/privacy.
+No user data is collected, stored, or transmitted. The server does not access the user's filesystem, browser history, clipboard, or any local resources. No authentication credentials are required or processed. The full privacy policy is available at settlegrid.ai/privacy.
 ```
 
 ## What are the server's tools?
@@ -104,7 +102,7 @@ When a user invokes a paid tool via call_tool with an API key, the API key is us
 
 5. list_marketplace_tools (read-only) -- Browse popular tools with cost-per-call, invocation counts, and availability info.
 
-6. call_tool -- Invoke any marketplace tool by slug with JSON arguments. Free tools work without an API key. Paid tools require an x-api-key header for billing.
+All five tools are read-only and require no authentication. The catalog grows daily as new tools are auto-indexed from npm, HuggingFace, Smithery, and other registries.
 ```
 
 ## How should Claude use this server?
