@@ -6,6 +6,7 @@ import { SonnerToaster } from '@/components/sonner-toaster'
 import { HelpChatWidget } from '@/components/help-chat/help-chat-widget'
 import { PostHogProvider } from '@/components/posthog-provider'
 import { PostHogPageView } from '@/components/posthog-pageview'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({
@@ -113,6 +114,7 @@ export default function RootLayout({
             <HelpChatWidget />
           </ThemeProvider>
         </PostHogProvider>
+        <Analytics />
       </body>
     </html>
   )
