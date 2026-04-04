@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
 import {
   sendEmail,
+  FROM_OUTREACH,
   claimFollowUpE2,
   claimFollowUpE3,
   claimFollowUpE4,
@@ -242,6 +243,8 @@ export async function GET(request: NextRequest) {
 
         const emailSent = await sendEmail({
           to: creator.email,
+          from: FROM_OUTREACH,
+          replyTo: 'luther@settlegrid.ai',
           subject: emailTemplate.subject,
           html: emailTemplate.html,
         })
