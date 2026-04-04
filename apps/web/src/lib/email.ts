@@ -9,7 +9,7 @@ import { getResendApiKey } from '@/lib/env'
 // ── Constants ────────────────────────────────────────────────────────────────
 
 export const FROM_TRANSACTIONAL = 'SettleGrid <notifications@settlegrid.ai>'
-export const FROM_OUTREACH = 'Luther from SettleGrid <luther@settlegrid.ai>'
+export const FROM_OUTREACH = 'Luther from SettleGrid <luther@mail.settlegrid.ai>'
 
 const FONT_STACK =
   "'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
