@@ -9,6 +9,7 @@ import { getResendApiKey } from '@/lib/env'
 // ── Constants ────────────────────────────────────────────────────────────────
 
 export const FROM_TRANSACTIONAL = 'SettleGrid <notifications@settlegrid.ai>'
+export const FROM_OUTREACH = 'Luther from SettleGrid <luther@mail.settlegrid.ai>'
 
 const FONT_STACK =
   "'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -2217,17 +2218,12 @@ export function claimToolOutreachEmail(
   toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
-  const repoLine = sourceRepoUrl
-    ? `<p class="sg-text" style="color:#6b7280;font-size:12px;margin:4px 0 0"><a href="${escapeHtml(sourceRepoUrl)}" style="color:#9ca3af;text-decoration:none">${escapeHtml(sourceRepoUrl.slice(0, 80))}</a></p>`
-    : ''
-
   return {
     subject: sanitizeSubject(`${toolName} has a listing page`),
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(toolName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for tools per call.</p>
-${repoLine}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-call pricing and get paid via Stripe whenever an AI agent uses it. You keep 95&ndash;100% of revenue. No code changes or infrastructure work required. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
 ${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
@@ -2257,17 +2253,12 @@ export function claimAiModelEmail(
   toolSlug?: string
 ): EmailTemplate {
   const claimUrl = `https://settlegrid.ai/claim/${encodeURIComponent(claimToken)}`
-  const sourceLine = sourceUrl
-    ? `<p class="sg-text" style="color:#6b7280;font-size:12px;margin:4px 0 0"><a href="${escapeHtml(sourceUrl)}" style="color:#9ca3af;text-decoration:none">${escapeHtml(sourceUrl.slice(0, 80))}</a></p>`
-    : ''
-
   return {
     subject: sanitizeSubject(`${modelName} — your listing is live`),
     html: baseEmailTemplate(
       `
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(firstName)},</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong style="color:#1A1F3A">${escapeHtml(modelName)}</strong> already has a listing page on <a href="https://settlegrid.ai" style="color:#E5A336;text-decoration:none;font-weight:600">SettleGrid</a> — a marketplace where AI agents discover and pay for models per inference.</p>
-${sourceLine}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0 16px">If you claim it, you can set per-inference pricing and receive payouts via Stripe. You keep 95&ndash;100% of revenue. No changes to your model hosting or deployment needed. Claiming takes about 90 seconds.</p>
 ${ctaButton('See your listing & start earning', claimUrl)}
 ${toolSlug ? badgeMarkdownSection(toolSlug) : ''}
