@@ -4,6 +4,7 @@ import { Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme-provider'
 import { SonnerToaster } from '@/components/sonner-toaster'
 import { HelpChatWidget } from '@/components/help-chat/help-chat-widget'
+import { Analytics } from '@vercel/analytics/next'
 import { PostHogProvider } from '@/components/posthog-provider'
 import { PostHogPageView } from '@/components/posthog-pageview'
 import './globals.css'
@@ -111,6 +112,7 @@ export default function RootLayout({
             {children}
             <SonnerToaster />
             <HelpChatWidget />
+            <Analytics />
           </ThemeProvider>
         </PostHogProvider>
       </body>
