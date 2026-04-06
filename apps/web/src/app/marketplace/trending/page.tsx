@@ -5,12 +5,13 @@ import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
+import { logger } from '@/lib/logger'
 import { getCategoryBySlug } from '@/lib/categories'
 
 export const metadata: Metadata = {
   title: 'Trending AI Tools This Week | SettleGrid',
   description:
-    'Discover the most popular AI tools, MCP servers, and APIs on SettleGrid this week. See top tools by invocations and newly added tools.',
+    'Discover the most popular AI tools, MCP servers, and APIs on SettleGrid this week. See top tools by popularity and newly added tools.',
   alternates: { canonical: 'https://settlegrid.ai/marketplace/trending' },
   openGraph: {
     title: 'Trending AI Tools This Week | SettleGrid',
@@ -36,7 +37,8 @@ interface TrendingTool {
   description: string | null
   category: string | null
   toolType: string
-  weeklyInvocations: number
+  popularity: number
+  popularityLabel: string
 }
 
 interface NewTool {
@@ -49,9 +51,9 @@ interface NewTool {
   createdAt: Date
 }
 
-interface CategoryGrowth {
+interface CategoryCount {
   category: string
-  weeklyInvocations: number
+  toolCount: number
 }
 
 // ── Data Fetching ──────────────────────────────────────────────────────────
@@ -59,39 +61,91 @@ interface CategoryGrowth {
 const LOOKBACK_DAYS = 7
 const TOP_LIMIT = 10
 
-async function getTopToolsByInvocations(): Promise<TrendingTool[]> {
-  const oneWeekAgo = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+/**
+ * Returns the most popular tools. Prefers invocation data from the last 7 days
+ * when available; otherwise falls back to crawl_metadata popularity signals
+ * (downloads, stars) from the source ecosystem.
+ */
+async function getPopularTools(): Promise<TrendingTool[]> {
+  const oneWeekAgo = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
   try {
-    const rows = await db
+    // Try invocation-based ranking first
+    const invocationRows = await db
       .select({
         id: tools.id,
         name: tools.name,
         slug: tools.slug,
         description: tools.description,
-        category: tools.category,
+        category: sql<string | null>`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`,
         toolType: tools.toolType,
-        weeklyInvocations: sql<number>`count(${invocations.id})::int`,
+        popularity: sql<number>`count(${invocations.id})::int`,
       })
       .from(invocations)
       .innerJoin(tools, sql`${invocations.toolId} = ${tools.id}`)
       .where(
-        sql`${invocations.createdAt} >= ${oneWeekAgo}
+        sql`${invocations.createdAt} >= ${oneWeekAgo}::timestamptz
           AND ${invocations.isTest} = false
           AND ${tools.status} IN ('active', 'unclaimed')`
       )
-      .groupBy(tools.id, tools.name, tools.slug, tools.description, tools.category, tools.toolType)
+      .groupBy(tools.id, tools.name, tools.slug, tools.description, sql`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`, tools.toolType)
       .orderBy(sql`count(${invocations.id}) DESC`)
       .limit(TOP_LIMIT)
 
-    return rows
-  } catch {
+    if (invocationRows.length >= 3) {
+      return invocationRows.map((r) => ({
+        ...r,
+        popularityLabel: `${r.popularity.toLocaleString()} calls this week`,
+      }))
+    }
+
+    // Fallback: rank by crawl_metadata popularity signals.
+    // Use regexp guard to safely cast JSONB text values that might be non-numeric.
+    const POPULARITY_EXPR = sql.raw(`
+      CASE WHEN crawl_metadata->>'popularityCount' ~ '^[0-9]+$'
+           THEN (crawl_metadata->>'popularityCount')::bigint ELSE 0 END
+      + CASE WHEN crawl_metadata->>'usageCount' ~ '^[0-9]+$'
+             THEN (crawl_metadata->>'usageCount')::bigint ELSE 0 END
+      + CASE WHEN crawl_metadata->>'starCount' ~ '^[0-9]+$'
+             THEN (crawl_metadata->>'starCount')::bigint ELSE 0 END * 100
+    `)
+
+    const metadataRows = await db
+      .select({
+        id: tools.id,
+        name: tools.name,
+        slug: tools.slug,
+        description: tools.description,
+        category: sql<string | null>`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`,
+        toolType: tools.toolType,
+        popularity: sql<number>`(${POPULARITY_EXPR})::int`,
+      })
+      .from(tools)
+      .where(
+        sql`${tools.status} IN ('active', 'unclaimed')
+          AND ${tools.crawlMetadata} IS NOT NULL
+          AND (${POPULARITY_EXPR}) > 0`
+      )
+      .orderBy(sql`(${POPULARITY_EXPR}) DESC`)
+      .limit(TOP_LIMIT)
+
+    return metadataRows.map((r) => {
+      const pop = r.popularity ?? 0
+      const label = pop >= 1_000_000
+        ? `${(pop / 1_000_000).toFixed(1)}M downloads`
+        : pop >= 1_000
+          ? `${(pop / 1_000).toFixed(0)}K downloads`
+          : `${pop.toLocaleString()} downloads`
+      return { ...r, popularityLabel: label }
+    })
+  } catch (err) {
+    logger.error('trending.popular_tools_failed', {}, err)
     return []
   }
 }
 
 async function getNewlyAddedTools(): Promise<NewTool[]> {
-  const oneWeekAgo = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+  const oneWeekAgo = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
   try {
     const rows = await db
@@ -100,46 +154,44 @@ async function getNewlyAddedTools(): Promise<NewTool[]> {
         name: tools.name,
         slug: tools.slug,
         description: tools.description,
-        category: tools.category,
+        category: sql<string | null>`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`,
         toolType: tools.toolType,
         createdAt: tools.createdAt,
       })
       .from(tools)
       .where(
-        sql`${tools.createdAt} >= ${oneWeekAgo}
+        sql`${tools.createdAt} >= ${oneWeekAgo}::timestamptz
           AND ${tools.status} IN ('active', 'unclaimed')`
       )
       .orderBy(desc(tools.createdAt))
       .limit(TOP_LIMIT)
 
     return rows
-  } catch {
+  } catch (err) {
+    logger.error('trending.new_tools_failed', {}, err)
     return []
   }
 }
 
-async function getCategoryGrowth(): Promise<CategoryGrowth[]> {
-  const oneWeekAgo = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
-
+async function getCategoryBreakdown(): Promise<CategoryCount[]> {
   try {
     const rows = await db
       .select({
-        category: tools.category,
-        weeklyInvocations: sql<number>`count(${invocations.id})::int`,
+        category: sql<string>`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`,
+        toolCount: sql<number>`count(*)::int`,
       })
-      .from(invocations)
-      .innerJoin(tools, sql`${invocations.toolId} = ${tools.id}`)
+      .from(tools)
       .where(
-        sql`${invocations.createdAt} >= ${oneWeekAgo}
-          AND ${invocations.isTest} = false
-          AND ${tools.category} IS NOT NULL`
+        sql`${tools.status} IN ('active', 'unclaimed')
+          AND COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory') IS NOT NULL`
       )
-      .groupBy(tools.category)
-      .orderBy(sql`count(${invocations.id}) DESC`)
+      .groupBy(sql`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`)
+      .orderBy(sql`count(*) DESC`)
       .limit(TOP_LIMIT)
 
-    return rows.filter((r): r is CategoryGrowth => r.category !== null)
-  } catch {
+    return rows.filter((r): r is CategoryCount => r.category !== null)
+  } catch (err) {
+    logger.error('trending.category_breakdown_failed', {}, err)
     return []
   }
 }
@@ -147,20 +199,20 @@ async function getCategoryGrowth(): Promise<CategoryGrowth[]> {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default async function TrendingPage() {
-  const [topTools, newTools, categoryGrowth] = await Promise.all([
-    getTopToolsByInvocations(),
+  const [popularTools, newTools, categoryBreakdown] = await Promise.all([
+    getPopularTools(),
     getNewlyAddedTools(),
-    getCategoryGrowth(),
+    getCategoryBreakdown(),
   ])
 
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'Trending AI Tools on SettleGrid',
-    description: 'Top AI tools by invocations this week on SettleGrid.',
+    description: 'Top AI tools by popularity this week on SettleGrid.',
     url: 'https://settlegrid.ai/marketplace/trending',
-    numberOfItems: topTools.length,
-    itemListElement: topTools.map((tool, idx) => ({
+    numberOfItems: popularTools.length,
+    itemListElement: popularTools.map((tool, idx) => ({
       '@type': 'ListItem',
       position: idx + 1,
       name: tool.name,
@@ -176,7 +228,7 @@ export default async function TrendingPage() {
         <div className="max-w-5xl mx-auto">
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
           />
 
           {/* Header */}
@@ -195,24 +247,24 @@ export default async function TrendingPage() {
               Trending This Week
             </h1>
             <p className="text-gray-400 max-w-2xl">
-              The most popular AI tools, newest additions, and fastest-growing categories on SettleGrid.
+              The most popular AI tools, newest additions, and top categories on SettleGrid.
             </p>
           </div>
 
-          {/* Top Tools by Invocations */}
+          {/* Popular Tools */}
           <section className="mb-12">
             <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center gap-2">
               <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
                 <path d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z" />
               </svg>
-              Most Used This Week
+              Most Popular
             </h2>
-            {topTools.length === 0 ? (
-              <p className="text-gray-500 text-sm">No invocation data available for this week yet.</p>
+            {popularTools.length === 0 ? (
+              <p className="text-gray-500 text-sm">No popularity data available yet.</p>
             ) : (
               <div className="space-y-2">
-                {topTools.map((tool, idx) => {
+                {popularTools.map((tool, idx) => {
                   const catDef = tool.category ? getCategoryBySlug(tool.category) : null
                   return (
                     <Link
@@ -241,7 +293,7 @@ export default async function TrendingPage() {
                         )}
                       </div>
                       <span className="text-sm font-medium text-amber-400 whitespace-nowrap">
-                        {tool.weeklyInvocations.toLocaleString()} calls
+                        {tool.popularityLabel}
                       </span>
                     </Link>
                   )
@@ -300,11 +352,11 @@ export default async function TrendingPage() {
               </svg>
               Top Categories
             </h2>
-            {categoryGrowth.length === 0 ? (
-              <p className="text-gray-500 text-sm">No category data available for this week yet.</p>
+            {categoryBreakdown.length === 0 ? (
+              <p className="text-gray-500 text-sm">No category data available yet.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {categoryGrowth.map((cat) => {
+                {categoryBreakdown.map((cat) => {
                   const catDef = getCategoryBySlug(cat.category)
                   return (
                     <Link
@@ -316,7 +368,7 @@ export default async function TrendingPage() {
                         {catDef?.name ?? cat.category}
                       </span>
                       <span className="block text-xs text-gray-500 mt-1">
-                        {cat.weeklyInvocations.toLocaleString()} calls
+                        {cat.toolCount.toLocaleString()} {cat.toolCount === 1 ? 'tool' : 'tools'}
                       </span>
                     </Link>
                   )
