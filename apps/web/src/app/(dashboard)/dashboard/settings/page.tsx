@@ -494,7 +494,7 @@ export default function SettingsPage() {
     } finally {
       setSavingProfile(false)
     }
-  }, [profileName, profileSlug, profileBio, publicProfile, toast])
+  }, [profileName, profileSlug, profileBio, publicProfile, profile?.slug, toast])
 
   const savePayoutSettings = useCallback(async () => {
     const dollars = parseFloat(payoutMinimumDollars)
