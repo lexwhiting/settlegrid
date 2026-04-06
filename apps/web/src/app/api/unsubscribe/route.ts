@@ -37,16 +37,21 @@ export async function POST(request: NextRequest) {
  * Also supports GET for direct link clicks from emails.
  */
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get('email')?.trim().toLowerCase() ?? ''
+  try {
+    const email = request.nextUrl.searchParams.get('email')?.trim().toLowerCase() ?? ''
 
-  if (!email || !email.includes('@') || email.length > 254) {
-    return errorResponse('Invalid email address.', 400, 'INVALID_EMAIL')
+    if (!email || !email.includes('@') || email.length > 254) {
+      return errorResponse('Invalid email address.', 400, 'INVALID_EMAIL')
+    }
+
+    const redis = getRedis()
+    await redis.set(`${UNSUBSCRIBE_PREFIX}${email}`, '1')
+
+    logger.info('unsubscribe.recorded_via_get', { email: email.slice(0, 3) + '***' })
+
+    return successResponse({ unsubscribed: true })
+  } catch (err) {
+    logger.error('unsubscribe.get_failed', {}, err)
+    return errorResponse('Something went wrong. Please try again.', 500, 'INTERNAL_ERROR')
   }
-
-  const redis = getRedis()
-  await redis.set(`${UNSUBSCRIBE_PREFIX}${email}`, '1')
-
-  logger.info('unsubscribe.recorded_via_get', { email: email.slice(0, 3) + '***' })
-
-  return successResponse({ unsubscribed: true })
 }

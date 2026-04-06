@@ -292,7 +292,7 @@ export async function crawlHuggingFaceModels(limit: number, offset = 0): Promise
     const url = new URL(HF_MODELS_URL)
     url.searchParams.set('sort', 'downloads')
     url.searchParams.set('direction', '-1')
-    url.searchParams.set('limit', String(Math.min(limit * 2, 200)))
+    url.searchParams.set('limit', String(Math.min(limit * 3, 1000)))
     url.searchParams.set('offset', String(offset))
 
     const res = await fetchWithTimeout(url.toString())
@@ -372,7 +372,7 @@ export async function crawlHuggingFaceModels(limit: number, offset = 0): Promise
 
     // End of catalog: fewer results returned than requested, or we've hit the cap
     const returnedCount = (data as unknown[]).length
-    const requestedCount = Math.min(limit * 2, 200)
+    const requestedCount = Math.min(limit * 3, 1000)
     const newOffset = offset + returnedCount
     const endOfCatalog = returnedCount < requestedCount || newOffset >= HF_MAX_OFFSET
 
@@ -427,7 +427,7 @@ export async function crawlHuggingFaceSpaces(limit: number, offset = 0): Promise
     const url = new URL(HF_SPACES_URL)
     url.searchParams.set('sort', 'likes')
     url.searchParams.set('direction', '-1')
-    url.searchParams.set('limit', String(Math.min(limit * 2, 200)))
+    url.searchParams.set('limit', String(Math.min(limit * 3, 1000)))
     url.searchParams.set('offset', String(offset))
 
     const res = await fetchWithTimeout(url.toString())
@@ -510,7 +510,7 @@ export async function crawlHuggingFaceSpaces(limit: number, offset = 0): Promise
     }
 
     const returnedCount = (data as unknown[]).length
-    const requestedCount = Math.min(limit * 2, 200)
+    const requestedCount = Math.min(limit * 3, 1000)
     const newOffset = offset + returnedCount
     const endOfCatalog = returnedCount < requestedCount
 
