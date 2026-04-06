@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+
+/** Re-render this page at most once per hour so trending data stays fresh */
+export const revalidate = 3600
 import { sql, desc } from 'drizzle-orm'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
