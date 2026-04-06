@@ -14,17 +14,26 @@ function UnsubscribeContent() {
       return
     }
 
+    const controller = new AbortController()
+
     fetch('/api/unsubscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
+      signal: controller.signal,
     })
       .then((res) => {
-        setStatus(res.ok ? 'done' : 'error')
+        if (!controller.signal.aborted) {
+          setStatus(res.ok ? 'done' : 'error')
+        }
       })
       .catch(() => {
-        setStatus('error')
+        if (!controller.signal.aborted) {
+          setStatus('error')
+        }
       })
+
+    return () => controller.abort()
   }, [email])
 
   return (
