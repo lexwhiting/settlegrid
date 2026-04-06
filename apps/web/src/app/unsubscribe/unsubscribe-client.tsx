@@ -27,7 +27,7 @@ function UnsubscribeContent() {
           setStatus(res.ok ? 'done' : 'error')
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (!controller.signal.aborted) {
           setStatus('error')
         }
