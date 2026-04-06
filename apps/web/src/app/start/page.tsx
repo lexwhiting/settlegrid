@@ -244,8 +244,7 @@ export default function StartPage() {
       <header className="border-b border-gray-100 dark:border-[#2A2D3E]">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <SettleGridLogo className="h-7 w-7" />
-            <span className="font-display font-semibold text-indigo dark:text-gray-100">SettleGrid</span>
+            <SettleGridLogo variant="horizontal" size={28} />
           </Link>
           {isAuthenticated === false && (
             <Link href="/login" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
@@ -659,7 +658,7 @@ export default function StartPage() {
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#161822] rounded-2xl shadow-xl max-w-sm w-full mx-4 p-8 space-y-6">
               <div className="text-center space-y-2">
-                <SettleGridLogo className="h-8 w-8 mx-auto" />
+                <SettleGridLogo variant="mark" size={32} className="mx-auto" />
                 <h2 className="text-xl font-display font-bold text-indigo dark:text-gray-100">
                   Sign up to publish
                 </h2>
