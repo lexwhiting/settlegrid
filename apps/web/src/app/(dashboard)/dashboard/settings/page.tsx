@@ -456,6 +456,12 @@ export default function SettingsPage() {
       }
     }
 
+    // Require a slug before enabling public profile
+    if (publicProfile && !profileSlug && !profile?.slug) {
+      toast('Set a profile URL before enabling your public profile.', 'error')
+      return
+    }
+
     setSavingProfile(true)
     try {
       const payload: Record<string, unknown> = {
