@@ -622,11 +622,13 @@ export async function crawlSource(
 }
 
 /**
- * Determines which source to crawl based on the current hour.
- * Rotates through sources using modulo on the UTC hour.
+ * Determines which source to crawl based on the current 6-hour slot.
+ * The cron runs at hours 0, 6, 12, 18 UTC — dividing the hour by the
+ * cron interval (6) maps each run to a unique index 0-3, ensuring all
+ * four sources are reached exactly once per day.
  */
 export function getSourceForCurrentRun(): RegistrySource {
   const hour = new Date().getUTCHours()
-  const index = hour % REGISTRY_SOURCES.length
+  const index = Math.floor(hour / 6) % REGISTRY_SOURCES.length
   return REGISTRY_SOURCES[index]
 }
