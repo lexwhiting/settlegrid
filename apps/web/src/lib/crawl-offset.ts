@@ -73,10 +73,22 @@ export async function setCrawlOffset(source: string, offset: number): Promise<vo
 /**
  * Resets the crawl offset to 0 (used when end-of-catalog is reached
  * or when a monthly reset is triggered).
+ *
+ * Also updates lastRun so the Indexer agent's supply-diagnosis node
+ * can distinguish "ran but found nothing" from "never ran at all".
+ * Without this, sources that return endOfCatalog on their first run
+ * (offset=0) have lastRun=never permanently, creating a false-positive
+ * stall alert every week.
  */
 export async function resetCrawlOffset(source: string): Promise<void> {
   const key = `${KEY_PREFIX}:${source}`
-  await tryRedis(() => getRedis().set(key, 0))
+  const lastRunKey = `${LAST_RUN_KEY_PREFIX}:${source}`
+  const now = new Date().toISOString()
+  await tryRedis(async () => {
+    const redis = getRedis()
+    await redis.set(key, 0)
+    await redis.set(lastRunKey, now)
+  })
 
   logger.info('crawl.offset.reset', { source })
 }
