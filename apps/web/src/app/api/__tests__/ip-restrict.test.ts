@@ -43,6 +43,8 @@ vi.mock('@/lib/db/schema', () => ({
     lastUsedAt: 'last_used_at',
     createdAt: 'created_at',
   },
+  // Route also references tools schema for the join with tool details
+  tools: { id: 'id', name: 'name', slug: 'slug', developerId: 'developer_id' },
 }))
 
 vi.mock('@/lib/middleware/auth', () => ({
