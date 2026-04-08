@@ -94,9 +94,13 @@ export async function generateMetadata({
       title: `Claim ${tool.name} | SettleGrid`,
       description,
     },
+    // Claim pages are ephemeral (valid only until the tool is claimed, then
+    // become dead-ends). Indexing them wastes crawl budget and creates soft
+    // 404s after claim. GSC flagged these under "Page with redirect" because
+    // claimed tokens redirect to the dashboard.
     robots: {
-      index: true,
-      follow: true,
+      index: false,
+      follow: false,
     },
   }
 }
