@@ -2,7 +2,15 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
-import { BLOG_POSTS, BLOG_SLUGS, getBlogPostBySlug } from '@/lib/blog-posts'
+import { MarkdownRenderer } from '@/components/blog/markdown-renderer'
+import {
+  BLOG_POSTS,
+  BLOG_SLUGS,
+  getBlogPostBySlug,
+  isBodyPost,
+  extractTocFromMarkdown,
+  wordCountFromMarkdown,
+} from '@/lib/blog-posts'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -86,6 +94,18 @@ export default async function BlogPostPage({
   const post = getBlogPostBySlug(slug)
   if (!post) notFound()
 
+  // Resolve table of contents from whichever format the post uses.
+  // Body posts (markdown) extract H2 headings; legacy posts use sections.
+  const tocEntries = isBodyPost(post)
+    ? extractTocFromMarkdown(post.body)
+    : (post.sections ?? []).map((s) => ({ id: s.id, heading: s.heading }))
+
+  // For body posts, prefer the computed word count over whatever the author
+  // declared (it stays accurate as the body is edited).
+  const articleWordCount = isBodyPost(post)
+    ? wordCountFromMarkdown(post.body)
+    : post.wordCount
+
   // Related posts
   const relatedPosts = post.relatedSlugs
     .map((s) => BLOG_POSTS.find((p) => p.slug === s))
@@ -100,7 +120,7 @@ export default async function BlogPostPage({
     url: `https://settlegrid.ai/learn/blog/${slug}`,
     datePublished: post.datePublished,
     dateModified: post.dateModified,
-    wordCount: post.wordCount,
+    wordCount: articleWordCount,
     keywords: post.keywords,
     articleSection: 'Developer Guides',
     author: {
@@ -211,79 +231,87 @@ export default async function BlogPostPage({
           </div>
 
           {/* Table of Contents */}
-          <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6 mb-12">
-            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
-              In this article
-            </h2>
-            <ol className="space-y-1.5">
-              {post.sections.map((section, i) => (
-                <li key={section.id}>
-                  <a
-                    href={`#${section.id}`}
-                    className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
-                  >
-                    {i + 1}. {section.heading}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
+          {tocEntries.length > 0 && (
+            <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6 mb-12">
+              <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
+                In this article
+              </h2>
+              <ol className="space-y-1.5">
+                {tocEntries.map((entry, i) => (
+                  <li key={entry.id}>
+                    <a
+                      href={`#${entry.id}`}
+                      className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
+                    >
+                      {i + 1}. {entry.heading}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
-          {/* Sections */}
-          <div className="space-y-14">
-            {post.sections.map((section, i) => (
-              <section key={section.id} id={section.id}>
-                <div className="flex items-baseline gap-3 mb-4 scroll-mt-24">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold shrink-0">
-                    {i + 1}
-                  </span>
-                  <h2 className="text-xl font-bold text-gray-100">
-                    {section.heading}
-                  </h2>
-                </div>
+          {/* Body content — branch on format */}
+          {isBodyPost(post) ? (
+            // Markdown body: rendered server-side via unified + Shiki
+            <MarkdownRenderer body={post.body} />
+          ) : (
+            // Legacy sections format
+            <div className="space-y-14">
+              {(post.sections ?? []).map((section, i) => (
+                <section key={section.id} id={section.id}>
+                  <div className="flex items-baseline gap-3 mb-4 scroll-mt-24">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold shrink-0">
+                      {i + 1}
+                    </span>
+                    <h2 className="text-xl font-bold text-gray-100">
+                      {section.heading}
+                    </h2>
+                  </div>
 
-                {/* Content paragraphs */}
-                <div className="space-y-4 pl-11">
-                  {section.content.split('\n\n').map((paragraph, j) => (
-                    <p key={j} className="text-gray-300 leading-relaxed">
-                      {renderParagraph(paragraph, `s-${i}-p-${j}`)}
-                    </p>
-                  ))}
-                </div>
+                  {/* Content paragraphs */}
+                  <div className="space-y-4 pl-11">
+                    {section.content.split('\n\n').map((paragraph, j) => (
+                      <p key={j} className="text-gray-300 leading-relaxed">
+                        {renderParagraph(paragraph, `s-${i}-p-${j}`)}
+                      </p>
+                    ))}
+                  </div>
 
-                {/* Optional comparison table */}
-                {section.tableHeaders && section.tableRows && (
-                  <div className="pl-11 mt-6 overflow-x-auto">
-                    <table className="w-full text-sm border border-[#2A2D3E] rounded-lg overflow-hidden">
-                      <thead>
-                        <tr className="bg-[#161822] text-left">
-                          {section.tableHeaders.map((header) => (
-                            <th key={header} className="py-3 px-4 font-semibold text-gray-200 whitespace-nowrap">
-                              {header}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#2A2D3E]/50">
-                        {section.tableRows.map((row, ri) => (
-                          <tr key={ri}>
-                            {row.map((cell, ci) => (
-                              <td
-                                key={ci}
-                                className={`py-3 px-4 ${ci === 0 ? 'font-medium text-gray-200' : 'text-gray-400'} whitespace-nowrap`}
-                              >
-                                {cell}
-                              </td>
+                  {/* Optional comparison table */}
+                  {section.tableHeaders && section.tableRows && (
+                    <div className="pl-11 mt-6 overflow-x-auto">
+                      <table className="w-full text-sm border border-[#2A2D3E] rounded-lg overflow-hidden">
+                        <thead>
+                          <tr className="bg-[#161822] text-left">
+                            {section.tableHeaders.map((header) => (
+                              <th key={header} className="py-3 px-4 font-semibold text-gray-200 whitespace-nowrap">
+                                {header}
+                              </th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
+                        </thead>
+                        <tbody className="divide-y divide-[#2A2D3E]/50">
+                          {section.tableRows.map((row, ri) => (
+                            <tr key={ri}>
+                              {row.map((cell, ci) => (
+                                <td
+                                  key={ci}
+                                  className={`py-3 px-4 ${ci === 0 ? 'font-medium text-gray-200' : 'text-gray-400'} whitespace-nowrap`}
+                                >
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
 
           {/* FAQ Section */}
           {post.faqs && post.faqs.length > 0 && (
