@@ -23,6 +23,11 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@/lib/db/schema', () => ({
+  developers: {
+    id: 'id',
+    tier: 'tier',
+    isFoundingMember: 'is_founding_member',
+  },
   tools: {
     id: 'id',
     developerId: 'developer_id',
@@ -87,7 +92,9 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
   })
 
   it('returns CSV with header row when developer has no tools', async () => {
-    mockDb.limit.mockResolvedValueOnce([]) // no tools
+    mockDb.limit
+      .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }]) // dev tier
+      .mockResolvedValueOnce([]) // no tools
 
     const response = await GET(makeRequest('/api/dashboard/developer/stats/export'))
 
@@ -102,6 +109,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
 
   it('returns CSV data for invocations', async () => {
     mockDb.limit
+      .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }]) // dev tier
       .mockResolvedValueOnce([{ id: 'tool-1', name: 'My Tool' }]) // tools
       .mockResolvedValueOnce([
         {
@@ -126,7 +134,9 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
   })
 
   it('respects days parameter', async () => {
-    mockDb.limit.mockResolvedValueOnce([]) // no tools
+    mockDb.limit
+      .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }]) // dev tier
+      .mockResolvedValueOnce([]) // no tools
 
     const response = await GET(makeRequest('/api/dashboard/developer/stats/export?days=7'))
 
@@ -150,6 +160,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
 
   it('properly escapes commas in tool names with RFC 4180 quoting', async () => {
     mockDb.limit
+      .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }]) // dev tier
       .mockResolvedValueOnce([{ id: 'tool-1', name: 'Tool, With, Commas' }])
       .mockResolvedValueOnce([
         {

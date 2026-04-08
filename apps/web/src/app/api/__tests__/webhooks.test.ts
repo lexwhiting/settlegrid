@@ -154,10 +154,10 @@ describe('Create Webhook (POST /api/developer/webhooks)', () => {
   })
 
   it('creates a webhook endpoint', async () => {
-    // Existing count check
+    // Route does dev tier query FIRST, then existing endpoints query
     mockDb.limit
+      .mockResolvedValueOnce([{ tier: 'standard', isFoundingMember: false }]) // dev tier
       .mockResolvedValueOnce([]) // existing endpoints (below limit)
-      .mockResolvedValueOnce([{ tier: 'standard' }]) // developer tier lookup
 
     mockDb.returning.mockResolvedValueOnce([{
       id: 'wh-new',
@@ -188,8 +188,11 @@ describe('Create Webhook (POST /api/developer/webhooks)', () => {
   })
 
   it('rejects when at endpoint limit', async () => {
+    // Dev tier first, then existing endpoints. standard maps to free tier
+    // (max 1 endpoint), so 1 existing already exceeds the limit.
     mockDb.limit
-      .mockResolvedValueOnce([{}, {}, {}, {}, {}]) // 5 existing endpoints
+      .mockResolvedValueOnce([{ tier: 'standard', isFoundingMember: false }]) // dev tier
+      .mockResolvedValueOnce([{}]) // 1 existing endpoint, at the limit for free
 
     const response = await createWebhook(makeRequest('/api/developer/webhooks', 'POST', {
       url: 'https://example.com/hook',

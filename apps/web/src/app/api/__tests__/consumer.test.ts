@@ -104,6 +104,14 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
+  // Consumer usage route uses sql template literals for aggregation
+  sql: Object.assign(
+    vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
+      sql: strings,
+      values,
+    })),
+    { raw: vi.fn() }
+  ),
 }))
 
 import { GET as consumerMe } from '@/app/api/auth/consumer/me/route'

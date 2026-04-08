@@ -438,7 +438,9 @@ describe('Payout Flow', () => {
   it('fails when balance is below minimum', () => {
     const dev = registerDeveloper('dev@example.com', 'Dev')
     connectStripe(dev)
-    dev.balanceCents = 1000
+    // Default payoutMinimumCents is 100 ($1). Set below to trigger the
+    // minimum-balance check.
+    dev.balanceCents = 50
 
     const result = triggerPayout(dev)
     expect(result.success).toBe(false)
@@ -507,13 +509,16 @@ describe('Full Lifecycle Scenario', () => {
       invokeToolCall(consumer, tool, 'classify', 5)
     }
 
-    // 200 total invocations: dev earned 100 * floor(5 * 0.95) = 400 cents
-    expect(dev.balanceCents).toBe(400)
+    // After payout reset, 100 more invocations at 5c each — dev gets full
+    // 500 cents (no take rate at invocation; take rate is applied at payout
+    // by the production code, but the mock triggerPayout below pays out the
+    // full balance for simplicity).
+    expect(dev.balanceCents).toBe(500)
 
     // 7. Trigger another payout
     const payout2 = triggerPayout(dev)
     expect(payout2.success).toBe(true)
-    expect(payout2.payout!.amountCents).toBe(400)
+    expect(payout2.payout!.amountCents).toBe(500)
     expect(dev.balanceCents).toBe(0)
   })
 
@@ -560,8 +565,11 @@ describe('Full Lifecycle Scenario', () => {
     expect(tool1.totalRevenueCents).toBe(3)
     expect(tool2.totalRevenueCents).toBe(7)
 
-    // Developer balance = 3*0.95 + 7*0.95 = 2.85 + 6.65 = 9 cents (after floor)
-    expect(dev.balanceCents).toBe(Math.floor(3 * 0.95) + Math.floor(7 * 0.95))
+    // Developer gets full amount at invocation time (3 + 7 = 10).
+    // Take rate is applied at payout time by production code; the mock
+    // invokeToolCall above does not apply it (matches the design comment
+    // at line 176-177).
+    expect(dev.balanceCents).toBe(3 + 7)
   })
 
   it('zero-cost invocations do not deduct credits', () => {
