@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { eq, and, isNull, isNotNull, sql } from 'drizzle-orm'
+import { eq, and, isNotNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -8,9 +8,11 @@ import { getCronSecret } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
+import { readIndexerQualityScores, computeWeightedPriority } from '@/lib/indexer-quality'
 import {
   sendEmail,
   FROM_OUTREACH,
+  FROM_TRANSACTIONAL,
   claimToolOutreachEmail,
   claimAiModelEmail,
   claimPackageEmail,
@@ -29,6 +31,30 @@ const MAX_TOOLS_PER_RUN = 50
 
 /** Maximum emails to send per calendar day (UTC). Prevents accidental spam. */
 const MAX_EMAILS_PER_DAY = 50
+
+/**
+ * Threshold below which a daily run is considered degraded. If the cron
+ * processes a full run and sends fewer than this many emails, an internal
+ * alert fires so the founder can investigate. Set to 20% of MAX_EMAILS_PER_DAY
+ * — catches silent resolver degradation early without false positives on
+ * naturally light days.
+ */
+const LOW_EMAIL_ALERT_THRESHOLD = Math.floor(MAX_EMAILS_PER_DAY * 0.2)
+
+/**
+ * Sentinel timestamp used to mark tools where creator email could not be
+ * resolved. Stored as 1970-01-01 UTC so the row is excluded from "real
+ * emailed" queries while still preventing immediate re-processing.
+ */
+const NO_EMAIL_SENTINEL = new Date(0)
+
+/**
+ * After this many days, sentinel-marked tools become eligible for retry.
+ * Lets newly-improved resolvers find emails that didn't resolve before.
+ * Without retry, the dead-end pool grows monotonically and the cron
+ * eventually exhausts.
+ */
+const SENTINEL_RETRY_AFTER_DAYS = 30
 
 /** Claim token length in bytes (24 bytes = 48 hex chars) */
 const CLAIM_TOKEN_BYTES = 24
@@ -52,6 +78,9 @@ const ECOSYSTEM_DISPLAY_NAMES: Record<string, string> = {
   pulsemcp: 'PulseMCP',
   openrouter: 'OpenRouter',
 }
+
+// Indexer interop helpers (readIndexerQualityScores, computeWeightedPriority)
+// live in @/lib/indexer-quality so they can be unit-tested in isolation.
 
 // ─── Template Selection ─────────────────────────────────────────────────────
 
@@ -128,11 +157,61 @@ export async function GET(request: NextRequest) {
 
     logger.info('cron.claim_outreach.starting')
 
-    // Query unclaimed tools that have not been emailed yet
-    // Must have a sourceRepoUrl (otherwise we cannot find the creator)
-    // Prioritizes tools with GitHub URLs (highest email resolution success rate),
-    // then npm, then others. Orders by creation date to avoid re-processing
-    // the same tools on every run.
+    // Query unclaimed tools eligible for outreach.
+    // Eligible = either (a) never been processed, or (b) sentinel-marked
+    // more than SENTINEL_RETRY_AFTER_DAYS ago (gives improved resolvers a
+    // chance to retry old dead-ends).
+    //
+    // Must have a sourceRepoUrl (otherwise we cannot find the creator).
+    //
+    // Daily ecosystem rotation: priority shifts based on day-of-year so
+    // a single ecosystem outage cannot starve the queue forever. Ecosystem
+    // priority used to be hardcoded npm > smithery > github > pypi >
+    // huggingface, but that left huggingface starved when npm/smithery were
+    // healthy and broke completely when those upstream sources went stale.
+    const sentinelCutoff = new Date(
+      Date.now() - SENTINEL_RETRY_AFTER_DAYS * 24 * 60 * 60 * 1000
+    )
+    const dayOfYear = Math.floor(
+      (Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 0)) /
+        (1000 * 60 * 60 * 24)
+    )
+    const ecosystemRotation = dayOfYear % 5 // 5 ranked ecosystems
+
+    // Read per-source quality weights from the Indexer agent (best-effort).
+    // The Indexer publishes scores to Redis once per week. If absent or
+    // unreachable, we fall back to uniform weights = 1.0 (preserves the
+    // legacy rotation behavior). The cron NEVER fails because of indexer
+    // unavailability — graceful degradation is mandatory.
+    const indexerScores = await readIndexerQualityScores()
+    const w = {
+      npm: indexerScores?.weights['npm'] ?? 1.0,
+      smithery: indexerScores?.weights['smithery'] ?? 1.0,
+      github: indexerScores?.weights['github'] ?? 1.0,
+      pypi: indexerScores?.weights['pypi'] ?? 1.0,
+      huggingface: indexerScores?.weights['huggingface'] ?? 1.0,
+    }
+    const npmPri = computeWeightedPriority(0, ecosystemRotation, w.npm)
+    const smitheryPri = computeWeightedPriority(1, ecosystemRotation, w.smithery)
+    const githubPri = computeWeightedPriority(2, ecosystemRotation, w.github)
+    const pypiPri = computeWeightedPriority(3, ecosystemRotation, w.pypi)
+    const hfPri = computeWeightedPriority(4, ecosystemRotation, w.huggingface)
+
+    if (indexerScores) {
+      logger.info('cron.claim_outreach.indexer_weights_loaded', {
+        msg: 'Using Indexer-published quality weights for rotation',
+        weights: w,
+        computedAt: indexerScores.computedAt,
+      })
+    } else {
+      // Distinguish "no Indexer published yet" / "stale" / "Redis unreachable"
+      // from "scores active". Ops can correlate this with Indexer agent runs
+      // to spot a silent agent failure.
+      logger.info('cron.claim_outreach.indexer_weights_absent', {
+        msg: 'No Indexer quality weights in Redis — using uniform 1.0 weights',
+      })
+    }
+
     const unclaimedTools = await db
       .select({
         id: tools.id,
@@ -147,20 +226,26 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(tools.status, 'unclaimed'),
-          isNull(tools.claimEmailSentAt),
-          isNotNull(tools.sourceRepoUrl)
+          isNotNull(tools.sourceRepoUrl),
+          // Eligible: never processed OR sentinel-marked >30 days ago
+          sql`(${tools.claimEmailSentAt} IS NULL OR (${tools.claimEmailSentAt} = '1970-01-01 00:00:00+00'::timestamptz AND ${tools.updatedAt} < ${sentinelCutoff.toISOString()}))`
         )
       )
       .orderBy(
-        // Prioritize sources with highest email resolution success rates.
-        // Smithery ranked #2 (was #5) thanks to 6-strategy qualifiedName→GitHub pipeline.
+        // Day-rotated ecosystem priority, weighted by Indexer-published
+        // quality scores. The base rotation is `(N + 5 - rotation) % 5`
+        // which keeps the 5 ranked ecosystems inside positions 0-4. Each
+        // base position is then divided by its weight (default 1.0) — a
+        // higher weight produces a smaller priority and sorts earlier.
+        // Unrecognized sources ("other") get a fixed priority of 99 so
+        // they always sort last, regardless of weights or rotation.
         sql`CASE
-          WHEN source_repo_url LIKE '%npmjs.com%' THEN 1
-          WHEN source_repo_url LIKE '%smithery%' THEN 2
-          WHEN source_repo_url LIKE '%github.com%' THEN 3
-          WHEN source_repo_url LIKE '%pypi.org%' THEN 4
-          WHEN source_repo_url LIKE '%huggingface%' THEN 5
-          ELSE 6
+          WHEN source_repo_url LIKE '%npmjs.com%' THEN ${npmPri}::float
+          WHEN source_repo_url LIKE '%smithery%' THEN ${smitheryPri}::float
+          WHEN source_repo_url LIKE '%github.com%' THEN ${githubPri}::float
+          WHEN source_repo_url LIKE '%pypi.org%' THEN ${pypiPri}::float
+          WHEN source_repo_url LIKE '%huggingface%' THEN ${hfPri}::float
+          ELSE 99::float
         END`,
         tools.createdAt
       )
@@ -271,7 +356,7 @@ export async function GET(request: NextRequest) {
           await db
             .update(tools)
             .set({
-              claimEmailSentAt: new Date(0),
+              claimEmailSentAt: NO_EMAIL_SENTINEL,
               updatedAt: new Date(),
             })
             .where(eq(tools.id, tool.id))
@@ -373,11 +458,74 @@ export async function GET(request: NextRequest) {
       noEmail,
     })
 
+    // Degradation alert: if today's TOTAL emailed (including any earlier
+    // run that day) is below the alert threshold AND we processed a
+    // meaningful batch, the resolver supply is degraded. Fire an internal
+    // alert so the founder can investigate before it becomes a multi-day
+    // silent failure (the situation surfaced 2026-04-07: counts dropped
+    // from 50/day to 11/day with no alerting).
+    const totalEmailedToday = dailySent + emailed
+    if (
+      unclaimedTools.length >= 10 &&
+      totalEmailedToday < LOW_EMAIL_ALERT_THRESHOLD
+    ) {
+      try {
+        const resolutionRate =
+          unclaimedTools.length > 0
+            ? Math.round((emailed / unclaimedTools.length) * 100)
+            : 0
+        const escapeHtml = (s: string) =>
+          s
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+        const lines = [
+          'Daily claim outreach run completed below the alert threshold.',
+          '',
+          `Today total emailed: ${totalEmailedToday} (threshold: ${LOW_EMAIL_ALERT_THRESHOLD})`,
+          `This run: emailed=${emailed}, no_email=${noEmail}, skipped=${skipped}, processed=${unclaimedTools.length}`,
+          `Resolution rate this run: ${resolutionRate}%`,
+          '',
+          'Most likely causes (in order of probability):',
+          '  1. Crawler supply has dried up — check crawl-services and crawl-registry cron logs',
+          '  2. A specific ecosystem resolver is broken — check ecosystem-email-resolver logs',
+          '  3. The unclaimed pool is depleted — query tools table for unclaimed status',
+          '',
+          'Investigation queries:',
+          "  SELECT date_trunc('day', created_at)::date, COUNT(*) FROM tools WHERE created_at > NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1 DESC;",
+          "  SELECT source_ecosystem, COUNT(*) FROM tools WHERE status = 'unclaimed' AND claim_email_sent_at IS NULL GROUP BY 1;",
+        ]
+        const html =
+          '<pre style="font-family:monospace;font-size:13px;line-height:1.5;">' +
+          lines.map(escapeHtml).join('\n') +
+          '</pre>'
+
+        await sendEmail({
+          to: 'luther@settlegrid.ai',
+          from: FROM_TRANSACTIONAL,
+          subject: `[claim-outreach] Low email count: ${totalEmailedToday}/${MAX_EMAILS_PER_DAY}`,
+          html,
+        })
+        logger.info('cron.claim_outreach.alert_fired', {
+          totalEmailedToday,
+          threshold: LOW_EMAIL_ALERT_THRESHOLD,
+        })
+      } catch (alertErr) {
+        logger.warn('cron.claim_outreach.alert_failed', {
+          error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+        })
+      }
+    }
+
     return successResponse({
       processed: unclaimedTools.length,
       emailed,
       skipped,
       noEmail,
+      totalEmailedToday,
+      alertFired:
+        unclaimedTools.length >= 10 &&
+        totalEmailedToday < LOW_EMAIL_ALERT_THRESHOLD,
     })
   } catch (error) {
     logger.error('cron.claim_outreach.failed', {}, error)
