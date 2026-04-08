@@ -1,35 +1,96 @@
 # SettleGrid — The Settlement Layer for the AI Economy
 # https://settlegrid.ai
-# Updated: 2026-03-22
+# Updated: 2026-04-08
 
-# ═══ AI Search & Assistant Crawlers (allow all) ═══
+# ═══ AI Search & Assistant Crawlers (allow all public pages) ═══
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: Claude-User
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: Claude-SearchBot
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: Perplexity-User
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: Googlebot
 Allow: /
+Allow: /api/v1/discover
+Allow: /api/feed
+Allow: /api/openapi.json
+Allow: /api/badge/
+Allow: /api/widget/
+Allow: /api/marketplace/stats
+Allow: /api/marketplace/bundles
+Allow: /api/tools/serve/
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: Bingbot
 Allow: /
+Allow: /api/v1/discover
+Allow: /api/feed
+Allow: /api/openapi.json
+Allow: /api/badge/
+Allow: /api/widget/
+Allow: /api/marketplace/stats
+Allow: /api/marketplace/bundles
+Allow: /api/tools/serve/
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 # ═══ AI Training Crawlers (allow for maximum LLM visibility) ═══
 # SettleGrid is open-source and seeking maximum adoption.
@@ -37,20 +98,45 @@ Allow: /
 
 User-agent: GPTBot
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: CCBot
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 User-agent: anthropic-ai
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
-# ═══ Default: allow everything ═══
+# ═══ Default ═══
 
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /consumer/
+Disallow: /claim/
+Disallow: /unsubscribe
 
 # Sitemap
 Sitemap: https://settlegrid.ai/sitemap.xml
