@@ -69,6 +69,14 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
   lte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ lte: [a, b] })),
+  // getCostAllocations uses sql template literal for SUM aggregation
+  sql: Object.assign(
+    vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
+      sql: strings,
+      values,
+    })),
+    { raw: vi.fn() }
+  ),
 }))
 
 // ---- Imports (after mocks) --------------------------------------------------

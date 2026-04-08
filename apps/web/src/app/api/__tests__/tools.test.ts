@@ -97,7 +97,7 @@ const mockTool = {
   name: 'Test Tool',
   slug: 'test-tool',
   description: 'A test tool',
-  pricingConfig: { model: 'per_call', perCallCents: 5 },
+  pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
   status: 'active',
   totalInvocations: 100,
   totalRevenueCents: 500,
@@ -159,7 +159,7 @@ describe('Create Tool (POST /api/tools)', () => {
       name: 'Test Tool',
       slug: 'test-tool',
       description: 'A test tool',
-      pricingConfig: { model: 'per_call', perCallCents: 5 },
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
     })
 
     const response = await POST(request)
@@ -175,7 +175,7 @@ describe('Create Tool (POST /api/tools)', () => {
     const request = makeRequest('/api/tools', 'POST', {
       name: 'Dupe Tool',
       slug: 'existing-slug',
-      pricingConfig: { model: 'per_call', perCallCents: 5 },
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
     })
 
     const response = await POST(request)
@@ -189,7 +189,7 @@ describe('Create Tool (POST /api/tools)', () => {
     const request = makeRequest('/api/tools', 'POST', {
       name: 'Tool',
       slug: 'INVALID SLUG!',
-      pricingConfig: { model: 'per_call', perCallCents: 5 },
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
     })
 
     const response = await POST(request)
@@ -359,7 +359,7 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
         name: 'Public Tool',
         slug: 'public-tool',
         description: 'A public tool',
-        pricingConfig: { model: 'per_call', perCallCents: 5 },
+        pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
         developerName: 'Dev Co',
       },
     ])
