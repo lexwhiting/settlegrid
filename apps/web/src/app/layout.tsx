@@ -7,6 +7,7 @@ import { HelpChatWidget } from '@/components/help-chat/help-chat-widget'
 import { Analytics } from '@vercel/analytics/next'
 import { PostHogProvider } from '@/components/posthog-provider'
 import { PostHogPageView } from '@/components/posthog-pageview'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({
@@ -115,6 +116,7 @@ export default function RootLayout({
             <Analytics />
           </ThemeProvider>
         </PostHogProvider>
+        <Analytics />
       </body>
     </html>
   )
