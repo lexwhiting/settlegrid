@@ -206,9 +206,6 @@ export function generateFromSpec(s) {
   files['.env.example'] = env
 
   // ── README.md
-  const costs = s.methods.map(m => m.cost)
-  const minC = Math.min(...costs), maxC = Math.max(...costs)
-
   let r = `# settlegrid-${s.slug}\n\n`
   r += `${s.title} MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).\n\n`
   r += `[![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)\n`
