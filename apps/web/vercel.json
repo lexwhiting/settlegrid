@@ -28,28 +28,12 @@
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/cron/onboarding-drip",
-      "schedule": "0 * * * *"
-    },
-    {
       "path": "/api/cron/quality-check",
       "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/monthly-summary",
       "schedule": "0 9 1 * *"
-    },
-    {
-      "path": "/api/cron/crawl-registry",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/monitor-reddit",
-      "schedule": "0 */4 * * *"
-    },
-    {
-      "path": "/api/cron/monitor-github-repos",
-      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/weekly-report",
@@ -60,20 +44,12 @@
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron/crawl-services",
-      "schedule": "0 12 * * *"
-    },
-    {
       "path": "/api/cron/data-retention",
       "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/ecosystem-metrics",
       "schedule": "0 9 * * 0"
-    },
-    {
-      "path": "/api/cron/gridbot",
-      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/anomaly-detection",
@@ -86,22 +62,6 @@
     {
       "path": "/api/cron/consumer-schedules",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/consumer-digest",
-      "schedule": "0 10 * * 1"
-    },
-    {
-      "path": "/api/cron/monitor-stackoverflow",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/monitor-github-issues",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/newsletter",
-      "schedule": "0 12 * * 1"
     }
   ]
 }
