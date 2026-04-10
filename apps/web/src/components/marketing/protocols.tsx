@@ -1,3 +1,14 @@
+/**
+ * Protocols visibly listed on the homepage.
+ *
+ * Only protocols with shipped adapter code in
+ * apps/web/src/lib/settlement/adapters/ are listed here. Three protocols
+ * previously displayed (REST, EMVCo, DRAIN) were removed in April 2026:
+ * REST and EMVCo were miscategorized (not actually agent payment protocols);
+ * DRAIN had a cryptographic implementation defect being addressed under the
+ * Quantum Leap settlement-layer plan. Additional protocol detail and the
+ * full canonical positioning will land via P1.MKT1.
+ */
 const protocols = [
   "MCP",
   "MPP",
@@ -6,14 +17,11 @@ const protocols = [
   "Visa TAP",
   "UCP",
   "ACP",
-  "Mastercard Agent Pay",
+  "Mastercard Verifiable Intent",
   "Circle Nano",
-  "REST",
   "L402",
   "Alipay Trust",
   "KYAPay",
-  "EMVCo",
-  "DRAIN",
 ]
 
 export function Protocols() {
@@ -23,10 +31,10 @@ export function Protocols() {
         {/* Section header */}
         <div className="flex flex-col gap-4 mb-16">
           <p className="text-sm font-medium tracking-[0.2em] uppercase text-muted-foreground">
-            15 Protocols
+            Multi-Protocol Settlement
           </p>
           <p className="text-xl text-foreground max-w-xl">
-            One SDK. Every payment protocol an AI agent will ever need.
+            One SDK. The agent payment protocols developers actually need.
           </p>
         </div>
 

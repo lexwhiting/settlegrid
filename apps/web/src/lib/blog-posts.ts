@@ -337,7 +337,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         question: 'Which AI payment protocol should I support?',
-        answer: 'For most developers, use SettleGrid to support all 15 protocols with a single integration. If building manually, prioritize MCP + MPP (Stripe) for mainstream tools, MCP + x402 for crypto-native tools, or MCP + MPP + Visa TAP for enterprise tools.',
+        answer: 'For most developers, use SettleGrid to support multiple agent payment protocols with a single integration. If building manually, prioritize MCP + MPP (Stripe) for mainstream tools, MCP + x402 for crypto-native tools, or MCP + MPP + Visa TAP for enterprise tools.',
       },
     ],
     relatedSlugs: [
@@ -374,7 +374,7 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         question: 'Is SettleGrid really free?',
-        answer: 'Yes. SettleGrid offers a production-ready free tier with 50,000 operations per month, 0% take rate on your first $1K/mo of revenue, all 15 payment protocols, marketplace listing, and Stripe Connect payouts. No credit card required, no expiration.',
+        answer: 'Yes. SettleGrid offers a production-ready free tier with 50,000 operations per month, 0% take rate on your first $1K/mo of revenue, multi-protocol settlement, marketplace listing, and Stripe Connect payouts. No credit card required, no expiration.',
       },
       {
         question: 'When should I upgrade from the free tier?',
@@ -391,7 +391,7 @@ export const BLOG_POSTS: BlogPost[] = [
         id: 'free-tier-overview',
         heading: 'What You Get for Free',
         content:
-          'SettleGrid offers a genuinely free tier for MCP tool developers. Not a trial. Not a demo. A production-ready free plan with no credit card required and no expiration date.\n\nThe free tier includes: 50,000 operations per month, progressive take rate (0% on first $1K/mo of revenue), access to all 15 payment protocols, marketplace listing and Discovery API visibility, usage dashboard with real-time metrics, and Stripe Connect payouts.\n\nThis is not a bait-and-switch. The free tier is designed to let individual developers and small teams monetize their tools without any upfront cost. You only upgrade when you need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The volume limit of 50,000 operations per month is generous enough for most tools in the early stages.',
+          'SettleGrid offers a genuinely free tier for MCP tool developers. Not a trial. Not a demo. A production-ready free plan with no credit card required and no expiration date.\n\nThe free tier includes: 50,000 operations per month, progressive take rate (0% on first $1K/mo of revenue), access to the supported agent payment protocols, marketplace listing and Discovery API visibility, usage dashboard with real-time metrics, and Stripe Connect payouts.\n\nThis is not a bait-and-switch. The free tier is designed to let individual developers and small teams monetize their tools without any upfront cost. You only upgrade when you need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The volume limit of 50,000 operations per month is generous enough for most tools in the early stages.',
       },
       {
         id: 'why-free-matters',

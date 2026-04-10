@@ -6,7 +6,7 @@ In March 2026 alone, three major payment infrastructure players launched agent p
 
 This fragmentation creates a real problem for tool developers: which protocols should you support? Supporting all ten means reaching every possible agent, but implementing ten payment integrations is impractical. Supporting just one means missing agents that use other protocols.
 
-SettleGrid solves this by supporting all 15 protocols through a single SDK integration. You integrate once, and SettleGrid handles protocol negotiation, payment processing, and settlement across all 10 standards. This section compares each protocol so you understand the landscape even if you never need to implement them directly.
+SettleGrid solves this by supporting multiple agent payment protocols through a single SDK integration. You integrate once, and SettleGrid handles protocol negotiation, payment processing, and settlement across the protocols it supports. This section compares each protocol so you understand the landscape even if you never need to implement them directly.
 
 ## Protocol Comparison Table
 
@@ -89,7 +89,7 @@ We have a dedicated technical guide on this standard at [ERC-8004: Trustless Age
 
 ## Which Protocols Should You Support?
 
-For most MCP tool developers, the practical answer is: use SettleGrid and support all 15 protocols without writing protocol-specific code. SettleGrid handles protocol negotiation, payment verification, and settlement for every protocol through a single SDK integration. You ship one wrap call and your tool accepts payments from any agent on any rail.
+For most MCP tool developers, the practical answer is: use SettleGrid and support multiple agent payment protocols without writing protocol-specific code. SettleGrid handles protocol negotiation, payment verification, and settlement for the protocols it supports through a single SDK integration. You ship one wrap call and your tool accepts payments from agents on multiple rails.
 
 If you are building protocol support yourself, the priority order has shifted post-x402-Foundation:
 
@@ -100,4 +100,4 @@ If you are building protocol support yourself, the priority order has shifted po
 
 The agent payment landscape is consolidating fast. Pre-April 2026 the consensus answer was "support multiple protocols and hedge". Post-Foundation, the consensus answer is "support x402 first, layer others as your audience requires". Within 6 to 12 months, supporting x402 may be table stakes for any monetized MCP tool — much like supporting HTTPS is table stakes for any web service.
 
-Until that consolidation finishes, supporting all 15 protocols through SettleGrid means you never have to bet on a winner. If x402 wins outright, you have it covered. If two or three protocols share the agent payments market, you have all of them. The integration cost is constant (one SDK, two lines of code) regardless of how many protocols are in play.
+Until that consolidation finishes, supporting multiple agent payment protocols through SettleGrid means you never have to bet on a winner. If x402 wins outright, you have it covered. If two or three protocols share the agent payments market, you have all of them. The integration cost is constant (one SDK, two lines of code) regardless of how many protocols are in play.

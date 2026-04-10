@@ -167,7 +167,7 @@ export default function SolutionsHubPage() {
           {/* CTA */}
           <div className="rounded-xl border border-[#2A2D3E] bg-gradient-to-br from-[#161822] to-[#0C0E14] p-12 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-100 mb-3">
-              Universal settlement for any AI service
+              Settlement infrastructure for AI tools
             </h2>
             <p className="text-gray-400 mb-8 max-w-lg mx-auto">
               If your service has an async function, SettleGrid can bill it. Two lines of code. No contracts. No minimums.
