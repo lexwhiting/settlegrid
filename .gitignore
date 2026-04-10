@@ -44,6 +44,11 @@ internal/
 data/cold-outreach/
 data/users/
 
+# Word doc exports of master-plan content. These are regeneratable from
+# the .md sources and the proprietary versions live in private/master-plan/
+# rather than docs/master-plan/. Belt-and-suspenders preventive.
+docs/master-plan/*.docx
+
 # GridBot runtime state & logs
 scripts/gridbot/state.json
 scripts/gridbot/schedule-state.json
