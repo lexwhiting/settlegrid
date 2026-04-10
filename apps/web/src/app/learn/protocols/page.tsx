@@ -9,7 +9,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export const metadata: Metadata = {
   title: 'Protocol Guides | SettleGrid',
   description:
-    'Explore the 15 AI payment protocols supported by SettleGrid — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN. One SDK, every protocol.',
+    'Explore the agent payment protocols supported by SettleGrid — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), Alipay Trust, and KYAPay. One SDK, multiple protocols.',
   alternates: { canonical: 'https://settlegrid.ai/learn/protocols' },
   keywords: [
     'AI payment protocols',
@@ -250,12 +250,12 @@ export default function ProtocolIndexPage() {
           <div className="text-center mb-12">
             <p className="text-sm font-semibold text-amber-400 tracking-wide uppercase mb-2">Protocol Guides</p>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-4">
-              One SDK. Fifteen Protocols. Zero Vendor Lock-in.
+              One SDK. Multiple Protocols. Zero Vendor Lock-in.
             </h1>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              SettleGrid supports every major AI payment protocol out of the box. Wrap your tool once and
+              SettleGrid supports the major AI agent payment protocols out of the box. Wrap your tool once and
               accept payments from agents across Anthropic, Google, Stripe, Visa, Mastercard, Coinbase,
-              OpenAI, Circle, Shopify, Lightning Labs, Ant Group, Skyfire, EMVCo, and Bittensor ecosystems.
+              OpenAI, Circle, Shopify, Lightning Labs, Ant Group, and Skyfire ecosystems.
             </p>
           </div>
 

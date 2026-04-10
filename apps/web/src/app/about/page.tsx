@@ -44,7 +44,7 @@ const jsonLdOrganization = {
   url: 'https://settlegrid.ai',
   logo: 'https://settlegrid.ai/brand/icon-color.svg',
   description:
-    'SettleGrid is the universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service across 15 payment protocols.',
+    'SettleGrid is settlement infrastructure for AI tools. Per-call billing, usage metering, and automated payouts across multiple agent payment protocols.',
   foundingDate: '2026',
   sameAs: [
     'https://github.com/lexwhiting/settlegrid',
@@ -154,15 +154,15 @@ export default function AboutPage() {
               <p>
                 Neither option is acceptable. The settlement layer for AI services should be invisible
                 infrastructure &mdash; like Stripe is for payments or Cloudflare is for CDN. It should
-                take two lines of code, support every payment protocol, and let developers keep the
-                vast majority of their revenue.
+                take two lines of code, support the major agent payment protocols, and let developers
+                keep the vast majority of their revenue.
               </p>
               <p>
-                That&apos;s what SettleGrid is: a universal settlement layer that wraps any AI service
+                That&apos;s what SettleGrid is: settlement infrastructure that wraps any AI tool
                 with per-call billing, real-time metering, budget enforcement, and automated Stripe
-                payouts &mdash; across 15 payment protocols. With a progressive take rate that starts
-                at 0% because the platform should earn its share by delivering value, not by extracting
-                it upfront.
+                payouts &mdash; across multiple agent payment protocols. With a progressive take rate
+                that starts at 0% because the platform should earn its share by delivering value, not
+                by extracting it upfront.
               </p>
               <p>
                 SettleGrid is built by developers, for developers. We use our own platform. We publish

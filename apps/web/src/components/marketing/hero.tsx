@@ -29,12 +29,12 @@ export function Hero() {
           <div className="flex flex-col gap-8 relative z-10">
             <div className="flex flex-col gap-5">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-foreground text-balance leading-[1.1]">
-                <TextGenerateEffect words="The Settlement Layer for the" />{" "}
-                <span className="text-[#E5A336]">AI Economy</span>
+                <TextGenerateEffect words="Settlement Infrastructure" />{" "}
+                <span className="text-[#E5A336]">for AI Tools</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
-                Per-call billing, usage metering, and automated payouts for any
-                AI service. 15 protocols. Free forever.
+                Per-call billing, usage metering, and automated payouts for AI
+                tools. Multi-protocol settlement. Free forever.
               </p>
             </div>
             <div className="flex items-center gap-6">

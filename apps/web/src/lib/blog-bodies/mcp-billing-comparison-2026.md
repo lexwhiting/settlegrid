@@ -28,7 +28,7 @@ The table below compares the five approaches across the features that matter mos
 
 ## SettleGrid: Purpose-Built for MCP
 
-SettleGrid is the only billing platform designed specifically for MCP tool monetization. It supports 15 payment protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN), six pricing models, and includes a built-in discovery marketplace.
+SettleGrid is purpose-built for MCP tool monetization. It supports multiple agent payment protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), Alipay Trust, and KYAPay), six pricing models, and includes a built-in discovery marketplace.
 
 Setup takes under 5 minutes: install the SDK, configure pricing, wrap your handler, deploy. The free tier includes 50,000 operations per month with a progressive take rate (0% on your first $1K/mo of revenue). Paid tiers (Builder $19/mo, Scale $79/mo) add features like sandbox mode, IP allowlisting, fraud detection, and team seats.
 

@@ -33,6 +33,21 @@ const MAX_TOOLS_PER_RUN = 50
 const MAX_EMAILS_PER_DAY = 50
 
 /**
+ * Build-mode kill switch. Defaults to OFF (emails skipped) so the cron remains
+ * paused unless an operator explicitly opts back in by setting
+ * CLAIM_EMAILS_ENABLED=true. When OFF, the cron handler exits immediately
+ * after auth so no DB queries, email resolution, or send work happens, and
+ * tools remain eligible for processing once the switch flips back on (no
+ * dedup keys are written, no claimEmailSentAt timestamps are set).
+ *
+ * The scraping/indexing/page-generation pipelines run in separate crons and
+ * are unaffected by this flag — only outbound claim email is paused.
+ */
+function claimEmailsEnabled(): boolean {
+  return process.env.CLAIM_EMAILS_ENABLED === 'true'
+}
+
+/**
  * Threshold below which a daily run is considered degraded. If the cron
  * processes a full run and sends fewer than this many emails, an internal
  * alert fires so the founder can investigate. Set to 20% of MAX_EMAILS_PER_DAY
@@ -153,6 +168,20 @@ export async function GET(request: NextRequest) {
     }
     if (authHeader !== `Bearer ${cronSecret}`) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
+    }
+
+    // Build-mode kill switch: skip the entire run if claim emails are disabled.
+    // No DB queries, no email resolution, no Redis writes — tools remain
+    // eligible for processing when the switch is flipped back on.
+    if (!claimEmailsEnabled()) {
+      logger.info('cron.claim_outreach.skipped_kill_switch', {
+        reason: 'CLAIM_EMAILS_ENABLED is not set to true',
+      })
+      return successResponse({
+        skipped: true,
+        reason: 'kill_switch',
+        flag: 'CLAIM_EMAILS_ENABLED',
+      })
     }
 
     logger.info('cron.claim_outreach.starting')

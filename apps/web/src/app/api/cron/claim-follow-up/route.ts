@@ -26,6 +26,21 @@ const MAX_TOOLS_PER_RUN = 50
 /** Shared daily email cap with claim-outreach (same Redis key) */
 const MAX_EMAILS_PER_DAY = 50
 
+/**
+ * Build-mode kill switch. Defaults to OFF (follow-ups skipped) so the cron
+ * remains paused unless an operator explicitly opts back in by setting
+ * CLAIM_EMAILS_ENABLED=true. When OFF, the cron handler exits immediately
+ * after auth so no DB queries or send work happens, and the follow-up
+ * counter is not incremented (tools resume their follow-up sequence at the
+ * same point when the switch flips back on).
+ *
+ * Shared with claim-outreach so a single env var pauses both initial outreach
+ * and the entire follow-up sequence.
+ */
+function claimEmailsEnabled(): boolean {
+  return process.env.CLAIM_EMAILS_ENABLED === 'true'
+}
+
 /** Redis daily cap TTL: 24 hours in seconds */
 const REDIS_DAILY_CAP_TTL_SECONDS = 24 * 60 * 60
 
@@ -81,6 +96,20 @@ export async function GET(request: NextRequest) {
     }
     if (authHeader !== `Bearer ${cronSecret}`) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
+    }
+
+    // Build-mode kill switch: skip the entire run if claim emails are disabled.
+    // Follow-up counter is not incremented, so the sequence resumes from the
+    // same point when the switch is flipped back on.
+    if (!claimEmailsEnabled()) {
+      logger.info('cron.claim_follow_up.skipped_kill_switch', {
+        reason: 'CLAIM_EMAILS_ENABLED is not set to true',
+      })
+      return successResponse({
+        skipped: true,
+        reason: 'kill_switch',
+        flag: 'CLAIM_EMAILS_ENABLED',
+      })
     }
 
     logger.info('cron.claim_follow_up.starting')

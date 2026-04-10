@@ -8,7 +8,7 @@ const protocols = [
   'Visa TAP',
   'UCP',
   'ACP',
-  'Mastercard Agent Pay',
+  'Mastercard Verifiable Intent',
   'Circle Nano',
   'REST',
   'L402',

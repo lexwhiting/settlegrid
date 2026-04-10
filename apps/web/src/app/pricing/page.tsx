@@ -45,7 +45,7 @@ const jsonLdProduct = {
   '@type': 'Product',
   name: 'SettleGrid',
   description:
-    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for AI services across 15 payment protocols.',
+    'Settlement infrastructure for AI tools. Per-call billing, usage metering, and automated payouts across multiple agent payment protocols.',
   brand: { '@type': 'Brand', name: 'SettleGrid' },
   url: 'https://settlegrid.ai/pricing',
   offers: [

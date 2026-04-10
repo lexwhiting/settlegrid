@@ -13,12 +13,12 @@ import { CTASection } from '@/components/marketing/cta-section'
 import { Footer } from '@/components/marketing/footer'
 
 export const metadata: Metadata = {
-  title: 'SettleGrid — The Settlement Layer for the AI Economy',
+  title: 'SettleGrid — Settlement Infrastructure for AI Tools',
   description:
-    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service. 15 protocols. Free forever — 50K ops/month.',
+    'Settlement infrastructure for AI tools. Per-call billing, usage metering, and automated payouts across multiple agent payment protocols. Free forever — 50K ops/month.',
   alternates: { canonical: 'https://settlegrid.ai' },
   keywords: [
-    'universal AI settlement',
+    'AI tool monetization',
     'AI service billing',
     'per-call billing',
     'AI agent payments',
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     'MCP monetization',
     'API monetization',
     'usage-based billing',
-    'AI economy',
+    'agent payment protocols',
   ],
 }
 
@@ -35,7 +35,7 @@ const jsonLd = {
   '@type': 'SoftwareApplication',
   name: 'SettleGrid',
   description:
-    'The universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service. 15 protocols. Free forever.',
+    'Settlement infrastructure for AI tools. Per-call billing, usage metering, and automated payouts across multiple agent payment protocols. Free forever.',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any',
   url: 'https://settlegrid.ai',

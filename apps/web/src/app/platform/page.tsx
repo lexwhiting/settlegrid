@@ -13,7 +13,7 @@ import { PlatformAnalytics } from '@/components/marketing/platform/platform-anal
 export const metadata: Metadata = {
   title: 'Platform — The AI Tool Distribution Platform | SettleGrid',
   description:
-    'Wrap one function. Get billing, discovery, and distribution across every channel where AI tools are found. 10 channels, 15 protocols, 95-100% revenue share.',
+    'Wrap one function. Get billing, discovery, and distribution across every channel where AI tools are found. 10 channels, multi-protocol settlement, 95-100% revenue share.',
   alternates: { canonical: 'https://settlegrid.ai/platform' },
   keywords: [
     'AI tool distribution',
@@ -49,7 +49,7 @@ const jsonLd = {
   '@type': 'WebPage',
   name: 'The AI Tool Distribution Platform',
   description:
-    'Wrap one function. Get billing, discovery, and distribution across every channel where AI tools are found. 10 channels, 15 protocols, 95-100% revenue share.',
+    'Wrap one function. Get billing, discovery, and distribution across every channel where AI tools are found. 10 channels, multi-protocol settlement, 95-100% revenue share.',
   url: 'https://settlegrid.ai/platform',
   isPartOf: {
     '@type': 'WebSite',
