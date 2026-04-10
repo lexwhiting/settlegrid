@@ -162,3 +162,81 @@ export function gen(s) {
 
   console.log(`  ✓ settlegrid-${s.slug}`)
 }
+
+// ── In-memory generator (used by Templater agent) ─────────────────────────
+
+/**
+ * Generate template file contents from a spec without writing to disk.
+ * Returns a Record<string, string> mapping relative file paths to contents.
+ *
+ * @param {object} s - Same spec shape as gen()
+ * @returns {Record<string, string>}
+ */
+export function generateFromSpec(s) {
+  /** @type {Record<string, string>} */
+  const files = {}
+
+  // ── package.json
+  files['package.json'] = JSON.stringify({
+    name: `settlegrid-${s.slug}`,
+    version: '1.0.0',
+    description: `MCP server for ${s.title} with SettleGrid billing. ${s.desc}`,
+    type: 'module',
+    scripts: { dev: 'tsx src/server.ts', build: 'tsc', start: 'node dist/server.js' },
+    dependencies: { '@settlegrid/mcp': '^0.1.1' },
+    devDependencies: { tsx: '^4.0.0', typescript: '^5.0.0' },
+    keywords: ['settlegrid', 'mcp', 'ai', ...s.keywords],
+    license: 'MIT',
+    repository: { type: 'git', url: `https://github.com/settlegrid/settlegrid-${s.slug}` },
+  }, null, 2) + '\n'
+
+  files['tsconfig.json'] = TSCONFIG
+  files['.gitignore'] = GITIGNORE
+  files['Dockerfile'] = DOCKERFILE
+  files['vercel.json'] = VERCEL
+  files['LICENSE'] = LICENSE
+
+  // ── .env.example
+  let env = '# SettleGrid API key (required) — get yours at https://settlegrid.ai\nSETTLEGRID_API_KEY=sg_live_your_key_here\n'
+  if (s.key) {
+    env += `\n# ${s.api.name} API key${s.key.required ? ' (required)' : ' (optional)'} — ${s.key.url}\n${s.key.env}=${s.key.default || 'your_key_here'}\n`
+  } else {
+    env += `\n# No API key needed for ${s.api.name} — it's free and open\n`
+  }
+  files['.env.example'] = env
+
+  // ── README.md
+  const costs = s.methods.map(m => m.cost)
+  const minC = Math.min(...costs), maxC = Math.max(...costs)
+
+  let r = `# settlegrid-${s.slug}\n\n`
+  r += `${s.title} MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).\n\n`
+  r += `[![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)\n`
+  r += `[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)\n`
+  r += `[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-${s.slug})\n\n`
+  r += `${s.desc}\n\n`
+  r += `## Quick Start\n\n\`\`\`bash\nnpm install\ncp .env.example .env   # Add your SettleGrid API key\nnpm run dev\n\`\`\`\n\n`
+  r += `## Methods\n\n| Method | Description | Cost |\n|--------|-------------|------|\n`
+  for (const m of s.methods) r += `| \`${m.name}(${m.params})\` | ${m.display} | ${m.cost}¢ |\n`
+  r += `\n## Parameters\n\n`
+  for (const m of s.methods) {
+    r += `### ${m.name}\n`
+    for (const i of m.inputs) r += `- \`${i.name}\` (${i.type}${i.required ? ', required' : ''}) — ${i.desc}\n`
+    r += '\n'
+  }
+  r += `## Environment Variables\n\n| Variable | Required | Description |\n|----------|----------|-------------|\n`
+  r += `| \`SETTLEGRID_API_KEY\` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |\n`
+  if (s.key) r += `| \`${s.key.env}\` | ${s.key.required ? 'Yes' : 'No'} | ${s.api.name} API key from [${s.key.url}](${s.key.url}) |\n`
+  r += '\n'
+  if (!s.key) r += `No API key needed for the upstream ${s.api.name} API — it is completely free.\n\n`
+  r += `## Upstream API\n\n- **Provider**: ${s.api.name}\n- **Base URL**: ${s.api.base}\n- **Auth**: ${s.key ? 'API key required' : 'None required'}\n- **Docs**: ${s.api.docs}\n\n`
+  r += `## Deploy\n\n### Docker\n\n\`\`\`bash\ndocker build -t settlegrid-${s.slug} .\ndocker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-${s.slug}\n\`\`\`\n\n`
+  r += `### Vercel\n\nClick the "Deploy with Vercel" button above, or:\n\n\`\`\`bash\nnpm run build\nvercel --prod\n\`\`\`\n\n`
+  r += `## License\n\nMIT - see [LICENSE](LICENSE)\n\n---\n\nBuilt with [SettleGrid](https://settlegrid.ai) — The Settlement Layer for the AI Economy\n`
+  files['README.md'] = r
+
+  // ── src/server.ts
+  files['src/server.ts'] = s.serverTs
+
+  return files
+}
