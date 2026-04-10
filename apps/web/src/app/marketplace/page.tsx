@@ -85,9 +85,9 @@ export default async function MarketplacePage({
               Marketplace
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Discover, compare, and monetize AI tools across every ecosystem.
+              Discover, compare, and monetize AI tools across ecosystems.
               MCP servers, models, APIs, agent tools, and automations — all with
-              universal settlement and transparent per-call pricing.
+              multi-protocol settlement and transparent per-call pricing.
             </p>
           </div>
 

@@ -39,6 +39,11 @@ internal/
 *-private/
 .mcpregistry_*
 
+# Founder reference drafts — outreach replies, 1:1 templates, private
+# user notes. These contain real names and should never be committed.
+data/cold-outreach/
+data/users/
+
 # GridBot runtime state & logs
 scripts/gridbot/state.json
 scripts/gridbot/schedule-state.json

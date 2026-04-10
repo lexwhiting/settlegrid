@@ -45,7 +45,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'What protocols does SettleGrid support?',
-        a: "SettleGrid is protocol-agnostic. It natively supports 15 protocols: MCP (Model Context Protocol), MPP (Machine Payments Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Agent Pay (Verifiable Intent), Circle Nanopayments (USDC), REST, L402 (Bitcoin Lightning), Alipay Trust Protocol (Ant Group), KYAPay (Skyfire + Visa), EMVCo Agent Payments, and DRAIN (off-chain USDC). One SDK covers every protocol.",
+        a: "SettleGrid is protocol-agnostic. It supports multiple agent payment protocols: MCP (Model Context Protocol), MPP (Merchant Payment Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Verifiable Intent, Circle Nanopayments (USDC), L402 (Bitcoin Lightning), Alipay Trust Protocol (Ant Group), and KYAPay (Skyfire + Visa). One SDK covers them all.",
       },
       {
         q: 'How do my tools appear in the Showcase?',

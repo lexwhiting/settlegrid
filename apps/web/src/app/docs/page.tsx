@@ -8,7 +8,7 @@ import { FaqAccordion } from '@/components/ui/faq-accordion'
 
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
-  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across 15 payment protocols.',
+  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill AI services — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across multiple agent payment protocols.',
   alternates: { canonical: 'https://settlegrid.ai/docs' },
   keywords: [
     'SettleGrid documentation',
@@ -35,7 +35,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is SettleGrid?',
-      a: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across 15 payment protocols. Think of it as the universal billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
+      a: 'SettleGrid is settlement infrastructure for AI tools. It lets developers monetize AI services — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across multiple agent payment protocols. Think of it as billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
     },
     {
       q: 'How do I get started as a developer?',
@@ -51,7 +51,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What protocols does SettleGrid support?',
-      a: 'SettleGrid is protocol-agnostic. It natively supports 15 protocols: MCP (Model Context Protocol), MPP (Machine Payments Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Agent Pay (Verifiable Intent), Circle Nanopayments (USDC), and any standard REST API. One SDK covers every protocol.',
+      a: 'SettleGrid is protocol-agnostic. It supports multiple agent payment protocols: MCP (Model Context Protocol), MPP (Merchant Payment Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Verifiable Intent, Circle Nanopayments (USDC), L402 (Bitcoin Lightning), Alipay Trust, and KYAPay (Skyfire/Visa). One SDK covers them all.',
     },
   ],
 },
@@ -678,7 +678,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is the only protocol-agnostic settlement layer — supporting 15 protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.',
+      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — supporting multiple agent payment protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), Alipay Trust, and KYAPay). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.',
     },
   ],
 },
@@ -702,8 +702,8 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       a: 'Yes. The 13 MCP templates use sg.wrap() and include a commented-out section showing the equivalent settlegridMiddleware() approach. Additionally, there are 4 dedicated REST API templates that use settlegridMiddleware() as the primary pattern: Next.js App Router, Express.js Middleware, AI Proxy with Markup, and Dual Protocol (MCP + REST). Choose based on whether you are building an MCP server or an HTTP API.',
     },
     {
-      q: 'Do these templates work with all 15 protocols SettleGrid supports?',
-      a: 'Yes. The sg.wrap() pattern used in every template automatically supports all 15 protocols: MCP, MPP (Stripe + Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP (Google + Shopify), ACP (OpenAI), Mastercard Agent Pay, Circle Nanopayments, and REST. You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, every protocol.',
+      q: 'Do these templates work with all the protocols SettleGrid supports?',
+      a: 'Yes. The sg.wrap() pattern used in every template automatically supports the agent payment protocols SettleGrid handles: MCP, MPP (Stripe + Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP (Google + Shopify), ACP (OpenAI/Stripe), Mastercard Verifiable Intent, Circle Nanopayments, L402, Alipay Trust, and KYAPay. You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, multiple protocols.',
     },
   ],
 },

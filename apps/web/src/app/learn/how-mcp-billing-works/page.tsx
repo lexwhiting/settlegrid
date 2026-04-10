@@ -191,7 +191,7 @@ const SECTIONS = [
     paragraphs: [
       'AI agents use different payment protocols depending on their platform and configuration. A Claude agent might use MCP-native payments, a Stripe-integrated agent uses MPP, and a crypto-native agent uses x402. Without a billing platform, tool developers would need to implement each protocol separately.',
       'SettleGrid handles protocol negotiation automatically. When a consumer (agent) initiates a payment, SettleGrid detects the protocol from the request headers and metadata, validates the payment according to that protocol\'s rules, and settles the payment through the appropriate rail. The tool developer never interacts with protocol-specific code.',
-      'Currently 10 protocols account for over 95% of agent payment volume: MCP (dominant for tool calling), MPP (Stripe, growing fast after March 2026 launch), and x402 (crypto, approximately $28K daily volume). The remaining 12 protocols handle edge cases and emerging use cases. SettleGrid supports all 15 so developers never have to choose which agents can pay them.',
+      'A small number of protocols account for the majority of agent payment volume today: MCP (dominant for tool calling), MPP (Stripe, growing fast after March 2026 launch), and x402 (crypto, approximately $28K daily volume). Several emerging protocols handle edge cases and new use cases. SettleGrid supports a broad set so developers do not have to bet on any single one.',
     ],
   },
 ] as const
