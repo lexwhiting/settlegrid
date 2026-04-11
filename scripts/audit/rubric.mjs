@@ -326,12 +326,12 @@ export function scoreDockerAndVercel(dockerfile, vercelJson) {
     } else {
       reasons.push('Dockerfile is not multi-stage (no "FROM ... AS builder")');
     }
-    // Accept either an explicit PORT ENV or an EXPOSE <port> line, since the
-    // generator's default template uses EXPOSE 3000 instead of ENV PORT.
-    if (/^\s*ENV\s+PORT\b/im.test(dockerfile) || /^\s*EXPOSE\s+\d+/im.test(dockerfile)) {
+    // Spec P1.6 literally says "PORT env" — require the `ENV PORT` directive.
+    // `EXPOSE <port>` is not an env var, it's a port-metadata declaration.
+    if (/^\s*ENV\s+PORT\b/im.test(dockerfile)) {
       score += 2;
     } else {
-      reasons.push('Dockerfile has no PORT env or EXPOSE directive');
+      reasons.push('Dockerfile has no ENV PORT directive');
     }
     if (/^\s*HEALTHCHECK\b/im.test(dockerfile)) {
       score += 2;
@@ -467,11 +467,16 @@ export function classifyTemplate(pkgJson) {
 // ---------------------------------------------------------------------------
 
 /**
- * Novelty penalty: the more crowded a category, the lower the score.
+ * Novelty penalty — categories with MORE than 20 entries are penalized
+ * (spec P1.6: "penalize categories with > 20 existing entries").
  *
  *   category size ≤ 20  → 10 pts (full)
- *   21 ≤ size ≤ 50      → linear fade from 10 → 2
+ *   21 ≤ size ≤ 50      → linear fade, count=21 → 9, count=50 → 2
  *   size > 50           → 0 pts (category is saturated)
+ *
+ * The linear segment uses `Math.floor` (not round) so the very first
+ * over-20 count produces a visible penalty rather than rounding back
+ * up to 10 — important because the spec's boundary is strict (>, not ≥).
  *
  * @param {string} category
  * @param {Record<string, number>} categoryCounts - count of templates per category
@@ -488,8 +493,9 @@ export function scoreNovelty(category, categoryCounts) {
       reasons: [`category "${category}" has ${count} templates — saturated`],
     };
   }
-  // Linear fade: size=21→10, size=50→2, size∈[21,50]
-  const faded = Math.round(10 - ((count - 20) * 8) / 30);
+  // Linear fade: size=21 → 9, size=50 → 2. Math.floor ensures count=21
+  // produces a strict penalty.
+  const faded = Math.floor(10 - ((count - 20) * 8) / 30);
   return {
     score: Math.max(2, Math.min(10, faded)),
     reasons: [`category "${category}" has ${count} templates — partial novelty credit`],
