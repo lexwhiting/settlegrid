@@ -107,6 +107,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production
+ENV PORT=3000
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s CMD node -e "process.exit(0)"
 CMD ["node", "dist/server.js"]
@@ -377,10 +378,18 @@ describe('scoreDockerAndVercel', () => {
   });
 
   test('single-stage Dockerfile loses multi-stage points', () => {
-    const single = 'FROM node:20\nWORKDIR /app\nEXPOSE 3000\nHEALTHCHECK CMD true\nCMD ["node","x.js"]';
+    const single = 'FROM node:20\nWORKDIR /app\nENV PORT=3000\nHEALTHCHECK CMD true\nCMD ["node","x.js"]';
     const { score } = scoreDockerAndVercel(single, GOOD_VERCEL);
-    // exists:2 + multi:0 + EXPOSE:2 + HEALTHCHECK:2 + vercel:2 = 8
+    // exists:2 + multi:0 + ENV PORT:2 + HEALTHCHECK:2 + vercel:2 = 8
     assert.equal(score, 8);
+  });
+
+  test('Dockerfile with only EXPOSE (no ENV PORT) loses port points', () => {
+    const exposeOnly = `FROM node:20 AS builder\nFROM node:20\nEXPOSE 3000\nHEALTHCHECK CMD true\nCMD ["node","x.js"]`;
+    const { score, reasons } = scoreDockerAndVercel(exposeOnly, GOOD_VERCEL);
+    // exists:2 + multi:2 + ENV PORT:0 + HEALTHCHECK:2 + vercel:2 = 8
+    assert.equal(score, 8);
+    assert.ok(reasons.some((r) => r.includes('ENV PORT')));
   });
 
   test('missing Dockerfile still scores vercel points', () => {
@@ -482,6 +491,14 @@ describe('scoreNovelty', () => {
   test('category of exactly 20 still gets full 10', () => {
     const { score } = scoreNovelty('weather', { weather: 20 });
     assert.equal(score, 10);
+  });
+
+  test('category of 21 gets a strict penalty below 10', () => {
+    // Spec: "penalize categories with > 20 existing entries". The fade
+    // must fire at count=21, not at count=22.
+    const { score, reasons } = scoreNovelty('weather', { weather: 21 });
+    assert.ok(score < 10, `expected score < 10 at count=21, got ${score}`);
+    assert.ok(reasons.some((r) => r.includes('partial novelty credit')));
   });
 
   test('category of 30 gets partial credit', () => {
