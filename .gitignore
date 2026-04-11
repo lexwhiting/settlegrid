@@ -11,6 +11,10 @@ coverage/
 .env.smoke
 .vercel.bak/
 
+# P1.6 audit cache (Claude Sonnet tiebreaker results) — keep re-runs free
+# but never commit cached Claude output.
+scripts/audit/.cache/
+
 # Sensitive/internal docs — NEVER commit these
 # Specific files
 STRATEGIC_BLUEPRINT.md
