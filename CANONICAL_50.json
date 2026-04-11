@@ -1,0 +1,762 @@
+{
+  "version": 1,
+  "generatedAt": "2026-04-11T19:57:02.441Z",
+  "rubricHash": "sha256:4937d5010dce778b",
+  "rubricVersion": "1.0.0",
+  "templates": [
+    {
+      "slug": "settlegrid-anime",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "entertainment"
+    },
+    {
+      "slug": "settlegrid-api-football",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-aviationstack",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "travel"
+    },
+    {
+      "slug": "settlegrid-chess",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-fifa",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-flight-prices",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "travel"
+    },
+    {
+      "slug": "settlegrid-football-data",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-github-api",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "developer"
+    },
+    {
+      "slug": "settlegrid-gitlab-api",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "developer"
+    },
+    {
+      "slug": "settlegrid-guardian",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "news"
+    },
+    {
+      "slug": "settlegrid-gutenberg",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "education"
+    },
+    {
+      "slug": "settlegrid-listennotes",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "entertainment"
+    },
+    {
+      "slug": "settlegrid-mealdb",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "food"
+    },
+    {
+      "slug": "settlegrid-mlb-stats",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-nasa-data",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "science"
+    },
+    {
+      "slug": "settlegrid-newsapi",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "news"
+    },
+    {
+      "slug": "settlegrid-nfl-data",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-open-alex",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "science"
+    },
+    {
+      "slug": "settlegrid-opensky",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "travel"
+    },
+    {
+      "slug": "settlegrid-picsum-photos",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "photos"
+    },
+    {
+      "slug": "settlegrid-podcast-index",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "entertainment"
+    },
+    {
+      "slug": "settlegrid-reddit-news",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "social"
+    },
+    {
+      "slug": "settlegrid-rugby",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-spoonacular",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "food"
+    },
+    {
+      "slug": "settlegrid-spotify-metadata",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "entertainment"
+    },
+    {
+      "slug": "settlegrid-tennis",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "sports"
+    },
+    {
+      "slug": "settlegrid-themealdb",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "food"
+    },
+    {
+      "slug": "settlegrid-tmdb",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "entertainment"
+    },
+    {
+      "slug": "settlegrid-tvmaze",
+      "score": 96,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "entertainment"
+    },
+    {
+      "slug": "settlegrid-allergy-data",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-bmi-calculator",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-carbon-offset",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "environment"
+    },
+    {
+      "slug": "settlegrid-clinicaltrials",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-cve-search",
+      "score": 95,
+      "breakdown": {
+        "readme": 12,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "security"
+    },
+    {
+      "slug": "settlegrid-disease-sh",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-exercisedb",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-first-aid",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-green-energy",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "environment"
+    },
+    {
+      "slug": "settlegrid-malware-bazaar",
+      "score": 95,
+      "breakdown": {
+        "readme": 12,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "security"
+    },
+    {
+      "slug": "settlegrid-nutrition-data",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-openaq",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "environment"
+    },
+    {
+      "slug": "settlegrid-plastic-pollution",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "environment"
+    },
+    {
+      "slug": "settlegrid-renewable-tracker",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "environment"
+    },
+    {
+      "slug": "settlegrid-uk-nhs",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-urlscan",
+      "score": 95,
+      "breakdown": {
+        "readme": 12,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "security"
+    },
+    {
+      "slug": "settlegrid-virustotal",
+      "score": 95,
+      "breakdown": {
+        "readme": 12,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "security"
+    },
+    {
+      "slug": "settlegrid-yoga-api",
+      "score": 95,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 15,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 9
+      },
+      "categoryTag": "health"
+    },
+    {
+      "slug": "settlegrid-smithsonian",
+      "score": 94,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 13,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "science"
+    },
+    {
+      "slug": "settlegrid-etymology",
+      "score": 94,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 13,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "language"
+    },
+    {
+      "slug": "settlegrid-holidays-worldwide",
+      "score": 94,
+      "breakdown": {
+        "readme": 13,
+        "tools": 10,
+        "schema": 13,
+        "gates": 25,
+        "deps": 10,
+        "docker": 8,
+        "category": 5,
+        "novelty": 10
+      },
+      "categoryTag": "education"
+    }
+  ],
+  "rejected": 972,
+  "top50Sum": 4776,
+  "top50Avg": 95.52,
+  "distinctCategoriesInTop50": 14
+}
