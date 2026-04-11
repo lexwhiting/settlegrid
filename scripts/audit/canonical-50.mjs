@@ -25,7 +25,6 @@ import {
   scoreQualityGates,
   scoreNonGateDimensions,
   classifyTemplate,
-  RUBRIC_VERSION,
 } from './rubric.mjs';
 
 const __filename = url.fileURLToPath(import.meta.url);
@@ -524,11 +523,17 @@ async function main() {
   // Phase 7: write outputs
   const rubricHash = await computeRubricHash();
 
+  // Metadata computed here for the CLI summary and DoD checks, but only
+  // the spec-named fields land in canonicalPayload. Spec shape:
+  //   { version, generatedAt, rubricHash, templates[], rejected }
+  const top50Sum = top50.reduce((a, b) => a + b.totalScore, 0);
+  const top50Avg = Number((top50Sum / top50.length).toFixed(2));
+  const distinctCategoriesInTop50 = new Set(top50.map((t) => t.category)).size;
+
   const canonicalPayload = {
     version: 1,
     generatedAt: new Date().toISOString(),
     rubricHash,
-    rubricVersion: RUBRIC_VERSION,
     templates: top50.map((t) => ({
       slug: t.slug,
       score: t.totalScore,
@@ -536,16 +541,12 @@ async function main() {
       categoryTag: t.category,
     })),
     rejected: rejected.length,
-    top50Sum: top50.reduce((a, b) => a + b.totalScore, 0),
-    top50Avg: Number((top50.reduce((a, b) => a + b.totalScore, 0) / top50.length).toFixed(2)),
-    distinctCategoriesInTop50: new Set(top50.map((t) => t.category)).size,
   };
 
   const rejectedPayload = {
     version: 1,
     generatedAt: canonicalPayload.generatedAt,
     rubricHash,
-    rubricVersion: RUBRIC_VERSION,
     templates: Object.fromEntries(
       rejected.map((t) => [
         t.slug,
@@ -565,18 +566,19 @@ async function main() {
   await writeFile(REJECTED_OUT, JSON.stringify(rejectedPayload, null, 2) + '\n');
 
   console.log(
-    `[canonical-50] wrote ${CANONICAL_OUT} (${top50.length} templates, sum=${canonicalPayload.top50Sum}, avg=${canonicalPayload.top50Avg})`,
+    `[canonical-50] wrote ${CANONICAL_OUT} (${top50.length} templates, sum=${top50Sum}, avg=${top50Avg})`,
   );
   console.log(`[canonical-50] wrote ${REJECTED_OUT} (${rejected.length} rejected)`);
   console.log(
     `[canonical-50] done in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`,
   );
 
-  // DoD checks
+  // DoD checks — computed from local metadata, not from canonicalPayload,
+  // because the on-disk payload is intentionally minimal per spec.
   const checks = [
     ['exactly 50 entries', top50.length === 50],
-    ['sum ≥ 3500', canonicalPayload.top50Sum >= 3500],
-    ['≥ 10 distinct categories', canonicalPayload.distinctCategoriesInTop50 >= 10],
+    ['sum ≥ 3500', top50Sum >= 3500],
+    ['≥ 10 distinct categories', distinctCategoriesInTop50 >= 10],
     ['rejected count 972', rejected.length === 972],
   ];
   for (const [label, ok] of checks) {

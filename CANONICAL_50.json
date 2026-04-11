@@ -1,19 +1,18 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-11T19:57:02.441Z",
-  "rubricHash": "sha256:4937d5010dce778b",
-  "rubricVersion": "1.0.0",
+  "generatedAt": "2026-04-11T20:16:02.087Z",
+  "rubricHash": "sha256:03d6cf126a8ca3dd",
   "templates": [
     {
       "slug": "settlegrid-anime",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -21,14 +20,14 @@
     },
     {
       "slug": "settlegrid-api-football",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -36,14 +35,14 @@
     },
     {
       "slug": "settlegrid-aviationstack",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -51,14 +50,14 @@
     },
     {
       "slug": "settlegrid-chess",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -66,14 +65,14 @@
     },
     {
       "slug": "settlegrid-fifa",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -81,14 +80,14 @@
     },
     {
       "slug": "settlegrid-flight-prices",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -96,14 +95,14 @@
     },
     {
       "slug": "settlegrid-football-data",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -111,14 +110,14 @@
     },
     {
       "slug": "settlegrid-github-api",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -126,14 +125,14 @@
     },
     {
       "slug": "settlegrid-gitlab-api",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -141,14 +140,14 @@
     },
     {
       "slug": "settlegrid-guardian",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -156,14 +155,14 @@
     },
     {
       "slug": "settlegrid-gutenberg",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -171,14 +170,14 @@
     },
     {
       "slug": "settlegrid-listennotes",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -186,14 +185,14 @@
     },
     {
       "slug": "settlegrid-mealdb",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -201,14 +200,14 @@
     },
     {
       "slug": "settlegrid-mlb-stats",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -216,14 +215,14 @@
     },
     {
       "slug": "settlegrid-nasa-data",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -231,14 +230,14 @@
     },
     {
       "slug": "settlegrid-newsapi",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -246,14 +245,14 @@
     },
     {
       "slug": "settlegrid-nfl-data",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -261,14 +260,14 @@
     },
     {
       "slug": "settlegrid-open-alex",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -276,14 +275,14 @@
     },
     {
       "slug": "settlegrid-opensky",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -291,14 +290,14 @@
     },
     {
       "slug": "settlegrid-picsum-photos",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -306,14 +305,14 @@
     },
     {
       "slug": "settlegrid-podcast-index",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -321,14 +320,14 @@
     },
     {
       "slug": "settlegrid-reddit-news",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -336,14 +335,14 @@
     },
     {
       "slug": "settlegrid-rugby",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -351,14 +350,14 @@
     },
     {
       "slug": "settlegrid-spoonacular",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -366,14 +365,14 @@
     },
     {
       "slug": "settlegrid-spotify-metadata",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -381,14 +380,14 @@
     },
     {
       "slug": "settlegrid-tennis",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -396,14 +395,14 @@
     },
     {
       "slug": "settlegrid-themealdb",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -411,14 +410,14 @@
     },
     {
       "slug": "settlegrid-tmdb",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -426,14 +425,14 @@
     },
     {
       "slug": "settlegrid-tvmaze",
-      "score": 96,
+      "score": 94,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -441,14 +440,14 @@
     },
     {
       "slug": "settlegrid-allergy-data",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -456,14 +455,14 @@
     },
     {
       "slug": "settlegrid-bmi-calculator",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -471,14 +470,14 @@
     },
     {
       "slug": "settlegrid-carbon-offset",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -486,14 +485,14 @@
     },
     {
       "slug": "settlegrid-clinicaltrials",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -501,14 +500,14 @@
     },
     {
       "slug": "settlegrid-cve-search",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 12,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -516,14 +515,14 @@
     },
     {
       "slug": "settlegrid-disease-sh",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -531,14 +530,14 @@
     },
     {
       "slug": "settlegrid-exercisedb",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -546,14 +545,14 @@
     },
     {
       "slug": "settlegrid-first-aid",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -561,14 +560,14 @@
     },
     {
       "slug": "settlegrid-green-energy",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -576,14 +575,14 @@
     },
     {
       "slug": "settlegrid-malware-bazaar",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 12,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -591,14 +590,14 @@
     },
     {
       "slug": "settlegrid-nutrition-data",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -606,14 +605,14 @@
     },
     {
       "slug": "settlegrid-openaq",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -621,14 +620,14 @@
     },
     {
       "slug": "settlegrid-plastic-pollution",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -636,14 +635,14 @@
     },
     {
       "slug": "settlegrid-renewable-tracker",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -651,14 +650,14 @@
     },
     {
       "slug": "settlegrid-uk-nhs",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -666,14 +665,14 @@
     },
     {
       "slug": "settlegrid-urlscan",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 12,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -681,14 +680,14 @@
     },
     {
       "slug": "settlegrid-virustotal",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 12,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -696,14 +695,14 @@
     },
     {
       "slug": "settlegrid-yoga-api",
-      "score": 95,
+      "score": 93,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 15,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 9
       },
@@ -711,14 +710,14 @@
     },
     {
       "slug": "settlegrid-smithsonian",
-      "score": 94,
+      "score": 92,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 13,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -726,14 +725,14 @@
     },
     {
       "slug": "settlegrid-etymology",
-      "score": 94,
+      "score": 92,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 13,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
@@ -741,22 +740,19 @@
     },
     {
       "slug": "settlegrid-holidays-worldwide",
-      "score": 94,
+      "score": 92,
       "breakdown": {
         "readme": 13,
         "tools": 10,
         "schema": 13,
         "gates": 25,
         "deps": 10,
-        "docker": 8,
+        "docker": 6,
         "category": 5,
         "novelty": 10
       },
       "categoryTag": "education"
     }
   ],
-  "rejected": 972,
-  "top50Sum": 4776,
-  "top50Avg": 95.52,
-  "distinctCategoriesInTop50": 14
+  "rejected": 972
 }

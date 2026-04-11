@@ -1,0 +1,3 @@
+# P1.6 Claude Sonnet tiebreaker cache. Keeps re-runs free but cached
+# responses must never land in git.
+.cache/
