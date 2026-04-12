@@ -182,14 +182,41 @@ export default async function ToolStorefrontPage({
     ? (tool.pricingConfig.defaultCostCents / 100).toFixed(4)
     : '0.01'
 
-  const jsonLdProduct = {
+  // Product JSON-LD removed — SettleGrid tools are digital services, not
+  // physical products. Using Product triggered Google Merchant Listings
+  // requirements (image, shippingDetails, hasMerchantReturnPolicy) that
+  // don't apply to software. The SoftwareApplication JSON-LD below covers
+  // the same ground without triggering those requirements. aggregateRating
+  // and review data have been merged into the SoftwareApplication block.
+
+  const jsonLdBreadcrumb = {
     '@context': 'https://schema.org',
-    '@type': 'Product',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Explore', item: 'https://settlegrid.ai/explore' },
+      ...(categoryDef
+        ? [{ '@type': 'ListItem', position: 2, name: categoryDef.name, item: `https://settlegrid.ai/explore/category/${tool.category}` }]
+        : []),
+      { '@type': 'ListItem', position: categoryDef ? 3 : 2, name: tool.name, item: `https://settlegrid.ai/tools/${tool.slug}` },
+    ],
+  }
+
+  // ─── SoftwareApplication JSON-LD ─────────────────────────────────────────
+
+  const jsonLdSoftwareApp = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
     name: tool.name,
     description: tool.description,
+    applicationCategory: categoryDef?.name ?? tool.category ?? 'DeveloperApplication',
+    operatingSystem: 'Any',
     url: `https://settlegrid.ai/tools/${tool.slug}`,
-    category: categoryDef?.name ?? tool.category,
-    brand: { '@type': 'Organization', name: tool.developerName },
+    image: 'https://settlegrid.ai/brand/og-image.png',
+    softwareVersion: tool.currentVersion,
+    author: {
+      '@type': 'Organization',
+      name: tool.developerName,
+    },
     offers: {
       '@type': 'Offer',
       price: priceUsd,
@@ -220,41 +247,6 @@ export default async function ToolStorefrontPage({
         datePublished: r.createdAt,
       })),
     }),
-  }
-
-  const jsonLdBreadcrumb = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Explore', item: 'https://settlegrid.ai/explore' },
-      ...(categoryDef
-        ? [{ '@type': 'ListItem', position: 2, name: categoryDef.name, item: `https://settlegrid.ai/explore/category/${tool.category}` }]
-        : []),
-      { '@type': 'ListItem', position: categoryDef ? 3 : 2, name: tool.name, item: `https://settlegrid.ai/tools/${tool.slug}` },
-    ],
-  }
-
-  // ─── SoftwareApplication JSON-LD ─────────────────────────────────────────
-
-  const jsonLdSoftwareApp = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: tool.name,
-    description: tool.description,
-    applicationCategory: categoryDef?.name ?? tool.category ?? 'DeveloperApplication',
-    operatingSystem: 'Any',
-    url: `https://settlegrid.ai/tools/${tool.slug}`,
-    softwareVersion: tool.currentVersion,
-    author: {
-      '@type': 'Organization',
-      name: tool.developerName,
-    },
-    offers: {
-      '@type': 'Offer',
-      price: priceUsd,
-      priceCurrency: 'USD',
-      availability: 'https://schema.org/InStock',
-    },
   }
 
   // ─── FAQ entries ─────────────────────────────────────────────────────────
@@ -339,7 +331,6 @@ export default async function ToolStorefrontPage({
 
       <main className="flex-1 px-6 py-12">
         <div className="max-w-4xl mx-auto">
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdSoftwareApp) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }} />
