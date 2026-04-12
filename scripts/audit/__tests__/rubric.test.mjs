@@ -174,6 +174,44 @@ Some text.
     assert.equal(score, 13);
   });
 
+  test('README missing a heading loses 1 point per missing heading', () => {
+    // Drop the Parameters heading — 4 headings remain (title, methods, env, deploy)
+    const noParams = GOOD_README.replace(/^## Parameters$/m, '## Other Section');
+    const { score, reasons } = scoreReadme(noParams);
+    assert.equal(score, 14);
+    assert.ok(reasons.some((r) => r.includes('missing heading')));
+  });
+
+  test('README with no markdown table loses 2 example points', () => {
+    const noTable = `# settlegrid-x
+
+## Methods
+Some text about methods.
+
+## Parameters
+- query (string) — Search query.
+
+## Environment Variables
+SETTLEGRID_API_KEY is required.
+
+## Deploy
+
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+
+\`\`\`ts
+import { settlegrid } from '@settlegrid/mcp';
+const sg = settlegrid.init({ toolSlug: 'x', pricing: { defaultCostCents: 1 } });
+\`\`\`
+`;
+    const { score, reasons } = scoreReadme(noTable);
+    // 5 headings + 5 SDK snippet + 3 envvar + 0 table = 13
+    assert.equal(score, 13);
+    assert.ok(reasons.some((r) => r.includes('table')));
+  });
+
   test('README with no SETTLEGRID_API_KEY loses 3 envvar points', () => {
     const noKey = GOOD_README.replace(/SETTLEGRID_API_KEY/g, 'SOME_OTHER_KEY');
     const { score, reasons } = scoreReadme(noKey);
@@ -344,6 +382,16 @@ describe('scoreDependencyFreshness', () => {
     assert.ok(reasons.some((r) => r.includes('@settlegrid/mcp missing')));
   });
 
+  test('non-current @settlegrid/mcp range loses 3 points', () => {
+    const pkg = {
+      ...GOOD_PKG,
+      dependencies: { '@settlegrid/mcp': '^0.2.0' },
+    };
+    const { score, reasons } = scoreDependencyFreshness(pkg);
+    assert.equal(score, 7);
+    assert.ok(reasons.some((r) => r.includes('not current')));
+  });
+
   test('deprecated package loses 3 points', () => {
     const pkg = {
       ...GOOD_PKG,
@@ -401,6 +449,12 @@ describe('scoreDockerAndVercel', () => {
     const { score, reasons } = scoreDockerAndVercel(GOOD_DOCKERFILE, 'not valid json {');
     assert.equal(score, 8);
     assert.ok(reasons.some((r) => r.includes('vercel')));
+  });
+
+  test('vercel.json that parses to a non-object (e.g. a bare string) loses 2 points', () => {
+    const { score, reasons } = scoreDockerAndVercel(GOOD_DOCKERFILE, '"just a string"');
+    assert.equal(score, 8);
+    assert.ok(reasons.some((r) => r.includes('not a JSON object')));
   });
 });
 
