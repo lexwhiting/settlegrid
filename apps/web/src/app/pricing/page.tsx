@@ -42,12 +42,15 @@ export const metadata: Metadata = {
 
 const jsonLdProduct = {
   '@context': 'https://schema.org',
-  '@type': 'Product',
+  '@type': 'SoftwareApplication',
   name: 'SettleGrid',
   description:
     'Settlement infrastructure for AI tools. Per-call billing, usage metering, and automated payouts across multiple agent payment protocols.',
-  brand: { '@type': 'Brand', name: 'SettleGrid' },
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any',
   url: 'https://settlegrid.ai/pricing',
+  image: 'https://settlegrid.ai/brand/og-image.png',
+  publisher: { '@type': 'Organization', name: 'SettleGrid', url: 'https://settlegrid.ai' },
   offers: [
     {
       '@type': 'Offer',
