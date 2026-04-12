@@ -31,6 +31,16 @@ const LAST_RUN_FILE = path.join(CODEMODS_DIR, '.last-run.json');
 const AUDIT_FAILURES_DIR = path.join(REPO_ROOT, 'docs', 'audit-failures');
 const DEFAULT_TARGET_GLOB = 'open-source-servers/*';
 
+// Codemod names are used both as filesystem paths (to locate the module
+// file) and as filename components of the failure log. Reject anything
+// that could traverse out of scripts/codemods/ or poison the log path.
+const SAFE_NAME_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/;
+function assertSafeCodemodName(name) {
+  if (typeof name !== 'string' || !SAFE_NAME_RE.test(name)) {
+    throw new Error(`invalid codemod name: ${JSON.stringify(name)} (must match ${SAFE_NAME_RE})`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Arg parsing — deliberately simple, no external deps
 // ---------------------------------------------------------------------------
@@ -52,7 +62,12 @@ export function parseArgs(argv) {
     if (arg === '--apply') {
       args.apply = true;
     } else if (arg === '--target') {
-      args.target = argv[++i];
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith('--')) {
+        throw new Error('--target requires a value');
+      }
+      args.target = next;
+      i++;
     } else if (arg.startsWith('--')) {
       const key = arg.slice(2);
       const next = argv[i + 1];
@@ -110,10 +125,11 @@ export async function resolveGlob(pattern, baseDir = REPO_ROOT) {
  * Load a codemod module by name from scripts/codemods/<name>.js.
  * Module must export a default function or a `run` function.
  */
-export async function loadCodemod(name) {
+export async function loadCodemod(name, codemodsDir = CODEMODS_DIR) {
+  assertSafeCodemodName(name);
   const candidates = [
-    path.join(CODEMODS_DIR, `${name}.js`),
-    path.join(CODEMODS_DIR, `${name}.mjs`),
+    path.join(codemodsDir, `${name}.js`),
+    path.join(codemodsDir, `${name}.mjs`),
   ];
   for (const file of candidates) {
     if (existsSync(file)) {
@@ -125,7 +141,7 @@ export async function loadCodemod(name) {
       return { name, run, module: mod };
     }
   }
-  throw new Error(`codemod "${name}" not found in ${CODEMODS_DIR}`);
+  throw new Error(`codemod "${name}" not found in ${codemodsDir}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,21 +151,23 @@ export async function loadCodemod(name) {
 async function writeFailureLog(codemodName, failures, targetDir = AUDIT_FAILURES_DIR) {
   if (failures.length === 0) return null;
   try {
+    assertSafeCodemodName(codemodName); // defense-in-depth; also validated at load time
     await mkdir(targetDir, { recursive: true });
     const date = new Date().toISOString().slice(0, 10);
+    // .jsonl (newline-delimited JSON) — multiple same-day runs append
+    // cleanly, and downstream tools can stream-parse line by line.
     const logPath = path.join(
       targetDir,
-      `codemod-${codemodName}-${date}.json`,
+      `codemod-${codemodName}-${date}.jsonl`,
     );
     const entry = {
       timestamp: new Date().toISOString(),
       codemod: codemodName,
       failures,
     };
-    // Append as JSONL so multiple runs on the same day accumulate
     await writeFile(
       logPath,
-      JSON.stringify(entry, null, 2) + '\n',
+      JSON.stringify(entry) + '\n',
       { flag: 'a' },
     );
     return logPath;
@@ -189,8 +207,9 @@ export async function runCodemod(args) {
   const baseDir = args.baseDir ?? REPO_ROOT;
   const apply = args.apply === true;
   const options = args.options ?? {};
+  const codemodsDir = args.codemodsDir ?? CODEMODS_DIR;
 
-  const { name, run } = await loadCodemod(args.codemod);
+  const { name, run } = await loadCodemod(args.codemod, codemodsDir);
   const dirs = await resolveGlob(target, baseDir);
 
   const perTemplate = [];
@@ -305,6 +324,12 @@ async function cliMain() {
     );
   }
   if (summary.totals.errors > 0) process.exitCode = 1;
+  if (summary.totals.templates === 0) {
+    process.stdout.write(
+      `[codemod:${summary.codemod}] no templates matched target "${args.target}"\n`,
+    );
+    process.exitCode = 1;
+  }
 }
 
 // Only run the CLI when invoked directly, not when imported by tests.
