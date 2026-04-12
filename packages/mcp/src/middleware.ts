@@ -8,7 +8,7 @@
  */
 
 import { LRUCache } from './cache'
-import { getMethodCost } from './config'
+import { resolveOperationCost } from './config'
 import {
   InsufficientCreditsError,
   InvalidKeyError,
@@ -17,6 +17,7 @@ import {
   TimeoutError,
 } from './errors'
 import type {
+  GeneralizedPricingConfig,
   InvocationContext,
   MeterResponse,
   PricingConfig,
@@ -131,7 +132,10 @@ async function apiCall<T>(
 }
 
 /** Create the middleware pipeline */
-export function createMiddleware(config: NormalizedConfig, pricing: PricingConfig) {
+export function createMiddleware(
+  config: NormalizedConfig,
+  pricing: PricingConfig | GeneralizedPricingConfig,
+) {
   const cache = new LRUCache(1000, config.cacheTtlMs)
 
   /** Validate an API key against the SettleGrid API (with caching) */
@@ -168,12 +172,22 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
     return result
   }
 
-  /** Check if consumer has sufficient credits for the method */
+  /**
+   * Check if consumer has sufficient credits for the method.
+   *
+   * Delegates cost resolution to `resolveOperationCost`, which supports
+   * all six pricing models (per-invocation, per-token, per-byte,
+   * per-second, tiered, outcome). The `units` argument is forwarded
+   * to the resolver and is required for anything other than
+   * per-invocation; omitting it in a unit-based model defaults the
+   * multiplier to 1 (equivalent to a one-unit call).
+   */
   function checkCredits(
     balanceCents: number,
-    method: string
+    method: string,
+    units?: number,
   ): { sufficient: boolean; costCents: number } {
-    const costCents = getMethodCost(pricing, method)
+    const costCents = resolveOperationCost(pricing, method, units)
     return {
       sufficient: balanceCents >= costCents,
       costCents,
@@ -204,7 +218,8 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
   async function execute<T>(
     apiKey: string,
     method: string,
-    handler: () => Promise<T> | T
+    handler: () => Promise<T> | T,
+    units?: number,
   ): Promise<T> {
     const startTime = Date.now()
 
@@ -214,8 +229,12 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
       throw new InvalidKeyError()
     }
 
-    // 2. Check credits
-    const { sufficient, costCents } = checkCredits(validation.balanceCents, method)
+    // 2. Check credits (threads units through to resolveOperationCost)
+    const { sufficient, costCents } = checkCredits(
+      validation.balanceCents,
+      method,
+      units,
+    )
     if (!sufficient) {
       throw new InsufficientCreditsError(costCents, validation.balanceCents)
     }
