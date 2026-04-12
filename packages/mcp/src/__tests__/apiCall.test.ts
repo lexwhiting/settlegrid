@@ -467,4 +467,48 @@ describe('apiCall — HTTP client error mapping', () => {
     // "...not valid JSON: Unexpected token b in JSON at position 2").
     expect(message).toContain(':')
   })
+
+  // ─── Coverage close-out: success-path JSON value variants ────────────────
+  // The success path has two distinct null routes:
+  //   1. Empty body  → caught by `text.length === 0` shortcut (covered)
+  //   2. Body 'null' → flows through JSON.parse('null') → returns null
+  // Both produce the same end result but exercise different code paths.
+  it('200 with literal JSON `null` body: returns null via JSON.parse path', async () => {
+    fetchSpy.mockResolvedValue(textResponse('null', 200))
+    const result = await apiCall(baseConfig, '/x', {})
+    expect(result).toBeNull()
+  })
+
+  it('200 with primitive JSON number body: returns the number', async () => {
+    // JSON primitives are valid responses per RFC 8259. apiCall returns
+    // them as-is; callers must know whether to expect an object.
+    fetchSpy.mockResolvedValue(textResponse('42', 200))
+    const result = await apiCall<number>(baseConfig, '/count', {})
+    expect(result).toBe(42)
+  })
+
+  it('200 with primitive JSON boolean body: returns the boolean', async () => {
+    fetchSpy.mockResolvedValue(textResponse('true', 200))
+    const result = await apiCall<boolean>(baseConfig, '/healthcheck', {})
+    expect(result).toBe(true)
+  })
+
+  // ─── Coverage close-out: empty error-string field on 4xx ──────────────────
+  // Documents that `{ error: '' }` is passed straight to the error class
+  // constructor, producing an error with empty message. This is the
+  // current behavior — distinct from `{ error: undefined }` which would
+  // cause the constructor's default-value parameter to kick in.
+  it('401 with `{ error: "" }` empty-string body: passes empty string to constructor', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ error: '' }, 401))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/validate-key', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(InvalidKeyError)
+    // Empty string is "truthy enough" to override the default-message
+    // parameter, so the error message is the empty string.
+    expect((caught as Error).message).toBe('')
+  })
 })
