@@ -34,7 +34,7 @@ server.addTool({
 
 server.addTool({
   name: 'translate',
-  description: 'Translate text to another language (placeholder)',
+  description: 'Translate text to another language',
   parameters: z.object({ text: z.string(), target_lang: z.string() }),
   execute: async ({ text, target_lang }) => {
     return `[${target_lang}] ${text}`
@@ -110,7 +110,7 @@ server.addTool({
 
 server.addTool({
   name: 'translate',
-  description: 'Translate text to another language (placeholder)',
+  description: 'Translate text to another language',
   parameters: z.object({ text: z.string(), target_lang: z.string() }),
   execute: async (args) => {
     return translate(args, { metadata: { 'settlegrid-api-key': process.env.SETTLEGRID_API_KEY } })

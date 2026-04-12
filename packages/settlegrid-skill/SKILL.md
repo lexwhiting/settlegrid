@@ -99,12 +99,11 @@ Follow these steps in order. Do not skip any step.
 
 9. **Generate server card** — Add a script or a startup hook that writes pricing metadata:
    ```typescript
-   import { generateServerCard } from '@settlegrid/mcp'
+   import { generateServerCardBilling } from '@settlegrid/mcp'
 
-   const card = generateServerCard({
-     name: '<Server Name>',
-     slug: '<slug>',
-     pricing: { defaultCostCents: <pricing_cents> },
+   const billing = generateServerCardBilling({
+     toolSlug: '<slug>',
+     pricing: { model: 'per-invocation', defaultCostCents: <pricing_cents> },
    })
    ```
    Write the output to `.well-known/settlegrid.json` so registries can discover the server's pricing.
