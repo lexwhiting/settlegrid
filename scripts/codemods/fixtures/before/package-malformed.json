@@ -1,0 +1,3 @@
+{
+  "name": "broken",
+  "dependencies": { "@settlegrid/mcp": "^0.1.1"
