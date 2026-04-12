@@ -1,0 +1,10 @@
+{
+  "name": "settlegrid-fixture",
+  "version": "1.0.0",
+  "description": "Codemod fixture — before state, @settlegrid/mcp at ^0.1.1",
+  "type": "module",
+  "scripts": { "dev": "tsx src/server.ts", "build": "tsc" },
+  "dependencies": { "@settlegrid/mcp": "^0.1.1" },
+  "devDependencies": { "tsx": "^4.0.0", "typescript": "^5.0.0" },
+  "license": "MIT"
+}
