@@ -1,0 +1,26 @@
+{
+  "name": "@settlegrid/skill",
+  "version": "0.1.0",
+  "description": "Anthropic Skill for monetizing any MCP server with SettleGrid",
+  "license": "MIT",
+  "author": "Alerterra, LLC",
+  "type": "module",
+  "files": [
+    "SKILL.md",
+    "examples/",
+    "README.md",
+    "cursor/"
+  ],
+  "keywords": [
+    "mcp",
+    "anthropic",
+    "skill",
+    "monetization",
+    "settlegrid"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid",
+    "directory": "packages/settlegrid-skill"
+  }
+}
