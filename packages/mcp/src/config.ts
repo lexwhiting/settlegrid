@@ -14,19 +14,55 @@ const DEFAULT_API_URL = 'https://settlegrid.ai'
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const DEFAULT_TIMEOUT_MS = 5000
 
-/** Zod schema for method pricing */
+/** Zod schema for method pricing (legacy shape: costCents + displayName) */
 const methodPricingSchema = z.object({
   costCents: z.number().int().min(0),
   displayName: z.string().optional(),
 })
 
 /**
+ * Zod schema for method pricing with the generalized `unitType` field.
+ * Accepts legacy `{ costCents, displayName }` as a strict subset.
+ */
+const generalizedMethodPricingSchema = z.object({
+  costCents: z.number().int().min(0),
+  unitType: z.string().optional(),
+  displayName: z.string().optional(),
+})
+
+/**
  * Zod schema for pricing config validation.
+ * Accepts both the legacy `PricingConfig` shape AND the generalized
+ * `GeneralizedPricingConfig` shape (with optional `model` discriminator,
+ * `currencyCode`, `tiers`, `outcomeConfig`). Legacy configs still parse
+ * without the generalized fields; new configs with `model: 'per-token'`
+ * or similar are preserved through the parse and passed to
+ * `resolveOperationCost`.
+ *
  * Exported for advanced users who want to pre-validate pricing config.
  */
 export const pricingConfigSchema = z.object({
   defaultCostCents: z.number().int().min(0),
-  methods: z.record(z.string(), methodPricingSchema).optional(),
+  methods: z.record(z.string(), generalizedMethodPricingSchema).optional(),
+  model: z
+    .enum(['per-invocation', 'per-token', 'per-byte', 'per-second', 'tiered', 'outcome'])
+    .optional(),
+  currencyCode: z.string().length(3).optional(),
+  tiers: z
+    .array(
+      z.object({
+        upTo: z.number().int().min(1),
+        costCents: z.number().int().min(0),
+      }),
+    )
+    .optional(),
+  outcomeConfig: z
+    .object({
+      successCostCents: z.number().int().min(0),
+      failureCostCents: z.number().int().min(0),
+      successCondition: z.string(),
+    })
+    .optional(),
 })
 
 /** Zod schema for SDK config */
@@ -87,20 +123,43 @@ export function normalizeConfig(config: SettleGridConfig): NormalizedConfig {
 /**
  * Validate a pricing configuration object using the Zod schema.
  *
+ * Accepts both legacy `PricingConfig` and the generalized six-model
+ * shape. The `model` field, when present, is preserved so downstream
+ * callers (e.g. `resolveOperationCost`) can dispatch on it.
+ *
  * @param config - Pricing config to validate (usually from developer input)
- * @returns Validated pricing config
- * @throws {z.ZodError} If pricing is invalid (negative costs, non-integer costs, etc.)
+ * @returns Validated pricing config — legacy or generalized
+ * @throws {z.ZodError} If pricing is invalid (negative costs, non-integer costs, unknown model, etc.)
  *
  * @example
  * ```typescript
- * const pricing = validatePricingConfig({
+ * // Legacy per-invocation config
+ * const legacy = validatePricingConfig({
  *   defaultCostCents: 1,
  *   methods: { search: { costCents: 5 } },
  * })
+ *
+ * // Generalized per-token config
+ * const perToken = validatePricingConfig({
+ *   model: 'per-token',
+ *   defaultCostCents: 1,
+ * })
  * ```
  */
-export function validatePricingConfig(config: unknown): PricingConfig {
-  return pricingConfigSchema.parse(config)
+export function validatePricingConfig(
+  config: unknown,
+): PricingConfig | GeneralizedPricingConfig {
+  const parsed = pricingConfigSchema.parse(config)
+  // If `model` is absent, it's legacy PricingConfig; otherwise generalized.
+  // Zod returns the same object shape either way — we just cast for the
+  // return type so TypeScript knows which variant callers get.
+  if (parsed.model === undefined) {
+    return {
+      defaultCostCents: parsed.defaultCostCents,
+      methods: parsed.methods,
+    } as PricingConfig
+  }
+  return parsed as unknown as GeneralizedPricingConfig
 }
 
 /**

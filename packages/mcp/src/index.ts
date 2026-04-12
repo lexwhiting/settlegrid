@@ -24,7 +24,12 @@
 
 import { normalizeConfig, validatePricingConfig } from './config'
 import { createMiddleware, extractApiKey } from './middleware'
-import type { PricingConfig, SettleGridConfig, WrapOptions } from './types'
+import type {
+  GeneralizedPricingConfig,
+  PricingConfig,
+  SettleGridConfig,
+  WrapOptions,
+} from './types'
 
 // ─── Version ─────────────────────────────────────────────────────────────────
 
@@ -96,8 +101,17 @@ export type { NormalizedConfig } from './config'
  * ```
  */
 export interface InitOptions extends SettleGridConfig {
-  /** Pricing configuration for the tool (required) */
-  pricing: PricingConfig
+  /**
+   * Pricing configuration for the tool (required).
+   *
+   * Accepts either the legacy {@link PricingConfig} (per-invocation) or
+   * the generalized {@link GeneralizedPricingConfig} with one of the
+   * six pricing models (per-invocation, per-token, per-byte, per-second,
+   * tiered, outcome). When a non-invocation model is used, callers
+   * should pass `units` through {@link WrapOptions.units} on `sg.wrap()`
+   * to bill the correct multiple of `defaultCostCents`.
+   */
+  pricing: PricingConfig | GeneralizedPricingConfig
 }
 
 /**
@@ -310,6 +324,7 @@ export const settlegrid = {
         }
 
         const method = wrapOptions?.method ?? 'default'
+        const units = wrapOptions?.units
 
         return async (
           args: TArgs,
@@ -329,7 +344,7 @@ export const settlegrid = {
             )
           }
 
-          return middleware.execute(apiKey, method, () => handler(args))
+          return middleware.execute(apiKey, method, () => handler(args), units)
         }
       },
 
