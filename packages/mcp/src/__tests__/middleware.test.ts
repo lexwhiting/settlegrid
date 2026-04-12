@@ -506,4 +506,34 @@ describe('middleware.execute units validation', () => {
       wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
     ).resolves.toEqual({ ok: true })
   })
+
+  it('accepts wrap options with units but no method (defaults to "default")', async () => {
+    // Verifies that `units` can be the only WrapOption — `method` falls
+    // through to the 'default' value defined in index.ts.
+    const sg = settlegrid.init({
+      toolSlug: 'units-no-method',
+      pricing: { model: 'per-token', defaultCostCents: 2 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { units: 25 })
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('units validation is LAZY: invalid units does not throw at wrap construction time', () => {
+    // Validation lives in execute(), not in wrap(). Constructing a
+    // wrapped handler with bad units must NOT throw — the error
+    // surfaces only when the wrapped function is actually invoked.
+    // This matches the existing pattern where validateKey errors,
+    // checkCredits errors, etc. are all per-invocation.
+    const sg = settlegrid.init({
+      toolSlug: 'units-lazy',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    expect(() => sg.wrap(() => ({ ok: true }), { units: NaN })).not.toThrow()
+    expect(() => sg.wrap(() => ({ ok: true }), { units: -5 })).not.toThrow()
+    expect(() => sg.wrap(() => ({ ok: true }), { units: Infinity })).not.toThrow()
+  })
 })
