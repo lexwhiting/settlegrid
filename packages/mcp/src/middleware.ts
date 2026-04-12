@@ -13,8 +13,12 @@ import {
   InsufficientCreditsError,
   InvalidKeyError,
   NetworkError,
+  RateLimitedError,
+  SettleGridError,
   SettleGridUnavailableError,
   TimeoutError,
+  ToolDisabledError,
+  ToolNotFoundError,
 } from './errors'
 import type {
   GeneralizedPricingConfig,
@@ -79,8 +83,31 @@ export function extractApiKey(
   return null
 }
 
-/** HTTP client for SettleGrid API calls */
-async function apiCall<T>(
+/**
+ * HTTP client for SettleGrid API calls.
+ *
+ * Maps every HTTP status the SettleGrid API returns to a typed
+ * SettleGridError subclass so callers can catch precisely:
+ *
+ *   200          → returns parsed JSON body (or `null` for empty body)
+ *   401          → InvalidKeyError
+ *   402          → InsufficientCreditsError (requiredCents/availableCents
+ *                  pulled from response body when present)
+ *   403          → ToolDisabledError (slug from config.toolSlug)
+ *   404          → ToolNotFoundError (slug from config.toolSlug)
+ *   429          → RateLimitedError (retryAfterMs parsed from
+ *                  Retry-After header, defaulting to 60_000)
+ *   other 4xx/5xx → SettleGridUnavailableError with the original
+ *                  status code in the message
+ *   AbortError   → TimeoutError (config.timeoutMs)
+ *   network err  → NetworkError
+ *   200 + bad JSON → SettleGridUnavailableError (success path parse fail)
+ *
+ * @internal Exposed for direct unit testing in __tests__/apiCall.test.ts.
+ *           Not part of the public SDK surface — `@internal` JSDoc tells
+ *           tsup to strip this from the published .d.ts.
+ */
+export async function apiCall<T>(
   config: NormalizedConfig,
   path: string,
   body: Record<string, unknown>
@@ -98,33 +125,73 @@ async function apiCall<T>(
     })
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      const errorData = data as { error?: string; code?: string }
-      if (response.status === 401) {
-        throw new InvalidKeyError(errorData.error)
+      // Parse error body if possible — swallow parse failures so a
+      // non-JSON 4xx body still produces a useful typed error.
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string
+        code?: string
+        requiredCents?: number
+        availableCents?: number
       }
-      if (response.status === 402) {
-        throw new InsufficientCreditsError(0, 0)
+
+      switch (response.status) {
+        case 401:
+          throw new InvalidKeyError(data.error)
+        case 402:
+          throw new InsufficientCreditsError(
+            data.requiredCents ?? 0,
+            data.availableCents ?? 0,
+          )
+        case 403:
+          throw new ToolDisabledError(config.toolSlug)
+        case 404:
+          throw new ToolNotFoundError(config.toolSlug)
+        case 429: {
+          // RFC 7231: Retry-After is delta-seconds OR HTTP-date.
+          // We support delta-seconds and fall back to 60s for missing,
+          // unparseable, or HTTP-date values.
+          const header = response.headers.get('retry-after')
+          let retryAfterMs = 60_000
+          if (header !== null) {
+            const seconds = Number.parseInt(header, 10)
+            if (Number.isFinite(seconds) && seconds >= 0) {
+              retryAfterMs = seconds * 1000
+            }
+          }
+          throw new RateLimitedError(retryAfterMs)
+        }
+        default:
+          throw new SettleGridUnavailableError(
+            data.error ?? `API returned ${response.status}`,
+          )
       }
-      throw new SettleGridUnavailableError(
-        errorData.error ?? `API returned ${response.status}`
-      )
     }
 
-    return (await response.json()) as T
+    // Successful response: handle empty body and JSON parse failures
+    // explicitly. `response.json()` throws SyntaxError on an empty body,
+    // which would otherwise fall through to the NetworkError catch-all.
+    const text = await response.text()
+    if (text.length === 0) {
+      return null as T
+    }
+    try {
+      return JSON.parse(text) as T
+    } catch {
+      throw new SettleGridUnavailableError(
+        `API returned ${response.status} but response body was not valid JSON`,
+      )
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new TimeoutError(config.timeoutMs)
     }
-    if (
-      error instanceof InvalidKeyError ||
-      error instanceof InsufficientCreditsError ||
-      error instanceof SettleGridUnavailableError
-    ) {
+    // Re-throw any of our typed errors as-is (don't wrap them in
+    // NetworkError just because they bubble through this catch).
+    if (error instanceof SettleGridError) {
       throw error
     }
     throw new NetworkError(
-      error instanceof Error ? error.message : 'Unknown network error'
+      error instanceof Error ? error.message : 'Unknown network error',
     )
   } finally {
     clearTimeout(timeout)
