@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createMiddleware, extractApiKey } from '../middleware'
+import { settlegrid } from '../index'
 import type { NormalizedConfig } from '../config'
 import type { GeneralizedPricingConfig, PricingConfig } from '../types'
 
@@ -194,5 +195,156 @@ describe('createMiddleware.checkCredits — 6 pricing models', () => {
     expect(mw.checkCredits(1000, 'gen', 500).sufficient).toBe(true)
     // 1000¢ balance, 2000 tokens @ 1¢ = 2000¢: insufficient
     expect(mw.checkCredits(1000, 'gen', 2000).sufficient).toBe(false)
+  })
+})
+
+// ─── sg.wrap() true end-to-end with fetch mock: pricing-model → meter body ──
+//
+// DoD item 3 requires the 6 pricing models to work "end-to-end through
+// sg.wrap()". The checkCredits tests above verify delegation to
+// resolveOperationCost in isolation, and the sdk-validation tests
+// verify `units` threading to middleware.execute (with execute mocked).
+// This block closes the loop by exercising the FULL pipeline with a
+// stubbed global fetch: sg.wrap() → execute → validateKey → checkCredits
+// → handler → meter. The meter POST body is captured so we can assert
+// the `costCents` field reflects the resolved pricing-model cost.
+describe('sg.wrap() end-to-end with fetch mock — pricing-model → meter body', () => {
+  type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>
+  let fetchMock: ReturnType<typeof vi.fn<MockFetchImpl>>
+  let validateKeyCalls: Array<Record<string, unknown>>
+  let meterCalls: Array<Record<string, unknown>>
+
+  beforeEach(() => {
+    validateKeyCalls = []
+    meterCalls = []
+    fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as Record<string, unknown>
+      if (url.endsWith('/api/sdk/validate-key')) {
+        validateKeyCalls.push(body)
+        return new Response(
+          JSON.stringify({
+            valid: true,
+            consumerId: 'con-e2e',
+            toolId: 'tool-e2e',
+            keyId: 'key-e2e',
+            balanceCents: 1_000_000,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.endsWith('/api/sdk/meter')) {
+        meterCalls.push(body)
+        return new Response(
+          JSON.stringify({
+            success: true,
+            remainingBalanceCents: 999_900,
+            costCents: (body.costCents as number) ?? 0,
+            invocationId: 'inv-e2e',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('unexpected url', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('per-token × units: meter body charges defaultCostCents × units', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-token',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true, // synchronous meter so the fetch happens before wrap() resolves
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 100 })
+    const result = await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+
+    expect(result).toEqual({ ok: true })
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(validateKeyCalls).toHaveLength(1)
+    expect(meterCalls).toHaveLength(1)
+    // 1¢ × 100 tokens = 100¢
+    expect(meterCalls[0].costCents).toBe(100)
+    expect(meterCalls[0].method).toBe('generate')
+  })
+
+  it('per-byte × units: meter body charges defaultCostCents × units', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-bytes',
+      pricing: { model: 'per-byte', defaultCostCents: 2 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'download', units: 50 })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+    // 2¢ × 50 bytes = 100¢
+    expect(meterCalls[0].costCents).toBe(100)
+  })
+
+  it('tiered × units: meter body walks the tier schedule', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-tiered',
+      pricing: {
+        model: 'tiered',
+        defaultCostCents: 1,
+        tiers: [
+          { upTo: 100, costCents: 2 },
+          { upTo: 900, costCents: 1 },
+        ],
+      },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'api', units: 150 })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+    // 100 × 2¢ + 50 × 1¢ = 250¢
+    expect(meterCalls[0].costCents).toBe(250)
+  })
+
+  it('outcome: meter body uses successCostCents as pre-auth', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-outcome',
+      pricing: {
+        model: 'outcome',
+        defaultCostCents: 0,
+        outcomeConfig: {
+          successCostCents: 50,
+          failureCostCents: 0,
+          successCondition: 'result.ok === true',
+        },
+      },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'classify' })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+    expect(meterCalls[0].costCents).toBe(50)
+  })
+
+  it('per-invocation (generalized): units is ignored, charges defaultCostCents', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-perinv',
+      pricing: { model: 'per-invocation', defaultCostCents: 7 },
+      debug: true,
+    })
+    // Even if caller passes units=999, per-invocation ignores it
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'go', units: 999 })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+    expect(meterCalls[0].costCents).toBe(7)
+  })
+
+  it('legacy PricingConfig (no model): falls through to per-invocation', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-legacy',
+      pricing: {
+        defaultCostCents: 3,
+        methods: { search: { costCents: 9 } },
+      },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'search' })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+    expect(meterCalls[0].costCents).toBe(9)
   })
 })
