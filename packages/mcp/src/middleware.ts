@@ -127,12 +127,25 @@ async function apiCall<T>(
     if (!response.ok) {
       // Parse error body if possible — swallow parse failures so a
       // non-JSON 4xx body still produces a useful typed error.
-      const data = (await response.json().catch(() => ({}))) as {
+      //
+      // The raw parsed value from `response.json()` could be ANY JSON type
+      // (object, array, null, number, string). The cast `as { error? }`
+      // is a TypeScript fiction — at runtime we MUST normalize to a plain
+      // object before destructuring, otherwise `null.error` would throw
+      // a TypeError which would then be wrapped in NetworkError, masking
+      // the real status code from the consumer.
+      const rawData = await response.json().catch(() => ({}))
+      const data: {
         error?: string
         code?: string
         requiredCents?: number
         availableCents?: number
-      }
+      } =
+        rawData !== null &&
+        typeof rawData === 'object' &&
+        !Array.isArray(rawData)
+          ? (rawData as Record<string, unknown>)
+          : {}
 
       switch (response.status) {
         case 401:
@@ -176,9 +189,13 @@ async function apiCall<T>(
     }
     try {
       return JSON.parse(text) as T
-    } catch {
+    } catch (parseErr) {
+      // Bind the parse error so its message survives — debugging is much
+      // harder when "Unexpected token x in JSON at position 5" is thrown
+      // away in favor of a generic "body was not valid JSON".
+      const detail = parseErr instanceof Error ? `: ${parseErr.message}` : ''
       throw new SettleGridUnavailableError(
-        `API returned ${response.status} but response body was not valid JSON`,
+        `API returned ${response.status} but response body was not valid JSON${detail}`,
       )
     }
   } catch (error) {
