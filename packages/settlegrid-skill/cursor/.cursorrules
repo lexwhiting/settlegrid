@@ -1,0 +1,295 @@
+# SettleGrid Monetization Rules
+
+## When to Activate
+
+Activate these rules when the user asks to "monetize", "add billing to", "charge for", or "add payment to" their MCP server, or shows an MCP server file and asks how to make money from it.
+
+## Goal
+
+Add per-call billing to the user's MCP server using the `@settlegrid/mcp` SDK (v0.1.1). After you finish, every tool invocation will check an API key, validate credits, deduct the configured amount, and return the result — all in one `sg.wrap()` call. The user can view revenue on the SettleGrid dashboard at `https://settlegrid.ai/dashboard`.
+
+## Inputs
+
+- **`server_file_path`** (required): The path to the MCP server entry file. Usually `src/server.ts` or `index.ts`. Ask the user if you cannot determine it from the project structure.
+- **`pricing_cents`** (optional, default `1`): The default price per tool invocation in US cents. Individual methods can override this in the pricing config.
+
+## Preflight Checks
+
+Run these six checks before making any changes. Stop and tell the user if any fail.
+
+1. **File exists** — Confirm `server_file_path` points to a real file on disk.
+2. **MCP server pattern** — The file must export or register tool handlers. Look for `server.tool(...)`, `server.setRequestHandler(...)`, `mcpServer.tool(...)`, or plain exported async functions the user wants to expose as tools.
+3. **Node ≥ 18** — Run `node --version` and verify the major version is 18 or higher (required for the `fetch` API used internally by the SDK).
+4. **API key available** — Check if `SETTLEGRID_API_KEY` is set in `.env`, `.env.local`, or the shell environment. If not, guide the user through the onboarding path below.
+5. **Compatible framework** — The server uses `@modelcontextprotocol/sdk`, `fastmcp`, Express, Hono, Next.js, or plain exported functions. Other frameworks may work but are not officially tested.
+6. **Not already wrapped** — Grep the file for `@settlegrid/mcp` or `settlegrid.init`. If found, tell the user billing is already integrated and offer to update the pricing config instead.
+
+## Step-by-Step Playbook
+
+Follow these steps in order. Do not skip any step.
+
+1. **Read the server file** — Load the contents of `server_file_path` into context. Identify the language (TypeScript or JavaScript) and the framework in use.
+
+2. **Identify tool handlers** — List every function that acts as a tool handler. Record each handler's name and its argument type (if typed). These become the `methods` keys in the pricing config.
+
+3. **Install the SDK** — Detect the package manager from the lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, otherwise npm). Run the appropriate install command:
+   ```bash
+   npm install @settlegrid/mcp
+   ```
+
+4. **Insert the import** — Add this line at the top of the file, after any existing imports:
+   ```typescript
+   import { settlegrid } from '@settlegrid/mcp'
+   ```
+
+5. **Insert the init call** — Immediately after the import block, add:
+   ```typescript
+   const sg = settlegrid.init({
+     toolSlug: '<slug>',
+     pricing: {
+       defaultCostCents: <pricing_cents>,
+       methods: {
+         '<method_name>': { costCents: <cents>, displayName: '<Human Name>' },
+       },
+     },
+   })
+   ```
+   Replace `<slug>` with a URL-safe identifier for the server (e.g. `weather-api`). Replace `<method_name>` with the name of each tool handler from step 2.
+
+6. **Wrap each handler** — For every tool handler identified in step 2, wrap it with `sg.wrap()`:
+   ```typescript
+   const billedHandler = sg.wrap(
+     async (args: { query: string }) => {
+       return originalHandler(args)
+     },
+     { method: 'handler_name' }
+   )
+   ```
+   Then replace the original handler reference in the server registration with `billedHandler`. The `method` string must match a key in `pricing.methods`.
+
+7. **Add middleware (if REST)** — If the server exposes an HTTP endpoint (Express, Hono, Next.js API route), also add:
+   ```typescript
+   import { settlegridMiddleware } from '@settlegrid/mcp'
+
+   const withBilling = settlegridMiddleware({
+     toolSlug: '<slug>',
+     pricing: { defaultCostCents: <pricing_cents> },
+   })
+   ```
+   Then wrap each route handler with `withBilling(request, handler)`.
+
+8. **Add env var** — Append to `.env.example` (create if missing):
+   ```
+   SETTLEGRID_API_KEY=sg_live_your_key_here
+   ```
+
+9. **Generate server card** — Add a script or a startup hook that writes pricing metadata:
+   ```typescript
+   import { generateServerCardBilling } from '@settlegrid/mcp'
+
+   const billing = generateServerCardBilling({
+     toolSlug: '<slug>',
+     pricing: { model: 'per-invocation', defaultCostCents: <pricing_cents> },
+   })
+   ```
+   Write the output to `.well-known/settlegrid.json` so registries can discover the server's pricing.
+
+10. **Test** — Tell the user to run:
+    ```bash
+    SETTLEGRID_API_KEY=sg_test_demo123 node src/server.ts
+    ```
+    Then verify with a curl call (adapt the URL to their framework):
+    ```bash
+    curl -X POST http://localhost:3000 \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: sg_test_demo123" \
+      -d '{"method": "<method_name>", "params": {}}'
+    ```
+
+11. **Print the verification command** — Show the exact command the user should copy-paste to confirm the integration works. Include the expected output format.
+
+12. **Print summary** — Output a short summary listing: the number of tools wrapped, the pricing per method, and a link to the dashboard (`https://settlegrid.ai/dashboard`).
+
+## Onboarding Path (No API Key)
+
+If the user does not have a `SETTLEGRID_API_KEY`:
+
+1. Direct them to **https://settlegrid.ai/signup**.
+2. They enter an email address and create a password. No credit card required.
+3. After signing in, they land on the dashboard. Click **"Create New Tool"** and enter the tool slug from step 5.
+4. The dashboard generates a live API key (`sg_live_...`) and a test key (`sg_test_...`).
+5. Copy the live key into `.env` as `SETTLEGRID_API_KEY=sg_live_...`.
+6. The free tier allows **1,000 free invocations per month** — no charge until they exceed that.
+
+## Anti-Patterns
+
+Do NOT do any of the following:
+
+1. **Do not hardcode the API key** — Always read it from `process.env.SETTLEGRID_API_KEY` or from the request headers. Never put a literal `sg_live_...` string in source code.
+2. **Do not wrap without confirming the tool slug** — Ask the user to choose a slug. If they have an existing slug registered on the dashboard, reuse it. Duplicate slugs cause billing conflicts.
+3. **Do not skip the test step** — Always run the server and verify at least one billed call succeeds before declaring the integration complete.
+4. **Do not remove existing error handling** — The SDK wraps handlers non-destructively. Keep all existing try/catch blocks and error responses intact.
+5. **Do not set `pricing_cents` to 0** — A zero price means every call is free and metering is a no-op. If the user wants a free tier, tell them about the 1,000 free invocations on the dashboard instead.
+
+## Example 1: @modelcontextprotocol/sdk REST Wrapper
+
+**Before** — a weather server with 2 tools, no billing:
+
+```typescript
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { z } from 'zod'
+
+const server = new McpServer({ name: 'weather', version: '1.0.0' })
+
+server.tool('get_weather', 'Get current weather',
+  { latitude: z.number(), longitude: z.number() },
+  async ({ latitude, longitude }) => {
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`)
+    const data = await res.json()
+    return { content: [{ type: 'text', text: JSON.stringify(data.current_weather) }] }
+  })
+
+const transport = new StdioServerTransport()
+await server.connect(transport)
+```
+
+**After** — wrapped with SettleGrid billing at 1c/call:
+
+```typescript
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { z } from 'zod'
+import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'weather-api',
+  pricing: { defaultCostCents: 1, methods: { get_weather: { costCents: 1, displayName: 'Current Weather' } } },
+})
+
+const getWeather = sg.wrap(
+  async (args: { latitude: number; longitude: number }) => {
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${args.latitude}&longitude=${args.longitude}&current_weather=true`)
+    const data = await res.json()
+    return { content: [{ type: 'text', text: JSON.stringify(data.current_weather) }] }
+  },
+  { method: 'get_weather' }
+)
+
+server.tool('get_weather', 'Get current weather',
+  { latitude: z.number(), longitude: z.number() },
+  async ({ latitude, longitude }) => getWeather({ latitude, longitude }, { metadata: { 'settlegrid-api-key': process.env.SETTLEGRID_API_KEY } }))
+
+const transport = new StdioServerTransport()
+await server.connect(transport)
+```
+
+Revenue estimate: 500 calls/day × 1c = **$150/month**.
+
+## Example 2: fastmcp Server with 3 Tools
+
+**Before** — text-tools server with search, summarize, translate:
+
+```typescript
+import { FastMCP } from 'fastmcp'
+import { z } from 'zod'
+
+const server = new FastMCP({ name: 'text-tools', version: '1.0.0' })
+
+server.addTool({ name: 'search_web', description: 'Search the web',
+  parameters: z.object({ query: z.string() }),
+  execute: async ({ query }) => {
+    const res = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`)
+    const data = await res.json()
+    return JSON.stringify(data.RelatedTopics?.slice(0, 5) ?? [])
+  }})
+
+server.addTool({ name: 'summarize', description: 'Summarize text',
+  parameters: z.object({ text: z.string() }),
+  execute: async ({ text }) => text.split('. ').slice(0, 3).join('. ') + '.' })
+
+server.start({ transportType: 'stdio' })
+```
+
+**After** — differentiated pricing (search 2c, summarize 1c):
+
+```typescript
+import { FastMCP } from 'fastmcp'
+import { z } from 'zod'
+import { settlegrid } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'text-tools',
+  pricing: { defaultCostCents: 1, methods: { search_web: { costCents: 2, displayName: 'Web Search' }, summarize: { costCents: 1, displayName: 'Summarize' } } },
+})
+
+const searchWeb = sg.wrap(async (args: { query: string }) => {
+  const res = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(args.query)}&format=json`)
+  const data = await res.json()
+  return JSON.stringify(data.RelatedTopics?.slice(0, 5) ?? [])
+}, { method: 'search_web' })
+
+const summarize = sg.wrap(async (args: { text: string }) => {
+  return args.text.split('. ').slice(0, 3).join('. ') + '.'
+}, { method: 'summarize' })
+
+const server = new FastMCP({ name: 'text-tools', version: '1.0.0' })
+server.addTool({ name: 'search_web', description: 'Search the web',
+  parameters: z.object({ query: z.string() }),
+  execute: async (args) => searchWeb(args, { metadata: { 'settlegrid-api-key': process.env.SETTLEGRID_API_KEY } }) })
+server.addTool({ name: 'summarize', description: 'Summarize text',
+  parameters: z.object({ text: z.string() }),
+  execute: async (args) => summarize(args, { metadata: { 'settlegrid-api-key': process.env.SETTLEGRID_API_KEY } }) })
+server.start({ transportType: 'stdio' })
+```
+
+Revenue estimate: 800 calls/day × 1.5c avg = **$360/month**.
+
+## Example 3: Plain TypeScript to Billed HTTP Endpoints
+
+**Before** — standalone geocoding functions:
+
+```typescript
+export async function geocode(address: string) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`
+  const res = await fetch(url, { headers: { 'User-Agent': 'settlegrid-geo/1.0' } })
+  const data = await res.json()
+  return { lat: Number(data[0].lat), lon: Number(data[0].lon), name: data[0].display_name }
+}
+
+export async function reverseGeocode(lat: number, lon: number) {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
+  const res = await fetch(url, { headers: { 'User-Agent': 'settlegrid-geo/1.0' } })
+  const data = await res.json()
+  return { address: data.display_name, country: data.address?.country }
+}
+```
+
+**After** — wrapped with `sg.wrap()` + served via `settlegridMiddleware`:
+
+```typescript
+import { settlegrid, settlegridMiddleware } from '@settlegrid/mcp'
+
+const sg = settlegrid.init({
+  toolSlug: 'geocoding',
+  pricing: { defaultCostCents: 1, methods: { geocode: { costCents: 1, displayName: 'Geocode' }, reverse_geocode: { costCents: 1, displayName: 'Reverse' } } },
+})
+
+export const geocode = sg.wrap(async (args: { address: string }) => {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(args.address)}&format=json&limit=1`
+  const res = await fetch(url, { headers: { 'User-Agent': 'settlegrid-geo/1.0' } })
+  const data = await res.json()
+  return { lat: Number(data[0].lat), lon: Number(data[0].lon), name: data[0].display_name }
+}, { method: 'geocode' })
+
+export const reverseGeocode = sg.wrap(async (args: { lat: number; lon: number }) => {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${args.lat}&lon=${args.lon}&format=json`
+  const res = await fetch(url, { headers: { 'User-Agent': 'settlegrid-geo/1.0' } })
+  const data = await res.json()
+  return { address: data.display_name, country: data.address?.country }
+}, { method: 'reverse_geocode' })
+
+const withBilling = settlegridMiddleware({ toolSlug: 'geocoding', pricing: { defaultCostCents: 1 } })
+```
+
+Revenue estimate: 200 calls/day × 1c = **$60/month**.
