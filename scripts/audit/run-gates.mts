@@ -85,6 +85,18 @@ async function main(): Promise<void> {
   for await (const rawLine of rl) {
     const dir = rawLine.trim();
     if (!dir) continue;
+
+    // #14 — Defense-in-depth: reject paths that aren't absolute or contain
+    // traversal segments. In production the orchestrator only pipes known
+    // template directories, but a compromised stdin could try to read
+    // arbitrary filesystem locations via sourcePath.
+    if (!path.isAbsolute(dir) || dir.includes('..')) {
+      process.stdout.write(
+        JSON.stringify({ dir, error: `rejected: not an absolute path or contains '..'` }) + '\n',
+      );
+      continue;
+    }
+
     const slug = path.basename(dir);
     try {
       const result = await runQualityGates(
