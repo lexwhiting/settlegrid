@@ -7,7 +7,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock middleware so we can test validation without network calls
 const { mockMiddleware } = vi.hoisted(() => {
   const mockMiddleware = {
-    execute: vi.fn().mockImplementation((_key: string, _method: string, handler: () => unknown) => handler()),
+    execute: vi.fn().mockImplementation(
+      (_key: string, _method: string, handler: () => unknown, _units?: number) => handler(),
+    ),
     validateKey: vi.fn().mockResolvedValue({
       valid: true,
       consumerId: 'con-123',
