@@ -164,6 +164,22 @@ export interface WrapOptions {
   method?: string
   /** Override pricing for this specific wrapped function (in cents) */
   costCents?: number
+  /**
+   * Number of units consumed by this invocation for non-per-invocation
+   * pricing models. Interpretation depends on the `model` field of your
+   * pricing config:
+   *
+   *   - `per-token`:  tokens processed (LLM proxies)
+   *   - `per-byte`:   bytes transferred (data services)
+   *   - `per-second`: compute seconds (long-running tasks)
+   *   - `tiered`:     units billed through the tier schedule
+   *   - `outcome`:    ignored (cost is resolved post-execution)
+   *
+   * Ignored when the pricing model is `per-invocation` or when no
+   * `model` field is set (legacy per-invocation pricing). Defaults to
+   * 1 when omitted in unit-based models.
+   */
+  units?: number
 }
 
 /** Internal API response for key validation */
