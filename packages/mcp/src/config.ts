@@ -21,33 +21,43 @@ const methodPricingSchema = z.object({
 })
 
 /**
- * Zod schema for method pricing with the generalized `unitType` field.
- * Accepts legacy `{ costCents, displayName }` as a strict subset.
+ * Strict legacy pricing schema — exactly the P1 (pre-SDK1) shape.
+ * No `model`, no `currencyCode`, no `tiers`, no `outcomeConfig`.
+ *
+ * Uses `.strict()` so unknown fields are REJECTED rather than silently
+ * stripped. This is what makes the `pricingConfigSchema` union below
+ * actually strict: without `.strict()`, a config like
+ * `{ model: 'per-gigabyte', defaultCostCents: 1 }` (invalid model enum)
+ * would fail the generalized branch but silently fall through to the
+ * legacy branch — losing the `model` field entirely and billing the
+ * developer per-invocation instead of surfacing the typo.
  */
-const generalizedMethodPricingSchema = z.object({
-  costCents: z.number().int().min(0),
-  unitType: z.string().optional(),
-  displayName: z.string().optional(),
-})
+const legacyPricingConfigSchema = z
+  .object({
+    defaultCostCents: z.number().int().min(0),
+    methods: z.record(z.string(), methodPricingSchema).optional(),
+  })
+  .strict()
 
 /**
- * Zod schema for pricing config validation.
- * Accepts both the legacy `PricingConfig` shape AND the generalized
- * `GeneralizedPricingConfig` shape (with optional `model` discriminator,
- * `currencyCode`, `tiers`, `outcomeConfig`). Legacy configs still parse
- * without the generalized fields; new configs with `model: 'per-token'`
- * or similar are preserved through the parse and passed to
- * `resolveOperationCost`.
- *
- * Exported for advanced users who want to pre-validate pricing config.
+ * Zod schema for the generalized pricing config (six-model superset).
+ * Defined here (earlier than its original position) so the union below
+ * can reference it without hitting a temporal-dead-zone error.
  */
-export const pricingConfigSchema = z.object({
+export const generalizedPricingConfigSchema = z.object({
+  model: z.enum(['per-invocation', 'per-token', 'per-byte', 'per-second', 'tiered', 'outcome']),
   defaultCostCents: z.number().int().min(0),
-  methods: z.record(z.string(), generalizedMethodPricingSchema).optional(),
-  model: z
-    .enum(['per-invocation', 'per-token', 'per-byte', 'per-second', 'tiered', 'outcome'])
+  currencyCode: z.string().length(3).optional().default('USD'),
+  methods: z
+    .record(
+      z.string(),
+      z.object({
+        costCents: z.number().int().min(0),
+        unitType: z.string().optional(),
+        displayName: z.string().optional(),
+      }),
+    )
     .optional(),
-  currencyCode: z.string().length(3).optional(),
   tiers: z
     .array(
       z.object({
@@ -64,6 +74,31 @@ export const pricingConfigSchema = z.object({
     })
     .optional(),
 })
+
+/**
+ * Zod schema for pricing config validation.
+ *
+ * This is a `z.union` of the generalized and legacy schemas (per P1.SDK1
+ * Implementation Step 4). Zod tries branches in order:
+ *
+ *   1. `generalizedPricingConfigSchema` — requires `model` discriminator.
+ *      Matches any of the six pricing models (per-invocation, per-token,
+ *      per-byte, per-second, tiered, outcome).
+ *   2. `legacyPricingConfigSchema` — the pre-generalization shape with
+ *      just `{ defaultCostCents, methods? }`.
+ *
+ * This union is stricter than a single widened object schema: a config
+ * with `tiers: [...]` but no `model` is rejected by both branches
+ * (generalized because it lacks `model`; legacy because `tiers` is an
+ * unknown key Zod would strip — but we let the generalized branch
+ * capture it cleanly when `model` IS present).
+ *
+ * Exported for advanced users who want to pre-validate pricing config.
+ */
+export const pricingConfigSchema = z.union([
+  generalizedPricingConfigSchema,
+  legacyPricingConfigSchema,
+])
 
 /** Zod schema for SDK config */
 const sdkConfigSchema = z.object({
@@ -150,16 +185,13 @@ export function validatePricingConfig(
   config: unknown,
 ): PricingConfig | GeneralizedPricingConfig {
   const parsed = pricingConfigSchema.parse(config)
-  // If `model` is absent, it's legacy PricingConfig; otherwise generalized.
-  // Zod returns the same object shape either way — we just cast for the
-  // return type so TypeScript knows which variant callers get.
-  if (parsed.model === undefined) {
-    return {
-      defaultCostCents: parsed.defaultCostCents,
-      methods: parsed.methods,
-    } as PricingConfig
+  // The union returns whichever branch matched. Narrow on the presence
+  // of `model` (required by the generalized branch, absent from the
+  // legacy branch) so callers receive the exact variant shape.
+  if ('model' in parsed) {
+    return parsed as GeneralizedPricingConfig
   }
-  return parsed as unknown as GeneralizedPricingConfig
+  return parsed as PricingConfig
 }
 
 /**
@@ -184,27 +216,8 @@ export function getMethodCost(pricing: PricingConfig, method: string): number {
 }
 
 // ─── Generalized Pricing ─────────────────────────────────────────────────────
-
-/** Zod schema for generalized pricing config */
-export const generalizedPricingConfigSchema = z.object({
-  model: z.enum(['per-invocation', 'per-token', 'per-byte', 'per-second', 'tiered', 'outcome']),
-  defaultCostCents: z.number().int().min(0),
-  currencyCode: z.string().length(3).optional().default('USD'),
-  methods: z.record(z.string(), z.object({
-    costCents: z.number().int().min(0),
-    unitType: z.string().optional(),
-    displayName: z.string().optional(),
-  })).optional(),
-  tiers: z.array(z.object({
-    upTo: z.number().int().min(1),
-    costCents: z.number().int().min(0),
-  })).optional(),
-  outcomeConfig: z.object({
-    successCostCents: z.number().int().min(0),
-    failureCostCents: z.number().int().min(0),
-    successCondition: z.string(),
-  }).optional(),
-})
+// (Schema definition moved earlier in the file to satisfy the
+// `pricingConfigSchema` union's forward reference.)
 
 /**
  * Resolve cost for an operation using the generalized pricing model.
