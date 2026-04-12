@@ -354,4 +354,117 @@ describe('apiCall — HTTP client error mapping', () => {
     const result = await apiCall<number[]>(baseConfig, '/list', {})
     expect(result).toEqual([1, 2, 3])
   })
+
+  // ─── Hostile-review fix tests: defensive `data` normalization ─────────────
+  // Before the fix, a 4xx response with body `null` (or any non-object JSON)
+  // would crash apiCall with a TypeError ("Cannot read properties of null"),
+  // which the outer catch then wrapped in NetworkError — masking the real
+  // status code from the consumer.
+
+  it('401 with literal `null` body still throws InvalidKeyError (not NetworkError)', async () => {
+    // Build a Response whose body parses to JSON null
+    fetchSpy.mockResolvedValue(
+      new Response('null', {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(apiCall(baseConfig, '/validate-key', {})).rejects.toBeInstanceOf(
+      InvalidKeyError,
+    )
+  })
+
+  it('402 with literal `null` body still throws InsufficientCreditsError', async () => {
+    fetchSpy.mockResolvedValue(
+      new Response('null', {
+        status: 402,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(InsufficientCreditsError)
+    expect((caught as InsufficientCreditsError).requiredCents).toBe(0)
+    expect((caught as InsufficientCreditsError).availableCents).toBe(0)
+  })
+
+  it('500 with literal `null` body still throws SettleGridUnavailableError', async () => {
+    fetchSpy.mockResolvedValue(
+      new Response('null', {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(apiCall(baseConfig, '/meter', {})).rejects.toBeInstanceOf(
+      SettleGridUnavailableError,
+    )
+  })
+
+  it('402 with array body normalizes to {} and uses defaults', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse([1, 2, 3], 402))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(InsufficientCreditsError)
+    expect((caught as InsufficientCreditsError).requiredCents).toBe(0)
+    expect((caught as InsufficientCreditsError).availableCents).toBe(0)
+  })
+
+  it('401 with primitive number body normalizes to {} and uses default message', async () => {
+    fetchSpy.mockResolvedValue(
+      new Response('42', {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(apiCall(baseConfig, '/validate-key', {})).rejects.toBeInstanceOf(
+      InvalidKeyError,
+    )
+  })
+
+  it('500 with primitive string body normalizes to {} and falls back to status message', async () => {
+    fetchSpy.mockResolvedValue(
+      new Response('"server exploded"', {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(SettleGridUnavailableError)
+    // Falls back to "API returned 500" — primitive body has no `error` field
+    expect((caught as Error).message).toMatch(/500/)
+  })
+
+  // ─── Hostile-review fix test: parse error message preservation ────────────
+  // Before the fix, the inner `catch {}` discarded the SyntaxError without
+  // binding it, so the underlying parse failure was invisible during
+  // debugging. Now the original message is appended to the typed error.
+  it('200 with malformed JSON: error message includes the underlying parse failure', async () => {
+    fetchSpy.mockResolvedValue(textResponse('{ broken: not_json }', 200))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/x', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(SettleGridUnavailableError)
+    const message = (caught as Error).message
+    expect(message).toMatch(/200/)
+    expect(message).toMatch(/not valid JSON/)
+    // The colon-prefixed underlying SyntaxError text is appended (e.g.
+    // "...not valid JSON: Unexpected token b in JSON at position 2").
+    expect(message).toContain(':')
+  })
 })
