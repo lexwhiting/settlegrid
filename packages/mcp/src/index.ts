@@ -301,8 +301,13 @@ export const settlegrid = {
     }
     if (!options.pricing || typeof options.pricing !== 'object') {
       throw new Error(
-        'settlegrid.init() requires a pricing object. Example:\n' +
+        'settlegrid.init() requires a pricing object. Examples:\n' +
+        '  // Legacy per-invocation:\n' +
         '  pricing: { defaultCostCents: 1, methods: { search: { costCents: 5 } } }\n' +
+        '  // Generalized per-token:\n' +
+        '  pricing: { model: "per-token", defaultCostCents: 1 }\n' +
+        '  // See @settlegrid/mcp types for all six pricing models ' +
+        '(per-invocation, per-token, per-byte, per-second, tiered, outcome).\n' +
         `Received: ${JSON.stringify(options.pricing)}`
       )
     }

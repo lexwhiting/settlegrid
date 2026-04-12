@@ -404,6 +404,51 @@ describe('settlegrid.init() accepts generalized pricing', () => {
       }),
     ).not.toThrow()
   })
+
+  it('rejects orphan generalized fields without model discriminator', () => {
+    // `tiers` is a generalized-only field. Without a `model` discriminator
+    // this shape matches neither branch of the union: generalized rejects
+    // because `model` is required, and strict legacy rejects because
+    // `tiers` is an unknown key. Before the .strict() fix on legacy, this
+    // would silently parse as legacy and lose the `tiers` array.
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'orphan-tiers',
+        pricing: {
+          defaultCostCents: 1,
+          tiers: [{ upTo: 100, costCents: 2 }],
+        } as unknown as { defaultCostCents: number },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects orphan outcomeConfig without model discriminator', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'orphan-outcome',
+        pricing: {
+          defaultCostCents: 1,
+          outcomeConfig: {
+            successCostCents: 50,
+            failureCostCents: 0,
+            successCondition: 'foo',
+          },
+        } as unknown as { defaultCostCents: number },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects orphan currencyCode without model discriminator', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'orphan-currency',
+        pricing: {
+          defaultCostCents: 1,
+          currencyCode: 'EUR',
+        } as unknown as { defaultCostCents: number },
+      }),
+    ).toThrow()
+  })
 })
 
 // ─── sg.wrap() threads units from WrapOptions into middleware.execute ───────

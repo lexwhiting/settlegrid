@@ -347,4 +347,163 @@ describe('sg.wrap() end-to-end with fetch mock — pricing-model → meter body'
     await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
     expect(meterCalls[0].costCents).toBe(9)
   })
+
+  it('insufficient credits: rejects when balance < per-token cost', async () => {
+    // Override the validateKey response with a tiny balance for this test
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as Record<string, unknown>
+      if (url.endsWith('/api/sdk/validate-key')) {
+        validateKeyCalls.push(body)
+        return new Response(
+          JSON.stringify({
+            valid: true,
+            consumerId: 'con-poor',
+            toolId: 'tool-poor',
+            keyId: 'key-poor',
+            balanceCents: 10, // only 10¢
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.endsWith('/api/sdk/meter')) {
+        meterCalls.push(body)
+        return new Response(
+          JSON.stringify({
+            success: true,
+            remainingBalanceCents: 0,
+            costCents: 0,
+            invocationId: 'inv-never',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('unexpected', { status: 404 })
+    })
+
+    const { InsufficientCreditsError } = await import('../errors')
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-broke',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    // 100 tokens × 1¢ = 100¢ required, only 10¢ available
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 100 })
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } }),
+    ).rejects.toBeInstanceOf(InsufficientCreditsError)
+
+    // Handler must NOT have been called when credits are insufficient
+    expect(handler).not.toHaveBeenCalled()
+    // Meter must NOT have been called either
+    expect(meterCalls).toHaveLength(0)
+  })
+})
+
+// ─── Units validation: reject nonsense values before they reach pricing ─────
+describe('middleware.execute units validation', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async (url: string, _init: RequestInit) => {
+      if (url.endsWith('/api/sdk/validate-key')) {
+        return new Response(
+          JSON.stringify({
+            valid: true,
+            consumerId: 'c',
+            toolId: 't',
+            keyId: 'k',
+            balanceCents: 1_000_000,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          remainingBalanceCents: 999_999,
+          costCents: 1,
+          invocationId: 'inv',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function makeWrapped(units: number) {
+    const sg = settlegrid.init({
+      toolSlug: 'units-test',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    return sg.wrap(() => ({ ok: true }), { method: 'gen', units })
+  }
+
+  it('rejects negative units', async () => {
+    const wrapped = makeWrapped(-1)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).rejects.toThrow(/Invalid units.*non-negative/)
+  })
+
+  it('rejects NaN units', async () => {
+    const wrapped = makeWrapped(NaN)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).rejects.toThrow(/Invalid units.*finite/)
+  })
+
+  it('rejects Infinity units', async () => {
+    const wrapped = makeWrapped(Infinity)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).rejects.toThrow(/Invalid units.*finite/)
+  })
+
+  it('rejects -Infinity units', async () => {
+    const wrapped = makeWrapped(-Infinity)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).rejects.toThrow(/Invalid units/)
+  })
+
+  it('rejects non-numeric units (runtime bypass of TS)', async () => {
+    // Bypass TypeScript with unknown cast — simulates a JS caller
+    const wrapped = makeWrapped('ten' as unknown as number)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).rejects.toThrow(/Invalid units/)
+  })
+
+  it('accepts units = 0 (free call for unit-based models)', async () => {
+    const wrapped = makeWrapped(0)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('accepts fractional units (e.g. 1.5 seconds)', async () => {
+    const wrapped = makeWrapped(1.5)
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('accepts undefined units (omitted)', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'units-omit',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    // No units field at all
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'gen' })
+    await expect(
+      wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } }),
+    ).resolves.toEqual({ ok: true })
+  })
 })

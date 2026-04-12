@@ -223,6 +223,23 @@ export function createMiddleware(
   ): Promise<T> {
     const startTime = Date.now()
 
+    // 0. Validate units (public API input — reject nonsense before it
+    // propagates into cost calculation). A NaN, Infinity, or negative
+    // units value would produce garbage costs downstream: negative
+    // costs would silently credit consumers, NaN costs would throw
+    // InsufficientCreditsError with NaN in the payload, and Infinity
+    // would always reject regardless of balance.
+    if (units !== undefined) {
+      if (typeof units !== 'number' || !Number.isFinite(units) || units < 0) {
+        throw new Error(
+          `Invalid units: ${String(units)}. ` +
+            'WrapOptions.units must be a finite non-negative number ' +
+            '(e.g. tokens, bytes, or seconds). ' +
+            'Omit the field to use the pricing model default.',
+        )
+      }
+    }
+
     // 1. Validate key
     const validation = await validateKey(apiKey)
     if (!validation.valid) {
