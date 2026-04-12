@@ -147,6 +147,12 @@ async function runGatesBatch(dirs) {
       env: { ...process.env },
     });
 
+    // #7 — Kill child on parent exit to prevent orphaned tsx processes.
+    const cleanup = () => {
+      try { child.kill('SIGTERM'); } catch { /* already dead */ }
+    };
+    process.on('exit', cleanup);
+
     const results = new Map();
     let stdoutBuf = '';
     let stderrBuf = '';
@@ -161,12 +167,10 @@ async function runGatesBatch(dirs) {
         try {
           const parsed = JSON.parse(line);
           results.set(parsed.dir, parsed.result ?? null);
-          // Live progress marker so a 10-minute run is observable
           process.stdout.write(
             `  gates: ${results.size}/${dirs.length}\r`,
           );
         } catch (err) {
-          // Log malformed line but keep going
           process.stderr.write(`[run-gates parse error] ${line}\n`);
         }
       }
@@ -174,15 +178,16 @@ async function runGatesBatch(dirs) {
 
     child.stderr.on('data', (chunk) => {
       stderrBuf += chunk.toString();
-      // Mirror to our stderr so errors are visible
       process.stderr.write(chunk);
     });
 
     child.on('error', (err) => {
+      process.removeListener('exit', cleanup);
       reject(new Error(`run-gates spawn error: ${err.message}`));
     });
 
     child.on('exit', (code) => {
+      process.removeListener('exit', cleanup);
       process.stdout.write('\n');
       if (code === 0) {
         resolve(results);
@@ -191,7 +196,11 @@ async function runGatesBatch(dirs) {
       }
     });
 
-    // Pipe the directory list to the child then close stdin
+    // #8 — Absorb EPIPE/ERR_STREAM_DESTROYED if child exits before we
+    // finish writing. Without this, a broken pipe from a crashed child
+    // throws synchronously and replaces the child's real error message.
+    child.stdin.on('error', () => {});
+
     for (const d of dirs) {
       child.stdin.write(d + '\n');
     }
@@ -220,7 +229,9 @@ function cacheKeyFor(payload) {
  */
 async function claudeRankBatch(batch) {
   await ensureCacheDir();
-  const key = cacheKeyFor({ model: CLAUDE_MODEL, batch });
+  // #10 — cache key includes prompt structure + model so rubric/prompt
+  // changes invalidate the cache automatically.
+  const key = cacheKeyFor({ model: CLAUDE_MODEL, promptVersion: 1, batch });
   const cachePath = path.join(CACHE_DIR, `${key}.json`);
 
   if (existsSync(cachePath)) {
@@ -271,7 +282,10 @@ async function claudeRankBatch(batch) {
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const rawText = await res.text().catch(() => '');
+    // #9 — Sanitize the error body so an API key accidentally reflected
+    // in the response doesn't leak into stdout/CI logs.
+    const text = rawText.replace(/sk-ant-[A-Za-z0-9_-]+/g, '[REDACTED]');
     throw new Error(`Claude API ${res.status}: ${text.slice(0, 400)}`);
   }
 
@@ -449,6 +463,13 @@ async function main() {
   console.log('[canonical-50] pre-gate scoring...');
   const preGated = templates.map((t) => preGateScore(t, categoryCounts));
   preGated.sort((a, b) => b.total - a.total);
+
+  // #5 — guard against 0 templates (empty open-source-servers or filter miss)
+  if (preGated.length === 0) {
+    console.error('[canonical-50] 0 templates found — nothing to score');
+    process.exit(1);
+  }
+
   console.log(
     `  pre-gate avg=${(preGated.reduce((a, b) => a + b.total, 0) / preGated.length).toFixed(1)} `
       + `top=${preGated[0].total} bottom=${preGated[preGated.length - 1].total}`,
@@ -579,7 +600,8 @@ async function main() {
     ['exactly 50 entries', top50.length === 50],
     ['sum ≥ 3500', top50Sum >= 3500],
     ['≥ 10 distinct categories', distinctCategoriesInTop50 >= 10],
-    ['rejected count 972', rejected.length === 972],
+    // #6 — dynamic, not hardcoded: total templates minus the 50 selected.
+    [`rejected count ${templates.length - FINAL_TOP_N}`, rejected.length === templates.length - FINAL_TOP_N],
   ];
   for (const [label, ok] of checks) {
     console.log(`  ${ok ? '✓' : '✗'} ${label}`);
