@@ -103,11 +103,11 @@ export function extractApiKey(
  *   network err  → NetworkError
  *   200 + bad JSON → SettleGridUnavailableError (success path parse fail)
  *
- * @internal Exposed for direct unit testing in __tests__/apiCall.test.ts.
- *           Not part of the public SDK surface — `@internal` JSDoc tells
- *           tsup to strip this from the published .d.ts.
+ * Not exported directly. Reachable from outside the module ONLY via the
+ * `__internal__` namespace below — that mark makes the
+ * "exposed for tests, not public API" intent explicit at every call site.
  */
-export async function apiCall<T>(
+async function apiCall<T>(
   config: NormalizedConfig,
   path: string,
   body: Record<string, unknown>
@@ -197,6 +197,23 @@ export async function apiCall<T>(
     clearTimeout(timeout)
   }
 }
+
+/**
+ * Internal exports — exposed for unit testing only, NOT part of the
+ * public SDK surface.
+ *
+ * Test files import these via:
+ *
+ *   import { __internal__ } from '../middleware'
+ *   const { apiCall } = __internal__
+ *
+ * The `@internal` JSDoc tag is preserved on the namespace so tsup's DTS
+ * pipeline strips it from the published .d.ts, keeping the consumer-
+ * facing API surface unchanged.
+ *
+ * @internal
+ */
+export const __internal__ = { apiCall }
 
 /** Create the middleware pipeline */
 export function createMiddleware(

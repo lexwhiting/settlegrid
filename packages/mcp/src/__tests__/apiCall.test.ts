@@ -10,11 +10,14 @@
  * This file mocks `globalThis.fetch` with `vi.spyOn` and asserts each
  * status-code branch produces the right typed error.
  *
- * @internal apiCall is exported with `@internal` JSDoc — tsup strips
- *           it from published .d.ts.
+ * `apiCall` is reached via the `__internal__` namespace exported from
+ * middleware.ts — that namespace is marked `@internal` so tsup strips
+ * it from the published .d.ts, keeping the public SDK surface clean.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { apiCall } from '../middleware'
+import { __internal__ } from '../middleware'
+
+const { apiCall } = __internal__
 import type { NormalizedConfig } from '../config'
 import {
   InsufficientCreditsError,
