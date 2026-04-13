@@ -894,6 +894,355 @@ describe('createDispatchKernel', () => {
     })
   })
 
+  // ─── Test close-out coverage ─────────────────────────────────────────
+
+  describe('test close-out coverage', () => {
+    // ─── facilitatorFetch error-path branches ────────────────────────
+
+    it('facilitator fetch network error → kernel returns error response', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/x402/verify')) {
+          throw new TypeError('fetch failed: connection refused')
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'ts',
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: { 'payment-signature': x402PaymentSignature() },
+      })
+      const handler = vi.fn()
+      const response = await kernel.handle(request, handler)
+
+      expect(handler).not.toHaveBeenCalled()
+      expect(response.status).toBeGreaterThanOrEqual(400)
+      // settle must NOT be attempted
+      expect(fetchCalls.find((c) => c.url.endsWith('/api/x402/settle'))).toBeUndefined()
+    })
+
+    it('facilitator fetch AbortError → kernel returns TimeoutError-routed response', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/x402/verify')) {
+          const err = new Error('aborted')
+          err.name = 'AbortError'
+          throw err
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'ts',
+      })
+      const kernel = createDispatchKernel(sg)
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: { 'payment-signature': x402PaymentSignature() },
+      })
+      const response = await kernel.handle(request, vi.fn())
+
+      expect(response.status).toBeGreaterThanOrEqual(400)
+      // The error reaches adapter.formatError; x402 formatError
+      // routes any error to 402 (payment errors) or 500 (other).
+      // The message 'Request timed out after 5000ms' contains neither
+      // 'payment'/'insufficient'/'balance'/'expired'/'invalid' nor
+      // 'PAYMENT' — so it falls through to 500.
+      expect(response.status).toBe(500)
+    })
+
+    it('facilitator fetch empty 200 body → rejected with SettleGridUnavailableError', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/x402/verify')) {
+          return new Response('', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'ts',
+      })
+      const kernel = createDispatchKernel(sg)
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: { 'payment-signature': x402PaymentSignature() },
+      })
+      const response = await kernel.handle(request, vi.fn())
+
+      expect(response.status).toBeGreaterThanOrEqual(400)
+    })
+
+    it('facilitator fetch invalid JSON body → rejected with clear error', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/x402/verify')) {
+          return new Response('{ not valid json', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'ts',
+      })
+      const kernel = createDispatchKernel(sg)
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: { 'payment-signature': x402PaymentSignature() },
+      })
+      const response = await kernel.handle(request, vi.fn())
+
+      expect(response.status).toBeGreaterThanOrEqual(400)
+    })
+
+    it('facilitator fetch non-Error rejection → wrapped in NetworkError', async () => {
+      // Covers the `error instanceof Error ? ... : 'Unknown network error'`
+      // branch in facilitatorFetch's catch-all. A fetch that rejects with
+      // a non-Error value (string, number, etc.) should still produce a
+      // clean error response, not crash.
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        // Reject with a string, not an Error instance
+        throw 'something weird' // eslint-disable-line @typescript-eslint/only-throw-error
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'ts',
+      })
+      const kernel = createDispatchKernel(sg)
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: { 'payment-signature': x402PaymentSignature() },
+      })
+      const response = await kernel.handle(request, vi.fn())
+
+      expect(response.status).toBeGreaterThanOrEqual(400)
+    })
+
+    // ─── handleSgBalance meter failure path ──────────────────────────
+
+    it('sg-balance: meter returns success: false → SettlementResult.status is "failed"', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(true)
+        if (url.endsWith('/api/sdk/meter')) {
+          return jsonResponse({
+            success: false,
+            remainingBalanceCents: 9995,
+            costCents: 5,
+            invocationId: 'inv-meter-failed',
+          })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: { 'x-api-key': 'sg_live_test_abc' },
+      })
+      const response = await kernel.handle(request, vi.fn().mockResolvedValue({}))
+
+      // MCP adapter.formatResponse always returns 200 and echoes
+      // result.status in the body. The kernel builds SettlementResult
+      // with status='failed' when meter.success is false.
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.status).toBe('failed')
+      expect(body.operationId).toBe('inv-meter-failed')
+    })
+
+    // ─── normalizeError inputs ───────────────────────────────────────
+
+    it('normalizeError: handler throws a string → wrapped as Error with that message', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(true)
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: { 'x-api-key': 'sg_live_test_abc' },
+      })
+      const handler = vi.fn(async () => {
+        // Throwing a string, not an Error — exercises normalizeError
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'string-error-marker-12345'
+      })
+      const response = await kernel.handle(request, handler)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(response.status).toBeGreaterThanOrEqual(400)
+      const body = await response.json()
+      // MCP adapter formatError body: { error: { code, message, ... } }
+      expect(body.error.message).toBe('string-error-marker-12345')
+    })
+
+    it('normalizeError: handler throws a plain object → wrapped with JSON-stringified message', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(true)
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: { 'x-api-key': 'sg_live_test_abc' },
+      })
+      const handler = vi.fn(async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw { detail: 'object-error-marker' }
+      })
+      const response = await kernel.handle(request, handler)
+
+      const body = await response.json()
+      expect(body.error.message).toContain('object-error-marker')
+    })
+
+    it('normalizeError: handler throws a circular object → falls back to generic message', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(true)
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: { 'x-api-key': 'sg_live_test_abc' },
+      })
+      const handler = vi.fn(async () => {
+        const circular: { self: unknown } = { self: null }
+        circular.self = circular
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw circular
+      })
+      const response = await kernel.handle(request, handler)
+
+      const body = await response.json()
+      // normalizeError's JSON.stringify throws on circular → falls
+      // back to the literal 'Unknown error thrown by handler' string
+      expect(body.error.message).toBe('Unknown error thrown by handler')
+    })
+
+    // ─── Config boundary validation ──────────────────────────────────
+
+    it('toolSecret: empty string is rejected by normalizeConfig schema', () => {
+      // Zod schema: z.string().min(1).optional(). Empty string fails
+      // the min(1) constraint and throws ZodError from normalizeConfig.
+      expect(() => {
+        settlegrid.init({
+          toolSlug: 'test-tool',
+          pricing: { defaultCostCents: 5 },
+          toolSecret: '',
+        })
+      }).toThrow()
+    })
+
+    it('toolSecret: omitted → NormalizedConfig does not carry the key at all', () => {
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        // toolSecret omitted entirely
+      })
+      // Access via the hidden __kernel__ internals slot
+      const internals = (
+        sg as unknown as {
+          __kernel__?: { config: { toolSecret?: string } }
+        }
+      ).__kernel__
+      expect(internals).toBeDefined()
+      // The key must be absent (not just undefined) so JSON serialization
+      // of the config does not produce a `"toolSecret": undefined` field
+      // that subsequent code might misread.
+      expect('toolSecret' in (internals?.config ?? {})).toBe(false)
+    })
+
+    it('toolSecret: provided → NormalizedConfig carries the exact string', () => {
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'my-tool-secret-123',
+      })
+      const internals = (
+        sg as unknown as {
+          __kernel__?: { config: { toolSecret?: string } }
+        }
+      ).__kernel__
+      expect(internals?.config.toolSecret).toBe('my-tool-secret-123')
+    })
+
+    // ─── __kernel__ property descriptor guarantees ───────────────────
+
+    it('__kernel__ is non-enumerable, non-writable, and non-configurable', () => {
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      const descriptor = Object.getOwnPropertyDescriptor(sg, '__kernel__')
+      expect(descriptor).toBeDefined()
+      expect(descriptor?.enumerable).toBe(false)
+      expect(descriptor?.writable).toBe(false)
+      expect(descriptor?.configurable).toBe(false)
+    })
+
+    it('__kernel__ cannot be reassigned or deleted from userland', () => {
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      // Reassign: silently fails in non-strict, throws in strict.
+      // The test runs in strict mode (TS/ESM), so it throws.
+      expect(() => {
+        ;(sg as unknown as { __kernel__: unknown }).__kernel__ = null
+      }).toThrow()
+      // Delete: also throws in strict mode on non-configurable props.
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (sg as any).__kernel__
+      }).toThrow()
+    })
+  })
+
   describe('public API surface', () => {
     it('createDispatchKernel is re-exported from the package index', async () => {
       const mod = await import('../index')
