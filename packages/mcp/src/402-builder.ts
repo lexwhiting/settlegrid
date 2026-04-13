@@ -59,16 +59,13 @@
  *
  * ## Per-adapter stubs
  *
- * P1.K3 stubs the per-protocol accept-entry shapes inside this file as
- * a switch statement keyed on `ProtocolName`. Each stub is intentionally
- * minimal — it produces a spec-shaped entry for the relevant protocol
- * but does not yet wire up the full business logic (e.g., the USDC
- * contract address is hardcoded, the x402 payTo is a zero address, the
- * mpp currency is fixed at 'USD'). P1.K4 will move these stubs onto
- * each adapter as a `toAcceptEntry(options)` method on `ProtocolAdapter`,
- * and the builder will dispatch through `protocolRegistry.get(name)?.toAcceptEntry(...)`
- * instead of the local switch. Deliberately keeping both phases apart
- * so P1.K4 is a pure refactor, not a feature change.
+ * P1.K3 added per-protocol stub implementations. P1.K4 promoted them to
+ * a required `buildChallenge(options)` method on the `ProtocolAdapter`
+ * interface — every adapter now implements it — and the builder here
+ * dispatches through `protocolRegistry.get(name).buildChallenge(...)`
+ * instead of a local switch. Future passes will replace the minimal
+ * stub bodies with real, tool-configured implementations (payout
+ * addresses, network selection, currency support, etc.).
  *
  * @packageDocumentation
  */
@@ -81,7 +78,7 @@ import type { GeneralizedPricingConfig, PricingConfig } from './types'
 // ─── Public types ─────────────────────────────────────────────────────────
 
 /** Resource being requested. Mirrors the x402 v2 `resource` field. */
-export interface PaymentResource {
+export interface ResourceDescriptor {
   /** Full request URL being protected. */
   url: string
   /** Human-readable description shown in 402 UI (optional). */
@@ -91,14 +88,49 @@ export interface PaymentResource {
 }
 
 /**
+ * Options passed to each adapter's `buildChallenge()` method (P1.K4).
+ * This is the narrow subset of {@link PaymentRequiredOptions} that an
+ * individual adapter actually needs — it does NOT carry the caller's
+ * full `acceptedProtocols` list, because an adapter only builds an
+ * entry for its own protocol and never inspects the other rails.
+ *
+ * Defined as a separate interface so adapter implementations have a
+ * clean public type to import, and so that `buildMultiProtocol402` can
+ * forward a PaymentRequiredOptions to each adapter via structural
+ * compatibility (PaymentRequiredOptions extends BuildChallengeOptions).
+ */
+export interface BuildChallengeOptions {
+  /** Resource being requested. Populated from the incoming `Request`. */
+  resource: ResourceDescriptor
+  /**
+   * Pricing configuration the tool uses to compute cost. Either the
+   * legacy `PricingConfig` (per-invocation) or the generalized
+   * `GeneralizedPricingConfig` (one of the six pricing models).
+   */
+  pricing: PricingConfig | GeneralizedPricingConfig
+  /**
+   * Method name for pricing resolution. When omitted, the adapter
+   * resolves cost for the `'default'` method. This field exists so
+   * that a 402 response can advertise the price for the SPECIFIC
+   * method the consumer was trying to call, not just the tool's
+   * default rate.
+   */
+  method?: string
+}
+
+/**
  * Options passed to {@link buildMultiProtocol402}. The kernel assembles
  * this from its normalized config, the incoming request, and (when an
  * adapter matched but the protocol is not supported) the extracted
  * payment context.
+ *
+ * Extends {@link BuildChallengeOptions} with the extra
+ * `acceptedProtocols` list that the BUILDER uses to decide which
+ * adapter entries to include — adapters themselves never see this
+ * field because their `buildChallenge` signature narrows to
+ * `BuildChallengeOptions`.
  */
-export interface PaymentRequiredOptions {
-  /** Resource being requested. Populated from the incoming `Request`. */
-  resource: PaymentResource
+export interface PaymentRequiredOptions extends BuildChallengeOptions {
   /**
    * Non-empty list of protocols the tool is willing to accept. Every
    * entry produces one `accepts[]` entry in the response body. The
@@ -107,20 +139,6 @@ export interface PaymentRequiredOptions {
    * any external configuration to decide whether a protocol is enabled.
    */
   acceptedProtocols: ProtocolName[]
-  /**
-   * Pricing configuration the tool uses to compute cost. Either the
-   * legacy `PricingConfig` (per-invocation) or the generalized
-   * `GeneralizedPricingConfig` (one of the six pricing models).
-   */
-  pricing: PricingConfig | GeneralizedPricingConfig
-  /**
-   * Method name for pricing resolution. When omitted, the builder
-   * resolves cost for the `'default'` method. This field exists so
-   * that a 402 response can advertise the price for the SPECIFIC
-   * method the consumer was trying to call, not just the tool's
-   * default rate.
-   */
-  method?: string
 }
 
 /**
@@ -147,7 +165,7 @@ export interface PaymentRequiredBody {
   /** Always the literal `'payment_required'` for x402 v2 compatibility. */
   error: 'payment_required'
   /** The resource that requires payment. */
-  resource: PaymentResource
+  resource: ResourceDescriptor
   /** Non-empty list of accepted payment rails. */
   accepts: AcceptEntry[]
 }
@@ -242,7 +260,7 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
   }
 
   const accepts: AcceptEntry[] = options.acceptedProtocols.map((protocol) =>
-    dispatchToAcceptEntry(protocol, options),
+    dispatchBuildChallenge(protocol, options),
   )
 
   const body: PaymentRequiredBody = {
@@ -287,7 +305,7 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
     throw new Error(
       'buildMultiProtocol402: failed to serialize response body: ' +
         (err instanceof Error ? err.message : String(err)) +
-        '. This usually means an adapter\'s `toAcceptEntry` returned a ' +
+        '. This usually means an adapter\'s `buildChallenge` returned a ' +
         'non-JSON-serializable value (bigint, function, symbol, or ' +
         'circular reference). Check each accept entry for invalid fields.',
     )
@@ -335,46 +353,47 @@ function schemeForAuthHeader(entry: AcceptEntry): string {
   return scheme
 }
 
-// ─── Per-protocol dispatch via adapter.toAcceptEntry ────────────────────
+// ─── Per-protocol dispatch via adapter.buildChallenge ───────────────────
 
 /**
- * Dispatch to the adapter's `toAcceptEntry(options)` method, looked up
- * via the auto-registered `protocolRegistry` singleton.
+ * Dispatch to the adapter's `buildChallenge(options)` method, looked
+ * up via the auto-registered `protocolRegistry` singleton.
  *
- * All nine P1.K3 adapters implement `toAcceptEntry` as a method on the
- * adapter class (see `packages/mcp/src/adapters/mcp.ts`, `x402.ts`,
- * `mpp.ts`, etc.). P1.K4 replaces their stub bodies with real
- * implementations that read tool-owned configuration — the dispatcher
- * here stays unchanged across both phases, so P1.K4 is a pure
- * per-adapter refactor.
+ * P1.K4 promotes `buildChallenge` to a required method on the
+ * `ProtocolAdapter` interface — every adapter in the bundled registry
+ * implements it. The dispatcher passes the full `PaymentRequiredOptions`
+ * through to the adapter; structural subtyping lets it be accepted
+ * as the narrower `BuildChallengeOptions` parameter without needing
+ * to construct a new object.
  *
  * Defensive against adapter bugs (hostile-review H4/M4): the call is
  * wrapped in try/catch and the return value is shape-validated before
  * being passed through to the `accepts[]` array. Any of:
  *
- *   - adapter missing from the registry
- *   - adapter registered without a `toAcceptEntry` method
- *   - `toAcceptEntry` threw while building the entry
- *   - `toAcceptEntry` returned null, a primitive, an array, or an
+ *   - adapter missing from the registry (unknown protocol name)
+ *   - adapter registered without a `buildChallenge` method (external
+ *     adapter that bypassed the interface via a type cast)
+ *   - `buildChallenge` threw while building the entry
+ *   - `buildChallenge` returned null, a primitive, an array, or an
  *     object without a string `scheme` field
  *
  * …falls through to {@link inlineFallbackEntry} so the overall
  * manifest stays valid. Today this only matters for externally-
- * registered adapters that pre-date the toAcceptEntry addition or
- * have a buggy implementation; the built-in nine produce valid
- * entries and never enter the fallback path.
+ * registered adapters that violate the interface contract; the
+ * built-in nine produce valid entries and never enter the fallback
+ * path.
  */
-function dispatchToAcceptEntry(
+function dispatchBuildChallenge(
   protocol: ProtocolName,
   options: PaymentRequiredOptions,
 ): AcceptEntry {
   const adapter = protocolRegistry.get(protocol)
-  if (adapter && typeof adapter.toAcceptEntry === 'function') {
+  if (adapter && typeof adapter.buildChallenge === 'function') {
     let result: unknown
     try {
-      result = adapter.toAcceptEntry(options)
+      result = adapter.buildChallenge(options)
     } catch {
-      // Adapter's toAcceptEntry threw — swallow and fall back below.
+      // Adapter's buildChallenge threw — swallow and fall back below.
       result = undefined
     }
     if (
@@ -391,8 +410,8 @@ function dispatchToAcceptEntry(
 
 /**
  * Produce a minimal `AcceptEntry` for a protocol whose adapter either
- * does not exist, does not implement `toAcceptEntry`, threw from
- * `toAcceptEntry`, or returned an invalid shape. Resolves the cost
+ * does not exist, does not implement `buildChallenge`, threw from
+ * `buildChallenge`, or returned an invalid shape. Resolves the cost
  * defensively — `resolveOperationCost` itself could throw on a
  * malformed pricing config, though the caller-side validation in
  * `buildMultiProtocol402` already runs the pricing through Zod so

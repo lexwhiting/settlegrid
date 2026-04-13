@@ -9,7 +9,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -146,12 +146,13 @@ export class AP2Adapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the AP2 rail. P1.K3 minimal
-   * fallback stub — scheme + costCents only. P1.K4 will replace this
-   * with a proper AP2 mandate-shaped entry (credential provider
-   * endpoint, supported mandate types, VDC issuer info).
+   * Build the `accepts[]` challenge entry for the AP2 rail. Renamed
+   * from `toAcceptEntry` in P1.K4. Minimal fallback stub — scheme +
+   * costCents only. A future pass will replace the body with a
+   * proper AP2 mandate-shaped entry (credential provider endpoint,
+   * supported mandate types, VDC issuer info).
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

@@ -19,15 +19,15 @@
  * @packageDocumentation
  */
 
-// Type-only imports from 402-builder.ts for the optional
-// `toAcceptEntry` method on the ProtocolAdapter interface. This creates
-// a type-level circular import (adapters/types.ts ↔ 402-builder.ts),
-// which TypeScript handles fine for `import type` statements because
-// they are erased at runtime. The value-level graph stays acyclic:
+// Type-only imports from 402-builder.ts for the `buildChallenge`
+// method on the ProtocolAdapter interface. This creates a type-level
+// circular import (adapters/types.ts ↔ 402-builder.ts), which
+// TypeScript handles fine for `import type` statements because they
+// are erased at runtime. The value-level graph stays acyclic:
 // adapters/types.ts has zero value exports that 402-builder.ts needs,
 // and 402-builder.ts only imports `ProtocolName` from here, also as a
 // type-only import.
-import type { AcceptEntry, PaymentRequiredOptions } from '../402-builder'
+import type { AcceptEntry, BuildChallengeOptions } from '../402-builder'
 
 // ─── Protocol enum ──────────────────────────────────────────────────────────
 
@@ -152,19 +152,24 @@ export interface ProtocolAdapter {
   formatError(error: Error, request: Request): Response
 
   /**
-   * Build an `accepts[]` entry for this protocol, used by
-   * `buildMultiProtocol402` when the tool is willing to accept the
-   * protocol on its 402 manifest. P1.K3 adds stub implementations
-   * that produce minimal spec-shaped entries; P1.K4 will replace
-   * them with real implementations that read tool-owned configuration
-   * (payout addresses, networks, currencies) from a per-adapter
-   * config channel.
+   * Build an `accepts[]` entry (a "challenge") for this protocol,
+   * used by `buildMultiProtocol402` when the tool is willing to
+   * accept the protocol on its 402 manifest. The method name mirrors
+   * the spec's language — a 402 payment challenge is a set of
+   * instructions the consumer needs to satisfy to retry the request.
    *
-   * Optional at the interface level so existing mock adapters (e.g.
-   * the `exports.test.ts` ProtocolAdapter mock in the P1.K1 surface
-   * lock) and hypothetical external adapters that do not yet
-   * implement the method remain structurally compatible. When P1.K4
-   * ships, this may be promoted to a required method.
+   * P1.K4 promoted this from the optional `toAcceptEntry?` stub that
+   * P1.K3 introduced to a required method, because all nine bundled
+   * adapters now implement it and the ProtocolAdapter contract
+   * genuinely depends on it (the 402 manifest builder routes through
+   * this method for every protocol).
+   *
+   * External adapters registered via `protocolRegistry.register` MUST
+   * implement `buildChallenge`. The builder's dispatcher still has a
+   * defensive runtime check and an inline fallback for adapters that
+   * violate the contract via a type cast, but that's purely for
+   * resilience — normal flow assumes the method exists and produces
+   * a valid `AcceptEntry`.
    */
-  toAcceptEntry?(options: PaymentRequiredOptions): AcceptEntry
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry
 }

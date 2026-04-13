@@ -225,6 +225,11 @@ describe('protocol adapter type exports (P1.K1, compile-time)', () => {
       }),
       formatResponse: () => new Response('ok'),
       formatError: () => new Response('err', { status: 500 }),
+      // P1.K4: buildChallenge is now a required method on ProtocolAdapter
+      buildChallenge: () => ({
+        scheme: 'mock',
+        costCents: 0,
+      }),
     }
     expect(mock.name).toBe('mcp')
     // Register in a fresh registry to verify the type is compatible with the class
