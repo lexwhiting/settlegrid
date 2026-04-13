@@ -62,8 +62,16 @@ export class MPPAdapter implements ProtocolAdapter {
       throw new Error('No MPP credential found in request')
     }
 
-    // Determine payment type from the credential or body
-    let paymentType: 'spt' | 'crypto' = credential.startsWith('spt_') ? 'spt' : 'spt'
+    // Determine payment type from the credential or body. The default is
+    // 'spt' (Stripe Shared Payment Token — MPP's primary payment path); the
+    // body's `paymentType` field checked below can upgrade to 'crypto' when
+    // the caller is using Tempo blockchain. The original code here was
+    // `credential.startsWith('spt_') ? 'spt' : 'spt'` — a degenerate ternary
+    // whose both branches returned 'spt'. It is simplified here to a straight
+    // assignment so the observed behavior is preserved without the dead-code
+    // smell; the identity.type ternary below continues to discriminate
+    // 'spt_'-prefixed credentials from generic mpp-session credentials.
+    let paymentType: 'spt' | 'crypto' = 'spt'
     let method = 'payment'
     let service = 'mpp-session'
     let sessionId: string | undefined
