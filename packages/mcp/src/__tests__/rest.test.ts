@@ -54,7 +54,12 @@ vi.mock('../middleware', () => ({
 }))
 
 import { settlegridMiddleware } from '../rest'
-import { InvalidKeyError, InsufficientCreditsError, RateLimitedError } from '../errors'
+import {
+  BudgetExceededError,
+  InvalidKeyError,
+  InsufficientCreditsError,
+  RateLimitedError,
+} from '../errors'
 
 describe('settlegridMiddleware', () => {
   beforeEach(() => {
@@ -138,6 +143,78 @@ describe('settlegridMiddleware', () => {
     const body = await response.json()
     expect(body.code).toBe('INSUFFICIENT_CREDITS')
     expect(body.topUpUrl).toBe('https://settlegrid.ai/top-up?tool=test-api')
+  })
+
+  // ─── P1.SDK4: BudgetExceededError + invalid budget header mapping ────────
+
+  it('withBilling returns 402 BUDGET_EXCEEDED with maxCents + requiredCents', async () => {
+    mockMiddleware.execute.mockRejectedValueOnce(
+      new BudgetExceededError(100, 500),
+    )
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/generate', {
+      headers: {
+        'x-api-key': 'sg_live_test',
+        'settlegrid-max-cost-cents': '100',
+      },
+    })
+    const response = await withBilling(request, async () => {
+      return new Response(JSON.stringify({ should: 'not-reach' }))
+    })
+    expect(response.status).toBe(402)
+    const body = await response.json()
+    expect(body.code).toBe('BUDGET_EXCEEDED')
+    expect(body.error).toBe('Budget exceeded')
+    expect(body.maxCents).toBe(100)
+    expect(body.requiredCents).toBe(500)
+  })
+
+  it('withBilling returns 400 for invalid settlegrid-max-cost-cents header', async () => {
+    mockMiddleware.execute.mockRejectedValueOnce(
+      new Error(
+        'Invalid settlegrid-max-cost-cents: not-a-number. Must be a finite non-negative integer representing cents.',
+      ),
+    )
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/generate', {
+      headers: {
+        'x-api-key': 'sg_live_test',
+        'settlegrid-max-cost-cents': 'not-a-number',
+      },
+    })
+    const response = await withBilling(request, async () => {
+      return new Response(JSON.stringify({ should: 'not-reach' }))
+    })
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.code).toBe('INVALID_BUDGET_HEADER')
+    expect(body.error).toMatch(/Invalid settlegrid-max-cost-cents/)
+  })
+
+  it('withBilling forwards settlegrid-max-cost-cents header into metadata', async () => {
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/search', {
+      headers: {
+        'x-api-key': 'sg_live_test',
+        'settlegrid-max-cost-cents': '250',
+      },
+    })
+    await withBilling(request, async () => {
+      return new Response(JSON.stringify({ ok: true }))
+    })
+    // Verify sg.wrap's mocked execute received the budget cap via metadata:
+    // the 5th arg is maxCostCents (4th is units which was undefined here).
+    const call = mockMiddleware.execute.mock.calls[0]
+    expect(call[4]).toBe(250)
   })
 
   it('withBilling returns 429 for rate limited', async () => {
