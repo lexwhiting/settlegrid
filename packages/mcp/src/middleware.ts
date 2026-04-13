@@ -140,6 +140,8 @@ async function apiCall<T>(
         code?: string
         requiredCents?: number
         availableCents?: number
+        topUpUrl?: string
+        retryAfterSeconds?: number
       } =
         rawData !== null &&
         typeof rawData === 'object' &&
@@ -147,6 +149,11 @@ async function apiCall<T>(
           ? (rawData as Record<string, unknown>)
           : {}
 
+      // Status-code primary routing, with body.code as secondary
+      // discriminator for 403/404 (a 403 without `code: 'TOOL_DISABLED'`
+      // could be a CSRF rejection, IP block, or unrelated forbidden —
+      // we only claim it's a tool-disabled error when the server
+      // explicitly tells us so).
       switch (response.status) {
         case 401:
           throw new InvalidKeyError(data.error)
@@ -154,15 +161,29 @@ async function apiCall<T>(
           throw new InsufficientCreditsError(
             data.requiredCents ?? 0,
             data.availableCents ?? 0,
+            data.topUpUrl,
           )
         case 403:
-          throw new ToolDisabledError(config.toolSlug)
+          if (data.code === 'TOOL_DISABLED') {
+            throw new ToolDisabledError(config.toolSlug)
+          }
+          // Unknown 403 reason — surface as generic unavailable rather
+          // than mis-label as ToolDisabledError.
+          throw new SettleGridUnavailableError(
+            data.error ?? `API returned 403`,
+          )
         case 404:
-          throw new ToolNotFoundError(config.toolSlug)
+          if (data.code === 'TOOL_NOT_FOUND') {
+            throw new ToolNotFoundError(config.toolSlug)
+          }
+          throw new SettleGridUnavailableError(
+            data.error ?? `API returned 404`,
+          )
         case 429: {
-          // RFC 7231: Retry-After is delta-seconds OR HTTP-date.
-          // We support delta-seconds and fall back to 60s for missing,
-          // unparseable, or HTTP-date values.
+          // Retry delay resolution precedence:
+          //   1. Retry-After header (RFC 7231 delta-seconds)
+          //   2. body.retryAfterSeconds (SDK convention)
+          //   3. 60-second default
           const header = response.headers.get('retry-after')
           let retryAfterMs = 60_000
           if (header !== null) {
@@ -170,6 +191,12 @@ async function apiCall<T>(
             if (Number.isFinite(seconds) && seconds >= 0) {
               retryAfterMs = seconds * 1000
             }
+          } else if (
+            typeof data.retryAfterSeconds === 'number' &&
+            Number.isFinite(data.retryAfterSeconds) &&
+            data.retryAfterSeconds >= 0
+          ) {
+            retryAfterMs = data.retryAfterSeconds * 1000
           }
           throw new RateLimitedError(retryAfterMs)
         }
