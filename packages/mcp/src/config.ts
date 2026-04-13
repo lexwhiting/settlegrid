@@ -108,6 +108,11 @@ const sdkConfigSchema = z.object({
   cacheTtlMs: z.number().int().min(0).optional(),
   timeoutMs: z.number().int().min(100).max(30000).optional(),
   toolSecret: z.string().min(1).optional(),
+  rateLimit: z.number().int().min(1).optional(),
+  maxRetries: z.number().int().min(0).max(10).optional(),
+  circuitBreakerThreshold: z.number().int().min(1).optional(),
+  circuitBreakerResetMs: z.number().int().min(1000).optional(),
+  negativeCacheTtlMs: z.number().int().min(0).optional(),
 })
 
 /**
@@ -133,6 +138,16 @@ export interface NormalizedConfig {
    * SDK surface — sg.wrap / sg.validateKey / sg.meter never read it.
    */
   toolSecret?: string
+  /** Rate limit in calls per second */
+  rateLimit?: number
+  /** Max retry attempts on 5xx */
+  maxRetries?: number
+  /** Circuit breaker failure threshold */
+  circuitBreakerThreshold?: number
+  /** Circuit breaker reset cooldown in ms */
+  circuitBreakerResetMs?: number
+  /** Negative cache TTL in ms */
+  negativeCacheTtlMs?: number
 }
 
 /**
@@ -165,6 +180,11 @@ export function normalizeConfig(config: SettleGridConfig): NormalizedConfig {
     // does not shadow a downstream default or show up as `toolSecret: undefined`
     // in JSON-serialized logs. Set only when the caller provided a value.
     ...(parsed.toolSecret !== undefined ? { toolSecret: parsed.toolSecret } : {}),
+    rateLimit: parsed.rateLimit ?? 100,
+    maxRetries: parsed.maxRetries ?? 3,
+    circuitBreakerThreshold: parsed.circuitBreakerThreshold ?? 10,
+    circuitBreakerResetMs: parsed.circuitBreakerResetMs ?? 60_000,
+    negativeCacheTtlMs: parsed.negativeCacheTtlMs ?? 30_000,
   }
 }
 

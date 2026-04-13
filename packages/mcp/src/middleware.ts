@@ -29,6 +29,8 @@ import type {
   ValidateKeyResponse,
 } from './types'
 import type { NormalizedConfig } from './config'
+import { TokenBucketRateLimiter } from './rate-limiter'
+import { CircuitBreaker } from './circuit-breaker'
 
 /**
  * Extract an API key from various sources in priority order:
@@ -108,148 +110,196 @@ export function extractApiKey(
  * `__internal__` namespace below — that mark makes the
  * "exposed for tests, not public API" intent explicit at every call site.
  */
+
+/** Resilience context constructed by createMiddleware, passed to apiCall */
+interface ResilienceContext {
+  rateLimiter: TokenBucketRateLimiter
+  circuitBreaker: CircuitBreaker
+  maxRetries: number
+}
+
 async function apiCall<T>(
   config: NormalizedConfig,
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  resilience?: ResilienceContext,
 ): Promise<T> {
-  const url = `${config.apiUrl}/api/sdk${path}`
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-
-    if (!response.ok) {
-      // Parse error body if possible — swallow parse failures so a
-      // non-JSON 4xx body still produces a useful typed error.
-      //
-      // The raw parsed value from `response.json()` could be ANY JSON type
-      // (object, array, null, number, string). The cast `as { error? }`
-      // is a TypeScript fiction — at runtime we MUST normalize to a plain
-      // object before destructuring, otherwise `null.error` would throw
-      // a TypeError which would then be wrapped in NetworkError, masking
-      // the real status code from the consumer.
-      const rawData = await response.json().catch(() => ({}))
-      const data: {
-        error?: string
-        code?: string
-        requiredCents?: number
-        availableCents?: number
-        topUpUrl?: string
-        retryAfterSeconds?: number
-      } =
-        rawData !== null &&
-        typeof rawData === 'object' &&
-        !Array.isArray(rawData)
-          ? (rawData as Record<string, unknown>)
-          : {}
-
-      // Status-code primary routing, with body.code as secondary
-      // discriminator for 403/404 (a 403 without `code: 'TOOL_DISABLED'`
-      // could be a CSRF rejection, IP block, or unrelated forbidden —
-      // we only claim it's a tool-disabled error when the server
-      // explicitly tells us so).
-      switch (response.status) {
-        case 401:
-          throw new InvalidKeyError(data.error)
-        case 402: {
-          // Server-provided topUpUrl might be any JSON type — typecheck
-          // before passing so non-string values don't reach the error's
-          // template literal (which would coerce to 'null', '[object Object]',
-          // etc. and end up in the consumer-facing error message).
-          const topUpUrl =
-            typeof data.topUpUrl === 'string' ? data.topUpUrl : undefined
-          throw new InsufficientCreditsError(
-            data.requiredCents ?? 0,
-            data.availableCents ?? 0,
-            topUpUrl,
-          )
-        }
-        case 403:
-          if (data.code === 'TOOL_DISABLED') {
-            throw new ToolDisabledError(config.toolSlug)
-          }
-          // Unknown 403 reason — surface as generic unavailable rather
-          // than mis-label as ToolDisabledError.
-          throw new SettleGridUnavailableError(
-            data.error ?? `API returned 403`,
-          )
-        case 404:
-          if (data.code === 'TOOL_NOT_FOUND') {
-            throw new ToolNotFoundError(config.toolSlug)
-          }
-          throw new SettleGridUnavailableError(
-            data.error ?? `API returned 404`,
-          )
-        case 429: {
-          // Retry delay resolution precedence:
-          //   1. Retry-After header (RFC 7231 delta-seconds)
-          //   2. body.retryAfterSeconds (SDK convention)
-          //   3. 60-second default
-          const header = response.headers.get('retry-after')
-          let retryAfterSeconds = 60
-          if (header !== null) {
-            const parsed = Number.parseInt(header, 10)
-            if (Number.isFinite(parsed) && parsed >= 0) {
-              retryAfterSeconds = parsed
-            }
-          } else if (
-            typeof data.retryAfterSeconds === 'number' &&
-            Number.isFinite(data.retryAfterSeconds) &&
-            data.retryAfterSeconds >= 0
-          ) {
-            retryAfterSeconds = data.retryAfterSeconds
-          }
-          // Matches the P1.SDK3 spec wording:
-          //   "pass to RateLimitedError(retryAfterSeconds)"
-          throw RateLimitedError.fromSeconds(retryAfterSeconds)
-        }
-        default:
-          throw new SettleGridUnavailableError(
-            data.error ?? `API returned ${response.status}`,
-          )
-      }
-    }
-
-    // Successful response: handle empty body and JSON parse failures
-    // explicitly. `response.json()` throws SyntaxError on an empty body,
-    // which would otherwise fall through to the NetworkError catch-all.
-    const text = await response.text()
-    if (text.length === 0) {
-      return null as T
-    }
-    try {
-      return JSON.parse(text) as T
-    } catch (parseErr) {
-      // Bind the parse error so its message survives — debugging is much
-      // harder when "Unexpected token x in JSON at position 5" is thrown
-      // away in favor of a generic "body was not valid JSON".
-      const detail = parseErr instanceof Error ? `: ${parseErr.message}` : ''
-      throw new SettleGridUnavailableError(
-        `API returned ${response.status} but response body was not valid JSON${detail}`,
-      )
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new TimeoutError(config.timeoutMs)
-    }
-    // Re-throw any of our typed errors as-is (don't wrap them in
-    // NetworkError just because they bubble through this catch).
-    if (error instanceof SettleGridError) {
-      throw error
-    }
-    throw new NetworkError(
-      error instanceof Error ? error.message : 'Unknown network error',
-    )
-  } finally {
-    clearTimeout(timeout)
+  // Pre-flight: rate limiter
+  if (resilience && !resilience.rateLimiter.tryConsume()) {
+    throw new RateLimitedError(resilience.rateLimiter.msPerToken)
   }
+
+  // Pre-flight: circuit breaker
+  if (resilience && !resilience.circuitBreaker.canExecute()) {
+    throw new SettleGridUnavailableError(
+      'Circuit breaker is open — too many consecutive API failures. Retry after cooldown period.',
+    )
+  }
+
+  const maxAttempts = resilience ? resilience.maxRetries + 1 : 1
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const url = `${config.apiUrl}/api/sdk${path}`
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        // 5xx with retries remaining: record failure and backoff
+        if (response.status >= 500 && resilience && attempt < maxAttempts - 1) {
+          resilience.circuitBreaker.recordFailure()
+          const delayMs = 1000 * Math.pow(2, attempt) // 1s, 2s, 4s
+          await new Promise<void>(r => setTimeout(r, delayMs))
+          continue
+        }
+
+        // 5xx on final attempt: record failure then fall through to error mapping
+        if (response.status >= 500 && resilience) {
+          resilience.circuitBreaker.recordFailure()
+        }
+
+        // Parse error body if possible — swallow parse failures so a
+        // non-JSON 4xx body still produces a useful typed error.
+        //
+        // The raw parsed value from `response.json()` could be ANY JSON type
+        // (object, array, null, number, string). The cast `as { error? }`
+        // is a TypeScript fiction — at runtime we MUST normalize to a plain
+        // object before destructuring, otherwise `null.error` would throw
+        // a TypeError which would then be wrapped in NetworkError, masking
+        // the real status code from the consumer.
+        const rawData = await response.json().catch(() => ({}))
+        const data: {
+          error?: string
+          code?: string
+          requiredCents?: number
+          availableCents?: number
+          topUpUrl?: string
+          retryAfterSeconds?: number
+        } =
+          rawData !== null &&
+          typeof rawData === 'object' &&
+          !Array.isArray(rawData)
+            ? (rawData as Record<string, unknown>)
+            : {}
+
+        // Status-code primary routing, with body.code as secondary
+        // discriminator for 403/404 (a 403 without `code: 'TOOL_DISABLED'`
+        // could be a CSRF rejection, IP block, or unrelated forbidden —
+        // we only claim it's a tool-disabled error when the server
+        // explicitly tells us so).
+        switch (response.status) {
+          case 401:
+            throw new InvalidKeyError(data.error)
+          case 402: {
+            // Server-provided topUpUrl might be any JSON type — typecheck
+            // before passing so non-string values don't reach the error's
+            // template literal (which would coerce to 'null', '[object Object]',
+            // etc. and end up in the consumer-facing error message).
+            const topUpUrl =
+              typeof data.topUpUrl === 'string' ? data.topUpUrl : undefined
+            throw new InsufficientCreditsError(
+              data.requiredCents ?? 0,
+              data.availableCents ?? 0,
+              topUpUrl,
+            )
+          }
+          case 403:
+            if (data.code === 'TOOL_DISABLED') {
+              throw new ToolDisabledError(config.toolSlug)
+            }
+            // Unknown 403 reason — surface as generic unavailable rather
+            // than mis-label as ToolDisabledError.
+            throw new SettleGridUnavailableError(
+              data.error ?? `API returned 403`,
+            )
+          case 404:
+            if (data.code === 'TOOL_NOT_FOUND') {
+              throw new ToolNotFoundError(config.toolSlug)
+            }
+            throw new SettleGridUnavailableError(
+              data.error ?? `API returned 404`,
+            )
+          case 429: {
+            // Retry delay resolution precedence:
+            //   1. Retry-After header (RFC 7231 delta-seconds)
+            //   2. body.retryAfterSeconds (SDK convention)
+            //   3. 60-second default
+            const header = response.headers.get('retry-after')
+            let retryAfterSeconds = 60
+            if (header !== null) {
+              const parsed = Number.parseInt(header, 10)
+              if (Number.isFinite(parsed) && parsed >= 0) {
+                retryAfterSeconds = parsed
+              }
+            } else if (
+              typeof data.retryAfterSeconds === 'number' &&
+              Number.isFinite(data.retryAfterSeconds) &&
+              data.retryAfterSeconds >= 0
+            ) {
+              retryAfterSeconds = data.retryAfterSeconds
+            }
+            // Matches the P1.SDK3 spec wording:
+            //   "pass to RateLimitedError(retryAfterSeconds)"
+            throw RateLimitedError.fromSeconds(retryAfterSeconds)
+          }
+          default:
+            throw new SettleGridUnavailableError(
+              data.error ?? `API returned ${response.status}`,
+            )
+        }
+      }
+
+      // Success: record in circuit breaker
+      if (resilience) {
+        resilience.circuitBreaker.recordSuccess()
+      }
+
+      // Successful response: handle empty body and JSON parse failures
+      // explicitly. `response.json()` throws SyntaxError on an empty body,
+      // which would otherwise fall through to the NetworkError catch-all.
+      const text = await response.text()
+      if (text.length === 0) {
+        return null as T
+      }
+      try {
+        return JSON.parse(text) as T
+      } catch (parseErr) {
+        // Bind the parse error so its message survives — debugging is much
+        // harder when "Unexpected token x in JSON at position 5" is thrown
+        // away in favor of a generic "body was not valid JSON".
+        const detail = parseErr instanceof Error ? `: ${parseErr.message}` : ''
+        throw new SettleGridUnavailableError(
+          `API returned ${response.status} but response body was not valid JSON${detail}`,
+        )
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (resilience) resilience.circuitBreaker.recordFailure()
+        throw new TimeoutError(config.timeoutMs)
+      }
+      // Re-throw any of our typed errors as-is (don't wrap them in
+      // NetworkError just because they bubble through this catch).
+      if (error instanceof SettleGridError) {
+        throw error
+      }
+      if (resilience) resilience.circuitBreaker.recordFailure()
+      throw new NetworkError(
+        error instanceof Error ? error.message : 'Unknown network error',
+      )
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  // Unreachable when maxAttempts >= 1, but TypeScript needs a return path
+  throw new SettleGridUnavailableError('All retry attempts exhausted')
 }
 
 /**
@@ -276,6 +326,16 @@ export function createMiddleware(
 ) {
   const cache = new LRUCache(1000, config.cacheTtlMs)
 
+  // Resilience features (activated when normalizeConfig has set the fields)
+  const resilience: ResilienceContext | undefined = config.maxRetries !== undefined ? {
+    rateLimiter: new TokenBucketRateLimiter(config.rateLimit ?? 100),
+    circuitBreaker: new CircuitBreaker(
+      config.circuitBreakerThreshold ?? 10,
+      config.circuitBreakerResetMs ?? 60_000,
+    ),
+    maxRetries: config.maxRetries,
+  } : undefined
+
   /** Validate an API key against the SettleGrid API (with caching) */
   async function validateKey(apiKey: string): Promise<ValidateKeyResponse> {
     // Check cache first
@@ -294,7 +354,7 @@ export function createMiddleware(
     const result = await apiCall<ValidateKeyResponse>(config, '/validate-key', {
       apiKey,
       toolSlug: config.toolSlug,
-    })
+    }, resilience)
 
     // Cache successful validations
     if (result.valid) {
@@ -305,6 +365,16 @@ export function createMiddleware(
         keyId: result.keyId,
         balanceCents: result.balanceCents,
       })
+    } else {
+      // Negative cache: store invalid results with shorter TTL so repeated
+      // invalid keys don't thrash the API on every call
+      cache.set(apiKey, {
+        valid: false,
+        consumerId: result.consumerId,
+        toolId: result.toolId,
+        keyId: result.keyId,
+        balanceCents: result.balanceCents,
+      }, config.negativeCacheTtlMs ?? 30_000)
     }
 
     return result
@@ -344,7 +414,7 @@ export function createMiddleware(
       method: context.method,
       costCents: context.costCents,
       latencyMs,
-    })
+    }, resilience)
 
     // Invalidate cache to reflect new balance
     // We don't have the raw key here, but the balance will be stale
