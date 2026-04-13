@@ -573,6 +573,25 @@ describe('createDispatchKernel', () => {
       expect(typeof mod.createDispatchKernel).toBe('function')
     })
 
+    it('createDispatchKernel is importable directly from the ./kernel subpath', async () => {
+      // Verifies the P1.K2 DoD item "subpath export works (test by
+      // importing from a different file)". The package.json exports map
+      // routes `@settlegrid/mcp/kernel` to the same bundle as the main
+      // entry; at the source level that target is `packages/mcp/src/kernel.ts`,
+      // which is what this test imports from. If a future refactor
+      // removes the `createDispatchKernel` export from kernel.ts (for
+      // example by deleting the file in favor of a consolidated
+      // barrel), this test fails loudly instead of silently breaking
+      // consumers who use the subpath import.
+      const subpathMod = await import('../kernel')
+      expect(typeof subpathMod.createDispatchKernel).toBe('function')
+      // The function reached via the subpath is the SAME function that
+      // comes out of the package index — single bundle, single runtime
+      // value (no double instantiation of the adapter registry).
+      const indexMod = await import('../index')
+      expect(subpathMod.createDispatchKernel).toBe(indexMod.createDispatchKernel)
+    })
+
     it('DispatchKernel type is usable as a type annotation', () => {
       // The mere fact that this file type-checks with `DispatchKernel`
       // imported from '../index' verifies the type is re-exported.
