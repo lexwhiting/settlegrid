@@ -122,6 +122,7 @@ export interface MeterResult {
 export type SettleGridErrorCode =
   | 'INVALID_KEY'
   | 'INSUFFICIENT_CREDITS'
+  | 'BUDGET_EXCEEDED'
   | 'TOOL_NOT_FOUND'
   | 'TOOL_DISABLED'
   | 'RATE_LIMITED'

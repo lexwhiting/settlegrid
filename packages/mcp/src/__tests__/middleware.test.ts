@@ -348,6 +348,196 @@ describe('sg.wrap() end-to-end with fetch mock — pricing-model → meter body'
     expect(meterCalls[0].costCents).toBe(9)
   })
 
+  // ─── P1.SDK4: settlegrid-max-cost-cents budget cap enforcement ───────────
+  // Consumer sets a max-cost-cents cap in MCP metadata; middleware must
+  // enforce it BEFORE running the handler so the consumer is never charged
+  // for an invocation they refused to pay for.
+
+  it('budget cap: within budget passes through to handler + meter', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-ok',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    // 50 tokens × 1¢ = 50¢. Cap is 100¢ → under budget.
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 50 })
+    const result = await wrapped(
+      {},
+      {
+        headers: { 'x-api-key': 'sg_live_e2e' },
+        metadata: { 'settlegrid-max-cost-cents': 100 },
+      },
+    )
+    expect(result).toEqual({ ok: true })
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(meterCalls).toHaveLength(1)
+    expect(meterCalls[0].costCents).toBe(50)
+  })
+
+  it('budget cap: exceeds cap throws BudgetExceededError with maxCents + requiredCents', async () => {
+    const { BudgetExceededError } = await import('../errors')
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-over',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    // 500 tokens × 1¢ = 500¢, cap is 100¢ → exceeds
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 500 })
+    let caught: unknown
+    try {
+      await wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': 100 },
+        },
+      )
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(BudgetExceededError)
+    const err = caught as InstanceType<typeof BudgetExceededError>
+    expect(err.maxCents).toBe(100)
+    expect(err.requiredCents).toBe(500)
+    expect(err.statusCode).toBe(402)
+    expect(err.code).toBe('BUDGET_EXCEEDED')
+    // Handler MUST NOT have been called — budget is enforced pre-handler
+    expect(handler).not.toHaveBeenCalled()
+    // Meter MUST NOT have been called — no charge on rejected calls
+    expect(meterCalls).toHaveLength(0)
+  })
+
+  it('budget cap: header unset → no cap (default behavior preserved)', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-none',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 999 })
+    // No metadata at all → no budget enforcement
+    const result = await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+    expect(result).toEqual({ ok: true })
+    expect(handler).toHaveBeenCalled()
+    expect(meterCalls[0].costCents).toBe(999)
+  })
+
+  it('budget cap: header invalid (negative) throws with actionable message', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-bad',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'generate', units: 10 })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': -50 },
+        },
+      ),
+    ).rejects.toThrow(/Invalid settlegrid-max-cost-cents.*-50/)
+  })
+
+  it('budget cap: header invalid (NaN) throws with actionable message', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-nan',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'generate', units: 10 })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': Number.NaN },
+        },
+      ),
+    ).rejects.toThrow(/Invalid settlegrid-max-cost-cents/)
+  })
+
+  it('budget cap: header invalid (fractional) throws — cents must be integers', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-frac',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'generate', units: 10 })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': 10.5 },
+        },
+      ),
+    ).rejects.toThrow(/Invalid settlegrid-max-cost-cents/)
+  })
+
+  it('budget cap: header invalid (non-number) throws', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-str',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'generate', units: 10 })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': '100' as unknown as number },
+        },
+      ),
+    ).rejects.toThrow(/Invalid settlegrid-max-cost-cents/)
+  })
+
+  it('budget cap: header === exact cost passes (inclusive boundary)', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-exact',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    // 100 tokens × 1¢ = 100¢ === 100¢ cap → inclusive pass
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 100 })
+    await wrapped(
+      {},
+      {
+        headers: { 'x-api-key': 'sg_live_e2e' },
+        metadata: { 'settlegrid-max-cost-cents': 100 },
+      },
+    )
+    expect(handler).toHaveBeenCalled()
+    expect(meterCalls[0].costCents).toBe(100)
+  })
+
+  it('budget cap: header = 0 rejects every non-zero call', async () => {
+    const { BudgetExceededError } = await import('../errors')
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-zero',
+      pricing: { model: 'per-invocation', defaultCostCents: 1 },
+      debug: true,
+    })
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    // 1¢ invocation vs 0¢ cap → rejected
+    const wrapped = sg.wrap(handler, { method: 'generate' })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': 0 },
+        },
+      ),
+    ).rejects.toBeInstanceOf(BudgetExceededError)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
   it('insufficient credits: rejects when balance < per-token cost', async () => {
     // Override the validateKey response with a tiny balance for this test
     fetchMock.mockImplementation(async (url: string, init: RequestInit) => {

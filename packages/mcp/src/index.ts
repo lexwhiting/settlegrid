@@ -50,6 +50,7 @@ export const SDK_VERSION = '0.1.1' as const
 export {
   InvalidKeyError,
   InsufficientCreditsError,
+  BudgetExceededError,
   SettleGridError,
   ToolNotFoundError,
   ToolDisabledError,
@@ -349,7 +350,24 @@ export const settlegrid = {
             )
           }
 
-          return middleware.execute(apiKey, method, () => handler(args), units)
+          // Read consumer's budget cap from MCP metadata. Validation
+          // happens inside middleware.execute() so both wrap() and
+          // direct callers go through the same code path. The cast to
+          // `unknown` preserves whatever the server sent so
+          // middleware.execute can reject non-numeric values with a
+          // descriptive error (which the REST middleware then maps to
+          // HTTP 400).
+          const maxCostCents = context?.metadata?.['settlegrid-max-cost-cents'] as
+            | number
+            | undefined
+
+          return middleware.execute(
+            apiKey,
+            method,
+            () => handler(args),
+            units,
+            maxCostCents,
+          )
         }
       },
 

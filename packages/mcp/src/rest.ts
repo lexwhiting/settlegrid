@@ -132,11 +132,44 @@ export function settlegridMiddleware(options: RestMiddlewareOptions) {
 
     const wrappedHandler = sg.wrap(async () => handler(), { method })
 
+    // Forward metadata if the caller stashed it on the request (Hono,
+    // Next.js with custom headers, etc.). The REST entry point doesn't
+    // receive MCP _meta directly, so consumers wanting budget caps via
+    // REST can set `settlegrid-max-cost-cents` as a numeric header.
+    const metadata: Record<string, unknown> = {}
+    const headerMaxCost = headers['settlegrid-max-cost-cents']
+    if (headerMaxCost !== undefined) {
+      const raw = Array.isArray(headerMaxCost) ? headerMaxCost[0] : headerMaxCost
+      const parsed = Number(raw)
+      // Pass through even if it's invalid — let middleware.execute
+      // produce the descriptive error so the REST catch block below
+      // can map it to HTTP 400 consistently.
+      metadata['settlegrid-max-cost-cents'] = Number.isNaN(parsed) ? raw : parsed
+    }
+
     try {
-      return await wrappedHandler({}, { headers })
+      return await wrappedHandler({}, { headers, metadata })
     } catch (error) {
       // Format SettleGrid errors as HTTP responses with appropriate status codes
       if (error instanceof SettleGridError) {
+        if (error.name === 'BudgetExceededError') {
+          // BudgetExceededError has `maxCents` and `requiredCents` fields
+          // that the client needs to see to decide whether to retry with
+          // a higher cap.
+          const e = error as SettleGridError & {
+            maxCents?: number
+            requiredCents?: number
+          }
+          return new Response(
+            JSON.stringify({
+              error: 'Budget exceeded',
+              code: 'BUDGET_EXCEEDED',
+              maxCents: e.maxCents,
+              requiredCents: e.requiredCents,
+            }),
+            { status: 402, headers: { 'Content-Type': 'application/json' } }
+          )
+        }
         if (error.name === 'InsufficientCreditsError') {
           return new Response(
             JSON.stringify({
@@ -186,6 +219,23 @@ export function settlegridMiddleware(options: RestMiddlewareOptions) {
         return new Response(
           JSON.stringify(error.toJSON()),
           { status: error.statusCode, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      // Non-SettleGridError: check for the validation-error prefix thrown
+      // by middleware.execute() when input headers are malformed
+      // (e.g. non-numeric settlegrid-max-cost-cents). Map to HTTP 400
+      // Bad Request so the consumer gets an actionable status code
+      // instead of an opaque 500.
+      if (
+        error instanceof Error &&
+        error.message.startsWith('Invalid settlegrid-max-cost-cents')
+      ) {
+        return new Response(
+          JSON.stringify({
+            error: error.message,
+            code: 'INVALID_BUDGET_HEADER',
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
         )
       }
       throw error

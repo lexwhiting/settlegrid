@@ -145,6 +145,41 @@ export class InsufficientCreditsError extends SettleGridError {
 }
 
 /**
+ * Thrown when a consumer sets a `settlegrid-max-cost-cents` budget cap
+ * in tool-call metadata and the resolved cost of the invocation exceeds
+ * that cap. The call is rejected BEFORE the handler runs so the consumer
+ * is never charged for a tool they refused to pay for.
+ *
+ * **How to fix:** Either increase `settlegrid-max-cost-cents` (or omit it
+ * entirely to use the default cap) or use a cheaper invocation method.
+ * The `maxCents` and `requiredCents` properties tell you the exact delta.
+ *
+ * @example
+ * ```typescript
+ * catch (err) {
+ *   if (err instanceof BudgetExceededError) {
+ *     console.log(`Call would cost ${err.requiredCents}c but budget cap is ${err.maxCents}c`)
+ *   }
+ * }
+ * ```
+ */
+export class BudgetExceededError extends SettleGridError {
+  public readonly maxCents: number
+  public readonly requiredCents: number
+
+  constructor(maxCents: number, requiredCents: number) {
+    super(
+      `Budget exceeded: settlegrid-max-cost-cents is ${maxCents} but this call would cost ${requiredCents} cents. Increase the cap or omit the header.`,
+      'BUDGET_EXCEEDED',
+      402
+    )
+    this.name = 'BudgetExceededError'
+    this.maxCents = maxCents
+    this.requiredCents = requiredCents
+  }
+}
+
+/**
  * Thrown when the requested tool slug is not registered on SettleGrid.
  *
  * **How to fix:** Check that `toolSlug` matches exactly what you registered
