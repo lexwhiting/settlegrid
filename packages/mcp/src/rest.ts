@@ -136,15 +136,23 @@ export function settlegridMiddleware(options: RestMiddlewareOptions) {
     // Next.js with custom headers, etc.). The REST entry point doesn't
     // receive MCP _meta directly, so consumers wanting budget caps via
     // REST can set `settlegrid-max-cost-cents` as a numeric header.
+    //
+    // Empty-string / whitespace-only header values are intentionally
+    // treated as "header not set" rather than forwarded. Without this
+    // guard, `Number('') === 0` silently gives consumers a zero-budget
+    // cap (rejecting every non-free call) when they meant "use default,
+    // no cap". Non-empty values are passed through as-is — even invalid
+    // ones — so middleware.execute can produce a descriptive error that
+    // the catch block below maps to HTTP 400.
     const metadata: Record<string, unknown> = {}
     const headerMaxCost = headers['settlegrid-max-cost-cents']
     if (headerMaxCost !== undefined) {
       const raw = Array.isArray(headerMaxCost) ? headerMaxCost[0] : headerMaxCost
-      const parsed = Number(raw)
-      // Pass through even if it's invalid — let middleware.execute
-      // produce the descriptive error so the REST catch block below
-      // can map it to HTTP 400 consistently.
-      metadata['settlegrid-max-cost-cents'] = Number.isNaN(parsed) ? raw : parsed
+      const trimmed = typeof raw === 'string' ? raw.trim() : raw
+      if (trimmed !== undefined && trimmed !== '') {
+        const parsed = Number(trimmed)
+        metadata['settlegrid-max-cost-cents'] = Number.isNaN(parsed) ? trimmed : parsed
+      }
     }
 
     try {
@@ -221,14 +229,15 @@ export function settlegridMiddleware(options: RestMiddlewareOptions) {
           { status: error.statusCode, headers: { 'Content-Type': 'application/json' } }
         )
       }
-      // Non-SettleGridError: check for the validation-error prefix thrown
-      // by middleware.execute() when input headers are malformed
-      // (e.g. non-numeric settlegrid-max-cost-cents). Map to HTTP 400
-      // Bad Request so the consumer gets an actionable status code
-      // instead of an opaque 500.
+      // Non-SettleGridError: middleware.execute() tags input-validation
+      // errors with a `code: 'INVALID_BUDGET_HEADER'` property when the
+      // settlegrid-max-cost-cents metadata field is malformed. Match on
+      // the code (NOT the message) so consumer handlers that happen to
+      // throw errors with similar message text don't get false-positive
+      // mapped to 400.
       if (
         error instanceof Error &&
-        error.message.startsWith('Invalid settlegrid-max-cost-cents')
+        (error as Error & { code?: string }).code === 'INVALID_BUDGET_HEADER'
       ) {
         return new Response(
           JSON.stringify({
