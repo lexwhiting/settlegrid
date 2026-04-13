@@ -144,9 +144,52 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(err.availableCents).toBe(0)
   })
 
-  // ─── 4. 404 → ToolNotFoundError ───────────────────────────────────────────
-  it('404: throws ToolNotFoundError carrying the toolSlug', async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({ error: 'not found' }, 404))
+  // ─── P1.SDK3: InsufficientCreditsError.topUpUrl is populated from body ────
+  it('402 with topUpUrl in body: InsufficientCreditsError carries the custom URL', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse(
+        {
+          requiredCents: 500,
+          availableCents: 200,
+          topUpUrl: 'https://settlegrid.ai/top-up?tool=unit-tested-tool',
+        },
+        402,
+      ),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as InsufficientCreditsError
+    expect(err).toBeInstanceOf(InsufficientCreditsError)
+    expect(err.requiredCents).toBe(500)
+    expect(err.availableCents).toBe(200)
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up?tool=unit-tested-tool')
+    // Message must include the custom URL (not the hardcoded fallback)
+    expect(err.message).toContain('unit-tested-tool')
+  })
+
+  it('402 without topUpUrl in body: InsufficientCreditsError uses the default URL', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ requiredCents: 100, availableCents: 25 }, 402),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as InsufficientCreditsError
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
+  })
+
+  // ─── 4. 404 with code: 'TOOL_NOT_FOUND' → ToolNotFoundError ──────────────
+  it('404 with code: TOOL_NOT_FOUND: throws ToolNotFoundError carrying the slug', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ error: 'not found', code: 'TOOL_NOT_FOUND' }, 404),
+    )
     let caught: unknown
     try {
       await apiCall(baseConfig, '/validate-key', {})
@@ -156,11 +199,44 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(caught).toBeInstanceOf(ToolNotFoundError)
     expect((caught as Error).message).toContain('unit-tested-tool')
     expect((caught as ToolNotFoundError).statusCode).toBe(404)
+    expect((caught as ToolNotFoundError).code).toBe('TOOL_NOT_FOUND')
   })
 
-  // ─── 5. 403 → ToolDisabledError ───────────────────────────────────────────
-  it('403: throws ToolDisabledError carrying the toolSlug', async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({ error: 'disabled' }, 403))
+  it('404 WITHOUT the TOOL_NOT_FOUND code: falls through to SettleGridUnavailableError', async () => {
+    // A 404 without an explicit `code` could mean anything (wrong path,
+    // deleted resource, reverse proxy 404). Don't mis-label it as a
+    // tool-not-found error.
+    fetchSpy.mockResolvedValue(jsonResponse({ error: 'gone' }, 404))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/validate-key', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).not.toBeInstanceOf(ToolNotFoundError)
+    expect(caught).toBeInstanceOf(SettleGridUnavailableError)
+    expect((caught as Error).message).toContain('gone')
+  })
+
+  it('404 with a DIFFERENT code: falls through to SettleGridUnavailableError', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ error: 'path missing', code: 'RESOURCE_MISSING' }, 404),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/validate-key', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).not.toBeInstanceOf(ToolNotFoundError)
+    expect(caught).toBeInstanceOf(SettleGridUnavailableError)
+  })
+
+  // ─── 5. 403 with code: 'TOOL_DISABLED' → ToolDisabledError ────────────────
+  it('403 with code: TOOL_DISABLED: throws ToolDisabledError carrying the slug', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ error: 'disabled', code: 'TOOL_DISABLED' }, 403),
+    )
     let caught: unknown
     try {
       await apiCall(baseConfig, '/validate-key', {})
@@ -170,10 +246,40 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(caught).toBeInstanceOf(ToolDisabledError)
     expect((caught as Error).message).toContain('unit-tested-tool')
     expect((caught as ToolDisabledError).statusCode).toBe(403)
+    expect((caught as ToolDisabledError).code).toBe('TOOL_DISABLED')
+  })
+
+  it('403 WITHOUT the TOOL_DISABLED code: falls through to SettleGridUnavailableError', async () => {
+    // A 403 could be IP blocking, CSRF, WAF, etc. Don't claim it's a
+    // tool-disabled error unless the server says so.
+    fetchSpy.mockResolvedValue(jsonResponse({ error: 'forbidden' }, 403))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/validate-key', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).not.toBeInstanceOf(ToolDisabledError)
+    expect(caught).toBeInstanceOf(SettleGridUnavailableError)
+    expect((caught as Error).message).toContain('forbidden')
+  })
+
+  it('403 with a DIFFERENT code: falls through to SettleGridUnavailableError', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ error: 'ip blocked', code: 'IP_BLOCKED' }, 403),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/validate-key', {})
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).not.toBeInstanceOf(ToolDisabledError)
+    expect(caught).toBeInstanceOf(SettleGridUnavailableError)
   })
 
   // ─── 6. 429 → RateLimitedError with retryAfterMs ─────────────────────────
-  it('429: throws RateLimitedError with retryAfterMs from Retry-After header', async () => {
+  it('429: throws RateLimitedError with retryAfterMs + retryAfterSeconds from Retry-After header', async () => {
     fetchSpy.mockResolvedValue(
       jsonResponse({ error: 'rate limited' }, 429, { 'retry-after': '30' }),
     )
@@ -184,9 +290,40 @@ describe('apiCall — HTTP client error mapping', () => {
       caught = e
     }
     expect(caught).toBeInstanceOf(RateLimitedError)
-    // 30 seconds → 30_000 ms
-    expect((caught as RateLimitedError).retryAfterMs).toBe(30_000)
-    expect((caught as RateLimitedError).statusCode).toBe(429)
+    const err = caught as RateLimitedError
+    expect(err.retryAfterMs).toBe(30_000)
+    // P1.SDK3: retryAfterSeconds accessor matches the header value
+    expect(err.retryAfterSeconds).toBe(30)
+    expect(err.statusCode).toBe(429)
+  })
+
+  it('429 with retryAfterSeconds in body (no Retry-After header): falls back to body value', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ retryAfterSeconds: 45 }, 429))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    expect(err).toBeInstanceOf(RateLimitedError)
+    expect(err.retryAfterMs).toBe(45_000)
+    expect(err.retryAfterSeconds).toBe(45)
+  })
+
+  it('429: header takes precedence over body retryAfterSeconds', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ retryAfterSeconds: 999 }, 429, { 'retry-after': '10' }),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    // Header wins — body value ignored
+    expect(err.retryAfterSeconds).toBe(10)
   })
 
   it('429: defaults retryAfterMs to 60_000 when Retry-After is missing', async () => {
