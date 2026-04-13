@@ -52,14 +52,21 @@ Test 3: POST /search with payment-signature → 200 (x402)
 npm run dev
 ```
 
-Starts a Hono server on the default port. Send requests with `curl`:
+Starts a Hono HTTP listener on **port 3456** (override with `PORT=<n>`).
+
+> **Note:** The dev server makes real HTTPS calls to `settlegrid.ai` for
+> key validation, metering, and facilitator verification. With the demo's
+> placeholder `toolSlug` / `toolSecret`, those calls will fail and the
+> kernel will return error responses. To get successful responses from
+> `curl`, either swap in real SettleGrid credentials in `server.ts` or
+> use `npm test` instead (the E2E test mocks all outbound fetch calls).
 
 ```bash
-# No payment → 402
-curl -X POST http://localhost:3000/search
+# No payment → 402 (works without credentials — no outbound call needed)
+curl -X POST http://localhost:3456/search
 
-# sg-balance → 200
-curl -X POST http://localhost:3000/search -H "x-api-key: sg_live_your_key"
+# sg-balance → needs real x-api-key registered on settlegrid.ai
+curl -X POST http://localhost:3456/search -H "x-api-key: sg_live_your_key"
 ```
 
 ## How it works
