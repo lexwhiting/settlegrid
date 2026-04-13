@@ -538,6 +538,34 @@ describe('sg.wrap() end-to-end with fetch mock — pricing-model → meter body'
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('budget cap: invalid-header error carries code: INVALID_BUDGET_HEADER marker', async () => {
+    // Hostile-review fix: the thrown Error has a `code` property so
+    // REST middleware can detect it robustly (instead of matching on
+    // the message prefix, which would break on localization and
+    // false-positive on consumer handler errors with similar text).
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-marker',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'gen', units: 10 })
+    let caught: unknown
+    try {
+      await wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': -1 },
+        },
+      )
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(Error)
+    expect((caught as Error & { code?: string }).code).toBe('INVALID_BUDGET_HEADER')
+    expect((caught as Error).message).toMatch(/Invalid settlegrid-max-cost-cents/)
+  })
+
   it('insufficient credits: rejects when balance < per-token cost', async () => {
     // Override the validateKey response with a tiny balance for this test
     fetchMock.mockImplementation(async (url: string, init: RequestInit) => {

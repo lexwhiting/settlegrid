@@ -383,23 +383,27 @@ export function createMiddleware(
     // "check whether `context.metadata['settlegrid-max-cost-cents']` is
     // set"). Validate: must be a finite non-negative integer — fractional
     // cents don't make sense, negative cap would never trigger,
-    // NaN/Infinity would produce confusing behavior. The error message
-    // mentions the header name so REST middleware can detect it and map
-    // to HTTP 400.
+    // NaN/Infinity would produce confusing behavior. The thrown Error
+    // carries a `code: 'INVALID_BUDGET_HEADER'` marker so REST
+    // middleware can detect it robustly (instead of matching on the
+    // error message prefix, which would break on localization /
+    // refactors and false-positive on consumer handler errors that
+    // happen to start with the same string).
     const rawMaxCost = metadata?.['settlegrid-max-cost-cents']
     let maxCostCents: number | undefined = undefined
     if (rawMaxCost !== undefined) {
       if (
         typeof rawMaxCost !== 'number' ||
-        !Number.isFinite(rawMaxCost) ||
-        rawMaxCost < 0 ||
-        !Number.isInteger(rawMaxCost)
+        !Number.isInteger(rawMaxCost) ||
+        rawMaxCost < 0
       ) {
-        throw new Error(
+        const err = new Error(
           `Invalid settlegrid-max-cost-cents: ${String(rawMaxCost)}. ` +
             'Must be a finite non-negative integer representing cents. ' +
             'Omit the header to disable the budget cap.',
         )
+        ;(err as Error & { code?: string }).code = 'INVALID_BUDGET_HEADER'
+        throw err
       }
       maxCostCents = rawMaxCost
     }

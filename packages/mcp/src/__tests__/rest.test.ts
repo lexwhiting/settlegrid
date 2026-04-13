@@ -173,11 +173,15 @@ describe('settlegridMiddleware', () => {
   })
 
   it('withBilling returns 400 for invalid settlegrid-max-cost-cents header', async () => {
-    mockMiddleware.execute.mockRejectedValueOnce(
-      new Error(
-        'Invalid settlegrid-max-cost-cents: not-a-number. Must be a finite non-negative integer representing cents.',
-      ),
+    // Build the error the same way middleware.execute does: plain Error
+    // with a `code: 'INVALID_BUDGET_HEADER'` marker property. REST
+    // matches on the code, not the message prefix (hostile-review fix).
+    const invalidErr = new Error(
+      'Invalid settlegrid-max-cost-cents: not-a-number. Must be a finite non-negative integer representing cents.',
     )
+    ;(invalidErr as Error & { code?: string }).code = 'INVALID_BUDGET_HEADER'
+    mockMiddleware.execute.mockRejectedValueOnce(invalidErr)
+
     const withBilling = settlegridMiddleware({
       toolSlug: 'test-api',
       costCents: 5,
@@ -195,6 +199,72 @@ describe('settlegridMiddleware', () => {
     const body = await response.json()
     expect(body.code).toBe('INVALID_BUDGET_HEADER')
     expect(body.error).toMatch(/Invalid settlegrid-max-cost-cents/)
+  })
+
+  it('withBilling does NOT map unrelated errors with similar messages to 400', async () => {
+    // Regression guard: a consumer handler throwing an error whose
+    // message happens to contain "Invalid settlegrid-max-cost-cents"
+    // should NOT be false-positive-mapped to 400. Only errors with the
+    // `code: 'INVALID_BUDGET_HEADER'` marker should take that branch.
+    // The old (pre-hostile-fix) message-prefix match would have broken
+    // this — the new code-based match correctly rethrows.
+    mockMiddleware.execute.mockRejectedValueOnce(
+      new Error(
+        'Invalid settlegrid-max-cost-cents: simulated consumer handler crash',
+      ),
+    )
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/generate', {
+      headers: { 'x-api-key': 'sg_live_test' },
+    })
+    // Consumer errors without the marker propagate (rethrown)
+    await expect(
+      withBilling(request, async () => new Response('unused')),
+    ).rejects.toThrow(/simulated consumer handler crash/)
+  })
+
+  it('withBilling treats empty settlegrid-max-cost-cents header as unset (H1 fix)', async () => {
+    // Empty header value should NOT silently become a 0 budget cap
+    // (Number('') === 0 is a JS footgun). REST trims and skips.
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/search', {
+      headers: {
+        'x-api-key': 'sg_live_test',
+        'settlegrid-max-cost-cents': '',
+      },
+    })
+    await withBilling(request, async () => {
+      return new Response(JSON.stringify({ ok: true }))
+    })
+    // Metadata should NOT contain the budget cap key — absent header
+    const call = mockMiddleware.execute.mock.calls[0]
+    const metadata = call[4] as Record<string, unknown>
+    expect(metadata).not.toHaveProperty('settlegrid-max-cost-cents')
+  })
+
+  it('withBilling treats whitespace-only settlegrid-max-cost-cents header as unset', async () => {
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/search', {
+      headers: {
+        'x-api-key': 'sg_live_test',
+        'settlegrid-max-cost-cents': '   ',
+      },
+    })
+    await withBilling(request, async () => {
+      return new Response(JSON.stringify({ ok: true }))
+    })
+    const call = mockMiddleware.execute.mock.calls[0]
+    const metadata = call[4] as Record<string, unknown>
+    expect(metadata).not.toHaveProperty('settlegrid-max-cost-cents')
   })
 
   it('withBilling forwards settlegrid-max-cost-cents header into metadata', async () => {
