@@ -141,17 +141,25 @@ export class UCPAdapter implements ProtocolAdapter {
 
   /**
    * Build the `accepts[]` challenge entry for the UCP (Universal
-   * Commerce Protocol) rail. Renamed from `toAcceptEntry` in P1.K4.
-   * Minimal stub — a future pass will replace this with the
-   * session-based checkout entry (create/update/complete URLs,
-   * payment handler list, .well-known/ucp discovery info).
+   * Commerce Protocol) rail.
+   *
+   * Mirrors the characteristic fields from the canonical
+   * `generateUcp402Response` in `apps/web/src/lib/ucp-proxy.ts`
+   * (protocol + amount_cents + currency + checkout.supported_payment_handlers).
+   * A future pass will replace this with a full session-based
+   * checkout entry (create/update/complete session URLs,
+   * .well-known/ucp discovery info) — today's stub carries the
+   * list of supported handlers so a client can pick one.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {
       scheme: 'ucp',
+      provider: 'google-shopify',
       costCents,
+      currency: 'USD',
+      supportedPaymentHandlers: ['google-pay', 'shop-pay', 'stripe'],
     }
   }
 }

@@ -973,8 +973,12 @@ describe('buildMultiProtocol402', () => {
         expect(typeof entry.scheme).toBe('string')
         expect(typeof entry.costCents).toBe('number')
       }
-      // The schemes match the protocol names 1:1 for these fallback
-      // entries (the real shapes will be filled in by P1.K4).
+      // The schemes match the protocol names 1:1. P1.K4 enriched the
+      // six stubs with canonical provider/currency/accepted* fields
+      // drawn from apps/web/src/lib/*-proxy.ts `generate*402Response`
+      // functions — this loose assertion only verifies each entry has
+      // `scheme` (string) and `costCents` (number). The per-adapter
+      // DoD tests in protocol-adapters.test.ts verify the full shape.
       expect(body.accepts.map((e) => e.scheme)).toEqual([
         'ap2',
         'visa-tap',

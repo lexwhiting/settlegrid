@@ -1150,43 +1150,102 @@ describe('buildChallenge() — one test per adapter (P1.K4 DoD)', () => {
     })
   })
 
-  it('AP2Adapter: ap2 scheme fallback entry', () => {
+  it('AP2Adapter: ap2 scheme with provider and currency', () => {
     const adapter = new AP2Adapter()
     const entry = adapter.buildChallenge(BASE_OPTIONS)
-    // Phase 1 AP2 stub — P1.K4 leaves it as a minimal fallback; a
-    // future pass will add the AP2-specific mandate fields.
-    expect(entry).toEqual({ scheme: 'ap2', costCents: 5 })
+    // Shape derived from generateAp2_402Response in
+    // apps/web/src/lib/ap2-proxy.ts — protocol + amount_cents +
+    // currency, with the provider credited as Google (AP2 was
+    // introduced as Google Agentic Payments).
+    expect(entry).toEqual({
+      scheme: 'ap2',
+      provider: 'google',
+      costCents: 5,
+      currency: 'USD',
+    })
   })
 
-  it('TAPAdapter: visa-tap scheme fallback entry', () => {
+  it('TAPAdapter: visa-tap scheme with accepted token list', () => {
     const adapter = new TAPAdapter()
     const entry = adapter.buildChallenge(BASE_OPTIONS)
-    // Phase 1 Visa TAP stub — blocked on Visa sandbox access; the
-    // minimal fallback is intentional until those credentials land.
-    expect(entry).toEqual({ scheme: 'visa-tap', costCents: 5 })
+    // Shape derived from generateVisaTap402Response in
+    // apps/web/src/lib/visa-tap-proxy.ts — the canonical carries
+    // `accepted_tokens: ['visa_agent_token']`, normalized here to
+    // camelCase `acceptedTokens` with a hyphenated literal.
+    expect(entry).toEqual({
+      scheme: 'visa-tap',
+      provider: 'visa',
+      costCents: 5,
+      currency: 'USD',
+      acceptedTokens: ['visa-agent-token'],
+    })
   })
 
-  it('CircleNanoAdapter: circle-nano scheme fallback entry', () => {
+  it('CircleNanoAdapter: circle-nano scheme with USDC base units and accepted payments', () => {
     const adapter = new CircleNanoAdapter()
     const entry = adapter.buildChallenge(BASE_OPTIONS)
-    expect(entry).toEqual({ scheme: 'circle-nano', costCents: 5 })
+    // Shape derived from generateCircleNano402Response in
+    // apps/web/src/lib/circle-nano-proxy.ts — protocol +
+    // amount_cents + amount_usdc_base_units + currency 'usdc' +
+    // accepted_payments ['eip3009-nanopayment']. 5 cents × 10_000
+    // base units/cent = 50000 USDC base units.
+    expect(entry).toEqual({
+      scheme: 'circle-nano',
+      provider: 'circle',
+      costCents: 5,
+      currency: 'USDC',
+      amountUsdcBaseUnits: '50000',
+      acceptedPayments: ['eip3009-nanopayment'],
+    })
   })
 
-  it('MastercardVIAdapter: mastercard-vi scheme fallback entry', () => {
+  it('MastercardVIAdapter: mastercard-vi scheme with accepted credentials', () => {
     const adapter = new MastercardVIAdapter()
     const entry = adapter.buildChallenge(BASE_OPTIONS)
-    expect(entry).toEqual({ scheme: 'mastercard-vi', costCents: 5 })
+    // Shape derived from generateMastercard402Response in
+    // apps/web/src/lib/mastercard-proxy.ts — the canonical carries
+    // `accepted_credentials: ['sd-jwt-verifiable-intent']`, which
+    // this adapter forwards so clients can recognize the credential
+    // format they need to present.
+    expect(entry).toEqual({
+      scheme: 'mastercard-vi',
+      provider: 'mastercard',
+      costCents: 5,
+      currency: 'USD',
+      acceptedCredentials: ['sd-jwt-verifiable-intent'],
+    })
   })
 
-  it('ACPAdapter: acp scheme fallback entry', () => {
+  it('ACPAdapter: acp scheme with provider and currency', () => {
     const adapter = new ACPAdapter()
     const entry = adapter.buildChallenge(BASE_OPTIONS)
-    expect(entry).toEqual({ scheme: 'acp', costCents: 5 })
+    // Shape derived from generateAcp402Response in
+    // apps/web/src/lib/acp-proxy.ts — the canonical has a
+    // checkout.url field and recipient ID that the P1.K4 stub
+    // leaves for a future pass; today it carries just
+    // provider + currency so clients can recognize the rail.
+    expect(entry).toEqual({
+      scheme: 'acp',
+      provider: 'openai-stripe',
+      costCents: 5,
+      currency: 'USD',
+    })
   })
 
-  it('UCPAdapter: ucp scheme fallback entry', () => {
+  it('UCPAdapter: ucp scheme with supported payment handlers', () => {
     const adapter = new UCPAdapter()
     const entry = adapter.buildChallenge(BASE_OPTIONS)
-    expect(entry).toEqual({ scheme: 'ucp', costCents: 5 })
+    // Shape derived from generateUcp402Response in
+    // apps/web/src/lib/ucp-proxy.ts — the canonical has a
+    // checkout.supported_payment_handlers list that this adapter
+    // forwards under the camelCase `supportedPaymentHandlers`
+    // field so UCP clients can pick a handler to negotiate with.
+    expect(entry).toEqual({
+      scheme: 'ucp',
+      provider: 'google-shopify',
+      costCents: 5,
+      currency: 'USD',
+      supportedPaymentHandlers: ['google-pay', 'shop-pay', 'stripe'],
+    })
   })
 })
