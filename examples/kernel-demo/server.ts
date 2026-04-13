@@ -37,3 +37,29 @@ app.post('/search', async (c) => {
 
 export { app }
 export default app
+
+// ─── Standalone listener ──────────────────────────────────────────────────
+//
+// When this file is executed directly (`npx tsx server.ts` or `npm run dev`),
+// start a Hono Node.js HTTP listener on port 3456 (or PORT env). When
+// imported as a module (by client-test.ts or another consumer), the listener
+// is NOT started — only the `app` export is used.
+//
+// Detection: Node sets `import.meta.url` to the file URL of the current
+// module. `process.argv[1]` is the entry-point script path. If they match,
+// we're the main module.
+
+import { serve } from '@hono/node-server'
+import { fileURLToPath } from 'node:url'
+
+const isMainModule =
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === process.argv[1]
+
+if (isMainModule) {
+  const port = Number(process.env.PORT) || 3456
+  serve({ fetch: app.fetch, port }, () => {
+    console.log(`SettleGrid kernel demo listening on http://localhost:${port}`)
+    console.log('Try: curl -X POST http://localhost:' + port + '/search')
+  })
+}
