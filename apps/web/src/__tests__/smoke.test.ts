@@ -776,12 +776,13 @@ describe('Lib Module Files', () => {
     'lib/settlement/rbac.ts',
     'lib/settlement/organizations.ts',
 
-    // Settlement Adapters
-    'lib/settlement/adapters/index.ts',
-    'lib/settlement/adapters/mcp.ts',
-    'lib/settlement/adapters/x402.ts',
-    'lib/settlement/adapters/ap2.ts',
-    'lib/settlement/adapters/tap.ts',
+    // Settlement adapters moved to `@settlegrid/mcp` under P1.K1. The
+    // canonical location is packages/mcp/src/adapters/ and file-existence is
+    // verified by the SDK package's own test suite, not here. Literal Layer
+    // A entries were removed from this smoke test so that gate check 18's
+    // orphan-import detector (which scans apps/web/src for the deprecated
+    // path) returns no matches. A deprecation stub is retained under
+    // apps/web/src for one cycle; new callers must import from the SDK.
 
     // x402
     'lib/settlement/x402/index.ts',

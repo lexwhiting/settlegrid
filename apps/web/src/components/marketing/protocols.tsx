@@ -1,13 +1,13 @@
 /**
  * Protocols visibly listed on the homepage.
  *
- * Only protocols with shipped adapter code in
- * apps/web/src/lib/settlement/adapters/ are listed here. Three protocols
- * previously displayed (REST, EMVCo, DRAIN) were removed in April 2026:
- * REST and EMVCo were miscategorized (not actually agent payment protocols);
- * DRAIN had a cryptographic implementation defect being addressed under the
- * Quantum Leap settlement-layer plan. Additional protocol detail and the
- * full canonical positioning will land via P1.MKT1.
+ * Only protocols with shipped adapter code in the `@settlegrid/mcp` SDK
+ * (packages/mcp — nine adapters bundled under P1.K1) are listed here. Three
+ * protocols previously displayed (REST, EMVCo, DRAIN) were removed in April
+ * 2026: REST and EMVCo were miscategorized (not actually agent payment
+ * protocols); DRAIN had a cryptographic implementation defect being
+ * addressed under the Quantum Leap settlement-layer plan. Additional
+ * protocol detail and the full canonical positioning will land via P1.MKT1.
  */
 const protocols = [
   "MCP",

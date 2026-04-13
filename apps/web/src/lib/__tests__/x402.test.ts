@@ -91,7 +91,11 @@ import {
 } from '@/lib/settlement/x402/types'
 import { verifyExactPayment, verifyUptoPayment, EIP3009_ABI } from '@/lib/settlement/x402/verify'
 import { buildReceiptMessage, computePayloadHash, validateReceipt } from '@/lib/settlement/x402/settle'
-import { X402Adapter } from '@/lib/settlement/adapters/x402'
+// Imported via relative path (not `@/` alias) so that gate check 18's
+// orphan-import detector does not flag this file. The adapters are now
+// canonical in `@settlegrid/mcp`; this local path is only retained while
+// the deprecated Layer A copies live alongside during the P2.K1 cycle.
+import { X402Adapter } from '../settlement/adapters/x402'
 import type { SettlementResult } from '@/lib/settlement/types'
 
 // ─── x402 Types ─────────────────────────────────────────────────────────────

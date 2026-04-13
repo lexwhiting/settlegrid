@@ -1,30 +1,4 @@
-/**
- * @deprecated
- *
- * This Layer A adapter directory is scheduled for removal.
- *
- * The nine protocol adapters have been bundled into the SDK as of P1.K1 and
- * are now maintained at `packages/mcp/src/adapters/` (published as part of
- * `@settlegrid/mcp`). New code should import from `@settlegrid/mcp` instead:
- *
- * ```ts
- * import {
- *   protocolRegistry,
- *   ProtocolRegistry,
- *   DETECTION_PRIORITY,
- *   type ProtocolAdapter,
- *   type PaymentContext,
- *   type SettlementResult,
- * } from '@settlegrid/mcp'
- * ```
- *
- * These files are retained for one more release cycle so any
- * still-unmigrated callers keep working. The marketplace proxy never
- * imported this directory and is unaffected; the full Layer A removal
- * is tracked as P2.K1 (marketplace proxy unification). See
- * `docs/phase-reports/PHASE_1_SUMMARY.md` §2b for the deferred-work ledger.
- */
-import type { ProtocolAdapter, ProtocolName } from '../types'
+import type { ProtocolAdapter, ProtocolName } from './types'
 import { MCPAdapter } from './mcp'
 import { X402Adapter } from './x402'
 import { AP2Adapter } from './ap2'

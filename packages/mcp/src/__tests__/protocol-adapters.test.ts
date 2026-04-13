@@ -1,20 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { MCPAdapter } from '@/lib/settlement/adapters/mcp'
-import { X402Adapter } from '@/lib/settlement/adapters/x402'
-import { AP2Adapter } from '@/lib/settlement/adapters/ap2'
-import { TAPAdapter } from '@/lib/settlement/adapters/tap'
-import { MPPAdapter } from '@/lib/settlement/adapters/mpp'
-import { CircleNanoAdapter } from '@/lib/settlement/adapters/circle-nano'
-import { MastercardVIAdapter } from '@/lib/settlement/adapters/mastercard-vi'
-import { ACPAdapter } from '@/lib/settlement/adapters/acp'
-import { UCPAdapter } from '@/lib/settlement/adapters/ucp'
+import { MCPAdapter } from '../adapters/mcp'
+import { X402Adapter } from '../adapters/x402'
+import { AP2Adapter } from '../adapters/ap2'
+import { TAPAdapter } from '../adapters/tap'
+import { MPPAdapter } from '../adapters/mpp'
+import { CircleNanoAdapter } from '../adapters/circle-nano'
+import { MastercardVIAdapter } from '../adapters/mastercard-vi'
+import { ACPAdapter } from '../adapters/acp'
+import { UCPAdapter } from '../adapters/ucp'
 import {
   ProtocolRegistry,
   DETECTION_PRIORITY,
   adapterMetrics,
-} from '@/lib/settlement/adapters'
-import { protocolRegistry } from '@/lib/settlement/adapters'
-import type { SettlementResult, ProtocolName } from '@/lib/settlement/types'
+} from '../adapters'
+import { protocolRegistry } from '../adapters'
+import type { SettlementResult, ProtocolName } from '../adapters/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ describe('Auto-registration', () => {
   })
 
   it('importing settlement/adapters does not throw', async () => {
-    const mod = await import('@/lib/settlement/adapters')
+    const mod = await import('../adapters')
     expect(mod.protocolRegistry).toBeDefined()
     expect(mod.protocolRegistry.list().length).toBeGreaterThanOrEqual(9)
   })
