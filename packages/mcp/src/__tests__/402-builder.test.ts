@@ -647,6 +647,326 @@ describe('buildMultiProtocol402', () => {
     })
   })
 
+  // ─── Test close-out coverage ──────────────────────────────────────────
+  //
+  // Gaps identified during the P1.K3 close-out audit that were not
+  // reached by the happy-path suite or the hostile-review regression
+  // block: method-specific pricing for non-mcp adapters, mixed
+  // adapter states in a single call, primitive return values,
+  // reverse-order acceptedProtocols, direct method-level calls, and
+  // x402 boundary cost values.
+
+  describe('test close-out coverage', () => {
+    // ─── Method-specific pricing for non-mcp adapters ───────────────
+
+    it('x402 entry uses method-specific pricing when method is provided', () => {
+      const x402 = protocolRegistry.get('x402')
+      expect(x402).toBeDefined()
+      const entry = x402!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['x402'],
+        pricing: BASE_PRICING,
+        method: 'deep-search', // 25 cents instead of default 5
+      })
+      // 25 cents → 25 × 10_000 = 250000 USDC base units
+      expect(entry.amount).toBe('250000')
+    })
+
+    it('mpp entry uses method-specific pricing when method is provided', () => {
+      const mpp = protocolRegistry.get('mpp')
+      expect(mpp).toBeDefined()
+      const entry = mpp!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['mpp'],
+        pricing: BASE_PRICING,
+        method: 'deep-search',
+      })
+      expect(entry).toMatchObject({
+        scheme: 'mpp',
+        provider: 'stripe',
+        amountCents: 25,
+        currency: 'USD',
+      })
+    })
+
+    // ─── Mixed adapter states in a single call ──────────────────────
+
+    it('one adapter throwing does not affect entries produced by other adapters', async () => {
+      // Force the x402 adapter to throw mid-dispatch and verify mcp
+      // and mpp still produce valid entries.
+      const x402 = protocolRegistry.get('x402')
+      const originalX402 = x402!.toAcceptEntry
+      x402!.toAcceptEntry = () => {
+        throw new Error('x402 simulated failure')
+      }
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp', 'x402', 'mpp'],
+          pricing: BASE_PRICING,
+        })
+        expect(response.status).toBe(402)
+        const body = await readBody(response)
+        expect(body.accepts).toHaveLength(3)
+        // mcp → real sg-balance entry
+        expect(body.accepts[0]).toMatchObject({
+          scheme: 'sg-balance',
+          provider: 'settlegrid',
+          costCents: 5,
+        })
+        // x402 → inline fallback (scheme=protocol name, not 'exact')
+        expect(body.accepts[1]).toEqual({ scheme: 'x402', costCents: 5 })
+        // mpp → real mpp entry
+        expect(body.accepts[2]).toMatchObject({
+          scheme: 'mpp',
+          provider: 'stripe',
+          amountCents: 5,
+          currency: 'USD',
+        })
+      } finally {
+        x402!.toAcceptEntry = originalX402
+      }
+    })
+
+    it('multiple adapters throwing independently each fall back to inline entries', async () => {
+      const x402 = protocolRegistry.get('x402')
+      const mpp = protocolRegistry.get('mpp')
+      const originalX402 = x402!.toAcceptEntry
+      const originalMpp = mpp!.toAcceptEntry
+      x402!.toAcceptEntry = () => {
+        throw new Error('x402 failure')
+      }
+      mpp!.toAcceptEntry = () => {
+        throw new Error('mpp failure')
+      }
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp', 'x402', 'mpp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts).toHaveLength(3)
+        // mcp → normal entry
+        expect(body.accepts[0].scheme).toBe('sg-balance')
+        // x402 → inline fallback
+        expect(body.accepts[1]).toEqual({ scheme: 'x402', costCents: 5 })
+        // mpp → inline fallback
+        expect(body.accepts[2]).toEqual({ scheme: 'mpp', costCents: 5 })
+      } finally {
+        x402!.toAcceptEntry = originalX402
+        mpp!.toAcceptEntry = originalMpp
+      }
+    })
+
+    // ─── Primitive adapter returns (not covered by H4 set) ──────────
+
+    it('adapter returning a number falls back to inline entry', async () => {
+      const mcp = protocolRegistry.get('mcp')
+      const original = mcp!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcp!.toAcceptEntry = (() => 42) as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcp!.toAcceptEntry = original
+      }
+    })
+
+    it('adapter returning a boolean falls back to inline entry', async () => {
+      const mcp = protocolRegistry.get('mcp')
+      const original = mcp!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcp!.toAcceptEntry = (() => true) as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcp!.toAcceptEntry = original
+      }
+    })
+
+    it('adapter returning a string falls back to inline entry', async () => {
+      const mcp = protocolRegistry.get('mcp')
+      const original = mcp!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcp!.toAcceptEntry = (() => 'not-an-entry') as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcp!.toAcceptEntry = original
+      }
+    })
+
+    // ─── Reverse-order acceptedProtocols ─────────────────────────────
+
+    it('accepts[] order matches acceptedProtocols reverse order', async () => {
+      const response = buildMultiProtocol402({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['mpp', 'x402', 'mcp'], // reverse order
+        pricing: BASE_PRICING,
+      })
+      const body = await readBody(response)
+      expect(body.accepts.map((e) => e.scheme)).toEqual([
+        'mpp',
+        'exact',
+        'sg-balance',
+      ])
+      // WWW-Authenticate header reflects reversed order too
+      expect(response.headers.get('WWW-Authenticate')).toBe(
+        'Payment realm="settlegrid", scheme="mpp, exact, sg-balance"',
+      )
+    })
+
+    // ─── Direct method-level tests for Phase 1 adapters ─────────────
+
+    it('MCPAdapter.toAcceptEntry returns the full sg-balance shape directly', () => {
+      const mcp = protocolRegistry.get('mcp')
+      const entry = mcp!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['mcp'],
+        pricing: BASE_PRICING,
+      })
+      expect(entry).toEqual({
+        scheme: 'sg-balance',
+        provider: 'settlegrid',
+        costCents: 5,
+        topUpUrl: 'https://settlegrid.ai/top-up',
+      })
+    })
+
+    it('X402Adapter.toAcceptEntry returns the full exact-scheme shape directly', () => {
+      const x402 = protocolRegistry.get('x402')
+      const entry = x402!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['x402'],
+        pricing: BASE_PRICING,
+      })
+      expect(entry).toEqual({
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '50000',
+        asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+        payTo: '0x0000000000000000000000000000000000000000',
+        maxTimeoutSeconds: 300,
+      })
+    })
+
+    it('MPPAdapter.toAcceptEntry returns the full mpp shape directly', () => {
+      const mpp = protocolRegistry.get('mpp')
+      const entry = mpp!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['mpp'],
+        pricing: BASE_PRICING,
+      })
+      expect(entry).toEqual({
+        scheme: 'mpp',
+        provider: 'stripe',
+        amountCents: 5,
+        currency: 'USD',
+      })
+    })
+
+    // ─── x402 boundary cost values ──────────────────────────────────
+
+    it('x402 amount for zero-cost pricing is "0"', () => {
+      const x402 = protocolRegistry.get('x402')
+      const entry = x402!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['x402'],
+        pricing: { defaultCostCents: 0 },
+      })
+      expect(entry.amount).toBe('0')
+    })
+
+    it('x402 amount for a 1-cent pricing is "10000"', () => {
+      const x402 = protocolRegistry.get('x402')
+      const entry = x402!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['x402'],
+        pricing: { defaultCostCents: 1 },
+      })
+      expect(entry.amount).toBe('10000')
+    })
+
+    it('x402 amount for a million-cent (10,000 USD) pricing scales correctly', () => {
+      // 1_000_000 cents × 10_000 base units/cent = 10_000_000_000 base
+      // units = 10,000 USDC. Tests that BigInt handles the large value
+      // without losing precision or overflowing a 53-bit JS number.
+      const x402 = protocolRegistry.get('x402')
+      const entry = x402!.toAcceptEntry!({
+        resource: BASE_RESOURCE,
+        acceptedProtocols: ['x402'],
+        pricing: { defaultCostCents: 1_000_000 },
+      })
+      expect(entry.amount).toBe('10000000000')
+    })
+
+    // ─── dispatchToAcceptEntry is called exactly once per protocol ──
+
+    it('adapter.toAcceptEntry is called exactly once per entry in acceptedProtocols', async () => {
+      const mcp = protocolRegistry.get('mcp')
+      const original = mcp!.toAcceptEntry
+      let callCount = 0
+      mcp!.toAcceptEntry = (options) => {
+        callCount++
+        return original!.call(mcp!, options)
+      }
+      try {
+        buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        expect(callCount).toBe(1)
+      } finally {
+        mcp!.toAcceptEntry = original
+      }
+    })
+
+    it('adapter.toAcceptEntry is called once per acceptedProtocols entry even on duplicate protocols', async () => {
+      // Callers SHOULDN'T pass duplicates, but if they do, each
+      // occurrence should trigger an independent dispatch so the
+      // resulting accepts[] has one entry per occurrence.
+      const mcp = protocolRegistry.get('mcp')
+      const original = mcp!.toAcceptEntry
+      let callCount = 0
+      mcp!.toAcceptEntry = (options) => {
+        callCount++
+        return original!.call(mcp!, options)
+      }
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp', 'mcp', 'mcp'],
+          pricing: BASE_PRICING,
+        })
+        expect(callCount).toBe(3)
+        const body = await readBody(response)
+        expect(body.accepts).toHaveLength(3)
+      } finally {
+        mcp!.toAcceptEntry = original
+      }
+    })
+  })
+
   // ─── Phase 2 protocols produce stub entries ───────────────────────────
 
   describe('Phase 2 protocol stubs', () => {
