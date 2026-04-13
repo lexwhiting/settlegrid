@@ -566,6 +566,80 @@ describe('sg.wrap() end-to-end with fetch mock — pricing-model → meter body'
     expect((caught as Error).message).toMatch(/Invalid settlegrid-max-cost-cents/)
   })
 
+  // ─── Coverage close-out: uncovered budget-validation edge cases ───────────
+
+  it('budget cap: header = Infinity throws via Number.isInteger rejection', async () => {
+    // Number.isInteger(Infinity) === false, so Infinity is caught by
+    // the same branch as fractional/NaN. Exercises the Infinity path
+    // explicitly since the hostile-review fix removed the redundant
+    // Number.isFinite check.
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-inf',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'gen', units: 10 })
+    let caught: unknown
+    try {
+      await wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: { 'settlegrid-max-cost-cents': Number.POSITIVE_INFINITY },
+        },
+      )
+    } catch (e) {
+      caught = e
+    }
+    expect((caught as Error & { code?: string }).code).toBe('INVALID_BUDGET_HEADER')
+    expect((caught as Error).message).toMatch(/Invalid settlegrid-max-cost-cents/)
+  })
+
+  it('budget cap: header = null throws via typeof !== "number"', async () => {
+    // Distinct code path from "undefined" which skips validation.
+    // null enters the validation branch because null !== undefined,
+    // then fails typeof === 'number' (typeof null === 'object').
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-null',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'gen', units: 10 })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: {
+            'settlegrid-max-cost-cents': null as unknown as number,
+          },
+        },
+      ),
+    ).rejects.toThrow(/Invalid settlegrid-max-cost-cents.*null/)
+  })
+
+  it('budget cap: header = object throws via typeof !== "number"', async () => {
+    // Another code path via prototype / shape garbage: typeof === 'object'
+    // (same as null, but distinct from null's `=== null` check semantically).
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-budget-obj',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+      debug: true,
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'gen', units: 10 })
+    await expect(
+      wrapped(
+        {},
+        {
+          headers: { 'x-api-key': 'sg_live_e2e' },
+          metadata: {
+            'settlegrid-max-cost-cents': { evil: true } as unknown as number,
+          },
+        },
+      ),
+    ).rejects.toThrow(/Invalid settlegrid-max-cost-cents/)
+  })
+
   it('insufficient credits: rejects when balance < per-token cost', async () => {
     // Override the validateKey response with a tiny balance for this test
     fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
