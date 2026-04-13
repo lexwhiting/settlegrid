@@ -267,6 +267,29 @@ describe('settlegridMiddleware', () => {
     expect(metadata).not.toHaveProperty('settlegrid-max-cost-cents')
   })
 
+  it('withBilling trims surrounding whitespace on settlegrid-max-cost-cents header', async () => {
+    // '  100  ' → trimmed to '100' → Number('100') === 100 → forwarded.
+    // Otherwise Number('  100  ') would also produce 100, but the trim
+    // step makes the intent explicit and covers the case where padding
+    // might cause parsing trouble (e.g. leading zeros).
+    const withBilling = settlegridMiddleware({
+      toolSlug: 'test-api',
+      costCents: 5,
+    })
+    const request = new Request('https://example.com/api/search', {
+      headers: {
+        'x-api-key': 'sg_live_test',
+        'settlegrid-max-cost-cents': '  100  ',
+      },
+    })
+    await withBilling(request, async () => {
+      return new Response(JSON.stringify({ ok: true }))
+    })
+    const call = mockMiddleware.execute.mock.calls[0]
+    const metadata = call[4] as Record<string, unknown>
+    expect(metadata['settlegrid-max-cost-cents']).toBe(100)
+  })
+
   it('withBilling forwards settlegrid-max-cost-cents header into metadata', async () => {
     const withBilling = settlegridMiddleware({
       toolSlug: 'test-api',
