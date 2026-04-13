@@ -520,3 +520,21 @@ export type {
 
 export { createDispatchKernel } from './kernel'
 export type { DispatchKernel, DispatchHandler } from './types'
+
+// ─── Multi-protocol 402 manifest builder (P1.K3) ─────────────────────────
+//
+// `buildMultiProtocol402(options)` produces an HTTP 402 response with a
+// body that advertises every accepted payment rail (sg-balance, x402,
+// mpp, and Phase 2 protocols) so the client can pick one and retry.
+// The kernel calls this internally when `protocolRegistry.detect()` finds
+// no matching adapter, but it is also exposed as a public API so tool
+// authors who bypass the kernel (e.g., custom middleware pipelines) can
+// use the same builder directly.
+
+export { buildMultiProtocol402 } from './402-builder'
+export type {
+  PaymentRequiredOptions,
+  PaymentRequiredBody,
+  PaymentResource,
+  AcceptEntry,
+} from './402-builder'

@@ -505,7 +505,7 @@ describe('createDispatchKernel', () => {
   // ─── 402 fallback ─────────────────────────────────────────────────────
 
   describe('402 fallback when no adapter matches', () => {
-    it('returns 402 with Accept-Payments header when no protocol detected', async () => {
+    it('returns 402 with WWW-Authenticate and X-SettleGrid-Protocol-Negotiation headers', async () => {
       const sg = settlegrid.init({
         toolSlug: 'test-tool',
         pricing: { defaultCostCents: 5 },
@@ -520,12 +520,18 @@ describe('createDispatchKernel', () => {
       const response = await kernel.handle(req, handler)
 
       expect(response.status).toBe(402)
-      expect(response.headers.get('Accept-Payments')).toBe('sg-balance, x402, mpp')
+      // P1.K3 switched from the placeholder Accept-Payments header to
+      // the RFC-style WWW-Authenticate challenge + the X-SettleGrid-
+      // Protocol-Negotiation marker.
+      expect(response.headers.get('WWW-Authenticate')).toBe(
+        'Payment realm="settlegrid", scheme="sg-balance, exact, mpp"',
+      )
+      expect(response.headers.get('X-SettleGrid-Protocol-Negotiation')).toBe('v1')
       expect(handler).not.toHaveBeenCalled()
       expect(fetchCalls).toHaveLength(0)
     })
 
-    it('402 body includes supportedProtocols and toolSlug', async () => {
+    it('402 body matches the x402 v2 PaymentRequired shape with resource + accepts', async () => {
       const sg = settlegrid.init({
         toolSlug: 'my-custom-slug',
         pricing: { defaultCostCents: 5 },
@@ -536,28 +542,58 @@ describe('createDispatchKernel', () => {
       const response = await kernel.handle(req, vi.fn())
 
       const body = await response.json()
-      expect(body.code).toBe('PAYMENT_REQUIRED')
-      expect(body.supportedProtocols).toEqual(['sg-balance', 'x402', 'mpp'])
-      expect(body.toolSlug).toBe('my-custom-slug')
+      // P1.K3 body shape: x402 v2 PaymentRequired superset, not the
+      // P1.K2 placeholder with `code`/`supportedProtocols`/`toolSlug`.
+      expect(body.x402Version).toBe(2)
+      expect(body.error).toBe('payment_required')
+      expect(body.resource).toEqual({ url: 'http://localhost/api/tool/run' })
+      expect(body.accepts).toHaveLength(3)
+      expect(body.accepts.map((e: { scheme: string }) => e.scheme)).toEqual([
+        'sg-balance',
+        'exact',
+        'mpp',
+      ])
+      // The sg-balance entry carries the SettleGrid top-up URL
+      expect(body.accepts[0]).toMatchObject({
+        scheme: 'sg-balance',
+        provider: 'settlegrid',
+        costCents: 5,
+      })
     })
 
     it('falls through to 402 when the matched adapter is not wired into Phase 1', async () => {
       // AP2 IS detected by the registry (has adapter) but is NOT wired
-      // into the Phase 1 kernel. Should fall through to the 402 fallback.
+      // into the Phase 1 kernel. Should fall through to the 402 manifest
+      // WITH the ctx.operation.method from AP2's extractPaymentContext.
       const sg = settlegrid.init({
         toolSlug: 'test-tool',
-        pricing: { defaultCostCents: 5 },
+        pricing: {
+          defaultCostCents: 5,
+          methods: { 'ap2-method': { costCents: 42 } },
+        },
       })
       const kernel = createDispatchKernel(sg)
 
       const req = new Request('http://localhost/api/tool/run', {
-        headers: { 'x-settlegrid-protocol': 'ap2' },
+        method: 'POST',
+        headers: {
+          'x-settlegrid-protocol': 'ap2',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ skill: 'ap2-method' }),
       })
       const handler = vi.fn()
       const response = await kernel.handle(req, handler)
 
       expect(response.status).toBe(402)
       expect(handler).not.toHaveBeenCalled()
+      // The 402 carries the ap2-method-specific cost (42) because
+      // the kernel passed the extracted method through to the builder
+      const body = await response.json()
+      expect(body.accepts[0]).toMatchObject({
+        scheme: 'sg-balance',
+        costCents: 42,
+      })
     })
   })
 
