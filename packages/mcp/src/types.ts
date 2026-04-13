@@ -5,6 +5,8 @@
  * @packageDocumentation
  */
 
+import type { PaymentContext } from './adapters/types'
+
 /**
  * Pricing model for a single tool method.
  *
@@ -246,4 +248,40 @@ export interface GeneralizedPricingConfig {
     failureCostCents: number  // usually 0
     successCondition: string  // JSONPath or simple field check
   }
+}
+
+// ─── Cross-protocol dispatch kernel (P1.K2) ────────────────────────────────
+
+/**
+ * Handler that the dispatch kernel calls after payment verification and
+ * before settlement. Receives the normalized {@link PaymentContext} that
+ * the protocol adapter extracted from the incoming request. Whatever the
+ * handler returns is forwarded to the facilitator's settle endpoint in
+ * the `handlerResult` field (for x402 / MPP) so the server can compute
+ * the final cost from tokens / bytes / outcome. For sg-balance (MCP
+ * protocol) the return value is currently ignored because per-invocation
+ * billing is resolved before the handler runs.
+ *
+ * See {@link DispatchKernel} and the full docs at
+ * `packages/mcp/src/kernel.ts` for the pipeline description.
+ */
+export type DispatchHandler = (ctx: PaymentContext) => Promise<unknown>
+
+/**
+ * Single-method dispatch API returned by `createDispatchKernel(sg)`.
+ * The kernel routes incoming `Request` objects through protocol
+ * detection, facilitator verification (for x402 / MPP), the developer's
+ * handler, and response formatting — producing a protocol-appropriate
+ * `Response`. See `packages/mcp/src/kernel.ts` for the full design.
+ */
+export interface DispatchKernel {
+  /**
+   * Route an incoming request through the full payment pipeline and
+   * produce a protocol-appropriate response.
+   *
+   * Never throws — errors are caught internally and routed through
+   * `adapter.formatError` (or the inline 402 fallback when no adapter
+   * matched the request).
+   */
+  handle(request: Request, runHandler: DispatchHandler): Promise<Response>
 }
