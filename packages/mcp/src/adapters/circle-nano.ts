@@ -158,17 +158,36 @@ export class CircleNanoAdapter implements ProtocolAdapter {
 
   /**
    * Build the `accepts[]` challenge entry for the Circle Nanopayments
-   * rail. Renamed from `toAcceptEntry` in P1.K4. Minimal stub — a
-   * future pass will replace this with the full Circle Nano
+   * rail.
+   *
+   * Mirrors the characteristic fields from the canonical
+   * `generateCircleNano402Response` in
+   * `apps/web/src/lib/circle-nano-proxy.ts`: protocol + amount_cents
+   * + amount_usdc_base_units + currency 'usdc' + accepted_payments
+   * ['eip3009-nanopayment']. The amount is converted from cents to
+   * USDC 6-decimal base units (same conversion x402 uses) with the
+   * same defensive clamp so malformed pricing (NaN / Infinity / float
+   * / negative) produces `'0'` instead of a RangeError from BigInt().
+   *
+   * A future pass will replace this with the full Circle Nano
    * x402-compatible entry (off-chain batch config, max nano amount,
-   * Circle API endpoint).
+   * Circle API endpoint, settlement window).
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
-    const costCents = resolveOperationCost(options.pricing, method)
+    const rawCost = resolveOperationCost(options.pricing, method)
+    const safeCost =
+      Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
+    // 1 cent = 10_000 base units of USDC (6 decimals).
+    const USDC_BASE_UNITS_PER_CENT = 10_000n
+    const amountBaseUnits = BigInt(safeCost) * USDC_BASE_UNITS_PER_CENT
     return {
       scheme: 'circle-nano',
-      costCents,
+      provider: 'circle',
+      costCents: safeCost,
+      currency: 'USDC',
+      amountUsdcBaseUnits: amountBaseUnits.toString(),
+      acceptedPayments: ['eip3009-nanopayment'],
     }
   }
 }
