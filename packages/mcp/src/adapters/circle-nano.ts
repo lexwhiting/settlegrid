@@ -11,7 +11,12 @@
  *   2. x-settlegrid-protocol: circle-nano header
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
 
 export class CircleNanoAdapter implements ProtocolAdapter {
@@ -149,5 +154,20 @@ export class CircleNanoAdapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the Circle Nanopayments rail.
+   * P1.K3 minimal stub. P1.K4 will replace this with the full Circle
+   * Nano x402-compatible entry (off-chain batch config, max nano
+   * amount, Circle API endpoint).
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    return {
+      scheme: 'circle-nano',
+      costCents,
+    }
   }
 }

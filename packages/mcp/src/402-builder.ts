@@ -73,8 +73,9 @@
  * @packageDocumentation
  */
 
-import { resolveOperationCost } from './config'
+import { protocolRegistry } from './adapters/index'
 import type { ProtocolName } from './adapters/types'
+import { resolveOperationCost } from './config'
 import type { GeneralizedPricingConfig, PricingConfig } from './types'
 
 // ─── Public types ─────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
   }
 
   const accepts: AcceptEntry[] = options.acceptedProtocols.map((protocol) =>
-    stubToAcceptEntry(protocol, options),
+    dispatchToAcceptEntry(protocol, options),
   )
 
   const body: PaymentRequiredBody = {
@@ -229,110 +230,43 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
   })
 }
 
-// ─── Per-protocol stubs (P1.K3 — P1.K4 moves them to adapter methods) ────
+// ─── Per-protocol dispatch via adapter.toAcceptEntry ────────────────────
 
 /**
- * Default Base-mainnet USDC contract address, used by the P1.K3 x402
- * stub. P1.K4 will replace this with a config-driven lookup so tools
- * can opt into different networks or assets.
+ * Dispatch to the adapter's `toAcceptEntry(options)` method, looked up
+ * via the auto-registered `protocolRegistry` singleton.
+ *
+ * All nine P1.K3 adapters implement `toAcceptEntry` as a method on the
+ * adapter class (see `packages/mcp/src/adapters/mcp.ts`, `x402.ts`,
+ * `mpp.ts`, etc.). P1.K4 replaces their stub bodies with real
+ * implementations that read tool-owned configuration — the dispatcher
+ * here stays unchanged across both phases, so P1.K4 is a pure
+ * per-adapter refactor.
+ *
+ * The inline fallback below only fires if a caller passes a
+ * ProtocolName whose adapter is either (a) not registered or (b) was
+ * registered without a `toAcceptEntry` method (external adapter that
+ * hasn't been upgraded). The fallback produces the minimum shape —
+ * `{ scheme, costCents }` — so the builder can still emit a valid
+ * manifest instead of crashing or omitting the rail.
  */
-const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-
-/**
- * Zero-address placeholder for the x402 `payTo` field, used by the
- * P1.K3 stub. P1.K4 will read the tool's real payout address from
- * config (probably from a new `facilitator.payTo` field on the
- * GeneralizedPricingConfig or from a per-rail config section).
- */
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-
-/**
- * Default x402 network identifier — eip155:8453 is Base mainnet, the
- * most common USDC x402 deployment target. P1.K4 will make this
- * configurable.
- */
-const DEFAULT_X402_NETWORK = 'eip155:8453'
-
-/**
- * USDC has 6 decimal places of precision, so one USD cent is
- * 10_000 base units. Used by the x402 stub to convert `costCents`
- * (integer cents) into the `amount` string (base units of USDC).
- */
-const USDC_BASE_UNITS_PER_CENT = 10_000n
-
-/**
- * SettleGrid's default top-up page — shown to the consumer when the
- * 402 offers a sg-balance rail and they need to add credits.
- */
-const SETTLEGRID_TOPUP_URL = 'https://settlegrid.ai/top-up'
-
-/**
- * Internal dispatcher that produces one `AcceptEntry` per protocol.
- * P1.K3 implements this as a switch statement; P1.K4 will refactor it
- * into `protocolRegistry.get(name)?.toAcceptEntry(options)` once each
- * adapter owns its own entry shape. The switch's existence today is
- * deliberate — P1.K4 becomes a pure refactor because every case below
- * has a well-defined target adapter method.
- */
-function stubToAcceptEntry(
+function dispatchToAcceptEntry(
   protocol: ProtocolName,
   options: PaymentRequiredOptions,
 ): AcceptEntry {
+  const adapter = protocolRegistry.get(protocol)
+  if (adapter && typeof adapter.toAcceptEntry === 'function') {
+    return adapter.toAcceptEntry(options)
+  }
+  // Fallback: the adapter is missing or hasn't been upgraded with
+  // toAcceptEntry. Emit a minimal stub so the overall manifest stays
+  // valid. P1.K3 ships stubs on all nine built-in adapters, so this
+  // path only fires for externally-registered adapters that pre-date
+  // the toAcceptEntry addition.
   const method = options.method ?? 'default'
   const costCents = resolveOperationCost(options.pricing, method)
-
-  switch (protocol) {
-    case 'mcp':
-      // sg-balance rail: the consumer pays from a pre-funded SettleGrid
-      // credit balance. No facilitator round-trip needed at 402 time.
-      return {
-        scheme: 'sg-balance',
-        provider: 'settlegrid',
-        costCents,
-        topUpUrl: SETTLEGRID_TOPUP_URL,
-      }
-
-    case 'x402': {
-      // x402 exact scheme: the consumer must sign an EIP-3009
-      // transferWithAuthorization for the exact amount in USDC on Base.
-      // Amount is expressed in USDC base units (6 decimals), i.e.
-      // 1 cent → 10_000 base units → the string "10000".
-      const amountBaseUnits = BigInt(costCents) * USDC_BASE_UNITS_PER_CENT
-      return {
-        scheme: 'exact',
-        network: DEFAULT_X402_NETWORK,
-        asset: BASE_USDC_ADDRESS,
-        amount: amountBaseUnits.toString(),
-        payTo: ZERO_ADDRESS, // P1.K4: replace with tool's real payout address
-      }
-    }
-
-    case 'mpp':
-      // MPP via Stripe Shared Payment Token — amountCents is the cost
-      // in the smallest unit of the currency (cents for USD).
-      return {
-        scheme: 'mpp',
-        provider: 'stripe',
-        amountCents: costCents,
-        currency: 'USD',
-      }
-
-    // Phase 2 protocols recognized by the registry but not yet wired
-    // into the kernel's dispatch pipeline. The 402 still advertises
-    // them (in case a client can handle them out-of-band) but with a
-    // minimal shape — a string scheme plus the cost. P1.K4 will add
-    // proper toAcceptEntry implementations for each as their adapters
-    // mature.
-    case 'ap2':
-    case 'visa-tap':
-    case 'ucp':
-    case 'acp':
-    case 'mastercard-vi':
-    case 'circle-nano':
-    default:
-      return {
-        scheme: protocol,
-        costCents,
-      }
+  return {
+    scheme: protocol,
+    costCents,
   }
 }

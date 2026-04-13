@@ -109,7 +109,7 @@ describe('buildMultiProtocol402', () => {
       expect(body.accepts[1].scheme).toBe('exact')
     })
 
-    it('x402 entry includes network, asset, amount, and payTo fields', async () => {
+    it('x402 entry includes network, amount, asset, payTo, and maxTimeoutSeconds fields', async () => {
       const response = buildMultiProtocol402({
         resource: BASE_RESOURCE,
         acceptedProtocols: ['x402'],
@@ -121,6 +121,7 @@ describe('buildMultiProtocol402', () => {
         network: 'eip155:8453',
         asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
         payTo: '0x0000000000000000000000000000000000000000',
+        maxTimeoutSeconds: 300,
       })
       // amount is costCents * 10_000 (USDC 6-decimal base units)
       // 5 cents → 50000 base units → '50000'
