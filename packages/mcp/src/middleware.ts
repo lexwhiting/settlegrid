@@ -185,20 +185,22 @@ async function apiCall<T>(
           //   2. body.retryAfterSeconds (SDK convention)
           //   3. 60-second default
           const header = response.headers.get('retry-after')
-          let retryAfterMs = 60_000
+          let retryAfterSeconds = 60
           if (header !== null) {
-            const seconds = Number.parseInt(header, 10)
-            if (Number.isFinite(seconds) && seconds >= 0) {
-              retryAfterMs = seconds * 1000
+            const parsed = Number.parseInt(header, 10)
+            if (Number.isFinite(parsed) && parsed >= 0) {
+              retryAfterSeconds = parsed
             }
           } else if (
             typeof data.retryAfterSeconds === 'number' &&
             Number.isFinite(data.retryAfterSeconds) &&
             data.retryAfterSeconds >= 0
           ) {
-            retryAfterMs = data.retryAfterSeconds * 1000
+            retryAfterSeconds = data.retryAfterSeconds
           }
-          throw new RateLimitedError(retryAfterMs)
+          // Matches the P1.SDK3 spec wording:
+          //   "pass to RateLimitedError(retryAfterSeconds)"
+          throw RateLimitedError.fromSeconds(retryAfterSeconds)
         }
         default:
           throw new SettleGridUnavailableError(
