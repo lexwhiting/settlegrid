@@ -326,6 +326,81 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(err.retryAfterSeconds).toBe(10)
   })
 
+  // ─── Coverage close-out: body.retryAfterSeconds validation branches ───────
+  // The 429 fallback chain validates body.retryAfterSeconds before using it:
+  //   typeof === 'number' && Number.isFinite && >= 0
+  // Previously only the "valid finite positive number" path was tested
+  // directly. Exercise each rejection path so a future regression (e.g.
+  // accepting NaN or negative values) surfaces immediately.
+
+  it('429 with body.retryAfterSeconds = 0: uses 0 (valid zero, not fallback)', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ retryAfterSeconds: 0 }, 429))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    // Zero is a valid "retry immediately" hint — NOT treated as falsy
+    expect(err.retryAfterSeconds).toBe(0)
+    expect(err.retryAfterMs).toBe(0)
+  })
+
+  it('429 with body.retryAfterSeconds = NaN: falls back to 60s default', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ retryAfterSeconds: Number.NaN }, 429))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    expect(err.retryAfterSeconds).toBe(60)
+  })
+
+  it('429 with body.retryAfterSeconds = negative: falls back to 60s default', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ retryAfterSeconds: -10 }, 429))
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    expect(err.retryAfterSeconds).toBe(60)
+  })
+
+  it('429 with body.retryAfterSeconds = non-number: falls back to 60s default', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ retryAfterSeconds: '30' }, 429),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    // String '30' looks numeric but fails the strict typeof === 'number'
+    // check — falls back to default rather than silently coercing.
+    expect(err.retryAfterSeconds).toBe(60)
+  })
+
+  it('429 with body.retryAfterSeconds = Infinity: falls back to 60s default', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ retryAfterSeconds: Number.POSITIVE_INFINITY }, 429),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as RateLimitedError
+    expect(err.retryAfterSeconds).toBe(60)
+  })
+
   it('RateLimitedError.fromSeconds static factory converts seconds → ms', () => {
     // Direct smoke test of the factory introduced in P1.SDK3 spec-diff
     // fix — verifies the middleware's use site is backed by a clean
