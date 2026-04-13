@@ -37,6 +37,10 @@ import { UCPAdapter } from './ucp'
 
 // ─── Adapter Metrics ──────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `@settlegrid/mcp` instead (P1.K1). This Layer A copy will
+ * be removed in P2.K1; see the file header for the full migration note.
+ */
 export interface AdapterMetrics {
   readonly invocations: number
   readonly errors: number
@@ -44,6 +48,10 @@ export interface AdapterMetrics {
   readonly lastErrorAt: string | null
 }
 
+/**
+ * @deprecated Use `@settlegrid/mcp` instead (P1.K1). This Layer A copy will
+ * be removed in P2.K1; see the file header for the full migration note.
+ */
 export interface MetricsTracker {
   recordInvocation(protocol: ProtocolName): void
   recordError(protocol: ProtocolName): void
@@ -112,6 +120,10 @@ class AdapterMetricsTracker implements MetricsTracker {
 //   9. mcp          (fallback — any x-api-key or Bearer sg_ token)
 //
 
+/**
+ * @deprecated Use `DETECTION_PRIORITY` from `@settlegrid/mcp` instead (P1.K1).
+ * This Layer A copy will be removed in P2.K1.
+ */
 const DETECTION_PRIORITY: ProtocolName[] = [
   'mpp',
   'circle-nano',
@@ -126,6 +138,12 @@ const DETECTION_PRIORITY: ProtocolName[] = [
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `ProtocolRegistry` from `@settlegrid/mcp` instead (P1.K1).
+ * This Layer A copy will be removed in P2.K1; the canonical implementation
+ * lives at `packages/mcp/src/adapters/index.ts` and is published as part of
+ * the `@settlegrid/mcp` package.
+ */
 class ProtocolRegistry {
   private adapters = new Map<ProtocolName, ProtocolAdapter>()
 
@@ -176,7 +194,17 @@ class ProtocolRegistry {
 
 // ─── Singleton instances ──────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `protocolRegistry` from `@settlegrid/mcp` instead (P1.K1).
+ * This Layer A singleton will be removed in P2.K1.
+ */
 export const protocolRegistry = new ProtocolRegistry()
+/**
+ * @deprecated No direct replacement is re-exported from `@settlegrid/mcp` yet.
+ * If you need adapter metrics, construct your own instance via the
+ * `MetricsTracker` interface in `@settlegrid/mcp` or file a request to expose
+ * a public metrics surface. This Layer A singleton will be removed in P2.K1.
+ */
 export const adapterMetrics = new AdapterMetricsTracker()
 
 // ─── Auto-registration ───────────────────────────────────────────────────────
