@@ -69,6 +69,18 @@ export interface SettleGridConfig {
   cacheTtlMs?: number
   /** Request timeout in milliseconds for API calls (defaults to 5000, range: 100-30000) */
   timeoutMs?: number
+  /**
+   * Tool-owned secret used by {@link createDispatchKernel} to authenticate
+   * facilitator round-trips (`/api/x402/verify`, `/api/x402/settle`,
+   * `/api/mpp/verify`, `/api/mpp/settle`). If unset, the kernel falls back
+   * to the consumer's API key from the incoming request — acceptable for
+   * Phase 1 but not recommended because it couples the tool's facilitator
+   * auth to whichever consumer happens to be calling at the moment.
+   *
+   * Only used when {@link createDispatchKernel} is in play; sg-balance
+   * (MCP protocol) calls never need it.
+   */
+  toolSecret?: string
 }
 
 /**
