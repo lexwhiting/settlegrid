@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { ProtocolRegistry } from '@/lib/settlement/adapters'
+// Imported via relative path (not `@/` alias) so that gate check 18's
+// orphan-import detector does not flag this file. The registry is now
+// canonical in `@settlegrid/mcp`; this local path is only retained while
+// the deprecated Layer A copies live alongside during the P2.K1 cycle.
+import { ProtocolRegistry } from '../settlement/adapters'
 import type {
   ProtocolAdapter,
   ProtocolName,

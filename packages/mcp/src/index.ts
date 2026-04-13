@@ -465,3 +465,25 @@ export { extractApiKey } from './middleware'
 export { normalizeConfig, validatePricingConfig, getMethodCost, resolveOperationCost } from './config'
 export { pricingConfigSchema, generalizedPricingConfigSchema } from './config'
 export { LRUCache } from './cache'
+
+// ─── Protocol adapters (P1.K1) ────────────────────────────────────────────────
+//
+// The nine protocol adapters (MCP, x402, AP2, Visa TAP, MPP, Circle Nano,
+// Mastercard VI, ACP, UCP) were bundled into the SDK under P1.K1 — they
+// were previously dead code at apps/web/src/lib/settlement/adapters/ and
+// have zero external dependencies, making them a clean kernel to extract.
+//
+// Consumers that need custom protocol support can build on the
+// `ProtocolAdapter` interface and register instances via `new ProtocolRegistry()`
+// (the singleton `protocolRegistry` is auto-populated with the nine built-ins).
+
+export { protocolRegistry, ProtocolRegistry, DETECTION_PRIORITY } from './adapters'
+export type {
+  ProtocolAdapter,
+  ProtocolName,
+  IdentityType,
+  PaymentType,
+  PaymentContext,
+  SettlementStatus,
+  SettlementResult,
+} from './adapters/types'

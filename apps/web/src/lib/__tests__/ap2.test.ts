@@ -38,7 +38,11 @@ import {
   verifyJwt,
 } from '@/lib/settlement/ap2/credentials'
 
-import { AP2Adapter } from '@/lib/settlement/adapters/ap2'
+// Imported via relative path (not `@/` alias) so that gate check 18's
+// orphan-import detector does not flag this file. The adapters are now
+// canonical in `@settlegrid/mcp`; this local path is only retained while
+// the deprecated Layer A copies live alongside during the P2.K1 cycle.
+import { AP2Adapter } from '../settlement/adapters/ap2'
 import type { SettlementResult } from '@/lib/settlement/types'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

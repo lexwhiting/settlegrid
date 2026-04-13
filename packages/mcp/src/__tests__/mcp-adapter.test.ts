@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { MCPAdapter } from '@/lib/settlement/adapters/mcp'
-import type { SettlementResult } from '@/lib/settlement/types'
+import { MCPAdapter } from '../adapters/mcp'
+import type { SettlementResult } from '../adapters/types'
 
 describe('MCPAdapter', () => {
   const adapter = new MCPAdapter()
