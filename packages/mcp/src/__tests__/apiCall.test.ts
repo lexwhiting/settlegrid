@@ -338,13 +338,134 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(err.code).toBe('RATE_LIMITED')
   })
 
-  it('RateLimitedError.fromSeconds handles zero and fractional seconds', () => {
+  it('RateLimitedError.fromSeconds handles zero and fractional seconds (round-trip safe)', () => {
     expect(RateLimitedError.fromSeconds(0).retryAfterMs).toBe(0)
     expect(RateLimitedError.fromSeconds(0).retryAfterSeconds).toBe(0)
-    // Fractional seconds: 1.5 → 1500ms; floor to 1 seconds via getter
+    // Fractional inputs are FLOORED in the factory (hostile-review fix)
+    // so the round-trip through the getter is lossless:
+    //   fromSeconds(1.5) → Math.floor(1.5) * 1000 = 1000ms → getter = 1
+    // Matches RFC 7231's integer-seconds Retry-After convention.
     const frac = RateLimitedError.fromSeconds(1.5)
-    expect(frac.retryAfterMs).toBe(1500)
+    expect(frac.retryAfterMs).toBe(1000)
     expect(frac.retryAfterSeconds).toBe(1)
+    // Consistency: what goes in (floored) comes out.
+    expect(RateLimitedError.fromSeconds(2.99).retryAfterSeconds).toBe(2)
+  })
+
+  // ─── Hostile-review fix tests (P1.SDK3 hostile pass) ──────────────────────
+
+  it('RateLimitedError.fromSeconds rejects negative seconds', () => {
+    expect(() => RateLimitedError.fromSeconds(-1)).toThrow(TypeError)
+    expect(() => RateLimitedError.fromSeconds(-1)).toThrow(/non-negative/)
+  })
+
+  it('RateLimitedError.fromSeconds rejects NaN', () => {
+    expect(() => RateLimitedError.fromSeconds(NaN)).toThrow(TypeError)
+    expect(() => RateLimitedError.fromSeconds(NaN)).toThrow(/finite/)
+  })
+
+  it('RateLimitedError.fromSeconds rejects Infinity and -Infinity', () => {
+    expect(() => RateLimitedError.fromSeconds(Infinity)).toThrow(TypeError)
+    expect(() => RateLimitedError.fromSeconds(-Infinity)).toThrow(TypeError)
+  })
+
+  it('RateLimitedError.fromSeconds rejects non-number input (runtime bypass of TS)', () => {
+    expect(() =>
+      RateLimitedError.fromSeconds('30' as unknown as number),
+    ).toThrow(TypeError)
+  })
+
+  it('InsufficientCreditsError with explicit null topUpUrl: falls back to default URL', async () => {
+    // Server returning { topUpUrl: null } used to leak "Top up at null"
+    // into the error message because JS default-parameter syntax only
+    // triggers on undefined, not null.
+    fetchSpy.mockResolvedValue(
+      jsonResponse(
+        { requiredCents: 100, availableCents: 25, topUpUrl: null },
+        402,
+      ),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as InsufficientCreditsError
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
+    expect(err.message).not.toContain('null')
+  })
+
+  it('InsufficientCreditsError with explicit empty-string topUpUrl: falls back to default URL', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse(
+        { requiredCents: 100, availableCents: 25, topUpUrl: '' },
+        402,
+      ),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as InsufficientCreditsError
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
+  })
+
+  it('InsufficientCreditsError with non-string topUpUrl (number): falls back to default URL', async () => {
+    // Server returning `{ topUpUrl: 42 }` (typed as string at TS level
+    // but any JSON value at runtime) must not leak into the message.
+    fetchSpy.mockResolvedValue(
+      jsonResponse(
+        { requiredCents: 100, availableCents: 25, topUpUrl: 42 },
+        402,
+      ),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as InsufficientCreditsError
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
+    expect(err.message).not.toContain('42 cents')  // not mistaken for amount
+    expect(err.message).toContain('https://settlegrid.ai/top-up')
+  })
+
+  it('InsufficientCreditsError with non-string topUpUrl (array): falls back to default URL', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse(
+        { requiredCents: 100, availableCents: 25, topUpUrl: ['not', 'a', 'url'] },
+        402,
+      ),
+    )
+    let caught: unknown
+    try {
+      await apiCall(baseConfig, '/meter', {})
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as InsufficientCreditsError
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
+  })
+
+  it('InsufficientCreditsError direct construction with null (bypasses middleware)', () => {
+    // Defense-in-depth: even if some future caller bypasses the middleware
+    // and calls the constructor directly with null, the default URL is used.
+    const err = new InsufficientCreditsError(
+      100,
+      25,
+      null as unknown as string,
+    )
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
+    expect(err.message).not.toContain('null')
+  })
+
+  it('InsufficientCreditsError direct construction with empty string (bypasses middleware)', () => {
+    const err = new InsufficientCreditsError(100, 25, '')
+    expect(err.topUpUrl).toBe('https://settlegrid.ai/top-up')
   })
 
   it('429: defaults retryAfterMs to 60_000 when Retry-After is missing', async () => {
