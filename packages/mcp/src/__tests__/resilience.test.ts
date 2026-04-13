@@ -17,6 +17,8 @@ import {
   RateLimitedError,
   SettleGridUnavailableError,
   InvalidKeyError,
+  TimeoutError,
+  NetworkError,
 } from '../errors'
 
 const { apiCall } = __internal__
@@ -89,6 +91,23 @@ describe('rate limit', () => {
     vi.restoreAllMocks()
   })
 
+  it('refills tokens over time', () => {
+    vi.useFakeTimers()
+    const limiter = new TokenBucketRateLimiter(5) // 5 calls/sec
+
+    // Exhaust all 5 tokens
+    for (let i = 0; i < 5; i++) limiter.tryConsume()
+    expect(limiter.tryConsume()).toBe(false)
+
+    // Advance 1 second — should refill all 5 tokens
+    vi.advanceTimersByTime(1000)
+    for (let i = 0; i < 5; i++) {
+      expect(limiter.tryConsume()).toBe(true)
+    }
+    expect(limiter.tryConsume()).toBe(false) // exhausted again
+    vi.useRealTimers()
+  })
+
   it('validates constructor input', () => {
     expect(() => new TokenBucketRateLimiter(0)).toThrow()
     expect(() => new TokenBucketRateLimiter(-1)).toThrow()
@@ -142,6 +161,67 @@ describe('exponential backoff on 5xx', () => {
 
     // Only 1 fetch call — no retry on 4xx
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('succeeds on retry after initial 5xx', async () => {
+    vi.useFakeTimers()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{"error":"down"}', { status: 500 }))
+      .mockResolvedValueOnce(new Response('{"result":"ok"}', { status: 200 }))
+
+    const resilience = makeResilience({ maxRetries: 3 })
+
+    const promise = apiCall<{ result: string }>(baseConfig, '/test', {}, resilience)
+
+    // Advance past first backoff delay (1s)
+    await vi.advanceTimersByTimeAsync(1000)
+
+    const result = await promise
+    expect(result).toEqual({ result: 'ok' })
+    expect(fetchSpy).toHaveBeenCalledTimes(2) // 1 fail + 1 success
+    expect(resilience.circuitBreaker.currentState).toBe('closed') // success resets
+  })
+
+  it('does not retry when maxRetries is 0', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"error":"down"}', { status: 500 }),
+    )
+    const resilience = makeResilience({ maxRetries: 0 })
+
+    await expect(
+      apiCall(baseConfig, '/test', {}, resilience),
+    ).rejects.toThrow(SettleGridUnavailableError)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1) // single attempt, no retry
+  })
+
+  it('records circuit breaker failure on timeout', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      Object.assign(new Error(), { name: 'AbortError' }),
+    )
+    const resilience = makeResilience({ threshold: 3 })
+
+    await expect(
+      apiCall(baseConfig, '/test', {}, resilience),
+    ).rejects.toThrow(TimeoutError)
+
+    // Verify failure was recorded: 2 more should reach threshold of 3
+    resilience.circuitBreaker.recordFailure()
+    resilience.circuitBreaker.recordFailure()
+    expect(resilience.circuitBreaker.currentState).toBe('open')
+  })
+
+  it('records circuit breaker failure on network error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'))
+    const resilience = makeResilience({ threshold: 2 })
+
+    await expect(
+      apiCall(baseConfig, '/test', {}, resilience),
+    ).rejects.toThrow(NetworkError)
+
+    // Verify failure was recorded: 1 more should reach threshold of 2
+    resilience.circuitBreaker.recordFailure()
+    expect(resilience.circuitBreaker.currentState).toBe('open')
   })
 
   it('returns immediately on success without retrying', async () => {
@@ -241,6 +321,25 @@ describe('circuit breaker', () => {
     expect(breaker.currentState).toBe('open')
   })
 
+  it('resets consecutive failures on success', () => {
+    const breaker = new CircuitBreaker(5, 60_000)
+
+    // 4 failures (one below threshold)
+    for (let i = 0; i < 4; i++) breaker.recordFailure()
+    expect(breaker.currentState).toBe('closed')
+
+    // Success resets the counter
+    breaker.recordSuccess()
+
+    // 4 more failures — should NOT open (counter was reset to 0)
+    for (let i = 0; i < 4; i++) breaker.recordFailure()
+    expect(breaker.currentState).toBe('closed')
+
+    // 1 more reaches 5 again — NOW it opens
+    breaker.recordFailure()
+    expect(breaker.currentState).toBe('open')
+  })
+
   it('throws SettleGridUnavailableError when circuit is open via apiCall', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     const resilience = makeResilience({ threshold: 2 })
@@ -296,14 +395,9 @@ describe('negative cache', () => {
   })
 
   it('prevents repeated API calls for same invalid key (negative cache integration)', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({
-        valid: false,
-        consumerId: '',
-        toolId: '',
-        keyId: '',
-        balanceCents: 0,
-      }), { status: 200 }),
+    const invalidBody = { valid: false, consumerId: '', toolId: '', keyId: '', balanceCents: 0 }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      () => Promise.resolve(new Response(JSON.stringify(invalidBody), { status: 200 })),
     )
 
     const middleware = createMiddleware(baseConfig, { defaultCostCents: 1 })
@@ -317,6 +411,34 @@ describe('negative cache', () => {
     const result2 = await middleware.validateKey('bad-key')
     expect(result2.valid).toBe(false)
     expect(fetchSpy).toHaveBeenCalledTimes(1) // still 1, not 2
+
+    vi.restoreAllMocks()
+  })
+
+  it('negative cache expires after TTL and re-validates against API', async () => {
+    vi.useFakeTimers()
+    const invalidBody = { valid: false, consumerId: '', toolId: '', keyId: '', balanceCents: 0 }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      () => Promise.resolve(new Response(JSON.stringify(invalidBody), { status: 200 })),
+    )
+
+    const configWithNegTtl = { ...baseConfig, negativeCacheTtlMs: 30_000 }
+    const middleware = createMiddleware(configWithNegTtl, { defaultCostCents: 1 })
+
+    // First call — hits API
+    await middleware.validateKey('expired-key')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Second call within TTL — hits cache
+    await middleware.validateKey('expired-key')
+    expect(fetchSpy).toHaveBeenCalledTimes(1) // still 1
+
+    // Advance past negative cache TTL
+    vi.advanceTimersByTime(31_000)
+
+    // Third call — cache expired, hits API again
+    await middleware.validateKey('expired-key')
+    expect(fetchSpy).toHaveBeenCalledTimes(2) // now 2
 
     vi.restoreAllMocks()
   })
