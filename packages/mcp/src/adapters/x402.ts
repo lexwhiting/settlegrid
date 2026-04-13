@@ -7,8 +7,43 @@
  *   2. x-settlegrid-protocol: x402 header
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
+
+/**
+ * Default x402 network identifier — `eip155:8453` is Base mainnet,
+ * the most common USDC x402 deployment target. P1.K4 will make this
+ * configurable per-tool.
+ */
+const DEFAULT_X402_NETWORK = 'eip155:8453'
+
+/** Base-mainnet USDC contract address, used by the P1.K3 stub. */
+const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+
+/**
+ * Zero-address placeholder for the x402 `payTo` field. P1.K4 will
+ * read the tool's real payout address from config.
+ */
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+/**
+ * USDC has 6 decimal places of precision, so one USD cent is 10_000
+ * base units. Used to convert `costCents` (integer cents) into the
+ * `amount` string (base units of USDC).
+ */
+const USDC_BASE_UNITS_PER_CENT = 10_000n
+
+/**
+ * Maximum time an x402 payment authorization is valid for. Matches the
+ * 300-second default used by the existing `apps/web/src/lib/x402-proxy.ts`
+ * `generateX402_402Response` implementation.
+ */
+const X402_MAX_TIMEOUT_SECONDS = 300
 
 export class X402Adapter implements ProtocolAdapter {
   readonly name = 'x402' as const
@@ -135,5 +170,28 @@ export class X402Adapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the x402 exact scheme. P1.K3
+   * stub — hardcoded network / USDC address / zero payTo. P1.K4 will
+   * read these from tool-owned config (network, asset, payTo address).
+   * Field order deliberately matches the spec example and the existing
+   * canonical `generateX402_402Response` in
+   * `apps/web/src/lib/x402-proxy.ts`:
+   * `{ scheme, network, amount, asset, payTo, maxTimeoutSeconds }`.
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    const amountBaseUnits = BigInt(costCents) * USDC_BASE_UNITS_PER_CENT
+    return {
+      scheme: 'exact',
+      network: DEFAULT_X402_NETWORK,
+      amount: amountBaseUnits.toString(),
+      asset: BASE_USDC_ADDRESS,
+      payTo: ZERO_ADDRESS,
+      maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
+    }
   }
 }

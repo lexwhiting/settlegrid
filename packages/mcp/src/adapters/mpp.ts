@@ -16,7 +16,12 @@
  *   5. Authorization: Bearer spt_* or Bearer mpp_* token
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
 
 export class MPPAdapter implements ProtocolAdapter {
@@ -183,5 +188,21 @@ export class MPPAdapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the MPP rail. P1.K3 stub —
+   * hardcoded Stripe provider and USD currency. P1.K4 will let the
+   * tool choose between Stripe and Tempo, and pick a currency.
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    return {
+      scheme: 'mpp',
+      provider: 'stripe',
+      amountCents: costCents,
+      currency: 'USD',
+    }
   }
 }
