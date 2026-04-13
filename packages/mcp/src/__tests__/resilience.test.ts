@@ -8,7 +8,7 @@
  *   4. Negative caching for invalid keys
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { __internal__ } from '../middleware'
+import { __internal__, createMiddleware } from '../middleware'
 import { TokenBucketRateLimiter } from '../rate-limiter'
 import { CircuitBreaker } from '../circuit-breaker'
 import { LRUCache } from '../cache'
@@ -65,7 +65,7 @@ describe('rate limit', () => {
     expect(limiter.tryConsume()).toBe(false)
   })
 
-  it('throws RateLimitedError when rate limit is exhausted via apiCall', async () => {
+  it('throws RateLimitedError with correct retryAfterMs when exhausted via apiCall', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('{}', { status: 200 }),
     )
@@ -75,9 +75,14 @@ describe('rate limit', () => {
     resilience.rateLimiter.tryConsume()
     resilience.rateLimiter.tryConsume()
 
-    await expect(
-      apiCall(baseConfig, '/test', {}, resilience),
-    ).rejects.toThrow(RateLimitedError)
+    try {
+      await apiCall(baseConfig, '/test', {}, resilience)
+      expect.unreachable('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(RateLimitedError)
+      // 2 calls/sec → msPerToken = ceil(1000/2) = 500ms
+      expect((err as RateLimitedError).retryAfterMs).toBe(500)
+    }
 
     // fetch should never have been called — rate limiter rejects pre-flight
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -207,6 +212,22 @@ describe('circuit breaker', () => {
     expect(breaker.canExecute()).toBe(true)
   })
 
+  it('rejects additional requests while half-open probe is in flight', () => {
+    vi.useFakeTimers()
+    const breaker = new CircuitBreaker(2, 5000)
+    breaker.recordFailure()
+    breaker.recordFailure() // opens
+
+    vi.advanceTimersByTime(5000)
+    // First call transitions to half-open and allows the probe
+    expect(breaker.canExecute()).toBe(true)
+    expect(breaker.currentState).toBe('half-open')
+
+    // Second call while probe is still in flight — must be rejected
+    expect(breaker.canExecute()).toBe(false)
+    expect(breaker.canExecute()).toBe(false) // stays rejected
+  })
+
   it('re-opens on failure during half-open probe', () => {
     vi.useFakeTimers()
     const breaker = new CircuitBreaker(2, 5000)
@@ -272,6 +293,32 @@ describe('negative cache', () => {
     // Advance past negative TTL but before default TTL
     vi.advanceTimersByTime(31_000)
     expect(cache.get('bad-key')).toBeUndefined()
+  })
+
+  it('prevents repeated API calls for same invalid key (negative cache integration)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        valid: false,
+        consumerId: '',
+        toolId: '',
+        keyId: '',
+        balanceCents: 0,
+      }), { status: 200 }),
+    )
+
+    const middleware = createMiddleware(baseConfig, { defaultCostCents: 1 })
+
+    // First call — hits the API
+    const result1 = await middleware.validateKey('bad-key')
+    expect(result1.valid).toBe(false)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Second call — must hit negative cache, NOT the API
+    const result2 = await middleware.validateKey('bad-key')
+    expect(result2.valid).toBe(false)
+    expect(fetchSpy).toHaveBeenCalledTimes(1) // still 1, not 2
+
+    vi.restoreAllMocks()
   })
 
   it('uses normal cache path for valid keys (default TTL)', () => {
