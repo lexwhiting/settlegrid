@@ -358,7 +358,7 @@ export function createMiddleware(
     method: string,
     handler: () => Promise<T> | T,
     units?: number,
-    maxCostCents?: number,
+    metadata?: Record<string, unknown>,
   ): Promise<T> {
     const startTime = Date.now()
 
@@ -379,24 +379,29 @@ export function createMiddleware(
       }
     }
 
-    // 0b. Validate max-cost-cents budget cap (from consumer metadata).
-    // Must be a finite non-negative integer — fractional cents don't
-    // make sense, negative cap would never trigger, NaN/Infinity
-    // would produce confusing behavior. The error message mentions
-    // the header name so REST middleware can detect and map to HTTP 400.
-    if (maxCostCents !== undefined) {
+    // 0b. Read the budget cap from MCP metadata (spec literal P1.SDK4:
+    // "check whether `context.metadata['settlegrid-max-cost-cents']` is
+    // set"). Validate: must be a finite non-negative integer — fractional
+    // cents don't make sense, negative cap would never trigger,
+    // NaN/Infinity would produce confusing behavior. The error message
+    // mentions the header name so REST middleware can detect it and map
+    // to HTTP 400.
+    const rawMaxCost = metadata?.['settlegrid-max-cost-cents']
+    let maxCostCents: number | undefined = undefined
+    if (rawMaxCost !== undefined) {
       if (
-        typeof maxCostCents !== 'number' ||
-        !Number.isFinite(maxCostCents) ||
-        maxCostCents < 0 ||
-        !Number.isInteger(maxCostCents)
+        typeof rawMaxCost !== 'number' ||
+        !Number.isFinite(rawMaxCost) ||
+        rawMaxCost < 0 ||
+        !Number.isInteger(rawMaxCost)
       ) {
         throw new Error(
-          `Invalid settlegrid-max-cost-cents: ${String(maxCostCents)}. ` +
+          `Invalid settlegrid-max-cost-cents: ${String(rawMaxCost)}. ` +
             'Must be a finite non-negative integer representing cents. ' +
             'Omit the header to disable the budget cap.',
         )
       }
+      maxCostCents = rawMaxCost
     }
 
     // 1. Validate key
