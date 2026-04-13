@@ -183,8 +183,22 @@ export class X402Adapter implements ProtocolAdapter {
    */
   toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
     const method = options.method ?? 'default'
-    const costCents = resolveOperationCost(options.pricing, method)
-    const amountBaseUnits = BigInt(costCents) * USDC_BASE_UNITS_PER_CENT
+    const rawCost = resolveOperationCost(options.pricing, method)
+    // Defensive clamp before BigInt() conversion (hostile-review M2/M3):
+    //   - BigInt(NaN) / BigInt(Infinity) / BigInt(1.5) all throw RangeError
+    //   - BigInt(-5) succeeds but produces a negative `amount` string,
+    //     which is nonsense for a 402 manifest (the client cannot be
+    //     asked to pay a negative sum)
+    //   - Tiered pricing with fractional `units` can surface a non-integer
+    //     rawCost; upstream `validatePricingConfig` guarantees the
+    //     per-tier costCents are integers but the total is a sum of
+    //     products that can be fractional
+    // Math.floor handles the fractional case, the finite+>=0 guard
+    // handles the NaN/Infinity/negative cases, and 0 is the safe
+    // default for malformed input.
+    const safeCost =
+      Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
+    const amountBaseUnits = BigInt(safeCost) * USDC_BASE_UNITS_PER_CENT
     return {
       scheme: 'exact',
       network: DEFAULT_X402_NETWORK,

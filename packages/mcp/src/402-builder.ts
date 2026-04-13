@@ -75,7 +75,7 @@
 
 import { protocolRegistry } from './adapters/index'
 import type { ProtocolName } from './adapters/types'
-import { resolveOperationCost } from './config'
+import { resolveOperationCost, validatePricingConfig } from './config'
 import type { GeneralizedPricingConfig, PricingConfig } from './types'
 
 // ─── Public types ─────────────────────────────────────────────────────────
@@ -178,6 +178,58 @@ export interface PaymentRequiredBody {
  * ```
  */
 export function buildMultiProtocol402(options: PaymentRequiredOptions): Response {
+  // ─── Input validation (hostile-review H1/H2/M1/H5) ───────────────────
+  //
+  // Every field the builder relies on is checked upfront with a
+  // specific, actionable error message so a misconfigured caller sees
+  // exactly which field is wrong rather than a cryptic TypeError or
+  // RangeError deep inside the downstream helpers. The order is
+  // cheapest-first (object/field checks before Zod) so invalid input
+  // fails fast without running the expensive pricing validator.
+
+  if (options === null || typeof options !== 'object') {
+    throw new TypeError(
+      'buildMultiProtocol402: `options` must be a non-null object. ' +
+        `Received ${options === null ? 'null' : typeof options}.`,
+    )
+  }
+  if (
+    options.resource === null ||
+    typeof options.resource !== 'object' ||
+    Array.isArray(options.resource)
+  ) {
+    throw new TypeError(
+      'buildMultiProtocol402: `options.resource` must be a non-null object with at least a `url` field.',
+    )
+  }
+  if (
+    typeof options.resource.url !== 'string' ||
+    options.resource.url.length === 0
+  ) {
+    throw new TypeError(
+      'buildMultiProtocol402: `options.resource.url` must be a non-empty string.',
+    )
+  }
+  if (options.pricing === null || typeof options.pricing !== 'object') {
+    throw new TypeError(
+      'buildMultiProtocol402: `options.pricing` must be a non-null object ' +
+        '(PricingConfig or GeneralizedPricingConfig).',
+    )
+  }
+  // Run the pricing through the Zod schema so adapter stubs can trust
+  // that resolveOperationCost will not throw on the downstream call.
+  // The schema rejects negative/non-integer costCents, unknown models,
+  // and other structural problems — errors that would otherwise surface
+  // as confusing RangeErrors (from BigInt) or NaN-in-JSON.
+  try {
+    validatePricingConfig(options.pricing)
+  } catch (err) {
+    throw new TypeError(
+      `buildMultiProtocol402: \`options.pricing\` failed schema validation: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    )
+  }
   if (
     !Array.isArray(options.acceptedProtocols) ||
     options.acceptedProtocols.length === 0
@@ -211,16 +263,37 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
     accepts,
   }
 
-  // WWW-Authenticate challenge header (RFC 7235 style). Multiple
-  // schemes are comma-separated within a single `scheme="..."`
-  // attribute — non-standard but workable, since the authoritative
-  // machine-readable list lives in the body's `accepts` array and the
-  // header is primarily a hint for generic HTTP clients that may not
-  // know about x402.
-  const wwwAuthScheme = accepts.map((entry) => entry.scheme).join(', ')
+  // WWW-Authenticate challenge header (RFC 7235 style). Each scheme is
+  // validated against SAFE_SCHEME_PATTERN before interpolation — see
+  // `schemeForAuthHeader` for the rationale. Multiple schemes are
+  // comma-separated within a single `scheme="..."` attribute; the
+  // authoritative machine-readable list still lives in the body's
+  // `accepts` array, so this header is a hint for generic HTTP
+  // clients that do not know about x402.
+  const wwwAuthScheme = accepts
+    .map((entry) => schemeForAuthHeader(entry))
+    .join(', ')
   const wwwAuthHeader = `Payment realm="settlegrid", scheme="${wwwAuthScheme}"`
 
-  return new Response(JSON.stringify(body), {
+  // Serialize the body with a try/catch so an adapter that returned a
+  // non-JSON-serializable value (bigint, function, symbol, circular
+  // reference) produces a clear error message pointing at the problem,
+  // instead of a generic "Converting circular structure to JSON" or
+  // "Do not know how to serialize a BigInt".
+  let serializedBody: string
+  try {
+    serializedBody = JSON.stringify(body)
+  } catch (err) {
+    throw new Error(
+      'buildMultiProtocol402: failed to serialize response body: ' +
+        (err instanceof Error ? err.message : String(err)) +
+        '. This usually means an adapter\'s `toAcceptEntry` returned a ' +
+        'non-JSON-serializable value (bigint, function, symbol, or ' +
+        'circular reference). Check each accept entry for invalid fields.',
+    )
+  }
+
+  return new Response(serializedBody, {
     status: 402,
     headers: {
       'Content-Type': 'application/json',
@@ -228,6 +301,38 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
       'X-SettleGrid-Protocol-Negotiation': 'v1',
     },
   })
+}
+
+// ─── Helpers (hostile-review H3/H4/M4 fixes) ─────────────────────────────
+
+/**
+ * Token character set for the WWW-Authenticate header's `scheme`
+ * attribute. Intentionally more restrictive than RFC 7235 `tchar` —
+ * we only allow alphanumerics, hyphen, underscore, and dot so that
+ * the scheme value cannot contain the double-quote, backslash,
+ * comma, or CRLF characters that would otherwise let an adapter-
+ * controlled value inject additional attributes into the header.
+ */
+const SAFE_SCHEME_PATTERN = /^[A-Za-z0-9._-]+$/
+
+/**
+ * Validate an accept entry's `scheme` before interpolating it into
+ * the WWW-Authenticate header. Rejects anything that could be used
+ * for header injection — double quotes, commas, CRLF, and whitespace
+ * — by requiring a strict alphanumeric + `._-` character set.
+ * Throws a clear error if the scheme is invalid so the caller sees
+ * exactly which adapter produced the bad value.
+ */
+function schemeForAuthHeader(entry: AcceptEntry): string {
+  const scheme = entry.scheme
+  if (typeof scheme !== 'string' || !SAFE_SCHEME_PATTERN.test(scheme)) {
+    throw new Error(
+      `buildMultiProtocol402: invalid scheme ${JSON.stringify(scheme)} for ` +
+        'the WWW-Authenticate header. Scheme must match [A-Za-z0-9._-]+ ' +
+        'to prevent header injection.',
+    )
+  }
+  return scheme
 }
 
 // ─── Per-protocol dispatch via adapter.toAcceptEntry ────────────────────
@@ -243,12 +348,21 @@ export function buildMultiProtocol402(options: PaymentRequiredOptions): Response
  * here stays unchanged across both phases, so P1.K4 is a pure
  * per-adapter refactor.
  *
- * The inline fallback below only fires if a caller passes a
- * ProtocolName whose adapter is either (a) not registered or (b) was
- * registered without a `toAcceptEntry` method (external adapter that
- * hasn't been upgraded). The fallback produces the minimum shape —
- * `{ scheme, costCents }` — so the builder can still emit a valid
- * manifest instead of crashing or omitting the rail.
+ * Defensive against adapter bugs (hostile-review H4/M4): the call is
+ * wrapped in try/catch and the return value is shape-validated before
+ * being passed through to the `accepts[]` array. Any of:
+ *
+ *   - adapter missing from the registry
+ *   - adapter registered without a `toAcceptEntry` method
+ *   - `toAcceptEntry` threw while building the entry
+ *   - `toAcceptEntry` returned null, a primitive, an array, or an
+ *     object without a string `scheme` field
+ *
+ * …falls through to {@link inlineFallbackEntry} so the overall
+ * manifest stays valid. Today this only matters for externally-
+ * registered adapters that pre-date the toAcceptEntry addition or
+ * have a buggy implementation; the built-in nine produce valid
+ * entries and never enter the fallback path.
  */
 function dispatchToAcceptEntry(
   protocol: ProtocolName,
@@ -256,15 +370,47 @@ function dispatchToAcceptEntry(
 ): AcceptEntry {
   const adapter = protocolRegistry.get(protocol)
   if (adapter && typeof adapter.toAcceptEntry === 'function') {
-    return adapter.toAcceptEntry(options)
+    let result: unknown
+    try {
+      result = adapter.toAcceptEntry(options)
+    } catch {
+      // Adapter's toAcceptEntry threw — swallow and fall back below.
+      result = undefined
+    }
+    if (
+      result !== null &&
+      typeof result === 'object' &&
+      !Array.isArray(result) &&
+      typeof (result as AcceptEntry).scheme === 'string'
+    ) {
+      return result as AcceptEntry
+    }
   }
-  // Fallback: the adapter is missing or hasn't been upgraded with
-  // toAcceptEntry. Emit a minimal stub so the overall manifest stays
-  // valid. P1.K3 ships stubs on all nine built-in adapters, so this
-  // path only fires for externally-registered adapters that pre-date
-  // the toAcceptEntry addition.
+  return inlineFallbackEntry(protocol, options)
+}
+
+/**
+ * Produce a minimal `AcceptEntry` for a protocol whose adapter either
+ * does not exist, does not implement `toAcceptEntry`, threw from
+ * `toAcceptEntry`, or returned an invalid shape. Resolves the cost
+ * defensively — `resolveOperationCost` itself could throw on a
+ * malformed pricing config, though the caller-side validation in
+ * `buildMultiProtocol402` already runs the pricing through Zod so
+ * the resolve should always succeed.
+ */
+function inlineFallbackEntry(
+  protocol: ProtocolName,
+  options: PaymentRequiredOptions,
+): AcceptEntry {
   const method = options.method ?? 'default'
-  const costCents = resolveOperationCost(options.pricing, method)
+  let costCents: number
+  try {
+    const rawCost = resolveOperationCost(options.pricing, method)
+    costCents =
+      Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
+  } catch {
+    costCents = 0
+  }
   return {
     scheme: protocol,
     costCents,
