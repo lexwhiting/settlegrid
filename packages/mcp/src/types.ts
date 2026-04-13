@@ -83,6 +83,16 @@ export interface SettleGridConfig {
    * (MCP protocol) calls never need it.
    */
   toolSecret?: string
+  /** Maximum API calls per second per middleware instance (default: 100) */
+  rateLimit?: number
+  /** Maximum retry attempts on 5xx responses (default: 3) */
+  maxRetries?: number
+  /** Consecutive API failures before circuit breaker opens (default: 10) */
+  circuitBreakerThreshold?: number
+  /** Circuit breaker cooldown period in milliseconds before half-open probe (default: 60000) */
+  circuitBreakerResetMs?: number
+  /** TTL in milliseconds for negative key validation cache entries (default: 30000) */
+  negativeCacheTtlMs?: number
 }
 
 /**
