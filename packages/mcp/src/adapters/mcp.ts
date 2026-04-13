@@ -113,9 +113,20 @@ export class MCPAdapter implements ProtocolAdapter {
   }
 
   formatError(error: Error, request: Request): Response {
-    const isInsufficientCredits = error.message.includes('INSUFFICIENT_CREDITS') ||
-      error.message.includes('insufficient') ||
-      error.message.includes('balance')
+    // Route InsufficientCreditsError-style failures to 402. The error
+    // code property (set by SettleGridError subclasses) is the most
+    // reliable signal; the message substring fallback is case-insensitive
+    // to catch both 'Insufficient credits: ...' (the InsufficientCreditsError
+    // message literal, which starts with capital 'I' and would miss a
+    // case-sensitive `includes('insufficient')` — the original P1.K1
+    // implementation had this bug, which the P1.K2 kernel inherited and
+    // the P1.K2 hostile-review phase now fixes here at the source).
+    const errCode = (error as Error & { code?: string }).code
+    const lowerMsg = error.message.toLowerCase()
+    const isInsufficientCredits =
+      errCode === 'INSUFFICIENT_CREDITS' ||
+      lowerMsg.includes('insufficient') ||
+      lowerMsg.includes('balance')
 
     const status = isInsufficientCredits ? 402 : 500
     const code = isInsufficientCredits ? 'INSUFFICIENT_CREDITS' : 'SERVER_ERROR'

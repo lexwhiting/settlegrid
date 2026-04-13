@@ -159,42 +159,99 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
 
   return {
     async handle(request: Request, runHandler: DispatchHandler): Promise<Response> {
-      // 1. Protocol detection
-      const adapter = protocolRegistry.detect(request)
-      if (!adapter) {
-        // No adapter matched the request — return the minimal multi-protocol
-        // 402 fallback. P1.K3 will replace this with a richer manifest
-        // builder (`buildMultiProtocol402` in `402-builder.ts`).
-        return buildMultiProtocol402(config)
-      }
-
+      // Defense-in-depth outer try/catch. The DispatchKernel contract
+      // promises that `handle()` never throws — all errors must be
+      // converted into Response objects before returning. The inner
+      // try/catch below handles the common case (errors from the
+      // extract / facilitator / meter / handler pipeline) by routing
+      // them through `adapter.formatError`. But three call sites sit
+      // OUTSIDE the inner try/catch:
+      //
+      //   1. `protocolRegistry.detect(request)` — a buggy adapter's
+      //      `canHandle()` could throw synchronously here
+      //   2. `buildMultiProtocol402(config)` — unlikely but possible
+      //   3. `adapter.formatError(err, request)` — the error formatter
+      //      itself could throw (e.g., if an adapter's formatError
+      //      accesses a property on the error that is not present)
+      //
+      // Any of those would produce an unhandled rejection out of
+      // handle(), violating the "never throws" contract. The outer
+      // catch below turns them into a generic 500 response instead.
       try {
-        // 2. Extract normalized payment context
-        const ctx = await adapter.extractPaymentContext(request)
+        // 1. Protocol detection
+        const adapter = protocolRegistry.detect(request)
+        if (!adapter) {
+          // No adapter matched the request — return the minimal multi-protocol
+          // 402 fallback. P1.K3 will replace this with a richer manifest
+          // builder (`buildMultiProtocol402` in `402-builder.ts`).
+          return buildMultiProtocol402(config)
+        }
 
-        // 3. Protocol-specific pipeline
-        if (ctx.protocol === 'mcp') {
-          return await handleSgBalance(ctx, adapter, request, runHandler, middleware)
+        try {
+          // 2. Extract normalized payment context
+          const ctx = await adapter.extractPaymentContext(request)
+
+          // 3. Protocol-specific pipeline
+          if (ctx.protocol === 'mcp') {
+            return await handleSgBalance(ctx, adapter, request, runHandler, middleware)
+          }
+          if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
+            return await handleFacilitatorProtocol(
+              ctx,
+              adapter,
+              request,
+              runHandler,
+              config,
+            )
+          }
+          // Protocol is recognized by the registry but not wired into
+          // the Phase 1 kernel (ap2, visa-tap, ucp, acp, mastercard-vi,
+          // circle-nano). Fall through to the 402 fallback rather than
+          // silently accepting a payment the kernel cannot actually settle.
+          return buildMultiProtocol402(config)
+        } catch (err) {
+          return adapter.formatError(normalizeError(err), request)
         }
-        if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
-          return await handleFacilitatorProtocol(
-            ctx,
-            adapter,
-            request,
-            runHandler,
-            config,
-          )
-        }
-        // Protocol is recognized by the registry but not wired into the
-        // Phase 1 kernel (ap2, visa-tap, ucp, acp, mastercard-vi,
-        // circle-nano). Fall through to the 402 fallback rather than
-        // silently accepting a payment the kernel cannot actually settle.
-        return buildMultiProtocol402(config)
-      } catch (err) {
-        return adapter.formatError(normalizeError(err), request)
+      } catch (fatalErr) {
+        return buildKernelFault500(fatalErr, config)
       }
     },
   }
+}
+
+/**
+ * Last-resort fallback Response produced by the outer catch in
+ * `handle()` when something that was supposed to always succeed
+ * throws (e.g. an adapter's `canHandle()` or `formatError()` has a
+ * bug). Guarantees that `kernel.handle()` never produces an
+ * unhandled promise rejection, even if the underlying protocol
+ * adapters are buggy.
+ *
+ * The body is a minimal JSON payload so consumers can still parse
+ * a machine-readable error; the Content-Type is application/json.
+ * The status is 500 because the kernel itself has failed — no
+ * amount of retrying on the consumer side can recover, the tool
+ * author needs to look at the error logs.
+ */
+function buildKernelFault500(err: unknown, config: NormalizedConfig): Response {
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : 'Unknown kernel fault'
+  return new Response(
+    JSON.stringify({
+      error: 'Kernel fault',
+      code: 'KERNEL_FAULT',
+      message,
+      toolSlug: config.toolSlug,
+    }),
+    {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  )
 }
 
 // ─── sg-balance (MCP) pipeline ─────────────────────────────────────────────
@@ -245,11 +302,19 @@ async function handleSgBalance(
     startTime,
   })
 
-  // 5. Build settlement result + format response via the adapter
+  // 5. Build settlement result + format response via the adapter. Use the
+  // `costCents` the server returned on `meterResponse`, NOT the locally
+  // computed pre-auth value. The server is authoritative: if it applied
+  // a discount, promotion, surge, or rounding adjustment, the response
+  // header and body must reflect what the server actually recorded,
+  // otherwise the consumer sees a cost that disagrees with their
+  // transaction log. The two values are typically identical for
+  // per-invocation pricing, but diverging them silently would be a
+  // billing-correctness bug.
   const settlementResult: SettlementResult = {
     status: meterResponse.success ? 'settled' : 'failed',
     operationId: meterResponse.invocationId,
-    costCents,
+    costCents: meterResponse.costCents,
     remainingBalanceCents: meterResponse.remainingBalanceCents,
     metadata: {
       protocol: 'mcp',
@@ -327,15 +392,25 @@ function resolveFacilitatorAuth(config: NormalizedConfig, request: Request): str
     return `Bearer ${apiKey}`
   }
   const rawAuth = request.headers.get('authorization')
-  if (typeof rawAuth === 'string' && rawAuth.length > 0) {
-    // Pass through verbatim when it already looks like a Bearer value;
-    // otherwise wrap it. Facilitators expect `Bearer <token>` form.
-    return rawAuth.toLowerCase().startsWith('bearer ') ? rawAuth : `Bearer ${rawAuth}`
+  // Only accept `Authorization: Bearer <token>` as the tertiary fallback.
+  // Wrapping non-Bearer schemes (e.g. `Authorization: Basic dXNlcjpwYXNz`)
+  // as `Bearer Basic dXNlcjpwYXNz` would produce a nonsense header that
+  // the facilitator would reject with a confusing 401, hiding the real
+  // cause (wrong auth scheme) from the tool author. Falling through to
+  // the throw below gives them a clear actionable error instead.
+  if (
+    typeof rawAuth === 'string' &&
+    rawAuth.length > 0 &&
+    rawAuth.toLowerCase().startsWith('bearer ')
+  ) {
+    return rawAuth
   }
   throw new Error(
     'createDispatchKernel: facilitator auth unavailable. Set `toolSecret` ' +
-      'in settlegrid.init({...}) or include an `x-api-key` / `Authorization` ' +
-      'header on the incoming request.',
+      'in settlegrid.init({...}) or include an `x-api-key` header or ' +
+      '`Authorization: Bearer <token>` header on the incoming request. ' +
+      '(Non-Bearer Authorization schemes such as Basic or Digest are not ' +
+      'accepted as a fallback.)',
   )
 }
 
@@ -378,9 +453,26 @@ async function facilitatorVerify(
     body,
     authHeader,
   )
+  // Validate shape before reading fields — defense against the facilitator
+  // returning `null`, an array, or a primitive as its JSON body. Without
+  // this check, `parsed.valid` would throw a TypeError that propagates
+  // out of facilitatorFetch as a NetworkError, masking the real cause
+  // (malformed server response) with a misleading error class.
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new SettleGridUnavailableError(
+      `Facilitator /${protocol}/verify returned a non-object body`,
+    )
+  }
   const parsed = raw as FacilitatorVerifyResponse
   if (parsed.valid !== true) {
-    throw new SettleGridUnavailableError(
+    // Facilitator rejected the payment — use a plain Error rather than
+    // SettleGridUnavailableError so the error CLASS reflects reality
+    // ("service working, payment declined") instead of "service down".
+    // The adapter's formatError pattern-matches on the message string
+    // to decide the user-facing status code (402 for payment errors),
+    // so this class change is internal-only: the response status for
+    // the consumer is unchanged.
+    throw new Error(
       `Facilitator rejected ${protocol} payment: ${
         typeof parsed.error === 'string' ? parsed.error : 'unknown reason'
       }`,
@@ -422,24 +514,81 @@ async function facilitatorSettle(
     body,
     authHeader,
   )
-  // The facilitator's settle response body IS the SettlementResult. We
-  // trust the shape but verify the required fields exist — a malformed
-  // response would otherwise surface as a confusing TypeError inside
-  // adapter.formatResponse.
-  if (
-    raw === null ||
-    typeof raw !== 'object' ||
-    Array.isArray(raw) ||
-    typeof (raw as { status?: unknown }).status !== 'string' ||
-    typeof (raw as { operationId?: unknown }).operationId !== 'string' ||
-    typeof (raw as { costCents?: unknown }).costCents !== 'number' ||
-    typeof (raw as { metadata?: unknown }).metadata !== 'object'
-  ) {
+  return validateSettlementResult(raw, protocol)
+}
+
+/** Whitelist of valid {@link SettlementStatus} string literals. */
+const VALID_SETTLEMENT_STATUSES: ReadonlySet<string> = new Set([
+  'settled',
+  'pending',
+  'rejected',
+  'failed',
+])
+
+/**
+ * Strict runtime validation of a facilitator's settle response. The
+ * facilitator endpoint is supposed to return a SettlementResult, but a
+ * malformed response from a misbehaving (or malicious) facilitator
+ * would otherwise surface as confusing TypeErrors deep inside
+ * `adapter.formatResponse`. Each field is validated with a specific
+ * message so a failure is easy to diagnose, and invalid states like
+ * `NaN` costCents or `null` metadata are rejected up front.
+ *
+ * Invariants checked:
+ *   - raw is a non-null, non-array object
+ *   - raw.status is one of 'settled' | 'pending' | 'rejected' | 'failed'
+ *   - raw.operationId is a non-empty string
+ *   - raw.costCents is a finite non-negative number
+ *   - raw.metadata is a non-null, non-array object
+ */
+function validateSettlementResult(
+  raw: unknown,
+  protocol: ProtocolName,
+): SettlementResult {
+  const fail = (reason: string): never => {
     throw new SettleGridUnavailableError(
-      `Facilitator /${protocol}/settle returned a malformed SettlementResult`,
+      `Facilitator /${protocol}/settle returned a malformed SettlementResult: ${reason}`,
     )
   }
-  return raw as SettlementResult
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return fail('body is not a plain object')
+  }
+  const candidate = raw as Record<string, unknown>
+  if (
+    typeof candidate.status !== 'string' ||
+    !VALID_SETTLEMENT_STATUSES.has(candidate.status)
+  ) {
+    return fail(
+      `status must be one of settled|pending|rejected|failed (got ${JSON.stringify(
+        candidate.status,
+      )})`,
+    )
+  }
+  if (
+    typeof candidate.operationId !== 'string' ||
+    candidate.operationId.length === 0
+  ) {
+    return fail('operationId must be a non-empty string')
+  }
+  if (
+    typeof candidate.costCents !== 'number' ||
+    !Number.isFinite(candidate.costCents) ||
+    candidate.costCents < 0
+  ) {
+    return fail(
+      `costCents must be a finite non-negative number (got ${JSON.stringify(
+        candidate.costCents,
+      )})`,
+    )
+  }
+  if (
+    candidate.metadata === null ||
+    typeof candidate.metadata !== 'object' ||
+    Array.isArray(candidate.metadata)
+  ) {
+    return fail('metadata must be a non-null non-array object')
+  }
+  return candidate as unknown as SettlementResult
 }
 
 /**

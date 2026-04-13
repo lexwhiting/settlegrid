@@ -263,7 +263,7 @@ describe('createDispatchKernel', () => {
       expect(fetchCalls.find((c) => c.url.endsWith('/api/sdk/meter'))).toBeUndefined()
     })
 
-    it('handler NOT called and error response returned when balance is insufficient', async () => {
+    it('handler NOT called and 402 returned when balance is insufficient', async () => {
       fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
         fetchCalls.push(recordCall(url, init))
         if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(true, 1)
@@ -281,16 +281,12 @@ describe('createDispatchKernel', () => {
 
       expect(handler).not.toHaveBeenCalled()
       expect(fetchCalls.find((c) => c.url.endsWith('/api/sdk/meter'))).toBeUndefined()
-      // Response is an error (NOT 200). The MCP adapter's formatError
-      // has a pre-existing case-sensitivity quirk that routes
-      // InsufficientCreditsError (message starts with capital 'I' —
-      // "Insufficient credits: ...") to 500 instead of the semantically
-      // correct 402. This is a P1.K1 adapter bug inherited by the
-      // kernel; the hostile-review phase of P1.K2 addresses it. For
-      // initial wiring, we assert the response IS an error response
-      // and that the handler / meter were not called.
-      expect(response.status).toBeGreaterThanOrEqual(400)
-      expect(response.status).not.toBe(200)
+      // The P1.K2 hostile fix to the MCP adapter's formatError routes
+      // InsufficientCreditsError to 402 via both the error.code ===
+      // 'INSUFFICIENT_CREDITS' check and the case-insensitive message
+      // match. Before the fix, the case-sensitive `includes('insufficient')`
+      // check missed the capital-'I' message and fell through to 500.
+      expect(response.status).toBe(402)
     })
   })
 
@@ -566,6 +562,337 @@ describe('createDispatchKernel', () => {
   })
 
   // ─── Public API surface ───────────────────────────────────────────────
+
+  // ─── Hostile-review regression coverage ──────────────────────────────
+
+  describe('hostile-review regression coverage', () => {
+    // H1: handleSgBalance must use meterResponse.costCents, not the
+    // locally-computed pre-auth value. Ensures the kernel reports what
+    // the server actually charged, not what the kernel expected to be
+    // charged. A silent divergence here would be a billing-correctness
+    // bug if the server applied any adjustment (discount, surge, etc.).
+    it('H1: SettlementResult reflects meterResponse.costCents, not pre-auth costCents', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(true)
+        if (url.endsWith('/api/sdk/meter')) {
+          // Server returns costCents=3 even though pricing config says 5.
+          // This simulates a server-side discount / promotion / surge.
+          return jsonResponse({
+            success: true,
+            remainingBalanceCents: 9997,
+            costCents: 3,
+            invocationId: 'inv-discount',
+          })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 }, // pre-auth expects 5
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: { 'x-api-key': 'sg_live_test_abc' },
+      })
+      const response = await kernel.handle(request, vi.fn().mockResolvedValue({}))
+
+      // Response header reflects the server-returned cost (3), not the
+      // pre-auth value (5). If this test fails, handleSgBalance is
+      // using the wrong costCents source.
+      expect(response.headers.get('X-SettleGrid-Cost-Cents')).toBe('3')
+    })
+
+    // H2: facilitatorVerify must validate the raw body shape before
+    // casting. If /verify returns `null` as its JSON body (a valid JSON
+    // value but not an object), the original code crashed with
+    // TypeError reading `parsed.valid`; the fix adds an explicit
+    // null/array/object check.
+    it('H2: facilitator verify returning null body does not crash the kernel', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/x402/verify')) {
+          return new Response('null', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret: 'ts',
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: { 'payment-signature': x402PaymentSignature() },
+      })
+      const handler = vi.fn()
+      const response = await kernel.handle(request, handler)
+
+      expect(handler).not.toHaveBeenCalled()
+      // The kernel returns an error response (via adapter.formatError)
+      // rather than crashing with an unhandled TypeError.
+      expect(response.status).toBeGreaterThanOrEqual(400)
+      // settle must NOT be called because verify failed
+      expect(fetchCalls.find((c) => c.url.endsWith('/api/x402/settle'))).toBeUndefined()
+    })
+
+    // H3: handle() must never throw. The inner try/catch routes common
+    // errors through adapter.formatError, but call sites OUTSIDE the
+    // inner try (protocolRegistry.detect, adapter.formatError itself,
+    // buildMultiProtocol402) could throw and produce unhandled
+    // rejections. The outer try/catch + buildKernelFault500 fallback
+    // is the defense-in-depth layer. This test forces detect() to
+    // throw synchronously and asserts the outer catch produces a 500
+    // response with the KERNEL_FAULT code instead of propagating.
+    it('H3: outer catch returns 500 when protocolRegistry.detect throws', async () => {
+      const { protocolRegistry } = await import('../adapters')
+      const detectSpy = vi
+        .spyOn(protocolRegistry, 'detect')
+        .mockImplementation(() => {
+          throw new Error('simulated detect() bug')
+        })
+      try {
+        const sg = settlegrid.init({
+          toolSlug: 'test-tool',
+          pricing: { defaultCostCents: 5 },
+        })
+        const kernel = createDispatchKernel(sg)
+        const handler = vi.fn()
+        const response = await kernel.handle(
+          new Request('http://localhost/api/tool/run'),
+          handler,
+        )
+
+        expect(response.status).toBe(500)
+        const body = await response.json()
+        expect(body.code).toBe('KERNEL_FAULT')
+        expect(body.message).toBe('simulated detect() bug')
+        expect(handler).not.toHaveBeenCalled()
+      } finally {
+        detectSpy.mockRestore()
+      }
+    })
+
+    it('H3: outer catch returns 500 when adapter.formatError itself throws', async () => {
+      // Force the inner try/catch to enter its catch block (via
+      // InvalidKey), then force adapter.formatError to throw. The
+      // outer catch then produces the KERNEL_FAULT 500 fallback.
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/sdk/validate-key')) return validateKeyResponse(false)
+        return new Response('{}', { status: 404 })
+      })
+
+      const { protocolRegistry } = await import('../adapters')
+      const mcpAdapter = protocolRegistry.get('mcp')
+      expect(mcpAdapter).toBeDefined()
+      const formatErrorSpy = vi
+        .spyOn(mcpAdapter!, 'formatError')
+        .mockImplementation(() => {
+          throw new Error('simulated formatError bug')
+        })
+      try {
+        const sg = settlegrid.init({
+          toolSlug: 'test-tool',
+          pricing: { defaultCostCents: 5 },
+        })
+        const kernel = createDispatchKernel(sg)
+        const response = await kernel.handle(
+          new Request('http://localhost/api/tool/run', {
+            headers: { 'x-api-key': 'sg_live_test_abc' },
+          }),
+          vi.fn(),
+        )
+
+        expect(response.status).toBe(500)
+        const body = await response.json()
+        expect(body.code).toBe('KERNEL_FAULT')
+        expect(body.message).toBe('simulated formatError bug')
+      } finally {
+        formatErrorSpy.mockRestore()
+      }
+    })
+
+    // M1: facilitatorSettle must validate every required SettlementResult
+    // field strictly. Parameterized across each failure mode so a
+    // regression that relaxes one check surfaces immediately.
+    const malformedSettleCases: Array<{ label: string; body: unknown }> = [
+      { label: 'null body', body: null },
+      { label: 'array body', body: [] },
+      { label: 'primitive body', body: 42 },
+      {
+        label: 'missing status',
+        body: {
+          operationId: 'op-1',
+          costCents: 10,
+          metadata: { protocol: 'x402', latencyMs: 1, settlementType: 'real-time' },
+        },
+      },
+      {
+        label: 'unknown status',
+        body: {
+          status: 'yolo',
+          operationId: 'op-1',
+          costCents: 10,
+          metadata: { protocol: 'x402', latencyMs: 1, settlementType: 'real-time' },
+        },
+      },
+      {
+        label: 'empty operationId',
+        body: {
+          status: 'settled',
+          operationId: '',
+          costCents: 10,
+          metadata: { protocol: 'x402', latencyMs: 1, settlementType: 'real-time' },
+        },
+      },
+      {
+        label: 'NaN costCents',
+        body: {
+          status: 'settled',
+          operationId: 'op-1',
+          costCents: Number.NaN,
+          metadata: { protocol: 'x402', latencyMs: 1, settlementType: 'real-time' },
+        },
+      },
+      {
+        label: 'negative costCents',
+        body: {
+          status: 'settled',
+          operationId: 'op-1',
+          costCents: -5,
+          metadata: { protocol: 'x402', latencyMs: 1, settlementType: 'real-time' },
+        },
+      },
+      {
+        label: 'Infinity costCents',
+        body: {
+          status: 'settled',
+          operationId: 'op-1',
+          costCents: Number.POSITIVE_INFINITY,
+          metadata: { protocol: 'x402', latencyMs: 1, settlementType: 'real-time' },
+        },
+      },
+      {
+        label: 'null metadata',
+        body: {
+          status: 'settled',
+          operationId: 'op-1',
+          costCents: 10,
+          metadata: null,
+        },
+      },
+      {
+        label: 'array metadata',
+        body: {
+          status: 'settled',
+          operationId: 'op-1',
+          costCents: 10,
+          metadata: [],
+        },
+      },
+    ]
+    for (const c of malformedSettleCases) {
+      it(`M1: facilitator settle with ${c.label} is rejected with a clear error`, async () => {
+        fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+          fetchCalls.push(recordCall(url, init))
+          if (url.endsWith('/api/x402/verify')) return jsonResponse({ valid: true })
+          if (url.endsWith('/api/x402/settle')) {
+            return new Response(JSON.stringify(c.body), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          }
+          return new Response('{}', { status: 404 })
+        })
+
+        const sg = settlegrid.init({
+          toolSlug: 'test-tool',
+          pricing: { defaultCostCents: 5 },
+          toolSecret: 'ts',
+        })
+        const kernel = createDispatchKernel(sg)
+        const request = new Request('http://localhost/api/x402/run', {
+          headers: { 'payment-signature': x402PaymentSignature() },
+        })
+        const response = await kernel.handle(request, vi.fn().mockResolvedValue({}))
+
+        // Kernel returns an error response rather than crashing
+        expect(response.status).toBeGreaterThanOrEqual(400)
+      })
+    }
+
+    // M2: resolveFacilitatorAuth must only accept Bearer-scheme
+    // Authorization headers. Non-Bearer schemes (Basic, Digest, etc.)
+    // would otherwise be wrapped as "Bearer Basic xyz" which is
+    // nonsense that the facilitator would reject with a confusing 401.
+    it('M2: non-Bearer Authorization header does not trigger facilitator call', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        // No toolSecret
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: {
+          'payment-signature': x402PaymentSignature(),
+          authorization: 'Basic dXNlcjpwYXNz', // non-Bearer
+        },
+      })
+      const response = await kernel.handle(request, vi.fn())
+
+      // The kernel throws internally ("facilitator auth unavailable")
+      // and routes the error through adapter.formatError. Critical:
+      // the facilitator verify endpoint is NOT called because
+      // resolveFacilitatorAuth throws before fetch runs.
+      expect(fetchCalls.find((c) => c.url.endsWith('/api/x402/verify'))).toBeUndefined()
+      expect(response.status).toBeGreaterThanOrEqual(400)
+    })
+
+    // M2 companion: Authorization: Bearer <token> DOES work as the
+    // tertiary fallback when both toolSecret and x-api-key are absent.
+    it('M2: Bearer Authorization header is accepted as the tertiary fallback', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/x402/verify')) return jsonResponse({ valid: true })
+        if (url.endsWith('/api/x402/settle')) return facilitatorSettleResponse('x402')
+        return new Response('{}', { status: 404 })
+      })
+
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+      })
+      const kernel = createDispatchKernel(sg)
+
+      const request = new Request('http://localhost/api/x402/run', {
+        headers: {
+          'payment-signature': x402PaymentSignature(),
+          authorization: 'Bearer my_consumer_token',
+        },
+      })
+      await kernel.handle(request, vi.fn().mockResolvedValue({}))
+
+      const verifyCall = fetchCalls.find((c) => c.url.endsWith('/api/x402/verify'))
+      // The Bearer Authorization header is passed through verbatim,
+      // not wrapped with an extra "Bearer " prefix.
+      expect(verifyCall?.headers['Authorization']).toBe('Bearer my_consumer_token')
+    })
+  })
 
   describe('public API surface', () => {
     it('createDispatchKernel is re-exported from the package index', async () => {
