@@ -153,7 +153,8 @@ export class UCPAdapter implements ProtocolAdapter {
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
-    const costCents = resolveOperationCost(options.pricing, method)
+    const rawCost = resolveOperationCost(options.pricing, method)
+    const costCents = Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
     return {
       scheme: 'ucp',
       provider: 'google-shopify',
