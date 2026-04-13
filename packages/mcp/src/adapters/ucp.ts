@@ -10,7 +10,12 @@
  *   2. x-settlegrid-protocol: ucp header
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
 
 export class UCPAdapter implements ProtocolAdapter {
@@ -132,5 +137,20 @@ export class UCPAdapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the UCP (Universal Commerce
+   * Protocol) rail. P1.K3 minimal stub. P1.K4 will replace this with
+   * the session-based checkout entry (create/update/complete URLs,
+   * payment handler list, .well-known/ucp discovery info).
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    return {
+      scheme: 'ucp',
+      costCents,
+    }
   }
 }

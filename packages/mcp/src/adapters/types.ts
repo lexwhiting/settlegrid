@@ -19,6 +19,16 @@
  * @packageDocumentation
  */
 
+// Type-only imports from 402-builder.ts for the optional
+// `toAcceptEntry` method on the ProtocolAdapter interface. This creates
+// a type-level circular import (adapters/types.ts ↔ 402-builder.ts),
+// which TypeScript handles fine for `import type` statements because
+// they are erased at runtime. The value-level graph stays acyclic:
+// adapters/types.ts has zero value exports that 402-builder.ts needs,
+// and 402-builder.ts only imports `ProtocolName` from here, also as a
+// type-only import.
+import type { AcceptEntry, PaymentRequiredOptions } from '../402-builder'
+
 // ─── Protocol enum ──────────────────────────────────────────────────────────
 
 export type ProtocolName =
@@ -140,4 +150,21 @@ export interface ProtocolAdapter {
 
   /** Format error into protocol-specific error response */
   formatError(error: Error, request: Request): Response
+
+  /**
+   * Build an `accepts[]` entry for this protocol, used by
+   * `buildMultiProtocol402` when the tool is willing to accept the
+   * protocol on its 402 manifest. P1.K3 adds stub implementations
+   * that produce minimal spec-shaped entries; P1.K4 will replace
+   * them with real implementations that read tool-owned configuration
+   * (payout addresses, networks, currencies) from a per-adapter
+   * config channel.
+   *
+   * Optional at the interface level so existing mock adapters (e.g.
+   * the `exports.test.ts` ProtocolAdapter mock in the P1.K1 surface
+   * lock) and hypothetical external adapters that do not yet
+   * implement the method remain structurally compatible. When P1.K4
+   * ships, this may be promoted to a required method.
+   */
+  toAcceptEntry?(options: PaymentRequiredOptions): AcceptEntry
 }

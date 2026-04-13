@@ -10,7 +10,12 @@
  *   2. x-visa-agent-token header
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
 
 export class TAPAdapter implements ProtocolAdapter {
@@ -90,5 +95,21 @@ export class TAPAdapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the Visa TAP rail. P1.K3 minimal
+   * stub — the real implementation is blocked on Visa sandbox access
+   * (see formatResponse above for the not-yet-available message).
+   * P1.K4 will replace this with the Visa-specific token provision
+   * entry once sandbox credentials land.
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    return {
+      scheme: 'visa-tap',
+      costCents,
+    }
   }
 }

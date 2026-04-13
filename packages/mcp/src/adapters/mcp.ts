@@ -8,8 +8,20 @@
  *   3. x-api-key header
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
+
+/**
+ * SettleGrid's default top-up page — shown to the consumer when the
+ * 402 manifest advertises this adapter (sg-balance) as a rail. P1.K4
+ * may replace this with a per-tool deep link.
+ */
+const SETTLEGRID_TOPUP_URL = 'https://settlegrid.ai/top-up'
 
 export class MCPAdapter implements ProtocolAdapter {
   readonly name = 'mcp' as const
@@ -146,5 +158,21 @@ export class MCPAdapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the sg-balance rail. P1.K3 stub —
+   * P1.K4 will replace the body with config-driven pricing and the
+   * tool's actual top-up URL instead of the hardcoded SettleGrid one.
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    return {
+      scheme: 'sg-balance',
+      provider: 'settlegrid',
+      costCents,
+      topUpUrl: SETTLEGRID_TOPUP_URL,
+    }
   }
 }

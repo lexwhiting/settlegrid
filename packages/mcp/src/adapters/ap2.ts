@@ -7,7 +7,12 @@
  *   2. AP2 mandate body with type field matching ap2.mandates.*
  */
 
-import type { ProtocolAdapter, PaymentContext, SettlementResult } from './types'
+import type {
+  AcceptEntry,
+  PaymentRequiredOptions,
+} from '../402-builder'
+import { resolveOperationCost } from '../config'
+import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
 import { randomUUID } from 'crypto'
 
 export class AP2Adapter implements ProtocolAdapter {
@@ -138,5 +143,20 @@ export class AP2Adapter implements ProtocolAdapter {
         headers: { 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  /**
+   * Build the `accepts[]` entry for the AP2 rail. P1.K3 minimal
+   * fallback stub — scheme + costCents only. P1.K4 will replace this
+   * with a proper AP2 mandate-shaped entry (credential provider
+   * endpoint, supported mandate types, VDC issuer info).
+   */
+  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+    const method = options.method ?? 'default'
+    const costCents = resolveOperationCost(options.pricing, method)
+    return {
+      scheme: 'ap2',
+      costCents,
+    }
   }
 }
