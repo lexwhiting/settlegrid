@@ -157,12 +157,19 @@ async function apiCall<T>(
       switch (response.status) {
         case 401:
           throw new InvalidKeyError(data.error)
-        case 402:
+        case 402: {
+          // Server-provided topUpUrl might be any JSON type — typecheck
+          // before passing so non-string values don't reach the error's
+          // template literal (which would coerce to 'null', '[object Object]',
+          // etc. and end up in the consumer-facing error message).
+          const topUpUrl =
+            typeof data.topUpUrl === 'string' ? data.topUpUrl : undefined
           throw new InsufficientCreditsError(
             data.requiredCents ?? 0,
             data.availableCents ?? 0,
-            data.topUpUrl,
+            topUpUrl,
           )
+        }
         case 403:
           if (data.code === 'TOOL_DISABLED') {
             throw new ToolDisabledError(config.toolSlug)

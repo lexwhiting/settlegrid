@@ -121,17 +121,26 @@ export class InsufficientCreditsError extends SettleGridError {
   constructor(
     requiredCents: number,
     availableCents: number,
-    topUpUrl: string = 'https://settlegrid.ai/top-up'
+    topUpUrl?: string | null
   ) {
+    // Coalesce null / undefined / empty string to the default top-up URL.
+    // JS default-parameter syntax (`= 'default'`) only fires on `undefined`
+    // — explicit `null` would leak into the message as the literal string
+    // "null". Empty string is similarly a broken URL. `||` handles all
+    // three falsy cases correctly.
+    const resolvedTopUpUrl =
+      (typeof topUpUrl === 'string' && topUpUrl.length > 0
+        ? topUpUrl
+        : 'https://settlegrid.ai/top-up')
     super(
-      `Insufficient credits: need ${requiredCents} cents, have ${availableCents} cents. Top up at ${topUpUrl}`,
+      `Insufficient credits: need ${requiredCents} cents, have ${availableCents} cents. Top up at ${resolvedTopUpUrl}`,
       'INSUFFICIENT_CREDITS',
       402
     )
     this.name = 'InsufficientCreditsError'
     this.requiredCents = requiredCents
     this.availableCents = availableCents
-    this.topUpUrl = topUpUrl
+    this.topUpUrl = resolvedTopUpUrl
   }
 }
 
@@ -211,7 +220,13 @@ export class RateLimitedError extends SettleGridError {
    * Construct a RateLimitedError from a retry-delay value in seconds
    * (matches the `Retry-After: <seconds>` HTTP header format and the
    * P1.SDK3 spec wording "pass to RateLimitedError(retryAfterSeconds)").
-   * Equivalent to `new RateLimitedError(seconds * 1000)`.
+   *
+   * Input is validated: non-finite or negative values throw TypeError.
+   * Fractional inputs are floored to match HTTP's integer-seconds
+   * convention, which means the round-trip through the `retryAfterSeconds`
+   * getter is lossless (i.e. `fromSeconds(n).retryAfterSeconds === Math.floor(n)`).
+   *
+   * @throws {TypeError} if `retryAfterSeconds` is not a finite non-negative number
    *
    * @example
    * ```typescript
@@ -220,7 +235,19 @@ export class RateLimitedError extends SettleGridError {
    * ```
    */
   static fromSeconds(retryAfterSeconds: number): RateLimitedError {
-    return new RateLimitedError(retryAfterSeconds * 1000)
+    if (
+      typeof retryAfterSeconds !== 'number' ||
+      !Number.isFinite(retryAfterSeconds) ||
+      retryAfterSeconds < 0
+    ) {
+      throw new TypeError(
+        `RateLimitedError.fromSeconds requires a finite non-negative number, got ${String(retryAfterSeconds)}`,
+      )
+    }
+    // Floor to integer seconds (RFC 7231 Retry-After is delta-seconds as
+    // an integer) before converting to ms. This makes the round-trip
+    // through the `retryAfterSeconds` getter lossless.
+    return new RateLimitedError(Math.floor(retryAfterSeconds) * 1000)
   }
 }
 
