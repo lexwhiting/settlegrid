@@ -317,7 +317,7 @@ export const settlegrid = {
     const pricing = validatePricingConfig(options.pricing)
     const middleware = createMiddleware(config, pricing)
 
-    return {
+    const instance: SettleGridInstance = {
       wrap<TArgs, TResult>(
         handler: (args: TArgs) => Promise<TResult> | TResult,
         wrapOptions?: WrapOptions
@@ -427,6 +427,21 @@ export const settlegrid = {
         middleware.clearCache()
       },
     }
+
+    // Attach the hidden kernel internals as a non-enumerable property so
+    // `createDispatchKernel(sg)` can reach middleware / config / pricing
+    // without putting them on the public SettleGridInstance interface.
+    // Non-enumerable means Object.keys(sg), JSON.stringify(sg), and
+    // `{ ...sg }` all ignore it — consumers never see it by accident.
+    // See `extractKernelInternals` in kernel.ts for the reader side.
+    Object.defineProperty(instance, '__kernel__', {
+      value: { middleware, config, pricing },
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    })
+
+    return instance
   },
 
   extractApiKey,
@@ -487,3 +502,21 @@ export type {
   SettlementStatus,
   SettlementResult,
 } from './adapters/types'
+
+// ─── Cross-protocol dispatch kernel (P1.K2) ──────────────────────────────
+//
+// `createDispatchKernel(sg)` turns a SettleGrid instance into a
+// protocol-aware Request → Response router. It internally handles
+// protocol detection (sg-balance / x402 / MPP), facilitator round-trips,
+// and response formatting. See `packages/mcp/src/kernel.ts` for the full
+// design, including the handler signature, facilitator wire format,
+// and the non-enumerable `__kernel__` contract that this module's
+// `settlegrid.init()` populates on the returned instance.
+//
+// The kernel is also exposed at the `@settlegrid/mcp/kernel` subpath via
+// the `exports` map in package.json — both paths resolve to the same
+// dist bundle so there is no double-registration of the auto-registered
+// protocol adapters.
+
+export { createDispatchKernel } from './kernel'
+export type { DispatchKernel, DispatchHandler } from './kernel'

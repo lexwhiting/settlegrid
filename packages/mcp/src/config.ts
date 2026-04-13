@@ -107,6 +107,7 @@ const sdkConfigSchema = z.object({
   debug: z.boolean().optional(),
   cacheTtlMs: z.number().int().min(0).optional(),
   timeoutMs: z.number().int().min(100).max(30000).optional(),
+  toolSecret: z.string().min(1).optional(),
 })
 
 /**
@@ -124,6 +125,14 @@ export interface NormalizedConfig {
   cacheTtlMs: number
   /** Request timeout in milliseconds */
   timeoutMs: number
+  /**
+   * Tool-owned facilitator secret (optional). When set, the dispatch kernel
+   * uses it as `Authorization: Bearer <toolSecret>` for HTTPS round-trips
+   * to `/api/x402/*` and `/api/mpp/*`. When unset, the kernel falls back
+   * to the consumer's API key from the request. Not used by any other
+   * SDK surface — sg.wrap / sg.validateKey / sg.meter never read it.
+   */
+  toolSecret?: string
 }
 
 /**
@@ -152,6 +161,10 @@ export function normalizeConfig(config: SettleGridConfig): NormalizedConfig {
     debug: parsed.debug ?? false,
     cacheTtlMs: parsed.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS,
     timeoutMs: parsed.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    // toolSecret is intentionally left off the spread when undefined so it
+    // does not shadow a downstream default or show up as `toolSecret: undefined`
+    // in JSON-serialized logs. Set only when the caller provided a value.
+    ...(parsed.toolSecret !== undefined ? { toolSecret: parsed.toolSecret } : {}),
   }
 }
 
