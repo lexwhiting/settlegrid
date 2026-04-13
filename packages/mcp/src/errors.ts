@@ -111,16 +111,27 @@ export class InvalidKeyError extends SettleGridError {
 export class InsufficientCreditsError extends SettleGridError {
   public readonly requiredCents: number
   public readonly availableCents: number
+  /**
+   * URL the consumer should visit to top up their credits. Defaults to
+   * the SettleGrid-hosted top-up page, but the API may override this
+   * per-tool (e.g. to link directly to the tool-specific funnel).
+   */
+  public readonly topUpUrl: string
 
-  constructor(requiredCents: number, availableCents: number) {
+  constructor(
+    requiredCents: number,
+    availableCents: number,
+    topUpUrl: string = 'https://settlegrid.ai/top-up'
+  ) {
     super(
-      `Insufficient credits: need ${requiredCents} cents, have ${availableCents} cents. Top up at https://settlegrid.ai/top-up`,
+      `Insufficient credits: need ${requiredCents} cents, have ${availableCents} cents. Top up at ${topUpUrl}`,
       'INSUFFICIENT_CREDITS',
       402
     )
     this.name = 'InsufficientCreditsError'
     this.requiredCents = requiredCents
     this.availableCents = availableCents
+    this.topUpUrl = topUpUrl
   }
 }
 
@@ -184,6 +195,16 @@ export class RateLimitedError extends SettleGridError {
     )
     this.name = 'RateLimitedError'
     this.retryAfterMs = retryAfterMs
+  }
+
+  /**
+   * Retry delay in seconds, derived from `retryAfterMs`. Matches the
+   * `Retry-After: <seconds>` HTTP header format so callers can
+   * `Retry-After: ${err.retryAfterSeconds}` without doing the math
+   * themselves.
+   */
+  get retryAfterSeconds(): number {
+    return Math.floor(this.retryAfterMs / 1000)
   }
 }
 
