@@ -211,10 +211,11 @@ describe('settlegridMiddleware', () => {
     await withBilling(request, async () => {
       return new Response(JSON.stringify({ ok: true }))
     })
-    // Verify sg.wrap's mocked execute received the budget cap via metadata:
-    // the 5th arg is maxCostCents (4th is units which was undefined here).
+    // Verify sg.wrap's mocked execute received the metadata bag:
+    // the 5th arg is the full metadata object (P1.SDK4 spec-diff fix).
+    // Execute unpacks the `settlegrid-max-cost-cents` field internally.
     const call = mockMiddleware.execute.mock.calls[0]
-    expect(call[4]).toBe(250)
+    expect(call[4]).toEqual({ 'settlegrid-max-cost-cents': 250 })
   })
 
   it('withBilling returns 429 for rate limited', async () => {

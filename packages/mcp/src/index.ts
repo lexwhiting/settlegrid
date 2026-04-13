@@ -350,23 +350,19 @@ export const settlegrid = {
             )
           }
 
-          // Read consumer's budget cap from MCP metadata. Validation
-          // happens inside middleware.execute() so both wrap() and
-          // direct callers go through the same code path. The cast to
-          // `unknown` preserves whatever the server sent so
-          // middleware.execute can reject non-numeric values with a
-          // descriptive error (which the REST middleware then maps to
-          // HTTP 400).
-          const maxCostCents = context?.metadata?.['settlegrid-max-cost-cents'] as
-            | number
-            | undefined
-
+          // Pass MCP metadata through to middleware.execute so it can
+          // read context-bound fields (currently:
+          // 'settlegrid-max-cost-cents') and validate them against a
+          // single source of truth. Matches the P1.SDK4 spec literal:
+          // "check whether context.metadata['settlegrid-max-cost-cents']
+          // is set" — the check happens inside execute, which also
+          // owns the validation and mapping to BudgetExceededError.
           return middleware.execute(
             apiKey,
             method,
             () => handler(args),
             units,
-            maxCostCents,
+            context?.metadata,
           )
         }
       },
