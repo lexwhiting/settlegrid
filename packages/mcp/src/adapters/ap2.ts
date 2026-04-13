@@ -146,18 +146,24 @@ export class AP2Adapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` challenge entry for the AP2 rail. Renamed
-   * from `toAcceptEntry` in P1.K4. Minimal fallback stub — scheme +
-   * costCents only. A future pass will replace the body with a
-   * proper AP2 mandate-shaped entry (credential provider endpoint,
-   * supported mandate types, VDC issuer info).
+   * Build the `accepts[]` challenge entry for the AP2 rail.
+   *
+   * Mirrors the characteristic fields from the canonical
+   * `generateAp2_402Response` in `apps/web/src/lib/ap2-proxy.ts`
+   * (protocol + amount_cents + currency + merchant/issuer metadata).
+   * A future pass will replace this with a full AP2 mandate-shaped
+   * entry (credential provider endpoint, available_skills array,
+   * VDC issuer chain) — today's stub carries just the provider +
+   * currency so a client can recognize the rail and surface the cost.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {
       scheme: 'ap2',
+      provider: 'google',
       costCents,
+      currency: 'USD',
     }
   }
 }

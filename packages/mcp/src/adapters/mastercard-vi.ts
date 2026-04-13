@@ -141,17 +141,26 @@ export class MastercardVIAdapter implements ProtocolAdapter {
 
   /**
    * Build the `accepts[]` challenge entry for the Mastercard
-   * Verifiable Intent rail. Renamed from `toAcceptEntry` in P1.K4.
-   * Minimal stub — a future pass will replace this with the SD-JWT
-   * credential chain challenge, ES256 issuer key, and Mastercard
-   * Agent Pay endpoint config.
+   * Verifiable Intent rail.
+   *
+   * Mirrors the characteristic fields from the canonical
+   * `generateMastercard402Response` in
+   * `apps/web/src/lib/mastercard-proxy.ts` (protocol + amount_cents +
+   * currency + accepted_credentials + credential_requirements).
+   * A future pass will replace this with the full SD-JWT credential
+   * chain challenge (ES256 issuer key, three-layer delegation chain,
+   * Mastercard Agent Pay endpoint) — today's stub carries the
+   * accepted_credentials list so a client can recognize the rail.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {
       scheme: 'mastercard-vi',
+      provider: 'mastercard',
       costCents,
+      currency: 'USD',
+      acceptedCredentials: ['sd-jwt-verifiable-intent'],
     }
   }
 }

@@ -99,18 +99,24 @@ export class TAPAdapter implements ProtocolAdapter {
 
   /**
    * Build the `accepts[]` challenge entry for the Visa TAP rail.
-   * Renamed from `toAcceptEntry` in P1.K4. Minimal stub — the real
-   * implementation is blocked on Visa sandbox access (see
-   * formatResponse above for the not-yet-available message). A
-   * future pass will replace this with the Visa-specific token
-   * provision entry once sandbox credentials land.
+   *
+   * Mirrors the characteristic fields from the canonical
+   * `generateVisaTap402Response` in `apps/web/src/lib/visa-tap-proxy.ts`
+   * (protocol + amount_cents + currency + accepted_tokens
+   * ['visa_agent_token']). The real implementation is still blocked
+   * on Visa sandbox access — today's stub carries the accepted-tokens
+   * list so a client can recognize the rail and the token type it
+   * would need to obtain out-of-band.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {
       scheme: 'visa-tap',
+      provider: 'visa',
       costCents,
+      currency: 'USD',
+      acceptedTokens: ['visa-agent-token'],
     }
   }
 }

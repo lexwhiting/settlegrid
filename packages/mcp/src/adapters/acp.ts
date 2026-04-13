@@ -138,17 +138,23 @@ export class ACPAdapter implements ProtocolAdapter {
 
   /**
    * Build the `accepts[]` challenge entry for the ACP (Agentic
-   * Commerce Protocol) rail. Renamed from `toAcceptEntry` in P1.K4.
-   * Minimal stub — a future pass will replace this with the Stripe
-   * SPT checkout-specific entry (OpenAI ChatGPT connector, merchant
-   * callback URL, SPT issuer config).
+   * Commerce Protocol) rail.
+   *
+   * Mirrors the characteristic fields from the canonical
+   * `generateAcp402Response` in `apps/web/src/lib/acp-proxy.ts`
+   * (protocol + amount_cents + currency + checkout.url + recipient).
+   * A future pass will replace this with the Stripe SPT checkout-
+   * specific entry (OpenAI ChatGPT connector, merchant callback URL,
+   * SPT issuer config) — today's stub carries provider + currency.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {
       scheme: 'acp',
+      provider: 'openai-stripe',
       costCents,
+      currency: 'USD',
     }
   }
 }
