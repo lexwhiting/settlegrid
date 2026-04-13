@@ -326,6 +326,27 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(err.retryAfterSeconds).toBe(10)
   })
 
+  it('RateLimitedError.fromSeconds static factory converts seconds → ms', () => {
+    // Direct smoke test of the factory introduced in P1.SDK3 spec-diff
+    // fix — verifies the middleware's use site is backed by a clean
+    // conversion semantic. 45 seconds → 45_000 ms, getter round-trips.
+    const err = RateLimitedError.fromSeconds(45)
+    expect(err).toBeInstanceOf(RateLimitedError)
+    expect(err.retryAfterMs).toBe(45_000)
+    expect(err.retryAfterSeconds).toBe(45)
+    expect(err.statusCode).toBe(429)
+    expect(err.code).toBe('RATE_LIMITED')
+  })
+
+  it('RateLimitedError.fromSeconds handles zero and fractional seconds', () => {
+    expect(RateLimitedError.fromSeconds(0).retryAfterMs).toBe(0)
+    expect(RateLimitedError.fromSeconds(0).retryAfterSeconds).toBe(0)
+    // Fractional seconds: 1.5 → 1500ms; floor to 1 seconds via getter
+    const frac = RateLimitedError.fromSeconds(1.5)
+    expect(frac.retryAfterMs).toBe(1500)
+    expect(frac.retryAfterSeconds).toBe(1)
+  })
+
   it('429: defaults retryAfterMs to 60_000 when Retry-After is missing', async () => {
     fetchSpy.mockResolvedValue(jsonResponse({}, 429))
     let caught: unknown
@@ -350,8 +371,8 @@ describe('apiCall — HTTP client error mapping', () => {
     expect((caught as RateLimitedError).retryAfterMs).toBe(60_000)
   })
 
-  // ─── 7. 500 → SettleGridUnavailableError ──────────────────────────────────
-  it('500: throws SettleGridUnavailableError', async () => {
+  // ─── 7. 500 → SettleGridUnavailableError (field-level assertions) ────────
+  it('500: throws SettleGridUnavailableError with statusCode + code + message fields', async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ error: 'internal' }, 500))
     let caught: unknown
     try {
@@ -360,11 +381,17 @@ describe('apiCall — HTTP client error mapping', () => {
       caught = e
     }
     expect(caught).toBeInstanceOf(SettleGridUnavailableError)
-    expect((caught as Error).message).toMatch(/internal/)
+    const err = caught as SettleGridUnavailableError
+    // SettleGridUnavailableError always maps to 503 as its SDK statusCode,
+    // regardless of the upstream status (500, 502, 503, etc.) — that's
+    // the class's fixed contract.
+    expect(err.statusCode).toBe(503)
+    expect(err.code).toBe('SERVER_ERROR')
+    expect(err.message).toMatch(/internal/)
   })
 
-  // ─── 8. 503 → SettleGridUnavailableError ──────────────────────────────────
-  it('503: throws SettleGridUnavailableError', async () => {
+  // ─── 8. 503 → SettleGridUnavailableError (field-level assertions) ────────
+  it('503: throws SettleGridUnavailableError with statusCode + code + message fields', async () => {
     fetchSpy.mockResolvedValue(jsonResponse({}, 503))
     let caught: unknown
     try {
@@ -373,8 +400,11 @@ describe('apiCall — HTTP client error mapping', () => {
       caught = e
     }
     expect(caught).toBeInstanceOf(SettleGridUnavailableError)
-    // Default message includes the original status when no body error
-    expect((caught as Error).message).toMatch(/503/)
+    const err = caught as SettleGridUnavailableError
+    expect(err.statusCode).toBe(503)
+    expect(err.code).toBe('SERVER_ERROR')
+    // Default message includes the original upstream status when no body error
+    expect(err.message).toMatch(/503/)
   })
 
   // ─── 9. AbortError → TimeoutError ─────────────────────────────────────────
