@@ -519,4 +519,4 @@ export type {
 // protocol adapters.
 
 export { createDispatchKernel } from './kernel'
-export type { DispatchKernel, DispatchHandler } from './kernel'
+export type { DispatchKernel, DispatchHandler } from './types'

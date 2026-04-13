@@ -77,38 +77,17 @@ import type { createMiddleware } from './middleware'
 // re-exports createDispatchKernel from this file).
 import type { SettleGridInstance } from './index'
 import type {
+  DispatchHandler,
+  DispatchKernel,
   GeneralizedPricingConfig,
   PricingConfig,
 } from './types'
 
-// ─── Public types ──────────────────────────────────────────────────────────
-
-/**
- * Handler that the dispatch kernel calls after payment verification and
- * before settlement. Receives the normalized {@link PaymentContext} that
- * the protocol adapter extracted from the incoming request. Whatever the
- * handler returns is forwarded to the facilitator's settle endpoint in
- * the `handlerResult` field (for x402 / MPP) so the server can compute
- * the final cost from tokens / bytes / outcome. For sg-balance (MCP
- * protocol) the return value is currently ignored because per-invocation
- * billing is resolved before the handler runs.
- */
-export type DispatchHandler = (ctx: PaymentContext) => Promise<unknown>
-
-/**
- * Single-method dispatch API returned by {@link createDispatchKernel}.
- */
-export interface DispatchKernel {
-  /**
-   * Route an incoming request through the full payment pipeline and
-   * produce a protocol-appropriate response.
-   *
-   * Never throws — errors are caught internally and routed through
-   * `adapter.formatError` (or the inline 402 fallback when no adapter
-   * matched the request).
-   */
-  handle(request: Request, runHandler: DispatchHandler): Promise<Response>
-}
+// The public types `DispatchKernel` and `DispatchHandler` are declared in
+// `./types.ts` (per the P1.K2 spec's "may touch: types.ts (add DispatchKernel)"
+// direction) and re-exported from the package entry via `./index.ts`. They
+// are imported above so the `createDispatchKernel` signature and
+// `handleSgBalance` / `handleFacilitatorProtocol` can reference them.
 
 // ─── Internal: kernel <-> SDK instance contract ────────────────────────────
 
@@ -186,7 +165,7 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
         // No adapter matched the request — return the minimal multi-protocol
         // 402 fallback. P1.K3 will replace this with a richer manifest
         // builder (`buildMultiProtocol402` in `402-builder.ts`).
-        return buildMinimal402(config)
+        return buildMultiProtocol402(config)
       }
 
       try {
@@ -210,7 +189,7 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
         // Phase 1 kernel (ap2, visa-tap, ucp, acp, mastercard-vi,
         // circle-nano). Fall through to the 402 fallback rather than
         // silently accepting a payment the kernel cannot actually settle.
-        return buildMinimal402(config)
+        return buildMultiProtocol402(config)
       } catch (err) {
         return adapter.formatError(normalizeError(err), request)
       }
@@ -525,20 +504,29 @@ async function facilitatorFetch(
   }
 }
 
-// ─── Fallback 402 builder (inline; P1.K3 replaces this) ───────────────────
+// ─── Multi-protocol 402 builder (inline; P1.K3 will extract) ─────────────
 
 /**
  * Minimal multi-protocol 402 response returned when
  * `protocolRegistry.detect(request)` found no matching adapter OR when
  * the matched adapter's protocol is not wired into the Phase 1 kernel.
- * P1.K3 will replace this with a richer manifest builder
- * (`buildMultiProtocol402` in `402-builder.ts`) that lists the full
- * set of supported payment schemes, prices per method, and facilitator
- * endpoints — today it just returns a short JSON body with the three
- * Phase 1 protocols and the `Accept-Payments` header so clients can
- * pick one and retry.
+ *
+ * P1.K3 is scheduled to extract this function into
+ * `packages/mcp/src/402-builder.ts` and enrich the body with a full
+ * manifest: per-protocol pricing breakdown, facilitator endpoints,
+ * supported payment schemes, and any cryptographic challenges the
+ * client needs to include on retry. When P1.K3 ships, kernel.ts will
+ * switch from this inline implementation to
+ * `import { buildMultiProtocol402 } from './402-builder'` and this
+ * local body will be removed. The function name is kept identical
+ * so the call site in `handle()` does not change between the two
+ * phases — only the import path changes.
+ *
+ * Today's body is intentionally minimal: a short JSON explanation,
+ * the `supportedProtocols` list, the tool slug, and the
+ * `Accept-Payments` header so clients can pick one and retry.
  */
-function buildMinimal402(config: NormalizedConfig): Response {
+function buildMultiProtocol402(config: NormalizedConfig): Response {
   const supported = ['sg-balance', 'x402', 'mpp'] as const
   return new Response(
     JSON.stringify({
