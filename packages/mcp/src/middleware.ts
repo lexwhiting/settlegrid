@@ -10,6 +10,7 @@
 import { LRUCache } from './cache'
 import { resolveOperationCost } from './config'
 import {
+  BudgetExceededError,
   InsufficientCreditsError,
   InvalidKeyError,
   NetworkError,
@@ -357,10 +358,11 @@ export function createMiddleware(
     method: string,
     handler: () => Promise<T> | T,
     units?: number,
+    maxCostCents?: number,
   ): Promise<T> {
     const startTime = Date.now()
 
-    // 0. Validate units (public API input — reject nonsense before it
+    // 0a. Validate units (public API input — reject nonsense before it
     // propagates into cost calculation). A NaN, Infinity, or negative
     // units value would produce garbage costs downstream: negative
     // costs would silently credit consumers, NaN costs would throw
@@ -373,6 +375,26 @@ export function createMiddleware(
             'WrapOptions.units must be a finite non-negative number ' +
             '(e.g. tokens, bytes, or seconds). ' +
             'Omit the field to use the pricing model default.',
+        )
+      }
+    }
+
+    // 0b. Validate max-cost-cents budget cap (from consumer metadata).
+    // Must be a finite non-negative integer — fractional cents don't
+    // make sense, negative cap would never trigger, NaN/Infinity
+    // would produce confusing behavior. The error message mentions
+    // the header name so REST middleware can detect and map to HTTP 400.
+    if (maxCostCents !== undefined) {
+      if (
+        typeof maxCostCents !== 'number' ||
+        !Number.isFinite(maxCostCents) ||
+        maxCostCents < 0 ||
+        !Number.isInteger(maxCostCents)
+      ) {
+        throw new Error(
+          `Invalid settlegrid-max-cost-cents: ${String(maxCostCents)}. ` +
+            'Must be a finite non-negative integer representing cents. ' +
+            'Omit the header to disable the budget cap.',
         )
       }
     }
@@ -391,6 +413,15 @@ export function createMiddleware(
     )
     if (!sufficient) {
       throw new InsufficientCreditsError(costCents, validation.balanceCents)
+    }
+
+    // 2b. Enforce consumer budget cap BEFORE running the handler so the
+    // consumer is never charged for an invocation they refused to pay
+    // for. The resolved costCents from checkCredits is the full amount
+    // the server would charge (per-invocation default + per-token/byte
+    // multiplier, etc.).
+    if (maxCostCents !== undefined && costCents > maxCostCents) {
+      throw new BudgetExceededError(maxCostCents, costCents)
     }
 
     // 3. Execute the handler
