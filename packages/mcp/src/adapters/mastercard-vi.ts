@@ -12,7 +12,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -140,12 +140,13 @@ export class MastercardVIAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the Mastercard Verifiable Intent
-   * rail. P1.K3 minimal stub. P1.K4 will replace this with the SD-JWT
+   * Build the `accepts[]` challenge entry for the Mastercard
+   * Verifiable Intent rail. Renamed from `toAcceptEntry` in P1.K4.
+   * Minimal stub — a future pass will replace this with the SD-JWT
    * credential chain challenge, ES256 issuer key, and Mastercard
    * Agent Pay endpoint config.
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

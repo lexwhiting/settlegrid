@@ -12,7 +12,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -98,13 +98,14 @@ export class TAPAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the Visa TAP rail. P1.K3 minimal
-   * stub — the real implementation is blocked on Visa sandbox access
-   * (see formatResponse above for the not-yet-available message).
-   * P1.K4 will replace this with the Visa-specific token provision
-   * entry once sandbox credentials land.
+   * Build the `accepts[]` challenge entry for the Visa TAP rail.
+   * Renamed from `toAcceptEntry` in P1.K4. Minimal stub — the real
+   * implementation is blocked on Visa sandbox access (see
+   * formatResponse above for the not-yet-available message). A
+   * future pass will replace this with the Visa-specific token
+   * provision entry once sandbox credentials land.
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

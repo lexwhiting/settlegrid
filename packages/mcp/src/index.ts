@@ -535,6 +535,7 @@ export { buildMultiProtocol402 } from './402-builder'
 export type {
   PaymentRequiredOptions,
   PaymentRequiredBody,
-  PaymentResource,
+  ResourceDescriptor,
+  BuildChallengeOptions,
   AcceptEntry,
 } from './402-builder'

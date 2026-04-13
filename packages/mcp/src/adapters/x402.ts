@@ -9,7 +9,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -181,7 +181,7 @@ export class X402Adapter implements ProtocolAdapter {
    * `apps/web/src/lib/x402-proxy.ts`:
    * `{ scheme, network, amount, asset, payTo, maxTimeoutSeconds }`.
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const rawCost = resolveOperationCost(options.pricing, method)
     // Defensive clamp before BigInt() conversion (hostile-review M2/M3):
