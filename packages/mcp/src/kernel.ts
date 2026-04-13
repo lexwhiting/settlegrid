@@ -54,6 +54,7 @@
  * @packageDocumentation
  */
 
+import { buildMultiProtocol402 } from './402-builder'
 import { protocolRegistry } from './adapters/index'
 import type {
   PaymentContext,
@@ -153,9 +154,33 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
  * const response = await kernel.handle(request, async (ctx) => ({ ok: true }))
  * ```
  */
+/**
+ * Protocols the Phase 1 kernel advertises in its 402 manifest and
+ * knows how to dispatch internally. Phase 2 protocols (ap2, visa-tap,
+ * ucp, acp, mastercard-vi, circle-nano) are NOT included here: the
+ * kernel has no implementation for them yet, so advertising them in a
+ * 402 manifest would be misleading. Consumers who want to also accept
+ * those protocols should call `buildMultiProtocol402` directly.
+ */
+const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp']
+
 export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
   const internals = extractKernelInternals(sg)
-  const { middleware, config } = internals
+  const { middleware, config, pricing } = internals
+
+  /**
+   * Build the kernel's default 402 manifest. Hoisted out of `handle()`
+   * so both call sites (no-adapter-matched and Phase-2-protocol-matched)
+   * share the same options shape. `method` is optional because the
+   * no-adapter-matched case has no extracted context to pull it from.
+   */
+  const build402 = (request: Request, method?: string): Response =>
+    buildMultiProtocol402({
+      resource: { url: request.url },
+      acceptedProtocols: PHASE_1_KERNEL_PROTOCOLS,
+      pricing,
+      ...(method !== undefined ? { method } : {}),
+    })
 
   return {
     async handle(request: Request, runHandler: DispatchHandler): Promise<Response> {
@@ -169,7 +194,7 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
       //
       //   1. `protocolRegistry.detect(request)` — a buggy adapter's
       //      `canHandle()` could throw synchronously here
-      //   2. `buildMultiProtocol402(config)` — unlikely but possible
+      //   2. `buildMultiProtocol402(options)` — unlikely but possible
       //   3. `adapter.formatError(err, request)` — the error formatter
       //      itself could throw (e.g., if an adapter's formatError
       //      accesses a property on the error that is not present)
@@ -181,10 +206,10 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
         // 1. Protocol detection
         const adapter = protocolRegistry.detect(request)
         if (!adapter) {
-          // No adapter matched the request — return the minimal multi-protocol
-          // 402 fallback. P1.K3 will replace this with a richer manifest
-          // builder (`buildMultiProtocol402` in `402-builder.ts`).
-          return buildMultiProtocol402(config)
+          // No adapter matched the request — return the P1.K3
+          // multi-protocol 402 manifest. The consumer picks a rail
+          // from `accepts` and retries with the appropriate headers.
+          return build402(request)
         }
 
         try {
@@ -206,9 +231,11 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
           }
           // Protocol is recognized by the registry but not wired into
           // the Phase 1 kernel (ap2, visa-tap, ucp, acp, mastercard-vi,
-          // circle-nano). Fall through to the 402 fallback rather than
-          // silently accepting a payment the kernel cannot actually settle.
-          return buildMultiProtocol402(config)
+          // circle-nano). Fall through to the 402 manifest (with the
+          // method from ctx so the advertised price is method-specific)
+          // rather than silently accepting a payment the kernel cannot
+          // actually settle.
+          return build402(request, ctx.operation.method)
         } catch (err) {
           return adapter.formatError(normalizeError(err), request)
         }
@@ -653,50 +680,10 @@ async function facilitatorFetch(
   }
 }
 
-// ─── Multi-protocol 402 builder (inline; P1.K3 will extract) ─────────────
-
-/**
- * Minimal multi-protocol 402 response returned when
- * `protocolRegistry.detect(request)` found no matching adapter OR when
- * the matched adapter's protocol is not wired into the Phase 1 kernel.
- *
- * P1.K3 is scheduled to extract this function into
- * `packages/mcp/src/402-builder.ts` and enrich the body with a full
- * manifest: per-protocol pricing breakdown, facilitator endpoints,
- * supported payment schemes, and any cryptographic challenges the
- * client needs to include on retry. When P1.K3 ships, kernel.ts will
- * switch from this inline implementation to
- * `import { buildMultiProtocol402 } from './402-builder'` and this
- * local body will be removed. The function name is kept identical
- * so the call site in `handle()` does not change between the two
- * phases — only the import path changes.
- *
- * Today's body is intentionally minimal: a short JSON explanation,
- * the `supportedProtocols` list, the tool slug, and the
- * `Accept-Payments` header so clients can pick one and retry.
- */
-function buildMultiProtocol402(config: NormalizedConfig): Response {
-  const supported = ['sg-balance', 'x402', 'mpp'] as const
-  return new Response(
-    JSON.stringify({
-      error: 'Payment required',
-      code: 'PAYMENT_REQUIRED',
-      message:
-        'No supported payment protocol detected on the incoming request. ' +
-        'Include one of: `x-api-key` header (sg-balance / MCP), ' +
-        '`payment-signature` header (x402), or `x-mpp-credential` header (MPP).',
-      supportedProtocols: supported,
-      toolSlug: config.toolSlug,
-    }),
-    {
-      status: 402,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Payments': supported.join(', '),
-      },
-    },
-  )
-}
+// The multi-protocol 402 manifest builder lives at `./402-builder.ts`
+// (P1.K3). The kernel imports it at the top of this file and calls it
+// from `build402()` above. An earlier P1.K2 placeholder implementation
+// that lived inline here was removed when P1.K3 shipped.
 
 // ─── Error normalization ───────────────────────────────────────────────────
 
