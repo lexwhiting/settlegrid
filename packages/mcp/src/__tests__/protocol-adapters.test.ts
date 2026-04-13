@@ -1081,3 +1081,112 @@ describe('Cross-adapter response consistency', () => {
     }
   })
 })
+
+// ─── buildChallenge() — P1.K4 DoD: one test per adapter ───────────────────
+//
+// The P1.K4 spec DoD says "9 new tests pass". Each test below
+// instantiates one adapter directly, calls its `buildChallenge`
+// method with a minimal BuildChallengeOptions, and asserts the
+// returned AcceptEntry matches the expected per-protocol shape.
+//
+// These tests complement the builder-level tests in 402-builder.test.ts
+// by proving that each adapter's method CAN be called in isolation
+// (not just through the dispatcher) and that its output shape is
+// stable. A future pass that regresses any adapter's buildChallenge
+// output — even a single field — fails the relevant test loudly.
+//
+// Lifts the P1.K3 BASE_PRICING / BASE_RESOURCE helpers locally to
+// avoid coupling this test file to 402-builder.test.ts.
+
+describe('buildChallenge() — one test per adapter (P1.K4 DoD)', () => {
+  const BASE_PRICING: import('../types').PricingConfig = {
+    defaultCostCents: 5,
+    methods: {
+      search: { costCents: 5 },
+      'deep-search': { costCents: 25 },
+    },
+  }
+  const BASE_RESOURCE: import('../402-builder').ResourceDescriptor = {
+    url: 'https://tool.example/api/search',
+    description: 'Full-text search',
+  }
+  const BASE_OPTIONS: import('../402-builder').BuildChallengeOptions = {
+    resource: BASE_RESOURCE,
+    pricing: BASE_PRICING,
+  }
+
+  it('MCPAdapter: sg-balance scheme with costCents + topUpUrl', () => {
+    const adapter = new MCPAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({
+      scheme: 'sg-balance',
+      provider: 'settlegrid',
+      costCents: 5,
+      topUpUrl: 'https://settlegrid.ai/top-up',
+    })
+  })
+
+  it('X402Adapter: exact scheme with network, amount, asset, payTo, maxTimeoutSeconds', () => {
+    const adapter = new X402Adapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({
+      scheme: 'exact',
+      network: 'eip155:8453',
+      amount: '50000',
+      asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+      payTo: '0x0000000000000000000000000000000000000000',
+      maxTimeoutSeconds: 300,
+    })
+  })
+
+  it('MPPAdapter: mpp scheme with provider, amountCents, currency', () => {
+    const adapter = new MPPAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({
+      scheme: 'mpp',
+      provider: 'stripe',
+      amountCents: 5,
+      currency: 'USD',
+    })
+  })
+
+  it('AP2Adapter: ap2 scheme fallback entry', () => {
+    const adapter = new AP2Adapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    // Phase 1 AP2 stub — P1.K4 leaves it as a minimal fallback; a
+    // future pass will add the AP2-specific mandate fields.
+    expect(entry).toEqual({ scheme: 'ap2', costCents: 5 })
+  })
+
+  it('TAPAdapter: visa-tap scheme fallback entry', () => {
+    const adapter = new TAPAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    // Phase 1 Visa TAP stub — blocked on Visa sandbox access; the
+    // minimal fallback is intentional until those credentials land.
+    expect(entry).toEqual({ scheme: 'visa-tap', costCents: 5 })
+  })
+
+  it('CircleNanoAdapter: circle-nano scheme fallback entry', () => {
+    const adapter = new CircleNanoAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({ scheme: 'circle-nano', costCents: 5 })
+  })
+
+  it('MastercardVIAdapter: mastercard-vi scheme fallback entry', () => {
+    const adapter = new MastercardVIAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({ scheme: 'mastercard-vi', costCents: 5 })
+  })
+
+  it('ACPAdapter: acp scheme fallback entry', () => {
+    const adapter = new ACPAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({ scheme: 'acp', costCents: 5 })
+  })
+
+  it('UCPAdapter: ucp scheme fallback entry', () => {
+    const adapter = new UCPAdapter()
+    const entry = adapter.buildChallenge(BASE_OPTIONS)
+    expect(entry).toEqual({ scheme: 'ucp', costCents: 5 })
+  })
+})

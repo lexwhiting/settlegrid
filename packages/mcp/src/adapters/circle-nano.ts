@@ -13,7 +13,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -157,12 +157,13 @@ export class CircleNanoAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the Circle Nanopayments rail.
-   * P1.K3 minimal stub. P1.K4 will replace this with the full Circle
-   * Nano x402-compatible entry (off-chain batch config, max nano
-   * amount, Circle API endpoint).
+   * Build the `accepts[]` challenge entry for the Circle Nanopayments
+   * rail. Renamed from `toAcceptEntry` in P1.K4. Minimal stub — a
+   * future pass will replace this with the full Circle Nano
+   * x402-compatible entry (off-chain batch config, max nano amount,
+   * Circle API endpoint).
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

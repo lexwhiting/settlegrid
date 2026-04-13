@@ -18,7 +18,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -191,11 +191,13 @@ export class MPPAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the MPP rail. P1.K3 stub —
-   * hardcoded Stripe provider and USD currency. P1.K4 will let the
-   * tool choose between Stripe and Tempo, and pick a currency.
+   * Build the `accepts[]` challenge entry for the MPP (Machine Payments
+   * Protocol) rail. Renamed from `toAcceptEntry` in P1.K4 to match the
+   * spec's "buildChallenge" terminology. Hardcoded Stripe provider and
+   * USD currency are P1.K3 stubs; a future pass will let the tool
+   * choose between Stripe and Tempo and pick a currency.
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

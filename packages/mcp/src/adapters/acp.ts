@@ -12,7 +12,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -137,12 +137,13 @@ export class ACPAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the ACP (Agentic Commerce Protocol)
-   * rail. P1.K3 minimal stub. P1.K4 will replace this with the Stripe
+   * Build the `accepts[]` challenge entry for the ACP (Agentic
+   * Commerce Protocol) rail. Renamed from `toAcceptEntry` in P1.K4.
+   * Minimal stub — a future pass will replace this with the Stripe
    * SPT checkout-specific entry (OpenAI ChatGPT connector, merchant
    * callback URL, SPT issuer config).
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

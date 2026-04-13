@@ -10,7 +10,7 @@
 
 import type {
   AcceptEntry,
-  PaymentRequiredOptions,
+  BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
@@ -161,11 +161,15 @@ export class MCPAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` entry for the sg-balance rail. P1.K3 stub —
-   * P1.K4 will replace the body with config-driven pricing and the
-   * tool's actual top-up URL instead of the hardcoded SettleGrid one.
+   * Build the `accepts[]` challenge entry for the sg-balance rail.
+   * Renamed from `toAcceptEntry` in P1.K4 to match the spec's
+   * "buildChallenge" terminology (a 402 payment challenge is a set of
+   * instructions the consumer needs to satisfy to retry the request).
+   * Body logic unchanged from the P1.K3 stub; a future pass will read
+   * tool-owned configuration (per-tool top-up URL, per-method pricing
+   * tweaks) from a config channel instead of the hardcoded defaults.
    */
-  toAcceptEntry(options: PaymentRequiredOptions): AcceptEntry {
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
     const method = options.method ?? 'default'
     const costCents = resolveOperationCost(options.pricing, method)
     return {

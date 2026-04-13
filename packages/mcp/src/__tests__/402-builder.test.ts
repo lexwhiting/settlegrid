@@ -16,7 +16,7 @@ import type { ProtocolAdapter } from '../adapters/types'
 import {
   buildMultiProtocol402,
   type PaymentRequiredBody,
-  type PaymentRequiredOptions,
+  type BuildChallengeOptions,
   type AcceptEntry,
 } from '../402-builder'
 import type { PricingConfig } from '../types'
@@ -373,11 +373,11 @@ describe('buildMultiProtocol402', () => {
     it('H3: rejects an adapter-returned scheme with special characters', () => {
       const mcpAdapter = protocolRegistry.get('mcp')
       expect(mcpAdapter).toBeDefined()
-      // Swap the MCP adapter's toAcceptEntry to return a scheme that
+      // Swap the MCP adapter's buildChallenge to return a scheme that
       // would inject header attributes if the builder interpolated
       // it without sanitization.
-      const original = mcpAdapter!.toAcceptEntry
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => ({
+      const original = mcpAdapter!.buildChallenge
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry => ({
         scheme: 'evil", extra="injected',
         provider: 'settlegrid',
         costCents: 5,
@@ -391,14 +391,14 @@ describe('buildMultiProtocol402', () => {
           }),
         ).toThrow(/scheme/)
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
     it('H3: rejects an adapter-returned scheme with CRLF', () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => ({
+      const original = mcpAdapter!.buildChallenge
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry => ({
         scheme: 'ok\r\nX-Evil: yes',
         costCents: 5,
       })
@@ -411,7 +411,7 @@ describe('buildMultiProtocol402', () => {
           }),
         ).toThrow(/scheme/)
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
@@ -421,8 +421,8 @@ describe('buildMultiProtocol402', () => {
       // characters so a future scheme name like `circle_nano-v2.1`
       // would still be accepted.
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => ({
+      const original = mcpAdapter!.buildChallenge
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry => ({
         scheme: 'sg-balance_v2.1',
         costCents: 5,
       })
@@ -435,7 +435,7 @@ describe('buildMultiProtocol402', () => {
           }),
         ).not.toThrow()
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
@@ -443,9 +443,9 @@ describe('buildMultiProtocol402', () => {
 
     it('H4: adapter returning null falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
+      const original = mcpAdapter!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => null as any
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry => null as any
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -457,15 +457,15 @@ describe('buildMultiProtocol402', () => {
         // Fallback entry uses scheme=protocol name and minimum fields
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
     it('H4: adapter returning an array falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
+      const original = mcpAdapter!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => [] as any
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry => [] as any
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -475,15 +475,15 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
     it('H4: adapter returning an object without scheme falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
+      const original = mcpAdapter!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry =>
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry =>
         ({ foo: 'bar' }) as any
       try {
         const response = buildMultiProtocol402({
@@ -494,15 +494,15 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
     it('H4: adapter with scheme field that is not a string falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
+      const original = mcpAdapter!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry =>
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry =>
         ({ scheme: 42 }) as any
       try {
         const response = buildMultiProtocol402({
@@ -513,16 +513,16 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
     // ─── M4: adapter throw handling ──────────────────────────────────
 
-    it('M4: adapter throwing from toAcceptEntry falls back to inline entry', async () => {
+    it('M4: adapter throwing from buildChallenge falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => {
+      const original = mcpAdapter!.buildChallenge
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry => {
         throw new Error('simulated adapter bug')
       }
       try {
@@ -535,7 +535,7 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
@@ -543,8 +543,8 @@ describe('buildMultiProtocol402', () => {
 
     it('M5: adapter returning a BigInt throws with a clear serialize message', () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
-      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry =>
+      const original = mcpAdapter!.buildChallenge
+      mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry =>
         ({
           scheme: 'sg-balance',
           provider: 'settlegrid',
@@ -562,7 +562,7 @@ describe('buildMultiProtocol402', () => {
           }),
         ).toThrow(/serialize/)
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
 
@@ -576,9 +576,8 @@ describe('buildMultiProtocol402', () => {
       // belt-and-suspenders guard. Exercise the clamp directly via
       // the adapter method with a hand-rolled pricing shape that
       // bypasses validatePricingConfig (the builder's entry guard).
-      const entry = x402Adapter!.toAcceptEntry!({
+      const entry = x402Adapter!.buildChallenge({
         resource: { url: 'https://x' },
-        acceptedProtocols: ['x402'],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pricing: { defaultCostCents: -10 } as any,
       })
@@ -592,9 +591,8 @@ describe('buildMultiProtocol402', () => {
       // if the resolver didn't normalize it. Since resolveOperationCost
       // is not NaN-safe in all code paths, the x402 clamp is the
       // primary defense.
-      const entry = x402Adapter!.toAcceptEntry!({
+      const entry = x402Adapter!.buildChallenge({
         resource: { url: 'https://x' },
-        acceptedProtocols: ['x402'],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pricing: { defaultCostCents: Number.NaN } as any,
       })
@@ -603,9 +601,8 @@ describe('buildMultiProtocol402', () => {
 
     it('M3: x402 adapter handles Infinity costCents without throwing RangeError', () => {
       const x402Adapter = protocolRegistry.get('x402')
-      const entry = x402Adapter!.toAcceptEntry!({
+      const entry = x402Adapter!.buildChallenge({
         resource: { url: 'https://x' },
-        acceptedProtocols: ['x402'],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pricing: { defaultCostCents: Number.POSITIVE_INFINITY } as any,
       })
@@ -614,9 +611,8 @@ describe('buildMultiProtocol402', () => {
 
     it('M3: x402 adapter floors fractional costCents for BigInt safety', () => {
       const x402Adapter = protocolRegistry.get('x402')
-      const entry = x402Adapter!.toAcceptEntry!({
+      const entry = x402Adapter!.buildChallenge({
         resource: { url: 'https://x' },
-        acceptedProtocols: ['x402'],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pricing: { defaultCostCents: 7.8 } as any,
       })
@@ -626,13 +622,13 @@ describe('buildMultiProtocol402', () => {
 
     // ─── Adapter not registered fallback ─────────────────────────────
 
-    it('dispatcher falls back to inline entry when adapter.toAcceptEntry is deleted', async () => {
+    it('dispatcher falls back to inline entry when adapter.buildChallenge is deleted', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
-      const original = mcpAdapter!.toAcceptEntry
-      // Delete the method entirely to simulate a pre-toAcceptEntry
+      const original = mcpAdapter!.buildChallenge
+      // Delete the method entirely to simulate a pre-buildChallenge
       // adapter that hasn't been upgraded.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(mcpAdapter as any).toAcceptEntry = undefined
+      ;(mcpAdapter as any).buildChallenge = undefined
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -642,7 +638,7 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcpAdapter!.toAcceptEntry = original
+        mcpAdapter!.buildChallenge = original
       }
     })
   })
@@ -662,9 +658,8 @@ describe('buildMultiProtocol402', () => {
     it('x402 entry uses method-specific pricing when method is provided', () => {
       const x402 = protocolRegistry.get('x402')
       expect(x402).toBeDefined()
-      const entry = x402!.toAcceptEntry!({
+      const entry = x402!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['x402'],
         pricing: BASE_PRICING,
         method: 'deep-search', // 25 cents instead of default 5
       })
@@ -675,9 +670,8 @@ describe('buildMultiProtocol402', () => {
     it('mpp entry uses method-specific pricing when method is provided', () => {
       const mpp = protocolRegistry.get('mpp')
       expect(mpp).toBeDefined()
-      const entry = mpp!.toAcceptEntry!({
+      const entry = mpp!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['mpp'],
         pricing: BASE_PRICING,
         method: 'deep-search',
       })
@@ -695,8 +689,8 @@ describe('buildMultiProtocol402', () => {
       // Force the x402 adapter to throw mid-dispatch and verify mcp
       // and mpp still produce valid entries.
       const x402 = protocolRegistry.get('x402')
-      const originalX402 = x402!.toAcceptEntry
-      x402!.toAcceptEntry = () => {
+      const originalX402 = x402!.buildChallenge
+      x402!.buildChallenge = () => {
         throw new Error('x402 simulated failure')
       }
       try {
@@ -724,19 +718,19 @@ describe('buildMultiProtocol402', () => {
           currency: 'USD',
         })
       } finally {
-        x402!.toAcceptEntry = originalX402
+        x402!.buildChallenge = originalX402
       }
     })
 
     it('multiple adapters throwing independently each fall back to inline entries', async () => {
       const x402 = protocolRegistry.get('x402')
       const mpp = protocolRegistry.get('mpp')
-      const originalX402 = x402!.toAcceptEntry
-      const originalMpp = mpp!.toAcceptEntry
-      x402!.toAcceptEntry = () => {
+      const originalX402 = x402!.buildChallenge
+      const originalMpp = mpp!.buildChallenge
+      x402!.buildChallenge = () => {
         throw new Error('x402 failure')
       }
-      mpp!.toAcceptEntry = () => {
+      mpp!.buildChallenge = () => {
         throw new Error('mpp failure')
       }
       try {
@@ -754,8 +748,8 @@ describe('buildMultiProtocol402', () => {
         // mpp → inline fallback
         expect(body.accepts[2]).toEqual({ scheme: 'mpp', costCents: 5 })
       } finally {
-        x402!.toAcceptEntry = originalX402
-        mpp!.toAcceptEntry = originalMpp
+        x402!.buildChallenge = originalX402
+        mpp!.buildChallenge = originalMpp
       }
     })
 
@@ -763,9 +757,9 @@ describe('buildMultiProtocol402', () => {
 
     it('adapter returning a number falls back to inline entry', async () => {
       const mcp = protocolRegistry.get('mcp')
-      const original = mcp!.toAcceptEntry
+      const original = mcp!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcp!.toAcceptEntry = (() => 42) as any
+      mcp!.buildChallenge = (() => 42) as any
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -775,15 +769,15 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcp!.toAcceptEntry = original
+        mcp!.buildChallenge = original
       }
     })
 
     it('adapter returning a boolean falls back to inline entry', async () => {
       const mcp = protocolRegistry.get('mcp')
-      const original = mcp!.toAcceptEntry
+      const original = mcp!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcp!.toAcceptEntry = (() => true) as any
+      mcp!.buildChallenge = (() => true) as any
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -793,15 +787,15 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcp!.toAcceptEntry = original
+        mcp!.buildChallenge = original
       }
     })
 
     it('adapter returning a string falls back to inline entry', async () => {
       const mcp = protocolRegistry.get('mcp')
-      const original = mcp!.toAcceptEntry
+      const original = mcp!.buildChallenge
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mcp!.toAcceptEntry = (() => 'not-an-entry') as any
+      mcp!.buildChallenge = (() => 'not-an-entry') as any
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -811,7 +805,7 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
       } finally {
-        mcp!.toAcceptEntry = original
+        mcp!.buildChallenge = original
       }
     })
 
@@ -837,11 +831,10 @@ describe('buildMultiProtocol402', () => {
 
     // ─── Direct method-level tests for Phase 1 adapters ─────────────
 
-    it('MCPAdapter.toAcceptEntry returns the full sg-balance shape directly', () => {
+    it('MCPAdapter.buildChallenge returns the full sg-balance shape directly', () => {
       const mcp = protocolRegistry.get('mcp')
-      const entry = mcp!.toAcceptEntry!({
+      const entry = mcp!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['mcp'],
         pricing: BASE_PRICING,
       })
       expect(entry).toEqual({
@@ -852,11 +845,10 @@ describe('buildMultiProtocol402', () => {
       })
     })
 
-    it('X402Adapter.toAcceptEntry returns the full exact-scheme shape directly', () => {
+    it('X402Adapter.buildChallenge returns the full exact-scheme shape directly', () => {
       const x402 = protocolRegistry.get('x402')
-      const entry = x402!.toAcceptEntry!({
+      const entry = x402!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['x402'],
         pricing: BASE_PRICING,
       })
       expect(entry).toEqual({
@@ -869,11 +861,10 @@ describe('buildMultiProtocol402', () => {
       })
     })
 
-    it('MPPAdapter.toAcceptEntry returns the full mpp shape directly', () => {
+    it('MPPAdapter.buildChallenge returns the full mpp shape directly', () => {
       const mpp = protocolRegistry.get('mpp')
-      const entry = mpp!.toAcceptEntry!({
+      const entry = mpp!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['mpp'],
         pricing: BASE_PRICING,
       })
       expect(entry).toEqual({
@@ -888,9 +879,8 @@ describe('buildMultiProtocol402', () => {
 
     it('x402 amount for zero-cost pricing is "0"', () => {
       const x402 = protocolRegistry.get('x402')
-      const entry = x402!.toAcceptEntry!({
+      const entry = x402!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['x402'],
         pricing: { defaultCostCents: 0 },
       })
       expect(entry.amount).toBe('0')
@@ -898,9 +888,8 @@ describe('buildMultiProtocol402', () => {
 
     it('x402 amount for a 1-cent pricing is "10000"', () => {
       const x402 = protocolRegistry.get('x402')
-      const entry = x402!.toAcceptEntry!({
+      const entry = x402!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['x402'],
         pricing: { defaultCostCents: 1 },
       })
       expect(entry.amount).toBe('10000')
@@ -911,9 +900,8 @@ describe('buildMultiProtocol402', () => {
       // units = 10,000 USDC. Tests that BigInt handles the large value
       // without losing precision or overflowing a 53-bit JS number.
       const x402 = protocolRegistry.get('x402')
-      const entry = x402!.toAcceptEntry!({
+      const entry = x402!.buildChallenge({
         resource: BASE_RESOURCE,
-        acceptedProtocols: ['x402'],
         pricing: { defaultCostCents: 1_000_000 },
       })
       expect(entry.amount).toBe('10000000000')
@@ -921,11 +909,11 @@ describe('buildMultiProtocol402', () => {
 
     // ─── dispatchToAcceptEntry is called exactly once per protocol ──
 
-    it('adapter.toAcceptEntry is called exactly once per entry in acceptedProtocols', async () => {
+    it('adapter.buildChallenge is called exactly once per entry in acceptedProtocols', async () => {
       const mcp = protocolRegistry.get('mcp')
-      const original = mcp!.toAcceptEntry
+      const original = mcp!.buildChallenge
       let callCount = 0
-      mcp!.toAcceptEntry = (options) => {
+      mcp!.buildChallenge = (options) => {
         callCount++
         return original!.call(mcp!, options)
       }
@@ -937,18 +925,18 @@ describe('buildMultiProtocol402', () => {
         })
         expect(callCount).toBe(1)
       } finally {
-        mcp!.toAcceptEntry = original
+        mcp!.buildChallenge = original
       }
     })
 
-    it('adapter.toAcceptEntry is called once per acceptedProtocols entry even on duplicate protocols', async () => {
+    it('adapter.buildChallenge is called once per acceptedProtocols entry even on duplicate protocols', async () => {
       // Callers SHOULDN'T pass duplicates, but if they do, each
       // occurrence should trigger an independent dispatch so the
       // resulting accepts[] has one entry per occurrence.
       const mcp = protocolRegistry.get('mcp')
-      const original = mcp!.toAcceptEntry
+      const original = mcp!.buildChallenge
       let callCount = 0
-      mcp!.toAcceptEntry = (options) => {
+      mcp!.buildChallenge = (options) => {
         callCount++
         return original!.call(mcp!, options)
       }
@@ -962,7 +950,7 @@ describe('buildMultiProtocol402', () => {
         const body = await readBody(response)
         expect(body.accepts).toHaveLength(3)
       } finally {
-        mcp!.toAcceptEntry = original
+        mcp!.buildChallenge = original
       }
     })
   })
