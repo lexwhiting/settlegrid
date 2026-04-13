@@ -620,6 +620,29 @@ describe('buildMultiProtocol402', () => {
       expect(entry.amount).toBe('70000')
     })
 
+    // ─── H1 (P1.K4 hostile): defensive costCents clamp on all adapters ─
+
+    it('H1: MCP adapter clamps NaN costCents to 0 (consistency with x402/circle-nano clamp)', () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      expect(mcpAdapter).toBeDefined()
+      const entry = mcpAdapter!.buildChallenge({
+        resource: { url: 'https://x' },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing: { defaultCostCents: Number.NaN } as any,
+      })
+      expect(entry.costCents).toBe(0)
+    })
+
+    it('H1: MPP adapter clamps negative costCents to 0', () => {
+      const mppAdapter = protocolRegistry.get('mpp')
+      const entry = mppAdapter!.buildChallenge({
+        resource: { url: 'https://x' },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing: { defaultCostCents: -50 } as any,
+      })
+      expect(entry.amountCents).toBe(0)
+    })
+
     // ─── Adapter not registered fallback ─────────────────────────────
 
     it('dispatcher falls back to inline entry when adapter.buildChallenge is deleted', async () => {
