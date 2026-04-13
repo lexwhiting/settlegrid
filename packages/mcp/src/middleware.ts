@@ -136,7 +136,11 @@ async function apiCall<T>(
     )
   }
 
-  const maxAttempts = resilience ? resilience.maxRetries + 1 : 1
+  // maxRetries is validated by Zod (min 0) on the normalizeConfig path,
+  // but manually constructed configs could pass a negative value.
+  // Math.max ensures at least one attempt so the "unreachable" throw
+  // at the end of the loop stays unreachable.
+  const maxAttempts = resilience ? Math.max(1, resilience.maxRetries + 1) : 1
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const url = `${config.apiUrl}/api/sdk${path}`
@@ -367,13 +371,15 @@ export function createMiddleware(
       })
     } else {
       // Negative cache: store invalid results with shorter TTL so repeated
-      // invalid keys don't thrash the API on every call
+      // invalid keys don't thrash the API on every call.
+      // Defensive fallbacks: the API might return { valid: false } without
+      // the other fields — runtime types don't match TS declarations.
       cache.set(apiKey, {
         valid: false,
-        consumerId: result.consumerId,
-        toolId: result.toolId,
-        keyId: result.keyId,
-        balanceCents: result.balanceCents,
+        consumerId: result.consumerId ?? '',
+        toolId: result.toolId ?? '',
+        keyId: result.keyId ?? '',
+        balanceCents: result.balanceCents ?? 0,
       }, config.negativeCacheTtlMs ?? 30_000)
     }
 

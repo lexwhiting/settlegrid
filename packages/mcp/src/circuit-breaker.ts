@@ -75,8 +75,9 @@ export class CircuitBreaker {
       }
       return false
     }
-    // half-open: allow probe
-    return true
+    // half-open: a probe is already in flight — reject additional requests
+    // until the probe resolves via recordSuccess() or recordFailure()
+    return false
   }
 
   /** Record a successful request. Resets the breaker to CLOSED. */
