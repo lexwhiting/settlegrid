@@ -11,9 +11,13 @@
  * response matches settlement-layer-architecture.md §4.
  */
 import { describe, it, expect } from 'vitest'
+import { protocolRegistry } from '../adapters'
+import type { ProtocolAdapter } from '../adapters/types'
 import {
   buildMultiProtocol402,
   type PaymentRequiredBody,
+  type PaymentRequiredOptions,
+  type AcceptEntry,
 } from '../402-builder'
 import type { PricingConfig } from '../types'
 
@@ -253,6 +257,393 @@ describe('buildMultiProtocol402', () => {
           pricing: BASE_PRICING,
         }),
       ).toThrow(/non-empty array/)
+    })
+  })
+
+  // ─── Hostile-review regression coverage ──────────────────────────────
+  //
+  // Each test below maps to a specific finding in the P1.K3 hostile
+  // review. The tests are grouped by finding label so a future refactor
+  // that regresses any of them is traceable to the original bug.
+
+  describe('hostile-review regression coverage', () => {
+    // ─── H1/H2/M1: upfront input validation ──────────────────────────
+
+    it('H1: throws TypeError when options is null', () => {
+      expect(() =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        buildMultiProtocol402(null as any),
+      ).toThrow(TypeError)
+    })
+
+    it('H1: throws TypeError when options is undefined', () => {
+      expect(() =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        buildMultiProtocol402(undefined as any),
+      ).toThrow(TypeError)
+    })
+
+    it('H1: throws TypeError when options is a primitive', () => {
+      expect(() =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        buildMultiProtocol402(42 as any),
+      ).toThrow(/must be a non-null object/)
+    })
+
+    it('H2: throws TypeError when resource is missing', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          resource: null as any,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        }),
+      ).toThrow(/options\.resource/)
+    })
+
+    it('H2: throws TypeError when resource is an array', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          resource: [] as any,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        }),
+      ).toThrow(/options\.resource/)
+    })
+
+    it('M1: throws TypeError when resource.url is empty string', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          resource: { url: '' },
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        }),
+      ).toThrow(/non-empty string/)
+    })
+
+    it('M1: throws TypeError when resource.url is a number', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          resource: { url: 42 as any },
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        }),
+      ).toThrow(/non-empty string/)
+    })
+
+    // ─── H5: pricing validation ──────────────────────────────────────
+
+    it('H5: throws TypeError when pricing is null', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pricing: null as any,
+        }),
+      ).toThrow(/pricing/)
+    })
+
+    it('H5: throws TypeError when pricing has a negative defaultCostCents', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pricing: { defaultCostCents: -5 } as any,
+        }),
+      ).toThrow(/pricing/)
+    })
+
+    it('H5: throws TypeError when pricing has an unknown model', () => {
+      expect(() =>
+        buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pricing: { model: 'per-gigabyte', defaultCostCents: 1 } as any,
+        }),
+      ).toThrow(/pricing/)
+    })
+
+    // ─── H3: WWW-Authenticate header injection prevention ───────────
+
+    it('H3: rejects an adapter-returned scheme with special characters', () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      expect(mcpAdapter).toBeDefined()
+      // Swap the MCP adapter's toAcceptEntry to return a scheme that
+      // would inject header attributes if the builder interpolated
+      // it without sanitization.
+      const original = mcpAdapter!.toAcceptEntry
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => ({
+        scheme: 'evil", extra="injected',
+        provider: 'settlegrid',
+        costCents: 5,
+      })
+      try {
+        expect(() =>
+          buildMultiProtocol402({
+            resource: BASE_RESOURCE,
+            acceptedProtocols: ['mcp'],
+            pricing: BASE_PRICING,
+          }),
+        ).toThrow(/scheme/)
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    it('H3: rejects an adapter-returned scheme with CRLF', () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => ({
+        scheme: 'ok\r\nX-Evil: yes',
+        costCents: 5,
+      })
+      try {
+        expect(() =>
+          buildMultiProtocol402({
+            resource: BASE_RESOURCE,
+            acceptedProtocols: ['mcp'],
+            pricing: BASE_PRICING,
+          }),
+        ).toThrow(/scheme/)
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    it('H3: accepts well-formed schemes with alphanumerics, dots, hyphens, underscores', () => {
+      // Built-in schemes already pass (sg-balance, exact, mpp) — this
+      // test double-checks the pattern allows the full set of safe
+      // characters so a future scheme name like `circle_nano-v2.1`
+      // would still be accepted.
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => ({
+        scheme: 'sg-balance_v2.1',
+        costCents: 5,
+      })
+      try {
+        expect(() =>
+          buildMultiProtocol402({
+            resource: BASE_RESOURCE,
+            acceptedProtocols: ['mcp'],
+            pricing: BASE_PRICING,
+          }),
+        ).not.toThrow()
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    // ─── H4: adapter return-value validation ────────────────────────
+
+    it('H4: adapter returning null falls back to inline entry', async () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => null as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        expect(response.status).toBe(402)
+        const body = await readBody(response)
+        // Fallback entry uses scheme=protocol name and minimum fields
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    it('H4: adapter returning an array falls back to inline entry', async () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => [] as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    it('H4: adapter returning an object without scheme falls back to inline entry', async () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry =>
+        ({ foo: 'bar' }) as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    it('H4: adapter with scheme field that is not a string falls back to inline entry', async () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry =>
+        ({ scheme: 42 }) as any
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    // ─── M4: adapter throw handling ──────────────────────────────────
+
+    it('M4: adapter throwing from toAcceptEntry falls back to inline entry', async () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry => {
+        throw new Error('simulated adapter bug')
+      }
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        expect(response.status).toBe(402)
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    // ─── M5: JSON.stringify safety ───────────────────────────────────
+
+    it('M5: adapter returning a BigInt throws with a clear serialize message', () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      mcpAdapter!.toAcceptEntry = (_options: PaymentRequiredOptions): AcceptEntry =>
+        ({
+          scheme: 'sg-balance',
+          provider: 'settlegrid',
+          // BigInt is not JSON-serializable; this should cause the
+          // builder to produce a specific error pointing at the
+          // serialization failure, not a generic crash.
+          costCents: 5n,
+        }) as unknown as AcceptEntry
+      try {
+        expect(() =>
+          buildMultiProtocol402({
+            resource: BASE_RESOURCE,
+            acceptedProtocols: ['mcp'],
+            pricing: BASE_PRICING,
+          }),
+        ).toThrow(/serialize/)
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
+    })
+
+    // ─── M2/M3: x402 defensive cost clamping ─────────────────────────
+
+    it('M2: x402 adapter clamps negative costCents to 0', () => {
+      const x402Adapter = protocolRegistry.get('x402')
+      expect(x402Adapter).toBeDefined()
+      // resolveOperationCost on a validated pricing config cannot
+      // return negative values, but the x402 adapter's clamp is a
+      // belt-and-suspenders guard. Exercise the clamp directly via
+      // the adapter method with a hand-rolled pricing shape that
+      // bypasses validatePricingConfig (the builder's entry guard).
+      const entry = x402Adapter!.toAcceptEntry!({
+        resource: { url: 'https://x' },
+        acceptedProtocols: ['x402'],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing: { defaultCostCents: -10 } as any,
+      })
+      // amount should be '0' (the clamp fired)
+      expect(entry.amount).toBe('0')
+    })
+
+    it('M3: x402 adapter handles NaN costCents without throwing RangeError', () => {
+      const x402Adapter = protocolRegistry.get('x402')
+      // Build a pricing that would produce NaN through tiered arithmetic
+      // if the resolver didn't normalize it. Since resolveOperationCost
+      // is not NaN-safe in all code paths, the x402 clamp is the
+      // primary defense.
+      const entry = x402Adapter!.toAcceptEntry!({
+        resource: { url: 'https://x' },
+        acceptedProtocols: ['x402'],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing: { defaultCostCents: Number.NaN } as any,
+      })
+      expect(entry.amount).toBe('0')
+    })
+
+    it('M3: x402 adapter handles Infinity costCents without throwing RangeError', () => {
+      const x402Adapter = protocolRegistry.get('x402')
+      const entry = x402Adapter!.toAcceptEntry!({
+        resource: { url: 'https://x' },
+        acceptedProtocols: ['x402'],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing: { defaultCostCents: Number.POSITIVE_INFINITY } as any,
+      })
+      expect(entry.amount).toBe('0')
+    })
+
+    it('M3: x402 adapter floors fractional costCents for BigInt safety', () => {
+      const x402Adapter = protocolRegistry.get('x402')
+      const entry = x402Adapter!.toAcceptEntry!({
+        resource: { url: 'https://x' },
+        acceptedProtocols: ['x402'],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pricing: { defaultCostCents: 7.8 } as any,
+      })
+      // Math.floor(7.8) = 7 → amount = 7 * 10_000 = '70000'
+      expect(entry.amount).toBe('70000')
+    })
+
+    // ─── Adapter not registered fallback ─────────────────────────────
+
+    it('dispatcher falls back to inline entry when adapter.toAcceptEntry is deleted', async () => {
+      const mcpAdapter = protocolRegistry.get('mcp')
+      const original = mcpAdapter!.toAcceptEntry
+      // Delete the method entirely to simulate a pre-toAcceptEntry
+      // adapter that hasn't been upgraded.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(mcpAdapter as any).toAcceptEntry = undefined
+      try {
+        const response = buildMultiProtocol402({
+          resource: BASE_RESOURCE,
+          acceptedProtocols: ['mcp'],
+          pricing: BASE_PRICING,
+        })
+        const body = await readBody(response)
+        expect(body.accepts[0]).toEqual({ scheme: 'mcp', costCents: 5 })
+      } finally {
+        mcpAdapter!.toAcceptEntry = original
+      }
     })
   })
 
