@@ -206,6 +206,22 @@ export class RateLimitedError extends SettleGridError {
   get retryAfterSeconds(): number {
     return Math.floor(this.retryAfterMs / 1000)
   }
+
+  /**
+   * Construct a RateLimitedError from a retry-delay value in seconds
+   * (matches the `Retry-After: <seconds>` HTTP header format and the
+   * P1.SDK3 spec wording "pass to RateLimitedError(retryAfterSeconds)").
+   * Equivalent to `new RateLimitedError(seconds * 1000)`.
+   *
+   * @example
+   * ```typescript
+   * const seconds = parseInt(response.headers.get('retry-after'), 10)
+   * throw RateLimitedError.fromSeconds(seconds)
+   * ```
+   */
+  static fromSeconds(retryAfterSeconds: number): RateLimitedError {
+    return new RateLimitedError(retryAfterSeconds * 1000)
+  }
 }
 
 /**
