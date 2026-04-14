@@ -882,13 +882,15 @@ describe('Test File Coverage', () => {
     'lib/__tests__/ip-validation.test.ts',
     'lib/__tests__/ledger.test.ts',
     'lib/__tests__/logger.test.ts',
-    'lib/__tests__/mcp-adapter.test.ts',
+    // mcp-adapter.test.ts moved to packages/mcp/src/__tests__/ as part of
+    // the K1 adapter extraction; smoke test no longer covers it from here
     'lib/__tests__/metering.test.ts',
     'lib/__tests__/middleware.test.ts',
     'lib/__tests__/multi-hop.test.ts',
     'lib/__tests__/organizations.test.ts',
     'lib/__tests__/outcomes.test.ts',
-    'lib/__tests__/protocol-adapters.test.ts',
+    // protocol-adapters.test.ts moved to packages/mcp/src/__tests__/ as part of
+    // the K1 adapter extraction; smoke test no longer covers it from here
     'lib/__tests__/rate-limit.test.ts',
     'lib/__tests__/rbac.test.ts',
     'lib/__tests__/redis.test.ts',

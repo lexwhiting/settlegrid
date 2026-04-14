@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   shouldIncludeInMarketplace,
   shouldShowClaimedBadge,
   listedInMarketplacePatchSchema,
 } from '../marketplace-visibility'
+import { tools } from '../db/schema'
 
 describe('shouldIncludeInMarketplace — P2.INTL2 marketplace inclusion rule', () => {
   describe('unclaimed tools', () => {
@@ -137,5 +140,72 @@ describe('listedInMarketplacePatchSchema — PATCH endpoint wire shape', () => {
       expect(result.data).toEqual({ listedInMarketplace: true })
       expect((result.data as Record<string, unknown>).somethingElse).toBeUndefined()
     }
+  })
+})
+
+describe('tools.listedInMarketplace — schema column metadata', () => {
+  // The pure-function rule plus the SQL predicates depend on the column
+  // existing with the right type and default. If someone removes or renames
+  // the column without updating the schema, these tests fail at type-load
+  // time AND at runtime so the regression is loud.
+
+  it('column is defined on the tools table', () => {
+    expect(tools.listedInMarketplace).toBeDefined()
+  })
+
+  it('column is non-nullable (the rule depends on every row having a value)', () => {
+    expect(tools.listedInMarketplace.notNull).toBe(true)
+  })
+
+  it('column default is true (preserves visibility on new claim transitions)', () => {
+    // The default is what makes claim-route visibility-preserving:
+    // even if the route handler forgot to set listedInMarketplace=true,
+    // the database default would still produce the right behavior.
+    expect(tools.listedInMarketplace.default).toBe(true)
+  })
+
+  it('column maps to listed_in_marketplace in SQL', () => {
+    // The migration SQL adds "listed_in_marketplace" specifically; if the
+    // schema's column name drifted from snake_case, the migration would
+    // succeed but Drizzle queries would fail at runtime.
+    expect(tools.listedInMarketplace.name).toBe('listed_in_marketplace')
+  })
+})
+
+describe('migration 0001_listed_in_marketplace.sql — backfill correctness', () => {
+  // Read the migration file as text and assert it contains the right
+  // structural clauses. This is a thin guard, not a substitute for a real
+  // DB migration test — but it catches obvious regressions like:
+  //   - Someone removes the UPDATE backfill clause (would silently expose
+  //     existing developers' draft tools)
+  //   - Someone changes the default to false (would hide all existing
+  //     unclaimed tools)
+  //   - Someone changes the column type or NOT NULL constraint
+  const migrationPath = resolve(__dirname, '../../../drizzle/0001_listed_in_marketplace.sql')
+  const sql = readFileSync(migrationPath, 'utf8')
+
+  it('adds the column with default true and NOT NULL', () => {
+    expect(sql).toMatch(/ADD COLUMN\s+"listed_in_marketplace"\s+boolean\s+DEFAULT\s+true\s+NOT NULL/i)
+  })
+
+  it('backfills existing draft rows to false (does not expose work-in-progress)', () => {
+    expect(sql).toMatch(/UPDATE\s+"tools"\s+SET\s+"listed_in_marketplace"\s*=\s*false\s+WHERE\s+"status"\s*=\s*'draft'/i)
+  })
+
+  it('does NOT touch existing unclaimed or active rows in the backfill', () => {
+    // The default already handles them (true). A separate UPDATE for those
+    // statuses would be redundant at best and could regress the default at
+    // worst. This test catches a future change that adds such a redundant
+    // (or worse, conflicting) clause.
+    expect(sql).not.toMatch(/UPDATE\s+"tools"[^;]*WHERE\s+"status"\s*=\s*'unclaimed'/i)
+    expect(sql).not.toMatch(/UPDATE\s+"tools"[^;]*WHERE\s+"status"\s*=\s*'active'/i)
+  })
+
+  it('uses the statement-breakpoint marker between ALTER and UPDATE (Drizzle migrator convention)', () => {
+    // The migrator uses --> statement-breakpoint to split the file into
+    // separate statements. Without it, the ALTER + UPDATE could fail to
+    // execute on some databases (e.g., column doesn't exist when UPDATE
+    // runs because the ALTER hadn't committed yet).
+    expect(sql).toContain('--> statement-breakpoint')
   })
 })
