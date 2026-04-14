@@ -148,7 +148,20 @@ Personal information collected above is used for the following purposes and no o
 
 **PostHog's legal terms:** [PostHog Privacy Policy](https://posthog.com/privacy), [PostHog DPA](https://posthog.com/dpa).
 
-### 5.7 Future subprocessors
+### 5.7 Vercel (hosting platform + analytics)
+
+**Role:** Hosts the SettleGrid web application (settlegrid.ai) and its API routes. Vercel operates the edge network, serverless functions, and build pipeline that serve the Platform. Also provides Vercel Analytics, a server-side web analytics product that captures aggregate page-view and performance metrics.
+
+**What Vercel processes on SettleGrid's behalf:**
+- HTTP request/response traffic for all Platform pages and API routes (inherent in hosting)
+- Server-side analytics events (page paths, response codes, latencies) — aggregated, no raw PII
+- Build artifacts and source-code hashes during deployments
+
+**What Vercel does NOT process:** your application's database contents (that is Supabase; see 5.2) or payment information (that is Stripe; see 5.1).
+
+**Vercel's legal terms:** [Vercel Privacy Policy](https://vercel.com/legal/privacy-policy), [Vercel DPA](https://vercel.com/legal/dpa).
+
+### 5.8 Future subprocessors
 
 SettleGrid may add subprocessors over time (e.g., additional payment rails such as Paddle or Lemon Squeezy, alternative email providers, alternative analytics). Any addition will be announced via an update to this notice at least 30 days before the new subprocessor receives personal information, except where a shorter timeline is required by law. Developers subject to EU GDPR or equivalent regulations who have executed a Data Processing Addendum with SettleGrid may object to a new subprocessor and terminate their relationship with SettleGrid if the objection cannot be resolved.
 
@@ -310,7 +323,7 @@ SettleGrid extends the rights described in Section 9 to residents of these state
 
 The following notes are for the lawyer reviewing this draft. They are NOT part of the executed Privacy Notice and should be removed (or moved to a separate review memo) before publication.
 
-- **Subprocessor list (Section 5):** the current list is based on the actual subprocessors in the apps/web/.env.example file as of 2026-04-14 (Stripe, Supabase, Upstash, Resend, Sentry, PostHog). If the list is incomplete or contains outdated subprocessors, please correct against the current production state. The Polar entry from the earlier draft was removed after Polar declined SettleGrid's merchant application on 2026-04-14.
+- **Subprocessor list (Section 5):** the current list was compiled by inspecting `apps/web/package.json` (installed SDKs) and `apps/web/next.config.ts` + `apps/web/src/` (actual usage) rather than by reading `apps/web/.env.example` alone — the latter only contains a minimal subset (Stripe, Resend, Postgres, Upstash Redis, JWT). Services currently listed: Stripe, Supabase, Upstash, Resend, Sentry (confirmed via `withSentryConfig` wrapper in `next.config.ts`), PostHog (confirmed via `posthog.capture()` calls across multiple pages), and Vercel (confirmed via `@vercel/analytics/next` import in `layout.tsx`). If production has additional subprocessors wired up via `.env.local` / Vercel environment variables that aren't represented in `.env.example` (e.g., an email-deliverability backend behind Resend, a log-aggregation service, or an error-telemetry layer), please add them. The Polar entry from the earlier draft was removed after Polar declined SettleGrid's merchant application on 2026-04-14.
 
 - **GDPR lawful basis (Section 6):** the draft says EU onboarding is blocked at MVP and the GDPR bases only apply when EU onboarding opens. Please confirm this matches the risk posture in `private/master-plan/compliance-posture.md`. If EU onboarding is opened earlier than Phase 6+, the lawful-basis analysis and the balancing tests for legitimate-interest processing should be fully in place before the first EU Developer registers.
 
