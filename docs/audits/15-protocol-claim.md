@@ -40,9 +40,22 @@ Ground truth is cross-referenced against: the `@settlegrid/mcp` SDK source at `p
 
 ## The honest framing
 
-Deployed in `agents/beacon/prompts.ts` BEACON_SYSTEM_PROMPT as of 2026-04-14:
+Spec-provided reference text (the canonical honest version):
 
 > SettleGrid is the rail-neutral, protocol-neutral settlement layer for the long tail of AI tools. The `@settlegrid/mcp` SDK provides native billing for Model Context Protocol (MCP) tool servers and a REST middleware for any HTTP service. The hosted Smart Proxy at `settlegrid.ai/api/proxy/{slug}` brokers payments across 9 protocols: MCP, x402 (production), Stripe MPP (pending GA), AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, and Circle Nanopayments. Detection adapters are in place for L402 and Skyfire's KYAPay. Additional rails are tracked as the upstream specs mature: Alipay's Agentic Commerce Trust Protocol (ACTP), EMVCo agent payments, and DRAIN (Bittensor Subnet 58 niche project).
+
+### How the honest framing is actually deployed
+
+The `agents/beacon/prompts.ts` BEACON_SYSTEM_PROMPT adapts the continuous-prose honest version into the existing bulleted "ABOUT SETTLEGRID" format and preserves the pre-existing operational facts (pricing, take rate, npm package, tool counts). Every factual claim from the spec version is preserved; formatting differs.
+
+Deployed shape (in prompt order):
+
+- Prompt intro: *"SettleGrid.ai — the rail-neutral, protocol-neutral settlement layer for the long tail of AI tools"*
+- SDK scope bullet: *"The @settlegrid/mcp SDK provides native billing for Model Context Protocol (MCP) tool servers and a REST middleware for any HTTP service. Developers wrap any function with 2 lines of code to add per-call billing."*
+- Brokered bullet: *"The hosted Smart Proxy at settlegrid.ai/api/proxy/{slug} brokers payments across 9 protocols: MCP, x402 (production), Stripe MPP (pending GA), AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, and Circle Nanopayments."*
+- Detected bullet: *"Detection adapters are in place for L402 and Skyfire's KYAPay."*
+- Tracked bullet: *"Additional rails are tracked as the upstream specs mature: Alipay's Agentic Commerce Trust Protocol (ACTP), EMVCo agent payments, and DRAIN (Bittensor Subnet 58 niche project)."*
+- Pre-existing operational bullets retained (pricing, take rate, npm package, tool counts)
 
 ### Why this framing is honest
 
@@ -60,15 +73,26 @@ Deployed in `agents/beacon/prompts.ts` BEACON_SYSTEM_PROMPT as of 2026-04-14:
 ## Changes deployed
 
 ### `agents/beacon/prompts.ts`
-- `BEACON_SYSTEM_PROMPT` — replaced the false claim with the honest framing above
+- `BEACON_SYSTEM_PROMPT` — replaced the false claim with the honest framing above; spec-diff fix subsequently corrected ACTP attribution to *"Alipay's Agentic Commerce Trust Protocol (ACTP)"* to align with the spec's exact wording (earlier draft read *"formerly Alipay Trust"* which incorrectly implied a product rename)
 - `CONTENT_CALENDAR.weekly[1].description` — "Deep dive on one of the 15 payment protocols" → "Deep dive on one of the tracked payment protocols"
 
 ### `agents/beacon/__tests__/beacon.test.ts`
-- Updated assertion from "contains all 15 protocols" to "lists the protocols brokered + detected + tracked by the Smart Proxy"
+- Updated assertion from "contains all 15 protocols" to "lists the protocols brokered + detected + tracked by the Smart Proxy"; verifies each of the 14 current protocol names (9 brokered + 2 detected + 3 tracked)
 - Updated 3 test fixtures that contained the "15 payment protocols" claim in mock draft content
 
 ### `agents/shared/__tests__/guardrails.test.ts`
 - Updated 4 test fixtures containing the claim
+
+### `agents/protocol/__tests__/protocol.test.ts` *(added in spec-diff phase)*
+- Test title "PROTOCOL_SOURCES has entries for all **15 payment protocols** + ERC-8004 identity protocol" → "entries for **every tracked payment protocol** + ERC-8004 identity protocol"
+- Test title "PROTOCOL_SYSTEM_PROMPT lists **all 15 protocols**" → "lists **each tracked protocol name**"
+
+### `agents/protocol/tools.ts` *(added in spec-diff phase)*
+- `analyzeChange` prompt field: `"protocol_name": "one of the 15 protocols"` → `"protocol_name": "the tracked protocol this change affects"` (safe — Claude still has `PROTOCOL_SYSTEM_PROMPT` as system context listing every tracked protocol, plus `change.protocol` in the user message, so the cardinality hint removal doesn't weaken classification accuracy)
+
+### `agents/shared/__tests__/config.test.ts` *(added in spec-diff phase)*
+- Test title "has **15 payment protocols** + 1 identity protocol + 1 brand monitor = 17 total" → "has the **expected counts**: tracked payment protocols + identity protocol + brand monitor = 17 total"
+- Inline comment updated to use corrected protocol names (Mastercard Verifiable Intent, Circle Nanopayments, ACTP)
 
 ### Out of scope for P1.MKT1
 
@@ -90,20 +114,22 @@ Files NOT touched under this prompt (spec scope limited to `/Users/lex/settlegri
 
 These marketing-surface files are addressed under P2.MKT1 (counter-positioning page) and follow-on content rewrites in Phase 2.
 
-### Intentionally preserved
+### Internal-infrastructure files rephrased (not preserved)
 
-Files NOT touched because the "15 protocols" reference is internal tracking infrastructure, not a marketing claim:
-- `agents/protocol/tools.ts:288` — JSON schema field describing which of the 15 tracked protocols a detected change affects
-- `agents/protocol/__tests__/protocol.test.ts` — tests internal `PROTOCOL_SOURCES` registry + `PROTOCOL_SYSTEM_PROMPT` completeness
-- `agents/shared/__tests__/config.test.ts` — tests internal config-size invariant (15 payment + 1 identity + 1 brand monitor = 17 total)
+The initial P1.MKT1 implementation attempted to distinguish between marketing claims and internal tracking infrastructure and preserved four references in the protocol-monitoring agent. The P1.MKT1 spec-diff phase corrected this on strict DoD #1 reading ("No instance of '15 payment protocols' or '15 protocols' in the agents repo") — the files below were rephrased to avoid the exact string while preserving their internal-registry semantics:
 
-The protocol-monitoring agent legitimately tracks 15 protocols for change detection; that's an internal registry, not a claim about what SettleGrid's SDK ships.
+- `agents/protocol/tools.ts:288` — JSON schema field now reads *"the tracked protocol this change affects"* (was *"one of the 15 protocols"*)
+- `agents/protocol/__tests__/protocol.test.ts` — test titles updated; internal registries (`PROTOCOL_SOURCES`, `PROTOCOL_SYSTEM_PROMPT`) unchanged — the protocol-monitoring agent still tracks the same set
+- `agents/shared/__tests__/config.test.ts` — test title + comment updated; internal `SETTLEGRID_ICP.protocols` config (17 entries) unchanged
+
+**Net result:** the protocol-monitoring registries still track the exact same 15 payment protocols + 1 identity protocol + 1 brand-monitor entry. Only the descriptive prose around those registries no longer uses the "15 protocols" string.
 
 ## Verification
 
 - Agent tests: **635 pass / 0 fail / 16 files**
-- No instance of "15 payment protocols" or "15 protocols" remains in the `/Users/lex/settlegrid-agents/agents/` code paths that contained the marketing claim
+- `grep "15 protocols|15 payment protocols"` across the entire `/Users/lex/settlegrid-agents/` repo: **0 matches** (satisfies DoD #1 literally)
 - Gate check 26 (`docs/audits/15-protocol-claim.md` exists): PASS
+- Internal protocol-monitoring registries (`PROTOCOL_SOURCES`, `PROTOCOL_SYSTEM_PROMPT`, `SETTLEGRID_ICP.protocols`) still enumerate the full set of 15 tracked payment protocols + 1 identity protocol + 1 brand monitor — the tracking behavior is unchanged; only the descriptive prose around these registries no longer uses the "15 protocols" string
 
 ## Follow-on actions outside this prompt's scope
 
