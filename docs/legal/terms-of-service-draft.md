@@ -10,7 +10,7 @@
 
 ---
 
-## Preamble
+## 1. Preamble
 
 SettleGrid, Inc. ("SettleGrid," "we," "us," "our") operates a payment infrastructure platform that helps software developers monetize Model Context Protocol (MCP) tool servers and HTTP APIs. SettleGrid uses Stripe Payments Company ("Stripe") and its Stripe Connect Express product as the licensed payment processor and money transmitter for all developer payouts. **SettleGrid does not hold, custody, or transmit customer funds.** All customer funds are processed and held by Stripe in accordance with the Stripe Connected Account Agreement and the Stripe Services Agreement.
 
@@ -20,7 +20,7 @@ If you are accepting these Terms on behalf of a company, partnership, or other l
 
 ---
 
-## 1. Definitions
+## Definitions
 
 For clarity throughout these Terms:
 
@@ -36,9 +36,11 @@ For clarity throughout these Terms:
 
 ## 2. Agent-of-Payee Appointment (CA + NY compliant)
 
-By agreeing to these Terms, **you appoint SettleGrid, Inc. as your agent for the limited purpose of receiving and processing payments from Customers on your behalf.** This agency is limited to the receipt, processing, and onward disbursement of Customer payments via the Payment Processor and does not extend to any other matter.
+**By agreeing to these Terms, you appoint SettleGrid, Inc. as your agent for the limited purpose of receiving and processing payments from customers on your behalf. Delivery of payment to SettleGrid (or to a payment processor acting on SettleGrid's behalf) shall be deemed payment to you and shall extinguish the customer's payment obligation to you. SettleGrid assumes no risk of loss to the payor in connection with this arrangement.**
 
-**Delivery of payment to SettleGrid (or to a Payment Processor acting on SettleGrid's behalf as your designated agent) shall be deemed payment to you and shall extinguish the Customer's payment obligation to you.** SettleGrid assumes no risk of loss to the payor in connection with this arrangement.
+(The preceding paragraph is the core agent-of-payee appointment and tracks the language used in California Department of Financial Protection and Innovation's 2017 letter regarding Stripe Connect, which is the published template for this exemption. Lowercase "customer" and "payment processor" in the quoted language match the DFPI letter's phrasing; where these terms are capitalized elsewhere in these Terms, they refer to the defined terms "Customer" and "Payment Processor".)
+
+The agency appointed above is limited to the receipt, processing, and onward disbursement of Customer payments via the Payment Processor and does not extend to any other matter. You acknowledge that this agency arrangement is essential to the structure of the Platform and that SettleGrid's role as your agent for payment is limited to the activities described in this Section 2.
 
 This clause is structured to satisfy:
 
@@ -46,15 +48,13 @@ This clause is structured to satisfy:
 - The analogous agent-of-payee exemption in New York under 23 NYCRR § 200.3(c)(2).
 - The corresponding payment processor exemption from federal money transmitter status under 31 CFR § 1010.100(ff)(5)(ii)(B), which requires (i) facilitating purchase of goods or services rather than standalone money transmission, (ii) operation through clearance and settlement systems that admit only BSA-regulated financial institutions, (iii) provision of the service pursuant to a formal agreement, and (iv) the funds-recipient being a person other than the payor.
 
-You acknowledge that this agency arrangement is essential to the structure of the Platform and that SettleGrid's role as your agent for payment is limited to the activities described in this Section 2.
-
 ---
 
 ## 3. Flow of Funds Disclaimer
 
-**SettleGrid does not hold, custody, or transmit customer funds.**
+**SettleGrid does not hold, custody, or transmit customer funds. All customer funds are processed and held by licensed payment processors (currently Stripe Payments Company) in accordance with their respective terms of service.**
 
-All Customer funds are received, held, and disbursed by Stripe Payments Company in accordance with the Stripe Connected Account Agreement and the Stripe Services Agreement, both of which are incorporated by reference into these Terms (see Section 8 below).
+The Stripe Connected Account Agreement and the Stripe Services Agreement are incorporated by reference into these Terms (see Section 8 below). Additional licensed payment processors may be added by amendment to these Terms; until such an amendment takes effect, Stripe Payments Company is the sole Payment Processor.
 
 Specifically:
 
