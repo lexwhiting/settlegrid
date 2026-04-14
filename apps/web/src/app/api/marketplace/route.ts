@@ -112,7 +112,13 @@ export async function GET(request: NextRequest) {
     // Build where conditions — show both active and unclaimed by default
     // This ensures the marketplace shows the full breadth of the directory
     const conditions: SQL[] = [
-      or(eq(tools.status, 'active'), eq(tools.status, 'unclaimed'))!,
+      // P2.INTL2: include 'draft' tools that opted in via listedInMarketplace
+      // (preserves marketplace visibility through the claim transition)
+      or(
+        eq(tools.status, 'active'),
+        eq(tools.status, 'unclaimed'),
+        and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+      )!,
     ]
 
     if (typeParam) {
@@ -226,7 +232,13 @@ export async function GET(request: NextRequest) {
 
     // Build facets for filtering UI and third-party integrations
     const facetConditions: SQL[] = [
-      or(eq(tools.status, 'active'), eq(tools.status, 'unclaimed'))!,
+      // P2.INTL2: include 'draft' tools that opted in via listedInMarketplace
+      // (preserves marketplace visibility through the claim transition)
+      or(
+        eq(tools.status, 'active'),
+        eq(tools.status, 'unclaimed'),
+        and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+      )!,
     ]
     const facetWhere = and(...facetConditions)
 
