@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
@@ -7,14 +6,11 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { listedInMarketplacePatchSchema } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 30
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const bodySchema = z.object({
-  listedInMarketplace: z.boolean(),
-})
 
 /**
  * PATCH /api/tools/[id]/listed-in-marketplace — P2.INTL2
@@ -51,7 +47,7 @@ export async function PATCH(
     if (!UUID_REGEX.test(id)) {
       return errorResponse('Invalid tool ID format.', 400, 'INVALID_ID')
     }
-    const body = await parseBody(request, bodySchema)
+    const body = await parseBody(request, listedInMarketplacePatchSchema)
 
     // Verify tool belongs to developer
     const [existing] = await db

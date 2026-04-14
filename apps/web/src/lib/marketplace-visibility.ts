@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 /**
  * P2.INTL2 marketplace inclusion rule.
  *
@@ -28,3 +30,25 @@ export function shouldIncludeInMarketplace(
   if (status === 'draft') return listedInMarketplace
   return false
 }
+
+/**
+ * Whether a marketplace tool card should render the amber "Claimed" badge.
+ * The badge distinguishes claimed-but-not-yet-monetized listings from
+ * unclaimed and from monetized listings (P2.INTL2). Only `status='draft'`
+ * tools that satisfied `shouldIncludeInMarketplace` are eligible.
+ *
+ * Pure function so the rendering condition has a regression-testable mirror.
+ * The actual JSX lives in `apps/web/src/components/marketplace/tool-card.tsx`.
+ */
+export function shouldShowClaimedBadge(status: string): boolean {
+  return status === 'draft'
+}
+
+/**
+ * Zod schema for the PATCH /api/tools/[id]/listed-in-marketplace request body.
+ * Exported so the route handler and the regression tests share one definition
+ * of the wire shape.
+ */
+export const listedInMarketplacePatchSchema = z.object({
+  listedInMarketplace: z.boolean(),
+})
