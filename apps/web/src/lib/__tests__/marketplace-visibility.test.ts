@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { shouldIncludeInMarketplace } from '../marketplace-visibility'
+import {
+  shouldIncludeInMarketplace,
+  shouldShowClaimedBadge,
+  listedInMarketplacePatchSchema,
+} from '../marketplace-visibility'
 
 describe('shouldIncludeInMarketplace — P2.INTL2 marketplace inclusion rule', () => {
   describe('unclaimed tools', () => {
@@ -63,5 +67,75 @@ describe('shouldIncludeInMarketplace — P2.INTL2 marketplace inclusion rule', (
     it('post-claim if developer later hides via dashboard (status=draft, listed=false): hidden', () => {
       expect(shouldIncludeInMarketplace('draft', false)).toBe(false)
     })
+  })
+})
+
+describe('shouldShowClaimedBadge — P2.INTL2 marketplace card badge', () => {
+  it('shows the badge for status=draft (claimed but not yet monetized)', () => {
+    expect(shouldShowClaimedBadge('draft')).toBe(true)
+  })
+
+  it('does NOT show the badge for status=unclaimed (no owner)', () => {
+    expect(shouldShowClaimedBadge('unclaimed')).toBe(false)
+  })
+
+  it('does NOT show the badge for status=active (already monetized)', () => {
+    expect(shouldShowClaimedBadge('active')).toBe(false)
+  })
+
+  it('does NOT show the badge for unknown statuses', () => {
+    expect(shouldShowClaimedBadge('deleted')).toBe(false)
+    expect(shouldShowClaimedBadge('hidden')).toBe(false)
+    expect(shouldShowClaimedBadge('')).toBe(false)
+  })
+})
+
+describe('listedInMarketplacePatchSchema — PATCH endpoint wire shape', () => {
+  it('accepts { listedInMarketplace: true }', () => {
+    const result = listedInMarketplacePatchSchema.safeParse({
+      listedInMarketplace: true,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts { listedInMarketplace: false }', () => {
+    const result = listedInMarketplacePatchSchema.safeParse({
+      listedInMarketplace: false,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects non-boolean values', () => {
+    // Truthy/falsy strings, numbers, null — none should coerce silently.
+    // The PATCH handler must receive an explicit boolean from the dashboard
+    // toggle, not a string like "true" that could be misinterpreted.
+    for (const bad of ['true', 'false', 1, 0, null, undefined]) {
+      const result = listedInMarketplacePatchSchema.safeParse({
+        listedInMarketplace: bad,
+      })
+      expect(result.success, `expected ${JSON.stringify(bad)} to fail validation`).toBe(false)
+    }
+  })
+
+  it('rejects empty body', () => {
+    const result = listedInMarketplacePatchSchema.safeParse({})
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects extra unknown fields by default (Zod object behavior)', () => {
+    // Zod's default object parser strips unknown keys, so a request with
+    // listedInMarketplace + extra noise still parses successfully but the
+    // noise is dropped. This documents that behavior — if the requirement
+    // ever tightens to "reject unknown keys," we'd need .strict() and this
+    // test would catch the change.
+    const result = listedInMarketplacePatchSchema.safeParse({
+      listedInMarketplace: true,
+      somethingElse: 'noise',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual({ listedInMarketplace: true })
+      expect((result.data as Record<string, unknown>).somethingElse).toBeUndefined()
+    }
   })
 })
