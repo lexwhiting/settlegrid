@@ -68,10 +68,14 @@ export async function PATCH(
       return errorResponse('Cannot change marketplace listing of a deleted tool.', 400, 'TOOL_DELETED')
     }
 
+    // Defense-in-depth: re-verify ownership in the UPDATE WHERE clause
+    // (not just the SELECT above) so a concurrent ownership change between
+    // SELECT and UPDATE can't allow a non-owner write. Safer than the
+    // historical /api/tools/[id]/status pattern which only filters by id.
     const [tool] = await db
       .update(tools)
       .set({ listedInMarketplace: body.listedInMarketplace, updatedAt: new Date() })
-      .where(eq(tools.id, id))
+      .where(and(eq(tools.id, id), eq(tools.developerId, auth.id)))
       .returning({
         id: tools.id,
         name: tools.name,
@@ -80,6 +84,12 @@ export async function PATCH(
         listedInMarketplace: tools.listedInMarketplace,
         updatedAt: tools.updatedAt,
       })
+
+    if (!tool) {
+      // Race: ownership changed between SELECT and UPDATE. Treat as 404
+      // (consistent with how the SELECT branch above reports missing rows).
+      return errorResponse('Tool not found.', 404, 'NOT_FOUND')
+    }
 
     writeAuditLog({
       developerId: auth.id,
