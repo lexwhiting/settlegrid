@@ -122,6 +122,17 @@ export function ToolCard({ tool }: ToolCardProps) {
                 Unclaimed
               </span>
             )}
+            {/* P2.INTL2: surface claimed-but-not-yet-monetized tools that
+                opted into marketplace visibility (status='draft' shows
+                here only because listedInMarketplace=true) */}
+            {tool.status === 'draft' && (
+              <span
+                className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded"
+                title="Claimed by the developer; pricing and monetization not yet configured"
+              >
+                Claimed
+              </span>
+            )}
           </div>
           <span className="text-xs text-brand-light opacity-0 group-hover:opacity-100 transition-opacity">
             View &rarr;

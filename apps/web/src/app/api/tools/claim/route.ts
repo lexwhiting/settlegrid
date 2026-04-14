@@ -126,13 +126,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Transfer ownership: update developerId, status, clear claim token
+    // Transfer ownership: update developerId, status, clear claim token,
+    // and explicitly preserve marketplace visibility through the transition
+    // (P2.INTL2). Without listedInMarketplace=true the freshly-claimed tool
+    // would drop from /marketplace until the developer publishes — which
+    // requires Stripe — which is exactly the blocker for unsupported corridors.
     const [updated] = await db
       .update(tools)
       .set({
         developerId: auth.id,
         status: 'draft',
         claimToken: null,
+        listedInMarketplace: true,
         updatedAt: new Date(),
       })
       .where(and(eq(tools.id, tool.id), eq(tools.status, 'unclaimed')))

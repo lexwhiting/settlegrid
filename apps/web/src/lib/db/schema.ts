@@ -111,6 +111,13 @@ export const tools = pgTable(
     verified: boolean('verified').notNull().default(false),
     // Manual escalation: timestamp of most recent report
     reportedAt: timestamp('reported_at', { withTimezone: true }),
+    // P2.INTL2: marketplace visibility for claimed-but-unpublished tools.
+    // Defaults true on new rows so claim transitions preserve visibility.
+    // Migration backfills existing 'draft' rows to false (don't retroactively
+    // expose existing developers' in-progress drafts). Only consulted when
+    // status='draft' — 'unclaimed' and 'active' tools are always in the
+    // marketplace regardless of this flag.
+    listedInMarketplace: boolean('listed_in_marketplace').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

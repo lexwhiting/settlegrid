@@ -20,6 +20,28 @@ interface MarketplaceContentProps {
   searchParams?: Record<string, string | undefined>
 }
 
+/**
+ * P2.INTL2 marketplace inclusion rule:
+ *   - 'unclaimed' and 'active' tools are always in the marketplace
+ *   - 'draft' tools are in the marketplace only if listedInMarketplace=true
+ *     (set true on claim transition; existing pre-migration drafts default
+ *     to false via the 0001_listed_in_marketplace migration backfill)
+ *
+ * Encapsulated in one function so every marketplace query path uses the
+ * same predicate — drift here would silently change visibility semantics.
+ *
+ * The pure-function mirror of this rule lives at
+ * `apps/web/src/lib/marketplace-visibility.ts:shouldIncludeInMarketplace`
+ * with regression tests in `marketplace-visibility.test.ts`. If you change
+ * one, change the other and update both the comment and the tests.
+ */
+function marketplaceInclusionPredicate(): SQL {
+  return or(
+    inArray(tools.status, ['active', 'unclaimed']),
+    and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+  )!
+}
+
 async function getEcosystemCounts(): Promise<Map<string, number>> {
   try {
     const rows = await db
@@ -29,7 +51,7 @@ async function getEcosystemCounts(): Promise<Map<string, number>> {
       })
       .from(tools)
       .where(and(
-        inArray(tools.status, ['active', 'unclaimed']),
+        marketplaceInclusionPredicate(),
         sql`${tools.sourceEcosystem} IS NOT NULL`,
       ))
       .groupBy(tools.sourceEcosystem)
@@ -48,7 +70,7 @@ async function getTypeCounts(): Promise<Map<string, number>> {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(inArray(tools.status, ['active', 'unclaimed']))
+      .where(marketplaceInclusionPredicate())
       .groupBy(tools.toolType)
 
     return new Map(rows.map((r) => [r.toolType, r.count]))
@@ -76,9 +98,10 @@ export async function MarketplaceContent({
     MAX_LIMIT
   )
 
-  // Build where conditions — include both active and unclaimed tools
-  // so the marketplace reflects the full breadth of the directory
-  const conditions: SQL[] = [inArray(tools.status, ['active', 'unclaimed'])]
+  // Build where conditions — include 'unclaimed' and 'active' tools (always
+  // in marketplace), plus 'draft' tools that opted in via listedInMarketplace
+  // (P2.INTL2: preserves marketplace visibility through the claim transition)
+  const conditions: SQL[] = [marketplaceInclusionPredicate()]
 
   if (typeFilter) {
     conditions.push(eq(tools.toolType, typeFilter))
@@ -124,7 +147,7 @@ export async function MarketplaceContent({
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(tools)
-        .where(inArray(tools.status, ['active', 'unclaimed'])),
+        .where(marketplaceInclusionPredicate()),
     ])
 
     total = countResult[0]?.count ?? 0

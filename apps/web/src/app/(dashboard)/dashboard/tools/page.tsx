@@ -34,6 +34,7 @@ interface Tool {
   totalInvocations: number
   totalRevenueCents: number
   pricingConfig: ToolPricingConfig
+  listedInMarketplace: boolean
   createdAt: string
 }
 
@@ -318,6 +319,32 @@ export default function ToolsPage() {
       fetchTools()
     } catch {
       setError('Network error toggling status. Please try again.')
+    }
+  }
+
+  /**
+   * P2.INTL2: toggle whether a draft tool appears in the public marketplace.
+   * Only meaningful for status='draft' (claimed-but-not-yet-monetized) — for
+   * 'unclaimed' and 'active' tools the marketplace inclusion is unconditional,
+   * but the flag is still settable so re-claim/re-publish transitions don't
+   * lose the developer's preference.
+   */
+  async function toggleListedInMarketplace(toolId: string, currentListed: boolean) {
+    setError('')
+    try {
+      const res = await fetch(`/api/tools/${toolId}/listed-in-marketplace`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listedInMarketplace: !currentListed }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || 'Failed to toggle marketplace listing')
+        return
+      }
+      fetchTools()
+    } catch {
+      setError('Network error toggling marketplace listing. Please try again.')
     }
   }
 
@@ -616,6 +643,7 @@ export default function ToolsPage() {
               changelogForm={changelogForm}
               submittingChangelog={submittingChangelog}
               onToggleStatus={toggleStatus}
+              onToggleListedInMarketplace={toggleListedInMarketplace}
               onToggleChangelog={(toolId) => {
                 if (changelogToolId === toolId) {
                   setChangelogToolId(null)
@@ -644,6 +672,7 @@ function ToolCard({
   changelogForm,
   submittingChangelog,
   onToggleStatus,
+  onToggleListedInMarketplace,
   onToggleChangelog,
   onChangelogFormChange,
   onChangelogSubmit,
@@ -654,6 +683,7 @@ function ToolCard({
   changelogForm: ChangelogForm
   submittingChangelog: boolean
   onToggleStatus: (id: string, status: string) => void
+  onToggleListedInMarketplace: (id: string, currentListed: boolean) => void
   onToggleChangelog: (id: string) => void
   onChangelogFormChange: (form: ChangelogForm) => void
   onChangelogSubmit: (e: React.FormEvent, toolId: string) => void
@@ -716,6 +746,28 @@ function ToolCard({
             >
               {tool.status === 'active' ? 'Deactivate' : 'Activate'}
             </Button>
+            {/* P2.INTL2: marketplace-visibility toggle. Only shown for draft
+                tools — for unclaimed/active the inclusion is unconditional and
+                a toggle would mislead. */}
+            {isDraft && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onToggleListedInMarketplace(tool.id, tool.listedInMarketplace)}
+                aria-label={
+                  tool.listedInMarketplace
+                    ? `Hide ${tool.name} from the public marketplace`
+                    : `List ${tool.name} in the public marketplace`
+                }
+                title={
+                  tool.listedInMarketplace
+                    ? 'This draft is currently visible in the public marketplace. Click to hide while you work on it.'
+                    : 'This draft is currently hidden from the public marketplace. Click to list it.'
+                }
+              >
+                {tool.listedInMarketplace ? 'Hide from Marketplace' : 'List in Marketplace'}
+              </Button>
+            )}
             <Link href={`/tools/${tool.slug}`}>
               <Button variant="ghost" size="sm" aria-label={`View ${tool.name} storefront`}>View</Button>
             </Link>
