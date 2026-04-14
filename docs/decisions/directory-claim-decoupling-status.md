@@ -159,3 +159,20 @@ This section is the comprehensive deviation list, kept in one place so future Cl
 ### Net spec-diff result
 
 5 spec-literal deviations identified; 4 documented as justified (Polar pivot, security-driven slug rejection, schema sufficiency, path mismatch with gate); 1 was a real omission (Wise stopgap offer) and was added in the spec-diff phase. Marketplace-visibility regression for claimed tools — the most substantive code gap — was not in the original spec but was surfaced by the hostile audit and scoped as a new P2.INTL2 card.
+
+### Open decision point: should the marketplace-visibility fix be in P1.INTL1?
+
+**The case for keeping it deferred to P2.INTL2 (current state):**
+
+- Estimated 4-6 hours of work (migration with backfill + marketplace query update + dashboard toggle + claimed-tool badge in marketplace card)
+- Touches the public marketplace query path — broad blast radius
+- Backfill needs hostile review (existing developers' draft tools should not be retroactively exposed to the public marketplace)
+- Belongs to its own audit chain rather than bundled into P1.INTL1's
+
+**The case for shipping it as a P1.INTL1 extension (and only then sending the Sandeep reply):**
+
+- The P1.INTL1 spec headline ask is "any developer in any country can claim a listing today." Without the visibility fix, claiming today *reduces* visibility — the spec's promise isn't actually delivered.
+- Sandeep's original quote ("discovery/visibility alone is valuable") implies he expects visibility to persist post-claim. The current "two options" framing in the reply is honest but soft.
+- Shipping the visibility fix first lets the Sandeep reply offer Option 1 (claim today, retain visibility) without the caveat, which is a substantively better customer experience.
+
+**Recommendation:** ship P2.INTL2 as a P1.INTL1 extension if the founder values offering Sandeep the unconditional claim path. Stay with the deferred state if the founder accepts the "two options" honesty and wants to send the reply now. **Founder decision required.**
