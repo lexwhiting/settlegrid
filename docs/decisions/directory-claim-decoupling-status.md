@@ -109,3 +109,53 @@ The Sandeep reply is the highest-leverage user-facing artifact from P1.INTL1 bec
 4. The decoupling itself is already code-complete; no new code is required to enable Sandeep
 
 Gate check 27 (`data/cold-outreach/sandeep-reply.md` with a sent-timestamp marker) will PASS once the founder dispatches the reply and appends the sent-log line.
+
+---
+
+## Spec-diff: literal P1.INTL1 requirements vs what shipped
+
+This section is the comprehensive deviation list, kept in one place so future Claude sessions don't repeat the audit work.
+
+### Reply requirements
+
+| Spec requirement | Shipped? | Notes |
+|---|---|---|
+| Confirm SpecLock is his to claim today | ✅ | Covered in "Two things I can offer" section |
+| Explain Stripe Connect is invite-only in India for individuals | ✅ | Stated as "Stripe Connect India individual-account block"; semantically equivalent |
+| Commit to Polar.sh integration in Phase 3 with him as first customer | **Justified deviation** | Polar declined the merchant application 2026-04-14. Replaced with honest Pattern C→A+ explanation. Cannot commit to a non-existent rail. |
+| Offer manual Wise stopgap for Q1 if SpecLock earns >$100 | ✅ (added in spec-diff phase) | Originally missed; added per spec literal. Wise stopgap is now spec-aligned: ≤few payouts/quarter, ≤$2k/year, W-8BEN required, founder personal Wise Business account. Matches the policy in the proposed `P2.INTL1` SOP. |
+| Sign off without an ask | ✅ | "No asks from you" closing line |
+
+### Decoupling requirements
+
+| Spec requirement | Shipped? | Notes |
+|---|---|---|
+| Claim flow requires only email verification (no Stripe handshake) | **Partial / justified** | Existing token-based `/claim/[token]` flow doesn't require Stripe (✓). Uses Supabase auth (email or OAuth), not just email verification — more secure than spec proposed. Pure email-verification-only was rejected on security grounds (anyone could claim any slug). |
+| Claimed listings get verified badge + analytics + attribution | **Partial / scoped to P2.INTL2** | `tools.verified` is meter-driven, not claim-driven (intentional semantic). Marketplace visibility lost on claim — the real gap, scoped as new P2.INTL2. Owner dashboard shows the claimed tool with edit + analytics access immediately. |
+| Monetization is a separate later upgrade | ✅ | Existing architecture: claim transitions to `status='draft'`; going `active` is a separate step that requires pricing config (which touches Stripe). |
+| Listing page shows claim status + monetize CTA (country-routed) | **Deferred to P2.RAIL1** | `/tools/[slug]` filters `status='active'` only — CTA is only relevant post-monetize-setup. Country-routed onboarding UX is properly scoped to P2.RAIL1 under Pattern A+. |
+
+### File-level deviations
+
+| Spec said to touch | Status | Reason |
+|---|---|---|
+| `apps/web/src/app/dashboard/listings/claim/[slug]/page.tsx` (new) | Not created | Slug-based flow rejected on security grounds. Existing `/claim/[token]` covers the function. |
+| `apps/web/src/app/api/listings/claim/route.ts` (new) | Not created | Existing `/api/tools/claim` covers the function. |
+| `apps/web/src/app/(marketing)/mcp/[owner]/[repo]/page.tsx` | Path doesn't exist in repo | Spec was written against an assumed marketing-route structure that wasn't built. Real marketing tool-page is `apps/web/src/app/tools/[slug]/page.tsx` and renders only `status='active'` tools. |
+| `apps/web/src/lib/db/schema.ts` (add `claim_status`) | Not modified | `tools.status` enum already covers the same lifecycle states (`unclaimed`/`draft`/`active`); no `listings` table exists — `tools` is the equivalent. |
+| `apps/web/drizzle/<timestamp>_add_listing_claims.sql` (migration) | Not generated | No schema change needed. |
+| `docs/decisions/sandeep-reply-sent.md` (record of what was sent) | **Path deviation** — landed at `data/cold-outreach/sandeep-reply.md` | Same path-mismatch pattern as P1.SDK5 (sdk vs mcp) and P1.RAIL1 (launches vs legal). Gate check 27 looks at `data/cold-outreach/sandeep-reply.md`; spec card was outdated. Used the gate path. |
+
+### Implementation steps that were skipped
+
+| Step | Status | Reason |
+|---|---|---|
+| 4. Add `claim_status` enum field to listings table | Skipped | No schema change needed (see above) |
+| 5. Generate and run Drizzle migration | Skipped | No schema change needed |
+| 6. Implement claim flow page + API route | Skipped | Existing `/claim/[token]` + `/api/tools/claim` cover this |
+| 7. Add claim status display + monetize button to listing page | Deferred to P2.RAIL1 | Listing page only renders active tools; CTA work belongs with country-routed onboarding UX |
+| 8. Test claim flow end-to-end with test listing | Skipped | Existing claim flow has its own test coverage (`apps/web/src/app/api/__tests__/claim-emails-kill-switch.test.ts` + standard route tests). No new code, no new tests. |
+
+### Net spec-diff result
+
+5 spec-literal deviations identified; 4 documented as justified (Polar pivot, security-driven slug rejection, schema sufficiency, path mismatch with gate); 1 was a real omission (Wise stopgap offer) and was added in the spec-diff phase. Marketplace-visibility regression for claimed tools — the most substantive code gap — was not in the original spec but was surfaced by the hostile audit and scoped as a new P2.INTL2 card.
