@@ -130,6 +130,43 @@ describe('detectRepoType — edge cases', () => {
       expect(result.entryPoints).not.toContain('./dist/missing.mjs')
     })
   })
+
+  it('picks up exports["."].default as an entry point', async () => {
+    await withTmp(async (dir) => {
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'exports-sample',
+          exports: {
+            '.': {
+              types: './dist/index.d.ts',
+              default: './dist/index.js',
+            },
+          },
+        }),
+      )
+      await fsp.mkdir(path.join(dir, 'dist'), { recursive: true })
+      await fsp.writeFile(path.join(dir, 'dist', 'index.js'), 'module.exports={}')
+      const result = await detectRepoType(dir)
+      expect(result.entryPoints).toContain('./dist/index.js')
+    })
+  })
+
+  it('picks up `bin` declared as a bare string, not just an object', async () => {
+    await withTmp(async (dir) => {
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'string-bin',
+          bin: './bin/cli.js',
+        }),
+      )
+      await fsp.mkdir(path.join(dir, 'bin'), { recursive: true })
+      await fsp.writeFile(path.join(dir, 'bin', 'cli.js'), '#!/usr/bin/env node')
+      const result = await detectRepoType(dir)
+      expect(result.entryPoints).toContain('./bin/cli.js')
+    })
+  })
 })
 
 describe('detectRepoType — hostile input hardening', () => {
@@ -208,6 +245,37 @@ describe('detectRepoType — hostile input hardening', () => {
         expect(result.type).toBe('mcp-server')
       } finally {
         process.chdir(cwd)
+      }
+    })
+  })
+
+  it('skips symlink FILES during source scanning (lstat + !isFile guard)', async () => {
+    // Windows needs elevated privileges to create symlinks; skip there.
+    if (process.platform === 'win32') return
+
+    await withTmp(async (dir) => {
+      // Real source file with the mcp import — detection should normally
+      // pick it up via scanSourcesFor.
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name: 'symlink-only', dependencies: {} }),
+      )
+      await fsp.mkdir(path.join(dir, 'src'), { recursive: true })
+      // The symlink target is OUTSIDE the repo and contains the mcp
+      // import string — if our scanner followed symlinks, it would match
+      // and classify this repo as mcp-server. With lstat + isFile guard,
+      // the symlink entry is skipped and the repo stays `unknown`.
+      const outside = path.join(os.tmpdir(), `sg-symlink-target-${Date.now()}.ts`)
+      await fsp.writeFile(
+        outside,
+        "import { Server } from '@modelcontextprotocol/sdk/server/index.js'\n",
+      )
+      try {
+        await fsp.symlink(outside, path.join(dir, 'src', 'leak.ts'))
+        const result = await detectRepoType(dir)
+        expect(result.type).toBe('unknown')
+      } finally {
+        await fsp.rm(outside, { force: true })
       }
     })
   })
