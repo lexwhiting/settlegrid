@@ -51,7 +51,7 @@ import type { SettleGridInstance } from '../index'
 
 describe('settlegrid.version', () => {
   it('exposes the SDK version string', () => {
-    expect(settlegrid.version).toBe('0.1.1')
+    expect(settlegrid.version).toBe('0.2.0')
   })
 
   it('matches SDK_VERSION constant', () => {
@@ -76,8 +76,8 @@ describe('SDK_VERSION export', () => {
     expect(typeof SDK_VERSION).toBe('string')
   })
 
-  it('is 0.1.0', () => {
-    expect(SDK_VERSION).toBe('0.1.1')
+  it('matches the published package version (0.2.0)', () => {
+    expect(SDK_VERSION).toBe('0.2.0')
   })
 })
 

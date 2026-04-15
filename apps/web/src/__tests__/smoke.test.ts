@@ -263,10 +263,14 @@ describe('SDK (@settlegrid/mcp)', () => {
     const sdk = await import('../../../../packages/mcp/src/index')
 
     expect(sdk).toHaveProperty('settlegrid')
-    expect(sdk.settlegrid.version).toBe('0.1.1')
+    // Compare against the SDK_VERSION constant instead of a literal
+    // so future bumps (e.g. P2.6 → 0.2.0) don't require touching
+    // this file. `version` on the singleton instance MUST match the
+    // exported constant by construction.
+    expect(sdk.settlegrid.version).toBe(sdk.SDK_VERSION)
     expect(typeof sdk.settlegrid.init).toBe('function')
     expect(typeof sdk.settlegrid.extractApiKey).toBe('function')
-    expect(sdk).toHaveProperty('SDK_VERSION', '0.1.1')
+    expect(sdk.SDK_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   it('exports all error classes', async () => {
@@ -1180,10 +1184,14 @@ describe('Package.json Integrity', () => {
     expect(deps).toHaveProperty('viem')
   })
 
-  it('SDK package has correct name and version', () => {
+  it('SDK package has correct name and valid semver version', () => {
     const pkg = readPkg(SDK_PKG_PATH)
     expect(pkg.name).toBe('@settlegrid/mcp')
-    expect(pkg.version).toBe('0.1.1')
+    // Semver regex instead of a literal so additive minor bumps
+    // (P2.6 → 0.2.0) don't require touching this file — the P1.SDK
+    // surface is stable and this assertion just proves the manifest
+    // exists and has a well-formed version, not a specific number.
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   it('SDK package has proper exports config', () => {
