@@ -8,8 +8,8 @@ import {
   isGithubUrl,
   type ResolvedSource,
 } from '../lib/source-resolver.js'
-import { detectRepoType } from '../detect/index.js'
-import { runTransform } from '../transforms/runner.js'
+import { detectRepoType, type DetectResult } from '../detect/index.js'
+import { runTransform, type TransformOutput } from '../transforms/runner.js'
 import {
   generatePatch,
   openPullRequest,
@@ -25,12 +25,42 @@ interface AddOptions {
   outBranch?: string
   force?: boolean
   token?: string
+  json?: boolean
 }
 
 // Default when --out-branch is not supplied. Namespaced so we don't
 // collide with common user branch names.
 const DEFAULT_BRANCH_NAME = 'settlegrid/monetize'
 const DEFAULT_BASE_BRANCH = 'main'
+
+/**
+ * Machine-readable record emitted to stdout when --json is set.
+ * Consumed by `scripts/smoke.ts` (P2.5) to assert per-repo detection
+ * + transformation results across the pinned smoke targets.
+ */
+interface JsonResult {
+  status:
+    | 'dry-run-complete'
+    | 'applied'
+    | 'no-changes'
+    | 'skipped-pr'
+    | 'pr-opened'
+    | 'patch-file-written'
+    | 'pr-failed'
+    | 'unknown-type'
+    | 'error'
+  mode: 'dry-run' | 'apply'
+  resolvedDir: string | null
+  detect: DetectResult | null
+  transform: TransformOutput | null
+  pr: {
+    url: string
+    number: number
+    forkUsed: boolean
+  } | null
+  patchFile: string | null
+  error: string | null
+}
 
 export function addCommand(program: Command): void {
   program
@@ -52,8 +82,36 @@ export function addCommand(program: Command): void {
       '--token <t>',
       'GitHub token for PR creation (falls back to GITHUB_TOKEN env var)',
     )
+    .option(
+      '--json',
+      'emit machine-readable JSON output (suppresses human prompts)',
+      false,
+    )
     .action(async (source: string | undefined, options: AddOptions) => {
-      intro(kleur.cyan('settlegrid add'))
+      const jsonMode = options.json === true
+
+      // Build up the JsonResult record as we go. The fields land on
+      // stdout as a single JSON line just before the action handler
+      // returns, when jsonMode is on.
+      const json: JsonResult = {
+        status: 'error',
+        mode: options.dryRun === true ? 'dry-run' : 'apply',
+        resolvedDir: null,
+        detect: null,
+        transform: null,
+        pr: null,
+        patchFile: null,
+        error: null,
+      }
+      const emitJson = (): void => {
+        if (jsonMode) {
+          process.stdout.write(JSON.stringify(json) + '\n')
+        }
+      }
+
+      if (!jsonMode) {
+        intro(kleur.cyan('settlegrid add'))
+      }
 
       const githubFromSource =
         source && isGithubUrl(source) ? source : undefined
@@ -66,45 +124,56 @@ export function addCommand(program: Command): void {
           github: options.github ?? githubFromSource,
           path: options.path ?? pathFromSource,
         })
+        json.resolvedDir = resolved.dir
+
         const detection = await detectRepoType(resolved.dir)
+        json.detect = detection
 
-        const entryList =
-          detection.entryPoints.length > 0
-            ? detection.entryPoints.join(', ')
-            : kleur.dim('(none)')
-        const reasonList =
-          detection.reasons.length > 0
-            ? detection.reasons.map((r) => `\n                 - ${r}`).join('')
-            : ` ${kleur.dim('(none)')}`
+        if (!jsonMode) {
+          const entryList =
+            detection.entryPoints.length > 0
+              ? detection.entryPoints.join(', ')
+              : kleur.dim('(none)')
+          const reasonList =
+            detection.reasons.length > 0
+              ? detection.reasons
+                  .map((r) => `\n                 - ${r}`)
+                  .join('')
+              : ` ${kleur.dim('(none)')}`
 
-        const detectionLines = [
-          `source:       ${source ?? kleur.dim('(none)')}`,
-          `resolved dir: ${resolved.dir}`,
-          `type:         ${detection.type}`,
-          `confidence:   ${detection.confidence.toFixed(2)}`,
-          `language:     ${detection.language}`,
-          `entry points: ${entryList}`,
-          `reasons:      ${reasonList}`,
-          '',
-          `--github:     ${options.github ?? kleur.dim('(unset)')}`,
-          `--path:       ${options.path ?? kleur.dim('(unset)')}`,
-          `--dry-run:    ${options.dryRun ? 'yes' : 'no'}`,
-          `--no-pr:      ${options.pr ? 'no (PR will be opened)' : 'yes (PR skipped)'}`,
-          `--out-branch: ${options.outBranch ?? kleur.dim('(unset)')}`,
-          `--force:      ${options.force ? 'yes' : 'no'}`,
-          // --token is displayed as a boolean presence check so the token
-          // value never reaches the terminal, even in --dry-run output.
-          `--token:      ${options.token ? kleur.dim('(provided)') : kleur.dim('(unset)')}`,
-        ]
-        note(detectionLines.join('\n'), 'detection + parsed options')
+          const detectionLines = [
+            `source:       ${source ?? kleur.dim('(none)')}`,
+            `resolved dir: ${resolved.dir}`,
+            `type:         ${detection.type}`,
+            `confidence:   ${detection.confidence.toFixed(2)}`,
+            `language:     ${detection.language}`,
+            `entry points: ${entryList}`,
+            `reasons:      ${reasonList}`,
+            '',
+            `--github:     ${options.github ?? kleur.dim('(unset)')}`,
+            `--path:       ${options.path ?? kleur.dim('(unset)')}`,
+            `--dry-run:    ${options.dryRun ? 'yes' : 'no'}`,
+            `--no-pr:      ${options.pr ? 'no (PR will be opened)' : 'yes (PR skipped)'}`,
+            `--out-branch: ${options.outBranch ?? kleur.dim('(unset)')}`,
+            `--force:      ${options.force ? 'yes' : 'no'}`,
+            `--token:      ${options.token ? kleur.dim('(provided)') : kleur.dim('(unset)')}`,
+          ]
+          note(detectionLines.join('\n'), 'detection + parsed options')
+        }
 
         if (detection.type === 'unknown' && !options.force) {
-          outro(
-            kleur.red(
-              'unknown repo type — cannot auto-wrap. Re-run with --force to proceed anyway, or report the shape to support@settlegrid.ai.',
-            ),
-          )
+          if (!jsonMode) {
+            outro(
+              kleur.red(
+                'unknown repo type — cannot auto-wrap. Re-run with --force to proceed anyway, or report the shape to support@settlegrid.ai.',
+              ),
+            )
+          }
+          json.status = 'unknown-type'
+          json.error =
+            'unknown repo type — pass --force to proceed or report the shape'
           process.exitCode = 1
+          emitJson()
           return
         }
 
@@ -113,95 +182,99 @@ export function addCommand(program: Command): void {
           detect: detection,
           dryRun: options.dryRun === true,
         })
+        json.transform = transform
 
-        const addedDeps = Object.entries(transform.addedDependencies)
-          .map(([n, r]) => `${n}@${r}`)
-          .join(', ')
-        const changedList =
-          transform.changedFiles.length > 0
-            ? transform.changedFiles
-                .map((c) => `\n                 - ${c.path}`)
-                .join('')
-            : ` ${kleur.dim('(none)')}`
-        const skippedList =
-          transform.skipped.length > 0
-            ? transform.skipped
-                .map((s) => `\n                 - ${s.path} (${s.reason})`)
-                .join('')
-            : ` ${kleur.dim('(none)')}`
-        const envList =
-          transform.envVarsRequired.length > 0
-            ? transform.envVarsRequired.join(', ')
-            : kleur.dim('(none)')
+        if (!jsonMode) {
+          const addedDeps = Object.entries(transform.addedDependencies)
+            .map(([n, r]) => `${n}@${r}`)
+            .join(', ')
+          const changedList =
+            transform.changedFiles.length > 0
+              ? transform.changedFiles
+                  .map((c) => `\n                 - ${c.path}`)
+                  .join('')
+              : ` ${kleur.dim('(none)')}`
+          const skippedList =
+            transform.skipped.length > 0
+              ? transform.skipped
+                  .map((s) => `\n                 - ${s.path} (${s.reason})`)
+                  .join('')
+              : ` ${kleur.dim('(none)')}`
+          const envList =
+            transform.envVarsRequired.length > 0
+              ? transform.envVarsRequired.join(', ')
+              : kleur.dim('(none)')
 
-        const transformLines = [
-          `mode:          ${options.dryRun ? kleur.yellow('dry-run (no files written)') : kleur.green('apply (files written)')}`,
-          `changed files: ${changedList}`,
-          `skipped files: ${skippedList}`,
-          `deps to add:   ${addedDeps || kleur.dim('(none)')}`,
-          `env required:  ${envList}`,
-        ]
-        note(transformLines.join('\n'), 'transform summary')
+          const transformLines = [
+            `mode:          ${options.dryRun ? kleur.yellow('dry-run (no files written)') : kleur.green('apply (files written)')}`,
+            `changed files: ${changedList}`,
+            `skipped files: ${skippedList}`,
+            `deps to add:   ${addedDeps || kleur.dim('(none)')}`,
+            `env required:  ${envList}`,
+          ]
+          note(transformLines.join('\n'), 'transform summary')
 
-        // Emit an inline diff preview for dry-run so the user can eyeball
-        // what would change without touching their working tree. Truncate
-        // so the terminal doesn't get flooded on larger repos.
-        if (options.dryRun === true && transform.changedFiles.length > 0) {
-          const previewCount = Math.min(transform.changedFiles.length, 3)
-          for (let i = 0; i < previewCount; i++) {
-            const { path: rel, after } = transform.changedFiles[i]
-            const truncated = after.length > 1200 ? after.slice(0, 1200) + '\n…' : after
-            note(truncated, `preview: ${rel}`)
-          }
-          if (transform.changedFiles.length > previewCount) {
-            note(
-              `${transform.changedFiles.length - previewCount} more file(s) would change — re-run without --dry-run to apply.`,
-              'preview (truncated)',
-            )
+          // Preview only the first few files to avoid flooding the
+          // terminal on large repos.
+          if (options.dryRun === true && transform.changedFiles.length > 0) {
+            const previewCount = Math.min(transform.changedFiles.length, 3)
+            for (let i = 0; i < previewCount; i++) {
+              const { path: rel, after } = transform.changedFiles[i]
+              const truncated =
+                after.length > 1200 ? after.slice(0, 1200) + '\n…' : after
+              note(truncated, `preview: ${rel}`)
+            }
+            if (transform.changedFiles.length > previewCount) {
+              note(
+                `${transform.changedFiles.length - previewCount} more file(s) would change — re-run without --dry-run to apply.`,
+                'preview (truncated)',
+              )
+            }
           }
         }
 
         // --- Dry-run terminates here. Per P2.4 spec DoD:
-        //     "--dry-run never touches the GitHub API" — we never
-        //     reach the PR / patch branches below when dryRun is true.
+        //     "--dry-run never touches the GitHub API".
         if (options.dryRun === true) {
-          outro(
-            kleur.yellow(
-              'dry-run complete — re-run without --dry-run to write changes and update package.json.',
-            ),
-          )
+          if (!jsonMode) {
+            outro(
+              kleur.yellow(
+                'dry-run complete — re-run without --dry-run to write changes and update package.json.',
+              ),
+            )
+          }
+          json.status = 'dry-run-complete'
           process.exitCode = 0
+          emitJson()
           return
         }
 
         // --- Apply path. Zero changes = nothing to PR/patch either.
         if (transform.changedFiles.length === 0) {
-          outro(
-            kleur.dim(
-              'no files changed (already wrapped or nothing matched the codemod).',
-            ),
-          )
+          if (!jsonMode) {
+            outro(
+              kleur.dim(
+                'no files changed (already wrapped or nothing matched the codemod).',
+              ),
+            )
+          }
+          json.status = 'no-changes'
           process.exitCode = 0
+          emitJson()
           return
         }
 
-        // --- PR decision tree.
-        //
-        //   1. --no-pr → skip PR entirely, just report the in-place writes
-        //   2. --pr + repo info + token → open PR via openPullRequest
-        //   3. --pr + (no repo info OR no token) → emit a .patch file to cwd
-        //
-        // The command flow DOES NOT log or display the token value anywhere
-        // (see the '--token:' line above — presence only). Tests assert
-        // token-never-logged by piping stdout/stderr through a substring
-        // check against a sentinel token value.
         if (!options.pr) {
-          outro(
-            kleur.green(
-              `wrapped ${transform.changedFiles.length} file(s) — skipped PR per --no-pr. Next: \`npm install\` + set ${transform.envVarsRequired.join(', ')}.`,
-            ),
-          )
+          if (!jsonMode) {
+            outro(
+              kleur.green(
+                `wrapped ${transform.changedFiles.length} file(s) — skipped PR per --no-pr. Next: \`npm install\` + set ${transform.envVarsRequired.join(', ')}.`,
+              ),
+            )
+          }
+          json.status = 'skipped-pr'
           process.exitCode = 0
+          emitJson()
           return
         }
 
@@ -213,20 +286,23 @@ export function addCommand(program: Command): void {
         })
 
         if (!token || !repoInfo) {
-          // Graceful no-token (or no-repo-info) fallback — write a
-          // .patch file the user can inspect and apply manually.
           const patchContent = generatePatch(transform.changedFiles)
           const patchPath = path.join(process.cwd(), 'settlegrid-add.patch')
           await fsp.writeFile(patchPath, patchContent, 'utf-8')
           const reason = !token
             ? 'no GITHUB_TOKEN set (pass --token or export GITHUB_TOKEN)'
             : 'no GitHub repo info (pass --github or run from a repo with an origin remote)'
-          outro(
-            kleur.yellow(
-              `${reason} — wrote patch to ${patchPath}. Apply with \`git apply\` after reviewing.`,
-            ),
-          )
+          if (!jsonMode) {
+            outro(
+              kleur.yellow(
+                `${reason} — wrote patch to ${patchPath}. Apply with \`git apply\` after reviewing.`,
+              ),
+            )
+          }
+          json.status = 'patch-file-written'
+          json.patchFile = patchPath
           process.exitCode = 0
+          emitJson()
           return
         }
 
@@ -241,21 +317,36 @@ export function addCommand(program: Command): void {
             envVarsRequired: transform.envVarsRequired,
             token,
           })
-          outro(
-            kleur.green(
-              `opened PR ${pr.url}${pr.forkUsed ? kleur.dim(' (via fork)') : ''}`,
-            ),
-          )
+          if (!jsonMode) {
+            outro(
+              kleur.green(
+                `opened PR ${pr.url}${pr.forkUsed ? kleur.dim(' (via fork)') : ''}`,
+              ),
+            )
+          }
+          json.status = 'pr-opened'
+          json.pr = pr
           process.exitCode = 0
+          emitJson()
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
-          outro(kleur.red(`PR creation failed: ${message}`))
+          if (!jsonMode) {
+            outro(kleur.red(`PR creation failed: ${message}`))
+          }
+          json.status = 'pr-failed'
+          json.error = message
           process.exitCode = 1
+          emitJson()
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        outro(kleur.red(`settlegrid add failed: ${message}`))
+        if (!jsonMode) {
+          outro(kleur.red(`settlegrid add failed: ${message}`))
+        }
+        json.status = 'error'
+        json.error = message
         process.exitCode = 1
+        emitJson()
       } finally {
         if (resolved) {
           try {
