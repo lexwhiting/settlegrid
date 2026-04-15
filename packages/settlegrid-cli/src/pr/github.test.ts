@@ -621,7 +621,12 @@ describe('readGitOrigin', () => {
 // ─── generatePatch ──────────────────────────────────────────────────────────
 
 describe('generatePatch', () => {
-  it('produces a valid unified-diff per changed file', () => {
+  it('produces a valid unified-diff per changed file with correct line counts', () => {
+    // Hostile-review fix: a file ending in '\n' must be counted as
+    // N content lines, not N+1. `"one\ntwo\n"` is 2 lines per git;
+    // `"old\n"` is 1 line. The prior impl naively counted the empty
+    // trailing entry from split('\n'), producing off-by-one hunk
+    // headers AND a spurious trailing `-` / `+` empty line per file.
     const patch = generatePatch([
       {
         path: 'src/a.ts',
@@ -637,11 +642,33 @@ describe('generatePatch', () => {
     expect(patch).toContain('diff --git a/src/a.ts b/src/a.ts')
     expect(patch).toContain('--- a/src/a.ts')
     expect(patch).toContain('+++ b/src/a.ts')
-    // Full-file-replace hunk headers.
-    expect(patch).toContain('@@ -1,3 +1,4 @@')
+    // 2 content lines before, 3 after (git-correct counts).
+    expect(patch).toContain('@@ -1,2 +1,3 @@')
     expect(patch).toContain('diff --git a/src/b.ts b/src/b.ts')
-    // Added line count = before (1) + after (1) hunk.
-    expect(patch).toContain('@@ -1,2 +1,2 @@')
+    // 1 content line before, 1 after.
+    expect(patch).toContain('@@ -1,1 +1,1 @@')
+    // And the trailing empty-line removal/addition artefact from
+    // the prior impl must not appear.
+    //   `-\n+` after the `-old` would be the signature of the bug.
+    expect(patch).not.toMatch(/-old\n-\n/)
+    expect(patch).not.toMatch(/\+new\n\+\n/)
+  })
+
+  it('handles files that do NOT end with a trailing newline', () => {
+    // No-trailing-newline files keep every line as content.
+    // `"abc"` is 1 line, `"abc\ndef"` is 2 lines.
+    const patch = generatePatch([
+      { path: 'x.ts', before: 'abc', after: 'abc\ndef' },
+    ])
+    expect(patch).toContain('@@ -1,1 +1,2 @@')
+  })
+
+  it('handles empty files cleanly (0-line hunks)', () => {
+    const patch = generatePatch([
+      { path: 'empty.ts', before: '', after: 'new content\n' },
+    ])
+    // 0 lines before → hunk header `-1,0`, 1 line after → `+1,1`
+    expect(patch).toContain('@@ -1,0 +1,1 @@')
   })
 
   it('is deterministic for the same input', () => {
@@ -649,5 +676,80 @@ describe('generatePatch', () => {
       { path: 'x.ts', before: 'a\n', after: 'b\n' },
     ]
     expect(generatePatch(input)).toBe(generatePatch(input))
+  })
+})
+
+describe('openPullRequest — error message clarity (hostile-review regression guards)', () => {
+  // Each test here locks in a readable error surface for a common
+  // failure mode that previously fell through to a cryptic Octokit
+  // HTTPError message.
+
+  it('surfaces a clear "repository not found" error when the upstream 404s', async () => {
+    const notFoundError = Object.assign(new Error('Not Found'), { status: 404 })
+    octokitMethods.reposGet.mockRejectedValue(notFoundError)
+
+    await expect(
+      openPullRequest({
+        repoOwner: 'acme',
+        repoName: 'does-not-exist',
+        branchName: 'b',
+        baseBranch: 'main',
+        changes: DEFAULT_CHANGES,
+        dependencyBump: {},
+        envVarsRequired: [],
+        token: 'ghs_404test',
+      }),
+    ).rejects.toThrow(/repository acme\/does-not-exist not found/)
+
+    // Fork attempt must NOT run — 404 short-circuits before it.
+    expect(octokitMethods.reposCreateFork).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a clear "base branch not found" error when getRef 404s', async () => {
+    // Happy path through ensurePushAccess, then base branch 404.
+    octokitMethods.reposGet.mockResolvedValue({
+      data: { permissions: { push: true } },
+    })
+    const notFoundError = Object.assign(new Error('Not Found'), { status: 404 })
+    octokitMethods.gitGetRef.mockRejectedValue(notFoundError)
+
+    await expect(
+      openPullRequest({
+        repoOwner: 'acme',
+        repoName: 'mcp-server',
+        branchName: 'settlegrid/monetize',
+        baseBranch: 'main',
+        changes: DEFAULT_CHANGES,
+        dependencyBump: {},
+        envVarsRequired: [],
+        token: 'ghs_basebranchtest',
+      }),
+    ).rejects.toThrow(
+      /base branch 'main' not found in acme\/mcp-server/,
+    )
+  })
+
+  it('surfaces a clear "branch already exists" error when createRef 422s', async () => {
+    programHappyPath()
+    // Override createRef to throw 422.
+    const unprocessable = Object.assign(new Error('Unprocessable'), {
+      status: 422,
+    })
+    octokitMethods.gitCreateRef.mockRejectedValue(unprocessable)
+
+    await expect(
+      openPullRequest({
+        repoOwner: 'acme',
+        repoName: 'mcp-server',
+        branchName: 'settlegrid/monetize',
+        baseBranch: 'main',
+        changes: DEFAULT_CHANGES,
+        dependencyBump: {},
+        envVarsRequired: [],
+        token: 'ghs_existing_branch',
+      }),
+    ).rejects.toThrow(
+      /branch 'settlegrid\/monetize' already exists in acme\/mcp-server/,
+    )
   })
 })

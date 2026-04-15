@@ -134,8 +134,13 @@ export async function openPullRequest(
 
 /**
  * True if the authenticated user can push directly to `owner/repo`.
- * Returns false on any failure (repo not found, 403, network hiccup)
- * so the caller takes the safe fork path.
+ *
+ * 404 is rethrown with a human-readable message — a "not found" repo
+ * can't be rescued by the fork fallback, and swallowing the error
+ * would leave the user chasing a cryptic "fork failed" instead.
+ * 401 / 403 / network errors pass through as `false` so the caller
+ * still tries the fork path (which handles most read-only-token
+ * situations).
  */
 async function ensurePushAccess(
   octokit: Octokit,
@@ -145,7 +150,13 @@ async function ensurePushAccess(
   try {
     const res = await octokit.rest.repos.get({ owner, repo })
     return res.data.permissions?.push === true
-  } catch {
+  } catch (err) {
+    const status = (err as { status?: number })?.status
+    if (status === 404) {
+      throw new Error(
+        `repository ${owner}/${repo} not found (check the URL or token scope)`,
+      )
+    }
     return false
   }
 }
@@ -183,6 +194,13 @@ async function forkAndWait(
  * Resolve `baseBranch` to its commit + tree SHAs and create a new ref
  * `refs/heads/<newBranch>` pointed at the same commit. Returns both
  * SHAs so the commit helper can skip re-fetching them.
+ *
+ * Two common failure modes get readable error wrappers so the CLI
+ * user isn't left guessing:
+ *   - 404 on getRef → the base branch (default `main`) doesn't exist
+ *     in this repo (likely the repo uses `master` or a custom default)
+ *   - 422 on createRef → the new branch already exists (likely the
+ *     user re-ran `settlegrid add` without deleting the prior branch)
  */
 async function createBranch(
   octokit: Octokit,
@@ -191,11 +209,22 @@ async function createBranch(
   baseBranch: string,
   newBranch: string,
 ): Promise<{ commitSha: string; treeSha: string }> {
-  const baseRef = await octokit.rest.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${baseBranch}`,
-  })
+  let baseRef: Awaited<ReturnType<typeof octokit.rest.git.getRef>>
+  try {
+    baseRef = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${baseBranch}`,
+    })
+  } catch (err) {
+    const status = (err as { status?: number })?.status
+    if (status === 404) {
+      throw new Error(
+        `base branch '${baseBranch}' not found in ${owner}/${repo} (repos with a non-'main' default branch aren't supported via the current flags)`,
+      )
+    }
+    throw err
+  }
   const commitSha = baseRef.data.object.sha
 
   const baseCommit = await octokit.rest.git.getCommit({
@@ -205,12 +234,22 @@ async function createBranch(
   })
   const treeSha = baseCommit.data.tree.sha
 
-  await octokit.rest.git.createRef({
-    owner,
-    repo,
-    ref: `refs/heads/${newBranch}`,
-    sha: commitSha,
-  })
+  try {
+    await octokit.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${newBranch}`,
+      sha: commitSha,
+    })
+  } catch (err) {
+    const status = (err as { status?: number })?.status
+    if (status === 422) {
+      throw new Error(
+        `branch '${newBranch}' already exists in ${owner}/${repo} (pass a different --out-branch or delete the prior branch)`,
+      )
+    }
+    throw err
+  }
 
   return { commitSha, treeSha }
 }
@@ -366,6 +405,23 @@ export async function readGitOrigin(rootDir: string): Promise<string | null> {
 }
 
 /**
+ * Split a file's text into unified-diff-style lines, respecting
+ * git's convention that a trailing `\n` is a line terminator, NOT
+ * an additional empty line. `"one\ntwo\n".split('\n')` naively gives
+ * `['one', 'two', '']` (length 3), but git counts the same file as
+ * two lines. Dropping the trailing empty keeps hunk line counts
+ * correct and avoids emitting a spurious `-` / `+` empty line at
+ * the end of each hunk.
+ */
+function splitLinesForPatch(content: string): string[] {
+  if (content.length === 0) return []
+  if (content.endsWith('\n')) {
+    return content.slice(0, -1).split('\n')
+  }
+  return content.split('\n')
+}
+
+/**
  * Produce a valid unified-diff patch file for the transformed files
  * — emitted to the user's cwd when we can't open a PR directly (no
  * token, or no GitHub repo info). The format is intentionally the
@@ -381,8 +437,8 @@ export function generatePatch(
   changes: TransformOutput['changedFiles'],
 ): string {
   const blocks = changes.map((change) => {
-    const beforeLines = change.before.split('\n')
-    const afterLines = change.after.split('\n')
+    const beforeLines = splitLinesForPatch(change.before)
+    const afterLines = splitLinesForPatch(change.after)
     const removed = beforeLines.map((l) => `-${l}`).join('\n')
     const added = afterLines.map((l) => `+${l}`).join('\n')
     return [
