@@ -1,20 +1,26 @@
 import { StaggerContainer } from '@/components/ui/stagger-container'
 
+// Protocols listed on the "Built for agents" marketing section.
+// Aligned with the P1.MKT1 honest framing (see agents/beacon/prompts.ts
+// and docs/audits/15-protocol-claim.md). 9 brokered by the Smart Proxy +
+// 2 detection-adapter-only + 3 tracked-as-emerging = 14 total.
 const protocols = [
+  // 9 brokered by the Smart Proxy
   'MCP',
-  'MPP',
   'x402',
+  'Stripe MPP',
   'AP2',
-  'Visa TAP',
-  'UCP',
   'ACP',
+  'UCP',
+  'Visa TAP',
   'Mastercard Verifiable Intent',
-  'Circle Nano',
-  'REST',
+  'Circle Nanopayments',
+  // 2 detection-adapter-only
   'L402',
-  'Alipay Trust',
   'KYAPay',
-  'EMVCo',
+  // 3 tracked-as-emerging
+  'ACTP',
+  'EMVCo agent payments',
   'DRAIN',
 ]
 
@@ -30,7 +36,7 @@ export function PlatformAgents() {
             Built for agents, not just humans
           </h2>
           <p className="text-base text-muted-foreground leading-relaxed max-w-2xl mt-2">
-            15 payment protocols. One integration.
+            14 agent payment protocols tracked. One integration.
           </p>
         </div>
 

@@ -45,7 +45,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'What protocols does SettleGrid support?',
-        a: "SettleGrid is protocol-agnostic. It supports multiple agent payment protocols: MCP (Model Context Protocol), MPP (Merchant Payment Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Verifiable Intent, Circle Nanopayments (USDC), L402 (Bitcoin Lightning), Alipay Trust Protocol (Ant Group), and KYAPay (Skyfire + Visa). One SDK covers them all.",
+        a: "SettleGrid is protocol-agnostic. The @settlegrid/mcp SDK adds native billing to MCP tool servers and a REST middleware for any HTTP service. The hosted Smart Proxy brokers payments across 9 protocols: MCP (Model Context Protocol), x402 (Coinbase / Linux Foundation), Stripe MPP (Machine Payments Protocol — Stripe + Tempo, pending GA), AP2 (Google Agent Payments), ACP (Agentic Commerce Protocol — OpenAI + Stripe), UCP (Universal Commerce Protocol — Google + Shopify), Visa TAP (Token Agent Payments), Mastercard Verifiable Intent, and Circle Nanopayments (USDC). Detection adapters are in place for L402 (Bitcoin Lightning) and KYAPay (Skyfire + Visa). Additional rails are tracked as upstream specs mature: ACTP (Alipay's Agentic Commerce Trust Protocol, Ant Group), EMVCo agent payments, and DRAIN (Bittensor Subnet 58). One SDK covers the brokered set.",
       },
       {
         q: 'How do my tools appear in the Showcase?',
@@ -224,7 +224,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'How is SettleGrid different from Stripe or Orb?',
-        a: 'Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — 15 payment protocols (MCP, MPP, x402, AP2, Visa TAP, L402, KYAPay, EMVCo, DRAIN, etc.) vs. Stripe/Orb\'s REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.',
+        a: "Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments) with detection adapters for 2 more (L402, KYAPay) and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN), versus Stripe/Orb's REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.",
       },
     ],
   },

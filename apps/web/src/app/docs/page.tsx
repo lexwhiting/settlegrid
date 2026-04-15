@@ -51,7 +51,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What protocols does SettleGrid support?',
-      a: 'SettleGrid is protocol-agnostic. It supports multiple agent payment protocols: MCP (Model Context Protocol), MPP (Merchant Payment Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Verifiable Intent, Circle Nanopayments (USDC), L402 (Bitcoin Lightning), Alipay Trust, and KYAPay (Skyfire/Visa). One SDK covers them all.',
+      a: "SettleGrid is protocol-agnostic. The @settlegrid/mcp SDK adds native billing to MCP tool servers and a REST middleware for any HTTP service. The hosted Smart Proxy brokers payments across 9 protocols: MCP (Model Context Protocol), x402 (Coinbase / Linux Foundation), Stripe MPP (Machine Payments Protocol — Stripe + Tempo, pending GA), AP2 (Google Agent Payments), ACP (Agentic Commerce Protocol — OpenAI + Stripe), UCP (Universal Commerce Protocol — Google + Shopify), Visa TAP (Token Agent Payments), Mastercard Verifiable Intent, and Circle Nanopayments (USDC). Detection adapters are in place for L402 (Bitcoin Lightning) and KYAPay (Skyfire + Visa). Additional rails are tracked as upstream specs mature: ACTP (Alipay's Agentic Commerce Trust Protocol, Ant Group), EMVCo agent payments, and DRAIN (Bittensor Subnet 58).",
     },
   ],
 },
@@ -678,7 +678,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — supporting multiple agent payment protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), Alipay Trust, and KYAPay). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.',
+      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
     },
   ],
 },
@@ -703,7 +703,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Do these templates work with all the protocols SettleGrid supports?',
-      a: 'Yes. The sg.wrap() pattern used in every template automatically supports the agent payment protocols SettleGrid handles: MCP, MPP (Stripe + Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP (Google + Shopify), ACP (OpenAI/Stripe), Mastercard Verifiable Intent, Circle Nanopayments, L402, Alipay Trust, and KYAPay. You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, multiple protocols.',
+      a: "Yes. The sg.wrap() pattern used in every template automatically supports the agent payment protocols SettleGrid handles through its Smart Proxy — MCP, x402 (Coinbase), Stripe MPP (Stripe + Tempo), AP2 (Google), ACP (OpenAI + Stripe), UCP (Google + Shopify), Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, with detection adapters for L402 and KYAPay, plus tracked-as-emerging rails (Alipay's ACTP, EMVCo agent payments, DRAIN). You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, multiple protocols.",
     },
   ],
 },

@@ -272,17 +272,20 @@ const securityScan = sg.wrap(async (args: { repoUrl: string }) => {
 }, { method: 'security-scan' })`,
   },
   {
+    // Slug preserved as 'mastercard-agent-pay' for URL compatibility with
+    // existing external links; the display name has been updated to the
+    // canonical "Mastercard Verifiable Intent" per P1.MKT1 honest framing.
     slug: 'mastercard-agent-pay',
-    name: 'Mastercard Agent Pay',
-    fullName: 'Mastercard Agent Pay',
+    name: 'Mastercard Verifiable Intent',
+    fullName: 'Mastercard Verifiable Intent',
     backer: 'Mastercard',
     status: 'Pending',
     overview:
-      'Mastercard Agent Pay is Mastercard\'s framework for enabling AI agents to make verified, intent-based payments. It uses Mastercard\'s Verifiable Intent technology to ensure that every agent payment reflects the genuine intent of the human principal, preventing unauthorized or runaway spending by autonomous agents.',
+      "Mastercard Verifiable Intent is Mastercard's framework for enabling AI agents to make verified, intent-based payments. It uses a signed Verifiable Intent document between the principal and the agent to ensure that every agent payment reflects the genuine intent of the human principal, preventing unauthorized or runaway spending by autonomous agents. (Earlier press coverage called this \"Mastercard Agent Pay\"; the canonical product / spec name is \"Verifiable Intent.\")",
     howItWorks:
-      'Mastercard Agent Pay introduces a "Verifiable Intent" layer between the agent and the payment. Before an agent can make a payment, the principal must sign a structured intent document specifying the allowed merchant categories, maximum transaction amount, time window, and geographic restrictions. This intent is cryptographically signed and stored on Mastercard\'s infrastructure.\n\nWhen the agent initiates a payment, it presents the intent document along with the transaction details. Mastercard verifies that the transaction falls within the intent\'s constraints — if the amount exceeds the limit, the merchant category is not allowed, or the time window has expired, the payment is rejected.\n\nThis approach solves the "runaway agent" problem: even if an agent is compromised or malfunctions, it cannot spend beyond what the principal explicitly authorized. Every transaction is logged with a link back to the original intent document for audit purposes.',
+      'Mastercard Verifiable Intent introduces a signed-intent layer between the agent and the payment. Before an agent can make a payment, the principal must sign a structured intent document specifying the allowed merchant categories, maximum transaction amount, time window, and geographic restrictions. This intent is cryptographically signed and stored on Mastercard\'s infrastructure.\n\nWhen the agent initiates a payment, it presents the intent document along with the transaction details. Mastercard verifies that the transaction falls within the intent\'s constraints — if the amount exceeds the limit, the merchant category is not allowed, or the time window has expired, the payment is rejected.\n\nThis approach solves the "runaway agent" problem: even if an agent is compromised or malfunctions, it cannot spend beyond what the principal explicitly authorized. Every transaction is logged with a link back to the original intent document for audit purposes.',
     integration:
-      "SettleGrid supports Mastercard Agent Pay intents as an authentication method. When an agent presents a Verifiable Intent token, SettleGrid validates it with Mastercard's infrastructure, checks that your tool's merchant category is allowed, verifies the spending limit, and processes the payment. Developers receive payouts through Stripe Connect as with all other protocols.",
+      "SettleGrid supports Mastercard Verifiable Intent as an authentication method. When an agent presents a Verifiable Intent token, SettleGrid validates it with Mastercard's infrastructure, checks that your tool's merchant category is allowed, verifies the spending limit, and processes the payment. Developers receive payouts through Stripe Connect as with all other protocols.",
     detectionHeader: 'X-MC-Agent-Intent / Authorization: MCAP <intent>',
     identityType: 'mc-verifiable-intent',
     paymentType: 'mastercard-authorization',
@@ -299,7 +302,7 @@ const sg = settlegrid.init({
       'risk-assessment': { costCents: 75 },
     },
   },
-  // Mastercard Agent Pay intents are verified automatically
+  // Mastercard Verifiable Intent tokens are verified automatically
 })
 
 const portfolioAnalysis = sg.wrap(async (args: { holdings: string[] }) => {
@@ -419,22 +422,26 @@ const result = await fetch('https://settlegrid.ai/api/proxy/data-enrichment', {
 })`,
   },
   {
+    // Slug preserved as 'alipay-trust' for URL compatibility with existing
+    // external links; the display name and overview have been updated to
+    // the canonical "ACTP — Agentic Commerce Trust Protocol" per
+    // P1.MKT1 honest framing.
     slug: 'alipay-trust',
-    name: 'Alipay Trust',
-    fullName: 'Alipay Trust Protocol',
+    name: 'ACTP',
+    fullName: 'Agentic Commerce Trust Protocol (Alipay / Ant Group)',
     backer: 'Alipay (Ant Group)',
     status: 'Pending',
     overview:
-      'The Alipay Trust Protocol is Alipay\'s agentic commerce framework that extends MCP with delegated payment authorization. It enables AI agents to transact on behalf of users through Alipay\'s rails, covering the 1.3 billion Alipay users across China and Southeast Asia. The protocol uses Alipay Agent Tokens — delegated authorization credentials that allow agents to make payments within pre-approved budgets.',
+      "ACTP — the Agentic Commerce Trust Protocol — is Alipay's (Ant Group's) agentic commerce framework that extends MCP with delegated payment authorization. It enables AI agents to transact on behalf of users through Alipay's rails. The protocol uses Alipay Agent Tokens — delegated authorization credentials that allow agents to make payments within pre-approved budgets. (Earlier internal SettleGrid drafts referred to this as \"Alipay Trust Protocol\"; the canonical spec name is \"Agentic Commerce Trust Protocol\" / ACTP.)",
     howItWorks:
-      'The Alipay Trust Protocol uses a delegated authorization model. A user (the principal) grants an AI agent an Alipay Agent Token through the Alipay authorization flow. The token carries embedded spending limits, time constraints, merchant category restrictions, and the user\'s payment preference (balance, credit, or Huabei installments).\n\nWhen the agent calls a service, it presents the Agent Token in the x-alipay-agent-token header. The service verifies the token with Alipay\'s Open Platform API, which confirms the token\'s validity, checks spending limits, and authorizes the charge. Payment is settled through Alipay\'s existing rails.\n\nThe protocol supports multi-currency settlement (CNY, USD, EUR) and integrates with Alipay\'s existing merchant infrastructure, giving service providers access to Alipay\'s massive user base without separate payment integration.',
+      "ACTP uses a delegated authorization model. A user (the principal) grants an AI agent an Alipay Agent Token through the Alipay authorization flow. The token carries embedded spending limits, time constraints, merchant category restrictions, and the user's payment preference (balance, credit, or Huabei installments).\n\nWhen the agent calls a service, it presents the Agent Token in the x-alipay-agent-token header. The service verifies the token with Alipay's Open Platform API, which confirms the token's validity, checks spending limits, and authorizes the charge. Payment is settled through Alipay's existing rails.\n\nThe protocol supports multi-currency settlement (CNY, USD, EUR) and integrates with Alipay's existing merchant infrastructure, giving service providers access to Alipay's massive user base without separate payment integration.",
     integration:
-      'SettleGrid supports Alipay Agent Tokens as a payment method. When an agent presents an Alipay Agent Token, SettleGrid validates the token structure and (when Alipay partnership credentials are configured) verifies it with Alipay\'s Open Platform API. The tool invocation is metered and the developer receives payouts through Stripe Connect or Alipay merchant settlement. Requires ALIPAY_APP_ID and ALIPAY_PRIVATE_KEY environment variables for full API verification.',
+      "SettleGrid tracks ACTP as an emerging rail; the Smart Proxy has detection wiring for Alipay Agent Tokens. When an agent presents an Alipay Agent Token, SettleGrid validates the token structure and (when Alipay partnership credentials are configured) verifies it with Alipay's Open Platform API. The tool invocation is metered and the developer receives payouts through Stripe Connect or Alipay merchant settlement. Requires ALIPAY_APP_ID and ALIPAY_PRIVATE_KEY environment variables for full API verification.",
     detectionHeader: 'x-alipay-agent-token / Authorization: Bearer alipay_*',
     identityType: 'alipay-agent-token',
     paymentType: 'alipay-rails',
     color: 'text-blue-500',
-    codeExample: `// Agent paying for a SettleGrid tool via Alipay Trust Protocol
+    codeExample: `// Agent paying for a SettleGrid tool via ACTP (Agentic Commerce Trust Protocol)
 
 const response = await fetch('https://settlegrid.ai/api/proxy/market-research', {
   method: 'POST',

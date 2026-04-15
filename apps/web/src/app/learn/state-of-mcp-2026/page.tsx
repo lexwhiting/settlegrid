@@ -291,7 +291,7 @@ export default function StateOfMcp2026Page() {
                 <tr><td className="py-3 px-4 text-gray-300">Stripe MPP</td><td className="py-3 px-4 text-gray-300">Stripe</td><td className="py-3 px-4 text-gray-400">Launched March 18, 100+ services</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">OpenAI ACP</td><td className="py-3 px-4 text-gray-300">OpenAI</td><td className="py-3 px-4 text-gray-400">12 merchants, scaled back</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Visa TAP</td><td className="py-3 px-4 text-gray-300">Visa</td><td className="py-3 px-4 text-gray-400">Pilot phase, enterprise focus</td></tr>
-                <tr><td className="py-3 px-4 text-gray-300">Mastercard Agent Pay</td><td className="py-3 px-4 text-gray-300">Mastercard</td><td className="py-3 px-4 text-gray-400">First live EU agent payment, March 2026</td></tr>
+                <tr><td className="py-3 px-4 text-gray-300">Mastercard Verifiable Intent</td><td className="py-3 px-4 text-gray-300">Mastercard</td><td className="py-3 px-4 text-gray-400">First live EU agent payment, March 2026</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">A2A</td><td className="py-3 px-4 text-gray-300">Google</td><td className="py-3 px-4 text-gray-400">Multi-agent orchestration focus</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Circle Nanopayments</td><td className="py-3 px-4 text-gray-300">Circle</td><td className="py-3 px-4 text-gray-400">USDC stablecoin, sub-cent micropayments</td></tr>
               </tbody>
@@ -393,7 +393,7 @@ export default function StateOfMcp2026Page() {
                 <h3 className="font-bold text-gray-100">Stripe MPP Launch (March 18)</h3>
               </div>
               <p className="text-sm text-gray-400 pl-11">
-                Stripe launched the Merchant Payment Protocol with 100+ services and Visa support.
+                Stripe launched the Machine Payments Protocol (MPP) with 100+ services and Visa support.
                 Stripe processes payments for millions of businesses. When Stripe builds agent
                 payment infrastructure, the market follows.
               </p>
@@ -505,7 +505,7 @@ export default function StateOfMcp2026Page() {
               Start Monetizing Your MCP Tools
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              Two lines of code. 15 payment protocols. Up to 100% revenue share.
+              Two lines of code. 14 agent payment protocols tracked. Up to 100% revenue share.
               Join the 5% of MCP developers who are earning from their tools.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

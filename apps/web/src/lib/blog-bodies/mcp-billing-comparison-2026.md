@@ -28,7 +28,7 @@ The table below compares the five approaches across the features that matter mos
 
 ## SettleGrid: Purpose-Built for MCP
 
-SettleGrid is purpose-built for MCP tool monetization. It supports multiple agent payment protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), Alipay Trust, and KYAPay), six pricing models, and includes a built-in discovery marketplace.
+SettleGrid is purpose-built for MCP tool monetization. The `@settlegrid/mcp` SDK adds native MCP billing with a single `sg.wrap()` call, and the hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments) with detection adapters for 2 more (L402 on Bitcoin Lightning, Skyfire's KYAPay) and tracks 3 emerging rails (Alipay's ACTP, EMVCo agent payments, Bittensor DRAIN). It also supports six pricing models and includes a built-in discovery marketplace.
 
 Setup takes under 5 minutes: install the SDK, configure pricing, wrap your handler, deploy. The free tier includes 50,000 operations per month with a progressive take rate (0% on your first $1K/mo of revenue). Paid tiers (Builder $19/mo, Scale $79/mo) add features like sandbox mode, IP allowlisting, fraud detection, and team seats.
 
@@ -44,7 +44,7 @@ DIY billing makes sense if you have unique requirements that no platform support
 
 ## Stripe Direct: Powerful but General-Purpose
 
-Stripe is the gold standard for online payments and offers Metered Billing through Stripe Billing. You can create usage-based subscriptions that charge based on reported usage. Stripe also launched the Merchant Payment Protocol (MPP) in March 2026, which adds agent-native payment flows.
+Stripe is the gold standard for online payments and offers Metered Billing through Stripe Billing. You can create usage-based subscriptions that charge based on reported usage. Stripe also launched the Machine Payments Protocol (MPP) in March 2026, which adds agent-native payment flows.
 
 The challenge is that Stripe is general-purpose. It does not understand MCP tool semantics. You need to build the metering layer yourself, map tool calls to Stripe usage records, handle the MCP-specific billing metadata, and create your own usage dashboard. This is less work than fully DIY but still requires 1 to 2 weeks of integration work.
 

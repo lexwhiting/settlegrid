@@ -483,10 +483,18 @@ export { LRUCache } from './cache'
 
 // ─── Protocol adapters (P1.K1) ────────────────────────────────────────────────
 //
-// The nine protocol adapters (MCP, x402, AP2, Visa TAP, MPP, Circle Nano,
-// Mastercard VI, ACP, UCP) were bundled into the SDK under P1.K1 — they
-// were previously dead code at apps/web/src/lib/settlement/adapters/ and
-// have zero external dependencies, making them a clean kernel to extract.
+// The nine protocol adapters (MCP, x402, AP2, Visa TAP, Stripe MPP,
+// Circle Nanopayments, Mastercard Verifiable Intent, ACP, UCP) were
+// bundled into the SDK under P1.K1 — they were previously dead code at
+// apps/web/src/lib/settlement/adapters/ and have zero external
+// dependencies, making them a clean kernel to extract.
+//
+// Internal adapter type identifiers (the class names MPPAdapter,
+// CircleNanoAdapter, MastercardVIAdapter, etc. and the `name` fields
+// 'mpp', 'circle-nano', 'mastercard-vi') are kept for backwards
+// compatibility — renaming them would be an ABI break for any consumer
+// that imports by class name. The user-facing `displayName` fields and
+// JSDoc headers are aligned with the P1.MKT1 honest framing.
 //
 // Consumers that need custom protocol support can build on the
 // `ProtocolAdapter` interface and register instances via `new ProtocolRegistry()`

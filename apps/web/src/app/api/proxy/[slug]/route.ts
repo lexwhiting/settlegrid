@@ -287,7 +287,7 @@ async function handleProxy(
     // enabled and the request matches its headers, use that protocol's
     // payment flow instead of the standard API key flow.
 
-    // 1. MPP (Stripe Machine Payments Protocol)
+    // 1. Stripe MPP (Machine Payments Protocol — Stripe + Tempo)
     if (isMppEnabled() && isMppRequest(request)) {
       return handleMppProxy(request, slug, requestId, startTime)
     }
@@ -317,7 +317,7 @@ async function handleProxy(
       return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
     }
 
-    // 7. Mastercard Agent Pay
+    // 7. Mastercard Verifiable Intent
     if (isMastercardEnabled() && isMastercardRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
     }
@@ -332,7 +332,7 @@ async function handleProxy(
       return handleL402Proxy(request, slug, requestId, startTime)
     }
 
-    // 10. Alipay Trust Protocol
+    // 10. ACTP (Alipay's Agentic Commerce Trust Protocol — Ant Group)
     if (isAlipayEnabled() && isAlipayRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'alipay')
     }
@@ -1695,7 +1695,7 @@ async function handleAcpProxy(
 // ─── Generic Protocol Proxy Handler (UCP, Mastercard, Circle Nano) ──────────
 
 /**
- * Handles proxy invocations for UCP, Mastercard Agent Pay, and Circle Nanopayments.
+ * Handles proxy invocations for UCP, Mastercard Verifiable Intent, and Circle Nanopayments.
  * These share the same lookup-validate-forward-bill pattern with protocol-specific
  * validation and 402 response generation.
  */

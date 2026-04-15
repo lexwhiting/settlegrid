@@ -1,9 +1,15 @@
 /**
- * Mastercard Agent Pay (Verifiable Intent) — Smart Proxy Integration (Stub)
+ * Mastercard Verifiable Intent — Smart Proxy Integration (Stub)
  *
- * Handles Mastercard Agent Pay payment detection and 402 responses.
- * Mastercard Agent Pay uses SD-JWT selective disclosure with ES256 signatures
- * and a three-layer delegation chain: Credential Provider -> User -> Agent.
+ * Handles Mastercard Verifiable Intent payment detection and 402 responses.
+ * The protocol uses SD-JWT selective disclosure with ES256 signatures and a
+ * three-layer delegation chain: Credential Provider -> User -> Agent.
+ *
+ * Naming note: earlier press coverage of Mastercard's agent-payments work
+ * called this "Mastercard Agent Pay"; the canonical product / spec name
+ * is "Verifiable Intent." The runtime HTTP header prefix (`x-mc-*`) and
+ * the Mastercard developer portal URL still use "agent-pay" path segments
+ * because those are Mastercard-controlled and outside our rename scope.
  *
  * NOTE: This is a stub integration with TODO markers for actual API calls.
  * Detection and 402 responses are fully functional; validation has
@@ -19,7 +25,7 @@ import { getAppUrl } from './env'
 
 const MC_PROTOCOL_VERSION = '1.0'
 
-/** Mastercard Agent Pay HTTP headers */
+/** Mastercard Verifiable Intent HTTP headers */
 const MC_HEADERS = {
   /** SD-JWT credential chain (Verifiable Intent) */
   VERIFIABLE_INTENT: 'x-mc-verifiable-intent',
@@ -64,7 +70,7 @@ export interface MastercardToolConfig {
 // ─── Detection ──────────────────────────────────────────────────────────────
 
 /**
- * Check if a request contains Mastercard Agent Pay payment headers.
+ * Check if a request contains Mastercard Verifiable Intent payment headers.
  *
  * Detection criteria (any one is sufficient):
  *   1. x-mc-verifiable-intent header (SD-JWT credential chain)
@@ -93,7 +99,7 @@ export function isMastercardEnabled(): boolean {
 // ─── Validation ─────────────────────────────────────────────────────────────
 
 /**
- * Validate an incoming Mastercard Agent Pay payment.
+ * Validate an incoming Mastercard Verifiable Intent payment.
  *
  * TODO: Implement actual SD-JWT verification and Mastercard authorization.
  * Currently returns a stub response indicating Mastercard VI is not yet fully integrated.
@@ -107,7 +113,7 @@ export async function validateMastercardPayment(
       valid: false,
       error: {
         code: 'MC_NOT_CONFIGURED',
-        message: 'Mastercard Agent Pay is not configured on this SettleGrid instance.',
+        message: 'Mastercard Verifiable Intent is not configured on this SettleGrid instance.',
       },
     }
   }
@@ -154,7 +160,7 @@ export async function validateMastercardPayment(
 // ─── 402 Response Generation ────────────────────────────────────────────────
 
 /**
- * Generate a Mastercard Agent Pay 402 Payment Required response.
+ * Generate a Mastercard Verifiable Intent 402 Payment Required response.
  */
 export function generateMastercard402Response(
   toolSlug: string,
