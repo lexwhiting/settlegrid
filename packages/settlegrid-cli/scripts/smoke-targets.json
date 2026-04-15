@@ -1,0 +1,35 @@
+{
+  "$comment": "P2.5 smoke targets. Each entry pins a well-known TypeScript MCP server to a specific commit SHA from modelcontextprotocol/servers. Smoke script fetches via giget, runs `settlegrid add --dry-run --no-pr --json` against the subdir, and asserts the captured TransformOutput meets the expectations. Update the commit SHA when upgrading; other fields should rarely change.",
+  "targets": [
+    {
+      "name": "mcp-everything",
+      "github": "modelcontextprotocol/servers",
+      "subdir": "src/everything",
+      "commit": "d5bfe349af1a3abc235e05cf6499d94400a10284",
+      "expectedType": "mcp-server",
+      "expectedLanguage": "ts",
+      "expectedMinChangedFiles": 1,
+      "notes": "modelcontextprotocol/servers#src/everything — larger reference server with server.server.setRequestHandler calls spread across resources/subscriptions.ts. Exercises the two-hop member expression matcher + init-fallback anchor for handler-only files."
+    },
+    {
+      "name": "mcp-filesystem",
+      "github": "modelcontextprotocol/servers",
+      "subdir": "src/filesystem",
+      "commit": "d5bfe349af1a3abc235e05cf6499d94400a10284",
+      "expectedType": "mcp-server",
+      "expectedLanguage": "ts",
+      "expectedMinChangedFiles": 1,
+      "notes": "modelcontextprotocol/servers#src/filesystem — single-file MCP server built on McpServer + the higher-level `server.tool(...)` API. Exercises the 'new McpServer() but no setRequestHandler' path — import + init land at the top of the entry file, no handler wraps get emitted."
+    },
+    {
+      "name": "mcp-memory",
+      "github": "modelcontextprotocol/servers",
+      "subdir": "src/memory",
+      "commit": "d5bfe349af1a3abc235e05cf6499d94400a10284",
+      "expectedType": "mcp-server",
+      "expectedLanguage": "ts",
+      "expectedMinChangedFiles": 1,
+      "notes": "modelcontextprotocol/servers#src/memory — small single-file MCP server with McpServer + tool registrations. Third independent repo shape in the smoke suite."
+    }
+  ]
+}
