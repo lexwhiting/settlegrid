@@ -344,6 +344,127 @@ describe('dry-run zero-fetches invariant (add command)', () => {
   })
 })
 
+// ─── forkAndWait — poll / timeout coverage (fake timers) ───────────────────
+
+describe('openPullRequest — fork poll loop (fake timers)', () => {
+  // The fork-readiness poll retries every 2s for up to 30s. Prior
+  // tests only hit the "fork ready on first poll" case. These two
+  // tests cover the loop's actual retry and timeout paths.
+
+  it('polls the fork and succeeds after an initial failure', async () => {
+    vi.useFakeTimers()
+    try {
+      // Initial push-access check: no push → fork path.
+      octokitMethods.reposGet.mockResolvedValueOnce({
+        data: { permissions: { push: false } },
+      })
+      octokitMethods.reposCreateFork.mockResolvedValue({
+        data: { owner: { login: 'me' }, name: 'mcp-server' },
+      })
+      // First poll fails, second poll succeeds.
+      octokitMethods.reposGet
+        .mockRejectedValueOnce(
+          Object.assign(new Error('Not Found'), { status: 404 }),
+        )
+        .mockResolvedValueOnce({ data: {} })
+
+      // Rest of the happy path (branch/commit/PR).
+      octokitMethods.gitGetRef.mockResolvedValue({
+        data: { object: { sha: 'BASE_SHA' } },
+      })
+      octokitMethods.gitGetCommit.mockResolvedValue({
+        data: { tree: { sha: 'BASE_TREE_SHA' } },
+      })
+      octokitMethods.gitCreateRef.mockResolvedValue({ data: {} })
+      octokitMethods.gitCreateBlob.mockResolvedValue({
+        data: { sha: 'BLOB_SHA' },
+      })
+      octokitMethods.gitCreateTree.mockResolvedValue({
+        data: { sha: 'NEW_TREE_SHA' },
+      })
+      octokitMethods.gitCreateCommit.mockResolvedValue({
+        data: { sha: 'NEW_COMMIT_SHA' },
+      })
+      octokitMethods.gitUpdateRef.mockResolvedValue({ data: {} })
+      octokitMethods.pullsCreate.mockResolvedValue({
+        data: {
+          html_url: 'https://github.com/acme/mcp-server/pull/99',
+          number: 99,
+        },
+      })
+
+      const promise = openPullRequest({
+        repoOwner: 'acme',
+        repoName: 'mcp-server',
+        branchName: 'settlegrid/monetize',
+        baseBranch: 'main',
+        changes: DEFAULT_CHANGES,
+        dependencyBump: { '@settlegrid/mcp': '^0.1.1' },
+        envVarsRequired: ['SETTLEGRID_API_KEY'],
+        token: 'ghs_polltest',
+      })
+
+      // Drain all pending timers + microtasks so the setTimeout(2000)
+      // inside the poll loop fires and the second reposGet attempt
+      // runs. `runAllTimersAsync` handles both the macrotask queue
+      // (our setTimeout) and the microtask queue (await chains).
+      await vi.runAllTimersAsync()
+
+      const result = await promise
+      expect(result.forkUsed).toBe(true)
+      expect(result.number).toBe(99)
+
+      // reposGet was called THREE times: initial push check + failed
+      // poll + successful poll.
+      expect(octokitMethods.reposGet).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('throws a clear error when the fork never becomes reachable within the deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      // Push check: no push → fork path.
+      octokitMethods.reposGet.mockResolvedValueOnce({
+        data: { permissions: { push: false } },
+      })
+      octokitMethods.reposCreateFork.mockResolvedValue({
+        data: { owner: { login: 'me' }, name: 'mcp-server' },
+      })
+      // All poll attempts fail.
+      octokitMethods.reposGet.mockRejectedValue(
+        Object.assign(new Error('Not Found'), { status: 404 }),
+      )
+
+      const promise = openPullRequest({
+        repoOwner: 'acme',
+        repoName: 'mcp-server',
+        branchName: 'b',
+        baseBranch: 'main',
+        changes: DEFAULT_CHANGES,
+        dependencyBump: {},
+        envVarsRequired: [],
+        token: 'ghs_deadline',
+      })
+      // Attach a catch BEFORE advancing timers so we don't leak an
+      // unhandled rejection during the fake-timer drain.
+      const settled = promise.catch((e) => e)
+      // Advance past the 30s deadline so every poll rejects + the
+      // loop exits via the deadline throw.
+      await vi.advanceTimersByTimeAsync(35_000)
+
+      const err = await settled
+      expect(err).toBeInstanceOf(Error)
+      expect((err as Error).message).toMatch(
+        /fork of acme\/mcp-server was not reachable within 30s/,
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 // ─── openPullRequest — error contract ───────────────────────────────────────
 
 describe('openPullRequest — error contract', () => {

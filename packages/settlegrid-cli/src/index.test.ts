@@ -245,6 +245,77 @@ describe('settlegrid add — P2.4 PR fallback + token-never-logged smoke tests',
     }
   })
 
+  it('--no-pr writes files in place but skips BOTH the PR and the patch-file fallback', async () => {
+    const tmpParent = await copyRestFixture()
+    try {
+      const repoDir = path.join(tmpParent, 'repo')
+      const srcPath = path.join(repoDir, 'src', 'index.ts')
+
+      const beforeContent = await fsp.readFile(srcPath, 'utf-8')
+      expect(beforeContent).not.toContain('@settlegrid/mcp')
+
+      const result = spawnSync(
+        'node',
+        [distEntry, 'add', '--path', repoDir, '--no-pr'],
+        {
+          encoding: 'utf-8',
+          cwd: tmpParent,
+          // Token is set but must be ignored because of --no-pr.
+          env: { ...testEnv, GITHUB_TOKEN: 'ghs_ignored_when_no_pr' },
+        },
+      )
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('skipped PR per --no-pr')
+
+      // File was actually modified in place …
+      const afterContent = await fsp.readFile(srcPath, 'utf-8')
+      expect(afterContent).toContain("from '@settlegrid/mcp'")
+      expect(afterContent).toContain('sg.wrap')
+
+      // … and no patch file was written.
+      const patchPath = path.join(tmpParent, 'settlegrid-add.patch')
+      expect(existsSync(patchPath)).toBe(false)
+    } finally {
+      await fsp.rm(tmpParent, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to patch file with "no GitHub repo info" when the repo has a non-GitHub origin', async () => {
+    const tmpParent = await copyRestFixture()
+    try {
+      const repoDir = path.join(tmpParent, 'repo')
+      // Plant a .git/config whose origin points at GitLab, so
+      // readGitOrigin returns a URL but parseGithubRepo rejects it.
+      // Exercises the `readGitOrigin runs → parseGithubRepo returns
+      // null → deriveRepoInfo returns null` branch of the CLI flow,
+      // which the existing "no-token" test can't hit (no token
+      // short-circuits before deriveRepoInfo even runs).
+      await fsp.mkdir(path.join(repoDir, '.git'), { recursive: true })
+      await fsp.writeFile(
+        path.join(repoDir, '.git', 'config'),
+        '[remote "origin"]\n\turl = https://gitlab.com/acme/repo.git\n',
+      )
+
+      const result = spawnSync(
+        'node',
+        [distEntry, 'add', '--path', repoDir],
+        {
+          encoding: 'utf-8',
+          cwd: tmpParent,
+          env: { ...testEnv, GITHUB_TOKEN: 'ghs_valid_but_unusable' },
+        },
+      )
+      expect(result.status).toBe(0)
+      // Hits the "no repo info" branch, not the "no token" branch,
+      // because the token IS set.
+      expect(result.stdout).toContain('no GitHub repo info')
+      expect(result.stdout).not.toContain('no GITHUB_TOKEN set')
+      expect(existsSync(path.join(tmpParent, 'settlegrid-add.patch'))).toBe(true)
+    } finally {
+      await fsp.rm(tmpParent, { recursive: true, force: true })
+    }
+  })
+
   // P2.4 DoD: "Token never logged or echoed to stdout (grep check
   // in test)". The unit test in src/pr/github.test.ts uses console/
   // stdout spies for openPullRequest itself; this test is the
