@@ -9,7 +9,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export const metadata: Metadata = {
   title: 'Protocol Guides | SettleGrid',
   description:
-    'Explore the agent payment protocols supported by SettleGrid — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), Alipay Trust, and KYAPay. One SDK, multiple protocols.',
+    "Explore the agent payment protocols SettleGrid supports — MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), KYAPay, and the emerging ACTP (Alipay's Agentic Commerce Trust Protocol), EMVCo agent payments, and DRAIN. One SDK, multiple protocols.",
   alternates: { canonical: 'https://settlegrid.ai/learn/protocols' },
   keywords: [
     'AI payment protocols',
@@ -110,9 +110,12 @@ const PROTOCOLS: ProtocolCard[] = [
     borderColor: 'border-teal-800/30',
   },
   {
+    // Slug preserved as 'mastercard-agent-pay' for URL compatibility with
+    // existing external links; the display name has been updated to the
+    // canonical "Mastercard Verifiable Intent" per P1.MKT1 honest framing.
     slug: 'mastercard-agent-pay',
-    name: 'Mastercard Agent Pay',
-    fullName: 'Mastercard Agent Pay',
+    name: 'Mastercard Verifiable Intent',
+    fullName: 'Mastercard Verifiable Intent',
     backer: 'Mastercard',
     status: 'Pending',
     oneLiner: 'Verified intent-based payments preventing unauthorized agent spending.',
@@ -150,12 +153,14 @@ const PROTOCOLS: ProtocolCard[] = [
     borderColor: 'border-yellow-800/30',
   },
   {
+    // Slug preserved as 'alipay-trust' for URL compatibility; canonical
+    // spec name is "Agentic Commerce Trust Protocol" / ACTP.
     slug: 'alipay-trust',
-    name: 'Alipay Trust',
-    fullName: 'Alipay Trust Protocol',
+    name: 'ACTP',
+    fullName: 'Agentic Commerce Trust Protocol (Alipay / Ant Group)',
     backer: 'Ant Group / Alipay',
     status: 'Pending',
-    oneLiner: 'Delegated authorization for agentic commerce across 1.3B Alipay users.',
+    oneLiner: "Delegated authorization for agentic commerce across Alipay's user base.",
     color: 'bg-blue-500/10 text-blue-400 hover:border-blue-500/40',
     borderColor: 'border-blue-800/30',
   },

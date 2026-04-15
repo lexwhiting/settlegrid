@@ -268,7 +268,7 @@ export function PlatformChannels() {
                   settlegrid.ai/api/proxy/your-tool
                 </code>
                 . Edge-cached responses are faster than calling your API
-                directly. 15 payment protocols detected automatically.
+                directly. 14 agent payment protocols tracked; supported rails detected automatically.
               </p>
             </div>
           </StaggerContainer>

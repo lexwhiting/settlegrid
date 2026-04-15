@@ -2,6 +2,11 @@
 
 **Date**: 2026-03-26
 **Scope**: 202 files changed, 85 new files, 45,646 lines of code
+
+> **Historical snapshot (2026-04-15).** This audit predates the P1.MKT1
+> honest-framing rewrite; "Stripe MPP" / "Nevermined" / "Paid.ai"
+> references in the body use pre-rename shorthand. Canonical name mapping
+> in [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
 **Method**: Exhaustive read of every back-end capability and every front-end page
 
 ---

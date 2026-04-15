@@ -1,9 +1,13 @@
 /**
- * Mastercard Verifiable Intent Adapter — Mastercard Agent Pay
+ * Mastercard Verifiable Intent Adapter
  *
- * Extracts payment context from Mastercard Agent Pay requests using
+ * Extracts payment context from Mastercard Verifiable Intent requests using
  * SD-JWT selective disclosure with ES256 signatures.
  * Three-layer delegation chain: Credential Provider -> User -> Agent.
+ *
+ * Naming note: "Verifiable Intent" is the canonical product / spec name
+ * for this protocol. Earlier press coverage referred to it as "Mastercard
+ * Agent Pay"; that naming is retired in SettleGrid code and marketing.
  *
  * Detects requests via:
  *   1. x-mc-verifiable-intent header (SD-JWT credential chain)
@@ -15,7 +19,7 @@ import { randomUUID } from 'crypto'
 
 export class MastercardVIAdapter implements ProtocolAdapter {
   readonly name = 'mastercard-vi' as const
-  readonly displayName = 'Mastercard Agent Pay (Verifiable Intent)'
+  readonly displayName = 'Mastercard Verifiable Intent'
 
   /**
    * Detect if this request is a Mastercard Verifiable Intent payment.

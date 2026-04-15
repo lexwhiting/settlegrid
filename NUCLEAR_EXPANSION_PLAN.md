@@ -1,6 +1,14 @@
 # SettleGrid Nuclear Expansion Plan
 ## Revised with Revenue Model Insights — March 26, 2026
 
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite and uses retired protocol shorthand (bare "MPP",
+> "Mastercard Agent Pay", "Circle Nano", "Alipay Trust", "REST" as a
+> payment protocol, "10 payment protocols" framing). The canonical name
+> mapping is in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
+> This doc is preserved as a snapshot rather than rewritten in place.
+
 **Goal:** 10,000 users in 90 days, cash-flow positive by M6
 **Key insight:** SettleGrid is a SaaS business (subscriptions = 99% of M6 revenue), not a marketplace. The marketplace flywheel is the long-term bet. Win on subscriptions first.
 

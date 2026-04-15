@@ -187,7 +187,11 @@ export function getLndMacaroonHex(): string | undefined {
   return process.env.LND_MACAROON_HEX
 }
 
-// Alipay Trust Protocol
+// ACTP — Alipay's Agentic Commerce Trust Protocol (Ant Group)
+// Earlier internal SettleGrid drafts referred to this as "Alipay Trust"; the
+// canonical spec name is "Agentic Commerce Trust Protocol" / ACTP. The env
+// var prefix (ALIPAY_*) still uses "Alipay" because that's the provider
+// brand, independent of the protocol rename.
 export function isAlipayEnabled(): boolean {
   return !!process.env.ALIPAY_APP_ID
 }

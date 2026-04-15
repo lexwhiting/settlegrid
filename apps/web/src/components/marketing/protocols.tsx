@@ -1,26 +1,31 @@
 /**
  * Protocols visibly listed on the homepage.
  *
- * Only protocols with shipped adapter code in the `@settlegrid/mcp` SDK
- * (packages/mcp — nine adapters bundled under P1.K1) are listed here. Three
- * protocols previously displayed (REST, EMVCo, DRAIN) were removed in April
- * 2026: REST and EMVCo were miscategorized (not actually agent payment
- * protocols); DRAIN had a cryptographic implementation defect being
- * addressed under the Quantum Leap settlement-layer plan. Additional
- * protocol detail and the full canonical positioning will land via P1.MKT1.
+ * Aligned with the P1.MKT1 honest framing (see agents/beacon/prompts.ts
+ * and docs/audits/15-protocol-claim.md). The 9 brokered protocols appear
+ * first, followed by the 2 detection-adapter-only protocols. Emerging
+ * rails (ACTP, EMVCo agent payments, DRAIN) are intentionally omitted
+ * from the homepage list because the Smart Proxy does not broker them
+ * yet — they are tracked by the Protocol agent but not surfaced as
+ * "protocols SettleGrid supports today."
+ *
+ * Names match the canonical list in `@settlegrid/mcp` SETTLEGRID_ICP.protocols
+ * (agents/shared/config.ts) so the homepage, Beacon prompt, and Protocol
+ * agent prompt all agree.
  */
 const protocols = [
+  // 9 brokered by the Smart Proxy
   "MCP",
-  "MPP",
   "x402",
+  "Stripe MPP",
   "AP2",
-  "Visa TAP",
-  "UCP",
   "ACP",
+  "UCP",
+  "Visa TAP",
   "Mastercard Verifiable Intent",
-  "Circle Nano",
+  "Circle Nanopayments",
+  // 2 detection-adapter-only
   "L402",
-  "Alipay Trust",
   "KYAPay",
 ]
 

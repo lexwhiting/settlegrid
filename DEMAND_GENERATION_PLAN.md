@@ -3,6 +3,11 @@
 ## Master Document for All 35 Recommendations
 
 **Created:** 2026-03-28
+
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite; protocol shorthand may appear in the body.
+> Canonical name mapping in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
 **Source:** Comprehensive demand generation research (30 greenlit recommendations + 5 gap-filling items)
 **Scope:** Full implementation details for every item, organized into 4 phases
 

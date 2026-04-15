@@ -2,6 +2,11 @@
 ## MCP-Only to Universal AI Service Settlement
 ## March 26, 2026
 
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite; protocol shorthand (bare "MPP", "10 protocols"
+> framing) may appear in the body. Canonical name mapping in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
+
 ---
 
 ## METHODOLOGY & GROUND RULES

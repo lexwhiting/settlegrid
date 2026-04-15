@@ -2,9 +2,9 @@
 
 > **April 2, 2026 update.** The agent payments landscape changed materially in early April. The **x402 Foundation** launched under the Linux Foundation with founding members including **Visa, Mastercard, American Express, Stripe, Coinbase, Cloudflare, Google, Microsoft, AWS, Adyen, Fiserv, Shopify, and KakaoPay**. Coinbase contributed the x402 protocol — originally created in-house — to neutral foundation governance. With 23+ companies coalescing around a single open standard, x402 is now the most credible candidate for the de facto "agentic payments protocol" of 2026. We've updated the x402 section below to reflect this. Older sections of this post still describe the pre-Foundation landscape and are kept for historical context.
 
-In March 2026 alone, three major payment infrastructure players launched agent payment products: Stripe (Merchant Payment Protocol), Visa (Transaction Approval Protocol), and Mastercard (Agent Suite with the first live agent payment in Europe). Add Coinbase x402, OpenAI ACP, Google A2A, and several emerging standards, and the landscape has gone from zero to ten competing protocols in under a year.
+In March 2026 alone, three major payment infrastructure players launched agent payment products: Stripe (the Machine Payments Protocol, or MPP), Visa (Transaction Approval Protocol), and Mastercard (Agent Suite — of which Verifiable Intent is the specific payment rail — with the first live agent payment in Europe). Add Coinbase x402, OpenAI ACP, Google A2A, and several emerging standards, and the landscape has gone from zero to more than a dozen competing protocols in under a year.
 
-This fragmentation creates a real problem for tool developers: which protocols should you support? Supporting all ten means reaching every possible agent, but implementing ten payment integrations is impractical. Supporting just one means missing agents that use other protocols.
+This fragmentation creates a real problem for tool developers: which protocols should you support? Supporting every major protocol means reaching every possible agent, but implementing a dozen payment integrations is impractical. Supporting just one means missing agents that use other protocols.
 
 SettleGrid solves this by supporting multiple agent payment protocols through a single SDK integration. You integrate once, and SettleGrid handles protocol negotiation, payment processing, and settlement across the protocols it supports. This section compares each protocol so you understand the landscape even if you never need to implement them directly.
 
@@ -16,13 +16,13 @@ Each protocol takes a different approach to agent payments. Some are HTTP-native
 | --- | --- | --- | --- | --- |
 | MCP | Anthropic | Via billing layer | 97M+ SDK downloads | AI tool calling (dominant standard) |
 | **x402** | **x402 Foundation (Linux Foundation)** — 23+ industry backers including Visa, Mastercard, Stripe, Coinbase, Google, AWS, Microsoft, KakaoPay | HTTP 402 + crypto and fiat rails | Multi-stakeholder governance launched April 2, 2026 | **The emerging de facto standard for agent payments** |
-| MPP | Stripe | Fiat (Stripe) | 100+ services | Fiat payments, enterprise |
+| Stripe MPP | Stripe | Fiat (Stripe) | 100+ services, pending GA | Fiat payments, enterprise |
 | A2A | Google | Protocol-agnostic | Early (DeepMind) | Multi-agent orchestration |
 | AP2 | Community | Protocol-agnostic | Emerging | Agent-to-agent delegation |
 | Visa TAP | Visa | Card networks | Pilot phase | Enterprise, regulated industries |
 | UCP | Community | HTTP-native | Emerging | Simple REST-based payments |
 | ACP | OpenAI | Shopify Commerce | 12 merchants | ChatGPT plugin commerce |
-| Mastercard Agent Pay | Mastercard | Card networks | First live transaction in Hong Kong, expanding to ASEAN | Enterprise, cross-border |
+| Mastercard Verifiable Intent | Mastercard | Card networks | First live transaction in Hong Kong, expanding to ASEAN | Enterprise, cross-border |
 | Circle Nanopayments | Circle | USDC stablecoin | Emerging | Sub-cent micropayments |
 
 ## MCP: The Tool-Calling Standard
@@ -51,11 +51,11 @@ For SettleGrid users specifically: integrating with x402 used to mean choosing a
 
 If you can only invest in one new protocol integration in 2026, x402 is now the clear choice. The combination of Linux Foundation governance, the breadth of founding members, and the rail-agnostic protocol design make it the most credible candidate to become the dominant standard. The other protocols in this post remain relevant for specific niches (enterprise procurement, ChatGPT-native commerce, multi-agent orchestration) but x402 is the one to bet on for general-purpose agent payments.
 
-## MPP: Stripe Enters Agent Commerce
+## Stripe MPP: Stripe Enters Agent Commerce
 
-The Merchant Payment Protocol, launched by Stripe on March 18, 2026, is the most significant catalyst for agent commerce in 2026. MPP adds agent-native payment flows to Stripe, the platform that already processes payments for millions of businesses. With Visa support and 100+ services at launch, MPP has the distribution to become the default fiat payment protocol for agents.
+Stripe's Machine Payments Protocol (MPP), launched on March 18, 2026 and currently pending GA, is one of the most significant catalysts for agent commerce in 2026. Stripe MPP adds agent-native payment flows to Stripe, the platform that already processes payments for millions of businesses. With Visa support and 100+ services at launch, Stripe MPP has the distribution to become a dominant fiat payment protocol for agents.
 
-MPP works by extending Stripe Checkout with agent-specific metadata: tool descriptions, per-call pricing, usage limits, and budget authorization. Agents can discover MPP-enabled services, check prices, and authorize payments programmatically. Settlement happens through existing Stripe infrastructure.
+Stripe MPP works by extending Stripe Checkout with agent-specific metadata: tool descriptions, per-call pricing, usage limits, and budget authorization. Agents can discover MPP-enabled services, check prices, and authorize payments programmatically. Settlement happens through existing Stripe infrastructure.
 
 Strengths: Stripe distribution, Visa support, fiat currency, enterprise trust. Weaknesses: Stripe processing fees (2.9% + 30 cents), no micropayment optimization (sub-dollar transactions are expensive at flat per-transaction fees).
 
@@ -71,7 +71,7 @@ Mastercard Agent Suite completed the first live agent payment in Europe in March
 
 ## ERC-8004: The Identity Layer Underneath Agent Payments
 
-x402, MPP, and the other protocols in this post all answer the question "how does an agent pay for a service?" None of them directly answer the question "how does the service know which agent it is talking to, and how does that agent's reputation transfer when it moves between platforms?" That gap is what **ERC-8004** is designed to fill.
+x402, Stripe MPP, and the other protocols in this post all answer the question "how does an agent pay for a service?" None of them directly answer the question "how does the service know which agent it is talking to, and how does that agent's reputation transfer when it moves between platforms?" That gap is what **ERC-8004** is designed to fill.
 
 ERC-8004 ("Trustless Agents") is a Draft Ethereum Improvement Proposal authored by Marco De Rossi (MetaMask), Davide Crapis (Ethereum Foundation), Jordan Ellis (Google), and Erik Reppel (Coinbase). The cross-organization authorship is noteworthy — this is not a vendor protocol, it is a multi-stakeholder proposal from the most influential organizations in the agent commerce stack. The spec defines three on-chain registries: an Identity Registry (built on ERC-721) that gives each agent a portable, NFT-compatible identifier; a Reputation Registry where clients submit structured feedback that off-chain systems can aggregate; and a Validation Registry (still incomplete and described as "a design space") that lets independent validators verify agent work via reputation, crypto-economic stake, or TEE attestation.
 
@@ -96,7 +96,7 @@ If you are building protocol support yourself, the priority order has shifted po
 - **For everyone**: **MCP + x402**. Post-Foundation x402 is the most credible candidate to become the dominant agent payments standard. Visa, Mastercard, Stripe, Coinbase, Google, AWS, Microsoft, and 15+ other founding members are all building tooling against it. If you can only support one payment protocol on top of MCP, support x402.
 - **For enterprise tools that need card-network compliance**: MCP + x402 + Visa TAP. Visa TAP adds enterprise procurement, compliance, and audit trail features that x402 alone does not provide. This combination covers the largest agent audience and the most demanding enterprise buyers.
 - **For ChatGPT-native commerce**: MCP + x402 + ACP. If your target consumer is ChatGPT users, ACP gives you native distribution into the ChatGPT plugin marketplace. x402 still covers the broader agent ecosystem.
-- **For Stripe-native tools**: MCP + x402 + MPP. MPP gives you native Stripe distribution and existing-Stripe-account ergonomics. x402 covers everything else.
+- **For Stripe-native tools**: MCP + x402 + Stripe MPP. Stripe MPP gives you native Stripe distribution and existing-Stripe-account ergonomics. x402 covers everything else.
 
 The agent payment landscape is consolidating fast. Pre-April 2026 the consensus answer was "support multiple protocols and hedge". Post-Foundation, the consensus answer is "support x402 first, layer others as your audience requires". Within 6 to 12 months, supporting x402 may be table stakes for any monetized MCP tool — much like supporting HTTPS is table stakes for any web service.
 

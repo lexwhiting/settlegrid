@@ -269,7 +269,7 @@ export default async function ToolStorefrontPage({
     },
     {
       question: `What payment methods does ${tool.name} accept?`,
-      answer: 'SettleGrid supports 15 payment protocols including MCP, MPP (Stripe/Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN. Consumers can fund credits via Stripe.',
+      answer: 'SettleGrid\'s Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402 from Coinbase/Linux Foundation, Stripe MPP pending GA, AP2 from Google, ACP from OpenAI, UCP from Google+Shopify, Visa TAP, Mastercard Verifiable Intent, and Circle Nanopayments) and has detection adapters for 2 more (L402 on Bitcoin Lightning and Skyfire\'s KYAPay). Additional rails are tracked as their specs mature. Consumers can fund credits via Stripe.',
     },
     {
       question: `Is ${tool.name} free to try?`,

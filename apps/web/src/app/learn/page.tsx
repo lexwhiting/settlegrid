@@ -50,7 +50,7 @@ const SECTIONS: SectionCard[] = [
   {
     title: 'Protocol Guides',
     description:
-      'Deep dives into the agent payment protocols SettleGrid supports — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402, Alipay Trust, and KYAPay. Learn how each protocol works and how SettleGrid integrates with it.',
+      "Deep dives into the agent payment protocols SettleGrid supports — MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, and the emerging ACTP (Alipay's Agentic Commerce Trust Protocol), EMVCo agent payments, and DRAIN. Learn how each protocol works and how SettleGrid integrates with it.",
     href: '/learn/protocols',
     badge: 'Multi-protocol',
     icon: (

@@ -7,7 +7,7 @@
 <h1 align="center">The Settlement Layer for AI Agent Payments</h1>
 
 <p align="center">
-  <strong>Monetize any AI tool with 2 lines of code. Per-call billing, 15 protocols, built-in discovery.</strong>
+  <strong>Monetize any AI tool with 2 lines of code. Per-call billing, 14 agent payment protocols brokered or tracked, built-in discovery.</strong>
 </p>
 
 <p align="center">
@@ -63,7 +63,7 @@ npx create-settlegrid-tool
 
 |  | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
 |---|:---:|:---:|:---:|:---:|
-| **Protocol support** | 15 protocols | REST only | x402 / DeFi | MCP only |
+| **Protocol support** | 14 tracked (9 brokered + 2 detection + 3 emerging) | REST only | x402 / DeFi | MCP only |
 | **Real-time metering** | <50ms Redis | Batch only | On-chain | Per-call |
 | **Built-in discovery** | 8+ registries | None | None | None |
 | **Multi-hop settlement** | Yes | No | Yes | No |
@@ -116,9 +116,18 @@ SettleGrid doesn't just bill — it distributes. Every active tool is automatica
 | **Tiered** | Multi-method tools | read 1&cent;, write 5&cent; |
 | **Outcome-Based** | Lead gen, data extraction | 25&cent; on success |
 
-## 10 Payment Protocols
+## Payment Protocol Coverage
 
-MCP &middot; MPP (Stripe/Tempo) &middot; x402 (Coinbase) &middot; AP2 (Google) &middot; Visa TAP &middot; UCP (Google/Shopify) &middot; ACP (OpenAI) &middot; Mastercard Agent Pay &middot; Circle Nanopayments &middot; REST
+The `@settlegrid/mcp` SDK adds native billing to any Model Context Protocol (MCP) tool server and provides a REST middleware for any HTTP service. On top of that, the hosted Smart Proxy at `settlegrid.ai/api/proxy/{slug}` brokers payments across agent payment protocols and tracks emerging specs as they mature.
+
+**9 brokered by the Smart Proxy** (production or pending GA):
+MCP &middot; x402 (Coinbase) &middot; Stripe MPP &middot; AP2 (Google) &middot; ACP (OpenAI) &middot; UCP (Google/Shopify) &middot; Visa TAP &middot; Mastercard Verifiable Intent &middot; Circle Nanopayments
+
+**2 detection-adapter-only**:
+L402 (Bitcoin Lightning) &middot; KYAPay (Skyfire)
+
+**3 tracked as emerging**:
+ACTP (Alipay's Agentic Commerce Trust Protocol) &middot; EMVCo agent payments &middot; DRAIN (Bittensor Subnet 58)
 
 ## Features
 

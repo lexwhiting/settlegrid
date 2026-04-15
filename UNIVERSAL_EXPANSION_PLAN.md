@@ -2,6 +2,13 @@
 ## Granular, File-by-File Implementation Guide
 ## March 26, 2026
 
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite and uses retired protocol shorthand ("10
+> protocols" framing, bare "MPP", "Mastercard Agent Pay", "REST" as a
+> payment protocol). The canonical name mapping is in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
+> This doc is preserved as a snapshot rather than rewritten in place.
+
 ---
 
 ## TABLE OF CONTENTS

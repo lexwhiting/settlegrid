@@ -113,7 +113,7 @@ const jsonLdFaq = {
       name: 'What payment protocols does SettleGrid support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid supports 15 payment protocols: MCP, x402 (Coinbase), MPP (Stripe), A2A (Google), AP2, Visa TAP, UCP, ACP (OpenAI), Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN.',
+        text: "SettleGrid's hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402 from Coinbase / Linux Foundation, Stripe MPP, AP2 from Google, ACP from OpenAI, UCP from Google + Shopify, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402 on Bitcoin Lightning, Skyfire's KYAPay), and tracks 3 emerging rails (Alipay's ACTP, EMVCo agent payments, Bittensor DRAIN).",
       },
     },
     {
@@ -146,7 +146,7 @@ const SECTIONS = [
     paragraphs: [
       'MCP billing is per-call payment infrastructure for AI tools built on the Model Context Protocol. It enables developers to charge a fixed amount for every successful invocation of their tool, turning free MCP servers into revenue-generating products. Over 12,770 MCP servers exist on PulseMCP alone, yet less than 5% generate any revenue. MCP billing solves this by making monetization as simple as adding two lines of code.',
       'The billing layer sits between the AI agent (the caller) and the MCP tool handler (the developer\'s code). When an agent calls a billed tool, the billing layer verifies the caller has sufficient credits, executes the tool, records the usage, and settles the payment. Failed calls are not charged. The entire flow adds less than 50ms of latency.',
-      'SettleGrid is the leading MCP billing platform, supporting 15 payment protocols (MCP, x402, MPP, Visa TAP, and 11 others) through a single SDK integration. According to Anthropic, the MCP SDK has been downloaded over 97 million times, making MCP the dominant standard for AI tool calling.',
+      'SettleGrid is the leading MCP billing platform. Its hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN) through a single SDK integration. According to Anthropic, the MCP SDK has been downloaded over 97 million times, making MCP the dominant standard for AI tool calling.',
     ],
   },
   {
@@ -173,7 +173,7 @@ const SECTIONS = [
     paragraphs: [
       'Settlement is the process of transferring money from the consumer (the AI agent operator who pays for tool calls) to the developer (the person who built and hosts the tool). SettleGrid handles settlement automatically through Stripe Connect, the same infrastructure used by Shopify, Lyft, and other marketplaces.',
       'Consumers prepay credits into their SettleGrid balance. Each successful tool call deducts credits from the consumer\'s balance in real time. Developer earnings accumulate in their SettleGrid account and transfer to their Stripe balance on a rolling 7-day schedule. The free tier includes a 0% take rate on the first $1,000 per month of revenue.',
-      'SettleGrid supports 15 payment protocols for the consumer side: MCP (native), x402 (Coinbase crypto), MPP (Stripe fiat), Visa TAP (card networks), and 11 others. Regardless of which protocol the consumer uses to pay, the developer always receives payouts through Stripe Connect in their local currency.',
+      'SettleGrid supports multiple consumer-side payment protocols: MCP (native SDK billing), x402 (Coinbase / Linux Foundation crypto), Stripe MPP (Stripe fiat, pending GA), Visa TAP (card networks), plus AP2, ACP, UCP, Mastercard Verifiable Intent, and Circle Nanopayments — a total of 9 brokered by the Smart Proxy. Detection adapters are in place for L402 and KYAPay; emerging rails (ACTP, EMVCo agent payments, DRAIN) are tracked as upstream specs mature. Regardless of which protocol the consumer uses to pay, the developer always receives payouts through Stripe Connect in their local currency.',
     ],
   },
   {
@@ -312,7 +312,7 @@ export default function HowMcpBillingWorksPage() {
               Ready to add billing to your MCP tool?
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              Two lines of code. 15 payment protocols. Up to 100% revenue share. Start earning from your AI tools today.
+              Two lines of code. 14 agent payment protocols tracked. Up to 100% revenue share. Start earning from your AI tools today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link

@@ -2,6 +2,11 @@
 ## Actionable Solutions for a Bootstrapped Solo Founder
 ## March 26, 2026
 
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite; "10 protocols" framing appears in the body.
+> Canonical name mapping in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
+
 ---
 
 ## WEAKNESS 1: ZERO USERS
