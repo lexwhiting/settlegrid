@@ -34,6 +34,7 @@
  *      noise so other processes on the host can't false-positive us)
  */
 import { spawnSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -42,7 +43,7 @@ import { downloadTemplate } from 'giget'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SmokeTarget {
+export interface SmokeTarget {
   name: string
   github: string
   subdir?: string
@@ -105,7 +106,7 @@ const distEntry = path.join(packageRoot, 'dist', 'index.js')
  * this, a typo in the JSON would cast through as `undefined` and
  * produce opaque assertion failures later in the run.
  */
-function validateTarget(raw: unknown, idx: number): SmokeTarget {
+export function validateTarget(raw: unknown, idx: number): SmokeTarget {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error(`target[${idx}] must be an object`)
   }
@@ -172,7 +173,7 @@ function validateTarget(raw: unknown, idx: number): SmokeTarget {
  * Recursively walk a directory and record each file's size + mtime
  * so we can diff before/after a dry-run and prove no mutation.
  */
-async function snapshotTree(
+export async function snapshotTree(
   rootDir: string,
 ): Promise<Map<string, { size: number; mtimeMs: number }>> {
   const snapshot = new Map<string, { size: number; mtimeMs: number }>()
@@ -210,7 +211,7 @@ async function snapshotTree(
   return snapshot
 }
 
-function compareSnapshots(
+export function compareSnapshots(
   before: Map<string, { size: number; mtimeMs: number }>,
   after: Map<string, { size: number; mtimeMs: number }>,
 ): string[] {
@@ -248,7 +249,7 @@ function compareSnapshots(
  * file (a rogue `settlegrid-add.patch`, a fork tmpdir, etc.) surfaces
  * as a test failure rather than silently piling up.
  */
-async function listDirEntries(dir: string): Promise<string[]> {
+export async function listDirEntries(dir: string): Promise<string[]> {
   try {
     const entries = await fsp.readdir(dir)
     return entries.sort()
@@ -598,12 +599,33 @@ async function main(): Promise<number> {
   return 0
 }
 
-main()
-  .then((code) => {
-    process.exit(code)
-  })
-  .catch((err) => {
-    const msg = err instanceof Error ? err.stack ?? err.message : String(err)
-    process.stderr.write(`smoke: unhandled error: ${msg}\n`)
-    process.exit(1)
-  })
+/**
+ * True only when this file is the Node entrypoint (i.e. invoked as
+ * `tsx scripts/smoke.ts`). Returns false for vitest / in-process
+ * imports of the helper exports above, so the test suite can pull
+ * in `validateTarget` / `compareSnapshots` etc. without accidentally
+ * kicking off a real smoke run that would fetch 3 repos from GitHub.
+ */
+function isMainEntry(): boolean {
+  const argvEntry = process.argv[1]
+  if (!argvEntry) return false
+  try {
+    const argvReal = realpathSync(argvEntry)
+    const thisReal = realpathSync(fileURLToPath(import.meta.url))
+    return argvReal === thisReal
+  } catch {
+    return false
+  }
+}
+
+if (isMainEntry()) {
+  main()
+    .then((code) => {
+      process.exit(code)
+    })
+    .catch((err) => {
+      const msg = err instanceof Error ? err.stack ?? err.message : String(err)
+      process.stderr.write(`smoke: unhandled error: ${msg}\n`)
+      process.exit(1)
+    })
+}
