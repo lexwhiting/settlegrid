@@ -1,7 +1,11 @@
 import { Command } from 'commander'
 import { intro, note, outro } from '@clack/prompts'
 import kleur from 'kleur'
-import { resolveSource, type ResolvedSource } from '../lib/source-resolver.js'
+import {
+  resolveSource,
+  isGithubUrl,
+  type ResolvedSource,
+} from '../lib/source-resolver.js'
 import { detectRepoType } from '../detect/index.js'
 
 interface AddOptions {
@@ -32,12 +36,20 @@ export function addCommand(program: Command): void {
     .action(async (source: string | undefined, options: AddOptions) => {
       intro(kleur.cyan('settlegrid add'))
 
+      // The positional [source] argument is a convenience: if it looks
+      // like a remote URL, route it into resolveSource's `github` opt;
+      // otherwise treat it as a local path. Explicit --github / --path
+      // flags always win over the positional.
+      const githubFromSource =
+        source && isGithubUrl(source) ? source : undefined
+      const pathFromSource =
+        source && !isGithubUrl(source) ? source : undefined
+
       let resolved: ResolvedSource | null = null
       try {
         resolved = await resolveSource({
-          source,
-          github: options.github,
-          path: options.path,
+          github: options.github ?? githubFromSource,
+          path: options.path ?? pathFromSource,
         })
         const detection = await detectRepoType(resolved.dir)
 
@@ -52,7 +64,7 @@ export function addCommand(program: Command): void {
 
         const lines = [
           `source:       ${source ?? kleur.dim('(none)')}`,
-          `resolved dir: ${resolved.dir} ${kleur.dim(`(${resolved.origin})`)}`,
+          `resolved dir: ${resolved.dir}`,
           `type:         ${detection.type}`,
           `confidence:   ${detection.confidence.toFixed(2)}`,
           `language:     ${detection.language}`,
