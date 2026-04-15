@@ -72,4 +72,54 @@ describe('settlegrid CLI binary', () => {
     expect(esmProbe.stdout).toBe('')
     expect(esmProbe.stderr).toBe('')
   })
+
+  // Coverage for the add-command stub's action handler: a fully-populated
+  // invocation should exit 0 and echo every parsed option back through the
+  // @clack/prompts `note` block plus the "not yet implemented" outro.
+  // Exercises the positive branch of every `??` fallback in add.ts.
+  it('runs `add` with every flag set and prints each value + "not yet implemented"', () => {
+    const result = spawnSync(
+      'node',
+      [
+        distEntry,
+        'add',
+        'my-source',
+        '--github',
+        'https://github.com/acme/mcp-server',
+        '--path',
+        '/tmp/settlegrid-test',
+        '--dry-run',
+        '--no-pr',
+        '--out-branch',
+        'settlegrid/monetize',
+      ],
+      { encoding: 'utf-8', env: testEnv },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('my-source')
+    expect(result.stdout).toContain('https://github.com/acme/mcp-server')
+    expect(result.stdout).toContain('/tmp/settlegrid-test')
+    expect(result.stdout).toContain('dry-run:    yes')
+    expect(result.stdout).toContain('no-pr:      yes (PR skipped)')
+    expect(result.stdout).toContain('settlegrid/monetize')
+    expect(result.stdout).toContain('not yet implemented')
+  })
+
+  // Coverage for the negative branches of the `??` fallbacks in add.ts:
+  // when no source / --github / --path / --out-branch are provided, the
+  // stub should show "(none)" / "(unset)" placeholders and still exit 0.
+  it('runs `add` with no arguments and shows the unset placeholders, exit 0', () => {
+    const result = spawnSync('node', [distEntry, 'add'], {
+      encoding: 'utf-8',
+      env: testEnv,
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('source:       (none)')
+    expect(result.stdout).toContain('--github:     (unset)')
+    expect(result.stdout).toContain('--path:       (unset)')
+    expect(result.stdout).toContain('dry-run:    no')
+    expect(result.stdout).toContain('no-pr:      no (PR will be opened)')
+    expect(result.stdout).toContain('--out-branch: (unset)')
+    expect(result.stdout).toContain('not yet implemented')
+  })
 })
