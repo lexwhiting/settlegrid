@@ -52,11 +52,19 @@ export async function resolveSource(
       path.join(os.tmpdir(), 'settlegrid-cli-gh-'),
     )
     const target = path.join(tmpParent, 'repo')
-    // Dynamic import keeps giget out of the require graph for callers that
-    // never need a GitHub fetch (e.g. `--path` only) and makes vitest mocks
-    // easy to apply when needed.
-    const giget = await import('giget')
-    await giget.downloadTemplate(opts.github, { dir: target, force: true })
+    try {
+      // Dynamic import keeps giget out of the require graph for callers
+      // that never need a GitHub fetch (e.g. `--path` only) and makes
+      // vitest mocks easy to apply when needed.
+      const giget = await import('giget')
+      await giget.downloadTemplate(opts.github, { dir: target, force: true })
+    } catch (err) {
+      // Clean up the mkdtemp we just created before re-throwing, so a
+      // transient network or bad-URL failure doesn't leak tmpdirs. The
+      // rm is itself best-effort — if it fails the OS tmp-GC will reap.
+      await fsp.rm(tmpParent, { recursive: true, force: true }).catch(() => {})
+      throw err
+    }
     return {
       dir: target,
       cleanup: async () => {
@@ -65,9 +73,7 @@ export async function resolveSource(
     }
   }
 
-  throw new Error(
-    'settlegrid add: provide --path <dir> or --github <url>',
-  )
+  throw new Error('provide --path <dir> or --github <url>')
 }
 
 /**
@@ -75,7 +81,10 @@ export async function resolveSource(
  * or giget's `github:` / `gh:` / `git://` shorthand). Exported so the
  * add command can route its positional [source] argument into the
  * appropriate resolveSource opt before calling in.
+ *
+ * Case-insensitive per RFC 3986 — accepts `HTTPS://...` as well as the
+ * conventional lowercase form.
  */
 export function isGithubUrl(s: string): boolean {
-  return /^(https?:\/\/|github:|gh:|git@|git:\/\/)/.test(s)
+  return /^(https?:\/\/|github:|gh:|git@|git:\/\/)/i.test(s)
 }
