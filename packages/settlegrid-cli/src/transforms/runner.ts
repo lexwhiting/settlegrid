@@ -50,15 +50,16 @@ export type Codemod = (source: string, ctx: CodemodContext) => string
 
 /**
  * Detect whether a file has already been monetized so subsequent runs
- * are no-ops. Treats either form of the @settlegrid/mcp import OR any
- * settlegrid.init call as sufficient evidence. String-level check is
- * intentionally cheap — the per-codemod sg.wrap idempotency guards
+ * are no-ops. Treats ANY import from `@settlegrid/mcp` or a subpath
+ * (`@settlegrid/mcp/kernel`, `@settlegrid/mcp/rest`, …) OR any
+ * `settlegrid.init(…)` call as sufficient evidence. String-level check
+ * is intentionally cheap — the per-codemod sg.wrap idempotency guards
  * still protect against partial re-wraps within a file that uses the
  * import but hasn't been fully transformed.
  */
 export function isAlreadyWrapped(source: string): boolean {
   return (
-    /from\s+['"]@settlegrid\/mcp['"]/.test(source) ||
+    /from\s+['"]@settlegrid\/mcp(?:\/[^'"]*)?['"]/.test(source) ||
     /settlegrid\s*\.\s*init\s*\(/.test(source)
   )
 }
@@ -236,15 +237,44 @@ export async function runTransform(
     }
   }
 
+  // Track which files actually landed on disk so the reported
+  // `changedFiles` reflects real state. On write failures we move
+  // the entry into `skipped` with a readable reason instead of
+  // aborting mid-loop — otherwise one bad file (read-only, ENOSPC,
+  // permissions) would leave the target repo half-wrapped with no
+  // package.json update.
+  const actuallyChanged: TransformOutput['changedFiles'] = []
   if (!input.dryRun) {
-    for (const { path: rel, after } of changedFiles) {
-      await fsp.writeFile(path.join(absRoot, rel), after, 'utf-8')
+    for (const entry of changedFiles) {
+      try {
+        await fsp.writeFile(
+          path.join(absRoot, entry.path),
+          entry.after,
+          'utf-8',
+        )
+        actuallyChanged.push(entry)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        skipped.push({ path: entry.path, reason: `write failed: ${msg}` })
+      }
     }
-    await addPackageDependency(absRoot, '@settlegrid/mcp', SETTLEGRID_MCP_RANGE)
+    // package.json update is best-effort: if it fails (read-only, etc.)
+    // we record the failure but still return the successful writes so
+    // the user knows what landed.
+    try {
+      await addPackageDependency(
+        absRoot,
+        '@settlegrid/mcp',
+        SETTLEGRID_MCP_RANGE,
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      skipped.push({ path: 'package.json', reason: `write failed: ${msg}` })
+    }
   }
 
   return {
-    changedFiles,
+    changedFiles: input.dryRun ? changedFiles : actuallyChanged,
     skipped,
     addedDependencies: { '@settlegrid/mcp': SETTLEGRID_MCP_RANGE },
     envVarsRequired: ['SETTLEGRID_API_KEY'],
