@@ -316,6 +316,62 @@ describe('settlegrid add — P2.4 PR fallback + token-never-logged smoke tests',
     }
   })
 
+  // P2.5 DoD: `--json` emits a machine-readable single-line envelope
+  // consumed by scripts/smoke.ts. This end-to-end spawn test proves
+  // (a) the JSON line parses as valid JSON, (b) no clack human
+  // output leaks into --json mode, and (c) the envelope matches the
+  // shape the smoke runner asserts against.
+  it('--json emits a single JSON line with detect + transform on a dry-run', async () => {
+    const result = spawnSync(
+      'node',
+      [
+        distEntry,
+        'add',
+        '--path',
+        path.join(fixtureRoot, 'mcp-sample'),
+        '--dry-run',
+        '--no-pr',
+        '--json',
+      ],
+      { encoding: 'utf-8', env: testEnv },
+    )
+    expect(result.status).toBe(0)
+
+    // No clack prompt output should leak through in --json mode —
+    // the entire stdout must be a single JSON line (+ optional
+    // trailing newline).
+    const lines = result.stdout.split('\n').filter((l) => l.length > 0)
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).not.toContain('settlegrid add')
+    expect(lines[0]).not.toContain('dry-run complete')
+
+    // Parse + assert the envelope shape the smoke runner relies on.
+    const parsed = JSON.parse(lines[0]) as Record<string, unknown>
+    expect(parsed.status).toBe('dry-run-complete')
+    expect(parsed.mode).toBe('dry-run')
+
+    // detect fields
+    expect(parsed.detect).toMatchObject({
+      type: 'mcp-server',
+      language: 'ts',
+    })
+
+    // transform fields
+    const transform = parsed.transform as {
+      changedFiles: Array<{ path: string; after: string }>
+      addedDependencies: Record<string, string>
+      envVarsRequired: string[]
+    }
+    expect(transform.changedFiles.length).toBeGreaterThan(0)
+    expect(transform.addedDependencies['@settlegrid/mcp']).toBeDefined()
+    expect(transform.envVarsRequired).toContain('SETTLEGRID_API_KEY')
+    // First changed file must contain the wrapped import — the
+    // exact assertion the smoke runner's regression guard uses.
+    expect(transform.changedFiles[0].after).toContain(
+      "from '@settlegrid/mcp'",
+    )
+  })
+
   // P2.4 DoD: "Token never logged or echoed to stdout (grep check
   // in test)". The unit test in src/pr/github.test.ts uses console/
   // stdout spies for openPullRequest itself; this test is the
