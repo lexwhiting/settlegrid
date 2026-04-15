@@ -121,7 +121,7 @@ const glossaryTerms = [
   {
     name: 'Protocol-Agnostic',
     definition:
-      'An architecture that works across multiple payment and communication protocols without requiring protocol-specific code. SettleGrid is protocol-agnostic, supporting multiple agent payment protocols (MCP, x402, AP2, MPP, Visa TAP, UCP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, L402, Alipay Trust, KYAPay) through a single unified SDK.',
+      "An architecture that works across multiple payment and communication protocols without requiring protocol-specific code. SettleGrid is protocol-agnostic — the hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, Skyfire's KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN) through a single unified SDK.",
     link: '/learn/protocols',
   },
   {

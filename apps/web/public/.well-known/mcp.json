@@ -10,14 +10,15 @@
   "protocols": [
     "MCP",
     "x402",
+    "Stripe MPP",
     "AP2",
-    "Visa TAP",
-    "REST",
-    "MPP",
-    "UCP",
     "ACP",
-    "Mastercard Agent Pay",
-    "Circle Nanopayments"
+    "UCP",
+    "Visa TAP",
+    "Mastercard Verifiable Intent",
+    "Circle Nanopayments",
+    "L402",
+    "KYAPay"
   ],
   "features": [
     "per-call-billing",

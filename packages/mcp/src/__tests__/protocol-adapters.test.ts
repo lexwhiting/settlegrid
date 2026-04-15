@@ -102,7 +102,11 @@ describe('Auto-registration', () => {
   it('Mastercard VI adapter is correct class instance', () => {
     const adapter = protocolRegistry.get('mastercard-vi')
     expect(adapter).toBeInstanceOf(MastercardVIAdapter)
-    expect(adapter?.displayName).toContain('Mastercard Agent Pay')
+    // Canonical display name is "Mastercard Verifiable Intent" (P1.MKT1 honest
+    // framing). Earlier versions included "(Verifiable Intent)" as a
+    // parenthetical after "Mastercard Agent Pay"; the rename dropped the
+    // retired lead phrase. Assert the canonical phrase.
+    expect(adapter?.displayName).toContain('Mastercard Verifiable Intent')
   })
 
   it('importing settlement/adapters does not throw', async () => {

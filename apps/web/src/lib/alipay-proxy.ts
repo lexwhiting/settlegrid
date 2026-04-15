@@ -1,14 +1,22 @@
 /**
- * Alipay Trust Protocol — Smart Proxy Integration
+ * ACTP — Alipay's Agentic Commerce Trust Protocol (Ant Group)
+ *           — Smart Proxy Integration
  *
  * Handles Alipay's agentic commerce protocol for SettleGrid tools.
- * Alipay's protocol uses MCP + delegated authorization:
+ * The canonical spec name is the "Agentic Commerce Trust Protocol" (ACTP);
+ * earlier internal SettleGrid drafts called this "Alipay Trust Protocol"
+ * — that shorthand is retired in favor of ACTP. Env var prefix and
+ * filename still use `alipay-*` because that's the provider brand.
+ *
+ * Protocol mechanics use MCP + delegated authorization:
  *   - Agent presents Alipay authorization token
  *   - Service verifies via Alipay API
  *   - Payment processed through Alipay rails
  *
  * NOTE: Detection and 402 responses are fully functional. Validation
  * requires Alipay partnership credentials and is stub-marked with TODOs.
+ * Status in the SettleGrid Smart Proxy: tracked as emerging rail pending
+ * upstream ACTP spec maturity.
  *
  * @see https://global.alipay.com/
  */
@@ -71,7 +79,7 @@ export interface AlipayToolConfig {
 // ─── Detection ──────────────────────────────────────────────────────────────
 
 /**
- * Check if a request contains Alipay Trust Protocol headers.
+ * Check if a request contains ACTP (Alipay Agentic Commerce Trust Protocol) headers.
  *
  * Detection criteria (any one is sufficient):
  *   1. x-alipay-agent-token header
@@ -120,7 +128,7 @@ function extractAlipayToken(request: Request): string | null {
 // ─── Validation ─────────────────────────────────────────────────────────────
 
 /**
- * Validate an incoming Alipay Trust Protocol payment.
+ * Validate an incoming ACTP (Alipay Agentic Commerce Trust Protocol) payment.
  *
  * TODO: Implement actual Alipay API verification. Requires:
  *   - ALIPAY_APP_ID: Alipay application ID
@@ -139,7 +147,7 @@ export async function validateAlipayPayment(
       valid: false,
       error: {
         code: 'ALIPAY_NOT_CONFIGURED',
-        message: 'Alipay Trust Protocol is not configured on this SettleGrid instance.',
+        message: 'ACTP (Alipay Agentic Commerce Trust Protocol) is not configured on this SettleGrid instance.',
       },
     }
   }
@@ -214,7 +222,7 @@ export async function validateAlipayPayment(
 // ─── 402 Response Generation ────────────────────────────────────────────────
 
 /**
- * Generate an Alipay Trust Protocol 402 Payment Required response.
+ * Generate an ACTP (Alipay Agentic Commerce Trust Protocol) 402 Payment Required response.
  */
 export function generateAlipay402Response(
   toolSlug: string,

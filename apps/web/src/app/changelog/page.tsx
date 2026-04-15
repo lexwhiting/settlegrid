@@ -152,9 +152,9 @@ const entries: ChangelogEntry[] = [
   },
   {
     date: '2026-03-17',
-    title: '15-Protocol Support',
+    title: 'Multi-Protocol Settlement Layer',
     description:
-      'SettleGrid now supports 15 payment protocols through a single SDK: MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay (Skyfire + Visa), EMVCo Agent Payments, and DRAIN (off-chain USDC).',
+      'SettleGrid\'s hosted Smart Proxy now brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), ships with detection adapters for 2 more (L402 on Bitcoin Lightning, Skyfire\'s KYAPay), and tracks 3 emerging rails (Alipay\'s ACTP, EMVCo agent payments, and the Bittensor DRAIN project). (This entry was updated on 2026-04-15 from an earlier "15-Protocol Support" framing that counted REST and bare-org EMVCo; see docs/audits/15-protocol-claim.md.)',
     badge: 'Feature',
   },
   {

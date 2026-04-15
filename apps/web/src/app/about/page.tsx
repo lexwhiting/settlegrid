@@ -79,7 +79,7 @@ const values = [
   {
     title: 'Protocol-Agnostic',
     description:
-      '15 payment protocols through one SDK. MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402, Alipay Trust, KYAPay, EMVCo, and DRAIN. We believe the settlement layer should work with every protocol, not lock you into one.',
+      'Our hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, and Circle Nanopayments), has detection adapters for 2 more (L402 and Skyfire\'s KYAPay), and tracks 3 emerging rails (Alipay\'s ACTP, EMVCo agent payments, and the Bittensor DRAIN project). We believe the settlement layer should work with every protocol, not lock you into one.',
   },
   {
     title: 'Ship Fast, Iterate Publicly',
@@ -89,7 +89,7 @@ const values = [
 ] as const
 
 const stats = [
-  { value: '15', label: 'Payment Protocols' },
+  { value: '14', label: 'Agent Payment Protocols' },
   { value: '6', label: 'Pricing Models' },
   { value: '8', label: 'Service Categories' },
   { value: '50K', label: 'Free Ops/Month' },

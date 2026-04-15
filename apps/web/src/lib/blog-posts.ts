@@ -191,11 +191,11 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         question: 'What is the best MCP billing solution in 2026?',
-        answer: 'For most MCP tool developers, SettleGrid offers the best combination of speed (5-minute setup), features (15 payment protocols, built-in discovery), and cost (free tier with 50K ops/mo). Stripe Direct and DIY billing suit high-volume operations above $100K/mo.',
+        answer: 'For most MCP tool developers, SettleGrid offers the best combination of speed (5-minute setup), protocol coverage (native MCP billing in the @settlegrid/mcp SDK plus a hosted Smart Proxy that brokers payments across 9 agent payment protocols and tracks several emerging rails), and cost (free tier with 50K ops/mo). Stripe Direct and DIY billing suit high-volume operations above $100K/mo.',
       },
       {
         question: 'How does SettleGrid compare to Stripe for MCP billing?',
-        answer: 'SettleGrid is purpose-built for MCP tools and supports 15 payment protocols with 2 lines of code. Stripe Direct is general-purpose, requiring 200-500 lines of custom metering code and 1-2 weeks of integration work, but offers mature payment infrastructure.',
+        answer: 'SettleGrid is purpose-built for MCP tools. The @settlegrid/mcp SDK adds native per-call billing to any MCP tool server or REST endpoint with 2 lines of code, and the hosted Smart Proxy at settlegrid.ai brokers payments across 9 protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments). Stripe Direct is general-purpose, requiring 200-500 lines of custom metering code and 1-2 weeks of integration work, but offers mature payment infrastructure.',
       },
       {
         question: 'What is MCPize and how does it compare to SettleGrid?',
@@ -311,7 +311,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: 'ai-agent-payment-protocols',
     title: 'AI Agent Payment Protocols Compared (2026)',
     description:
-      'Compare all major AI agent payment protocols including the new Linux Foundation x402 standard, MCP, MPP, AP2, Visa TAP, ACP, Mastercard Agent Pay, and more. Features, adoption, and which to support.',
+      'Compare the major AI agent payment protocols including the new Linux Foundation x402 standard, MCP, Stripe MPP, AP2, Visa TAP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, and the emerging ACTP / EMVCo agent payments / DRAIN specs. Features, adoption, and which to support.',
     datePublished: '2026-03-26',
     dateModified: '2026-04-07',
     keywords: [
@@ -333,11 +333,11 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         question: 'How many AI agent payment protocols exist in 2026?',
-        answer: 'As of March 2026, there are 10 major AI agent payment protocols: MCP, x402 (Coinbase), MPP (Stripe), A2A (Google), AP2, Visa TAP, UCP, ACP (OpenAI), Mastercard Agent Pay, and Circle Nanopayments.',
+        answer: "SettleGrid's Smart Proxy currently brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, Skyfire's KYAPay), and tracks 3 emerging rails as their upstream specs mature (Alipay's Agentic Commerce Trust Protocol / ACTP, EMVCo agent payments, and the Bittensor Subnet 58 DRAIN project). That's 14 protocols in active scope.",
       },
       {
         question: 'Which AI payment protocol should I support?',
-        answer: 'For most developers, use SettleGrid to support multiple agent payment protocols with a single integration. If building manually, prioritize MCP + MPP (Stripe) for mainstream tools, MCP + x402 for crypto-native tools, or MCP + MPP + Visa TAP for enterprise tools.',
+        answer: 'For most developers, use SettleGrid to support multiple agent payment protocols through a single integration. If building manually, prioritize MCP + Stripe MPP for mainstream tools, MCP + x402 for crypto-native tools, or MCP + Stripe MPP + Visa TAP for enterprise tools.',
       },
     ],
     relatedSlugs: [
