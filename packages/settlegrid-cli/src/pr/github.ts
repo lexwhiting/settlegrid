@@ -47,6 +47,14 @@ const FORK_POLL_INTERVAL_MS = 2_000
  *   - All Octokit calls go through a single internal client, so
  *     tests using `vi.mock('@octokit/rest')` can intercept every
  *     network interaction.
+ *
+ * Step breakdown (each a small helper per P2.4 step 3):
+ *   1. ensurePushAccess → check repos.get `.permissions.push`
+ *   2. forkAndWait    → repos.createFork + poll-until-ready
+ *   3. createBranch   → git.getRef + git.getCommit + git.createRef
+ *   4. commitFiles    → git.createBlob × N + git.createTree +
+ *                        git.createCommit + git.updateRef
+ *   5. createPr       → pulls.create with rendered body
  */
 export async function openPullRequest(
   input: OpenPrInput,
@@ -64,10 +72,8 @@ export async function openPullRequest(
 
   const octokit = new Octokit({ auth: input.token })
 
-  // Step 1 — check push access. If we have it, work directly on the
-  // upstream. Otherwise fork and wait for GitHub to finish the fork
-  // (it's async on the backend for anything larger than a toy repo).
-  const hasPushAccess = await checkPushAccess(
+  // 1. Work on upstream if we have push; otherwise fork.
+  const hasPushAccess = await ensurePushAccess(
     octokit,
     input.repoOwner,
     input.repoName,
@@ -80,80 +86,32 @@ export async function openPullRequest(
     forkUsed = true
   }
 
-  // Step 2 — find the base commit + its tree. We need both: the commit
-  // SHA becomes the parent of our new commit, the tree SHA is the
-  // `base_tree` for the new tree we'll build from the transform output.
-  const baseRef = await octokit.rest.git.getRef({
-    owner: workOwner,
-    repo: input.repoName,
-    ref: `heads/${input.baseBranch}`,
-  })
-  const baseCommitSha = baseRef.data.object.sha
+  // 2 + 3. Create the branch off the current base head.
+  const { commitSha: baseCommitSha, treeSha: baseTreeSha } =
+    await createBranch(
+      octokit,
+      workOwner,
+      input.repoName,
+      input.baseBranch,
+      input.branchName,
+    )
 
-  const baseCommit = await octokit.rest.git.getCommit({
-    owner: workOwner,
-    repo: input.repoName,
-    commit_sha: baseCommitSha,
-  })
-  const baseTreeSha = baseCommit.data.tree.sha
-
-  // Step 3 — create the topic branch.
-  await octokit.rest.git.createRef({
-    owner: workOwner,
-    repo: input.repoName,
-    ref: `refs/heads/${input.branchName}`,
-    sha: baseCommitSha,
-  })
-
-  // Step 4 — materialise each transformed file as a blob, build a
-  // tree on top of the base tree, then create a commit on the new
-  // branch.
-  const treeEntries = await Promise.all(
-    input.changes.map(async (change) => {
-      const blob = await octokit.rest.git.createBlob({
-        owner: workOwner,
-        repo: input.repoName,
-        content: Buffer.from(change.after, 'utf-8').toString('base64'),
-        encoding: 'base64',
-      })
-      return {
-        path: change.path,
-        mode: '100644' as const,
-        type: 'blob' as const,
-        sha: blob.data.sha,
-      }
-    }),
+  // 4. Upload blobs, build tree, commit, update ref.
+  await commitFiles(
+    octokit,
+    workOwner,
+    input.repoName,
+    input.branchName,
+    baseCommitSha,
+    baseTreeSha,
+    input.changes,
+    PR_TITLE,
   )
 
-  const newTree = await octokit.rest.git.createTree({
-    owner: workOwner,
-    repo: input.repoName,
-    base_tree: baseTreeSha,
-    tree: treeEntries,
-  })
-
-  const newCommit = await octokit.rest.git.createCommit({
-    owner: workOwner,
-    repo: input.repoName,
-    message: PR_TITLE,
-    tree: newTree.data.sha,
-    parents: [baseCommitSha],
-  })
-
-  await octokit.rest.git.updateRef({
-    owner: workOwner,
-    repo: input.repoName,
-    ref: `heads/${input.branchName}`,
-    sha: newCommit.data.sha,
-  })
-
-  // Step 5 — open the PR against the UPSTREAM repo. `head` uses the
-  // fork owner's `user:branch` format when we forked; otherwise the
-  // bare branch name. GitHub routes cross-fork PRs automatically.
+  // 5. Open the PR on the upstream. Cross-fork head format when forked.
   const head = forkUsed
     ? `${workOwner}:${input.branchName}`
     : input.branchName
-
   const body = renderPrBody({
     repoOwner: input.repoOwner,
     repoName: input.repoName,
@@ -161,21 +119,17 @@ export async function openPullRequest(
     dependencyBump: input.dependencyBump,
     envVarsRequired: input.envVarsRequired,
   })
-
-  const pr = await octokit.rest.pulls.create({
-    owner: input.repoOwner,
-    repo: input.repoName,
-    title: PR_TITLE,
-    body,
+  const { url, number } = await createPr(
+    octokit,
+    input.repoOwner,
+    input.repoName,
     head,
-    base: input.baseBranch,
-  })
+    input.baseBranch,
+    PR_TITLE,
+    body,
+  )
 
-  return {
-    url: pr.data.html_url,
-    number: pr.data.number,
-    forkUsed,
-  }
+  return { url, number, forkUsed }
 }
 
 /**
@@ -183,7 +137,7 @@ export async function openPullRequest(
  * Returns false on any failure (repo not found, 403, network hiccup)
  * so the caller takes the safe fork path.
  */
-async function checkPushAccess(
+async function ensurePushAccess(
   octokit: Octokit,
   owner: string,
   repo: string,
@@ -223,6 +177,128 @@ async function forkAndWait(
   throw new Error(
     `fork of ${owner}/${repo} was not reachable within ${FORK_POLL_MAX_MS / 1000}s`,
   )
+}
+
+/**
+ * Resolve `baseBranch` to its commit + tree SHAs and create a new ref
+ * `refs/heads/<newBranch>` pointed at the same commit. Returns both
+ * SHAs so the commit helper can skip re-fetching them.
+ */
+async function createBranch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  baseBranch: string,
+  newBranch: string,
+): Promise<{ commitSha: string; treeSha: string }> {
+  const baseRef = await octokit.rest.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${baseBranch}`,
+  })
+  const commitSha = baseRef.data.object.sha
+
+  const baseCommit = await octokit.rest.git.getCommit({
+    owner,
+    repo,
+    commit_sha: commitSha,
+  })
+  const treeSha = baseCommit.data.tree.sha
+
+  await octokit.rest.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${newBranch}`,
+    sha: commitSha,
+  })
+
+  return { commitSha, treeSha }
+}
+
+/**
+ * For each changed file: create a base64 blob, build a tree on top of
+ * `baseTreeSha`, create a commit parented on `baseCommitSha`, and
+ * advance `branch` to that commit. Returns the new commit SHA.
+ */
+async function commitFiles(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+  baseCommitSha: string,
+  baseTreeSha: string,
+  changes: TransformOutput['changedFiles'],
+  message: string,
+): Promise<string> {
+  const treeEntries = await Promise.all(
+    changes.map(async (change) => {
+      const blob = await octokit.rest.git.createBlob({
+        owner,
+        repo,
+        content: Buffer.from(change.after, 'utf-8').toString('base64'),
+        encoding: 'base64',
+      })
+      return {
+        path: change.path,
+        mode: '100644' as const,
+        type: 'blob' as const,
+        sha: blob.data.sha,
+      }
+    }),
+  )
+
+  const newTree = await octokit.rest.git.createTree({
+    owner,
+    repo,
+    base_tree: baseTreeSha,
+    tree: treeEntries,
+  })
+
+  const newCommit = await octokit.rest.git.createCommit({
+    owner,
+    repo,
+    message,
+    tree: newTree.data.sha,
+    parents: [baseCommitSha],
+  })
+
+  await octokit.rest.git.updateRef({
+    owner,
+    repo,
+    ref: `heads/${branch}`,
+    sha: newCommit.data.sha,
+  })
+
+  return newCommit.data.sha
+}
+
+/**
+ * Create the upstream PR and extract the public URL + number.
+ * Takes the upstream `owner`/`repo` (where the PR is FILED) and the
+ * pre-computed `head` which is either the bare branch name (same
+ * repo) or `fork-owner:branch` (cross-fork).
+ */
+async function createPr(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  head: string,
+  base: string,
+  title: string,
+  body: string,
+): Promise<{ url: string; number: number }> {
+  const pr = await octokit.rest.pulls.create({
+    owner,
+    repo,
+    title,
+    body,
+    head,
+    base,
+  })
+  return {
+    url: pr.data.html_url,
+    number: pr.data.number,
+  }
 }
 
 /**
