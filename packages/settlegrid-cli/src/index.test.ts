@@ -82,6 +82,7 @@ describe('settlegrid add — detection + source resolution smoke tests', () => {
   //   • P2.1-style option echoing: every parsed flag is displayed in the
   //     @clack/prompts note block.
   //   • --force on a non-unknown type is inert (exit 0 regardless).
+  //   • P2.3: dry-run runs the codemod and emits a transform summary.
   // Consolidated into one spawn to reduce subprocess load when multiple
   // workspace tests run in parallel under turbo.
   it('detects mcp-server on --path fixture, echoes all flags, exits 0', () => {
@@ -115,7 +116,11 @@ describe('settlegrid add — detection + source resolution smoke tests', () => {
     expect(result.stdout).toContain('no-pr:      yes (PR skipped)')
     expect(result.stdout).toContain('settlegrid/monetize')
     expect(result.stdout).toContain('--force:      yes')
-    expect(result.stdout).toContain('not yet implemented')
+    // P2.3: transform summary + dry-run outro.
+    expect(result.stdout).toContain('transform summary')
+    expect(result.stdout).toContain('@settlegrid/mcp@^0.1.1')
+    expect(result.stdout).toContain('SETTLEGRID_API_KEY')
+    expect(result.stdout).toContain('dry-run complete')
   })
 
   // Per P2.2 step 6: unknown-type classification exits 1 without --force,
@@ -140,7 +145,9 @@ describe('settlegrid add — detection + source resolution smoke tests', () => {
     )
     expect(withForce.status).toBe(0)
     expect(withForce.stdout).toContain('type:         unknown')
-    expect(withForce.stdout).toContain('not yet implemented')
+    // --force with unknown type → runner dispatches no codemod → 0 changes.
+    // Outro message acknowledges nothing matched.
+    expect(withForce.stdout).toContain('no files changed')
   })
 
   // Error path: no source / --path / --github supplied. resolveSource

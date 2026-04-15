@@ -7,6 +7,7 @@ import {
   type ResolvedSource,
 } from '../lib/source-resolver.js'
 import { detectRepoType } from '../detect/index.js'
+import { runTransform } from '../transforms/runner.js'
 
 interface AddOptions {
   github?: string
@@ -36,10 +37,6 @@ export function addCommand(program: Command): void {
     .action(async (source: string | undefined, options: AddOptions) => {
       intro(kleur.cyan('settlegrid add'))
 
-      // The positional [source] argument is a convenience: if it looks
-      // like a remote URL, route it into resolveSource's `github` opt;
-      // otherwise treat it as a local path. Explicit --github / --path
-      // flags always win over the positional.
       const githubFromSource =
         source && isGithubUrl(source) ? source : undefined
       const pathFromSource =
@@ -62,7 +59,7 @@ export function addCommand(program: Command): void {
             ? detection.reasons.map((r) => `\n                 - ${r}`).join('')
             : ` ${kleur.dim('(none)')}`
 
-        const lines = [
+        const detectionLines = [
           `source:       ${source ?? kleur.dim('(none)')}`,
           `resolved dir: ${resolved.dir}`,
           `type:         ${detection.type}`,
@@ -78,7 +75,7 @@ export function addCommand(program: Command): void {
           `--out-branch: ${options.outBranch ?? kleur.dim('(unset)')}`,
           `--force:      ${options.force ? 'yes' : 'no'}`,
         ]
-        note(lines.join('\n'), 'detection + parsed options')
+        note(detectionLines.join('\n'), 'detection + parsed options')
 
         if (detection.type === 'unknown' && !options.force) {
           outro(
@@ -90,11 +87,78 @@ export function addCommand(program: Command): void {
           return
         }
 
-        outro(
-          kleur.yellow(
-            'not yet implemented — codemod and PR creation land in P2.3 through P2.4.',
-          ),
-        )
+        const transform = await runTransform({
+          rootDir: resolved.dir,
+          detect: detection,
+          dryRun: options.dryRun === true,
+        })
+
+        const addedDeps = Object.entries(transform.addedDependencies)
+          .map(([n, r]) => `${n}@${r}`)
+          .join(', ')
+        const changedList =
+          transform.changedFiles.length > 0
+            ? transform.changedFiles
+                .map((c) => `\n                 - ${c.path}`)
+                .join('')
+            : ` ${kleur.dim('(none)')}`
+        const skippedList =
+          transform.skipped.length > 0
+            ? transform.skipped
+                .map((s) => `\n                 - ${s.path} (${s.reason})`)
+                .join('')
+            : ` ${kleur.dim('(none)')}`
+        const envList =
+          transform.envVarsRequired.length > 0
+            ? transform.envVarsRequired.join(', ')
+            : kleur.dim('(none)')
+
+        const transformLines = [
+          `mode:          ${options.dryRun ? kleur.yellow('dry-run (no files written)') : kleur.green('apply (files written)')}`,
+          `changed files: ${changedList}`,
+          `skipped files: ${skippedList}`,
+          `deps to add:   ${addedDeps || kleur.dim('(none)')}`,
+          `env required:  ${envList}`,
+        ]
+        note(transformLines.join('\n'), 'transform summary')
+
+        // Emit an inline diff preview for dry-run so the user can eyeball
+        // what would change without touching their working tree. Truncate
+        // so the terminal doesn't get flooded on larger repos.
+        if (options.dryRun === true && transform.changedFiles.length > 0) {
+          const previewCount = Math.min(transform.changedFiles.length, 3)
+          for (let i = 0; i < previewCount; i++) {
+            const { path: rel, after } = transform.changedFiles[i]
+            const truncated = after.length > 1200 ? after.slice(0, 1200) + '\n…' : after
+            note(truncated, `preview: ${rel}`)
+          }
+          if (transform.changedFiles.length > previewCount) {
+            note(
+              `${transform.changedFiles.length - previewCount} more file(s) would change — re-run without --dry-run to apply.`,
+              'preview (truncated)',
+            )
+          }
+        }
+
+        if (options.dryRun === true) {
+          outro(
+            kleur.yellow(
+              'dry-run complete — re-run without --dry-run to write changes and update package.json.',
+            ),
+          )
+        } else if (transform.changedFiles.length === 0) {
+          outro(
+            kleur.dim(
+              'no files changed (already wrapped or nothing matched the codemod).',
+            ),
+          )
+        } else {
+          outro(
+            kleur.green(
+              `wrapped ${transform.changedFiles.length} file(s). Next: run \`npm install\` in the target repo, set ${transform.envVarsRequired.join(', ')}, and push.`,
+            ),
+          )
+        }
         process.exitCode = 0
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
