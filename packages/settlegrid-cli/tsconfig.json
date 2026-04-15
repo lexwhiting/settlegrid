@@ -11,5 +11,10 @@
     "incremental": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/detect/fixtures"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/detect/fixtures",
+    "src/transforms/__testfixtures__"
+  ]
 }
