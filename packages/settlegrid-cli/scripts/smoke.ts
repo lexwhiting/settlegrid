@@ -19,13 +19,19 @@
  *                                     report for each failure
  *   - Network / clone failure       → exit 1 with the underlying error
  *
- * Assertions per target (per P2.5 spec):
+ * Assertions per target (per P2.5 spec + hostile-review additions):
  *   1. detect.type         === expectedType
  *   2. detect.language     === expectedLanguage
  *   3. changedFiles.length >= expectedMinChangedFiles
  *   4. transform.addedDependencies["@settlegrid/mcp"] is set
- *   5. No file inside the target dir was MUTATED by the dry-run
- *      (stat mtime check — dry-run must leave the tree untouched)
+ *   5. First changedFile.after imports from '@settlegrid/mcp'
+ *      (regression guard against a codemod that emits garbled source
+ *      but keeps the file-count + deps metadata correct)
+ *   6. No file in the sandbox was MUTATED by the dry-run (full-tmp
+ *      mtime/size diff against a pre-spawn snapshot)
+ *   7. No file was LEAKED into the sandboxed spawn cwd (separate
+ *      diff using immediate-children list; isolated from os.tmpdir()
+ *      noise so other processes on the host can't false-positive us)
  */
 import { spawnSync } from 'node:child_process'
 import * as fsp from 'node:fs/promises'
@@ -91,6 +97,75 @@ const packageRoot = path.resolve(here, '..')
 const targetsFile = path.join(here, 'smoke-targets.json')
 const distEntry = path.join(packageRoot, 'dist', 'index.js')
 
+// ─── Validation ─────────────────────────────────────────────────────────────
+
+/**
+ * Shape-check a single target entry from smoke-targets.json and throw
+ * a readable error that pinpoints the offending index + field. Without
+ * this, a typo in the JSON would cast through as `undefined` and
+ * produce opaque assertion failures later in the run.
+ */
+function validateTarget(raw: unknown, idx: number): SmokeTarget {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`target[${idx}] must be an object`)
+  }
+  const obj = raw as Record<string, unknown>
+
+  const stringField = (key: string): string => {
+    const v = obj[key]
+    if (typeof v !== 'string' || v.length === 0) {
+      throw new Error(`target[${idx}] missing or empty string field: ${key}`)
+    }
+    return v
+  }
+
+  const name = stringField('name')
+  const github = stringField('github')
+  const commit = stringField('commit')
+  const expectedType = stringField('expectedType')
+  const expectedLanguage = stringField('expectedLanguage')
+
+  if (!['mcp-server', 'langchain-tool', 'rest-api'].includes(expectedType)) {
+    throw new Error(
+      `target[${idx}] (${name}) invalid expectedType: ${expectedType}`,
+    )
+  }
+  if (!['ts', 'js', 'py', 'unknown'].includes(expectedLanguage)) {
+    throw new Error(
+      `target[${idx}] (${name}) invalid expectedLanguage: ${expectedLanguage}`,
+    )
+  }
+
+  const min = obj.expectedMinChangedFiles
+  if (typeof min !== 'number' || !Number.isInteger(min) || min < 0) {
+    throw new Error(
+      `target[${idx}] (${name}) expectedMinChangedFiles must be a non-negative integer`,
+    )
+  }
+
+  if (obj.subdir !== undefined && typeof obj.subdir !== 'string') {
+    throw new Error(
+      `target[${idx}] (${name}) subdir must be a string when provided`,
+    )
+  }
+  if (obj.notes !== undefined && typeof obj.notes !== 'string') {
+    throw new Error(
+      `target[${idx}] (${name}) notes must be a string when provided`,
+    )
+  }
+
+  return {
+    name,
+    github,
+    subdir: obj.subdir as string | undefined,
+    commit,
+    expectedType: expectedType as SmokeTarget['expectedType'],
+    expectedLanguage: expectedLanguage as SmokeTarget['expectedLanguage'],
+    expectedMinChangedFiles: min,
+    notes: obj.notes as string | undefined,
+  }
+}
+
 // ─── Utilities ──────────────────────────────────────────────────────────────
 
 /**
@@ -110,17 +185,24 @@ async function snapshotTree(
     }
     for (const entry of entries) {
       const full = path.join(dir, entry.name)
-      // Skip .git to avoid recording git internals (huge, unrelated,
-      // and not something our codemod would ever touch).
+      // Skip .git / node_modules to avoid recording giget internals
+      // (huge, unrelated, and not something our codemod would ever
+      // touch).
       if (entry.name === '.git' || entry.name === 'node_modules') continue
       if (entry.isDirectory()) {
         await walk(full)
       } else if (entry.isFile()) {
-        const stat = await fsp.stat(full)
-        snapshot.set(
-          path.relative(rootDir, full),
-          { size: stat.size, mtimeMs: stat.mtimeMs },
-        )
+        try {
+          const stat = await fsp.stat(full)
+          snapshot.set(
+            path.relative(rootDir, full),
+            { size: stat.size, mtimeMs: stat.mtimeMs },
+          )
+        } catch {
+          // File disappeared between readdir and stat — unlikely in
+          // a controlled tmpdir but we skip gracefully rather than
+          // crashing the whole smoke run.
+        }
       }
     }
   }
@@ -139,14 +221,15 @@ function compareSnapshots(
       mutations.push(`deleted: ${rel}`)
       continue
     }
-    if (afterStat.size !== beforeStat.size) {
+    if (
+      afterStat.size !== beforeStat.size ||
+      afterStat.mtimeMs !== beforeStat.mtimeMs
+    ) {
+      // Emit ONE entry per mutated file even if both size and mtime
+      // shifted — the previous two-entry form cluttered the summary
+      // and didn't add information.
       mutations.push(
-        `size changed: ${rel} (${beforeStat.size} → ${afterStat.size})`,
-      )
-    }
-    if (afterStat.mtimeMs !== beforeStat.mtimeMs) {
-      mutations.push(
-        `mtime changed: ${rel} (dry-run must not touch files)`,
+        `mutated: ${rel} (size ${beforeStat.size}→${afterStat.size}, mtime ${beforeStat.mtimeMs}→${afterStat.mtimeMs})`,
       )
     }
   }
@@ -156,18 +239,6 @@ function compareSnapshots(
     }
   }
   return mutations
-}
-
-async function withTmpDir<T>(
-  prefix: string,
-  fn: (dir: string) => Promise<T>,
-): Promise<T> {
-  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), prefix))
-  try {
-    return await fn(dir)
-  } finally {
-    await fsp.rm(dir, { recursive: true, force: true })
-  }
 }
 
 /**
@@ -186,199 +257,258 @@ async function listDirEntries(dir: string): Promise<string[]> {
   }
 }
 
+/**
+ * Allocate a per-target sandbox layout and clean it up via a
+ * deterministic try/finally. Layout:
+ *
+ *   <os.tmpdir()>/settlegrid-smoke-<name>-<random>/
+ *     ├── fetch/          ← giget downloadTemplate target
+ *     └── cwd/            ← spawn cwd for the CLI invocation
+ *
+ * The `fetch/` subdir is the only place giget writes, and the `cwd/`
+ * subdir is empty at spawn time so any file the CLI drops into
+ * `process.cwd()` is detectable via a bare listDirEntries diff.
+ * Neither subdir is `os.tmpdir()` itself, so background noise from
+ * other processes can't false-positive the cwd leak check.
+ */
+interface Sandbox {
+  tmpParent: string
+  fetchDir: string
+  cwdDir: string
+}
+async function withSandbox<T>(
+  prefix: string,
+  fn: (sandbox: Sandbox) => Promise<T>,
+): Promise<T> {
+  const tmpParent = await fsp.mkdtemp(path.join(os.tmpdir(), prefix))
+  try {
+    const fetchDir = path.join(tmpParent, 'fetch')
+    const cwdDir = path.join(tmpParent, 'cwd')
+    await fsp.mkdir(fetchDir, { recursive: true })
+    await fsp.mkdir(cwdDir, { recursive: true })
+    return await fn({ tmpParent, fetchDir, cwdDir })
+  } finally {
+    await fsp.rm(tmpParent, { recursive: true, force: true })
+  }
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────────
 
 async function runTarget(target: SmokeTarget): Promise<TargetResult> {
   const start = Date.now()
   try {
-    return await withTmpDir(`settlegrid-smoke-${target.name}-`, async (dir) => {
-      // 1. Fetch the repo at the pinned commit via giget.
-      //    giget's shorthand: `github:owner/repo#<ref>`, where <ref>
-      //    can be a branch or a commit SHA.
-      const source = `github:${target.github}#${target.commit}`
-      try {
-        await downloadTemplate(source, { dir, force: true })
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return {
-          name: target.name,
-          passed: false,
-          duration_ms: Date.now() - start,
-          error: `giget fetch failed for ${source}: ${msg}`,
+    return await withSandbox(
+      `settlegrid-smoke-${target.name}-`,
+      async ({ fetchDir, cwdDir }) => {
+        // 1. Fetch the repo at the pinned commit via giget.
+        //    giget's shorthand: `github:owner/repo#<ref>`, where <ref>
+        //    can be a branch or a commit SHA.
+        const source = `github:${target.github}#${target.commit}`
+        try {
+          await downloadTemplate(source, { dir: fetchDir, force: true })
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          return {
+            name: target.name,
+            passed: false,
+            duration_ms: Date.now() - start,
+            error: `giget fetch failed for ${source}: ${msg}`,
+          }
         }
-      }
 
-      // 2. Resolve the target directory (monorepo subdir or repo root).
-      const targetDir = target.subdir
-        ? path.join(dir, target.subdir)
-        : dir
-      try {
-        const stat = await fsp.stat(targetDir)
-        if (!stat.isDirectory()) {
-          throw new Error(`${targetDir} is not a directory`)
+        // 2. Resolve the target directory (monorepo subdir or repo root).
+        const targetDir = target.subdir
+          ? path.join(fetchDir, target.subdir)
+          : fetchDir
+        try {
+          const stat = await fsp.stat(targetDir)
+          if (!stat.isDirectory()) {
+            throw new Error(`${targetDir} is not a directory`)
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          return {
+            name: target.name,
+            passed: false,
+            duration_ms: Date.now() - start,
+            error: `subdir not found: ${target.subdir} (${msg})`,
+          }
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return {
-          name: target.name,
-          passed: false,
-          duration_ms: Date.now() - start,
-          error: `subdir not found: ${target.subdir} (${msg})`,
-        }
-      }
 
-      // 3. Snapshot the ENTIRE fetched tmp dir (not just the target
-      //    subdir) so we can detect any mutation after the dry-run
-      //    CLI invocation. Spec DoD: "No file outside tmp dir was
-      //    touched" — broadening the scope to the full tmp tree
-      //    catches a wider class of accidental writes than scanning
-      //    only the subdir the CLI was pointed at.
-      const before = await snapshotTree(dir)
-      // Also snapshot the SPAWN CWD (= tmpdir parent) so we can
-      // catch any stray file the CLI might drop into cwd, e.g. an
-      // accidental `settlegrid-add.patch` in dry-run mode (should
-      // be impossible thanks to the dry-run early-return, but
-      // assert anyway).
-      const cwdForSpawn = path.dirname(dir)
-      const beforeCwd = await listDirEntries(cwdForSpawn)
+        // 3. Snapshot the ENTIRE fetched tmp dir (not just the target
+        //    subdir) so we can detect any mutation after the dry-run
+        //    CLI invocation. Spec DoD: "No file outside tmp dir was
+        //    touched" — broadening the scope to the full fetch tree
+        //    catches a wider class of accidental writes than scanning
+        //    only the subdir the CLI was pointed at. And the SPAWN
+        //    CWD is a dedicated empty dir inside the sandbox, so any
+        //    stray file the CLI drops into `process.cwd()` shows up
+        //    as a single "created:" entry without background noise
+        //    from other processes in `os.tmpdir()`.
+        const before = await snapshotTree(fetchDir)
+        const beforeCwd = await listDirEntries(cwdDir)
 
-      // 4. Spawn the built CLI with --dry-run --no-pr --json.
-      //    NO_COLOR pinned so terminal control codes don't bleed
-      //    into the JSON line. `cwd` is pinned to the tmpdir parent
-      //    so any stray file the CLI writes to `process.cwd()` (e.g.
-      //    a patch file leak) lands inside our sandbox and gets
-      //    cleaned up, and so the cwd snapshot check below catches
-      //    it too.
-      const result = spawnSync(
-        'node',
-        [
-          distEntry,
-          'add',
-          '--path',
-          targetDir,
-          '--dry-run',
-          '--no-pr',
-          '--json',
-        ],
-        {
-          encoding: 'utf-8',
-          cwd: cwdForSpawn,
-          env: {
-            ...process.env,
-            NO_COLOR: '1',
-            FORCE_COLOR: '0',
-            // Explicitly clear GITHUB_TOKEN for the smoke run — we're
-            // dry-run + --no-pr so it's never consulted, but pinning
-            // it to empty ensures no accidental network call.
-            GITHUB_TOKEN: '',
+        // 4. Spawn the built CLI with --dry-run --no-pr --json.
+        //    NO_COLOR pinned so terminal control codes don't bleed
+        //    into the JSON line. `cwd` is pinned to the sandbox's
+        //    cwdDir so any stray file the CLI writes to
+        //    `process.cwd()` (e.g. a patch file leak) lands inside
+        //    our sandbox and gets reaped by the outer rm.
+        const result = spawnSync(
+          'node',
+          [
+            distEntry,
+            'add',
+            '--path',
+            targetDir,
+            '--dry-run',
+            '--no-pr',
+            '--json',
+          ],
+          {
+            encoding: 'utf-8',
+            cwd: cwdDir,
+            env: {
+              ...process.env,
+              NO_COLOR: '1',
+              FORCE_COLOR: '0',
+              // Explicitly clear GITHUB_TOKEN for the smoke run —
+              // we're dry-run + --no-pr so it's never consulted, but
+              // pinning it to empty ensures no accidental network
+              // call if a test env has one set.
+              GITHUB_TOKEN: '',
+            },
           },
-        },
-      )
+        )
 
-      if (result.status !== 0) {
+        if (result.status !== 0) {
+          return {
+            name: target.name,
+            passed: false,
+            duration_ms: Date.now() - start,
+            error:
+              `CLI exit code ${result.status ?? 'null'}.\n` +
+              `stdout: ${result.stdout?.slice(0, 500) ?? ''}\n` +
+              `stderr: ${result.stderr?.slice(0, 500) ?? ''}`,
+          }
+        }
+
+        // 5. Parse the JSON line from stdout. The CLI prints ONE line
+        //    of JSON with --json; any other lines (empty, dim text
+        //    from clack that leaked through, etc.) are stripped.
+        let cliOutput: CliJsonResult
+        try {
+          const jsonLine = result.stdout
+            .split('\n')
+            .reverse()
+            .find((line) => line.trim().startsWith('{'))
+          if (!jsonLine) throw new Error('no JSON line in CLI stdout')
+          cliOutput = JSON.parse(jsonLine) as CliJsonResult
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          return {
+            name: target.name,
+            passed: false,
+            duration_ms: Date.now() - start,
+            error: `failed to parse CLI JSON output: ${msg}\nstdout: ${result.stdout.slice(0, 500)}`,
+          }
+        }
+
+        // 6. Assertions per spec + hostile-review additions.
+        const failures: string[] = []
+        if (cliOutput.status !== 'dry-run-complete') {
+          failures.push(
+            `status expected 'dry-run-complete', got '${cliOutput.status}'`,
+          )
+        }
+        if (!cliOutput.detect) {
+          failures.push('detect result missing')
+        } else {
+          if (cliOutput.detect.type !== target.expectedType) {
+            failures.push(
+              `detect.type expected '${target.expectedType}', got '${cliOutput.detect.type}'`,
+            )
+          }
+          if (cliOutput.detect.language !== target.expectedLanguage) {
+            failures.push(
+              `detect.language expected '${target.expectedLanguage}', got '${cliOutput.detect.language}'`,
+            )
+          }
+        }
+        if (!cliOutput.transform) {
+          failures.push('transform result missing')
+        } else {
+          if (
+            cliOutput.transform.changedFiles.length <
+            target.expectedMinChangedFiles
+          ) {
+            failures.push(
+              `changedFiles.length expected >= ${target.expectedMinChangedFiles}, got ${cliOutput.transform.changedFiles.length}`,
+            )
+          }
+          if (!cliOutput.transform.addedDependencies['@settlegrid/mcp']) {
+            failures.push(
+              `addedDependencies['@settlegrid/mcp'] missing (got keys: ${
+                Object.keys(cliOutput.transform.addedDependencies).join(', ') ||
+                '(none)'
+              })`,
+            )
+          }
+          // Regression guard (hostile-review fix): the FIRST changed
+          // file's `after` content must actually contain the
+          // @settlegrid/mcp import. A codemod that emits garbled
+          // source while preserving file counts + deps would
+          // otherwise pass the preceding assertions silently.
+          if (cliOutput.transform.changedFiles.length > 0) {
+            const firstFile = cliOutput.transform.changedFiles[0]
+            const hasSdkImport =
+              firstFile.after.includes("from '@settlegrid/mcp'") ||
+              firstFile.after.includes('from "@settlegrid/mcp"')
+            if (!hasSdkImport) {
+              failures.push(
+                `first changed file (${firstFile.path}) does not import from @settlegrid/mcp (first 120 chars: ${firstFile.after.slice(0, 120)}…)`,
+              )
+            }
+          }
+        }
+
+        // 7. Verify the dry-run didn't mutate any file under fetchDir.
+        const after = await snapshotTree(fetchDir)
+        const mutations = compareSnapshots(before, after)
+        if (mutations.length > 0) {
+          failures.push(
+            `dry-run mutated ${mutations.length} file(s) under the sandbox fetch dir: ${mutations.slice(0, 3).join('; ')}`,
+          )
+        }
+        // And verify the spawn cwd stayed empty — any leaked file
+        // (a rogue `settlegrid-add.patch`, a fork tmpdir, a stray
+        // log file) surfaces here.
+        const afterCwd = await listDirEntries(cwdDir)
+        const newCwdEntries = afterCwd.filter((e) => !beforeCwd.includes(e))
+        if (newCwdEntries.length > 0) {
+          failures.push(
+            `dry-run leaked ${newCwdEntries.length} file(s) into the sandbox cwd: ${newCwdEntries.slice(0, 3).join(', ')}`,
+          )
+        }
+
+        if (failures.length > 0) {
+          return {
+            name: target.name,
+            passed: false,
+            duration_ms: Date.now() - start,
+            error: failures.join('\n  · '),
+            cliOutput,
+          }
+        }
+
         return {
           name: target.name,
-          passed: false,
+          passed: true,
           duration_ms: Date.now() - start,
-          error:
-            `CLI exit code ${result.status ?? 'null'}.\n` +
-            `stdout: ${result.stdout?.slice(0, 500) ?? ''}\n` +
-            `stderr: ${result.stderr?.slice(0, 500) ?? ''}`,
-        }
-      }
-
-      // 5. Parse the JSON line from stdout. The CLI prints ONE line
-      //    of JSON with --json; any other lines (empty, dim text
-      //    from clack that leaked through, etc.) are stripped.
-      let cliOutput: CliJsonResult
-      try {
-        const jsonLine = result.stdout
-          .split('\n')
-          .reverse()
-          .find((line) => line.trim().startsWith('{'))
-        if (!jsonLine) throw new Error('no JSON line in CLI stdout')
-        cliOutput = JSON.parse(jsonLine) as CliJsonResult
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return {
-          name: target.name,
-          passed: false,
-          duration_ms: Date.now() - start,
-          error: `failed to parse CLI JSON output: ${msg}\nstdout: ${result.stdout.slice(0, 500)}`,
-        }
-      }
-
-      // 6. Assertions per spec.
-      const failures: string[] = []
-      if (cliOutput.status !== 'dry-run-complete') {
-        failures.push(
-          `status expected 'dry-run-complete', got '${cliOutput.status}'`,
-        )
-      }
-      if (!cliOutput.detect) {
-        failures.push('detect result missing')
-      } else {
-        if (cliOutput.detect.type !== target.expectedType) {
-          failures.push(
-            `detect.type expected '${target.expectedType}', got '${cliOutput.detect.type}'`,
-          )
-        }
-        if (cliOutput.detect.language !== target.expectedLanguage) {
-          failures.push(
-            `detect.language expected '${target.expectedLanguage}', got '${cliOutput.detect.language}'`,
-          )
-        }
-      }
-      if (!cliOutput.transform) {
-        failures.push('transform result missing')
-      } else {
-        if (cliOutput.transform.changedFiles.length < target.expectedMinChangedFiles) {
-          failures.push(
-            `changedFiles.length expected >= ${target.expectedMinChangedFiles}, got ${cliOutput.transform.changedFiles.length}`,
-          )
-        }
-        if (!cliOutput.transform.addedDependencies['@settlegrid/mcp']) {
-          failures.push(
-            `addedDependencies['@settlegrid/mcp'] missing (got keys: ${Object.keys(cliOutput.transform.addedDependencies).join(', ') || '(none)'})`,
-          )
-        }
-      }
-
-      // 7. Verify the dry-run didn't mutate any file under the tmp
-      //    dir (any file the CLI could plausibly have reached) and
-      //    that no unexpected file landed in the spawn cwd.
-      const after = await snapshotTree(dir)
-      const mutations = compareSnapshots(before, after)
-      if (mutations.length > 0) {
-        failures.push(
-          `dry-run mutated ${mutations.length} file(s) under tmp: ${mutations.slice(0, 3).join('; ')}`,
-        )
-      }
-      const afterCwd = await listDirEntries(cwdForSpawn)
-      const newCwdEntries = afterCwd.filter((e) => !beforeCwd.includes(e))
-      if (newCwdEntries.length > 0) {
-        failures.push(
-          `dry-run leaked ${newCwdEntries.length} file(s) into spawn cwd: ${newCwdEntries.slice(0, 3).join(', ')}`,
-        )
-      }
-
-      if (failures.length > 0) {
-        return {
-          name: target.name,
-          passed: false,
-          duration_ms: Date.now() - start,
-          error: failures.join('\n  · '),
           cliOutput,
         }
-      }
-
-      return {
-        name: target.name,
-        passed: true,
-        duration_ms: Date.now() - start,
-        cliOutput,
-      }
-    })
+      },
+    )
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return {
@@ -401,20 +531,29 @@ async function main(): Promise<number> {
   } catch {
     process.stderr.write(
       `smoke: built binary not found at ${distEntry}\n` +
-      `       run \`npm run build\` first (or \`npm run build && npm run smoke\`)\n`,
+        `       run \`npm run build\` first (or \`npm run test:smoke\`)\n`,
     )
     return 1
   }
 
-  // Load the targets list.
+  // Load + validate the targets list.
   let targets: SmokeTarget[]
   try {
     const raw = await fsp.readFile(targetsFile, 'utf-8')
-    const parsed = JSON.parse(raw) as SmokeTargetsFile
-    if (!Array.isArray(parsed.targets) || parsed.targets.length === 0) {
-      throw new Error('targets array is empty')
+    const parsed = JSON.parse(raw) as unknown
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      !('targets' in parsed) ||
+      !Array.isArray((parsed as { targets: unknown }).targets)
+    ) {
+      throw new Error('smoke-targets.json must have a `targets` array')
     }
-    targets = parsed.targets
+    const rawTargets = (parsed as { targets: unknown[] }).targets
+    if (rawTargets.length === 0) {
+      throw new Error('smoke-targets.json has no targets')
+    }
+    targets = rawTargets.map((t, i) => validateTarget(t, i))
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     process.stderr.write(`smoke: failed to load targets file: ${msg}\n`)
@@ -427,7 +566,9 @@ async function main(): Promise<number> {
 
   const results: TargetResult[] = []
   for (const target of targets) {
-    process.stdout.write(`▶ ${target.name} (${target.github}${target.subdir ? '#' + target.subdir : ''})\n`)
+    process.stdout.write(
+      `▶ ${target.name} (${target.github}${target.subdir ? '#' + target.subdir : ''})\n`,
+    )
     const result = await runTarget(target)
     results.push(result)
     if (result.passed) {
