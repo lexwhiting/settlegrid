@@ -1,0 +1,251 @@
+{
+  "$ref": "#/definitions/TemplateManifest",
+  "definitions": {
+    "TemplateManifest": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "format": "uri"
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "ai",
+            "data",
+            "devtools",
+            "infra",
+            "productivity",
+            "finance",
+            "commerce",
+            "media",
+            "research",
+            "other"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "maxItems": 10
+        },
+        "author": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "github": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "repo": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "git"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "directory": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "node",
+            "python",
+            "bun",
+            "deno"
+          ]
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ts",
+              "js",
+              "py"
+            ]
+          },
+          "minItems": 1
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pricing": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "enum": [
+                "free",
+                "per-call",
+                "subscription",
+                "tiered"
+              ]
+            },
+            "perCallUsdCents": {
+              "type": "number",
+              "minimum": 0
+            },
+            "currency": {
+              "type": "string",
+              "const": "USD",
+              "default": "USD"
+            }
+          },
+          "required": [
+            "model"
+          ],
+          "additionalProperties": false
+        },
+        "quality": {
+          "type": "object",
+          "properties": {
+            "tests": {
+              "type": "boolean"
+            },
+            "ciPassing": {
+              "type": "boolean"
+            },
+            "lastVerifiedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "tests"
+          ],
+          "additionalProperties": false
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 30
+        },
+        "screenshots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "alt": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "url",
+              "alt"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 6
+        },
+        "loomUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "deployButton": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "vercel",
+                "render",
+                "railway",
+                "fly"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": [
+            "provider",
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "featured": {
+          "type": "boolean",
+          "default": false
+        },
+        "trendingRank": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "description",
+        "version",
+        "category",
+        "tags",
+        "author",
+        "repo",
+        "runtime",
+        "languages",
+        "entry",
+        "pricing",
+        "quality",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
