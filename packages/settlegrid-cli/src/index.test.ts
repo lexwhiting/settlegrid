@@ -8,6 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const packageRoot = path.resolve(here, '..')
 const distEntry = path.resolve(packageRoot, 'dist', 'index.js')
 const distCjsEntry = path.resolve(packageRoot, 'dist', 'index.cjs')
+const fixtureRoot = path.resolve(here, 'detect', 'fixtures')
 
 // Pin color env so commander / @clack/prompts output is deterministic
 // across TTY, CI (FORCE_COLOR=1), and piped invocations.
@@ -25,7 +26,7 @@ beforeAll(() => {
   }
 })
 
-describe('settlegrid CLI binary', () => {
+describe('settlegrid CLI binary — core smoke tests', () => {
   // Per P2.1 spec #5: a smoke test that spawns the built binary with
   // --version AND asserts non-zero exit on an unknown subcommand.
   it('prints 0.1.0 for --version and exits non-zero on an unknown subcommand', () => {
@@ -44,8 +45,8 @@ describe('settlegrid CLI binary', () => {
     expect(unknownResult.status).not.toBe(0)
   })
 
-  // Regression guard for a hostile-review finding: the top-level IIFE used
-  // to run unconditionally, so `require('@settlegrid/cli')` /
+  // Regression guard for a prior hostile-review finding: the top-level
+  // IIFE used to run unconditionally, so `require('@settlegrid/cli')` /
   // `import '@settlegrid/cli'` would trigger Commander's auto-help and
   // process.exit(1) as a side effect of loading the module. Library
   // consumers must be able to load the package silently.
@@ -72,54 +73,85 @@ describe('settlegrid CLI binary', () => {
     expect(esmProbe.stdout).toBe('')
     expect(esmProbe.stderr).toBe('')
   })
+})
 
-  // Coverage for the add-command stub's action handler: a fully-populated
-  // invocation should exit 0 and echo every parsed option back through the
-  // @clack/prompts `note` block plus the "not yet implemented" outro.
-  // Exercises the positive branch of every `??` fallback in add.ts.
-  it('runs `add` with every flag set and prints each value + "not yet implemented"', () => {
+describe('settlegrid add — detection + source resolution smoke tests', () => {
+  // Combined coverage for:
+  //   • P2.2 DoD #3: `settlegrid add ./fixture-mcp-sample --dry-run` prints
+  //     the detected type.
+  //   • P2.1-style option echoing: every parsed flag is displayed in the
+  //     @clack/prompts note block.
+  //   • --force on a non-unknown type is inert (exit 0 regardless).
+  // Consolidated into one spawn to reduce subprocess load when multiple
+  // workspace tests run in parallel under turbo.
+  it('detects mcp-server on --path fixture, echoes all flags, exits 0', () => {
     const result = spawnSync(
       'node',
       [
         distEntry,
         'add',
-        'my-source',
+        'positional-marker',
         '--github',
         'https://github.com/acme/mcp-server',
         '--path',
-        '/tmp/settlegrid-test',
+        path.join(fixtureRoot, 'mcp-sample'),
         '--dry-run',
         '--no-pr',
         '--out-branch',
         'settlegrid/monetize',
+        '--force',
       ],
       { encoding: 'utf-8', env: testEnv },
     )
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('my-source')
+    // Detection output per P2.2 spec
+    expect(result.stdout).toContain('type:         mcp-server')
+    expect(result.stdout).toContain('confidence:   0.95')
+    expect(result.stdout).toContain('language:     ts')
+    // Every flag echoed
+    expect(result.stdout).toContain('positional-marker')
     expect(result.stdout).toContain('https://github.com/acme/mcp-server')
-    expect(result.stdout).toContain('/tmp/settlegrid-test')
     expect(result.stdout).toContain('dry-run:    yes')
     expect(result.stdout).toContain('no-pr:      yes (PR skipped)')
     expect(result.stdout).toContain('settlegrid/monetize')
+    expect(result.stdout).toContain('--force:      yes')
     expect(result.stdout).toContain('not yet implemented')
   })
 
-  // Coverage for the negative branches of the `??` fallbacks in add.ts:
-  // when no source / --github / --path / --out-branch are provided, the
-  // stub should show "(none)" / "(unset)" placeholders and still exit 0.
-  it('runs `add` with no arguments and shows the unset placeholders, exit 0', () => {
+  // Per P2.2 step 6: unknown-type classification exits 1 without --force,
+  // exit 0 with --force. Two related spawns consolidated into one test
+  // case so the `--force` toggle semantics are asserted against the same
+  // fixture in a single scope.
+  it('honors the --force toggle on unknown-type classifications', () => {
+    const unknownPath = path.join(fixtureRoot, 'unknown-sample')
+
+    const woForce = spawnSync('node', [distEntry, 'add', '--path', unknownPath], {
+      encoding: 'utf-8',
+      env: testEnv,
+    })
+    expect(woForce.status).toBe(1)
+    expect(woForce.stdout).toContain('type:         unknown')
+    expect(woForce.stdout).toContain('--force')
+
+    const withForce = spawnSync(
+      'node',
+      [distEntry, 'add', '--path', unknownPath, '--force'],
+      { encoding: 'utf-8', env: testEnv },
+    )
+    expect(withForce.status).toBe(0)
+    expect(withForce.stdout).toContain('type:         unknown')
+    expect(withForce.stdout).toContain('not yet implemented')
+  })
+
+  // Error path: no source / --path / --github supplied. resolveSource
+  // throws and the add handler's try/catch maps that to exit 1 with a
+  // readable message.
+  it('exits 1 with a "provide --path" message when no source is supplied', () => {
     const result = spawnSync('node', [distEntry, 'add'], {
       encoding: 'utf-8',
       env: testEnv,
     })
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('source:       (none)')
-    expect(result.stdout).toContain('--github:     (unset)')
-    expect(result.stdout).toContain('--path:       (unset)')
-    expect(result.stdout).toContain('dry-run:    no')
-    expect(result.stdout).toContain('no-pr:      no (PR will be opened)')
-    expect(result.stdout).toContain('--out-branch: (unset)')
-    expect(result.stdout).toContain('not yet implemented')
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('provide --path')
   })
 })

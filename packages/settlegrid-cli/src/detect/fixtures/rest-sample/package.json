@@ -1,0 +1,9 @@
+{
+  "name": "rest-sample",
+  "version": "0.0.0",
+  "description": "Minimal Express REST API fixture for detectRepoType tests.",
+  "main": "src/index.js",
+  "dependencies": {
+    "express": "^4.19.0"
+  }
+}
