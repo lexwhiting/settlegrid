@@ -39,6 +39,10 @@ export function addCommand(program: Command): void {
           'not yet implemented — detection, codemod, and PR creation land in P2.2 through P2.4.',
         ),
       )
-      process.exit(0)
+      // Prefer process.exitCode + natural termination over process.exit(0):
+      // the latter doesn't guarantee stdout flush on piped output, which can
+      // truncate @clack/prompts' outro block. Letting parseAsync resolve and
+      // the event loop drain is both spec-compliant ("exits 0") and safer.
+      process.exitCode = 0
     })
 }
