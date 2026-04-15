@@ -170,6 +170,22 @@ async function withTmpDir<T>(
   }
 }
 
+/**
+ * List immediate children (files + directories) of `dir`, or return
+ * an empty array if the directory doesn't exist / isn't readable.
+ * Used to diff the spawn cwd before/after a smoke run so any leaked
+ * file (a rogue `settlegrid-add.patch`, a fork tmpdir, etc.) surfaces
+ * as a test failure rather than silently piling up.
+ */
+async function listDirEntries(dir: string): Promise<string[]> {
+  try {
+    const entries = await fsp.readdir(dir)
+    return entries.sort()
+  } catch {
+    return []
+  }
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────────
 
 async function runTarget(target: SmokeTarget): Promise<TargetResult> {
@@ -211,13 +227,28 @@ async function runTarget(target: SmokeTarget): Promise<TargetResult> {
         }
       }
 
-      // 3. Snapshot the tree so we can detect any mutation after
-      //    the dry-run CLI invocation.
-      const before = await snapshotTree(targetDir)
+      // 3. Snapshot the ENTIRE fetched tmp dir (not just the target
+      //    subdir) so we can detect any mutation after the dry-run
+      //    CLI invocation. Spec DoD: "No file outside tmp dir was
+      //    touched" — broadening the scope to the full tmp tree
+      //    catches a wider class of accidental writes than scanning
+      //    only the subdir the CLI was pointed at.
+      const before = await snapshotTree(dir)
+      // Also snapshot the SPAWN CWD (= tmpdir parent) so we can
+      // catch any stray file the CLI might drop into cwd, e.g. an
+      // accidental `settlegrid-add.patch` in dry-run mode (should
+      // be impossible thanks to the dry-run early-return, but
+      // assert anyway).
+      const cwdForSpawn = path.dirname(dir)
+      const beforeCwd = await listDirEntries(cwdForSpawn)
 
       // 4. Spawn the built CLI with --dry-run --no-pr --json.
       //    NO_COLOR pinned so terminal control codes don't bleed
-      //    into the JSON line.
+      //    into the JSON line. `cwd` is pinned to the tmpdir parent
+      //    so any stray file the CLI writes to `process.cwd()` (e.g.
+      //    a patch file leak) lands inside our sandbox and gets
+      //    cleaned up, and so the cwd snapshot check below catches
+      //    it too.
       const result = spawnSync(
         'node',
         [
@@ -231,6 +262,7 @@ async function runTarget(target: SmokeTarget): Promise<TargetResult> {
         ],
         {
           encoding: 'utf-8',
+          cwd: cwdForSpawn,
           env: {
             ...process.env,
             NO_COLOR: '1',
@@ -312,12 +344,21 @@ async function runTarget(target: SmokeTarget): Promise<TargetResult> {
         }
       }
 
-      // 7. Verify the dry-run didn't mutate any file under targetDir.
-      const after = await snapshotTree(targetDir)
+      // 7. Verify the dry-run didn't mutate any file under the tmp
+      //    dir (any file the CLI could plausibly have reached) and
+      //    that no unexpected file landed in the spawn cwd.
+      const after = await snapshotTree(dir)
       const mutations = compareSnapshots(before, after)
       if (mutations.length > 0) {
         failures.push(
-          `dry-run mutated ${mutations.length} file(s): ${mutations.slice(0, 3).join('; ')}`,
+          `dry-run mutated ${mutations.length} file(s) under tmp: ${mutations.slice(0, 3).join('; ')}`,
+        )
+      }
+      const afterCwd = await listDirEntries(cwdForSpawn)
+      const newCwdEntries = afterCwd.filter((e) => !beforeCwd.includes(e))
+      if (newCwdEntries.length > 0) {
+        failures.push(
+          `dry-run leaked ${newCwdEntries.length} file(s) into spawn cwd: ${newCwdEntries.slice(0, 3).join(', ')}`,
         )
       }
 

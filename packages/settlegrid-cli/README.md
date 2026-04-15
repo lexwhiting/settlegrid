@@ -63,6 +63,73 @@ Prints a detection + transform summary, a preview of the first changed
 file, and `dry-run complete — re-run without --dry-run to write changes
 and update package.json.`
 
+### Example output
+
+A dry-run against a local MCP fixture:
+
+```
+$ settlegrid add --path ./fixtures/mcp-sample --dry-run
+
+┌  settlegrid add
+│
+◇  detection + parsed options
+│
+│  source:       (none)
+│  resolved dir: /path/to/fixtures/mcp-sample
+│  type:         mcp-server
+│  confidence:   0.95
+│  language:     ts
+│  entry points: src/index.ts
+│  reasons:
+│                   - package.json dependencies declare @modelcontextprotocol/sdk
+│
+│  --github:     (unset)
+│  --path:       /path/to/fixtures/mcp-sample
+│  --dry-run:    yes
+│  --no-pr:      no (PR will be opened)
+│  --out-branch: (unset)
+│  --force:      no
+│  --token:      (unset)
+│
+◇  transform summary
+│
+│  mode:          dry-run (no files written)
+│  changed files:
+│                   - src/index.ts
+│  skipped files:  (none)
+│  deps to add:   @settlegrid/mcp@^0.1.1
+│  env required:  SETTLEGRID_API_KEY
+│
+◇  preview: src/index.ts
+│
+│  import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+│  import { settlegrid } from '@settlegrid/mcp';
+│
+│  const sg = settlegrid.init({
+│    toolSlug: 'mcp-sample',
+│    pricing: { defaultCostCents: 1 }
+│  });
+│
+│  const server = new Server({ name: 'mcp-sample', version: '0.0.0' })
+│
+│  export { server }
+│
+└  dry-run complete — re-run without --dry-run to write changes and update package.json.
+```
+
+With `--json`, the same run emits a single line to stdout for scripting:
+
+```
+$ settlegrid add --path ./fixtures/mcp-sample --dry-run --json
+{"status":"dry-run-complete","mode":"dry-run","resolvedDir":"/path/to/fixtures/mcp-sample","detect":{"type":"mcp-server","confidence":0.95,"language":"ts","entryPoints":["src/index.ts"],"reasons":["package.json dependencies declare @modelcontextprotocol/sdk"]},"transform":{"changedFiles":[…],"skipped":[],"addedDependencies":{"@settlegrid/mcp":"^0.1.1"},"envVarsRequired":["SETTLEGRID_API_KEY"]},"pr":null,"patchFile":null,"error":null}
+```
+
+`detect` and `transform` match the shapes returned by `detectRepoType()`
+and `runTransform()` inside the CLI; `status` is one of
+`dry-run-complete` / `applied` / `no-changes` / `skipped-pr` /
+`pr-opened` / `patch-file-written` / `pr-failed` / `unknown-type` /
+`error`. Suitable for piping into `jq` or a test runner.
+
 ### Example — apply + open a PR
 
 ```bash
