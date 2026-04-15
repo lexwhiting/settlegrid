@@ -27,6 +27,15 @@ const IGNORE_GLOBS = [
   '**/.git/**',
 ]
 
+// Shared fast-glob base options — consistent behaviour across every scan
+// (no symlink traversal, capped depth, ignore generated dirs).
+const GLOB_BASE = {
+  onlyFiles: true,
+  ignore: IGNORE_GLOBS,
+  followSymbolicLinks: false,
+  deep: 5,
+} as const
+
 interface Pkg {
   name?: string
   version?: string
@@ -35,14 +44,22 @@ interface Pkg {
   module?: string
   exports?: unknown
   bin?: string | Record<string, string>
-  dependencies?: Record<string, string>
+  dependencies?: unknown
 }
 
 async function readPackageJson(rootDir: string): Promise<Pkg | null> {
   try {
     const raw = await fsp.readFile(path.join(rootDir, 'package.json'), 'utf-8')
     const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === 'object') return parsed as Pkg
+    // JSON.parse returns arrays as objects too; reject them explicitly so a
+    // malformed `package.json` of shape `[]` is treated like no manifest.
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed)
+    ) {
+      return parsed as Pkg
+    }
     return null
   } catch {
     return null
@@ -50,12 +67,16 @@ async function readPackageJson(rootDir: string): Promise<Pkg | null> {
 }
 
 /**
- * Per P2.2 spec: detection rules check `package.json.dependencies`, not
- * devDependencies or peerDependencies. Returning the declared dependencies
- * map (or an empty object) keeps every rule on the same field.
+ * Per P2.2 spec: detection rules check `package.json.dependencies`. Returns
+ * a plain object or {} — if `dependencies` is malformed (string, array,
+ * number), return {} so downstream `'x' in deps` can't throw TypeError.
  */
 function runtimeDeps(pkg: Pkg | null): Record<string, string> {
-  return pkg?.dependencies ?? {}
+  const deps = pkg?.dependencies
+  if (deps && typeof deps === 'object' && !Array.isArray(deps)) {
+    return deps as Record<string, string>
+  }
+  return {}
 }
 
 async function exists(p: string): Promise<boolean> {
@@ -65,6 +86,16 @@ async function exists(p: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * True when `abs` resolves to a path inside `rootAbs` (either rootAbs itself
+ * or a descendant). Used to block path-traversal entries in package.json
+ * fields like `main: "../../etc/passwd"`.
+ */
+function isInside(rootAbs: string, abs: string): boolean {
+  const rel = path.relative(rootAbs, abs)
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
 
 /**
@@ -79,23 +110,13 @@ async function inferLanguage(
   try {
     const hasPyproject = await exists(path.join(rootDir, 'pyproject.toml'))
     if (hasPyproject) {
-      const pyFiles = await fg('**/*.py', {
-        cwd: rootDir,
-        onlyFiles: true,
-        ignore: IGNORE_GLOBS,
-        deep: 5,
-      })
+      const pyFiles = await fg('**/*.py', { cwd: rootDir, ...GLOB_BASE })
       if (pyFiles.length > 0) return 'py'
     }
 
     const isEsModule = pkg?.type === 'module'
     if (isEsModule) {
-      const tsFiles = await fg('**/*.{ts,tsx}', {
-        cwd: rootDir,
-        onlyFiles: true,
-        ignore: IGNORE_GLOBS,
-        deep: 5,
-      })
+      const tsFiles = await fg('**/*.{ts,tsx}', { cwd: rootDir, ...GLOB_BASE })
       if (tsFiles.length > 0) return 'ts'
     }
 
@@ -103,9 +124,7 @@ async function inferLanguage(
     // files and has no package.json — in which case the repo is unknown.
     const anyJsFamily = await fg('**/*.{js,jsx,mjs,cjs,ts,tsx}', {
       cwd: rootDir,
-      onlyFiles: true,
-      ignore: IGNORE_GLOBS,
-      deep: 5,
+      ...GLOB_BASE,
     })
     if (anyJsFamily.length > 0) return 'js'
     if (pkg) return 'js'
@@ -117,7 +136,9 @@ async function inferLanguage(
 
 /**
  * Per P2.2 spec: read `main`, `module`, `exports["."].default`, and any
- * `bin` values. Dedupe and return existing-on-disk paths only.
+ * `bin` values. Dedupe and return existing-on-disk paths only — and only
+ * paths that resolve INSIDE rootDir, so a hostile package.json can't
+ * leak arbitrary filesystem locations as "entry points".
  */
 async function listEntryPoints(
   rootDir: string,
@@ -130,10 +151,10 @@ async function listEntryPoints(
   if (typeof pkg.module === 'string') candidates.push(pkg.module)
 
   // Only the exact `exports["."].default` object-form path is in scope.
-  if (pkg.exports && typeof pkg.exports === 'object') {
+  if (pkg.exports && typeof pkg.exports === 'object' && !Array.isArray(pkg.exports)) {
     const exp = pkg.exports as Record<string, unknown>
     const dot = exp['.']
-    if (dot && typeof dot === 'object') {
+    if (dot && typeof dot === 'object' && !Array.isArray(dot)) {
       const def = (dot as Record<string, unknown>)['default']
       if (typeof def === 'string') candidates.push(def)
     }
@@ -141,16 +162,20 @@ async function listEntryPoints(
 
   if (typeof pkg.bin === 'string') {
     candidates.push(pkg.bin)
-  } else if (pkg.bin && typeof pkg.bin === 'object') {
+  } else if (pkg.bin && typeof pkg.bin === 'object' && !Array.isArray(pkg.bin)) {
     for (const v of Object.values(pkg.bin)) {
       if (typeof v === 'string') candidates.push(v)
     }
   }
 
+  const rootAbs = path.resolve(rootDir)
   const unique = Array.from(new Set(candidates))
   const existing: string[] = []
   for (const rel of unique) {
-    if (await exists(path.join(rootDir, rel))) existing.push(rel)
+    const abs = path.resolve(rootAbs, rel)
+    if (!isInside(rootAbs, abs)) continue
+    if (!(await exists(abs))) continue
+    existing.push(rel)
   }
   return existing
 }
@@ -164,25 +189,28 @@ interface ScanHit {
 
 /**
  * Scan JS/TS source files under rootDir for any of the given regexes.
- * Caps enforced via MAX_SCAN_FILES / MAX_FILE_BYTES / SCAN_TIMEOUT_MS so a
- * hostile or pathologically large repo can't hang detection.
+ * Caps enforced via MAX_SCAN_FILES / MAX_FILE_BYTES / SCAN_TIMEOUT_MS so
+ * a hostile or pathologically large repo can't hang detection.
  *
- * Repo files are read as text ONLY — never required, imported, or executed.
+ * Symlink-pointed files and non-regular files (sockets, FIFOs, block
+ * devices) are skipped: fast-glob is configured not to traverse into
+ * symlinked dirs, and the per-file `stat.isFile()` check rejects symlink
+ * files that would otherwise have been opened via their target.
+ *
+ * Repo files are read as text ONLY — never required, imported, spawned,
+ * or otherwise executed.
  */
 async function scanSourcesFor(
   rootDir: string,
   patterns: RegExp[],
-  capturePatternIndex?: number,
 ): Promise<ScanHit> {
   const deadline = Date.now() + SCAN_TIMEOUT_MS
   let files: string[]
   try {
     files = await fg(['**/*.{ts,tsx,js,jsx,mjs,cjs}'], {
       cwd: rootDir,
-      onlyFiles: true,
-      ignore: IGNORE_GLOBS,
+      ...GLOB_BASE,
       absolute: false,
-      followSymbolicLinks: false,
     })
   } catch {
     return { matched: false }
@@ -193,21 +221,22 @@ async function scanSourcesFor(
     if (Date.now() > deadline) break
     const abs = path.join(rootDir, rel)
     try {
-      const stat = await fsp.stat(abs)
+      // lstat lets us identify symlinks explicitly; even though fast-glob
+      // is configured not to traverse symlinked DIRS, symlink FILES in the
+      // scanned tree still show up and would be read through via their
+      // target if we used `stat`. Reject non-regular-file entries outright.
+      const stat = await fsp.lstat(abs)
+      if (!stat.isFile()) continue
       if (stat.size > MAX_FILE_BYTES) continue
       const content = await fsp.readFile(abs, 'utf-8')
-      for (let i = 0; i < patterns.length; i++) {
-        const m = content.match(patterns[i])
+      for (const pattern of patterns) {
+        const m = content.match(pattern)
         if (m) {
-          const captured =
-            capturePatternIndex !== undefined && i === capturePatternIndex
-              ? m[1]
-              : undefined
           return {
             matched: true,
             file: rel,
             snippet: m[0],
-            captured: captured ?? m[1],
+            captured: m[1],
           }
         }
       }
@@ -219,11 +248,15 @@ async function scanSourcesFor(
 }
 
 export async function detectRepoType(rootDir: string): Promise<DetectResult> {
-  const pkg = await readPackageJson(rootDir)
+  // Normalise once so every downstream fs / glob call sees the same base,
+  // and so callers that pass relative paths get cwd-independent results.
+  const absRoot = path.resolve(rootDir)
+
+  const pkg = await readPackageJson(absRoot)
   const deps = runtimeDeps(pkg)
   const [language, entryPoints] = await Promise.all([
-    inferLanguage(rootDir, pkg),
-    listEntryPoints(rootDir, pkg),
+    inferLanguage(absRoot, pkg),
+    listEntryPoints(absRoot, pkg),
   ])
   const reasons: string[] = []
 
@@ -240,7 +273,7 @@ export async function detectRepoType(rootDir: string): Promise<DetectResult> {
       reasons,
     }
   }
-  const mcpImport = await scanSourcesFor(rootDir, [
+  const mcpImport = await scanSourcesFor(absRoot, [
     /from\s+['"]@modelcontextprotocol\/sdk(?:\/[^'"]*)?['"]/,
     /require\s*\(\s*['"]@modelcontextprotocol\/sdk(?:\/[^'"]*)?['"]\s*\)/,
   ])
@@ -259,11 +292,9 @@ export async function detectRepoType(rootDir: string): Promise<DetectResult> {
 
   // Rule 2 — LangChain tool (confidence 0.9)
   if ('@langchain/core' in deps || 'langchain' in deps) {
-    const extendsTool = await scanSourcesFor(
-      rootDir,
-      [/class\s+\w+\s+extends\s+(StructuredTool|DynamicStructuredTool|Tool)\b/],
-      0,
-    )
+    const extendsTool = await scanSourcesFor(absRoot, [
+      /class\s+\w+\s+extends\s+(StructuredTool|DynamicStructuredTool|Tool)\b/,
+    ])
     if (extendsTool.matched) {
       const dep = '@langchain/core' in deps ? '@langchain/core' : 'langchain'
       reasons.push(`package.json dependencies declare ${dep}`)
