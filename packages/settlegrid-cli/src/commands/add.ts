@@ -39,5 +39,6 @@ export function addCommand(program: Command): void {
           'not yet implemented — detection, codemod, and PR creation land in P2.2 through P2.4.',
         ),
       )
+      process.exit(0)
     })
 }

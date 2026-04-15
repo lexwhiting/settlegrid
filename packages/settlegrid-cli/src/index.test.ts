@@ -18,20 +18,20 @@ beforeAll(() => {
 })
 
 describe('settlegrid CLI binary', () => {
-  it('prints version 0.1.0 with --version', () => {
-    const result = spawnSync('node', [distEntry, '--version'], {
+  // Per P2.1 spec #5: one smoke test that spawns the built binary with
+  // --version AND asserts non-zero exit on an unknown subcommand.
+  it('prints 0.1.0 for --version and exits non-zero on an unknown subcommand', () => {
+    const versionResult = spawnSync('node', [distEntry, '--version'], {
       encoding: 'utf-8',
     })
-    expect(result.status).toBe(0)
-    expect(result.stdout.trim()).toMatch(/^0\.1\.0$/)
-  })
+    expect(versionResult.status).toBe(0)
+    expect(versionResult.stdout.trim()).toMatch(/^0\.1\.0$/)
 
-  it('exits non-zero when given an unknown subcommand', () => {
-    const result = spawnSync(
+    const unknownResult = spawnSync(
       'node',
       [distEntry, '__definitely-not-a-real-command__'],
       { encoding: 'utf-8' },
     )
-    expect(result.status).not.toBe(0)
+    expect(unknownResult.status).not.toBe(0)
   })
 })
