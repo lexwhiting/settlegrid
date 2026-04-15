@@ -1,6 +1,8 @@
 import { Command } from 'commander'
 import { intro, note, outro } from '@clack/prompts'
 import kleur from 'kleur'
+import * as fsp from 'node:fs/promises'
+import * as path from 'node:path'
 import {
   resolveSource,
   isGithubUrl,
@@ -8,6 +10,12 @@ import {
 } from '../lib/source-resolver.js'
 import { detectRepoType } from '../detect/index.js'
 import { runTransform } from '../transforms/runner.js'
+import {
+  generatePatch,
+  openPullRequest,
+  parseGithubRepo,
+  readGitOrigin,
+} from '../pr/github.js'
 
 interface AddOptions {
   github?: string
@@ -16,7 +24,13 @@ interface AddOptions {
   pr: boolean
   outBranch?: string
   force?: boolean
+  token?: string
 }
+
+// Default when --out-branch is not supplied. Namespaced so we don't
+// collide with common user branch names.
+const DEFAULT_BRANCH_NAME = 'settlegrid/monetize'
+const DEFAULT_BASE_BRANCH = 'main'
 
 export function addCommand(program: Command): void {
   program
@@ -33,6 +47,10 @@ export function addCommand(program: Command): void {
       '--force',
       'proceed even if repo type cannot be confidently detected',
       false,
+    )
+    .option(
+      '--token <t>',
+      'GitHub token for PR creation (falls back to GITHUB_TOKEN env var)',
     )
     .action(async (source: string | undefined, options: AddOptions) => {
       intro(kleur.cyan('settlegrid add'))
@@ -74,6 +92,9 @@ export function addCommand(program: Command): void {
           `--no-pr:      ${options.pr ? 'no (PR will be opened)' : 'yes (PR skipped)'}`,
           `--out-branch: ${options.outBranch ?? kleur.dim('(unset)')}`,
           `--force:      ${options.force ? 'yes' : 'no'}`,
+          // --token is displayed as a boolean presence check so the token
+          // value never reaches the terminal, even in --dry-run output.
+          `--token:      ${options.token ? kleur.dim('(provided)') : kleur.dim('(unset)')}`,
         ]
         note(detectionLines.join('\n'), 'detection + parsed options')
 
@@ -140,26 +161,97 @@ export function addCommand(program: Command): void {
           }
         }
 
+        // --- Dry-run terminates here. Per P2.4 spec DoD:
+        //     "--dry-run never touches the GitHub API" — we never
+        //     reach the PR / patch branches below when dryRun is true.
         if (options.dryRun === true) {
           outro(
             kleur.yellow(
               'dry-run complete — re-run without --dry-run to write changes and update package.json.',
             ),
           )
-        } else if (transform.changedFiles.length === 0) {
+          process.exitCode = 0
+          return
+        }
+
+        // --- Apply path. Zero changes = nothing to PR/patch either.
+        if (transform.changedFiles.length === 0) {
           outro(
             kleur.dim(
               'no files changed (already wrapped or nothing matched the codemod).',
             ),
           )
-        } else {
+          process.exitCode = 0
+          return
+        }
+
+        // --- PR decision tree.
+        //
+        //   1. --no-pr → skip PR entirely, just report the in-place writes
+        //   2. --pr + repo info + token → open PR via openPullRequest
+        //   3. --pr + (no repo info OR no token) → emit a .patch file to cwd
+        //
+        // The command flow DOES NOT log or display the token value anywhere
+        // (see the '--token:' line above — presence only). Tests assert
+        // token-never-logged by piping stdout/stderr through a substring
+        // check against a sentinel token value.
+        if (!options.pr) {
           outro(
             kleur.green(
-              `wrapped ${transform.changedFiles.length} file(s). Next: run \`npm install\` in the target repo, set ${transform.envVarsRequired.join(', ')}, and push.`,
+              `wrapped ${transform.changedFiles.length} file(s) — skipped PR per --no-pr. Next: \`npm install\` + set ${transform.envVarsRequired.join(', ')}.`,
             ),
           )
+          process.exitCode = 0
+          return
         }
-        process.exitCode = 0
+
+        const token = options.token ?? process.env.GITHUB_TOKEN
+        const repoInfo = await deriveRepoInfo({
+          github: options.github ?? githubFromSource,
+          positionalSource: source,
+          localDir: resolved.dir,
+        })
+
+        if (!token || !repoInfo) {
+          // Graceful no-token (or no-repo-info) fallback — write a
+          // .patch file the user can inspect and apply manually.
+          const patchContent = generatePatch(transform.changedFiles)
+          const patchPath = path.join(process.cwd(), 'settlegrid-add.patch')
+          await fsp.writeFile(patchPath, patchContent, 'utf-8')
+          const reason = !token
+            ? 'no GITHUB_TOKEN set (pass --token or export GITHUB_TOKEN)'
+            : 'no GitHub repo info (pass --github or run from a repo with an origin remote)'
+          outro(
+            kleur.yellow(
+              `${reason} — wrote patch to ${patchPath}. Apply with \`git apply\` after reviewing.`,
+            ),
+          )
+          process.exitCode = 0
+          return
+        }
+
+        try {
+          const pr = await openPullRequest({
+            repoOwner: repoInfo.owner,
+            repoName: repoInfo.name,
+            branchName: options.outBranch ?? DEFAULT_BRANCH_NAME,
+            baseBranch: DEFAULT_BASE_BRANCH,
+            changes: transform.changedFiles,
+            dependencyBump: transform.addedDependencies,
+            envVarsRequired: transform.envVarsRequired,
+            token,
+          })
+          outro(
+            kleur.green(
+              `opened PR ${pr.url}${pr.forkUsed ? kleur.dim(' (via fork)') : ''}`,
+            ),
+          )
+          process.exitCode = 0
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          outro(kleur.red(`PR creation failed: ${message}`))
+          process.exitCode = 1
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         outro(kleur.red(`settlegrid add failed: ${message}`))
@@ -175,4 +267,33 @@ export function addCommand(program: Command): void {
         }
       }
     })
+}
+
+/**
+ * Resolve the GitHub repo coordinates the PR flow should target.
+ * Priority:
+ *   1. `--github <url>` flag (already normalised into opts.github)
+ *   2. Positional [source] that looks like a GitHub URL
+ *   3. `.git/config` origin in the locally-resolved directory
+ * Returns null when none of the above yield a parseable repo.
+ */
+async function deriveRepoInfo(args: {
+  github?: string
+  positionalSource?: string
+  localDir: string
+}): Promise<{ owner: string; name: string } | null> {
+  if (args.github) {
+    const parsed = parseGithubRepo(args.github)
+    if (parsed) return parsed
+  }
+  if (args.positionalSource && isGithubUrl(args.positionalSource)) {
+    const parsed = parseGithubRepo(args.positionalSource)
+    if (parsed) return parsed
+  }
+  const origin = await readGitOrigin(args.localDir)
+  if (origin) {
+    const parsed = parseGithubRepo(origin)
+    if (parsed) return parsed
+  }
+  return null
 }
