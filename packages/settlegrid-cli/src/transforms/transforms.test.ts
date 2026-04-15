@@ -23,6 +23,11 @@ const FIXTURE_CASES: FixtureCase[] = [
   { name: 'langchain-tool', codemod: addLangchainTransform, toolSlug: 'langchain-tool' },
   { name: 'rest-express', codemod: addRestTransform, toolSlug: 'rest-express' },
   { name: 'rest-hono', codemod: addRestTransform, toolSlug: 'rest-hono' },
+  // Spec step 3 calls out "app.route(...).get" as a case the REST
+  // codemod must handle. This fixture exercises the chain form
+  // (`.route(path).get(handler)`) where the verb call has a single
+  // handler argument and the path lives on the enclosing .route() call.
+  { name: 'rest-route-chain', codemod: addRestTransform, toolSlug: 'rest-route-chain' },
 ]
 
 async function readFixture(name: string, suffix: 'before' | 'after'): Promise<string> {
@@ -66,5 +71,42 @@ describe('codemod idempotency — running twice produces the same output as runn
       toolSlug: 'mcp-already',
     })
     expect(after).toBe(before)
+  })
+})
+
+describe('addRestTransform — spec-literal edge cases', () => {
+  // Semantic regression guards beyond the fixture comparisons, to lock
+  // in two placement invariants that are easy to regress during AST
+  // surgery but observably break at runtime.
+
+  it('inserts `const sg = settlegrid.init(...)` BEFORE the first route, never after', async () => {
+    // With inline `sg.wrap(...)` in each route call, init MUST be
+    // declared before the first route — otherwise TDZ kicks in and
+    // module load throws ReferenceError. Verified by index-of on the
+    // transform output: the init declaration's character offset must
+    // come before every wrapped route registration.
+    const before = await readFixture('rest-route-chain', 'before')
+    const after = addRestTransform(before, {
+      filename: 'rest-route-chain.before.ts',
+      toolSlug: 'rest-route-chain',
+    })
+    const initIdx = after.indexOf('const sg = settlegrid.init')
+    const firstWrapIdx = after.indexOf('sg.wrap(')
+    expect(initIdx).toBeGreaterThan(-1)
+    expect(firstWrapIdx).toBeGreaterThan(-1)
+    expect(initIdx).toBeLessThan(firstWrapIdx)
+  })
+
+  it('wraps every verb in `app.route(path).get(h).post(h)` chains with the route path as the method key', async () => {
+    const before = await readFixture('rest-route-chain', 'before')
+    const after = addRestTransform(before, {
+      filename: 'rest-route-chain.before.ts',
+      toolSlug: 'rest-route-chain',
+    })
+    // Three chained verbs in the fixture — expect the method key for
+    // each to echo the enclosing `.route(...)` path, not '/'.
+    expect(after).toContain("method: 'get:/users'")
+    expect(after).toContain("method: 'post:/users'")
+    expect(after).toContain("method: 'get:/items'")
   })
 })
