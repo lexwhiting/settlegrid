@@ -36,8 +36,6 @@ interface Pkg {
   exports?: unknown
   bin?: string | Record<string, string>
   dependencies?: Record<string, string>
-  devDependencies?: Record<string, string>
-  peerDependencies?: Record<string, string>
 }
 
 async function readPackageJson(rootDir: string): Promise<Pkg | null> {
@@ -51,13 +49,13 @@ async function readPackageJson(rootDir: string): Promise<Pkg | null> {
   }
 }
 
-function allDeps(pkg: Pkg | null): Record<string, string> {
-  if (!pkg) return {}
-  return {
-    ...(pkg.dependencies ?? {}),
-    ...(pkg.devDependencies ?? {}),
-    ...(pkg.peerDependencies ?? {}),
-  }
+/**
+ * Per P2.2 spec: detection rules check `package.json.dependencies`, not
+ * devDependencies or peerDependencies. Returning the declared dependencies
+ * map (or an empty object) keeps every rule on the same field.
+ */
+function runtimeDeps(pkg: Pkg | null): Record<string, string> {
+  return pkg?.dependencies ?? {}
 }
 
 async function exists(p: string): Promise<boolean> {
@@ -69,12 +67,17 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
+/**
+ * Per P2.2 spec: language = py when pyproject.toml + .py files present;
+ * ts when `package.json.type === "module"` AND .ts files present; else js.
+ * If there's no package.json and no source files at all, return 'unknown'.
+ */
 async function inferLanguage(
   rootDir: string,
   pkg: Pkg | null,
 ): Promise<DetectResult['language']> {
-  const hasPyproject = await exists(path.join(rootDir, 'pyproject.toml'))
   try {
+    const hasPyproject = await exists(path.join(rootDir, 'pyproject.toml'))
     if (hasPyproject) {
       const pyFiles = await fg('**/*.py', {
         cwd: rootDir,
@@ -84,24 +87,27 @@ async function inferLanguage(
       })
       if (pyFiles.length > 0) return 'py'
     }
-    const tsFiles = await fg('**/*.{ts,tsx}', {
-      cwd: rootDir,
-      onlyFiles: true,
-      ignore: IGNORE_GLOBS,
-      deep: 5,
-    })
-    if (tsFiles.length > 0) {
-      // Spec: "type: module" + .ts files → ts. If .ts exists at all, prefer ts.
-      return 'ts'
+
+    const isEsModule = pkg?.type === 'module'
+    if (isEsModule) {
+      const tsFiles = await fg('**/*.{ts,tsx}', {
+        cwd: rootDir,
+        onlyFiles: true,
+        ignore: IGNORE_GLOBS,
+        deep: 5,
+      })
+      if (tsFiles.length > 0) return 'ts'
     }
-    const jsFiles = await fg('**/*.{js,jsx,mjs,cjs}', {
+
+    // Fall through to js unless the directory is truly empty of source
+    // files and has no package.json — in which case the repo is unknown.
+    const anyJsFamily = await fg('**/*.{js,jsx,mjs,cjs,ts,tsx}', {
       cwd: rootDir,
       onlyFiles: true,
       ignore: IGNORE_GLOBS,
       deep: 5,
     })
-    if (jsFiles.length > 0) return 'js'
-    // Language hints from package.json alone if no source files scanned yet.
+    if (anyJsFamily.length > 0) return 'js'
     if (pkg) return 'js'
     return 'unknown'
   } catch {
@@ -109,6 +115,10 @@ async function inferLanguage(
   }
 }
 
+/**
+ * Per P2.2 spec: read `main`, `module`, `exports["."].default`, and any
+ * `bin` values. Dedupe and return existing-on-disk paths only.
+ */
 async function listEntryPoints(
   rootDir: string,
   pkg: Pkg | null,
@@ -119,14 +129,12 @@ async function listEntryPoints(
   if (typeof pkg.main === 'string') candidates.push(pkg.main)
   if (typeof pkg.module === 'string') candidates.push(pkg.module)
 
+  // Only the exact `exports["."].default` object-form path is in scope.
   if (pkg.exports && typeof pkg.exports === 'object') {
     const exp = pkg.exports as Record<string, unknown>
     const dot = exp['.']
-    if (typeof dot === 'string') {
-      candidates.push(dot)
-    } else if (dot && typeof dot === 'object') {
-      const dotObj = dot as Record<string, unknown>
-      const def = dotObj['default']
+    if (dot && typeof dot === 'object') {
+      const def = (dot as Record<string, unknown>)['default']
       if (typeof def === 'string') candidates.push(def)
     }
   }
@@ -195,7 +203,12 @@ async function scanSourcesFor(
             capturePatternIndex !== undefined && i === capturePatternIndex
               ? m[1]
               : undefined
-          return { matched: true, file: rel, snippet: m[0], captured: captured ?? m[1] }
+          return {
+            matched: true,
+            file: rel,
+            snippet: m[0],
+            captured: captured ?? m[1],
+          }
         }
       }
     } catch {
@@ -207,7 +220,7 @@ async function scanSourcesFor(
 
 export async function detectRepoType(rootDir: string): Promise<DetectResult> {
   const pkg = await readPackageJson(rootDir)
-  const deps = allDeps(pkg)
+  const deps = runtimeDeps(pkg)
   const [language, entryPoints] = await Promise.all([
     inferLanguage(rootDir, pkg),
     listEntryPoints(rootDir, pkg),
@@ -217,7 +230,7 @@ export async function detectRepoType(rootDir: string): Promise<DetectResult> {
   // Rule 1 — MCP server (confidence 0.95)
   if ('@modelcontextprotocol/sdk' in deps) {
     reasons.push(
-      'package.json declares @modelcontextprotocol/sdk as a dependency',
+      'package.json dependencies declare @modelcontextprotocol/sdk',
     )
     return {
       type: 'mcp-server',
@@ -253,7 +266,7 @@ export async function detectRepoType(rootDir: string): Promise<DetectResult> {
     )
     if (extendsTool.matched) {
       const dep = '@langchain/core' in deps ? '@langchain/core' : 'langchain'
-      reasons.push(`package.json declares ${dep} as a dependency`)
+      reasons.push(`package.json dependencies declare ${dep}`)
       reasons.push(
         `source file ${extendsTool.file} extends ${extendsTool.captured ?? 'Tool'}`,
       )
@@ -277,7 +290,7 @@ export async function detectRepoType(rootDir: string): Promise<DetectResult> {
   ]
   const matchedRest = REST_FRAMEWORKS.find((d) => d in deps)
   if (matchedRest) {
-    reasons.push(`package.json declares ${matchedRest} as a dependency`)
+    reasons.push(`package.json dependencies declare ${matchedRest}`)
     return {
       type: 'rest-api',
       confidence: 0.8,
@@ -289,7 +302,7 @@ export async function detectRepoType(rootDir: string): Promise<DetectResult> {
 
   // Rule 4 — unknown (confidence 0)
   reasons.push(
-    'no MCP SDK, LangChain tool, or REST framework signal detected in package.json or source files',
+    'no MCP SDK, LangChain tool, or REST framework signal detected in package.json dependencies or source files',
   )
   return {
     type: 'unknown',
