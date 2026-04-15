@@ -15,14 +15,26 @@ import type { Collection, JSCodeshift } from 'jscodeshift'
 
 export const SETTLEGRID_MCP_IMPORT = '@settlegrid/mcp'
 
-/** True if the file already imports from @settlegrid/mcp. */
+/**
+ * True if the file imports from `@settlegrid/mcp` — either the main
+ * entry (`@settlegrid/mcp`) or any exports subpath
+ * (`@settlegrid/mcp/kernel`, `@settlegrid/mcp/rest`, etc.). Treating
+ * subpath imports as already-wrapped is the safer default: the user
+ * has already committed to the SDK in this file, so we don't want to
+ * add a duplicate top-level import on top of it.
+ */
 export function hasSettlegridImport(
   j: JSCodeshift,
   root: Collection,
 ): boolean {
   return (
-    root.find(j.ImportDeclaration, {
-      source: { value: SETTLEGRID_MCP_IMPORT },
+    root.find(j.ImportDeclaration).filter((p) => {
+      const src = p.node.source
+      if (!src || typeof src.value !== 'string') return false
+      return (
+        src.value === SETTLEGRID_MCP_IMPORT ||
+        src.value.startsWith(SETTLEGRID_MCP_IMPORT + '/')
+      )
     }).length > 0
   )
 }
@@ -46,7 +58,7 @@ export function hasSettlegridInit(
 /**
  * Insert `import { settlegrid } from '@settlegrid/mcp'` after the last
  * existing import, or at the top of the program if there are none.
- * No-op if such an import already exists.
+ * No-op if such an import (main or subpath) already exists.
  */
 export function ensureSettlegridImport(
   j: JSCodeshift,
@@ -109,10 +121,17 @@ export function buildSettlegridInitStatement(
 
 /**
  * Build `sg.wrap(handler, { method: <methodName> })`.
+ *
+ * `handler` is typed as a Node (the loosest useful type); callers pass
+ * whatever AST expression they captured (ArrowFunctionExpression,
+ * FunctionExpression, Identifier, MemberExpression, CallExpression).
+ * The narrow types emitted by jscodeshift's builder are purely symbolic —
+ * all Node subtypes satisfy the underlying builder contract at runtime.
  */
 export function buildSgWrapCall(
   j: JSCodeshift,
-  handler: ReturnType<JSCodeshift['identifier']>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handler: any,
   methodName: string,
 ): ReturnType<JSCodeshift['callExpression']> {
   return j.callExpression(
@@ -152,31 +171,72 @@ export function isAlreadySgWrap(node: any): boolean {
 }
 
 /**
- * Given an MCP schema argument node like `ListToolsRequestSchema`, derive a
- * stable method key for `sg.wrap`. Falls back to 'handler' when the schema
- * is a non-identifier expression (e.g. a dynamically-built object).
+ * True if `node` could plausibly be a route / request handler function
+ * at runtime. Used to avoid wrapping non-function arguments that merely
+ * share a method name with our route verbs (e.g. `someMap.get(key)`,
+ * `list.get(idx)`, `app.get('/health')` with no handler arg).
+ *
+ * Conservative allowlist: function/arrow literals, bare identifiers
+ * (likely variables holding functions), member-access (obj.method),
+ * and call expressions (factory returning a function). Everything
+ * else — literals, numbers, strings, objects, arrays — is excluded.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function looksLikeFunction(node: any): boolean {
+  if (!node || typeof node.type !== 'string') return false
+  return (
+    node.type === 'FunctionExpression' ||
+    node.type === 'ArrowFunctionExpression' ||
+    node.type === 'Identifier' ||
+    node.type === 'MemberExpression' ||
+    node.type === 'CallExpression'
+  )
+}
+
+/**
+ * Kebab-case an MCP schema identifier by stripping the conventional
+ * `Schema` / `Request` suffixes and converting CamelCase to kebab-case.
+ * Shared so the `extractMcpMethodName` Identifier and MemberExpression
+ * branches produce the same output for the same underlying schema.
+ */
+function kebabMcpSchemaName(name: string): string {
+  let base = name
+  if (base.endsWith('Schema')) base = base.slice(0, -'Schema'.length)
+  if (base.endsWith('Request')) base = base.slice(0, -'Request'.length)
+  const kebab = base
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase()
+  return kebab || 'handler'
+}
+
+/**
+ * Given an MCP schema argument node like `ListToolsRequestSchema` or
+ * `schemas.CallToolRequestSchema`, derive a stable method key for
+ * `sg.wrap`. Both identifier and member-expression forms go through
+ * the same kebab-case normalization so `ListToolsRequestSchema` and
+ * `schemas.ListToolsRequestSchema` both yield `'list-tools'`.
+ * Falls back to 'handler' when the schema is a non-identifier /
+ * non-string expression (dynamically-built object, template literal).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractMcpMethodName(schema: any): string {
   if (!schema) return 'handler'
   if (schema.type === 'Identifier' && typeof schema.name === 'string') {
-    let base = schema.name
-    if (base.endsWith('Schema')) base = base.slice(0, -'Schema'.length)
-    if (base.endsWith('Request')) base = base.slice(0, -'Request'.length)
-    const kebab = base
-      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-      .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
-      .toLowerCase()
-    return kebab || 'handler'
+    return kebabMcpSchemaName(schema.name)
   }
   if (
     schema.type === 'MemberExpression' &&
     schema.property &&
-    schema.property.type === 'Identifier'
+    schema.property.type === 'Identifier' &&
+    typeof schema.property.name === 'string'
   ) {
-    return schema.property.name
+    return kebabMcpSchemaName(schema.property.name)
   }
   if (schema.type === 'Literal' && typeof schema.value === 'string') {
+    return schema.value
+  }
+  if (schema.type === 'StringLiteral' && typeof schema.value === 'string') {
     return schema.value
   }
   return 'handler'
@@ -194,4 +254,23 @@ export function findEnclosingStatement(j: JSCodeshift, nodePath: any): any {
     p = p.parent
   }
   return null
+}
+
+/**
+ * AST-based check: does `bodyNode` contain a `sg.wrap(...)` call
+ * anywhere inside it? Safer than a textual grep (which false-positives
+ * on comments like `// TODO: add sg.wrap here`).
+ */
+export function bodyContainsSgWrap(
+  j: JSCodeshift,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  bodyNode: any,
+): boolean {
+  let found = false
+  j(bodyNode)
+    .find(j.CallExpression)
+    .forEach((p) => {
+      if (isAlreadySgWrap(p.node)) found = true
+    })
+  return found
 }

@@ -74,6 +74,150 @@ describe('codemod idempotency — running twice produces the same output as runn
   })
 })
 
+describe('codemod hostile-review regression guards', () => {
+  // Each `it` here guards one specific finding from the P2.3 hostile
+  // review pass. Break any one of these and the relevant bug comes back.
+
+  it('add-mcp: inserts init when only setRequestHandler is present (no visible new Server())', () => {
+    // Repro for Finding 1 ("handlers wrapped without declaring sg")
+    // A repo that imports `server` from another file and only
+    // registers handlers here must still get `const sg = …` hoisted
+    // above the first `sg.wrap(…)` reference.
+    const before = `import { server } from './setup.js'
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [] }))
+`
+    const after = addMcpTransform(before, {
+      filename: 'handlers.ts',
+      toolSlug: 'impl-only',
+    })
+    const initIdx = after.indexOf('const sg = settlegrid.init')
+    const wrapIdx = after.indexOf('sg.wrap(')
+    expect(initIdx).toBeGreaterThan(-1)
+    expect(wrapIdx).toBeGreaterThan(-1)
+    expect(initIdx).toBeLessThan(wrapIdx)
+  })
+
+  it('add-mcp: matches `new namespace.Server()` namespace-import callees', () => {
+    // Repro for Finding 7 ("MCP namespace constructors not matched").
+    const before = `import * as sdk from '@modelcontextprotocol/sdk/server/index.js'
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+
+const server = new sdk.Server({ name: 'ns', version: '0.0.0' })
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [] }))
+`
+    const after = addMcpTransform(before, {
+      filename: 'ns.ts',
+      toolSlug: 'ns-sample',
+    })
+    expect(after).toContain("from '@settlegrid/mcp'")
+    expect(after).toContain('const sg = settlegrid.init')
+    expect(after).toContain('sg.wrap(')
+  })
+
+  it('add-mcp: kebab-cases the method name for schemas referenced via MemberExpression', () => {
+    // Repro for Finding 6 ("kebab skipped for MemberExpression schemas").
+    const before = `import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import * as schemas from '@modelcontextprotocol/sdk/types.js'
+
+const server = new Server({ name: 'mem', version: '0.0.0' })
+server.setRequestHandler(schemas.ListToolsRequestSchema, async () => ({ tools: [] }))
+`
+    const after = addMcpTransform(before, {
+      filename: 'mem.ts',
+      toolSlug: 'mem-sample',
+    })
+    // Both "list-tools" kebab output and NOT the raw identifier.
+    expect(after).toContain("method: 'list-tools'")
+    expect(after).not.toContain("method: 'ListToolsRequestSchema'")
+  })
+
+  it('add-rest: does NOT wrap non-function handler args (looksLikeFunction guard)', () => {
+    // Repro for Finding 3 ("non-function handlers wrapped").
+    // `app.get('/health')` is a one-arg call with a STRING argument —
+    // must not be treated as a handler. Same for object-literal args.
+    const before = `import express from 'express'
+const app = express()
+app.get('/single-arg')
+app.post('/with-opts', { ignored: true })
+app.listen(3000)
+`
+    const after = addRestTransform(before, {
+      filename: 'edge.ts',
+      toolSlug: 'edge',
+    })
+    // No sg.wrap anywhere — neither call had a real handler.
+    expect(after).not.toContain('sg.wrap(')
+    // And the codemod should NOT have added an init either, since we
+    // never actually wrapped anything.
+    expect(after).not.toContain('settlegrid.init')
+  })
+
+  it('add-rest: does NOT wrap unrelated `.get(idx)` calls on non-app receivers (no .route() ancestor)', () => {
+    // Repro for Finding 4 ("chain walker falls through on non-chains").
+    // An Immutable.List-style `list.get(idx)` call has a single arg
+    // and callee.property='get', so naive chain logic would treat it
+    // as a chain form and wrap `idx`. We must require a `.route()`
+    // ancestor in the chain before wrapping.
+    const before = `import { List } from 'immutable'
+const list = List([1, 2, 3])
+console.log(list.get(0))
+
+// Actual real REST handler for contrast:
+import express from 'express'
+const app = express()
+app.get('/things', async (_req, res) => res.json(list.get(0)))
+app.listen(3000)
+`
+    const after = addRestTransform(before, {
+      filename: 'mixed.ts',
+      toolSlug: 'mixed',
+    })
+    // The real handler IS wrapped.
+    expect(after).toContain("method: 'get:/things'")
+    // The inner `list.get(0)` inside the wrapped handler body is
+    // still there as a read (arguments[0] is the integer literal,
+    // which isn't a function → it's untouched).
+    expect(after).toContain('list.get(0)')
+    // Count `sg.wrap(` occurrences — exactly ONE (the real route).
+    const wrapCount = (after.match(/sg\.wrap\(/g) ?? []).length
+    expect(wrapCount).toBe(1)
+  })
+
+  it('add-langchain: AST idempotency ignores comments mentioning "sg.wrap("', () => {
+    // Repro for Finding 8 ("textual idempotency false-positive on comments").
+    // A method body whose ONLY occurrence of "sg.wrap(" is inside a
+    // comment must still be wrapped. Note: recast strips comments
+    // from non-commented AST output for nested subtrees, so we place
+    // a // line comment inside the body with the trigger text. If
+    // our idempotency check is AST-based we wrap; if it's textual
+    // we don't.
+    const before = `import { StructuredTool } from '@langchain/core/tools'
+class SearchTool extends StructuredTool {
+  name = 'search'
+  description = 'search'
+  schema: never = {} as never
+  async _call(input: { query: string }): Promise<string> {
+    // TODO: consider sg.wrap( integration later
+    return 'result'
+  }
+}
+export { SearchTool }
+`
+    const after = addLangchainTransform(before, {
+      filename: 'comment.ts',
+      toolSlug: 'comment-tool',
+    })
+    // The comment must not block wrapping — body now contains the
+    // real `sg.wrap(...)` call.
+    expect(after).toContain("from '@settlegrid/mcp'")
+    expect(after).toContain('settlegrid.init')
+    expect(after).toContain('sg.wrap(')
+    expect(after).toContain('method: this.name')
+  })
+})
+
 describe('addRestTransform — spec-literal edge cases', () => {
   // Semantic regression guards beyond the fixture comparisons, to lock
   // in two placement invariants that are easy to regress during AST
