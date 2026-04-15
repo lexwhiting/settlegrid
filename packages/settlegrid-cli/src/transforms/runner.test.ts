@@ -309,6 +309,124 @@ server.setRequestHandler(ListToolsSchema, async () => ({ tools: [] }))
     })
   })
 
+  it('derives toolSlug from scoped package names (`@acme/foo` → `foo`)', async () => {
+    await withTmp(async (dir) => {
+      const src = `import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+const server = new Server({ name: 'x', version: '0.0.0' })
+server.setRequestHandler(ListToolsSchema, async () => ({ tools: [] }))
+`
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name: '@acme/coolname', dependencies: {} }) + '\n',
+      )
+      await fsp.writeFile(path.join(dir, 'server.ts'), src)
+
+      const result = await runTransform({
+        rootDir: dir,
+        detect: detect('mcp-server'),
+        dryRun: true,
+      })
+      expect(result.changedFiles[0].after).toContain("toolSlug: 'coolname'")
+      // Scope prefix is stripped, not preserved.
+      expect(result.changedFiles[0].after).not.toContain("@acme")
+    })
+  })
+
+  it('falls back to toolSlug: "my-tool" when package.json has no name', async () => {
+    await withTmp(async (dir) => {
+      const src = `import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+const server = new Server({ name: 'x', version: '0.0.0' })
+server.setRequestHandler(ListToolsSchema, async () => ({ tools: [] }))
+`
+      // Package.json with a "version" but no "name" field.
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ version: '0.0.0', dependencies: {} }) + '\n',
+      )
+      await fsp.writeFile(path.join(dir, 'server.ts'), src)
+
+      const result = await runTransform({
+        rootDir: dir,
+        detect: detect('mcp-server'),
+        dryRun: true,
+      })
+      expect(result.changedFiles[0].after).toContain("toolSlug: 'my-tool'")
+    })
+  })
+
+  it('sanitises package name special characters into a kebab slug', async () => {
+    await withTmp(async (dir) => {
+      const src = `import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+const server = new Server({ name: 'x', version: '0.0.0' })
+server.setRequestHandler(ListToolsSchema, async () => ({ tools: [] }))
+`
+      // Weird-but-valid package name: uppercase, underscores, dots.
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name: 'My_Weird.Name!!', dependencies: {} }) + '\n',
+      )
+      await fsp.writeFile(path.join(dir, 'server.ts'), src)
+
+      const result = await runTransform({
+        rootDir: dir,
+        detect: detect('mcp-server'),
+        dryRun: true,
+      })
+      // Everything that isn't [a-z0-9-] is coerced to '-' and collapsed.
+      expect(result.changedFiles[0].after).toMatch(/toolSlug: 'my-weird-name'/)
+    })
+  })
+
+  it('dispatches rest-api type to the REST codemod', async () => {
+    await withTmp(async (dir) => {
+      const src = `import express from 'express'
+const app = express()
+app.get('/x', async (_req, res) => { res.json({}) })
+app.listen(3000)
+`
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name: 'rest-dispatch', dependencies: {} }) + '\n',
+      )
+      await fsp.writeFile(path.join(dir, 'server.ts'), src)
+      const result = await runTransform({
+        rootDir: dir,
+        detect: detect('rest-api'),
+        dryRun: true,
+      })
+      expect(result.changedFiles.length).toBeGreaterThan(0)
+      expect(result.changedFiles[0].after).toContain("method: 'get:/x'")
+    })
+  })
+
+  it('dispatches langchain-tool type to the Langchain codemod', async () => {
+    await withTmp(async (dir) => {
+      const src = `import { StructuredTool } from '@langchain/core/tools'
+class T extends StructuredTool {
+  name = 't'
+  description = 'd'
+  schema = {} as never
+  async _call(input: unknown): Promise<string> {
+    return String(input)
+  }
+}
+export { T }
+`
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name: 'langchain-dispatch', dependencies: {} }) + '\n',
+      )
+      await fsp.writeFile(path.join(dir, 'tool.ts'), src)
+      const result = await runTransform({
+        rootDir: dir,
+        detect: detect('langchain-tool'),
+        dryRun: true,
+      })
+      expect(result.changedFiles.length).toBeGreaterThan(0)
+      expect(result.changedFiles[0].after).toContain('method: this.name')
+    })
+  })
+
   it('WRITES to disk when dryRun is false and updates package.json', async () => {
     await withTmp(async (dir) => {
       const src = `import { Server } from '@modelcontextprotocol/sdk/server/index.js'
