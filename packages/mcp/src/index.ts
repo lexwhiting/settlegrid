@@ -43,7 +43,7 @@ import type {
  * console.log(`SettleGrid SDK v${SDK_VERSION}`)
  * ```
  */
-export const SDK_VERSION = '0.1.1' as const
+export const SDK_VERSION = '0.2.0' as const
 
 // ─── Error re-exports ────────────────────────────────────────────────────────
 
@@ -78,6 +78,15 @@ export type {
 } from './types'
 
 export type { NormalizedConfig } from './config'
+
+// ─── Template manifest schema (P2.6) ─────────────────────────────────────────
+
+export {
+  templateManifestSchema,
+  validateTemplateManifest,
+  safeValidateTemplateManifest,
+} from './template-schema'
+export type { TemplateManifest } from './template-schema'
 
 // ─── Initialization types ────────────────────────────────────────────────────
 
