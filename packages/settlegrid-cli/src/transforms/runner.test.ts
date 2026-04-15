@@ -37,8 +37,21 @@ describe('isAlreadyWrapped', () => {
   it('recognises a settlegrid.init(...) call as already-wrapped', () => {
     expect(isAlreadyWrapped('const sg = settlegrid.init({ toolSlug: "x" })')).toBe(true)
   })
+  it('recognises subpath imports (`@settlegrid/mcp/kernel`, `/rest`) as already-wrapped', () => {
+    // Hostile-review finding: prior regex only matched the bare
+    // main entry, so files importing a subpath slipped through and
+    // got a duplicate top-level import added on top of them.
+    expect(isAlreadyWrapped("import { kernel } from '@settlegrid/mcp/kernel'\n")).toBe(true)
+    expect(isAlreadyWrapped('import { middleware } from "@settlegrid/mcp/rest"\n')).toBe(true)
+  })
   it('returns false for unrelated source', () => {
     expect(isAlreadyWrapped('export const noop = () => undefined\n')).toBe(false)
+  })
+  it('returns false for look-alike imports that do NOT target @settlegrid/mcp', () => {
+    // Regression guard for over-broad matching: a package named
+    // something-mcp must not be confused with @settlegrid/mcp.
+    expect(isAlreadyWrapped("import { x } from 'some-other-mcp'\n")).toBe(false)
+    expect(isAlreadyWrapped("import { x } from '@some/other-mcp'\n")).toBe(false)
   })
 })
 
@@ -231,6 +244,68 @@ server.setRequestHandler(ListToolsSchema, async () => ({ tools: [] }))
       expect(afterPkgMtime).toBe(beforePkgMtime)
       expect(await fsp.readFile(serverPath, 'utf-8')).toBe(src)
       expect(await fsp.readFile(pkgPath, 'utf-8')).toBe(pkgRaw)
+    })
+  })
+
+  // Hostile-review finding: the prior write loop aborted on the first
+  // failing writeFile and skipped both (a) remaining files and (b) the
+  // package.json update, leaving the target repo in an inconsistent
+  // partially-wrapped state. The fix moves failures into `skipped`
+  // with reason "write failed: …" and keeps going.
+  it('continues writing + updates package.json when one file write fails', async () => {
+    // Skip on Windows where chmod semantics differ and make read-only
+    // unreliable in a test harness.
+    if (process.platform === 'win32') return
+
+    await withTmp(async (dir) => {
+      await fsp.writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name: 'tgt', dependencies: {} }, null, 2) + '\n',
+      )
+
+      const writable = path.join(dir, 'writable.ts')
+      const readonly = path.join(dir, 'readonly.ts')
+      const src = `import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+const server = new Server({ name: 'x', version: '0.0.0' })
+server.setRequestHandler(ListToolsSchema, async () => ({ tools: [] }))
+`
+      await fsp.writeFile(writable, src)
+      await fsp.writeFile(readonly, src)
+      // Make the second file read-only so writeFile will throw.
+      await fsp.chmod(readonly, 0o444)
+
+      try {
+        const result = await runTransform({
+          rootDir: dir,
+          detect: detect('mcp-server'),
+          dryRun: false,
+        })
+
+        // The writable file should have landed on disk AND be present
+        // in changedFiles.
+        const writtenWritable = await fsp.readFile(writable, 'utf-8')
+        expect(writtenWritable).toContain("from '@settlegrid/mcp'")
+        expect(result.changedFiles.some((c) => c.path === 'writable.ts')).toBe(true)
+
+        // The read-only file must NOT have been modified …
+        const rawReadonly = await fsp.readFile(readonly, 'utf-8')
+        expect(rawReadonly).toBe(src)
+        // … and must show up in skipped with a "write failed" reason.
+        expect(result.skipped.some(
+          (s) => s.path === 'readonly.ts' && s.reason.startsWith('write failed'),
+        )).toBe(true)
+
+        // package.json update runs despite the per-file failure —
+        // this is the critical invariant: one bad file can't leave
+        // the target without the @settlegrid/mcp dep.
+        const writtenPkg = JSON.parse(
+          await fsp.readFile(path.join(dir, 'package.json'), 'utf-8'),
+        ) as { dependencies: Record<string, string> }
+        expect(writtenPkg.dependencies['@settlegrid/mcp']).toBe(SETTLEGRID_MCP_RANGE)
+      } finally {
+        // Restore write permission so withTmp cleanup works.
+        await fsp.chmod(readonly, 0o644).catch(() => {})
+      }
     })
   })
 

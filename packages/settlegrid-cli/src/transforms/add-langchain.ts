@@ -1,5 +1,6 @@
 import jscodeshift from 'jscodeshift'
 import {
+  bodyContainsSgWrap,
   buildSettlegridInitStatement,
   ensureSettlegridImport,
   hasSettlegridInit,
@@ -72,9 +73,10 @@ export const addLangchainTransform: Codemod = (source, ctx) => {
       const fn = m.value ?? m
       if (!fn || !fn.body || fn.body.type !== 'BlockStatement') continue
 
-      // Per-method idempotency: skip if the body already calls sg.wrap.
-      const bodySource = j(fn.body).toSource()
-      if (/\bsg\s*\.\s*wrap\s*\(/.test(bodySource)) continue
+      // Per-method idempotency: skip if the body already contains an
+      // `sg.wrap(…)` CALL (AST-level so comments / strings mentioning
+      // "sg.wrap(" don't false-positive the skip).
+      if (bodyContainsSgWrap(j, fn.body)) continue
 
       const originalBody = fn.body
 
