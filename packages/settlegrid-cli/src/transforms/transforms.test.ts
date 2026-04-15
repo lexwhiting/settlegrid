@@ -74,6 +74,125 @@ describe('codemod idempotency — running twice produces the same output as runn
   })
 })
 
+describe('codemod early-return + parse-error coverage', () => {
+  // Each codemod must (a) return the source unchanged when the file
+  // has no matching patterns and (b) return the source unchanged when
+  // the parser can't make sense of it — crashing the whole `add` run
+  // because one random file has a syntax error is unacceptable.
+
+  it('add-mcp: returns source unchanged when the file has no Server / setRequestHandler', () => {
+    const src = "export const add = (a: number, b: number): number => a + b\n"
+    const result = addMcpTransform(src, { filename: 'util.ts', toolSlug: 'x' })
+    expect(result).toBe(src)
+  })
+
+  it('add-rest: returns source unchanged when the file has no route registrations', () => {
+    const src = "import express from 'express'\nconst app = express()\napp.listen(3000)\n"
+    const result = addRestTransform(src, { filename: 'noop.ts', toolSlug: 'x' })
+    expect(result).toBe(src)
+  })
+
+  it('add-langchain: returns source unchanged when no class extends a LangChain tool superclass', () => {
+    const src = "class NotATool { run() { return 42 } }\nexport { NotATool }\n"
+    const result = addLangchainTransform(src, { filename: 'other.ts', toolSlug: 'x' })
+    expect(result).toBe(src)
+  })
+
+  it('add-mcp: returns source unchanged when the parser throws on malformed TS/JS', () => {
+    // Deliberately broken TS that tsx parser rejects — a stray `@`
+    // outside a decorator + an unterminated template literal.
+    const src = '@@@ nonsense\nconst x = `unterminated\n'
+    const result = addMcpTransform(src, { filename: 'bad.ts', toolSlug: 'x' })
+    expect(result).toBe(src)
+  })
+
+  it('add-rest: returns source unchanged when the parser throws on malformed TS/JS', () => {
+    const src = 'const x = `unterminated\n@@@ broken\n'
+    const result = addRestTransform(src, { filename: 'bad.ts', toolSlug: 'x' })
+    expect(result).toBe(src)
+  })
+
+  it('add-langchain: returns source unchanged when the parser throws on malformed TS/JS', () => {
+    const src = '@@@ bad\nclass X extends\n'
+    const result = addLangchainTransform(src, { filename: 'bad.ts', toolSlug: 'x' })
+    expect(result).toBe(src)
+  })
+})
+
+describe('codemod additional pattern coverage', () => {
+  // Gap-closing tests for patterns the fixtures don't cover.
+
+  it('add-langchain: wraps the `invoke` method, not just `_call`', () => {
+    // Spec step 4: wrap `_call` / `invoke`. The fixture uses _call;
+    // this test locks in the invoke variant (used by newer LangChain
+    // classes that extend StructuredTool via the invoke interface).
+    const src = `import { Tool } from '@langchain/core/tools'
+class EchoTool extends Tool {
+  name = 'echo'
+  description = 'echoes its input'
+  async invoke(input: string): Promise<string> {
+    return input
+  }
+}
+export { EchoTool }
+`
+    const after = addLangchainTransform(src, {
+      filename: 'echo.ts',
+      toolSlug: 'echo',
+    })
+    expect(after).toContain("from '@settlegrid/mcp'")
+    expect(after).toContain('settlegrid.init')
+    expect(after).toContain('sg.wrap(')
+    // The wrapped arrow must preserve the original body.
+    expect(after).toContain('return input')
+    // And the method key uses this.name (the class's `name = 'echo'`).
+    expect(after).toContain('method: this.name')
+  })
+
+  it('add-rest: wraps the last arg when middleware sits between path and handler', () => {
+    // Express / fastify common pattern: `app.get(path, auth, handler)`
+    // where auth is middleware. The codemod must wrap the LAST arg
+    // (handler), not the first non-path arg.
+    const src = `import express from 'express'
+const authMiddleware = (_req: any, _res: any, next: any) => next()
+const app = express()
+app.get('/admin', authMiddleware, async (req, res) => {
+  res.json({ ok: true })
+})
+app.listen(3000)
+`
+    const after = addRestTransform(src, {
+      filename: 'middleware.ts',
+      toolSlug: 'mw-sample',
+    })
+    // The handler (last arg) is wrapped, the middleware is not.
+    expect(after).toContain("method: 'get:/admin'")
+    // authMiddleware is preserved as a plain argument (not wrapped).
+    // Look for the exact substring "authMiddleware, sg.wrap(" that
+    // proves middleware is still the second arg and handler is wrapped.
+    expect(after).toContain('authMiddleware, sg.wrap(')
+  })
+
+  it('add-rest: handles fastify-style register-route calls via the same verb matcher', () => {
+    // Fastify uses `fastify.get('/path', opts, handler)` (3-arg form
+    // is also valid — the middle arg is a JSON-schema option bag).
+    // We still wrap the last arg, the same way as express middleware.
+    const src = `import Fastify from 'fastify'
+const fastify = Fastify()
+fastify.get('/ping', { schema: {} }, async (req, reply) => {
+  return { pong: true }
+})
+fastify.listen({ port: 3000 })
+`
+    const after = addRestTransform(src, {
+      filename: 'fastify.ts',
+      toolSlug: 'fastify-sample',
+    })
+    expect(after).toContain("method: 'get:/ping'")
+    expect(after).toContain('{ schema: {} }, sg.wrap(')
+  })
+})
+
 describe('codemod hostile-review regression guards', () => {
   // Each `it` here guards one specific finding from the P2.3 hostile
   // review pass. Break any one of these and the relevant bug comes back.
