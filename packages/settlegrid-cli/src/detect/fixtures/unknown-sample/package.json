@@ -1,0 +1,9 @@
+{
+  "name": "unknown-sample",
+  "version": "0.0.0",
+  "description": "A plain Node package with no MCP / LangChain / REST signal.",
+  "main": "src/index.js",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
