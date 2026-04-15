@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
+import * as fsp from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import * as os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -160,5 +162,132 @@ describe('settlegrid add — detection + source resolution smoke tests', () => {
     })
     expect(result.status).toBe(1)
     expect(result.stdout).toContain('provide --path')
+  })
+})
+
+describe('settlegrid add — P2.4 PR fallback + token-never-logged smoke tests', () => {
+  // End-to-end fixtures at the spawn level: these exercise the P2.4
+  // decision tree in the ACTUAL built binary, which is what CI and
+  // end-users hit. In-process unit tests in src/pr/github.test.ts
+  // cover the openPullRequest internals against a mocked Octokit;
+  // these tests prove the CLI integration without any mocks.
+
+  /**
+   * Copy a fixture directory (rest-sample — detected as rest-api,
+   * non-dry-run writes settlement init + wrap into the .ts file)
+   * into a fresh tmpdir so the test can do a real write without
+   * touching the source fixture.
+   */
+  async function copyRestFixture(): Promise<string> {
+    const tmpParent = await fsp.mkdtemp(
+      path.join(os.tmpdir(), 'settlegrid-p24-'),
+    )
+    const repoDir = path.join(tmpParent, 'repo')
+    await fsp.mkdir(repoDir, { recursive: true })
+    // Walk the fixture and copy each file manually (node <20 doesn't
+    // have fsp.cp in all setups). The rest-sample fixture only has
+    // package.json + src/index.ts — two files total.
+    const fixtureSrc = path.join(fixtureRoot, 'rest-sample')
+    const entries = await fsp.readdir(fixtureSrc, {
+      withFileTypes: true,
+      recursive: true,
+    })
+    for (const entry of entries) {
+      const rel = path.relative(
+        fixtureSrc,
+        path.join(entry.parentPath ?? fixtureSrc, entry.name),
+      )
+      const srcPath = path.join(fixtureSrc, rel)
+      const destPath = path.join(repoDir, rel)
+      if (entry.isDirectory()) {
+        await fsp.mkdir(destPath, { recursive: true })
+      } else if (entry.isFile()) {
+        await fsp.mkdir(path.dirname(destPath), { recursive: true })
+        await fsp.copyFile(srcPath, destPath)
+      }
+    }
+    return tmpParent
+  }
+
+  // P2.4 DoD: openPullRequest tests cover … "no-token graceful
+  // patch-file fallback". Tested at the end-to-end CLI level here;
+  // in-process tests in src/pr/github.test.ts cover the unit surface.
+  it('falls back to writing a settlegrid-add.patch file when GITHUB_TOKEN is empty', async () => {
+    const tmpParent = await copyRestFixture()
+    try {
+      const repoDir = path.join(tmpParent, 'repo')
+      const result = spawnSync(
+        'node',
+        [distEntry, 'add', '--path', repoDir],
+        {
+          encoding: 'utf-8',
+          // cwd is where the fallback patch file lands. Use the
+          // tmpdir parent so we can assert on the file path +
+          // clean up deterministically.
+          cwd: tmpParent,
+          env: { ...testEnv, GITHUB_TOKEN: '' },
+        },
+      )
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('no GITHUB_TOKEN set')
+      expect(result.stdout).toContain('settlegrid-add.patch')
+
+      const patchPath = path.join(tmpParent, 'settlegrid-add.patch')
+      const patchStat = await fsp.stat(patchPath)
+      expect(patchStat.isFile()).toBe(true)
+      expect(patchStat.size).toBeGreaterThan(0)
+
+      const patchContent = await fsp.readFile(patchPath, 'utf-8')
+      expect(patchContent).toContain('diff --git a/src/index.ts b/src/index.ts')
+      expect(patchContent).toContain('+import { settlegrid }')
+    } finally {
+      await fsp.rm(tmpParent, { recursive: true, force: true })
+    }
+  })
+
+  // P2.4 DoD: "Token never logged or echoed to stdout (grep check
+  // in test)". The unit test in src/pr/github.test.ts uses console/
+  // stdout spies for openPullRequest itself; this test is the
+  // end-to-end grep check the spec literally asks for — spawn the
+  // binary with a sentinel token in --token AND GITHUB_TOKEN, then
+  // grep the captured stdout+stderr for the sentinel substring.
+  it('never echoes --token or GITHUB_TOKEN values to stdout/stderr', async () => {
+    const tmpParent = await copyRestFixture()
+    try {
+      const repoDir = path.join(tmpParent, 'repo')
+      const TOKEN_FLAG = 'ghs_sentinel_FLAG_never_log_this_123'
+      const TOKEN_ENV = 'ghs_sentinel_ENV_never_log_this_456'
+      const result = spawnSync(
+        'node',
+        [
+          distEntry,
+          'add',
+          '--path',
+          repoDir,
+          '--token',
+          TOKEN_FLAG,
+          '--dry-run',
+        ],
+        {
+          encoding: 'utf-8',
+          cwd: tmpParent,
+          env: { ...testEnv, GITHUB_TOKEN: TOKEN_ENV },
+        },
+      )
+      expect(result.status).toBe(0)
+      // Both token values must be completely absent from captured
+      // output. Grep check via .not.toContain.
+      expect(result.stdout).not.toContain(TOKEN_FLAG)
+      expect(result.stdout).not.toContain(TOKEN_ENV)
+      expect(result.stderr).not.toContain(TOKEN_FLAG)
+      expect(result.stderr).not.toContain(TOKEN_ENV)
+      // And the token display line shows the boolean presence form,
+      // proving the CLI DID see the flag (otherwise the line would
+      // say "(unset)").
+      expect(result.stdout).toContain('--token:')
+      expect(result.stdout).toContain('(provided)')
+    } finally {
+      await fsp.rm(tmpParent, { recursive: true, force: true })
+    }
   })
 })
