@@ -1,5 +1,6 @@
 {
   "$comment": "P2.5 smoke targets. Each entry pins a well-known TypeScript MCP server to a specific commit SHA from modelcontextprotocol/servers. Smoke script fetches via giget, runs `settlegrid add --dry-run --no-pr --json` against the subdir, and asserts the captured TransformOutput meets the expectations. Update the commit SHA when upgrading; other fields should rarely change.",
+  "$upstreamLicense": "Apache-2.0 (verified 2026-04-15 by curl'ing LICENSE at the pinned SHA d5bfe349af1a3abc235e05cf6499d94400a10284 — note MCP is transitioning from MIT to Apache-2.0 so older commits may still be MIT). Both licenses are explicitly allowed by the P2.5 spec (`MIT/Apache-2.0`). Skipped `src/fetch`, `src/git`, `src/time` (Python) since our detection + transforms target TS/JS only.",
   "targets": [
     {
       "name": "mcp-everything",
