@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.ts", "src/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/detect/fixtures",
+    "src/transforms/__testfixtures__",
+    "src/**/*.test.ts"
+  ]
+}
