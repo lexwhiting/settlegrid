@@ -141,7 +141,7 @@ export default async function TemplateDetailPage({
                 Capabilities
               </h2>
               <div className="flex items-center gap-2 flex-wrap">
-                {template.capabilities.map((cap) => (
+                {template.capabilities.map((cap: string) => (
                   <Badge key={cap} variant="outline">
                     {cap}
                   </Badge>
@@ -157,7 +157,7 @@ export default async function TemplateDetailPage({
                 Tags
               </h2>
               <div className="flex items-center gap-2 flex-wrap">
-                {template.tags.map((tag) => (
+                {template.tags.map((tag: string) => (
                   <Badge key={tag} variant="secondary">
                     {tag}
                   </Badge>

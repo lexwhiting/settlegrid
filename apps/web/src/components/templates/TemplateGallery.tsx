@@ -6,8 +6,8 @@ import { TemplateCard } from './TemplateCard'
 import { CategoryTabs } from './CategoryTabs'
 import { TagFilter } from './TagFilter'
 import { SearchBar } from './SearchBar'
-import { sortTemplates, filterTemplates } from '@/lib/registry'
-import type { TemplateManifest } from '@/lib/registry'
+import { sortTemplates, filterTemplates } from '@/lib/registry-helpers'
+import type { TemplateManifest } from '@/lib/registry-helpers'
 import { SEARCH_ENABLED } from '@/env'
 
 interface TemplateGalleryProps {
