@@ -15,7 +15,38 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const { templateManifestSchema } = require('../dist/index.js')
+const distEntry = path.join(__dirname, '..', 'dist', 'index.js')
+if (!fs.existsSync(distEntry)) {
+  process.stderr.write(
+    `generate-template-schema: dist/index.js not found at ${distEntry}.\n` +
+      `This script runs as a postbuild hook and requires tsup output.\n` +
+      `Run \`npm --workspace @settlegrid/mcp run build\` (not this script\n` +
+      `directly) so the build runs first.\n`,
+  )
+  process.exit(1)
+}
+
+let mcpModule
+try {
+  mcpModule = require(distEntry)
+} catch (err) {
+  process.stderr.write(
+    `generate-template-schema: failed to require dist/index.js: ${
+      err instanceof Error ? err.message : String(err)
+    }\n`,
+  )
+  process.exit(1)
+}
+
+const { templateManifestSchema } = mcpModule
+if (!templateManifestSchema) {
+  process.stderr.write(
+    `generate-template-schema: dist/index.js did not export \`templateManifestSchema\`.\n` +
+      `Did the re-export in packages/mcp/src/index.ts get removed?\n`,
+  )
+  process.exit(1)
+}
+
 const { zodToJsonSchema } = require('zod-to-json-schema')
 
 const jsonSchema = zodToJsonSchema(templateManifestSchema, {

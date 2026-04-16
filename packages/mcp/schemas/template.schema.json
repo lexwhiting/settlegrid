@@ -6,6 +6,7 @@
       "properties": {
         "$schema": {
           "type": "string",
+          "pattern": "^https?:\\/\\/",
           "format": "uri"
         },
         "slug": {
@@ -58,6 +59,7 @@
             },
             "url": {
               "type": "string",
+              "pattern": "^https?:\\/\\/",
               "format": "uri"
             },
             "github": {
@@ -78,6 +80,7 @@
             },
             "url": {
               "type": "string",
+              "pattern": "^https?:\\/\\/",
               "format": "uri"
             },
             "directory": {
@@ -127,7 +130,7 @@
               ]
             },
             "perCallUsdCents": {
-              "type": "number",
+              "type": "integer",
               "minimum": 0
             },
             "currency": {
@@ -174,6 +177,7 @@
             "properties": {
               "url": {
                 "type": "string",
+                "pattern": "^https?:\\/\\/",
                 "format": "uri"
               },
               "alt": {
@@ -190,6 +194,7 @@
         },
         "loomUrl": {
           "type": "string",
+          "pattern": "^https?:\\/\\/",
           "format": "uri"
         },
         "deployButton": {
@@ -206,6 +211,7 @@
             },
             "url": {
               "type": "string",
+              "pattern": "^https?:\\/\\/",
               "format": "uri"
             }
           },
