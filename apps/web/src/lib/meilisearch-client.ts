@@ -7,15 +7,14 @@
 
 import { MeiliSearch, type SearchResponse } from 'meilisearch'
 import type { TemplateManifest } from '@/lib/registry'
+import { MEILI_URL, MEILI_SEARCH_KEY, SEARCH_ENABLED } from '@/env'
 
 let client: MeiliSearch | null = null
 
 function getClient(): MeiliSearch | null {
   if (client) return client
-  const host = process.env.NEXT_PUBLIC_MEILI_URL
-  const apiKey = process.env.NEXT_PUBLIC_MEILI_SEARCH_KEY
-  if (!host || !apiKey) return null
-  client = new MeiliSearch({ host, apiKey })
+  if (!SEARCH_ENABLED) return null
+  client = new MeiliSearch({ host: MEILI_URL, apiKey: MEILI_SEARCH_KEY })
   return client
 }
 
