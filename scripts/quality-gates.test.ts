@@ -12,23 +12,71 @@ vi.mock('./shadow-crawler/fetch-utils', () => ({
 // ── getChangedTemplateDirs tests ───────────────────────────────────────────
 
 describe('quality-gates', () => {
-  describe('getChangedTemplateDirs', () => {
-    it('extracts template dirs from git diff output', async () => {
-      const { getChangedTemplateDirs } = await import('./quality-gates')
+  describe('parseChangedTemplateDirs (pure, with fixture)', () => {
+    it('extracts template dirs from fake git diff output', async () => {
+      const { parseChangedTemplateDirs } = await import('./quality-gates')
 
-      // This test runs in the actual repo, so getChangedTemplateDirs
-      // will use real git. We test the parsing logic instead.
-      const dirs = getChangedTemplateDirs()
-      // Should return an array (may be empty if HEAD === origin/main)
-      expect(Array.isArray(dirs)).toBe(true)
+      const fakeDiff = [
+        'open-source-servers/settlegrid-weather/template.json',
+        'open-source-servers/settlegrid-weather/README.md',
+        'open-source-servers/settlegrid-nasa/src/server.ts',
+        'packages/create-settlegrid-tool/templates/basic/template.json',
+        'apps/web/src/app/page.tsx',
+        'scripts/build-registry.ts',
+        '',
+      ].join('\n')
+
+      const dirs = parseChangedTemplateDirs(fakeDiff, [
+        '/repo/open-source-servers',
+        '/repo/packages/create-settlegrid-tool/templates',
+      ], '/repo')
+
+      expect(dirs).toHaveLength(3)
+      expect(dirs).toContain('/repo/open-source-servers/settlegrid-weather')
+      expect(dirs).toContain('/repo/open-source-servers/settlegrid-nasa')
+      expect(dirs).toContain('/repo/packages/create-settlegrid-tool/templates/basic')
     })
 
-    it('returns empty array when no templates changed', async () => {
-      // getChangedTemplateDirs uses execSync internally. If no
-      // open-source-servers/ files changed, it returns empty.
+    it('deduplicates dirs when multiple files in same template change', async () => {
+      const { parseChangedTemplateDirs } = await import('./quality-gates')
+
+      const fakeDiff = [
+        'open-source-servers/settlegrid-x/template.json',
+        'open-source-servers/settlegrid-x/README.md',
+        'open-source-servers/settlegrid-x/src/server.ts',
+      ].join('\n')
+
+      const dirs = parseChangedTemplateDirs(fakeDiff, [
+        '/repo/open-source-servers',
+      ], '/repo')
+
+      expect(dirs).toHaveLength(1)
+    })
+
+    it('returns empty for changes outside template roots', async () => {
+      const { parseChangedTemplateDirs } = await import('./quality-gates')
+
+      const fakeDiff = 'apps/web/src/app/page.tsx\nscripts/foo.ts\n'
+      const dirs = parseChangedTemplateDirs(fakeDiff, [
+        '/repo/open-source-servers',
+      ], '/repo')
+
+      expect(dirs).toHaveLength(0)
+    })
+
+    it('returns empty for empty diff output', async () => {
+      const { parseChangedTemplateDirs } = await import('./quality-gates')
+
+      const dirs = parseChangedTemplateDirs('', ['/repo/open-source-servers'], '/repo')
+      expect(dirs).toHaveLength(0)
+    })
+  })
+
+  describe('getChangedTemplateDirs (live git)', () => {
+    it('returns an array of paths under template roots', async () => {
       const { getChangedTemplateDirs } = await import('./quality-gates')
       const dirs = getChangedTemplateDirs()
-      // Dirs should only contain paths under the template roots
+      expect(Array.isArray(dirs)).toBe(true)
       for (const dir of dirs) {
         expect(
           dir.includes('open-source-servers') ||
