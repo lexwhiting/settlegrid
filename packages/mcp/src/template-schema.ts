@@ -73,7 +73,7 @@ export const templateManifestSchema = z
 
     /** Authorship block. */
     author: z.object({
-      name: z.string().min(1),
+      name: z.string(),
       url: z.string().url().optional(),
       github: z.string().optional(),
     }),
@@ -92,7 +92,7 @@ export const templateManifestSchema = z
     languages: z.array(z.enum(['ts', 'js', 'py'])).min(1),
 
     /** Relative path to the entry file (e.g. `src/index.ts`). */
-    entry: z.string().min(1),
+    entry: z.string(),
 
     /**
      * Pricing model + optional per-call amount. When `model` is
@@ -124,14 +124,14 @@ export const templateManifestSchema = z
     }),
 
     /** Capability tags (free-form, up to 30). */
-    capabilities: z.array(z.string().min(1)).max(30),
+    capabilities: z.array(z.string()).max(30),
 
     /** Gallery screenshots — up to 6. */
     screenshots: z
       .array(
         z.object({
           url: z.string().url(),
-          alt: z.string().min(1),
+          alt: z.string(),
         }),
       )
       .max(6)
