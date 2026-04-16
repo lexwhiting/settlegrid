@@ -12,7 +12,7 @@ import {
   index,
   check,
 } from 'drizzle-orm/pg-core'
-import { relations, sql } from 'drizzle-orm'
+import { relations, sql, desc } from 'drizzle-orm'
 
 // ─── Developers ────────────────────────────────────────────────────────────────
 
@@ -1134,6 +1134,6 @@ export const mcpShadowIndex = pgTable(
       table.repo,
     ),
     index('mcp_shadow_category_idx').on(table.category),
-    index('mcp_shadow_last_updated_idx').on(table.lastUpdated),
+    index('mcp_shadow_last_updated_idx').on(desc(table.lastUpdated)),
   ]
 )

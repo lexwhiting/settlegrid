@@ -36,6 +36,7 @@ async function upsertRecords(records: ShadowRecord[]): Promise<number> {
 
   // Lazy-import DB deps only when actually writing (not in --dry-run)
   const { drizzle } = await import('drizzle-orm/postgres-js')
+  const { sql: dsql } = await import('drizzle-orm')
   const postgres = (await import('postgres')).default
   const { mcpShadowIndex } = await import(
     '../../apps/web/src/lib/db/schema' as string
@@ -78,14 +79,16 @@ async function upsertRecords(records: ShadowRecord[]): Promise<number> {
           mcpShadowIndex.repo,
         ],
         set: {
-          name: mcpShadowIndex.name,
-          description: mcpShadowIndex.description,
-          category: mcpShadowIndex.category,
-          tags: mcpShadowIndex.tags,
-          stars: mcpShadowIndex.stars,
-          downloads: mcpShadowIndex.downloads,
-          lastUpdated: mcpShadowIndex.lastUpdated,
-          sourceUrl: mcpShadowIndex.sourceUrl,
+          // name is NOT NULL — always update from incoming row
+          name: dsql`EXCLUDED.name`,
+          // Nullable fields: COALESCE — only overwrite if new value is non-null
+          description: dsql`COALESCE(EXCLUDED.description, ${mcpShadowIndex.description})`,
+          category: dsql`COALESCE(EXCLUDED.category, ${mcpShadowIndex.category})`,
+          tags: dsql`COALESCE(EXCLUDED.tags, ${mcpShadowIndex.tags})`,
+          stars: dsql`COALESCE(EXCLUDED.stars, ${mcpShadowIndex.stars})`,
+          downloads: dsql`COALESCE(EXCLUDED.downloads, ${mcpShadowIndex.downloads})`,
+          lastUpdated: dsql`COALESCE(EXCLUDED.last_updated, ${mcpShadowIndex.lastUpdated})`,
+          sourceUrl: dsql`COALESCE(EXCLUDED.source_url, ${mcpShadowIndex.sourceUrl})`,
           indexedAt: new Date(),
         },
       })

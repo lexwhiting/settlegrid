@@ -22,4 +22,4 @@ CREATE INDEX IF NOT EXISTS "mcp_shadow_category_idx"
   ON "mcp_shadow_index" ("category");
 
 CREATE INDEX IF NOT EXISTS "mcp_shadow_last_updated_idx"
-  ON "mcp_shadow_index" ("last_updated");
+  ON "mcp_shadow_index" ("last_updated" DESC);
