@@ -17,11 +17,13 @@
     "gridbot": "npx tsx scripts/gridbot/index.ts",
     "gridbot:schedule": "npx tsx scripts/gridbot/scheduler.ts",
     "audit:canonical-50": "node scripts/audit/canonical-50.mjs",
+    "build:registry": "npx tsx scripts/build-registry.ts",
     "codemod": "node scripts/codemods/runner.mjs",
     "codemod:sdk-bump": "node scripts/codemods/runner.mjs sdk-version-bump"
   },
   "devDependencies": {
     "jscodeshift": "^17.3.0",
+    "tsx": "^4.0.0",
     "turbo": "^2.3.0"
   },
   "dependencies": {
