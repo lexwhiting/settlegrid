@@ -92,6 +92,24 @@ describe('registry', () => {
       const sorted = sortTemplates([alpha, beta, gamma])
       expect(sorted.map((t) => t.slug)).toEqual(['gamma', 'beta', 'alpha'])
     })
+
+    it('tie-breaks same rank by name alphabetically', () => {
+      const a = makeTemplate({ slug: 'z-api', name: 'Zebra', trendingRank: 1 })
+      const b = makeTemplate({ slug: 'a-api', name: 'Alpha', trendingRank: 1 })
+      const sorted = sortTemplates([a, b])
+      expect(sorted.map((t) => t.slug)).toEqual(['a-api', 'z-api'])
+    })
+
+    it('does not mutate the input array', () => {
+      const input = [gamma, beta, alpha]
+      const original = [...input]
+      sortTemplates(input)
+      expect(input).toEqual(original)
+    })
+
+    it('returns empty array for empty input', () => {
+      expect(sortTemplates([])).toEqual([])
+    })
   })
 
   describe('filterTemplates', () => {
@@ -116,6 +134,29 @@ describe('registry', () => {
     it('returns all when no filters applied', () => {
       const result = filterTemplates(registry.templates, {})
       expect(result).toHaveLength(3)
+    })
+
+    it('returns empty array when no templates match', () => {
+      const result = filterTemplates(registry.templates, { category: 'finance' })
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('listTags — edge cases', () => {
+    it('returns empty array for category with no templates', () => {
+      const tags = listTags('finance', registry)
+      expect(tags).toEqual([])
+    })
+  })
+
+  describe('listCategories — edge cases', () => {
+    it('returns empty array when categories map is empty', () => {
+      const emptyReg: RegistryJson = {
+        ...registry,
+        categories: {},
+      }
+      const cats = listCategories(emptyReg)
+      expect(cats).toEqual([])
     })
   })
 })
