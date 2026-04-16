@@ -57,6 +57,7 @@ const jsonLdProduct = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
       description:
         'Free forever. 50,000 operations/month, unlimited tools, progressive take rate starting at 0%, full dashboard.',
     },
@@ -65,6 +66,7 @@ const jsonLdProduct = {
       name: 'Builder',
       price: '19',
       priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' },
       description:
         '200,000 operations/month, sandbox mode, Slack/Discord notifications, health alerts, benchmarking, revenue forecasting, priority listing, white-label widget.',
@@ -74,6 +76,7 @@ const jsonLdProduct = {
       name: 'Scale',
       price: '79',
       priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' },
       description:
         '2,000,000 operations/month, advanced analytics, consumer insights, fraud detection, anomaly alerts, data export, audit logs, team access, dedicated support.',

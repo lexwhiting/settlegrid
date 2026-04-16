@@ -127,7 +127,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const tool = await getToolData(slug)
-  if (!tool) return { title: 'Tool Not Found | SettleGrid' }
+  if (!tool) notFound()
 
   const description = tool.description
     ? `${tool.description.slice(0, 150)} — Available on SettleGrid with per-call pricing.`
