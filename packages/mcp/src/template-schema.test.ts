@@ -682,3 +682,56 @@ describe('safeValidateTemplateManifest — array-index dot-paths', () => {
     }
   })
 })
+
+// ─── Empty-path error branch in safeValidateTemplateManifest ───────────────
+//
+// When the root-level zod error has an empty `path` array, the
+// `pathStr ? ... : e.message` ternary takes the else branch and
+// emits the message without a dot-path prefix.
+
+describe('safeValidateTemplateManifest — root-level error (empty path)', () => {
+  it('emits unprefixed message for non-object input', () => {
+    const r1 = safeValidateTemplateManifest('a string')
+    expect(r1.success).toBe(false)
+    if (!r1.success) {
+      expect(r1.errors.length).toBeGreaterThan(0)
+      // Should NOT start with a field name — root error has no path.
+      expect(r1.errors[0]).toMatch(/Expected object/)
+      expect(r1.errors[0]).not.toContain(':')
+    }
+
+    const r2 = safeValidateTemplateManifest(42)
+    expect(r2.success).toBe(false)
+    if (!r2.success) {
+      expect(r2.errors[0]).toMatch(/Expected object/)
+    }
+  })
+})
+
+// ─── httpUrl: .url() branch after regex passes ─────────────────────────────
+//
+// The httpUrl validator chains `.regex(/^https?:\/\//i).url()`. When
+// the regex passes but URL parsing fails, only the `.url()` error
+// fires (not the scheme-restriction). This test exercises that branch.
+
+describe('templateManifestSchema — httpUrl .url() branch', () => {
+  it('rejects a string that passes the regex but fails URL parsing', () => {
+    // 'https://' alone passes the regex but is not a valid URL.
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      repo: { type: 'git', url: 'https://' },
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.errors.some((e) => e.includes('Invalid url'))).toBe(true)
+    }
+  })
+
+  it('rejects author.url that passes regex but is malformed', () => {
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      author: { name: 'x', url: 'https://[:::' },
+    })
+    expect(result.success).toBe(false)
+  })
+})
