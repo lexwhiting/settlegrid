@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { writeFile, mkdir, rm, mkdtemp } from 'node:fs/promises'
+import { rm, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-
-// Mock the fetch-utils (not needed here but prevents import errors)
-vi.mock('./shadow-crawler/fetch-utils', () => ({
-  fetchJson: vi.fn(),
-  fetchWithRetry: vi.fn(),
-}))
 
 // ── getChangedTemplateDirs tests ───────────────────────────────────────────
 
@@ -69,6 +63,24 @@ describe('quality-gates', () => {
 
       const dirs = parseChangedTemplateDirs('', ['/repo/open-source-servers'], '/repo')
       expect(dirs).toHaveLength(0)
+    })
+
+    it('rejects unsafe slug components (.., ., empty, separator-bearing)', async () => {
+      const { parseChangedTemplateDirs } = await import('./quality-gates')
+
+      const fakeDiff = [
+        'open-source-servers/../escape/template.json',
+        'open-source-servers/./template.json',
+        'open-source-servers//template.json',
+        'open-source-servers/legit/template.json',
+      ].join('\n')
+
+      const dirs = parseChangedTemplateDirs(fakeDiff, [
+        '/repo/open-source-servers',
+      ], '/repo')
+
+      // Only the legit slug survives the safety filter.
+      expect(dirs).toEqual(['/repo/open-source-servers/legit'])
     })
   })
 
