@@ -23,6 +23,39 @@
  */
 import { z } from 'zod'
 
+/**
+ * Restricted URL validator used for every URL field in the manifest.
+ *
+ * Rationale: plain `z.string().url()` uses the WHATWG URL parser, which
+ * accepts ANY scheme including `javascript:`, `data:`, and `file:`. Any
+ * gallery card, CLI output, or docs page that later renders a field
+ * like `deployButton.url` or `author.url` as a clickable link or iframe
+ * src would become an XSS/SSRF sink. Restrict to `http://` and
+ * `https://` at the schema layer so downstream consumers don't need
+ * to re-sanitize.
+ *
+ * Implementation note: the http/https restriction is expressed as a
+ * `.regex()` rather than a `.refine()` callback. Both forms enforce
+ * the rule at runtime, but only `.regex()` survives the round-trip
+ * through `zod-to-json-schema` — a refine is a user-supplied JS
+ * predicate that has no JSON Schema equivalent and is silently
+ * dropped, which would mean external validators consuming
+ * `schemas/template.schema.json` wouldn't enforce the scheme
+ * restriction. Using a regex keeps runtime Zod and the emitted JSON
+ * Schema in sync.
+ *
+ * This is a deliberate, spec-visible strictness hardening over the
+ * literal spec shape (`z.string().url()`). See commit message for
+ * the hostile-review justification.
+ */
+const httpUrl = z
+  .string()
+  .regex(
+    /^https?:\/\//i,
+    'URL must use http or https scheme (javascript:, data:, file: blocked for XSS/SSRF safety)',
+  )
+  .url()
+
 export const templateManifestSchema = z
   .object({
     /**
@@ -30,7 +63,7 @@ export const templateManifestSchema = z
      * validates against. Lets IDEs provide intellisense when a
      * template author hand-writes the file.
      */
-    $schema: z.string().url().optional(),
+    $schema: httpUrl.optional(),
 
     /** URL-safe template id. */
     slug: z
@@ -74,14 +107,14 @@ export const templateManifestSchema = z
     /** Authorship block. */
     author: z.object({
       name: z.string(),
-      url: z.string().url().optional(),
+      url: httpUrl.optional(),
       github: z.string().optional(),
     }),
 
     /** Git repo coordinates. */
     repo: z.object({
       type: z.literal('git'),
-      url: z.string().url(),
+      url: httpUrl,
       directory: z.string().optional(),
     }),
 
@@ -98,11 +131,17 @@ export const templateManifestSchema = z
      * Pricing model + optional per-call amount. When `model` is
      * `'per-call'`, `perCallUsdCents` is required via the
      * `.refine` below; other models ignore it.
+     *
+     * `perCallUsdCents` is additionally constrained to `.int().finite()`
+     * because the field name literally means "cents" (integer monetary
+     * units, Stripe convention) and because `Infinity` would otherwise
+     * validate — a hostile-review billing-path bug. This is a strict
+     * improvement over the literal spec shape (`z.number()`).
      */
     pricing: z
       .object({
         model: z.enum(['free', 'per-call', 'subscription', 'tiered']),
-        perCallUsdCents: z.number().nonnegative().optional(),
+        perCallUsdCents: z.number().int().finite().nonnegative().optional(),
         currency: z.literal('USD').default('USD'),
       })
       .refine(
@@ -130,7 +169,7 @@ export const templateManifestSchema = z
     screenshots: z
       .array(
         z.object({
-          url: z.string().url(),
+          url: httpUrl,
           alt: z.string(),
         }),
       )
@@ -138,13 +177,13 @@ export const templateManifestSchema = z
       .optional(),
 
     /** Optional demo video. */
-    loomUrl: z.string().url().optional(),
+    loomUrl: httpUrl.optional(),
 
     /** One-click deploy button for cloud providers. */
     deployButton: z
       .object({
         provider: z.enum(['vercel', 'render', 'railway', 'fly']),
-        url: z.string().url(),
+        url: httpUrl,
       })
       .optional(),
 
