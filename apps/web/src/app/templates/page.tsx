@@ -75,11 +75,11 @@ async function GalleryContent({
 }) {
   const params = await searchParams
   const registry = getRegistry()
-  const categories = listCategories(registry)
+  const categories = listCategories()
 
   const activeCategory = params.category ?? ''
   const activeTags = params.tags?.split(',').filter(Boolean) ?? []
-  const allTags = listTags(registry, activeCategory || undefined)
+  const allTags = listTags(activeCategory || undefined)
 
   const filtered = filterTemplates(registry.templates, {
     category: activeCategory || undefined,

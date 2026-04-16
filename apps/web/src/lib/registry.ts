@@ -47,33 +47,52 @@ export interface RegistryJson {
 
 export const getRegistry = cache((): RegistryJson => {
   const filePath = join(process.cwd(), 'public', 'registry.json')
-  return JSON.parse(readFileSync(filePath, 'utf-8'))
+  const registry: RegistryJson = JSON.parse(readFileSync(filePath, 'utf-8'))
+  if (registry.templates.length === 0) {
+    throw new Error(
+      'registry.json has 0 templates — run `npm run build:registry` before building the web app',
+    )
+  }
+  return registry
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * Spec API: `getTemplateBySlug(slug)` — calls getRegistry() internally.
+ * Pass an explicit registry for testing without filesystem dependency.
+ */
 export function getTemplateBySlug(
-  registry: RegistryJson,
   slug: string,
+  registry?: RegistryJson,
 ): TemplateManifest | undefined {
-  return registry.templates.find((t) => t.slug === slug)
+  const reg = registry ?? getRegistry()
+  return reg.templates.find((t) => t.slug === slug)
 }
 
+/**
+ * Spec API: `listCategories()` — calls getRegistry() internally.
+ */
 export function listCategories(
-  registry: RegistryJson,
+  registry?: RegistryJson,
 ): { name: string; count: number }[] {
-  return Object.entries(registry.categories)
+  const reg = registry ?? getRegistry()
+  return Object.entries(reg.categories)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
 }
 
+/**
+ * Spec API: `listTags(category?)` — calls getRegistry() internally.
+ */
 export function listTags(
-  registry: RegistryJson,
   category?: string,
+  registry?: RegistryJson,
 ): string[] {
+  const reg = registry ?? getRegistry()
   const templates = category
-    ? registry.templates.filter((t) => t.category === category)
-    : registry.templates
+    ? reg.templates.filter((t) => t.category === category)
+    : reg.templates
   const tagSet = new Set<string>()
   for (const t of templates) {
     for (const tag of t.tags) {
