@@ -5,6 +5,7 @@ import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { Badge } from '@/components/ui/badge'
 import { getAllShadowEntries, getShadowEntry } from '@/lib/shadow-index'
+import { getRegistry, getTemplateBySlug } from '@/lib/registry'
 import { SHADOW_BUILD_LIMIT } from '@/env'
 
 export const dynamic = 'force-static'
@@ -58,27 +59,6 @@ export async function generateMetadata({
     },
     twitter: { card: 'summary_large_image', title, description },
     ...(noindex ? { robots: { index: false, follow: false } } : {}),
-    other: {
-      'script:ld+json': JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'SoftwareApplication',
-        name: entry.name,
-        description,
-        url: entry.sourceUrl,
-        applicationCategory: 'DeveloperApplication',
-        author: { '@type': 'Person', name: entry.owner },
-        ...(entry.stars != null
-          ? {
-              aggregateRating: {
-                '@type': 'AggregateRating',
-                ratingValue: Math.min(5, 1 + Math.log10(Math.max(1, entry.stars))),
-                bestRating: 5,
-                ratingCount: entry.stars,
-              },
-            }
-          : {}),
-      }),
-    },
   }
 }
 
@@ -108,8 +88,49 @@ export default async function ShadowDetailPage({
   const tags = (entry.tags as string[] | null) ?? []
   const npxCommand = `npx settlegrid add github:${owner}/${repo}`
 
+  // Check if a polished gallery template exists for this repo
+  let matchedTemplateSlug: string | null = null
+  try {
+    const registry = getRegistry()
+    // Match by repo name (strip settlegrid- prefix from template slugs)
+    const match = registry.templates.find(
+      (t) => t.slug === repo || t.slug === entry.name.toLowerCase().replace(/\s+/g, '-'),
+    )
+    if (match) matchedTemplateSlug = match.slug
+  } catch {
+    // Registry not available — skip cross-reference
+  }
+
+  const description =
+    entry.description ??
+    `${entry.name} by ${entry.owner} — add per-call billing with SettleGrid`
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: entry.name,
+    description,
+    url: entry.sourceUrl,
+    applicationCategory: 'DeveloperApplication',
+    author: { '@type': 'Person', name: entry.owner },
+    ...(entry.stars != null
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: Math.min(5, 1 + Math.log10(Math.max(1, entry.stars))),
+            bestRating: 5,
+            ratingCount: entry.stars,
+          },
+        }
+      : {}),
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar />
 
       <main className="flex-1 px-6 py-16 pt-24">
@@ -210,6 +231,26 @@ export default async function ShadowDetailPage({
               </li>
             </ul>
           </section>
+
+          {/* Polished template cross-reference */}
+          {matchedTemplateSlug && (
+            <section className="mb-10 rounded-lg border border-border bg-card p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-2">
+                Polished Template Available
+              </h2>
+              <p className="text-sm text-muted-foreground mb-3">
+                A hand-polished, deploy-ready version of this server is available
+                in the SettleGrid gallery with documentation, monetization math,
+                and one-click deploy.
+              </p>
+              <Link
+                href={`/templates/${matchedTemplateSlug}`}
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-[#E5A336] border border-[#E5A336]/30 rounded-md hover:bg-[#E5A336]/10 transition-colors"
+              >
+                View Template &rarr;
+              </Link>
+            </section>
+          )}
 
           {/* Source attribution */}
           <section className="text-sm text-muted-foreground border-t border-border pt-6">

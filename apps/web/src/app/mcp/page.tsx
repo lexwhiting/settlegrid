@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { Badge } from '@/components/ui/badge'
-import { getAllShadowEntries, countShadowEntries } from '@/lib/shadow-index'
+import { getAllShadowEntries, countShadowEntries, listOwners } from '@/lib/shadow-index'
 
 export const dynamic = 'force-static'
 export const revalidate = 3600
@@ -16,9 +16,10 @@ export const metadata: Metadata = {
 }
 
 export default async function McpDirectoryPage() {
-  const [entries, totalCount] = await Promise.all([
+  const [entries, totalCount, owners] = await Promise.all([
     getAllShadowEntries(50),
     countShadowEntries(),
+    listOwners(),
   ])
 
   // Group top 50 by category for navigation
@@ -56,12 +57,41 @@ export default async function McpDirectoryPage() {
 
           {/* Category nav */}
           {categories.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap mb-8">
-              {categories.map(([cat, items]) => (
-                <Badge key={cat} variant="secondary">
-                  {cat} ({items.length})
-                </Badge>
-              ))}
+            <div className="mb-6">
+              <h2 className="text-sm font-medium text-muted-foreground mb-2">
+                Categories
+              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                {categories.map(([cat, items]) => (
+                  <Badge key={cat} variant="secondary">
+                    {cat} ({items.length})
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Owner nav */}
+          {owners.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-sm font-medium text-muted-foreground mb-2">
+                Top Authors ({owners.length})
+              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                {owners.slice(0, 30).map((o) => (
+                  <span
+                    key={o}
+                    className="inline-flex items-center rounded-full border border-gray-200 px-2.5 py-0.5 text-xs text-muted-foreground dark:border-[#2A2D3E]"
+                  >
+                    {o}
+                  </span>
+                ))}
+                {owners.length > 30 && (
+                  <span className="text-xs text-muted-foreground">
+                    +{owners.length - 30} more
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
