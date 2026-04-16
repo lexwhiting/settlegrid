@@ -15,7 +15,14 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const distEntry = path.join(__dirname, '..', 'dist', 'index.js')
+// The dist path is overridable via SETTLEGRID_DIST_ENTRY so tests can
+// point this script at a fake dist file (missing, malformed, or with
+// a broken export) without copying the entire script + node_modules
+// tree into a sandbox. Production invocations (`npm run build` →
+// `postbuild`) always use the default.
+const distEntry =
+  process.env.SETTLEGRID_DIST_ENTRY || path.join(__dirname, '..', 'dist', 'index.js')
+
 if (!fs.existsSync(distEntry)) {
   process.stderr.write(
     `generate-template-schema: dist/index.js not found at ${distEntry}.\n` +
@@ -55,10 +62,14 @@ const jsonSchema = zodToJsonSchema(templateManifestSchema, {
   target: 'jsonSchema7',
 })
 
-const schemasDir = path.join(__dirname, '..', 'schemas')
-fs.mkdirSync(schemasDir, { recursive: true })
+// Output location is also overridable so tests can write to a tmpdir
+// rather than clobbering the real `packages/mcp/schemas/` during a
+// vitest run.
+const outPath =
+  process.env.SETTLEGRID_SCHEMA_OUT ||
+  path.join(__dirname, '..', 'schemas', 'template.schema.json')
 
-const outPath = path.join(schemasDir, 'template.schema.json')
+fs.mkdirSync(path.dirname(outPath), { recursive: true })
 fs.writeFileSync(
   outPath,
   JSON.stringify(jsonSchema, null, 2) + '\n',
