@@ -48,9 +48,9 @@ export interface RegistryJson {
 export const getRegistry = cache((): RegistryJson => {
   const filePath = join(process.cwd(), 'public', 'registry.json')
   const registry: RegistryJson = JSON.parse(readFileSync(filePath, 'utf-8'))
-  if (registry.templates.length === 0) {
+  if (!Array.isArray(registry.templates) || registry.templates.length === 0) {
     throw new Error(
-      'registry.json has 0 templates — run `npm run build:registry` before building the web app',
+      'registry.json has 0 templates or is malformed — run `npm run build:registry` before building the web app',
     )
   }
   return registry
