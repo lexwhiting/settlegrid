@@ -2,14 +2,24 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
-import { ServerSearch } from '@/components/server-search'
-import type { CatalogEntry } from '@/components/server-search'
-import catalogData from '../../../public/server-catalog.json'
+import { GALLERY_ENABLED } from '@/env'
+import {
+  getRegistry,
+  listCategories,
+  listTags,
+  sortTemplates,
+  filterTemplates,
+} from '@/lib/registry'
+import { TemplateCard } from '@/components/templates/TemplateCard'
+import { CategoryTabs } from '@/components/templates/CategoryTabs'
+import { TagFilter } from '@/components/templates/TagFilter'
+
+export const dynamic = 'force-static'
 
 export const metadata: Metadata = {
-  title: '1,000+ Open-Source MCP Templates | SettleGrid',
+  title: 'MCP Templates Gallery | SettleGrid',
   description:
-    'Browse 1,000+ open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, deploy, and start earning per-call revenue.',
+    'Browse open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, deploy, and start earning per-call revenue.',
   alternates: { canonical: 'https://settlegrid.ai/templates' },
   keywords: [
     'MCP server templates',
@@ -18,13 +28,65 @@ export const metadata: Metadata = {
     'SettleGrid billing',
     'Model Context Protocol',
     'AI monetization',
-    'fork and deploy',
   ],
 }
 
-const servers = catalogData as CatalogEntry[]
+function ComingSoon() {
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <Navbar />
+      <main className="flex-1 flex items-center justify-center px-6 py-16 pt-24">
+        <div className="text-center max-w-lg">
+          <h1 className="text-4xl font-medium tracking-tight text-foreground mb-4">
+            Templates Gallery
+          </h1>
+          <p className="text-lg text-muted-foreground mb-6">
+            Coming soon. We&apos;re polishing the gallery experience.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium bg-[#E5A336] text-[#0a0a0a] rounded-md hover:bg-[#d4922f] transition-all"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  )
+}
 
-export default function TemplatesPage() {
+export default function TemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string; tags?: string }>
+}) {
+  if (!GALLERY_ENABLED) {
+    return <ComingSoon />
+  }
+
+  return <GalleryContent searchParams={searchParams} />
+}
+
+async function GalleryContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string; tags?: string }>
+}) {
+  const params = await searchParams
+  const registry = getRegistry()
+  const categories = listCategories(registry)
+
+  const activeCategory = params.category ?? ''
+  const activeTags = params.tags?.split(',').filter(Boolean) ?? []
+  const allTags = listTags(registry, activeCategory || undefined)
+
+  const filtered = filterTemplates(registry.templates, {
+    category: activeCategory || undefined,
+    tags: activeTags.length > 0 ? activeTags : undefined,
+  })
+  const sorted = sortTemplates(filtered)
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
@@ -37,7 +99,7 @@ export default function TemplatesPage() {
               Templates
             </p>
             <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-foreground mb-4">
-              {servers.length.toLocaleString()} open-source templates
+              {registry.totalTemplates} open-source templates
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Fork any template, deploy to Vercel, and start earning.
@@ -52,15 +114,51 @@ export default function TemplatesPage() {
               {' \u2192 '}
               <span className="font-medium text-[#E5A336]">Earn</span>
               {' — '}Your tool appears in the{' '}
-              <Link href="/marketplace" className="text-[#E5A336] hover:underline">
+              <Link
+                href="/marketplace"
+                className="text-[#E5A336] hover:underline"
+              >
                 Marketplace
               </Link>{' '}
               and is discoverable by AI agents.
             </div>
           </div>
 
-          {/* Search + Filter + Grid */}
-          <ServerSearch servers={servers} />
+          {/* Search stub (wired in P2.10) */}
+          <div className="mb-6">
+            <input
+              type="text"
+              placeholder="Search templates..."
+              disabled
+              className="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm text-muted-foreground placeholder:text-muted-foreground/50 dark:border-[#2A2D3E] dark:bg-[#161822] cursor-not-allowed opacity-60"
+            />
+          </div>
+
+          {/* Category Tabs */}
+          <div className="mb-4">
+            <CategoryTabs
+              categories={categories}
+              totalCount={registry.totalTemplates}
+            />
+          </div>
+
+          {/* Tag Filter */}
+          <div className="mb-8">
+            <TagFilter tags={allTags} />
+          </div>
+
+          {/* Grid */}
+          {sorted.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sorted.map((t) => (
+                <TemplateCard key={t.slug} template={t} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 text-muted-foreground">
+              No templates match the current filters.
+            </div>
+          )}
 
           {/* Bottom CTA */}
           <div className="mt-16 rounded-lg border border-border bg-card p-12 text-center">
