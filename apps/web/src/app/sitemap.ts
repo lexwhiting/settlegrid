@@ -7,8 +7,8 @@ import { BLOG_SLUGS } from '@/lib/blog-posts'
 import { INTEGRATION_SLUGS } from '@/lib/integration-guides'
 import { FRAMEWORK_SLUGS } from '@/lib/frameworks'
 import { db } from '@/lib/db'
-import { tools } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { tools, mcpShadowIndex } from '@/lib/db/schema'
+import { eq, desc } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 const BASE_URL = 'https://settlegrid.ai'
@@ -37,6 +37,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   } catch (err) {
     // Graceful degradation: if DB is unreachable, still serve static entries
     logger.warn('sitemap.db_query_failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
+  // ── Shadow directory pages ─────────────────────────────────────────────
+  let shadowEntries: MetadataRoute.Sitemap = []
+  try {
+    const shadowRows = await db
+      .select({
+        owner: mcpShadowIndex.owner,
+        repo: mcpShadowIndex.repo,
+        lastUpdated: mcpShadowIndex.lastUpdated,
+      })
+      .from(mcpShadowIndex)
+      .orderBy(desc(mcpShadowIndex.stars))
+      .limit(50000)
+
+    // Deduplicate by owner+repo (multiple sources may index the same project)
+    const seen = new Set<string>()
+    for (const row of shadowRows) {
+      const key = `${row.owner}/${row.repo}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      shadowEntries.push({
+        url: `${BASE_URL}/mcp/${row.owner}/${row.repo}`,
+        lastModified: row.lastUpdated ?? now,
+        changeFrequency: 'weekly',
+        priority: 0.5,
+      })
+    }
+  } catch (err) {
+    logger.warn('sitemap.shadow_query_failed', {
       error: err instanceof Error ? err.message : String(err),
     })
   }
@@ -404,5 +436,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // ── Dynamic tool detail pages ──────────────────────────────────────────
     ...toolEntries,
+
+    // ── Shadow directory pages (P2.12) ────────────────────────────────────
+    ...shadowEntries,
   ]
 }
