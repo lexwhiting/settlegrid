@@ -22,8 +22,7 @@ export function generateMetadata({
 }): Metadata | Promise<Metadata> {
   return (async () => {
     const { slug } = await params
-    const registry = getRegistry()
-    const template = getTemplateBySlug(registry, slug)
+    const template = getTemplateBySlug(slug)
     if (!template) {
       return { title: 'Template Not Found | SettleGrid' }
     }
@@ -32,6 +31,12 @@ export function generateMetadata({
       description: template.description,
       alternates: {
         canonical: `https://settlegrid.ai/templates/${slug}`,
+      },
+      openGraph: {
+        title: `${template.name} — MCP Template`,
+        description: template.description,
+        url: `https://settlegrid.ai/templates/${slug}`,
+        images: [{ url: '/social/og-templates.png', alt: template.name }],
       },
     }
   })()
@@ -47,8 +52,7 @@ export default async function TemplateDetailPage({
   }
 
   const { slug } = await params
-  const registry = getRegistry()
-  const template = getTemplateBySlug(registry, slug)
+  const template = getTemplateBySlug(slug)
 
   if (!template) {
     notFound()

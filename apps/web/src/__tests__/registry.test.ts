@@ -56,12 +56,12 @@ describe('registry', () => {
   const registry = makeRegistry([alpha, beta, gamma])
 
   describe('getTemplateBySlug', () => {
-    it('returns matching template', () => {
-      expect(getTemplateBySlug(registry, 'beta')).toBe(beta)
+    it('returns matching template (with explicit registry)', () => {
+      expect(getTemplateBySlug('beta', registry)).toBe(beta)
     })
 
     it('returns undefined for unknown slug', () => {
-      expect(getTemplateBySlug(registry, 'nonexistent')).toBeUndefined()
+      expect(getTemplateBySlug('nonexistent', registry)).toBeUndefined()
     })
   })
 
@@ -77,12 +77,12 @@ describe('registry', () => {
 
   describe('listTags', () => {
     it('returns all unique tags sorted', () => {
-      const tags = listTags(registry)
+      const tags = listTags(undefined, registry)
       expect(tags).toEqual(['api', 'cli', 'data', 'dev', 'stream'])
     })
 
     it('filters tags by category', () => {
-      const tags = listTags(registry, 'data')
+      const tags = listTags('data', registry)
       expect(tags).toEqual(['api', 'data', 'stream'])
     })
   })
