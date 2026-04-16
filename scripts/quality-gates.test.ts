@@ -96,6 +96,22 @@ describe('quality-gates', () => {
         ).toBe(true)
       }
     })
+
+    it('throws descriptive error when git diff fails (regression for silent zero-validation)', async () => {
+      const { getChangedTemplateDirs } = await import('./quality-gates')
+      // DI: pass a fake execSync that always throws. Mirrors the CI
+      // scenario where `git diff origin/main...HEAD` cannot resolve.
+      const fakeExec = vi.fn(() => {
+        throw new Error('mock: command not found')
+      }) as unknown as typeof import('node:child_process').execSync
+
+      expect(() => getChangedTemplateDirs(fakeExec)).toThrow(
+        /git diff origin\/main\.\.\.HEAD failed/,
+      )
+      expect(() => getChangedTemplateDirs(fakeExec)).toThrow(
+        /Cannot determine changed templates/,
+      )
+    })
   })
 
   describe('runQualityGates', () => {

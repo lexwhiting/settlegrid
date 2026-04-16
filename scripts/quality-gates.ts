@@ -95,18 +95,25 @@ export function parseChangedTemplateDirs(
   return [...changedDirs]
 }
 
+type ExecSyncFn = typeof execSync
+
 /**
  * Throws on git failure rather than silently returning [] — a silent
  * empty result causes CI to false-pass with zero validation.
+ *
+ * The `execSyncFn` parameter exists for dependency-injected testing of
+ * the throw path. Production callers pass nothing.
  */
-export function getChangedTemplateDirs(): string[] {
+export function getChangedTemplateDirs(
+  execSyncFn: ExecSyncFn = execSync,
+): string[] {
   let diffOutput: string
   try {
     // Ensure origin/main is available (CI may have a shallow clone).
     // Fetch failures here are non-fatal: the ref may already be local,
     // or there may be no `origin` remote (e.g., local-only repo).
     try {
-      execSync('git fetch origin main --depth=1', {
+      execSyncFn('git fetch origin main --depth=1', {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       })
@@ -114,10 +121,10 @@ export function getChangedTemplateDirs(): string[] {
       // Continue — `git diff` below will surface a hard failure if needed.
     }
 
-    diffOutput = execSync('git diff --name-only origin/main...HEAD', {
+    diffOutput = execSyncFn('git diff --name-only origin/main...HEAD', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
-    })
+    }) as string
   } catch (err) {
     throw new Error(
       `git diff origin/main...HEAD failed: ${
