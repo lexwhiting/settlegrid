@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { searchTemplates, type TemplateSearchResult } from '@/lib/meilisearch-client'
+import { useRouter } from 'next/navigation'
+import { searchTemplates, sanitizeHighlight, type TemplateSearchResult } from '@/lib/meilisearch-client'
 
 interface SearchBarProps {
   category?: string
@@ -10,6 +11,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ category, tags }: SearchBarProps) {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<TemplateSearchResult | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -26,10 +28,14 @@ export function SearchBar({ category, tags }: SearchBarProps) {
     }
 
     const timer = setTimeout(async () => {
-      const res = await searchTemplates(query, { category, tags })
-      setResults(res)
-      setIsOpen(true)
-      setActiveIndex(-1)
+      try {
+        const res = await searchTemplates(query, { category, tags })
+        setResults(res)
+        setIsOpen(true)
+        setActiveIndex(-1)
+      } catch {
+        // Search is best-effort — fail silently on network errors
+      }
     }, 200)
 
     return () => clearTimeout(timer)
@@ -67,7 +73,7 @@ export function SearchBar({ category, tags }: SearchBarProps) {
         case 'Enter':
           e.preventDefault()
           if (activeIndex >= 0 && activeIndex < hits.length) {
-            window.location.href = `/templates/${hits[activeIndex].slug}`
+            router.push(`/templates/${hits[activeIndex].slug}`)
           }
           break
         case 'Escape':
@@ -76,7 +82,7 @@ export function SearchBar({ category, tags }: SearchBarProps) {
           break
       }
     },
-    [isOpen, hits, activeIndex],
+    [isOpen, hits, activeIndex, router],
   )
 
   return (
@@ -111,7 +117,7 @@ export function SearchBar({ category, tags }: SearchBarProps) {
                 {hit._formatted?.name ? (
                   <span
                     dangerouslySetInnerHTML={{
-                      __html: hit._formatted.name,
+                      __html: sanitizeHighlight(hit._formatted.name),
                     }}
                   />
                 ) : (
@@ -122,7 +128,7 @@ export function SearchBar({ category, tags }: SearchBarProps) {
                 {hit._formatted?.description ? (
                   <span
                     dangerouslySetInnerHTML={{
-                      __html: hit._formatted.description,
+                      __html: sanitizeHighlight(hit._formatted.description),
                     }}
                   />
                 ) : (
