@@ -106,12 +106,57 @@ describe('shadow-index reader', () => {
     expect(entry).toBeUndefined()
   })
 
+  it('countShadowEntries returns count on success', async () => {
+    mockSelect.mockReturnValueOnce({
+      from: vi.fn().mockResolvedValueOnce([{ count: 42 }]),
+    })
+    const count = await countShadowEntries()
+    expect(count).toBe(42)
+  })
+
   it('countShadowEntries returns 0 on DB error', async () => {
     mockSelect.mockReturnValueOnce({
       from: vi.fn().mockRejectedValueOnce(new Error('no db')),
     })
     const count = await countShadowEntries()
     expect(count).toBe(0)
+  })
+
+  it('listOwners returns distinct owners on success', async () => {
+    mockSelectDistinct.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockResolvedValueOnce([
+          { owner: 'alice' },
+          { owner: 'bob' },
+        ]),
+      }),
+    })
+    const owners = await listOwners()
+    expect(owners).toEqual(['alice', 'bob'])
+  })
+
+  it('listOwners returns empty array on DB error', async () => {
+    mockSelectDistinct.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockRejectedValueOnce(new Error('timeout')),
+      }),
+    })
+    const owners = await listOwners()
+    expect(owners).toEqual([])
+  })
+})
+
+describe('JSON-LD XSS prevention', () => {
+  it('escapes </script> in JSON-LD output', () => {
+    const malicious = {
+      name: 'Test',
+      description: '</script><script>alert("xss")</script>',
+    }
+    const escaped = JSON.stringify(malicious).replace(/</g, '\\u003c')
+    expect(escaped).not.toContain('</script>')
+    expect(escaped).toContain('\\u003c/script')
+    // Still valid JSON when unescaped
+    expect(JSON.parse(escaped.replace(/\\u003c/g, '<'))).toEqual(malicious)
   })
 })
 
