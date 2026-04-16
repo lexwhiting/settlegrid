@@ -8,11 +8,14 @@ vi.mock('meilisearch', () => ({
   })),
 }))
 
-// Set env vars before importing
-process.env.NEXT_PUBLIC_MEILI_URL = 'https://test.meili.dev'
-process.env.NEXT_PUBLIC_MEILI_SEARCH_KEY = 'test-search-key'
+// Mock env.ts so the client sees search as enabled
+vi.mock('@/env', () => ({
+  MEILI_URL: 'https://test.meili.dev',
+  MEILI_SEARCH_KEY: 'test-search-key',
+  SEARCH_ENABLED: true,
+}))
 
-// Dynamic import so the mock is applied first
+// Dynamic import so mocks are applied first
 const { searchTemplates } = await import('@/lib/meilisearch-client')
 
 describe('meilisearch-client', () => {

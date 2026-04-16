@@ -80,6 +80,7 @@ async function main() {
   console.log(`Meilisearch indexing complete in ${duration}s`)
   console.log(`  Index: ${INDEX_NAME}`)
   console.log(`  Documents: ${registry.templates.length}`)
+  console.log(`  Tasks completed: 3 (createIndex, updateSettings, addDocuments)`)
   console.log(`  Searchable: ${SEARCHABLE_ATTRIBUTES.join(', ')}`)
   console.log(`  Filterable: ${FILTERABLE_ATTRIBUTES.join(', ')}`)
   console.log(`  Sortable: ${SORTABLE_ATTRIBUTES.join(', ')}`)
