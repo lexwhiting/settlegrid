@@ -186,4 +186,97 @@ describe('build-registry', () => {
     expect(registry.totalTemplates).toBe(0)
     expect(registry.templates).toEqual([])
   })
+
+  it('rejects duplicate slugs — strict mode errors, non-strict keeps first', async () => {
+    // Create a second directory with the SAME slug as VALID_TEMPLATE
+    const dupeDir = join(tmpRoot, 'settlegrid-zzz-dupe')
+    await mkdir(dupeDir, { recursive: true })
+    await writeFile(
+      join(dupeDir, 'template.json'),
+      JSON.stringify({ ...VALID_TEMPLATE, name: 'Duplicate Entry' }),
+    )
+
+    // Strict mode: should error on the duplicate
+    await expect(
+      buildRegistry({
+        templateRoots: [tmpRoot],
+        outputDir: tmpOutput,
+        strict: true,
+      }),
+    ).rejects.toThrow(/Duplicate slug 'test-weather'/)
+
+    // Non-strict mode: first occurrence wins, duplicate is skipped
+    const { registry, skipped } = await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    const weatherEntries = registry.templates.filter(
+      (t) => t.slug === 'test-weather',
+    )
+    expect(weatherEntries).toHaveLength(1)
+    expect(weatherEntries[0].name).toBe('Weather API Server') // first wins
+
+    const dupeSkip = skipped.find((s) => s.dir === 'settlegrid-zzz-dupe')
+    expect(dupeSkip).toBeDefined()
+    expect(dupeSkip!.errors[0]).toContain('Duplicate slug')
+  })
+
+  it('cleans up stale per-slug .json files from previous runs', async () => {
+    // Run 1: build with all 3 fixtures (2 valid)
+    await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    const weatherPath = join(tmpOutput, 'templates', 'test-weather.json')
+    const minimalPath = join(tmpOutput, 'templates', 'test-minimal.json')
+
+    // Both per-slug files exist
+    await expect(readFile(weatherPath, 'utf-8')).resolves.toBeTruthy()
+    await expect(readFile(minimalPath, 'utf-8')).resolves.toBeTruthy()
+
+    // Run 2: build with only the minimal template (remove the weather fixture)
+    await rm(join(tmpRoot, 'settlegrid-test-weather'), {
+      recursive: true,
+      force: true,
+    })
+
+    await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    // minimal still exists, weather was cleaned up
+    await expect(readFile(minimalPath, 'utf-8')).resolves.toBeTruthy()
+    await expect(readFile(weatherPath, 'utf-8')).rejects.toThrow(/ENOENT/)
+  })
+
+  it('does not clean up non-slug .json files or non-.json files', async () => {
+    const templatesDir = join(tmpOutput, 'templates')
+    await mkdir(templatesDir, { recursive: true })
+
+    // Plant a non-slug .json file and a .txt file
+    await writeFile(join(templatesDir, 'Config.json'), '{}')
+    await writeFile(join(templatesDir, 'notes.txt'), 'keep me')
+
+    await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    // Non-slug .json (uppercase C) is NOT cleaned up
+    await expect(
+      readFile(join(templatesDir, 'Config.json'), 'utf-8'),
+    ).resolves.toBe('{}')
+
+    // .txt is untouched
+    await expect(
+      readFile(join(templatesDir, 'notes.txt'), 'utf-8'),
+    ).resolves.toBe('keep me')
+  })
 })
