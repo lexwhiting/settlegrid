@@ -92,6 +92,22 @@ describe('meilisearch-client', () => {
       filter: '(tags = "tag\\"injection")',
     }))
   })
+
+  it('escapes backslashes in filter values', async () => {
+    await searchTemplates('test', { category: 'path\\to\\thing' })
+
+    expect(mockSearch).toHaveBeenCalledWith('test', expect.objectContaining({
+      filter: 'category = "path\\\\to\\\\thing"',
+    }))
+  })
+
+  it('escapes backslash+quote combo in filter values', async () => {
+    await searchTemplates('test', { tags: ['a\\"b'] })
+
+    expect(mockSearch).toHaveBeenCalledWith('test', expect.objectContaining({
+      filter: '(tags = "a\\\\\\"b")',
+    }))
+  })
 })
 
 describe('sanitizeHighlight', () => {
@@ -115,5 +131,13 @@ describe('sanitizeHighlight', () => {
     expect(
       sanitizeHighlight('<mark>safe</mark><script>bad</script> ok'),
     ).toBe('<mark>safe</mark>bad ok')
+  })
+
+  it('passes through plain text unchanged', () => {
+    expect(sanitizeHighlight('Hello world')).toBe('Hello world')
+  })
+
+  it('handles empty string', () => {
+    expect(sanitizeHighlight('')).toBe('')
   })
 })
