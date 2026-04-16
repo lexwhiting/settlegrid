@@ -15,3 +15,9 @@ export const MEILI_SEARCH_KEY = process.env.NEXT_PUBLIC_MEILI_SEARCH_KEY ?? ''
 
 /** Whether Meilisearch search is configured and usable. */
 export const SEARCH_ENABLED = !!(MEILI_URL && MEILI_SEARCH_KEY)
+
+/** Max shadow pages to build during SSG. Default 2000 to keep CI fast. */
+export const SHADOW_BUILD_LIMIT = parseInt(
+  process.env.SHADOW_BUILD_LIMIT ?? '2000',
+  10,
+)
