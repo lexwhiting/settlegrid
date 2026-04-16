@@ -255,6 +255,100 @@ describe('build-registry', () => {
     await expect(readFile(weatherPath, 'utf-8')).rejects.toThrow(/ENOENT/)
   })
 
+  it('handles malformed JSON gracefully (non-strict skips with parse error)', async () => {
+    const badDir = join(tmpRoot, 'settlegrid-bad-json')
+    await mkdir(badDir, { recursive: true })
+    await writeFile(join(badDir, 'template.json'), '{broken json!!!}')
+
+    const { registry, skipped } = await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    // bad-json is skipped with a parse error
+    const badSkip = skipped.find((s) => s.dir === 'settlegrid-bad-json')
+    expect(badSkip).toBeDefined()
+    expect(badSkip!.errors[0]).toContain('Failed to read/parse')
+
+    // Valid templates still processed
+    expect(registry.totalTemplates).toBe(2)
+  })
+
+  it('skips non-directory entries in template root', async () => {
+    // Plant a regular file alongside the fixture directories
+    await writeFile(join(tmpRoot, 'stray-file.txt'), 'not a directory')
+
+    const { registry } = await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    // Only the 2 valid template directories produce results
+    expect(registry.totalTemplates).toBe(2)
+  })
+
+  it('--only mode does not trigger stale cleanup', async () => {
+    // Full build first — creates both per-slug files
+    await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    const weatherPath = join(tmpOutput, 'templates', 'test-weather.json')
+    const minimalPath = join(tmpOutput, 'templates', 'test-minimal.json')
+    await expect(readFile(weatherPath, 'utf-8')).resolves.toBeTruthy()
+    await expect(readFile(minimalPath, 'utf-8')).resolves.toBeTruthy()
+
+    // Now run with --only for just one slug
+    await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+      only: 'test-weather',
+    })
+
+    // Both files still exist — --only does NOT clean up the other
+    await expect(readFile(weatherPath, 'utf-8')).resolves.toBeTruthy()
+    await expect(readFile(minimalPath, 'utf-8')).resolves.toBeTruthy()
+  })
+
+  it('registry.json has valid generatedAt (ISO) and commit (string)', async () => {
+    const { registry } = await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    // generatedAt must be a valid ISO 8601 datetime
+    expect(registry.generatedAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    )
+    expect(new Date(registry.generatedAt).toISOString()).toBe(
+      registry.generatedAt,
+    )
+
+    // commit must be a non-empty string (git SHA or 'unknown')
+    expect(typeof registry.commit).toBe('string')
+    expect(registry.commit.length).toBeGreaterThan(0)
+  })
+
+  it('per-slug .json files round-trip the full template data', async () => {
+    const { registry } = await buildRegistry({
+      templateRoots: [tmpRoot],
+      outputDir: tmpOutput,
+      strict: false,
+    })
+
+    for (const template of registry.templates) {
+      const filePath = join(tmpOutput, 'templates', `${template.slug}.json`)
+      const fromFile = JSON.parse(await readFile(filePath, 'utf-8'))
+      expect(fromFile).toEqual(template)
+    }
+  })
+
   it('does not clean up non-slug .json files or non-.json files', async () => {
     const templatesDir = join(tmpOutput, 'templates')
     await mkdir(templatesDir, { recursive: true })
