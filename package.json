@@ -21,7 +21,8 @@
     "polish:canonical": "tsx scripts/polish-canonical.ts",
     "shadow:crawl": "tsx scripts/shadow-crawler/index.ts",
     "codemod": "node scripts/codemods/runner.mjs",
-    "codemod:sdk-bump": "node scripts/codemods/runner.mjs sdk-version-bump"
+    "codemod:sdk-bump": "node scripts/codemods/runner.mjs sdk-version-bump",
+    "gate:phase-2": "tsx scripts/phase-gates/phase-2.ts"
   },
   "devDependencies": {
     "jscodeshift": "^17.3.0",
