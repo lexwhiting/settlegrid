@@ -5,8 +5,10 @@ import { useSearchParams } from 'next/navigation'
 import { TemplateCard } from './TemplateCard'
 import { CategoryTabs } from './CategoryTabs'
 import { TagFilter } from './TagFilter'
+import { SearchBar } from './SearchBar'
 import { sortTemplates, filterTemplates } from '@/lib/registry'
 import type { TemplateManifest } from '@/lib/registry'
+import { SEARCH_ENABLED } from '@/env'
 
 interface TemplateGalleryProps {
   templates: TemplateManifest[]
@@ -53,15 +55,22 @@ export function TemplateGallery({
 
   return (
     <>
-      {/* Search stub (wired in P2.10) */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Search templates..."
-          disabled
-          className="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm text-muted-foreground placeholder:text-muted-foreground/50 dark:border-[#2A2D3E] dark:bg-[#161822] cursor-not-allowed opacity-60"
+      {/* Search — live Meilisearch when configured, disabled stub otherwise */}
+      {SEARCH_ENABLED ? (
+        <SearchBar
+          category={activeCategory || undefined}
+          tags={activeTags.length > 0 ? activeTags : undefined}
         />
-      </div>
+      ) : (
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search templates..."
+            disabled
+            className="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm text-muted-foreground placeholder:text-muted-foreground/50 dark:border-[#2A2D3E] dark:bg-[#161822] cursor-not-allowed opacity-60"
+          />
+        </div>
+      )}
 
       {/* Category Tabs */}
       <div className="mb-4">
