@@ -51,6 +51,37 @@ export interface GateSummary {
  * Uses `git diff --name-only origin/main...HEAD` to find modified files,
  * then extracts the template directory names.
  */
+/**
+ * Pure parsing function — given raw git diff output, extracts the set of
+ * template directory absolute paths that were modified. Exported for
+ * testing with fake diff fixtures.
+ */
+export function parseChangedTemplateDirs(
+  diffOutput: string,
+  templateRoots: string[] = TEMPLATE_ROOTS,
+  repoRoot: string = REPO_ROOT,
+): string[] {
+  const changedDirs = new Set<string>()
+
+  for (const line of diffOutput.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    for (const root of templateRoots) {
+      const relRoot = root.replace(repoRoot + '/', '')
+      if (trimmed.startsWith(relRoot + '/')) {
+        const rest = trimmed.slice(relRoot.length + 1)
+        const dirName = rest.split('/')[0]
+        if (dirName) {
+          changedDirs.add(join(root, dirName))
+        }
+      }
+    }
+  }
+
+  return [...changedDirs]
+}
+
 export function getChangedTemplateDirs(): string[] {
   let diffOutput: string
   try {
@@ -73,26 +104,7 @@ export function getChangedTemplateDirs(): string[] {
     return []
   }
 
-  const changedDirs = new Set<string>()
-
-  for (const line of diffOutput.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-
-    for (const root of TEMPLATE_ROOTS) {
-      const relRoot = root.replace(REPO_ROOT + '/', '')
-      if (trimmed.startsWith(relRoot + '/')) {
-        // Extract the template directory name (first path segment after root)
-        const rest = trimmed.slice(relRoot.length + 1)
-        const dirName = rest.split('/')[0]
-        if (dirName) {
-          changedDirs.add(join(root, dirName))
-        }
-      }
-    }
-  }
-
-  return [...changedDirs]
+  return parseChangedTemplateDirs(diffOutput)
 }
 
 /**
