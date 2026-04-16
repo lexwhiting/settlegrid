@@ -1106,3 +1106,34 @@ export const consumerSchedulesRelations = relations(consumerSchedules, ({ one })
     references: [tools.id],
   }),
 }))
+
+// ─── Shadow Index (P2.11) ──────────────────────────────────────────────────────
+
+export const mcpShadowIndex = pgTable(
+  'mcp_shadow_index',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    source: text('source').notNull(), // 'pulsemcp' | 'smithery' | 'awesome-mcp' | 'github' | 'npm' | 'pypi'
+    owner: text('owner').notNull(),
+    repo: text('repo').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    category: text('category'),
+    tags: jsonb('tags').$type<string[]>(),
+    stars: integer('stars'),
+    downloads: integer('downloads'),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }),
+    sourceUrl: text('source_url'),
+    settlegridAvailable: boolean('settlegrid_available').notNull().default(true),
+    indexedAt: timestamp('indexed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('mcp_shadow_source_owner_repo_idx').on(
+      table.source,
+      table.owner,
+      table.repo,
+    ),
+    index('mcp_shadow_category_idx').on(table.category),
+    index('mcp_shadow_last_updated_idx').on(table.lastUpdated),
+  ]
+)
