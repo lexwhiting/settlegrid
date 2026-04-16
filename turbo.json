@@ -38,6 +38,10 @@
     "test": {
       "cache": false
     },
-    "lint": {}
+    "lint": {},
+    "//#build:registry": {
+      "cache": false,
+      "dependsOn": []
+    }
   }
 }
