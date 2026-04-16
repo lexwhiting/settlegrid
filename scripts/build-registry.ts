@@ -162,6 +162,16 @@ export async function buildRegistry(
     templates.push(result.data)
   }
 
+  // Non-strict mode: log per-manifest warnings to stderr
+  if (!strict && skipped.length > 0) {
+    for (const s of skipped) {
+      console.warn(`WARN: skipping ${s.dir}:`)
+      for (const e of s.errors) {
+        console.warn(`  - ${e}`)
+      }
+    }
+  }
+
   // Strict mode: fail loud with aggregated report
   if (strict && skipped.length > 0) {
     const report = skipped
