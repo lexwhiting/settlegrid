@@ -52,6 +52,19 @@ export interface GateSummary {
  * then extracts the template directory names.
  */
 /**
+ * Reject empty / dot / parent / separator-bearing slug components.
+ * Defends against malformed paths from a hostile or unusual git diff
+ * (e.g., `..`, `.`, paths embedding extra separators) producing
+ * out-of-tree filesystem accesses downstream.
+ */
+function isSafeSlug(s: string): boolean {
+  if (!s) return false
+  if (s === '.' || s === '..') return false
+  if (s.includes('/') || s.includes('\\')) return false
+  return true
+}
+
+/**
  * Pure parsing function — given raw git diff output, extracts the set of
  * template directory absolute paths that were modified. Exported for
  * testing with fake diff fixtures.
@@ -72,7 +85,7 @@ export function parseChangedTemplateDirs(
       if (trimmed.startsWith(relRoot + '/')) {
         const rest = trimmed.slice(relRoot.length + 1)
         const dirName = rest.split('/')[0]
-        if (dirName) {
+        if (isSafeSlug(dirName)) {
           changedDirs.add(join(root, dirName))
         }
       }
@@ -82,26 +95,35 @@ export function parseChangedTemplateDirs(
   return [...changedDirs]
 }
 
+/**
+ * Throws on git failure rather than silently returning [] — a silent
+ * empty result causes CI to false-pass with zero validation.
+ */
 export function getChangedTemplateDirs(): string[] {
   let diffOutput: string
   try {
-    // Ensure origin/main is available (CI may have a shallow clone)
+    // Ensure origin/main is available (CI may have a shallow clone).
+    // Fetch failures here are non-fatal: the ref may already be local,
+    // or there may be no `origin` remote (e.g., local-only repo).
     try {
       execSync('git fetch origin main --depth=1', {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       })
     } catch {
-      // May already be fetched or may not have an origin
+      // Continue — `git diff` below will surface a hard failure if needed.
     }
 
     diffOutput = execSync('git diff --name-only origin/main...HEAD', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     })
-  } catch {
-    // If git diff fails (e.g., no origin/main), return empty — skip all
-    return []
+  } catch (err) {
+    throw new Error(
+      `git diff origin/main...HEAD failed: ${
+        err instanceof Error ? err.message : String(err)
+      }. Cannot determine changed templates — refusing to false-pass with zero validation.`,
+    )
   }
 
   return parseChangedTemplateDirs(diffOutput)
@@ -263,5 +285,8 @@ async function main(): Promise<void> {
 }
 
 if (isMainEntry()) {
-  main()
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err))
+    process.exit(1)
+  })
 }
