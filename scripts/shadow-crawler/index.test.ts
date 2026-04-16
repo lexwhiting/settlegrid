@@ -182,6 +182,71 @@ describe('shadow-crawler sources', () => {
     })
   })
 
+  it('pulsemcp: returns 0 records for empty response', async () => {
+    mockJsonResponses = [[]]
+
+    const { fetchPulseMCP } = await import('./sources/pulsemcp')
+    const records = []
+    for await (const r of fetchPulseMCP()) records.push(r)
+
+    expect(records).toHaveLength(0)
+  })
+
+  it('smithery: skips entries without qualifiedName', async () => {
+    mockJsonResponses = [{
+      servers: [
+        { displayName: 'No QN', description: 'missing qualifiedName' },
+        { qualifiedName: 'good/server', displayName: 'Good' },
+      ],
+    }]
+
+    const { fetchSmithery } = await import('./sources/smithery')
+    const records = []
+    for await (const r of fetchSmithery()) records.push(r)
+
+    expect(records).toHaveLength(1)
+    expect(records[0].repo).toBe('server')
+  })
+
+  it('npm: falls back to publisher username when no repo URL', async () => {
+    mockJsonResponses = [
+      {
+        objects: [{
+          package: {
+            name: 'orphan-pkg',
+            description: 'No repo link',
+            keywords: ['mcp'],
+            links: { npm: 'https://www.npmjs.com/package/orphan-pkg' },
+            publisher: { username: 'npmdev' },
+          },
+        }],
+        total: 1,
+      },
+      { objects: [], total: 0 },
+      { objects: [], total: 0 },
+    ]
+
+    const { fetchNpm } = await import('./sources/npm')
+    const records = []
+    for await (const r of fetchNpm({ limit: 5 })) records.push(r)
+
+    expect(records).toHaveLength(1)
+    expect(records[0].owner).toBe('npmdev')
+    expect(records[0].repo).toBe('orphan-pkg')
+  })
+
+  it('pypi: returns 0 records when index fetch fails', async () => {
+    // fetchWithRetry throws on failure
+    const { fetchWithRetry } = await import('./fetch-utils')
+    vi.mocked(fetchWithRetry).mockRejectedValueOnce(new Error('Network error'))
+
+    const { fetchPyPI } = await import('./sources/pypi')
+    const records = []
+    for await (const r of fetchPyPI()) records.push(r)
+
+    expect(records).toHaveLength(0)
+  })
+
   it('pypi: fetches simple index once and resolves package details', async () => {
     const PYPI_INDEX = '<a href="/simple/mcp-server-test/">mcp-server-test</a>'
     const PYPI_PKG = {
@@ -226,6 +291,33 @@ describe('shadow-crawler main', () => {
     })
 
     expect(result.perSource.pulsemcp).toBe(1)
+    expect(result.total).toBe(0)
+  })
+
+  it('warns and skips unknown source name', async () => {
+    const { crawl } = await import('./index')
+    const result = await crawl({
+      source: 'nonexistent-source',
+      dryRun: true,
+    })
+
+    expect(result.perSource).toEqual({})
+    expect(result.total).toBe(0)
+  })
+
+  it('continues crawling after a source throws', async () => {
+    // fetchJson throws for the first source call (pulsemcp)
+    const { fetchJson } = await import('./fetch-utils')
+    vi.mocked(fetchJson).mockRejectedValueOnce(new Error('API down'))
+
+    const { crawl } = await import('./index')
+    const result = await crawl({
+      source: 'pulsemcp',
+      dryRun: true,
+    })
+
+    // Source errored — 0 records collected, but crawl didn't crash
+    expect(result.perSource.pulsemcp).toBe(0)
     expect(result.total).toBe(0)
   })
 
