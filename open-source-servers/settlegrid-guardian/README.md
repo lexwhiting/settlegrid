@@ -1,18 +1,22 @@
-# settlegrid-guardian
+# The Guardian
 
-The Guardian MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search articles from The Guardian newspaper.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-guardian)
 
-Search articles from The Guardian newspaper.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template guardian
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-guardian.git
+cd settlegrid-guardian
 npm install
-cp .env.example .env   # Add your SettleGrid API key + GUARDIAN_API_KEY
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,52 +28,40 @@ npm run dev
 | `get_article(id)` | Get a Guardian article by ID path | 2¢ |
 | `list_sections()` | List available Guardian sections | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_articles
-- `q` (string, required)
-- `section` (string, optional)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_article
-- `id` (string, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `GUARDIAN_API_KEY` | Yes | Free key from open-platform.theguardian.com |
-
-
-## Upstream API
-
-- **Provider**: The Guardian
-- **Base URL**: https://content.guardianapis.com
-- **Auth**: Free API key required
-- **Rate Limits**: 12 req/s, 5000/day (free)
-- **Docs**: https://open-platform.theguardian.com/documentation/
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-guardian)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-guardian .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e GUARDIAN_API_KEY=xxx -p 3000:3000 settlegrid-guardian
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-guardian
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

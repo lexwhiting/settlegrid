@@ -1,18 +1,22 @@
-# settlegrid-openaq
+# OpenAQ
 
-OpenAQ MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Global air quality measurements from thousands of monitoring stations.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-openaq)
 
-Global air quality measurements from thousands of monitoring stations.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template openaq
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-openaq.git
+cd settlegrid-openaq
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,55 +28,40 @@ npm run dev
 | `get_locations(city, country)` | Search air quality monitoring locations | 1¢ |
 | `get_measurements(location_id)` | Get air quality measurements for a location | 1¢ |
 
-## Parameters
+## Monetization
 
-### get_latest
-- `city` (string, optional)
-- `country` (string, optional)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_locations
-- `city` (string, optional)
-- `country` (string, optional)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### get_measurements
-- `location_id` (number, required)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-
-## Upstream API
-
-- **Provider**: OpenAQ
-- **Base URL**: https://api.openaq.org
-- **Auth**: None required
-- **Rate Limits**: ~120 req/min
-- **Docs**: https://docs.openaq.org/
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-openaq)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-openaq .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-openaq
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

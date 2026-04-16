@@ -1,18 +1,22 @@
-# settlegrid-gitlab-api
+# GitLab API
 
-GitLab MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search projects, merge requests, and pipelines on GitLab.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-gitlab-api)
 
-Search projects, merge requests, and pipelines on GitLab.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template gitlab-api
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-gitlab-api.git
+cd settlegrid-gitlab-api
 npm install
-cp .env.example .env   # Add your SettleGrid API key + GITLAB_TOKEN
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,54 +28,40 @@ npm run dev
 | `get_project(id)` | Get details of a specific GitLab project by ID | 2¢ |
 | `list_pipelines(project_id)` | List recent CI/CD pipelines for a project | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_projects
-- `query` (string, required)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_project
-- `id` (number, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### list_pipelines
-- `project_id` (number, required)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `GITLAB_TOKEN` | Yes | Personal access token from gitlab.com/-/user_settings/personal_access_tokens |
-
-
-## Upstream API
-
-- **Provider**: GitLab
-- **Base URL**: https://gitlab.com/api/v4
-- **Auth**: Free API key required
-- **Rate Limits**: 2000 req/hr (authenticated)
-- **Docs**: https://docs.gitlab.com/ee/api/rest/
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-gitlab-api)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-gitlab-api .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e GITLAB_TOKEN=xxx -p 3000:3000 settlegrid-gitlab-api
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-gitlab-api
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

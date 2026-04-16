@@ -1,18 +1,22 @@
-# settlegrid-holidays-worldwide
+# Holidays Worldwide
 
-Holidays Worldwide MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Get public holidays, long weekends, and available countries via the Nager.Date API.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-holidays-worldwide)
 
-Get public holidays, long weekends, and available countries via the Nager.Date API.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template holidays-worldwide
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-holidays-worldwide.git
+cd settlegrid-holidays-worldwide
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,55 +28,40 @@ npm run dev
 | `get_long_weekends(country, year)` | Get long weekends for a country and year | 1¢ |
 | `next_holiday(country)` | Get the next upcoming public holiday | 1¢ |
 
-## Parameters
+## Monetization
 
-### get_holidays
-- `country` (string, required) — 2-letter country code
-- `year` (number, required) — Year (e.g. 2026)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_long_weekends
-- `country` (string, required) — 2-letter country code
-- `year` (number, required) — Year (e.g. 2026)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### next_holiday
-- `country` (string, required) — 2-letter country code
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-
-## Upstream API
-
-- **Provider**: Nager.Date
-- **Base URL**: https://date.nager.at/api/v3
-- **Auth**: None required
-- **Rate Limits**: No published limit
-- **Docs**: https://date.nager.at/Api
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-holidays-worldwide)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-holidays-worldwide .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-holidays-worldwide
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

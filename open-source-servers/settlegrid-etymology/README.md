@@ -1,18 +1,22 @@
-# settlegrid-etymology
+# Etymology & Definitions
 
-Word Origin & Definition Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Access word definitions, etymology, and phonetics via the Free Dictionary API. Look up definitions, origins, and pronunciations.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-etymology)
 
-Access word definitions, etymology, and phonetics via the Free Dictionary API. Look up definitions, origins, and pronunciations.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template etymology
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-etymology.git
+cd settlegrid-etymology
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,54 +28,40 @@ npm run dev
 | `get_etymology(word)` | Get word origin/etymology | 2¢ |
 | `get_phonetics(word)` | Get word phonetics/pronunciation | 1¢ |
 
-## Parameters
+## Monetization
 
-### get_definition
-- `word` (string, required) — Word to look up (e.g. "serendipity")
-- `lang` (string) — Language code (default "en")
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_etymology
-- `word` (string, required) — Word to look up
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### get_phonetics
-- `word` (string, required) — Word to look up
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-No API key needed for the upstream Free Dictionary API API — it is completely free.
-
-## Upstream API
-
-- **Provider**: Free Dictionary API
-- **Base URL**: https://api.dictionaryapi.dev/api/v2/entries
-- **Auth**: None required
-- **Docs**: https://dictionaryapi.dev/
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-etymology)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-etymology .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-etymology
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

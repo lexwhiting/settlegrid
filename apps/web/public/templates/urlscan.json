@@ -1,0 +1,42 @@
+{
+  "slug": "urlscan",
+  "name": "URLScan",
+  "description": "Scan and analyze URLs for threats",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "urlscan",
+    "security",
+    "phishing",
+    "web"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-urlscan"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "submit-scan",
+    "get-result",
+    "search-scans",
+    "get-screenshot"
+  ],
+  "featured": false
+}

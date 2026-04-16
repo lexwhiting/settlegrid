@@ -1,0 +1,41 @@
+{
+  "slug": "holidays-worldwide",
+  "name": "Holidays Worldwide",
+  "description": "Get public holidays, long weekends, and available countries via the Nager.Date API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "education",
+    "holidays",
+    "countries",
+    "calendar",
+    "public-holidays"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-holidays-worldwide"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get-holidays",
+    "get-long-weekends",
+    "next-holiday"
+  ],
+  "featured": false
+}
