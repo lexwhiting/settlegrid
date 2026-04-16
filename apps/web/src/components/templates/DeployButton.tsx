@@ -1,4 +1,4 @@
-import type { TemplateManifest } from '@/lib/registry'
+import type { TemplateManifest } from '@/lib/registry-helpers'
 
 interface DeployButtonProps {
   template: TemplateManifest

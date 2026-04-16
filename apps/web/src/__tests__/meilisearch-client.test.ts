@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock the meilisearch module before importing the client
 const mockSearch = vi.fn()
 vi.mock('meilisearch', () => ({
-  MeiliSearch: vi.fn().mockImplementation(() => ({
+  Meilisearch: vi.fn().mockImplementation(() => ({
     index: () => ({ search: mockSearch }),
   })),
 }))

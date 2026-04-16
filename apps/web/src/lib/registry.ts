@@ -2,46 +2,24 @@
  * Typed registry reader — reads apps/web/public/registry.json at build
  * time and provides helper functions for the gallery pages.
  *
- * Server-side only (uses node:fs). Wrapped in React cache() for
- * request deduplication during SSG.
+ * SERVER-SIDE ONLY (uses node:fs). Do NOT import this file from 'use
+ * client' components — import from '@/lib/registry-helpers' instead,
+ * which exports the pure helper functions (sortTemplates, filterTemplates)
+ * and types without any Node.js built-in dependencies.
+ *
+ * Wrapped in React cache() for request deduplication during SSG.
  */
 
 import { cache } from 'react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// Re-export types and pure helpers from the client-safe module so
+// existing server-side imports (`from '@/lib/registry'`) keep working.
+export type { TemplateManifest, RegistryJson } from './registry-helpers'
+export { sortTemplates, filterTemplates } from './registry-helpers'
 
-export interface TemplateManifest {
-  slug: string
-  name: string
-  description: string
-  version: string
-  category: string
-  tags: string[]
-  author: { name: string; url?: string; github?: string }
-  repo: { type: 'git'; url: string; directory?: string }
-  runtime: string
-  languages: string[]
-  entry: string
-  pricing: { model: string; perCallUsdCents?: number; currency: string }
-  quality: { tests: boolean; ciPassing?: boolean; lastVerifiedAt?: string }
-  capabilities: string[]
-  screenshots?: { url: string; alt: string }[]
-  loomUrl?: string
-  deployButton?: { provider: string; url: string }
-  featured: boolean
-  trendingRank?: number
-}
-
-export interface RegistryJson {
-  version: number
-  generatedAt: string
-  commit: string
-  totalTemplates: number
-  categories: Record<string, number>
-  templates: TemplateManifest[]
-}
+import type { RegistryJson, TemplateManifest } from './registry-helpers'
 
 // ── Reader ─────────────────────────────────────────────────────────────────
 
@@ -102,29 +80,4 @@ export function listTags(
   return [...tagSet].sort()
 }
 
-export function sortTemplates(
-  templates: TemplateManifest[],
-): TemplateManifest[] {
-  return [...templates].sort((a, b) => {
-    // trendingRank ascending (lower = better), missing ranks go last
-    const aRank = a.trendingRank ?? Infinity
-    const bRank = b.trendingRank ?? Infinity
-    if (aRank !== bRank) return aRank - bRank
-    return a.name.localeCompare(b.name)
-  })
-}
-
-export function filterTemplates(
-  templates: TemplateManifest[],
-  opts: { category?: string; tags?: string[] },
-): TemplateManifest[] {
-  let result = templates
-  if (opts.category) {
-    result = result.filter((t) => t.category === opts.category)
-  }
-  if (opts.tags && opts.tags.length > 0) {
-    const tagSet = new Set(opts.tags)
-    result = result.filter((t) => t.tags.some((tag) => tagSet.has(tag)))
-  }
-  return result
-}
+// sortTemplates and filterTemplates are re-exported from registry-helpers.ts above.
