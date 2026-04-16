@@ -141,6 +141,15 @@ describe('polish-canonical', () => {
       expect(readme).toContain('Fake Platform')
       expect(readme).toContain('## License')
     })
+
+    it('omits Original README section when upstream info is empty', () => {
+      const ctxNoUpstream = { ...FAKE_CTX, upstreamInfo: '' }
+      const readme = generateReadme(ctxNoUpstream)
+
+      expect(readme).not.toContain('## Original README')
+      expect(readme).not.toContain('### Upstream API')
+      expect(readme).toContain('## License')
+    })
   })
 
   describe('generateMonetizationMd', () => {
