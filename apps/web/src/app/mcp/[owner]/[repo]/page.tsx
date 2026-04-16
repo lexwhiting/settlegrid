@@ -5,7 +5,7 @@ import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { Badge } from '@/components/ui/badge'
 import { getAllShadowEntries, getShadowEntry } from '@/lib/shadow-index'
-import { getRegistry, getTemplateBySlug } from '@/lib/registry'
+import { getRegistry } from '@/lib/registry'
 import { SHADOW_BUILD_LIMIT } from '@/env'
 
 export const dynamic = 'force-static'
@@ -127,9 +127,12 @@ export default async function ShadowDetailPage({
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      {/* Escape < as \u003c to prevent </script> injection in JSON-LD */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+        }}
       />
       <Navbar />
 
