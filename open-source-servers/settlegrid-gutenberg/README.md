@@ -1,18 +1,22 @@
-# settlegrid-gutenberg
+# Project Gutenberg
 
-Project Gutenberg MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search and retrieve free ebooks from Project Gutenberg via the Gutendex API.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-gutenberg)
 
-Search and retrieve free ebooks from Project Gutenberg via the Gutendex API.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template gutenberg
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-gutenberg.git
+cd settlegrid-gutenberg
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,53 +28,40 @@ npm run dev
 | `get_book(id)` | Get full details for a specific book by ID | 1¢ |
 | `get_popular(topic)` | Get most popular/downloaded free ebooks | 1¢ |
 
-## Parameters
+## Monetization
 
-### search_books
-- `query` (string, required) — Search query (title, author, topic)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_book
-- `id` (number, required) — Gutenberg book ID
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### get_popular
-- `topic` (string, optional) — Optional topic filter (e.g. "science", "fiction")
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-
-## Upstream API
-
-- **Provider**: Gutendex
-- **Base URL**: https://gutendex.com
-- **Auth**: None required
-- **Rate Limits**: No published limit
-- **Docs**: https://gutendex.com
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-gutenberg)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-gutenberg .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-gutenberg
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

@@ -1,18 +1,22 @@
-# settlegrid-spoonacular
+# Spoonacular
 
-Spoonacular MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Comprehensive recipe and food API with meal planning and nutrition.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-spoonacular)
 
-Comprehensive recipe and food API with meal planning and nutrition.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template spoonacular
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-spoonacular.git
+cd settlegrid-spoonacular
 npm install
-cp .env.example .env   # Add your SettleGrid API key + SPOONACULAR_API_KEY
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,54 +28,40 @@ npm run dev
 | `get_recipe(recipe_id)` | Get recipe details including instructions | 2¢ |
 | `search_ingredients(query)` | Search food ingredients | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_recipes
-- `query` (string, required)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_recipe
-- `recipe_id` (number, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### search_ingredients
-- `query` (string, required)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `SPOONACULAR_API_KEY` | Yes | Spoonacular API key from spoonacular.com/food-api |
-
-
-## Upstream API
-
-- **Provider**: Spoonacular
-- **Base URL**: https://api.spoonacular.com
-- **Auth**: Free API key required
-- **Rate Limits**: 150 req/day (free)
-- **Docs**: https://spoonacular.com/food-api/docs
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-spoonacular)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-spoonacular .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e SPOONACULAR_API_KEY=xxx -p 3000:3000 settlegrid-spoonacular
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-spoonacular
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

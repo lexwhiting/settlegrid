@@ -1,18 +1,22 @@
-# settlegrid-spotify-metadata
+# Spotify Metadata
 
-Spotify Metadata MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search tracks, albums, and artists via the Spotify Web API.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-spotify-metadata)
 
-Search tracks, albums, and artists via the Spotify Web API.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template spotify-metadata
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-spotify-metadata.git
+cd settlegrid-spotify-metadata
 npm install
-cp .env.example .env   # Add your SettleGrid API key + SPOTIFY_ACCESS_TOKEN
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,54 +28,40 @@ npm run dev
 | `search_artists(query)` | Search for artists by name | 2¢ |
 | `get_track(id)` | Get track details by Spotify ID | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_tracks
-- `query` (string, required)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### search_artists
-- `query` (string, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### get_track
-- `id` (string, required)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `SPOTIFY_ACCESS_TOKEN` | Yes | Spotify OAuth token from developer.spotify.com |
-
-
-## Upstream API
-
-- **Provider**: Spotify
-- **Base URL**: https://api.spotify.com/v1
-- **Auth**: Free API key required
-- **Rate Limits**: Rate-limited per app
-- **Docs**: https://developer.spotify.com/documentation/web-api
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-spotify-metadata)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-spotify-metadata .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e SPOTIFY_ACCESS_TOKEN=xxx -p 3000:3000 settlegrid-spotify-metadata
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-spotify-metadata
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

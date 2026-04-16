@@ -1,18 +1,22 @@
-# settlegrid-opensky
+# OpenSky Network
 
-OpenSky Network MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Live flight tracking and aircraft state vectors from the OpenSky Network.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-opensky)
 
-Live flight tracking and aircraft state vectors from the OpenSky Network.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template opensky
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-opensky.git
+cd settlegrid-opensky
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,50 +28,40 @@ npm run dev
 | `get_flights_by_aircraft(icao24)` | Get flights for a specific aircraft by ICAO24 address | 1¢ |
 | `get_track(icao24)` | Get waypoints for a specific flight | 1¢ |
 
-## Parameters
+## Monetization
 
-### get_flights_by_aircraft
-- `icao24` (string, required)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_track
-- `icao24` (string, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-
-## Upstream API
-
-- **Provider**: OpenSky Network
-- **Base URL**: https://opensky-network.org/api
-- **Auth**: None required
-- **Rate Limits**: 100 req/day unauthenticated
-- **Docs**: https://openskynetwork.github.io/opensky-api/
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-opensky)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-opensky .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-opensky
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

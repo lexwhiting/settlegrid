@@ -1,18 +1,22 @@
-# settlegrid-clinicaltrials
+# ClinicalTrials.gov
 
-Clinical Trials Data MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Access ClinicalTrials.gov v2 API for clinical trial data. Search trials, get study details, and view condition statistics.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-clinicaltrials)
 
-Access ClinicalTrials.gov v2 API for clinical trial data. Search trials, get study details, and view condition statistics.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template clinicaltrials
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-clinicaltrials.git
+cd settlegrid-clinicaltrials
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,55 +28,40 @@ npm run dev
 | `get_trial(nctId)` | Get trial details by NCT ID | 1¢ |
 | `get_stats(condition)` | Get trial statistics for a condition | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_trials
-- `query` (string, required) — Search query (e.g. "diabetes", "cancer immunotherapy")
-- `status` (string) — Trial status filter (e.g. RECRUITING, COMPLETED)
-- `limit` (number) — Max results (default 10, max 50)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_trial
-- `nctId` (string, required) — NCT identifier (e.g. NCT04280705)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### get_stats
-- `condition` (string, required) — Medical condition (e.g. "breast cancer")
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-No API key needed for the upstream ClinicalTrials.gov v2 API API — it is completely free.
-
-## Upstream API
-
-- **Provider**: ClinicalTrials.gov v2 API
-- **Base URL**: https://clinicaltrials.gov/api/v2
-- **Auth**: None required
-- **Docs**: https://clinicaltrials.gov/data-api/api
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-clinicaltrials)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-clinicaltrials .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-clinicaltrials
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

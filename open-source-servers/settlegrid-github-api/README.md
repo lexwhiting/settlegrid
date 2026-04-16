@@ -1,18 +1,22 @@
-# settlegrid-github-api
+# GitHub API
 
-GitHub MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search repos, issues, and users on GitHub.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-github-api)
 
-Search repos, issues, and users on GitHub.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template github-api
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-github-api.git
+cd settlegrid-github-api
 npm install
-cp .env.example .env   # Add your SettleGrid API key + GITHUB_TOKEN
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,57 +28,40 @@ npm run dev
 | `get_repo(owner, repo)` | Get details about a specific repository | 2¢ |
 | `search_issues(query, per_page)` | Search issues and pull requests across GitHub | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_repos
-- `query` (string, required)
-- `per_page` (number, optional)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_repo
-- `owner` (string, required)
-- `repo` (string, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### search_issues
-- `query` (string, required)
-- `per_page` (number, optional)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `GITHUB_TOKEN` | Yes | Personal access token from github.com/settings/tokens |
-
-
-## Upstream API
-
-- **Provider**: GitHub
-- **Base URL**: https://api.github.com
-- **Auth**: Free API key required
-- **Rate Limits**: 5000 req/hr (authenticated)
-- **Docs**: https://docs.github.com/en/rest
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-github-api)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-github-api .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e GITHUB_TOKEN=xxx -p 3000:3000 settlegrid-github-api
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-github-api
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

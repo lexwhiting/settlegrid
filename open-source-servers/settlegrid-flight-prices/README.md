@@ -1,18 +1,22 @@
-# settlegrid-flight-prices
+# Flight Prices
 
-Flight Prices MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> MCP server for flight price and route data with SettleGrid billing
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-flight-prices)
 
-Flight pricing, routes, and real-time status data.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template flight-prices
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-flight-prices.git
+cd settlegrid-flight-prices
 npm install
-cp .env.example .env
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,46 +28,41 @@ npm run dev
 | `get_flight_status(flight_iata)` | Get flight status | 1¢ |
 | `get_routes(airline_iata)` | Get airline routes | 1¢ |
 
-## Parameters
+## Monetization
 
-### search_flights
-- `dep_iata` (string, required) — Departure airport IATA code
-- `arr_iata` (string, required) — Arrival airport IATA code
-### get_flight_status
-- `flight_iata` (string, required) — Flight IATA code (e.g. AA100)
-### get_routes
-- `airline_iata` (string, required) — Airline IATA code (e.g. AA, BA)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-## Environment Variables
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `AVIATIONSTACK_API_KEY` | Yes | Free key from aviationstack.com |
-
-## Upstream API
-
-- **Provider**: AviationStack
-- **Base URL**: https://api.aviationstack.com/v1
-- **Auth**: Free API key
-- **Docs**: https://aviationstack.com/documentation
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-flight-prices)
+
 ```bash
+# Or use Docker
 docker build -t settlegrid-flight-prices .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-flight-prices
 ```
 
-### Vercel
-```bash
-npm run build
-vercel --prod
-```
+## Demo
+
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
+
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
-MIT - see [LICENSE](LICENSE)
+
+MIT — see [LICENSE](LICENSE)
 
 ---
+
 Built with [SettleGrid](https://settlegrid.ai) — The Settlement Layer for the AI Economy

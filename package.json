@@ -18,6 +18,7 @@
     "gridbot:schedule": "npx tsx scripts/gridbot/scheduler.ts",
     "audit:canonical-50": "node scripts/audit/canonical-50.mjs",
     "build:registry": "tsx scripts/build-registry.ts",
+    "polish:canonical": "tsx scripts/polish-canonical.ts",
     "codemod": "node scripts/codemods/runner.mjs",
     "codemod:sdk-bump": "node scripts/codemods/runner.mjs sdk-version-bump"
   },
