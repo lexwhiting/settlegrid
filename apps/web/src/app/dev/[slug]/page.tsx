@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
@@ -82,9 +83,7 @@ export async function generateMetadata({
   const { slug } = await params
   const data = await getDevProfile(slug)
 
-  if (!data || data.isPrivate) {
-    return { title: 'Developer Profile | SettleGrid' }
-  }
+  if (!data || data.isPrivate) notFound()
 
   const name = data.developer.name ?? slug
   const description = data.developer.publicBio
@@ -129,53 +128,7 @@ export default async function DevProfilePage({
   const { slug } = await params
   const data = await getDevProfile(slug)
 
-  // Not found
-  if (!data) {
-    return (
-      <Shell>
-        <main className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-[#161822] flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-              </svg>
-            </div>
-            <h1 className="text-xl font-semibold mb-2">Developer not found</h1>
-            <p className="text-gray-400 text-sm mb-6 max-w-md">
-              No developer profile exists at this URL.
-            </p>
-            <Link href="/tools" className="text-sm font-medium bg-brand text-white px-5 py-2.5 rounded-lg hover:bg-brand-dark transition-colors">
-              Browse Showcase
-            </Link>
-          </div>
-        </main>
-      </Shell>
-    )
-  }
-
-  // Private profile
-  if (data.isPrivate) {
-    return (
-      <Shell>
-        <main className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-[#161822] flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-              </svg>
-            </div>
-            <h1 className="text-xl font-semibold mb-2">Profile not public</h1>
-            <p className="text-gray-400 text-sm mb-6 max-w-md">
-              This developer has not made their profile public yet.
-            </p>
-            <Link href="/tools" className="text-sm font-medium bg-brand text-white px-5 py-2.5 rounded-lg hover:bg-brand-dark transition-colors">
-              Browse Showcase
-            </Link>
-          </div>
-        </main>
-      </Shell>
-    )
-  }
+  if (!data || data.isPrivate) notFound()
 
   // Public profile
   const { developer, tools: devTools, reputation } = data

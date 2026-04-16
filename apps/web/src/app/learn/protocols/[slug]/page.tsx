@@ -598,7 +598,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const protocol = PROTOCOLS.find((p) => p.slug === slug)
-  if (!protocol) return { title: 'Protocol Not Found | SettleGrid' }
+  if (!protocol) notFound()
 
   return {
     title: `${protocol.name} — ${protocol.fullName} | SettleGrid Protocol Guide`,

@@ -20,7 +20,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { category } = await params
   const solution = getSolutionBySlug(category)
-  if (!solution) return { title: 'Solution Not Found | SettleGrid' }
+  if (!solution) notFound()
 
   const cat = getCategoryBySlug(category)
   const title = `${solution.headline} | SettleGrid`
