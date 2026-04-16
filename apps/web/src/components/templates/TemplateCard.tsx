@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import type { TemplateManifest } from '@/lib/registry'
+import type { TemplateManifest } from '@/lib/registry-helpers'
 
 interface TemplateCardProps {
   template: TemplateManifest

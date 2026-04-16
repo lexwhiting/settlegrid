@@ -5,16 +5,16 @@
  * The master key is NEVER imported here.
  */
 
-import { MeiliSearch, type SearchResponse } from 'meilisearch'
-import type { TemplateManifest } from '@/lib/registry'
+import { Meilisearch, type SearchResponse } from 'meilisearch'
+import type { TemplateManifest } from '@/lib/registry-helpers'
 import { MEILI_URL, MEILI_SEARCH_KEY, SEARCH_ENABLED } from '@/env'
 
-let client: MeiliSearch | null = null
+let client: Meilisearch | null = null
 
-function getClient(): MeiliSearch | null {
+function getClient(): Meilisearch | null {
   if (client) return client
   if (!SEARCH_ENABLED) return null
-  client = new MeiliSearch({ host: MEILI_URL, apiKey: MEILI_SEARCH_KEY })
+  client = new Meilisearch({ host: MEILI_URL, apiKey: MEILI_SEARCH_KEY })
   return client
 }
 
