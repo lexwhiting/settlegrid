@@ -1,18 +1,22 @@
-# settlegrid-nasa-data
+# NASA Open Data
 
-NASA Open APIs MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Astronomy photos, near-Earth objects, and image search.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-nasa-data)
 
-Astronomy Picture of the Day, near-Earth object tracking, and NASA's vast image library. Works out of the box with DEMO_KEY.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template nasa-data
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-nasa-data.git
+cd settlegrid-nasa-data
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,36 +28,40 @@ npm run dev
 | `get_neo(startDate, endDate)` | Near-Earth Objects in date range | 2¢ |
 | `search_images(query)` | Search NASA image/video library | 1¢ |
 
-## Parameters
+## Monetization
 
-### get_apod
-- `date` (string, optional) — YYYY-MM-DD (default: today)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_neo
-- `startDate` (string, required) — Start date YYYY-MM-DD
-- `endDate` (string, optional) — End date YYYY-MM-DD (default: start + 7 days)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### search_images
-- `query` (string, required) — Search text (e.g. "mars rover", "earth from space")
-- `mediaType` (string, optional) — "image", "video", or "audio"
-- `limit` (number, optional) — Max results (default 20, max 100)
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
-## Environment Variables
+## Deploy
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `NASA_API_KEY` | No | Free NASA API key from [api.nasa.gov](https://api.nasa.gov). DEMO_KEY used by default. |
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-nasa-data)
 
-## Upstream API
+```bash
+# Or use Docker
+docker build -t settlegrid-nasa-data .
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-nasa-data
+```
 
-- **Provider**: NASA
-- **Auth**: DEMO_KEY (30 req/hr) or free API key (1000 req/hr)
-- **Docs**: https://api.nasa.gov
+## Demo
+
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
+
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

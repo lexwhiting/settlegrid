@@ -1,8 +1,842 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-16T02:46:35.586Z",
-  "commit": "72cd0ccb17ba55f489381942d79dac51ca86d37e",
-  "totalTemplates": 0,
-  "categories": {},
-  "templates": []
+  "generatedAt": "2026-04-16T03:06:32.142Z",
+  "commit": "a194ac14b3bc7ee3ad2178197387b8c599a0a8a5",
+  "totalTemplates": 20,
+  "categories": {
+    "data": 7,
+    "devtools": 5,
+    "media": 4,
+    "research": 4
+  },
+  "templates": [
+    {
+      "slug": "api-football",
+      "name": "API Football",
+      "description": "Comprehensive football/soccer data — fixtures, standings, and statistics.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "sports",
+        "soccer",
+        "football"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-api-football"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get-leagues",
+        "get-standings",
+        "get-fixtures"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "clinicaltrials",
+      "name": "ClinicalTrials.gov",
+      "description": "Access ClinicalTrials.gov v2 API for clinical trial data. Search trials, get study details, and view condition statistics.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "clinical-trials",
+        "medical",
+        "research",
+        "fda",
+        "healthcare"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-clinicaltrials"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-trials",
+        "get-trial",
+        "get-stats"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "cve-search",
+      "name": "CVE Search",
+      "description": "Search the NVD database for CVEs",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "cve",
+        "vulnerability",
+        "security",
+        "nvd"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-cve-search"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-cve",
+        "get-cve",
+        "get-recent-cves",
+        "search-by-cpe"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "etymology",
+      "name": "Etymology & Definitions",
+      "description": "Access word definitions, etymology, and phonetics via the Free Dictionary API. Look up definitions, origins, and pronunciations.",
+      "version": "1.0.0",
+      "category": "research",
+      "tags": [
+        "etymology",
+        "dictionary",
+        "definition",
+        "language",
+        "words",
+        "phonetics"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-etymology"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get-definition",
+        "get-etymology",
+        "get-phonetics"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "flight-prices",
+      "name": "Flight Prices",
+      "description": "MCP server for flight price and route data with SettleGrid billing",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "flights",
+        "prices",
+        "airline",
+        "travel"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-flight-prices"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-flights",
+        "get-flight-status",
+        "get-routes"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "github-api",
+      "name": "GitHub API",
+      "description": "Search repos, issues, and users on GitHub.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "github",
+        "git",
+        "repos",
+        "issues",
+        "developer"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-github-api"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-repos",
+        "get-repo",
+        "search-issues"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "gitlab-api",
+      "name": "GitLab API",
+      "description": "Search projects, merge requests, and pipelines on GitLab.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "gitlab",
+        "git",
+        "projects",
+        "merge-requests",
+        "ci-cd"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-gitlab-api"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-projects",
+        "get-project",
+        "list-pipelines"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "guardian",
+      "name": "The Guardian",
+      "description": "Search articles from The Guardian newspaper.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "news",
+        "guardian",
+        "uk-news",
+        "articles"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-guardian"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-articles",
+        "get-article",
+        "list-sections"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "gutenberg",
+      "name": "Project Gutenberg",
+      "description": "Search and retrieve free ebooks from Project Gutenberg via the Gutendex API.",
+      "version": "1.0.0",
+      "category": "research",
+      "tags": [
+        "education",
+        "books",
+        "ebooks",
+        "literature",
+        "gutenberg"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-gutenberg"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-books",
+        "get-book",
+        "get-popular"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "holidays-worldwide",
+      "name": "Holidays Worldwide",
+      "description": "Get public holidays, long weekends, and available countries via the Nager.Date API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "education",
+        "holidays",
+        "countries",
+        "calendar",
+        "public-holidays"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-holidays-worldwide"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get-holidays",
+        "get-long-weekends",
+        "next-holiday"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "nasa-data",
+      "name": "NASA Open Data",
+      "description": "Astronomy photos, near-Earth objects, and image search.",
+      "version": "1.0.0",
+      "category": "research",
+      "tags": [
+        "nasa",
+        "space",
+        "astronomy",
+        "science"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-nasa-data"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get-apod",
+        "get-neo",
+        "search-images"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "open-alex",
+      "name": "OpenAlex",
+      "description": "Search academic works, authors, and institutions from OpenAlex with SettleGrid billing.",
+      "version": "1.0.0",
+      "category": "research",
+      "tags": [
+        "science",
+        "research",
+        "academic",
+        "openalex"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-open-alex"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-works",
+        "get-author",
+        "search-institutions"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "openaq",
+      "name": "OpenAQ",
+      "description": "Global air quality measurements from thousands of monitoring stations.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "health",
+        "air-quality",
+        "environment",
+        "pollution"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-openaq"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get-latest",
+        "get-locations",
+        "get-measurements"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "opensky",
+      "name": "OpenSky Network",
+      "description": "Live flight tracking and aircraft state vectors from the OpenSky Network.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "aviation",
+        "flights",
+        "tracking",
+        "aircraft"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-opensky"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get-states",
+        "get-flights-by-aircraft",
+        "get-track"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "podcast-index",
+      "name": "Podcast Index",
+      "description": "Search podcasts and episodes via the Podcast Index API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "podcasts",
+        "audio",
+        "media",
+        "podcast-index"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-podcast-index"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-podcasts",
+        "get-podcast",
+        "get-episodes"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "spoonacular",
+      "name": "Spoonacular",
+      "description": "Comprehensive recipe and food API with meal planning and nutrition.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "food",
+        "recipes",
+        "meal-planning",
+        "nutrition"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-spoonacular"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-recipes",
+        "get-recipe",
+        "search-ingredients"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "spotify-metadata",
+      "name": "Spotify Metadata",
+      "description": "Search tracks, albums, and artists via the Spotify Web API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "entertainment",
+        "music",
+        "spotify"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-spotify-metadata"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-tracks",
+        "search-artists",
+        "get-track"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "tmdb",
+      "name": "TMDB",
+      "description": "Search movies, TV shows, and people via The Movie Database API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "entertainment",
+        "movies",
+        "tv",
+        "tmdb"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-tmdb"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search-movies",
+        "get-movie",
+        "search-tv"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "urlscan",
+      "name": "URLScan",
+      "description": "Scan and analyze URLs for threats",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "urlscan",
+        "security",
+        "phishing",
+        "web"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-urlscan"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "submit-scan",
+        "get-result",
+        "search-scans",
+        "get-screenshot"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "virustotal",
+      "name": "VirusTotal",
+      "description": "Scan URLs, files, and IPs for malware and threats",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "virustotal",
+        "malware",
+        "security",
+        "threat"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-virustotal"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "scan-url",
+        "get-url-report",
+        "get-ip-report",
+        "get-domain-report"
+      ],
+      "featured": false
+    }
+  ]
 }

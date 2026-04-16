@@ -1,0 +1,42 @@
+{
+  "slug": "clinicaltrials",
+  "name": "ClinicalTrials.gov",
+  "description": "Access ClinicalTrials.gov v2 API for clinical trial data. Search trials, get study details, and view condition statistics.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "clinical-trials",
+    "medical",
+    "research",
+    "fda",
+    "healthcare"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-clinicaltrials"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-trials",
+    "get-trial",
+    "get-stats"
+  ],
+  "featured": false
+}

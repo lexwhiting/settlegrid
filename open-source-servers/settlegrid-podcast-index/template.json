@@ -1,0 +1,40 @@
+{
+  "slug": "podcast-index",
+  "name": "Podcast Index",
+  "description": "Search podcasts and episodes via the Podcast Index API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "podcasts",
+    "audio",
+    "media",
+    "podcast-index"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-podcast-index"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-podcasts",
+    "get-podcast",
+    "get-episodes"
+  ],
+  "featured": false
+}

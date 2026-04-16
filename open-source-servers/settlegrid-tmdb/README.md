@@ -1,18 +1,22 @@
-# settlegrid-tmdb
+# TMDB
 
-TMDB (The Movie Database) MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search movies, TV shows, and people via The Movie Database API.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-tmdb)
 
-Search movies, TV shows, and people via The Movie Database API.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template tmdb
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-tmdb.git
+cd settlegrid-tmdb
 npm install
-cp .env.example .env   # Add your SettleGrid API key + TMDB_API_KEY
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,54 +28,40 @@ npm run dev
 | `get_movie(id)` | Get movie details by ID | 2¢ |
 | `search_tv(query)` | Search TV shows by name | 2¢ |
 
-## Parameters
+## Monetization
 
-### search_movies
-- `query` (string, required)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_movie
-- `id` (number, required)
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### search_tv
-- `query` (string, required)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-| `TMDB_API_KEY` | Yes | Free key from themoviedb.org |
-
-
-## Upstream API
-
-- **Provider**: TMDB
-- **Base URL**: https://api.themoviedb.org/3
-- **Auth**: Free API key required
-- **Rate Limits**: ~40 req/10s
-- **Docs**: https://developer.themoviedb.org/docs
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-tmdb)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-tmdb .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e TMDB_API_KEY=xxx -p 3000:3000 settlegrid-tmdb
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-tmdb
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

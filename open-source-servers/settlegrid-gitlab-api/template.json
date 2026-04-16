@@ -1,0 +1,41 @@
+{
+  "slug": "gitlab-api",
+  "name": "GitLab API",
+  "description": "Search projects, merge requests, and pipelines on GitLab.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "gitlab",
+    "git",
+    "projects",
+    "merge-requests",
+    "ci-cd"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-gitlab-api"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-projects",
+    "get-project",
+    "list-pipelines"
+  ],
+  "featured": false
+}

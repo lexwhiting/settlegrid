@@ -1,0 +1,41 @@
+{
+  "slug": "flight-prices",
+  "name": "Flight Prices",
+  "description": "MCP server for flight price and route data with SettleGrid billing",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "flights",
+    "prices",
+    "airline",
+    "travel"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-flight-prices"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-flights",
+    "get-flight-status",
+    "get-routes"
+  ],
+  "featured": false
+}

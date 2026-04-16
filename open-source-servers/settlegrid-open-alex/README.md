@@ -1,18 +1,22 @@
-# settlegrid-open-alex
+# OpenAlex
 
-OpenAlex MCP Server with per-call billing via [SettleGrid](https://settlegrid.ai).
+> Search academic works, authors, and institutions from OpenAlex with SettleGrid billing.
 
 [![Powered by SettleGrid](https://img.shields.io/badge/Powered%20by-SettleGrid-10B981?style=flat-square)](https://settlegrid.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-open-alex)
 
-Search academic works, authors, and institutions from OpenAlex with SettleGrid billing.
-
-## Quick Start
+## 30-Second Quickstart
 
 ```bash
+# Option 1: Use the CLI scaffolder
+npx create-settlegrid-tool --template open-alex
+
+# Option 2: Clone and run
+git clone https://github.com/settlegrid/settlegrid-open-alex.git
+cd settlegrid-open-alex
 npm install
-cp .env.example .env   # Add your SettleGrid API key
+cp .env.example .env   # Add your API keys
 npm run dev
 ```
 
@@ -24,54 +28,40 @@ npm run dev
 | `get_author(author_id)` | Get author profile by OpenAlex ID | 1¢ |
 | `search_institutions(query)` | Search research institutions | 1¢ |
 
-## Parameters
+## Monetization
 
-### search_works
-- `query` (string, required) — Search query
-- `per_page` (number, optional) — Results per page (1-20, default 10)
+Turn this template into a revenue stream. At the default 1¢/call pricing:
 
-### get_author
-- `author_id` (string, required) — OpenAlex author ID (e.g. "A5023888391")
+| Monthly Calls | Your Revenue (after 20% fee) |
+|---------------|------------------------------|
+| 1,000 | $8 |
+| 10,000 | $80 |
+| 100,000 | $800 |
 
-### search_institutions
-- `query` (string, required) — Institution name
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SETTLEGRID_API_KEY` | Yes | Your SettleGrid API key from [settlegrid.ai](https://settlegrid.ai) |
-
-
-## Upstream API
-
-- **Provider**: OpenAlex
-- **Base URL**: https://api.openalex.org
-- **Auth**: None required
-- **Rate Limits**: 100k req/day polite
-- **Docs**: https://docs.openalex.org/
+See [monetization.md](monetization.md) for full pricing math and payout details.
 
 ## Deploy
 
-### Docker
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-open-alex)
 
 ```bash
+# Or use Docker
 docker build -t settlegrid-open-alex .
 docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-open-alex
 ```
 
-### Vercel
+## Demo
 
-Click the "Deploy with Vercel" button above, or:
+<!-- Replace with your Loom recording URL -->
+> Loom demo placeholder — record a 30-second walkthrough and paste the embed URL here.
 
-```bash
-npm run build
-vercel --prod
-```
+## Standalone Value
+
+This template works without SettleGrid. See [remove-settlegrid.md](remove-settlegrid.md) for step-by-step removal instructions. **No lock-in.**
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 

@@ -1,0 +1,42 @@
+{
+  "slug": "gutenberg",
+  "name": "Project Gutenberg",
+  "description": "Search and retrieve free ebooks from Project Gutenberg via the Gutendex API.",
+  "version": "1.0.0",
+  "category": "research",
+  "tags": [
+    "education",
+    "books",
+    "ebooks",
+    "literature",
+    "gutenberg"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-gutenberg"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-books",
+    "get-book",
+    "get-popular"
+  ],
+  "featured": false
+}

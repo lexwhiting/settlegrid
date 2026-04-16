@@ -1,0 +1,41 @@
+{
+  "slug": "tmdb",
+  "name": "TMDB",
+  "description": "Search movies, TV shows, and people via The Movie Database API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "entertainment",
+    "movies",
+    "tv",
+    "tmdb"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-tmdb"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-movies",
+    "get-movie",
+    "search-tv"
+  ],
+  "featured": false
+}
