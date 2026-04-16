@@ -45,6 +45,7 @@ const jsonLd = {
       name: 'Free',
       price: '0',
       priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
       description: 'Free forever — 50,000 operations/month, unlimited tools.',
     },
     {
@@ -52,6 +53,7 @@ const jsonLd = {
       name: 'Builder',
       price: '19',
       priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
       description: '200,000 operations/month, sandbox mode, Slack alerts, benchmarking.',
     },
     {
@@ -59,6 +61,7 @@ const jsonLd = {
       name: 'Scale',
       price: '79',
       priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
       description: '2,000,000 operations/month, team access, advanced analytics, fraud detection.',
     },
   ],
