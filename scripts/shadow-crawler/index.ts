@@ -53,50 +53,53 @@ async function upsertRecords(records: ShadowRecord[]): Promise<number> {
   const BATCH_SIZE = 100
   let total = 0
 
-  for (let i = 0; i < records.length; i += BATCH_SIZE) {
-    const batch = records.slice(i, i + BATCH_SIZE)
-    const values = batch.map((r) => ({
-      source: r.source,
-      owner: r.owner,
-      repo: r.repo,
-      name: r.name,
-      description: r.description ?? null,
-      category: r.category ?? null,
-      tags: r.tags ?? null,
-      stars: r.stars ?? null,
-      downloads: r.downloads ?? null,
-      lastUpdated: r.lastUpdated ?? null,
-      sourceUrl: r.sourceUrl ?? null,
-    }))
+  try {
+    for (let i = 0; i < records.length; i += BATCH_SIZE) {
+      const batch = records.slice(i, i + BATCH_SIZE)
+      const values = batch.map((r) => ({
+        source: r.source,
+        owner: r.owner,
+        repo: r.repo,
+        name: r.name,
+        description: r.description ?? null,
+        category: r.category ?? null,
+        tags: r.tags ?? null,
+        stars: r.stars ?? null,
+        downloads: r.downloads ?? null,
+        lastUpdated: r.lastUpdated ?? null,
+        sourceUrl: r.sourceUrl ?? null,
+      }))
 
-    await db
-      .insert(mcpShadowIndex)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [
-          mcpShadowIndex.source,
-          mcpShadowIndex.owner,
-          mcpShadowIndex.repo,
-        ],
-        set: {
-          // name is NOT NULL — always update from incoming row
-          name: dsql`EXCLUDED.name`,
-          // Nullable fields: COALESCE — only overwrite if new value is non-null
-          description: dsql`COALESCE(EXCLUDED.description, ${mcpShadowIndex.description})`,
-          category: dsql`COALESCE(EXCLUDED.category, ${mcpShadowIndex.category})`,
-          tags: dsql`COALESCE(EXCLUDED.tags, ${mcpShadowIndex.tags})`,
-          stars: dsql`COALESCE(EXCLUDED.stars, ${mcpShadowIndex.stars})`,
-          downloads: dsql`COALESCE(EXCLUDED.downloads, ${mcpShadowIndex.downloads})`,
-          lastUpdated: dsql`COALESCE(EXCLUDED.last_updated, ${mcpShadowIndex.lastUpdated})`,
-          sourceUrl: dsql`COALESCE(EXCLUDED.source_url, ${mcpShadowIndex.sourceUrl})`,
-          indexedAt: new Date(),
-        },
-      })
+      await db
+        .insert(mcpShadowIndex)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [
+            mcpShadowIndex.source,
+            mcpShadowIndex.owner,
+            mcpShadowIndex.repo,
+          ],
+          set: {
+            // name is NOT NULL — always update from incoming row
+            name: dsql`EXCLUDED.name`,
+            // Nullable fields: COALESCE — only overwrite if new value is non-null
+            description: dsql`COALESCE(EXCLUDED.description, ${mcpShadowIndex.description})`,
+            category: dsql`COALESCE(EXCLUDED.category, ${mcpShadowIndex.category})`,
+            tags: dsql`COALESCE(EXCLUDED.tags, ${mcpShadowIndex.tags})`,
+            stars: dsql`COALESCE(EXCLUDED.stars, ${mcpShadowIndex.stars})`,
+            downloads: dsql`COALESCE(EXCLUDED.downloads, ${mcpShadowIndex.downloads})`,
+            lastUpdated: dsql`COALESCE(EXCLUDED.last_updated, ${mcpShadowIndex.lastUpdated})`,
+            sourceUrl: dsql`COALESCE(EXCLUDED.source_url, ${mcpShadowIndex.sourceUrl})`,
+            indexedAt: new Date(),
+          },
+        })
 
-    total += batch.length
+      total += batch.length
+    }
+  } finally {
+    await sql.end()
   }
 
-  await sql.end()
   return total
 }
 

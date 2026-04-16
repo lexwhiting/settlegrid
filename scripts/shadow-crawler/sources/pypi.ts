@@ -23,38 +23,40 @@ export async function* fetchPyPI(
   const limit = opts.limit ?? Infinity
   const seen = new Set<string>()
 
-  // PyPI doesn't have a search API — use the simple index + known prefixes
-  // Fall back to checking known packages by name pattern
-  for (const term of SEARCH_TERMS) {
-    if (count >= limit) break
+  // PyPI doesn't have a search API — fetch the simple index once and
+  // scan for matching package names across all search terms.
+  let indexText: string
+  try {
+    const res = await fetchWithRetry('https://pypi.org/simple/')
+    indexText = await res.text()
+  } catch {
+    return
+  }
 
-    // Use PyPI's JSON API for packages matching the search term
-    // We search by fetching the simple index page and filtering
-    const url = `https://pypi.org/simple/`
-    let indexText: string
-    try {
-      const res = await fetchWithRetry(url, {
-        headers: { Accept: 'application/vnd.pypi.simple.v1+json' },
-      })
-      indexText = await res.text()
-    } catch {
-      continue
-    }
+  // Parse all package names from the simple index (fetched once)
+  const allPackages: string[] = []
+  const packageRe = /href="\/simple\/([^/]+)\//g
+  let reMatch: RegExpExecArray | null
+  while ((reMatch = packageRe.exec(indexText)) !== null) {
+    allPackages.push(reMatch[1])
+  }
 
-    // Parse package names from the simple index
-    const packageRe = /href="\/simple\/([^/]+)\//g
-    let match: RegExpExecArray | null
-    const candidates: string[] = []
-
-    while ((match = packageRe.exec(indexText)) !== null) {
-      const name = match[1]
-      if (name.includes(term) || name.startsWith('mcp-')) {
-        candidates.push(name)
+  // Collect candidates matching any search term
+  const candidates: string[] = []
+  const candidateSet = new Set<string>()
+  for (const pkg of allPackages) {
+    if (candidateSet.has(pkg)) continue
+    for (const term of SEARCH_TERMS) {
+      if (pkg.includes(term) || pkg.startsWith('mcp-')) {
+        candidates.push(pkg)
+        candidateSet.add(pkg)
+        break
       }
     }
+  }
 
-    // Fetch details for each candidate
-    for (const pkgName of candidates.slice(0, 50)) {
+  // Fetch details for each candidate
+  for (const pkgName of candidates.slice(0, 50)) {
       if (count >= limit) return
       if (seen.has(pkgName)) continue
       seen.add(pkgName)
@@ -99,6 +101,5 @@ export async function* fetchPyPI(
       }
 
       await new Promise((r) => setTimeout(r, 100))
-    }
   }
 }

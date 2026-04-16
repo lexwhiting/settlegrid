@@ -182,7 +182,7 @@ describe('shadow-crawler sources', () => {
     })
   })
 
-  it('pypi: fetches simple index and resolves package details', async () => {
+  it('pypi: fetches simple index once and resolves package details', async () => {
     const PYPI_INDEX = '<a href="/simple/mcp-server-test/">mcp-server-test</a>'
     const PYPI_PKG = {
       info: {
@@ -192,8 +192,8 @@ describe('shadow-crawler sources', () => {
         author: 'pyuser',
       },
     }
-    // Three search terms: first returns index + detail, rest return empty
-    mockTextResponses = [PYPI_INDEX, '', '']
+    // Single index fetch + one package detail
+    mockTextResponses = [PYPI_INDEX]
     mockJsonResponses = [PYPI_PKG]
 
     const { fetchPyPI } = await import('./sources/pypi')
