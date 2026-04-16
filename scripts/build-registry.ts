@@ -14,7 +14,7 @@
  */
 
 import { realpathSync } from 'node:fs'
-import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, stat, unlink } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -96,15 +96,20 @@ async function discoverManifests(
   const found: { manifestPath: string; dirName: string }[] = []
 
   for (const root of roots) {
-    let entries: string[]
+    let entries: import('node:fs').Dirent[]
     try {
-      entries = await readdir(root)
+      entries = await readdir(root, { withFileTypes: true })
     } catch {
       // Root doesn't exist — skip silently
       continue
     }
 
-    for (const dirName of entries) {
+    for (const entry of entries) {
+      // Skip non-directories (files, symlinks, etc.)
+      if (!entry.isDirectory()) continue
+
+      const dirName = entry.name
+
       // Filter by --only: strip settlegrid- prefix for matching
       if (only) {
         const slug = dirName.replace(/^settlegrid-/, '')
@@ -141,6 +146,7 @@ export async function buildRegistry(
 
   const templates: TemplateManifestPublic[] = []
   const skipped: SkippedManifest[] = []
+  const seenSlugs = new Map<string, string>() // slug → dirName of first occurrence
 
   for (const { manifestPath, dirName } of discovered) {
     let raw: unknown
@@ -159,6 +165,19 @@ export async function buildRegistry(
       continue
     }
 
+    // Duplicate slug detection — first occurrence wins (discovery is sorted)
+    const existingDir = seenSlugs.get(result.data.slug)
+    if (existingDir) {
+      skipped.push({
+        dir: dirName,
+        errors: [
+          `Duplicate slug '${result.data.slug}' (first seen in ${existingDir})`,
+        ],
+      })
+      continue
+    }
+
+    seenSlugs.set(result.data.slug, dirName)
     templates.push(result.data)
   }
 
@@ -228,6 +247,25 @@ export async function buildRegistry(
     )
   }
 
+  // Clean up stale per-slug .json files from previous runs.
+  // Only in full-build mode (not --only, which would wipe all other slugs).
+  // Only targets files matching the slug pattern [a-z0-9-]+\.json to avoid
+  // trampling non-generated files (.txt, .html, etc.) in the directory.
+  if (!only) {
+    const currentSlugs = new Set(templates.map((t) => t.slug))
+    const SLUG_JSON_RE = /^[a-z0-9-]+\.json$/
+    try {
+      const existing = await readdir(templatesDir)
+      for (const file of existing) {
+        if (SLUG_JSON_RE.test(file) && !currentSlugs.has(file.slice(0, -5))) {
+          await unlink(join(templatesDir, file))
+        }
+      }
+    } catch {
+      // templates/ doesn't exist yet — nothing to clean up
+    }
+  }
+
   // ── Summary to stdout ──
 
   const duration = ((performance.now() - startTime) / 1000).toFixed(2)
@@ -265,8 +303,8 @@ async function main(): Promise<void> {
   const onlyIdx = args.indexOf('--only')
   if (onlyIdx !== -1) {
     only = args[onlyIdx + 1]
-    if (!only) {
-      console.error('Error: --only requires a slug argument')
+    if (!only || only.startsWith('--')) {
+      console.error('Error: --only requires a slug argument (got ' + (only ? `'${only}'` : 'nothing') + ')')
       process.exit(1)
     }
   }
