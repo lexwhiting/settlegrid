@@ -41,6 +41,7 @@ export async function getShadowEntry(
           eq(mcpShadowIndex.repo, repo),
         ),
       )
+      .orderBy(desc(mcpShadowIndex.stars))
       .limit(1)
     return rows[0]
   } catch (err) {

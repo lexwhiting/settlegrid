@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { getAllShadowEntries, countShadowEntries, listOwners } from '@/lib/shadow-index'
 
 export const dynamic = 'force-static'
-export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: 'MCP Server Directory | SettleGrid',
