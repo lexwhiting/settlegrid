@@ -54,8 +54,7 @@
           "type": "object",
           "properties": {
             "name": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             },
             "url": {
               "type": "string",
@@ -113,8 +112,7 @@
           "minItems": 1
         },
         "entry": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         },
         "pricing": {
           "type": "object",
@@ -165,8 +163,7 @@
         "capabilities": {
           "type": "array",
           "items": {
-            "type": "string",
-            "minLength": 1
+            "type": "string"
           },
           "maxItems": 30
         },
@@ -180,8 +177,7 @@
                 "format": "uri"
               },
               "alt": {
-                "type": "string",
-                "minLength": 1
+                "type": "string"
               }
             },
             "required": [

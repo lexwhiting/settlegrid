@@ -3,8 +3,8 @@ import {
   safeValidateTemplateManifest,
   templateManifestSchema,
   validateTemplateManifest,
-} from '../template-schema'
-import type { TemplateManifest } from '../template-schema'
+} from './template-schema'
+import type { TemplateManifest } from './template-schema'
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -311,16 +311,20 @@ describe('safeValidateTemplateManifest — discriminated return', () => {
   })
 
   it('returns { success: false, errors[] } with dot-path prefixes on invalid input', () => {
+    // Two failures on purpose: (a) slug regex violation, (b) pricing refine
+    // violation (per-call without perCallUsdCents). Verifies both the
+    // top-level and the nested dot-path prefix.
     const result = safeValidateTemplateManifest({
       ...validMinimal,
       slug: 'BAD',
-      author: { name: '' },
+      pricing: { model: 'per-call', currency: 'USD' },
     })
     expect(result.success).toBe(false)
     if (!result.success) {
-      // At least one error names the slug field, at least one names author.
       expect(result.errors.some((e) => e.startsWith('slug:'))).toBe(true)
-      expect(result.errors.some((e) => e.startsWith('author.name:'))).toBe(true)
+      expect(
+        result.errors.some((e) => e.startsWith('pricing.perCallUsdCents:')),
+      ).toBe(true)
     }
   })
 
