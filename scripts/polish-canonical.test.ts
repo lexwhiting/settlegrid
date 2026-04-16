@@ -44,6 +44,13 @@ Fake MCP Server with per-call billing.
 
 ### search_items
 - \`query\` (string, required)
+
+## Upstream API
+
+- **Provider**: Fake Platform
+- **Base URL**: https://api.fake.dev
+- **Auth**: API key required
+- **Docs**: https://docs.fake.dev
 `
 
 const FAKE_CTX = {
@@ -54,6 +61,7 @@ const FAKE_CTX = {
   methodsTable:
     '| Method | Description | Cost |\n|--------|-------------|------|\n| `search_items(query)` | Search fake items | 1\u00A2 |\n| `get_item(id)` | Get a specific item | 1\u00A2 |',
   capabilities: ['search-items', 'get-item'],
+  upstreamInfo: '- **Provider**: Fake Platform\n- **Base URL**: https://api.fake.dev\n- **Auth**: API key required\n- **Docs**: https://docs.fake.dev',
 }
 
 // ── Test setup ─────────────────────────────────────────────────────────────
@@ -128,6 +136,9 @@ describe('polish-canonical', () => {
       expect(readme).toContain('Deploy with Vercel')
       expect(readme).toContain('Loom demo placeholder')
       expect(readme).toContain('remove-settlegrid.md')
+      expect(readme).toContain('## Original README')
+      expect(readme).toContain('### Upstream API')
+      expect(readme).toContain('Fake Platform')
       expect(readme).toContain('## License')
     })
   })
