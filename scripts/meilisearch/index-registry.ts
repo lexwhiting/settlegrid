@@ -55,9 +55,14 @@ async function main() {
 
   const client = new MeiliSearch({ host: url, apiKey: key })
 
-  // Create or update index
-  const indexTask = await client.createIndex(INDEX_NAME, { primaryKey: 'slug' })
-  await client.waitForTask(indexTask.taskUid)
+  // Create index (ignore if already exists — safe for re-runs)
+  try {
+    const indexTask = await client.createIndex(INDEX_NAME, { primaryKey: 'slug' })
+    await client.waitForTask(indexTask.taskUid)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : ''
+    if (!msg.includes('index_already_exists')) throw err
+  }
 
   const index = client.index(INDEX_NAME)
 

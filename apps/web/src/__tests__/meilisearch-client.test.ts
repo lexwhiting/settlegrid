@@ -16,7 +16,7 @@ vi.mock('@/env', () => ({
 }))
 
 // Dynamic import so mocks are applied first
-const { searchTemplates } = await import('@/lib/meilisearch-client')
+const { searchTemplates, sanitizeHighlight } = await import('@/lib/meilisearch-client')
 
 describe('meilisearch-client', () => {
   beforeEach(() => {
@@ -75,5 +75,45 @@ describe('meilisearch-client', () => {
       highlightPreTag: '<mark>',
       highlightPostTag: '</mark>',
     }))
+  })
+
+  it('escapes double quotes in category filter values', async () => {
+    await searchTemplates('test', { category: 'dev" OR slug = "x' })
+
+    expect(mockSearch).toHaveBeenCalledWith('test', expect.objectContaining({
+      filter: 'category = "dev\\" OR slug = \\"x"',
+    }))
+  })
+
+  it('escapes double quotes in tag filter values', async () => {
+    await searchTemplates('test', { tags: ['tag"injection'] })
+
+    expect(mockSearch).toHaveBeenCalledWith('test', expect.objectContaining({
+      filter: '(tags = "tag\\"injection")',
+    }))
+  })
+})
+
+describe('sanitizeHighlight', () => {
+  it('preserves <mark> tags', () => {
+    expect(sanitizeHighlight('Hello <mark>world</mark>')).toBe(
+      'Hello <mark>world</mark>',
+    )
+  })
+
+  it('strips script tags', () => {
+    expect(sanitizeHighlight('<script>alert("xss")</script>Hello')).toBe(
+      'alert("xss")Hello',
+    )
+  })
+
+  it('strips img onerror', () => {
+    expect(sanitizeHighlight('<img onerror="alert(1)">text')).toBe('text')
+  })
+
+  it('handles mixed mark + malicious tags', () => {
+    expect(
+      sanitizeHighlight('<mark>safe</mark><script>bad</script> ok'),
+    ).toBe('<mark>safe</mark>bad ok')
   })
 })

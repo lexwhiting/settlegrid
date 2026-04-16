@@ -25,6 +25,19 @@ export interface SearchFilters {
 
 export type TemplateSearchResult = SearchResponse<TemplateManifest>
 
+/** Escape double quotes and backslashes in Meilisearch filter values. */
+function escapeFilterValue(v: string): string {
+  return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
+ * Sanitize Meilisearch highlight HTML — strip all tags except <mark>.
+ * Prevents XSS if source data contains HTML characters.
+ */
+export function sanitizeHighlight(html: string): string {
+  return html.replace(/<(?!\/?mark\s*>)[^>]*>/gi, '')
+}
+
 export async function searchTemplates(
   query: string,
   filters?: SearchFilters,
@@ -34,10 +47,12 @@ export async function searchTemplates(
 
   const filterParts: string[] = []
   if (filters?.category) {
-    filterParts.push(`category = "${filters.category}"`)
+    filterParts.push(`category = "${escapeFilterValue(filters.category)}"`)
   }
   if (filters?.tags && filters.tags.length > 0) {
-    const tagFilters = filters.tags.map((t) => `tags = "${t}"`)
+    const tagFilters = filters.tags.map(
+      (t) => `tags = "${escapeFilterValue(t)}"`,
+    )
     filterParts.push(`(${tagFilters.join(' OR ')})`)
   }
 
