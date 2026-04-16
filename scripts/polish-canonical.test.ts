@@ -235,6 +235,132 @@ describe('polish-canonical', () => {
       expect(run1).toEqual(run2)
     })
 
+    it('uses fallback methods table and general capability when README has no methods', async () => {
+      // Overwrite README with no methods table
+      const dir = join(tmpServers, 'settlegrid-fake-api')
+      await writeFile(
+        join(dir, 'README.md'),
+        '# Fake API\n\nNo methods here.\n\n## Upstream API\n\n- **Provider**: Test\n',
+      )
+
+      const result = await polishCanonical({
+        canonical20Path: tmpCanonical,
+        serversDir: tmpServers,
+      })
+
+      expect(result.polished).toEqual(['fake-api'])
+
+      const tj = JSON.parse(await readFile(join(dir, 'template.json'), 'utf-8'))
+      expect(tj.capabilities).toEqual(['general'])
+
+      const readme = await readFile(join(dir, 'README.md'), 'utf-8')
+      expect(readme).toContain('No methods documented')
+    })
+
+    it('strips MCP server prefix from description', async () => {
+      const dir = join(tmpServers, 'settlegrid-fake-api')
+      await writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          ...FAKE_PKG,
+          description:
+            'MCP server for Fake Data with SettleGrid billing. Lookup fake data by ID.',
+        }),
+      )
+
+      await polishCanonical({
+        canonical20Path: tmpCanonical,
+        serversDir: tmpServers,
+      })
+
+      const tj = JSON.parse(await readFile(join(dir, 'template.json'), 'utf-8'))
+      expect(tj.description).toBe('Lookup fake data by ID.')
+    })
+
+    it('uses name fallback when package.json has no description', async () => {
+      const dir = join(tmpServers, 'settlegrid-fake-api')
+      const { description: _, ...pkgNoDesc } = FAKE_PKG as Record<string, unknown>
+      await writeFile(join(dir, 'package.json'), JSON.stringify(pkgNoDesc))
+
+      await polishCanonical({
+        canonical20Path: tmpCanonical,
+        serversDir: tmpServers,
+      })
+
+      const tj = JSON.parse(await readFile(join(dir, 'template.json'), 'utf-8'))
+      expect(tj.description).toBe('Fake API MCP server')
+    })
+
+    it('reports validation errors for invalid manifest category', async () => {
+      await writeFile(
+        tmpCanonical,
+        JSON.stringify({
+          version: 1,
+          entries: [
+            { ...FAKE_ENTRY, manifestCategory: 'invalid-category' },
+          ],
+        }),
+      )
+
+      const result = await polishCanonical({
+        canonical20Path: tmpCanonical,
+        serversDir: tmpServers,
+      })
+
+      expect(result.polished).toHaveLength(0)
+      expect(result.validationErrors).toHaveLength(1)
+      expect(result.validationErrors[0].slug).toBe('fake-api')
+    })
+
+    it('--only filters to a single template', async () => {
+      // Add a second entry
+      const dir2 = join(tmpServers, 'settlegrid-other-api')
+      await mkdir(dir2, { recursive: true })
+      await writeFile(join(dir2, 'package.json'), JSON.stringify(FAKE_PKG))
+      await writeFile(join(dir2, 'README.md'), FAKE_README)
+
+      await writeFile(
+        tmpCanonical,
+        JSON.stringify({
+          version: 1,
+          entries: [
+            FAKE_ENTRY,
+            { ...FAKE_ENTRY, slug: 'other-api', name: 'Other API' },
+          ],
+        }),
+      )
+
+      const result = await polishCanonical({
+        canonical20Path: tmpCanonical,
+        serversDir: tmpServers,
+        only: 'fake-api',
+      })
+
+      expect(result.polished).toEqual(['fake-api'])
+      // other-api should not be polished
+      const dir2Files = await readFile(join(dir2, 'template.json'), 'utf-8').catch(
+        () => null,
+      )
+      expect(dir2Files).toBeNull()
+    })
+
+    it('--dry-run generates no files', async () => {
+      const result = await polishCanonical({
+        canonical20Path: tmpCanonical,
+        serversDir: tmpServers,
+        dryRun: true,
+      })
+
+      expect(result.polished).toEqual(['fake-api'])
+
+      // No template.json should be created
+      const dir = join(tmpServers, 'settlegrid-fake-api')
+      const exists = await readFile(join(dir, 'template.json'), 'utf-8').catch(
+        () => null,
+      )
+      expect(exists).toBeNull()
+    })
+
     it('skips templates with missing package.json', async () => {
       // Add an entry that doesn't exist on disk
       await writeFile(
