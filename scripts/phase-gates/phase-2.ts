@@ -878,16 +878,47 @@ async function check15_fmt3Polished(): Promise<CheckResult> {
 
 async function check16_fmt4N8nInvoke(): Promise<CheckResult> {
   const label = 'FMT4 — n8n Invoke operation node'
-  const path = repoFile('packages', 'n8n', 'src', 'nodes', 'Invoke.ts')
-  if (!fileExists(path)) {
-    return defer(16, label, `${path} not present`)
+  // P2.FMT4 spec says "Add an `Invoke Tool` operation to
+  // packages/n8n-settlegrid/src/nodes/SettleGrid/SettleGrid.node.ts" — not
+  // "create a separate Invoke.ts". Accept EITHER:
+  //   (a) a standalone packages/n8n/src/nodes/Invoke.ts file, OR
+  //   (b) an invokeTool operation inside the existing
+  //       packages/n8n/src/nodes/SettleGrid/SettleGrid.node.ts
+  // The spec literally prescribes (b); (a) is accepted for forward compat
+  // in case a future refactor splits operations into per-node files.
+  const standalone = repoFile('packages', 'n8n', 'src', 'nodes', 'Invoke.ts')
+  if (fileExists(standalone)) {
+    return pass(16, label, 'Invoke.ts present (n8n smoke test deferred — needs local n8n runtime)')
   }
-  // Spec: "n8n smoke test passes against a local n8n instance". This requires
-  // a local n8n runtime which is dev-environment specific. When FMT4 ships,
-  // wire this to `npm --workspace @settlegrid/n8n run smoke` (or equivalent)
-  // and DEFER if N8N_API_URL is unset. Until then, file-presence is the
-  // strongest verifiable signal locally.
-  return pass(16, label, 'Invoke.ts present (n8n smoke test pending FMT4 implementation)')
+  const nodeFile = repoFile(
+    'packages',
+    'n8n',
+    'src',
+    'nodes',
+    'SettleGrid',
+    'SettleGrid.node.ts',
+  )
+  if (!fileExists(nodeFile)) {
+    return defer(
+      16,
+      label,
+      `neither ${standalone} nor ${nodeFile} is present`,
+    )
+  }
+  const src = readFileSync(nodeFile, 'utf8')
+  const hasInvokeOp = /invokeTool/.test(src) && /Invoke Tool/.test(src)
+  if (!hasInvokeOp) {
+    return defer(
+      16,
+      label,
+      `${nodeFile} does not register an invokeTool operation`,
+    )
+  }
+  return pass(
+    16,
+    label,
+    'invokeTool operation present in SettleGrid.node.ts (n8n smoke test deferred — needs local n8n runtime)',
+  )
 }
 
 async function check17_mkt1Comparison(): Promise<CheckResult> {
