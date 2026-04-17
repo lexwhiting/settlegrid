@@ -395,11 +395,22 @@ export class SettleGrid implements INodeType {
     const returnData: INodeExecutionData[] = [];
 
     const credentials = await this.getCredentials('settleGridApi');
-    const baseUrl = ((credentials.baseUrl as string) || 'https://settlegrid.ai').replace(
-      /\/$/,
-      '',
-    );
-    const apiKey = credentials.apiKey as string;
+    const baseUrl = (
+      (typeof credentials.baseUrl === 'string' && credentials.baseUrl) ||
+      'https://settlegrid.ai'
+    ).replace(/\/$/, '');
+    const apiKey =
+      typeof credentials.apiKey === 'string' ? credentials.apiKey.trim() : '';
+    if (!apiKey) {
+      // Fail-fast with a dedicated error rather than letting the proxy
+      // return 401 — the root cause is a malformed credential, not a
+      // rejected key, and the two deserve different remediation.
+      throw new NodeApiError(this.getNode(), {
+        message: 'SettleGrid credential is missing an API key',
+        description:
+          'The `API Key` field on the SettleGrid credential is empty or non-string. Set it in n8n Credentials > SettleGrid API (the key starts with `sg_live_` or `sg_test_`).',
+      });
+    }
 
     const resource = this.getNodeParameter('resource', 0) as string;
     const operation = this.getNodeParameter('operation', 0) as string;
