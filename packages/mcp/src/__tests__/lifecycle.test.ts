@@ -203,9 +203,15 @@ describe('P2.K4 — type exports are reachable from the public barrel', () => {
 describe('P2.K4 — sg.wrap second arg accepts MeterContext', () => {
   // Runtime behavior unchanged — middleware still only reads
   // `headers` and `metadata`. This test pins the TYPE-LEVEL contract:
-  // a MeterContext-shaped object is accepted without cast.
+  // a MeterContext-shaped object is accepted without cast, at BOTH
+  // positions in the call chain (wrap-time AND per-invocation).
+  //
+  // P2.K4 spec-diff: the literal spec is ambiguous between "sg.wrap's
+  // second arg" and "the second arg of the call chain". We satisfy
+  // both readings via intersection types (`WrapOptions & MeterContext`
+  // at wrap-time; `MeterContext` at invocation-time).
 
-  it('wrap can be called with a full MeterContext as second arg', async () => {
+  it('wrap can be called with a full MeterContext as per-invocation context', async () => {
     const sg = settlegrid.init({
       toolSlug: 'test-tool',
       pricing: { defaultCostCents: 5 },
@@ -233,5 +239,42 @@ describe('P2.K4 — sg.wrap second arg accepts MeterContext', () => {
     // the type check.
     await expect(wrapped({ q: 'hello' }, ctxLegacy)).rejects.toBeDefined()
     await expect(wrapped({ q: 'hello' }, ctxFull)).rejects.toBeDefined()
+  })
+
+  it('sg.wrap SECOND ARG (wrap-time options) accepts MeterContext fields (spec-diff)', () => {
+    // Literal spec reading (A): "Update sg.wrap to accept MeterContext
+    // as second arg type". sg.wrap's second-arg type is widened to
+    // `WrapOptions & MeterContext` so all 6 MeterContext fields
+    // typecheck at wrap-time. The runtime ignores them (P2.K4 stubs
+    // are type-only); P3.K1 will honor them as call-time defaults.
+    const sg = settlegrid.init({
+      toolSlug: 'test-tool',
+      pricing: { defaultCostCents: 5 },
+    })
+    const handler = async (args: { q: string }) => ({ out: args.q })
+
+    // Bare WrapOptions (pre-P2.K4 shape) still compiles.
+    const w1 = sg.wrap(handler, { method: 'search' })
+    expect(typeof w1).toBe('function')
+
+    // MeterContext fields at wrap-time: all 6 typecheck.
+    const w2 = sg.wrap(handler, {
+      method: 'search',
+      sessionId: 'sess-default',
+      apiKey: 'sg_live_default',
+      maxCostCents: 100,
+      headers: { 'x-default': 'yes' },
+      metadata: { defaultTag: 'x' },
+      mcpMeta: { 'settlegrid-service': 'my-tool' },
+    })
+    expect(typeof w2).toBe('function')
+
+    // Pure MeterContext (no WrapOptions fields) as second arg also
+    // compiles because WrapOptions fields are all optional.
+    const w3 = sg.wrap(handler, {
+      apiKey: 'sg_live_ctx',
+      sessionId: 'sess-ctx',
+    })
+    expect(typeof w3).toBe('function')
   })
 })

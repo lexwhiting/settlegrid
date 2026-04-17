@@ -187,16 +187,30 @@ export interface SettleGridInstance {
    */
   wrap<TArgs, TResult>(
     handler: (args: TArgs) => Promise<TResult> | TResult,
-    options?: WrapOptions
+    // P2.K4 spec-diff: the type literally says "Update sg.wrap to
+    // accept MeterContext as second arg type". Two readings:
+    //
+    //   (A) sg.wrap's second arg itself accepts MeterContext.
+    //   (B) The call chain's second arg — i.e., the wrapped
+    //       function's `context` — accepts MeterContext.
+    //
+    // The "typecheck-only, runtime unchanged" qualifier in the spec
+    // forbids replacing WrapOptions (method / costCents / units are
+    // load-bearing at wrap-time and the runtime reads them). So we
+    // satisfy both readings with an intersection: at wrap-time, the
+    // caller may pass any subset of WrapOptions AND any subset of
+    // MeterContext. Runtime still reads only the WrapOptions fields
+    // today; the MeterContext fields are carried at the type level
+    // for P3.K1, which will start honoring wrap-time defaults
+    // (e.g., a `sessionId` set here is merged into the per-call
+    // context below as a default).
+    options?: WrapOptions & MeterContext
   ): (
     args: TArgs,
-    // P2.K4: the wrapper's second arg is now formalized as
-    // MeterContext (a superset of the historical { headers, metadata }
-    // shape — all fields optional, so existing callers keep working).
-    // Runtime is unchanged; the middleware still only reads
-    // `headers` and `metadata` today. Additional MeterContext fields
-    // (apiKey, sessionId, maxCostCents, mcpMeta) are reserved for the
-    // P3.K1 lifecycle implementation.
+    // Reading (B): the wrapper's per-invocation second arg is
+    // MeterContext. Middleware still only reads `headers` and
+    // `metadata` today — other MeterContext fields are reserved
+    // for P3.K1 (the lifecycle stubs depend on them).
     context?: MeterContext
   ) => Promise<TResult>
 
@@ -388,7 +402,12 @@ export const settlegrid = {
     const instance: SettleGridInstance = {
       wrap<TArgs, TResult>(
         handler: (args: TArgs) => Promise<TResult> | TResult,
-        wrapOptions?: WrapOptions
+        // Match the interface's `WrapOptions & MeterContext` widening
+        // (see the JSDoc on SettleGridInstance.wrap). Runtime reads
+        // only WrapOptions fields (method / costCents / units); the
+        // MeterContext fields (apiKey / sessionId / etc.) are carried
+        // at the type level for P3.K1.
+        wrapOptions?: WrapOptions & MeterContext
       ) {
         if (typeof handler !== 'function') {
           throw new Error(
