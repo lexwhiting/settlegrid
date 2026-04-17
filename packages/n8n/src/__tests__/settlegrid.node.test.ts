@@ -443,6 +443,239 @@ describe('SettleGrid node — Invoke Tool input validation', () => {
   })
 })
 
+describe('SettleGrid node — hostile fixes (round 2)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  // H1: parseInvokeArgs defensive copy — prevent mutating upstream data
+  it('does NOT mutate the raw args object when method param is set', async () => {
+    const upstream = { q: 'hello' } // imagine this came from $json
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: upstream, method: 'search' }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    expect(upstream).toEqual({ q: 'hello' }) // no `method` field leaked in
+  })
+
+  it('does NOT mutate the raw args object across iterations', async () => {
+    const shared = { q: 'hello' }
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: shared, method: 'search' }),
+      inputs: [{ json: {} }, { json: {} }, { json: {} }],
+    })
+    await new SettleGrid().execute.call(ctx)
+    expect(shared).toEqual({ q: 'hello' })
+  })
+
+  // H2: extractHttpStatus integer+range validation
+  it('rejects decimal status codes ("200.5" or 200.5) as non-HTTP', async () => {
+    const err = Object.assign(new Error('x'), { httpCode: 200.5 })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    // Decimal → rejected → falls through to generic failure message
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /SettleGrid API request failed/,
+    )
+  })
+
+  it('rejects negative status codes', async () => {
+    const err = Object.assign(new Error('x'), { httpCode: -1 })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /SettleGrid API request failed/,
+    )
+  })
+
+  it('rejects status 0 (ambiguous / network-error convention)', async () => {
+    const err = Object.assign(new Error('x'), { httpCode: 0 })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /SettleGrid API request failed/,
+    )
+  })
+
+  it('rejects status codes below 100 and above 599', async () => {
+    for (const bad of [99, 600, 1000]) {
+      const err = Object.assign(new Error('x'), { httpCode: bad })
+      const { ctx } = makeHarness({
+        params: invokeToolParams({ args: '{"x":1}' }),
+        httpRequestImpl: async () => {
+          throw err
+        },
+      })
+      await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+        /SettleGrid API request failed/,
+      )
+    }
+  })
+
+  // H3: apiKey leak defense. n8n's NodeApiError only surfaces the bits
+  // we pass in the 3rd-arg options (message/description/httpCode) in
+  // its public JSON form — but the raw error we hand as the 2nd arg
+  // is retained internally (and may surface in stderr logs, the n8n
+  // executions UI's raw-error view, or error-trigger workflow inputs).
+  // Our tests assert the observable no-leak property: the live key
+  // string never appears in ANY serialization of the thrown error,
+  // regardless of which surface inspects it.
+  it('does not leak x-api-key from axios-shaped request/config/response', async () => {
+    const err = Object.assign(new Error('Upstream failure'), {
+      httpCode: 500,
+      config: {
+        headers: {
+          'x-api-key': 'sg_live_SHOULD_NOT_LEAK',
+          Accept: 'application/json',
+        },
+      },
+      request: { headers: { 'x-api-key': 'sg_live_SHOULD_NOT_LEAK' } },
+      response: {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      },
+    })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    try {
+      await new SettleGrid().execute.call(ctx)
+      expect.fail('should have thrown')
+    } catch (e) {
+      // Walk every observable surface of the thrown error.
+      const surfaces = [
+        JSON.stringify(e),
+        String(e),
+        (e as Error).stack ?? '',
+        JSON.stringify(Object.getOwnPropertyNames(e).reduce(
+          (acc, key) => ({
+            ...acc,
+            [key]: (e as Record<string, unknown>)[key],
+          }),
+          {} as Record<string, unknown>,
+        )),
+      ]
+      for (const surface of surfaces) {
+        expect(surface).not.toContain('sg_live_SHOULD_NOT_LEAK')
+      }
+    }
+  })
+
+  it('does not leak Authorization / Cookie headers through any error surface', async () => {
+    const err = Object.assign(new Error('x'), {
+      httpCode: 500,
+      config: {
+        headers: {
+          Authorization: 'Bearer secret_token_42',
+          Cookie: 'session=abc_cookie_secret',
+        },
+      },
+    })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    try {
+      await new SettleGrid().execute.call(ctx)
+      expect.fail('should have thrown')
+    } catch (e) {
+      const surfaces = [
+        JSON.stringify(e),
+        String(e),
+        (e as Error).stack ?? '',
+      ]
+      for (const surface of surfaces) {
+        expect(surface).not.toContain('secret_token_42')
+        expect(surface).not.toContain('abc_cookie_secret')
+      }
+    }
+  })
+
+  it('sanitization does not mutate the caller\'s error object', async () => {
+    const err = Object.assign(new Error('x'), {
+      httpCode: 500,
+      config: { headers: { 'x-api-key': 'sg_live_sentinel' } },
+    })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await new SettleGrid().execute.call(ctx).catch(() => {})
+    // Original error still has the live key — sanitize is copy-on-read.
+    expect(
+      (err.config as { headers: Record<string, string> }).headers['x-api-key'],
+    ).toBe('sg_live_sentinel')
+  })
+
+  // H4: method param trimmed
+  it('trims whitespace-wrapped method before sending to the proxy', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({
+        args: '{"q":"hi"}',
+        method: '  search  ',
+      }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect(req.body).toEqual({ q: 'hi', method: 'search' })
+  })
+
+  it('treats whitespace-only method as absent (no override)', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({
+        args: '{"q":"hi","method":"user-wants"}',
+        method: '   ',
+      }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    // User's args.method preserved; empty/whitespace method param
+    // does NOT clobber it.
+    expect(req.body).toEqual({ q: 'hi', method: 'user-wants' })
+  })
+
+  it('method param wins when both args.method and param method are set', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({
+        args: '{"q":"hi","method":"from-args"}',
+        method: 'from-param',
+      }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect((req.body as Record<string, unknown>).method).toBe('from-param')
+  })
+
+  it('preserves args.method when param method is empty', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({
+        args: '{"q":"hi","method":"user-pick"}',
+        method: '',
+      }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect((req.body as Record<string, unknown>).method).toBe('user-pick')
+  })
+})
+
 describe('SettleGrid node — credential validation (hostile fix)', () => {
   beforeEach(() => vi.clearAllMocks())
 
