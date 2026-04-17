@@ -229,6 +229,11 @@ const neverminedStronger: Point[] = [
       '$4M seed January 2025 (Generative Ventures lead; NEAR, Polymorphic, Halo participating) — creates procurement credibility',
   },
   {
+    claim: '"PayPal for AI" narrative',
+    cite:
+      'A sticky consumer metaphor that buyers grasp in one sentence — SettleGrid\'s "settlement layer" framing is more precise but less story-shaped',
+  },
+  {
     claim: 'EUR/EURC multi-currency',
     cite: 'Announced March 2026 — nevermined.ai/blog',
   },
