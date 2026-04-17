@@ -377,6 +377,68 @@ describe('SettleGrid node — Invoke Tool input validation', () => {
   })
 })
 
+describe('SettleGrid node — credential validation (hostile fix)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('throws NodeApiError when credential apiKey is missing', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      credentials: { apiKey: '' },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /credential is missing an API key/,
+    )
+    expect(httpRequest).not.toHaveBeenCalled()
+  })
+
+  it('throws NodeApiError when credential apiKey is whitespace-only', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      credentials: { apiKey: '   ' },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /credential is missing an API key/,
+    )
+    expect(httpRequest).not.toHaveBeenCalled()
+  })
+
+  it('throws NodeApiError when credential apiKey is non-string (object)', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      credentials: { apiKey: { nested: 'x' } as unknown as string },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /credential is missing an API key/,
+    )
+    expect(httpRequest).not.toHaveBeenCalled()
+  })
+
+  it('trims whitespace on credential apiKey before forwarding', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      credentials: { apiKey: '  sg_live_trimmed  ' },
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect((req.headers as Record<string, unknown>)['x-api-key']).toBe(
+      'sg_live_trimmed',
+    )
+  })
+
+  it('falls back to default baseUrl when credential baseUrl is non-string', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      credentials: {
+        apiKey: 'sg_live_x',
+        baseUrl: 42 as unknown as string,
+      },
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect((req.url as string).startsWith('https://settlegrid.ai/')).toBe(true)
+  })
+})
+
 describe('SettleGrid node — credentials integration (P2.FMT4 DoD)', () => {
   beforeEach(() => vi.clearAllMocks())
 
