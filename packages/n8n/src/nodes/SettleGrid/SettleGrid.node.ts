@@ -86,6 +86,13 @@ export class SettleGrid implements INodeType {
             description: 'List all tool categories with their counts',
             action: 'List categories',
           },
+          {
+            name: 'Invoke Tool',
+            value: 'invokeTool',
+            description:
+              'Invoke a monetized tool by slug via the SettleGrid billing proxy',
+            action: 'Invoke tool',
+          },
         ],
         default: 'listTools',
       },
@@ -215,7 +222,7 @@ export class SettleGrid implements INodeType {
       },
 
       // ------------------------------------------------------------------
-      //  Parameters: Get Tool
+      //  Parameters: Get Tool / Invoke Tool (shared `slug`)
       // ------------------------------------------------------------------
       {
         displayName: 'Tool Slug',
@@ -227,7 +234,39 @@ export class SettleGrid implements INodeType {
         displayOptions: {
           show: {
             resource: ['tool'],
-            operation: ['getTool'],
+            operation: ['getTool', 'invokeTool'],
+          },
+        },
+      },
+
+      // ------------------------------------------------------------------
+      //  Parameters: Invoke Tool
+      // ------------------------------------------------------------------
+      {
+        displayName: 'Method',
+        name: 'invokeMethod',
+        type: 'string',
+        default: '',
+        description:
+          'Optional method / sub-operation name passed to the tool (e.g. "search", "summarize"). Leave blank if the tool has a single entry point.',
+        displayOptions: {
+          show: {
+            resource: ['tool'],
+            operation: ['invokeTool'],
+          },
+        },
+      },
+      {
+        displayName: 'Arguments (JSON)',
+        name: 'invokeArgs',
+        type: 'json',
+        default: '{}',
+        description:
+          'JSON object of arguments to pass to the tool. Use expressions to thread data from prior nodes.',
+        displayOptions: {
+          show: {
+            resource: ['tool'],
+            operation: ['invokeTool'],
           },
         },
       },
@@ -407,6 +446,35 @@ export class SettleGrid implements INodeType {
         }
 
         // ----------------------------------------------------------------
+        //  Tool: Invoke Tool (P2.FMT4)
+        //
+        //  POSTs to the SettleGrid billing proxy at /api/proxy/{slug}.
+        //  The proxy validates the key, meters the invocation, forwards
+        //  to the upstream tool, and returns the response.
+        // ----------------------------------------------------------------
+        else if (resource === 'tool' && operation === 'invokeTool') {
+          const slug = this.getNodeParameter('slug', i) as string;
+          if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
+            throw new NodeApiError(this.getNode(), {
+              message: 'Tool Slug is required for Invoke Tool.',
+            });
+          }
+          const invokeMethod = this.getNodeParameter('invokeMethod', i, '') as string;
+          const rawArgs = this.getNodeParameter('invokeArgs', i, '{}');
+          const body = parseInvokeArgs.call(this, rawArgs);
+          if (invokeMethod) body.method = invokeMethod;
+
+          responseData = await settleGridApiRequest.call(
+            this,
+            'POST',
+            `${baseUrl}/api/proxy/${encodeURIComponent(slug)}`,
+            apiKey,
+            undefined,
+            body,
+          );
+        }
+
+        // ----------------------------------------------------------------
         //  Tool: List Categories
         // ----------------------------------------------------------------
         else if (resource === 'tool' && operation === 'listCategories') {
@@ -526,8 +594,124 @@ async function settleGridApiRequest(
     const response = await this.helpers.httpRequest(options);
     return response as IDataObject;
   } catch (error) {
+    const status = extractHttpStatus(error);
+    const { message, description } = mapSettleGridError(status, error);
     throw new NodeApiError(this.getNode(), error as JsonObject, {
-      message: 'SettleGrid API request failed',
+      message,
+      description,
+      httpCode: status ? String(status) : undefined,
     });
   }
+}
+
+/**
+ * Pull the HTTP status off whichever shape n8n's httpRequest surfaced.
+ * n8n wraps axios-style errors — it may expose `httpCode`, `statusCode`,
+ * or `response.status`. Returns undefined if the error is not HTTP-shaped
+ * (network failures, DNS, timeouts, etc.).
+ */
+function extractHttpStatus(err: unknown): number | undefined {
+  if (!err || typeof err !== 'object') return undefined;
+  const e = err as {
+    httpCode?: unknown;
+    statusCode?: unknown;
+    response?: { status?: unknown; statusCode?: unknown };
+  };
+  const candidates = [
+    e.httpCode,
+    e.statusCode,
+    e.response?.status,
+    e.response?.statusCode,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'number' && Number.isFinite(c)) return c;
+    if (typeof c === 'string') {
+      const n = Number(c);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Map SettleGrid-specific HTTP status codes to actionable n8n error
+ * messages. The spec (P2.FMT4) calls out 402 / 401 explicitly.
+ */
+function mapSettleGridError(
+  status: number | undefined,
+  _err: unknown,
+): { message: string; description?: string } {
+  if (status === 401) {
+    return {
+      message: 'Invalid or missing SettleGrid API key',
+      description:
+        'The API key on the SettleGrid credential was rejected. Check the key in n8n Credentials > SettleGrid API, or generate a new one at settlegrid.ai/dashboard.',
+    };
+  }
+  if (status === 402) {
+    return {
+      message: 'Insufficient SettleGrid credits',
+      description:
+        'The consumer balance is too low to cover this invocation. Top up at settlegrid.ai/dashboard or enable auto-reload.',
+    };
+  }
+  if (status === 404) {
+    return {
+      message: 'SettleGrid tool not found',
+      description:
+        'The tool slug does not match a published marketplace tool. Check the slug or run List Tools to find the right one.',
+    };
+  }
+  if (status === 429) {
+    return {
+      message: 'SettleGrid rate limit exceeded',
+      description:
+        'Slow down, retry after the Retry-After header elapses, or contact support for a limit increase.',
+    };
+  }
+  if (typeof status === 'number' && status >= 500) {
+    return {
+      message: `SettleGrid upstream error (${status})`,
+      description:
+        'The SettleGrid proxy or the underlying tool returned a server error. Retry; if it persists, report the request ID to support@settlegrid.ai.',
+    };
+  }
+  return { message: 'SettleGrid API request failed' };
+}
+
+/**
+ * Coerce the node's `Arguments (JSON)` parameter — which may arrive as
+ * a JSON string (user-typed) or an object (expression evaluation) —
+ * into a plain IDataObject. Rejects arrays, primitives, and malformed
+ * JSON with a NodeApiError at parse time (fail fast; don't let the
+ * tool receive garbage).
+ */
+function parseInvokeArgs(
+  this: IExecuteFunctions,
+  raw: unknown,
+): IDataObject {
+  if (raw === undefined || raw === null || raw === '') return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as IDataObject;
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new NodeApiError(this.getNode(), {
+          message: 'Arguments (JSON) must be a JSON object, not an array or primitive.',
+        });
+      }
+      return parsed as IDataObject;
+    } catch (err) {
+      if (err instanceof NodeApiError) throw err;
+      throw new NodeApiError(this.getNode(), {
+        message: 'Arguments (JSON) is not valid JSON.',
+        description: (err as Error).message,
+      });
+    }
+  }
+  throw new NodeApiError(this.getNode(), {
+    message: 'Arguments (JSON) must be an object or a JSON string.',
+  });
 }
