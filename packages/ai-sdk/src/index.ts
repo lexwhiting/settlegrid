@@ -86,21 +86,23 @@ export interface WrapAiToolOptions {
  * `toolCallId`, `messages`, etc.) but we only care about
  * `experimental_context` here — the pass-through slot the caller uses
  * to thread data from the outer HTTP request down to the tool
- * handler. Additional fields are allowed via the `[key: string]:
- * unknown` index signature so the returned function's signature stays
- * structurally compatible with what `tool({ execute: ... })` expects.
+ * handler.
+ *
+ * `experimental_context` is typed `unknown` to match Vercel AI SDK
+ * v5's shape (the SDK doesn't narrow what callers put in this slot).
+ * `wrapAiTool` narrows to `{ settlegridKey: string }` via a runtime
+ * typeguard inside its body — see `extractSettlegridKey`. Callers
+ * should still pass a shape like `{ settlegridKey: "sg_live_..." }`
+ * for the adapter to find anything.
+ *
+ * All other fields are optional so this type stays structurally
+ * compatible with the full v5 `ToolExecutionOptions` — a v5 caller
+ * that provides the complete shape (toolCallId + messages +
+ * abortSignal + experimental_context) can use the returned function
+ * as a `tool({ execute: ... })` argument without cast.
  */
 export interface AiToolExecuteOptions {
-  experimental_context?: {
-    /**
-     * SettleGrid API key for the consumer invoking this tool. The
-     * caller of `generateText` / `streamText` sets this — typically
-     * by forwarding an `x-api-key` request header or a session-scoped
-     * token.
-     */
-    settlegridKey?: string
-    [key: string]: unknown
-  }
+  experimental_context?: unknown
   abortSignal?: AbortSignal
   toolCallId?: string
   messages?: unknown
@@ -167,8 +169,8 @@ export function wrapAiTool<TArgs, TResult>(
   const billed = sg.wrap(execute, wrapOpts)
 
   return async (args, aiOptions) => {
-    const apiKey = aiOptions?.experimental_context?.settlegridKey
-    if (!apiKey || typeof apiKey !== 'string') {
+    const apiKey = extractSettlegridKey(aiOptions?.experimental_context)
+    if (!apiKey) {
       throw new InvalidKeyError(
         'No SettleGrid API key found in experimental_context.settlegridKey. ' +
           'Pass `experimental_context: { settlegridKey: "sg_live_..." }` ' +
@@ -177,4 +179,22 @@ export function wrapAiTool<TArgs, TResult>(
     }
     return billed(args, { headers: { 'x-api-key': apiKey } })
   }
+}
+
+/**
+ * Narrow Vercel AI SDK v5's `experimental_context` (typed `unknown`)
+ * down to the SettleGrid-specific `settlegridKey` slot. Returns the
+ * non-empty string key, or `undefined` for any shape that doesn't
+ * carry a usable key (missing field, non-string value, empty string).
+ *
+ * Keeping this as a standalone function means the runtime typeguard
+ * is both unit-testable in isolation AND reusable if P3.K1 grows the
+ * MeterContext payload (sessionId, maxCostCents, etc.) that needs
+ * similar narrowing from the same slot.
+ */
+function extractSettlegridKey(ctx: unknown): string | undefined {
+  if (typeof ctx !== 'object' || ctx === null) return undefined
+  const key = (ctx as { settlegridKey?: unknown }).settlegridKey
+  if (typeof key !== 'string' || key.length === 0) return undefined
+  return key
 }
