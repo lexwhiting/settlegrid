@@ -152,42 +152,29 @@ export function stripLineComments(src: string): string {
 export const TEST_DECL_RE = /^\s*(test|it|describe)(?:\.[\w$]+)?\s*\(/m
 
 /**
- * Pure state-machine for check 9 (K1 — proxy uses unified adapter).
- * Mirrors Phase 1 gate's deriveBuildChallengeCheckState pattern: the
- * 4 discrete states are extracted so they can be unit-tested without
- * walking a real apps/web/src/app/api/proxy/ tree.
+ * Pure check-state derivation for check 9 (K1 — proxy uses unified
+ * adapter). Reduced to a 2-state model after a 2026-04-16 audit found
+ * the previous 4-state version conflated K1 (add unified path) with
+ * K2 (remove lib/*-proxy.ts files):
  *
- * States:
- *   { kernelImports: 0, offendingCount: 0 }  → DEFER, 'uninstrumented'
- *   { kernelImports: 0, offendingCount: >0 } → DEFER, 'pre-K1'
- *   { kernelImports: >0, offendingCount: 0 } → PASS,  'k1-complete'
- *   { kernelImports: >0, offendingCount: >0 } → FAIL, 'partial-migration'
+ *   { unifiedRefs: 0 } → DEFER, 'k1-pending'
+ *   { unifiedRefs: >0 } → PASS, 'k1-shipped'
  *
- * The "partial-migration" FAIL is the broken invariant — if anything
- * in proxy/ uses the kernel, *everything* should, otherwise we have
- * inconsistent dispatch semantics depending on which file routes a
- * request.
+ * K1's spec only requires adding the parallel path (protocolRegistry
+ * dispatch) behind a feature flag — the legacy chain stays intact for
+ * the flag-off case AND for the 5 emerging protocols (l402, alipay,
+ * kyapay, emvco, drain) that don't have adapters yet. Check 10 (K2)
+ * separately verifies removal of the lib/*-proxy.ts files.
  */
-export type K1CheckReason =
-  | 'uninstrumented'
-  | 'pre-K1'
-  | 'k1-complete'
-  | 'partial-migration'
+export type K1CheckReason = 'k1-pending' | 'k1-shipped'
 
 export function deriveK1ProxyCheckState(p: {
-  kernelImports: number
-  offendingCount: number
+  unifiedRefs: number
 }): { status: Status; reason: K1CheckReason } {
-  if (p.kernelImports === 0) {
-    return {
-      status: 'DEFER',
-      reason: p.offendingCount > 0 ? 'pre-K1' : 'uninstrumented',
-    }
+  if (p.unifiedRefs === 0) {
+    return { status: 'DEFER', reason: 'k1-pending' }
   }
-  if (p.offendingCount > 0) {
-    return { status: 'FAIL', reason: 'partial-migration' }
-  }
-  return { status: 'PASS', reason: 'k1-complete' }
+  return { status: 'PASS', reason: 'k1-shipped' }
 }
 
 /**
@@ -612,47 +599,50 @@ async function check9_k1ProxyUsesKernel(): Promise<CheckResult> {
   if (!dirExists(proxyDir)) {
     return defer(9, label, `${proxyDir} not present (K1 not yet shipped)`)
   }
-  // Walk proxy dir and grep for kernel imports.
-  const offending: string[] = []
-  let kernelImports = 0
+  // Walk proxy/ for unified-adapter wiring. K1's marker is any reference
+  // to `protocolRegistry` (imported from @settlegrid/mcp) or to the
+  // route's `decideUnifiedDispatch` helper. The original gate spec said
+  // "@settlegrid/mcp-kernel" but the actual package is @settlegrid/mcp;
+  // mcp-kernel doesn't exist as a separate package. Reconciled
+  // 2026-04-16 to match the P2.K1 prompt-card spec.
+  let unifiedRefs = 0
   const walk = (dir: string): void => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, e.name)
       if (e.isDirectory()) {
+        // Skip __tests__ — equivalence tests intentionally import the
+        // legacy isXRequest() helpers to assert detection parity.
+        // Counting those imports as "still uses lib/*-proxy" would be
+        // a false positive against the test code itself.
+        if (e.name === '__tests__') continue
         walk(full)
         continue
       }
       if (!/\.(t|j)sx?$/.test(e.name)) continue
-      // Strip line-comments before grepping so commented-out imports don't
-      // false-positive (e.g., `// import { foo } from '@/lib/x-proxy'`).
+      // Skip co-located *.test.ts / *.test.tsx files for the same reason.
+      if (/\.test\.(t|j)sx?$/.test(e.name)) continue
+      // Strip line-comments before grepping so a commented-out
+      // protocolRegistry mention doesn't false-positive.
       const src = stripLineComments(readFileSync(full, 'utf-8'))
-      if (/from ['"]@\/lib\/[^'"]*-proxy['"]/.test(src)) {
-        offending.push(full.replace(REPO_ROOT + '/', ''))
-      }
-      if (/@settlegrid\/mcp-kernel/.test(src)) {
-        kernelImports++
+      if (/\bprotocolRegistry\b/.test(src) || /\bdecideUnifiedDispatch\b/.test(src)) {
+        unifiedRefs++
       }
     }
   }
   walk(proxyDir)
-  const state = deriveK1ProxyCheckState({
-    kernelImports,
-    offendingCount: offending.length,
-  })
-  switch (state.reason) {
-    case 'uninstrumented':
-      return defer(9, label, 'no kernel imports and no lib/*-proxy imports — proxy uninstrumented')
-    case 'pre-K1':
-      return defer(9, label, `pre-K1 state: ${offending.length} lib/*-proxy import(s), 0 kernel imports`)
-    case 'partial-migration':
-      return fail(
-        9,
-        label,
-        `partial migration: ${kernelImports} kernel import(s) but ${offending.length} lib/*-proxy import(s) remain; first: ${offending[0]}`,
-      )
-    case 'k1-complete':
-      return pass(9, label, `${kernelImports} file(s) import @settlegrid/mcp-kernel`)
+  const state = deriveK1ProxyCheckState({ unifiedRefs })
+  if (state.reason === 'k1-pending') {
+    return defer(
+      9,
+      label,
+      'no protocolRegistry / decideUnifiedDispatch references in proxy/ production code — K1 not yet shipped',
+    )
   }
+  return pass(
+    9,
+    label,
+    `${unifiedRefs} file(s) reference unified-adapter dispatch (protocolRegistry / decideUnifiedDispatch)`,
+  )
 }
 
 async function check10_k2ProxiesRemoved(): Promise<CheckResult> {
