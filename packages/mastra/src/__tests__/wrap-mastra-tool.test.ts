@@ -548,6 +548,207 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
   })
 })
 
+// ─── 8. Hostile-review L1: whitespace trimming on settlegridKey ──────────
+
+describe('wrapMastraTool — L1 fix: whitespace-tolerant key extraction', () => {
+  const execute = vi.fn(async () => ({ ok: true }))
+
+  beforeEach(() => execute.mockClear())
+
+  it('trims leading whitespace before forwarding to x-api-key', async () => {
+    mockInit.mockImplementationOnce(() => ({
+      wrap: (userExecute: (input: unknown) => unknown) =>
+        async (input: unknown, ctx: { headers?: Record<string, string> }) => {
+          mockWrap(input, ctx)
+          return userExecute(input)
+        },
+    }))
+    const wrapped = wrapMastraTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const runtimeContext = new MockRuntimeContext()
+    runtimeContext.set('settlegridKey', '   sg_live_abc')
+    await wrapped({ context: { q: 'x' }, runtimeContext })
+    expect(mockWrap).toHaveBeenCalledWith(
+      { q: 'x' },
+      { headers: { 'x-api-key': 'sg_live_abc' } },
+    )
+  })
+
+  it('trims trailing whitespace', async () => {
+    mockInit.mockImplementationOnce(() => ({
+      wrap: (userExecute: (input: unknown) => unknown) =>
+        async (input: unknown, ctx: { headers?: Record<string, string> }) => {
+          mockWrap(input, ctx)
+          return userExecute(input)
+        },
+    }))
+    const wrapped = wrapMastraTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await wrapped({
+      context: { q: 'x' },
+      runtimeContext: { settlegridKey: 'sg_live_abc   ' },
+    })
+    expect(mockWrap).toHaveBeenCalledWith(
+      { q: 'x' },
+      { headers: { 'x-api-key': 'sg_live_abc' } },
+    )
+  })
+
+  it('trims both leading and trailing whitespace', async () => {
+    mockInit.mockImplementationOnce(() => ({
+      wrap: (userExecute: (input: unknown) => unknown) =>
+        async (input: unknown, ctx: { headers?: Record<string, string> }) => {
+          mockWrap(input, ctx)
+          return userExecute(input)
+        },
+    }))
+    const wrapped = wrapMastraTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await wrapped({
+      context: { q: 'x' },
+      runtimeContext: { settlegridKey: '\t sg_live_abc \n' },
+    })
+    expect(mockWrap).toHaveBeenCalledWith(
+      { q: 'x' },
+      { headers: { 'x-api-key': 'sg_live_abc' } },
+    )
+  })
+
+  it('rejects whitespace-only key as InvalidKeyError', async () => {
+    const wrapped = wrapMastraTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const runtimeContext = new MockRuntimeContext()
+    runtimeContext.set('settlegridKey', '   ')
+    await expect(
+      wrapped({ context: { q: 'x' }, runtimeContext }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+  })
+})
+
+// ─── 9. Hostile-review L2: precedence when both .get and .settlegridKey ──
+
+describe('wrapMastraTool — L2 pin: .get method takes precedence over .settlegridKey', () => {
+  it('uses .get() when both .get method and .settlegridKey property exist', async () => {
+    mockInit.mockImplementationOnce(() => ({
+      wrap: (_execute: unknown) =>
+        async (_input: unknown, ctx: { headers?: Record<string, string> }) => {
+          mockWrap(null, ctx)
+          return 'ok'
+        },
+    }))
+    const wrapped = wrapMastraTool(async () => 'ok', {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    // An unusual runtimeContext with both surfaces. The .get method
+    // wins (Mastra-canonical path). The .settlegridKey field is
+    // ignored.
+    const contextWithBoth = {
+      get: (k: string) => (k === 'settlegridKey' ? 'sg_live_from_get' : undefined),
+      settlegridKey: 'sg_live_from_property',
+    }
+    await wrapped({ context: { q: 'x' }, runtimeContext: contextWithBoth })
+    expect(mockWrap).toHaveBeenCalledWith(
+      null,
+      { headers: { 'x-api-key': 'sg_live_from_get' } },
+    )
+  })
+})
+
+// ─── 10. Hostile-review L3: Proxy with throwing `has` trap ───────────────
+
+describe('wrapMastraTool — L3 fix: defensive against throwing Proxy `has` trap', () => {
+  it('does not crash when `in` probe throws', async () => {
+    // Construct a proxy whose `has` trap throws — an evil context.
+    // The adapter should degrade gracefully (reject with
+    // InvalidKeyError) instead of propagating the throw.
+    const evilProxy = new Proxy(
+      {},
+      {
+        has() {
+          throw new Error('has trap crashed')
+        },
+      },
+    )
+    const wrapped = wrapMastraTool(async () => 'ok', {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({ context: { q: 'x' }, runtimeContext: evilProxy }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+  })
+})
+
+// ─── 11. Hostile-review L4: primitive runtimeContext values ──────────────
+
+describe('wrapMastraTool — L4 coverage: primitive runtimeContext values', () => {
+  const execute = vi.fn(async () => ({ ok: true }))
+
+  it.each([
+    ['string', 'sg_live_abc'],
+    ['number', 42],
+    ['boolean true', true],
+    ['boolean false', false],
+    ['bigint', BigInt(100)],
+    ['symbol', Symbol('x')],
+  ] as const)('rejects %s as runtimeContext', async (_label, value) => {
+    const wrapped = wrapMastraTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({ context: { q: 'x' }, runtimeContext: value as unknown }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+  })
+})
+
+// ─── 12. Hostile-review L5: native Map instance as runtimeContext ────────
+
+describe('wrapMastraTool — L5 coverage: native Map instance works as runtimeContext', () => {
+  it('accepts a native Map with settlegridKey set', async () => {
+    const wrapped = wrapMastraTool(async (input: { q: string }) => ({ got: input.q }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const runtimeContext = new Map<string, unknown>([
+      ['settlegridKey', 'sg_live_map_abc'],
+    ])
+    await expect(
+      wrapped({ context: { q: 'hello' }, runtimeContext }),
+    ).resolves.toEqual({ got: 'hello' })
+  })
+
+  it('rejects an empty Map (no settlegridKey)', async () => {
+    const wrapped = wrapMastraTool(async () => 'ok', {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({ context: { q: 'x' }, runtimeContext: new Map() }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+  })
+
+  it('rejects a Map whose settlegridKey value is not a string', async () => {
+    const wrapped = wrapMastraTool(async () => 'ok', {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const runtimeContext = new Map<string, unknown>([['settlegridKey', 42]])
+    await expect(
+      wrapped({ context: { q: 'x' }, runtimeContext }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+  })
+})
+
 // ─── Type export sanity check ────────────────────────────────────────────
 
 describe('type exports', () => {
