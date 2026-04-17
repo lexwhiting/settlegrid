@@ -83,3 +83,60 @@ export async function decideUnifiedDispatch(
   }
   return { type: 'unified', protocol: adapter.name, paymentContext }
 }
+
+// ── Dispatch verdict (pure) ──────────────────────────────────────────
+
+/**
+ * Map of protocol name → enabled-fn predicate. Production callers
+ * populate this with the corresponding isXEnabled() helpers. Tests
+ * pass a synthetic record. A protocol without an entry is treated as
+ * "enabled" (default-allow) for forward compat with future adapters
+ * that haven't been wired into the env.ts enable-checks yet.
+ */
+export type EnabledMap = Partial<Record<ProtocolName, () => boolean>>
+
+export type DispatchVerdict =
+  | { dispatch: true; protocol: ProtocolName; paymentContext?: PaymentContext }
+  | {
+      dispatch: false
+      reason: 'no-match' | 'mcp-fallback' | 'protocol-disabled'
+      protocol?: ProtocolName
+    }
+
+/**
+ * Pure decision: given a DispatchDecision and the enabled-fn map,
+ * decide whether the unified path should dispatch (and to which
+ * protocol) or fall through to the legacy chain (and why).
+ *
+ * Extracted from route.ts's tryUnifiedAdapterDispatch for direct
+ * testability — the protocol-disabled fall-through (added in
+ * P2.K1 hostile review for equivalence preservation) was otherwise
+ * only exercised via integration. Keeping the decision logic pure
+ * means a regression to the equivalence contract surfaces as a
+ * unit-test failure.
+ */
+export function shouldDispatchUnified(
+  decision: DispatchDecision,
+  enabled: EnabledMap,
+): DispatchVerdict {
+  if (decision.type === 'no-match') {
+    return { dispatch: false, reason: 'no-match' }
+  }
+  if (decision.type === 'mcp-fallback') {
+    return { dispatch: false, reason: 'mcp-fallback' }
+  }
+  // decision.type === 'unified'
+  const enabledFn = enabled[decision.protocol]
+  if (enabledFn && !enabledFn()) {
+    return {
+      dispatch: false,
+      reason: 'protocol-disabled',
+      protocol: decision.protocol,
+    }
+  }
+  return {
+    dispatch: true,
+    protocol: decision.protocol,
+    paymentContext: decision.paymentContext,
+  }
+}
