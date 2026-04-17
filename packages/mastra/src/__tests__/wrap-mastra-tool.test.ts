@@ -13,6 +13,13 @@
  *     and sg.wrap.
  *   - Wrap-time option validation (TypeError with actionable messages).
  *   - Header-injection defense (CRLF / control chars / non-ASCII).
+ *
+ * ## Mastra execute shape note (P2.FMT2 spec-diff)
+ *
+ * The adapter's returned function takes a single destructured
+ * argument: `({ context, runtimeContext, mastra? }) => result`. All
+ * tests pass an input like `{ context: { q: 'hello' }, runtimeContext }`
+ * — NOT the earlier `(input, { runtimeContext })` two-arg shape.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -54,7 +61,7 @@ vi.mock('@settlegrid/mcp', () => ({
   InsufficientCreditsError: MockInsufficientCreditsError,
 }))
 
-import { wrapMastraTool, type MastraExecuteOptions } from '../index'
+import { wrapMastraTool, type MastraExecuteInput } from '../index'
 
 beforeEach(() => {
   mockWrap.mockReset()
@@ -71,10 +78,6 @@ beforeEach(() => {
 })
 
 // ─── A canonical RuntimeContext mock matching Mastra's class shape ───────
-//
-// Mastra's RuntimeContext is a Map-like class with .set(key, value)
-// and .get(key) methods. We mock the minimal surface our extractor
-// needs. Kept inline so tests don't need @mastra/core installed.
 class MockRuntimeContext {
   private store = new Map<string, unknown>()
   set(key: string, value: unknown): this {
@@ -99,7 +102,7 @@ describe('wrapMastraTool — happy path', () => {
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 'sg_live_abc')
 
-    const result = await wrapped({ q: 'hello' }, { runtimeContext })
+    const result = await wrapped({ context: { q: 'hello' }, runtimeContext })
     expect(result).toEqual({ results: ['hello'] })
     expect(execute).toHaveBeenCalledWith({ q: 'hello' })
   })
@@ -110,11 +113,10 @@ describe('wrapMastraTool — happy path', () => {
       toolSlug: 'my-tool',
       pricing: { defaultCostCents: 1 },
     })
-    // Some callers construct a literal instead of a RuntimeContext class.
-    const result = await wrapped(
-      { q: 'x' },
-      { runtimeContext: { settlegridKey: 'sg_live_abc' } },
-    )
+    const result = await wrapped({
+      context: { q: 'x' },
+      runtimeContext: { settlegridKey: 'sg_live_abc' },
+    })
     expect(result).toEqual({ ok: true })
   })
 })
@@ -124,24 +126,12 @@ describe('wrapMastraTool — happy path', () => {
 describe('wrapMastraTool — missing key (401 bucket)', () => {
   const execute = vi.fn(async () => ({ ok: true }))
 
-  it('throws InvalidKeyError when options is undefined', async () => {
-    const wrapped = wrapMastraTool(execute, {
-      toolSlug: 'my-tool',
-      pricing: { defaultCostCents: 1 },
-    })
-    // @ts-expect-error — intentionally missing options
-    await expect(wrapped({ q: 'x' }, undefined)).rejects.toMatchObject({
-      code: 'INVALID_KEY',
-      statusCode: 401,
-    })
-  })
-
   it('throws InvalidKeyError when runtimeContext is undefined', async () => {
     const wrapped = wrapMastraTool(execute, {
       toolSlug: 'my-tool',
       pricing: { defaultCostCents: 1 },
     })
-    await expect(wrapped({ q: 'x' }, {})).rejects.toMatchObject({
+    await expect(wrapped({ context: { q: 'x' } })).rejects.toMatchObject({
       code: 'INVALID_KEY',
       statusCode: 401,
     })
@@ -152,9 +142,8 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
       toolSlug: 'my-tool',
       pricing: { defaultCostCents: 1 },
     })
-    // Fresh RuntimeContext with no settlegridKey set.
     await expect(
-      wrapped({ q: 'x' }, { runtimeContext: new MockRuntimeContext() }),
+      wrapped({ context: { q: 'x' }, runtimeContext: new MockRuntimeContext() }),
     ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
   })
 
@@ -164,7 +153,7 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
       pricing: { defaultCostCents: 1 },
     })
     await expect(
-      wrapped({ q: 'x' }, { runtimeContext: { other: 'field' } }),
+      wrapped({ context: { q: 'x' }, runtimeContext: { other: 'field' } }),
     ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
   })
 
@@ -176,7 +165,7 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', '')
     await expect(
-      wrapped({ q: 'x' }, { runtimeContext }),
+      wrapped({ context: { q: 'x' }, runtimeContext }),
     ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
   })
 
@@ -188,7 +177,7 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 12345)
     await expect(
-      wrapped({ q: 'x' }, { runtimeContext }),
+      wrapped({ context: { q: 'x' }, runtimeContext }),
     ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
   })
 
@@ -198,7 +187,7 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
       pricing: { defaultCostCents: 1 },
     })
     try {
-      await wrapped({ q: 'x' }, {})
+      await wrapped({ context: { q: 'x' } })
       expect.unreachable('should throw')
     } catch (err) {
       expect((err as Error).message).toContain('runtimeContext')
@@ -212,7 +201,7 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
       pricing: { defaultCostCents: 1 },
     })
     const callsBefore = execute.mock.calls.length
-    await wrapped({ q: 'x' }, {}).catch(() => {})
+    await wrapped({ context: { q: 'x' } }).catch(() => {})
     expect(execute.mock.calls.length).toBe(callsBefore)
   })
 
@@ -226,9 +215,8 @@ describe('wrapMastraTool — missing key (401 bucket)', () => {
         throw new Error('context internal failure')
       },
     }
-    // A bad .get should surface as InvalidKeyError, not a raw throw.
     await expect(
-      wrapped({ q: 'x' }, { runtimeContext: defective }),
+      wrapped({ context: { q: 'x' }, runtimeContext: defective }),
     ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
   })
 })
@@ -250,7 +238,7 @@ describe('wrapMastraTool — insufficient credits (402 bucket)', () => {
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 'sg_live_abc')
     await expect(
-      wrapped({ q: 'hello' }, { runtimeContext }),
+      wrapped({ context: { q: 'hello' }, runtimeContext }),
     ).rejects.toMatchObject({ code: 'INSUFFICIENT_CREDITS', statusCode: 402 })
   })
 
@@ -269,7 +257,7 @@ describe('wrapMastraTool — insufficient credits (402 bucket)', () => {
     runtimeContext.set('settlegridKey', 'sg_live_abc')
     let caught: unknown
     try {
-      await wrapped({ q: 'hello' }, { runtimeContext })
+      await wrapped({ context: { q: 'hello' }, runtimeContext })
     } catch (err) {
       caught = err
     }
@@ -314,7 +302,7 @@ describe('wrapMastraTool — options + args forwarding', () => {
     expect(instance.wrap).toHaveBeenCalledWith(expect.any(Function), {})
   })
 
-  it('forwards input to the execute function without mutation', async () => {
+  it('forwards context (as input) to the execute function without mutation', async () => {
     const receivedArgs: unknown[] = []
     const execute = async (args: { q: string; count: number }) => {
       receivedArgs.push(args)
@@ -327,8 +315,9 @@ describe('wrapMastraTool — options + args forwarding', () => {
     const input = { q: 'hello', count: 3 }
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 'sg_live_abc')
-    await wrapped(input, { runtimeContext })
+    await wrapped({ context: input, runtimeContext })
     expect(receivedArgs).toEqual([input])
+    // Reference-equal: the wrapper doesn't clone.
     expect(receivedArgs[0]).toBe(input)
   })
 
@@ -339,11 +328,29 @@ describe('wrapMastraTool — options + args forwarding', () => {
     })
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 'sg_live_XYZ')
-    await wrapped({ q: 'x' }, { runtimeContext })
+    await wrapped({ context: { q: 'x' }, runtimeContext })
     expect(mockWrap).toHaveBeenCalledWith(
       { q: 'x' },
       { headers: { 'x-api-key': 'sg_live_XYZ' } },
     )
+  })
+
+  it('ignores extra Mastra fields (threadId, resourceId, mastra) without crashing', async () => {
+    const wrapped = wrapMastraTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const runtimeContext = new MockRuntimeContext()
+    runtimeContext.set('settlegridKey', 'sg_live_abc')
+    await expect(
+      wrapped({
+        context: { q: 'x' },
+        runtimeContext,
+        threadId: 'thread-1',
+        resourceId: 'resource-2',
+        mastra: { internal: 'instance' },
+      }),
+    ).resolves.toEqual({ ok: true })
   })
 })
 
@@ -434,13 +441,15 @@ describe('wrapMastraTool — wrap-time option validation', () => {
 // ─── 6. Public API shape ─────────────────────────────────────────────────
 
 describe('wrapMastraTool — public API shape', () => {
-  it('returns a function with arity 2 (matches createTool execute signature)', () => {
+  it('returns a function with arity 1 (matches Mastra createTool execute signature)', () => {
     const wrapped = wrapMastraTool(async () => 'ok', {
       toolSlug: 'my-tool',
       pricing: { defaultCostCents: 1 },
     })
     expect(typeof wrapped).toBe('function')
-    expect(wrapped.length).toBe(2)
+    // Mastra's execute is ({context, runtimeContext, mastra}) => result
+    // — a single destructured parameter. arity = 1.
+    expect(wrapped.length).toBe(1)
   })
 
   it('always returns a Promise (even when execute is sync)', async () => {
@@ -450,13 +459,13 @@ describe('wrapMastraTool — public API shape', () => {
     })
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 'sg_live_abc')
-    const p = wrapped({}, { runtimeContext })
+    const p = wrapped({ context: {}, runtimeContext })
     expect(p).toBeInstanceOf(Promise)
     await expect(p).resolves.toBe('ok')
   })
 })
 
-// ─── 7. Header-injection defense (carried over from P2.FMT1) ─────────────
+// ─── 7. Header-injection defense ─────────────────────────────────────────
 
 describe('wrapMastraTool — settlegridKey format validation', () => {
   const execute = vi.fn(async () => ({ ok: true }))
@@ -483,7 +492,7 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
       const runtimeContext = new MockRuntimeContext()
       runtimeContext.set('settlegridKey', badKey)
       await expect(
-        wrapped({ q: 'x' }, { runtimeContext }),
+        wrapped({ context: { q: 'x' }, runtimeContext }),
       ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
       expect(execute).not.toHaveBeenCalled()
     },
@@ -497,7 +506,7 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
         pricing: { defaultCostCents: 1 },
       })
       await expect(
-        wrapped({ q: 'x' }, { runtimeContext: { settlegridKey: badKey } }),
+        wrapped({ context: { q: 'x' }, runtimeContext: { settlegridKey: badKey } }),
       ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
       expect(execute).not.toHaveBeenCalled()
     },
@@ -509,7 +518,7 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
       pricing: { defaultCostCents: 1 },
     })
     await expect(
-      wrapped({ q: 'x' }, { runtimeContext: [] }),
+      wrapped({ context: { q: 'x' }, runtimeContext: [] }),
     ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
   })
 
@@ -520,9 +529,9 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
     })
     const runtimeContext = new MockRuntimeContext()
     runtimeContext.set('settlegridKey', 'sg_live_abc123XYZ_789')
-    await expect(wrapped({ q: 'x' }, { runtimeContext })).resolves.toEqual({
-      ok: true,
-    })
+    await expect(
+      wrapped({ context: { q: 'x' }, runtimeContext }),
+    ).resolves.toEqual({ ok: true })
   })
 
   it('accepts well-formed sg_live_* keys via plain object', async () => {
@@ -531,10 +540,10 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
       pricing: { defaultCostCents: 1 },
     })
     await expect(
-      wrapped(
-        { q: 'x' },
-        { runtimeContext: { settlegridKey: 'sg_live_plain_object' } },
-      ),
+      wrapped({
+        context: { q: 'x' },
+        runtimeContext: { settlegridKey: 'sg_live_plain_object' },
+      }),
     ).resolves.toEqual({ ok: true })
   })
 })
@@ -542,22 +551,25 @@ describe('wrapMastraTool — settlegridKey format validation', () => {
 // ─── Type export sanity check ────────────────────────────────────────────
 
 describe('type exports', () => {
-  it('MastraExecuteOptions accepts a RuntimeContext-shaped object', () => {
-    const opts: MastraExecuteOptions = {
+  it('MastraExecuteInput<TInput> accepts a RuntimeContext-shaped object', () => {
+    const opts: MastraExecuteInput<{ q: string }> = {
+      context: { q: 'x' },
       runtimeContext: new MockRuntimeContext(),
     }
-    expect(opts.runtimeContext).toBeDefined()
+    expect(opts.context).toEqual({ q: 'x' })
   })
 
-  it('MastraExecuteOptions accepts plain-object runtimeContext', () => {
-    const opts: MastraExecuteOptions = {
+  it('MastraExecuteInput<TInput> accepts plain-object runtimeContext', () => {
+    const opts: MastraExecuteInput<{ q: string }> = {
+      context: { q: 'x' },
       runtimeContext: { settlegridKey: 'sg_live_abc' },
     }
     expect(opts.runtimeContext).toBeDefined()
   })
 
-  it('MastraExecuteOptions accepts extra pass-through fields', () => {
-    const opts: MastraExecuteOptions = {
+  it('MastraExecuteInput<TInput> accepts extra pass-through fields', () => {
+    const opts: MastraExecuteInput<{ q: string }> = {
+      context: { q: 'x' },
       runtimeContext: {},
       threadId: 'thread-1',
       resourceId: 'resource-2',

@@ -5,18 +5,34 @@
  * line of change. Given a Mastra `createTool({ execute })` function,
  * `wrapMastraTool` returns an `execute`-shaped function that:
  *
- *   1. Extracts the SettleGrid API key from Mastra's `runtimeContext`
+ *   1. Matches Mastra's canonical single-argument-destructured
+ *      execute contract: `({ context, runtimeContext, mastra }) => result`.
+ *      The wrapper destructures `runtimeContext` to extract the
+ *      SettleGrid key and forwards `context` to the user's execute
+ *      as its first (and only) argument.
+ *   2. Extracts the SettleGrid API key from Mastra's `runtimeContext`
  *      (the framework's per-invocation context object — typically a
  *      `RuntimeContext` class instance with a `.get(key)` method, but
  *      plain-object shapes are also supported for consumers who pass
  *      a simpler structure).
- *   2. Delegates to `sg.wrap(execute, { method })` internally — the
+ *   3. Delegates to `sg.wrap(execute, { method })` internally — the
  *      middleware validates the key, checks credits, runs the handler,
  *      meters the invocation, and returns the result.
- *   3. Throws `InvalidKeyError` (→ 401) when the key is missing /
+ *   4. Throws `InvalidKeyError` (→ 401) when the key is missing /
  *      empty / contains control chars; `InsufficientCreditsError`
  *      (→ 402) when the consumer's balance is insufficient. Both
  *      errors propagate through to Mastra's tool-error surface.
+ *
+ * ## API-shape note (P2.FMT2 spec-diff)
+ *
+ * The initial scaffold returned a two-argument function
+ * `(input, { runtimeContext }) => result` — mirroring Vercel AI SDK's
+ * `execute` shape. The spec-diff pass caught that Mastra's real
+ * `createTool({ execute })` contract is single-argument-destructured.
+ * This file now returns the Mastra-canonical shape. User-facing
+ * execute is kept simple — consumers still write `async (input) =>
+ * result` and the adapter handles the one-level unwrap from
+ * Mastra's `{ context }`.
  *
  * @example
  * ```typescript
@@ -29,8 +45,10 @@
  *   description: 'Search the web',
  *   inputSchema: z.object({ query: z.string() }),
  *   execute: wrapMastraTool(
- *     async ({ context }) => {
- *       const results = await performSearch(context.query)
+ *     // User's execute takes `input` directly — no need to
+ *     // destructure `context` here; the wrapper did that for you.
+ *     async (input) => {
+ *       const results = await performSearch(input.query)
  *       return { results }
  *     },
  *     { toolSlug: 'my-search', pricing: { defaultCostCents: 2 } },
@@ -75,14 +93,21 @@ export interface WrapMastraToolOptions {
 }
 
 /**
- * Subset of Mastra's tool execute options we care about. Mastra's
- * real shape is richer (threadId, resourceId, mastra framework
- * instance, etc.) but we only read `runtimeContext`. Typed as
- * `unknown` to match Mastra's contract — `RuntimeContext` values
- * are framework-opaque (could be the canonical RuntimeContext class
- * or a plain object, depending on how the caller constructed it).
+ * Mastra's canonical execute-function input shape: a single object
+ * containing `context` (the validated tool input), `runtimeContext`
+ * (the per-invocation context), and framework fields like `mastra`,
+ * `threadId`, `resourceId` that pass through unchanged.
+ *
+ * Typed with `runtimeContext?: unknown` to match Mastra's contract
+ * (values are framework-opaque — could be the canonical
+ * `RuntimeContext` class or a plain object). Extra Mastra fields
+ * pass through via the index signature so future upstream additions
+ * don't break structural compatibility.
  */
-export interface MastraExecuteOptions {
+export interface MastraExecuteInput<TInput> {
+  /** The validated tool input matching the `inputSchema`. */
+  context: TInput
+  /** Per-invocation context; source of `settlegridKey`. */
   runtimeContext?: unknown
   /** Any additional Mastra fields pass through unchanged. */
   [key: string]: unknown
@@ -91,11 +116,13 @@ export interface MastraExecuteOptions {
 /**
  * Shape of the function returned by {@link wrapMastraTool} —
  * structurally compatible with Mastra's `createTool({ execute })`
- * contract.
+ * contract. Single destructured object parameter, not
+ * `(input, options)` (that was the Vercel AI SDK pattern; Mastra's
+ * real API uses the destructured form — see the module-level JSDoc
+ * P2.FMT2 spec-diff note).
  */
 export type MastraToolExecute<TInput, TResult> = (
-  input: TInput,
-  options: MastraExecuteOptions,
+  params: MastraExecuteInput<TInput>,
 ) => Promise<TResult>
 
 /**
@@ -170,8 +197,8 @@ export function wrapMastraTool<TInput, TResult>(
   if (options.method !== undefined) wrapOpts.method = options.method
   const billed = sg.wrap(execute, wrapOpts)
 
-  return async (input, mastraOptions) => {
-    const apiKey = extractSettlegridKey(mastraOptions?.runtimeContext)
+  return async ({ context, runtimeContext }) => {
+    const apiKey = extractSettlegridKey(runtimeContext)
     if (!apiKey) {
       throw new InvalidKeyError(
         'No SettleGrid API key found in runtimeContext. ' +
@@ -179,7 +206,7 @@ export function wrapMastraTool<TInput, TResult>(
           'before calling agent.generate() / agent.stream() / tool.execute().',
       )
     }
-    return billed(input, { headers: { 'x-api-key': apiKey } })
+    return billed(context, { headers: { 'x-api-key': apiKey } })
   }
 }
 
