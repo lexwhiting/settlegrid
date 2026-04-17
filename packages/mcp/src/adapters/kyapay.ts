@@ -12,7 +12,7 @@
  * @see https://skyfire.xyz/
  */
 
-import { createHmac, createVerify } from 'crypto'
+import { createHmac, createVerify, timingSafeEqual } from 'crypto'
 import { randomUUID } from 'crypto'
 import type {
   AcceptEntry,
@@ -127,6 +127,21 @@ function parseJwt(
   }
 }
 
+/**
+ * Timing-safe comparison of two base64url-encoded strings. Used for HS256
+ * JWT signatures. If lengths differ (e.g. the token's signature was
+ * truncated by a network/client bug), we return false without calling
+ * timingSafeEqual (which throws on length mismatch). Hostile-review M2.
+ */
+function timingSafeStrEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  } catch {
+    return false
+  }
+}
+
 function verifyJwtSignature(
   signedContent: string,
   signature: string,
@@ -137,7 +152,8 @@ function verifyJwtSignature(
     const expectedSig = createHmac('sha256', verificationKey)
       .update(signedContent)
       .digest('base64url')
-    return expectedSig === signature
+    // Hostile-review M2: timing-safe comparison of HS256 signatures.
+    return timingSafeStrEqual(expectedSig, signature)
   }
 
   if (algorithm === 'RS256') {

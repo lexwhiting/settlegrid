@@ -9,13 +9,13 @@ import {
   validateL402Payment as validateL402PaymentCore,
   generateL402_402Response as generateL402_402ResponseCore,
 } from '@settlegrid/mcp'
-import type { L402PaymentResult, L402ToolConfig, L402ErrorCode } from '@settlegrid/mcp'
+import type { L402PaymentResult, L402ToolConfig, L402ErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isL402Enabled, getLndRestUrl, getLndMacaroonHex, getAppUrl } from './env'
 import { logger } from './logger'
 
 const l402Adapter = new L402Adapter()
 
-const appLogger = {
+const appLogger: AdapterLogger = {
   info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
   warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
   error: (event: string, data?: Record<string, unknown>, err?: unknown) =>

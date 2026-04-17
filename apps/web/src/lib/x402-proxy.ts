@@ -17,14 +17,13 @@ import {
 import type {
   X402ProxyPaymentResult,
   X402ToolConfig,
-  X402ProxyErrorCode,
-} from '@settlegrid/mcp'
+  X402ProxyErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isX402Enabled, getX402FacilitatorUrl, getAppUrl } from './env'
 import { logger } from './logger'
 
 const x402Adapter = new X402Adapter()
 
-const appLogger = {
+const appLogger: AdapterLogger = {
   info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
   warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
   error: (event: string, data?: Record<string, unknown>, err?: unknown) =>

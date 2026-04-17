@@ -126,6 +126,17 @@ function parseVoucher(raw: string): DrainVoucher | null {
   }
 }
 
+/**
+ * Voucher `amount` must be a non-negative decimal integer string. Crucially,
+ * this is the ONLY validation `amount` gets before it flows into BigInt(amount)
+ * downstream (in validateDrainPayment's cost comparison, in computeVoucherHash
+ * for EIP-712, and in DrainAdapter.extractPaymentContext for the
+ * PaymentContext.payment.amount bigint). BigInt throws SyntaxError on
+ * anything that isn't a parseable decimal/hex literal — hostile-review H2
+ * documents the uncaught-exception path we're closing here.
+ */
+const DECIMAL_INT_RE = /^\d+$/
+
 function extractVoucher(obj: Record<string, unknown>): DrainVoucher | null {
   const channelAddress =
     typeof obj.channelAddress === 'string'
@@ -137,7 +148,7 @@ function extractVoucher(obj: Record<string, unknown>): DrainVoucher | null {
   const amount =
     typeof obj.amount === 'string'
       ? obj.amount
-      : typeof obj.amount === 'number'
+      : typeof obj.amount === 'number' && Number.isFinite(obj.amount) && obj.amount >= 0 && Number.isInteger(obj.amount)
         ? String(obj.amount)
         : ''
   const nonce =
@@ -148,6 +159,11 @@ function extractVoucher(obj: Record<string, unknown>): DrainVoucher | null {
 
   if (!channelAddress || !payer || !amount || !signature) return null
   if (!Number.isFinite(nonce) || nonce < 0) return null
+  // Hostile-review H2: reject non-decimal amount strings at the parse
+  // boundary so BigInt(amount) downstream never throws. The voucher
+  // format spec (DRAIN EIP-712 types) declares amount as uint256 — only
+  // non-negative decimal integers are valid on the wire.
+  if (!DECIMAL_INT_RE.test(amount)) return null
 
   return {
     channelAddress,
