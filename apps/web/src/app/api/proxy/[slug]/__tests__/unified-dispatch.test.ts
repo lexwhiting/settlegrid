@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { decideUnifiedDispatch } from '../_unified-dispatch'
+import { decideUnifiedDispatch, shouldDispatchUnified, type DispatchDecision, type EnabledMap } from '../_unified-dispatch'
 import { isX402Request } from '@/lib/x402-proxy'
 import { isMppRequest } from '@/lib/mpp'
 import { isAp2Request } from '@/lib/ap2-proxy'
@@ -242,5 +242,135 @@ describe('decideUnifiedDispatch — paymentContext extraction', () => {
       // paymentContext may be undefined — contract says caller falls
       // through to legacy handler which re-extracts.
     }
+  })
+})
+
+describe('shouldDispatchUnified — pure dispatch verdict', () => {
+  // Synthetic enabled-map factories. Production wires the real
+  // isXEnabled() helpers from lib/env.
+  const allEnabled: EnabledMap = {
+    mpp: () => true,
+    x402: () => true,
+    ap2: () => true,
+    'visa-tap': () => true,
+    acp: () => true,
+    ucp: () => true,
+    'mastercard-vi': () => true,
+    'circle-nano': () => true,
+  }
+  const allDisabled: EnabledMap = {
+    mpp: () => false,
+    x402: () => false,
+    ap2: () => false,
+    'visa-tap': () => false,
+    acp: () => false,
+    ucp: () => false,
+    'mastercard-vi': () => false,
+    'circle-nano': () => false,
+  }
+
+  it('no-match decision → dispatch=false, reason=no-match', () => {
+    const decision: DispatchDecision = { type: 'no-match' }
+    expect(shouldDispatchUnified(decision, allEnabled)).toEqual({
+      dispatch: false,
+      reason: 'no-match',
+    })
+  })
+
+  it('mcp-fallback decision → dispatch=false, reason=mcp-fallback', () => {
+    const decision: DispatchDecision = { type: 'mcp-fallback' }
+    expect(shouldDispatchUnified(decision, allEnabled)).toEqual({
+      dispatch: false,
+      reason: 'mcp-fallback',
+    })
+  })
+
+  it('unified + protocol enabled → dispatch=true, protocol set', () => {
+    const decision: DispatchDecision = { type: 'unified', protocol: 'mpp' }
+    const verdict = shouldDispatchUnified(decision, allEnabled)
+    expect(verdict).toEqual({
+      dispatch: true,
+      protocol: 'mpp',
+      paymentContext: undefined,
+    })
+  })
+
+  it('unified + protocol disabled → dispatch=false, reason=protocol-disabled, protocol set', () => {
+    // Equivalence-preservation contract from P2.K1 hostile review:
+    // when the unified registry detects a protocol but its env config
+    // is missing (isXEnabled false), fall through to the legacy chain
+    // (which will skip the same isXEnabled and route to the standard
+    // API key flow → 401). Without this, the unified path would 5xx
+    // on missing env while the legacy path 401s — silent divergence.
+    const decision: DispatchDecision = { type: 'unified', protocol: 'mpp' }
+    expect(shouldDispatchUnified(decision, allDisabled)).toEqual({
+      dispatch: false,
+      reason: 'protocol-disabled',
+      protocol: 'mpp',
+    })
+  })
+
+  it('unified + protocol with no enabled-fn entry → dispatch=true (default-allow for forward compat)', () => {
+    // Documented contract: a protocol without an enabled-fn entry is
+    // treated as enabled. This means a future adapter added to
+    // @settlegrid/mcp without a corresponding env.ts isXEnabled()
+    // wired up here will dispatch unconditionally. Acceptable
+    // forward-compat — the alternative (default-deny) would
+    // silently break new adapters until the env wiring catches up.
+    const decision: DispatchDecision = { type: 'unified', protocol: 'mpp' }
+    const sparse: EnabledMap = {} // no entries
+    expect(shouldDispatchUnified(decision, sparse)).toEqual({
+      dispatch: true,
+      protocol: 'mpp',
+      paymentContext: undefined,
+    })
+  })
+
+  it('paymentContext is forwarded into the dispatch verdict', () => {
+    const ctx = {
+      protocol: 'mpp' as const,
+      identity: { type: 'spt' as const, value: 'spt_abc' },
+      operation: { service: 'some-tool', method: 'invoke' },
+      payment: { type: 'spt' as const },
+      requestId: 'req-1',
+    }
+    const decision: DispatchDecision = {
+      type: 'unified',
+      protocol: 'mpp',
+      paymentContext: ctx,
+    }
+    const verdict = shouldDispatchUnified(decision, allEnabled)
+    expect(verdict).toEqual({
+      dispatch: true,
+      protocol: 'mpp',
+      paymentContext: ctx,
+    })
+  })
+
+  it('disable check is per-protocol — disabling mpp does not affect x402 dispatch', () => {
+    const mixed: EnabledMap = {
+      mpp: () => false,
+      x402: () => true,
+    }
+    expect(shouldDispatchUnified({ type: 'unified', protocol: 'mpp' }, mixed).dispatch).toBe(false)
+    expect(shouldDispatchUnified({ type: 'unified', protocol: 'x402' }, mixed).dispatch).toBe(true)
+  })
+
+  it('enabled-fn is invoked lazily — only the matched protocols fn is called', () => {
+    let mppCalls = 0
+    let x402Calls = 0
+    const enabled: EnabledMap = {
+      mpp: () => {
+        mppCalls++
+        return true
+      },
+      x402: () => {
+        x402Calls++
+        return true
+      },
+    }
+    shouldDispatchUnified({ type: 'unified', protocol: 'mpp' }, enabled)
+    expect(mppCalls).toBe(1)
+    expect(x402Calls).toBe(0)
   })
 })
