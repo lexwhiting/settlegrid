@@ -96,9 +96,9 @@ const dimensions: Dimension[] = [
       cite: 'MCP, x402, AP2, MPP, ACP, UCP, Visa TAP, Mastercard VI, Circle Nano — apps/web/src/lib/settlement/adapters/',
     },
     nevermined: {
-      value: '3–4 protocols',
+      value: '3 production + 1 demo',
       cite:
-        'x402 (primary), AP2 (Jan 2026 demo on Base Sepolia testnet), MCP, A2A extension — nevermined.ai/docs',
+        'x402 (primary, production), MCP, A2A extension + AP2 (Jan 2026 demo on Base Sepolia testnet) — nevermined.ai/docs',
     },
   },
   {
@@ -344,16 +344,25 @@ export default function CompareNeverminedPage() {
 
             {/* Desktop table */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm border border-[#2A2D3E] rounded-xl overflow-hidden">
+              <table
+                className="w-full text-sm border border-[#2A2D3E] rounded-xl overflow-hidden"
+                aria-label="SettleGrid versus Nevermined comparison across nine dimensions"
+              >
+                <caption className="sr-only">
+                  Side-by-side comparison of SettleGrid and Nevermined across
+                  protocol breadth, default rail, take rate, SDK languages,
+                  named customers, multi-hop settlement primitives, framework
+                  distribution, geographic coverage, and compliance posture.
+                </caption>
                 <thead className="bg-[#161822]">
                   <tr>
-                    <th className="text-left font-semibold text-gray-300 px-5 py-4 border-b border-[#2A2D3E] w-1/4">
+                    <th scope="col" className="text-left font-semibold text-gray-300 px-5 py-4 border-b border-[#2A2D3E] w-1/4">
                       Dimension
                     </th>
-                    <th className="text-left font-semibold text-amber-400 px-5 py-4 border-b border-[#2A2D3E]">
+                    <th scope="col" className="text-left font-semibold text-amber-400 px-5 py-4 border-b border-[#2A2D3E]">
                       SettleGrid
                     </th>
-                    <th className="text-left font-semibold text-gray-300 px-5 py-4 border-b border-[#2A2D3E]">
+                    <th scope="col" className="text-left font-semibold text-gray-300 px-5 py-4 border-b border-[#2A2D3E]">
                       Nevermined
                     </th>
                   </tr>
@@ -364,9 +373,12 @@ export default function CompareNeverminedPage() {
                       key={d.label}
                       className={i % 2 === 0 ? 'bg-[#0C0E14]' : 'bg-[#11131B]'}
                     >
-                      <td className="align-top px-5 py-4 font-medium text-gray-300 border-b border-[#2A2D3E]">
+                      <th
+                        scope="row"
+                        className="text-left align-top px-5 py-4 font-medium text-gray-300 border-b border-[#2A2D3E]"
+                      >
                         {d.label}
-                      </td>
+                      </th>
                       <td className="align-top px-5 py-4 border-b border-[#2A2D3E]">
                         <div className="font-medium text-gray-100">
                           {d.settlegrid.value}
