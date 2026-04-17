@@ -22,6 +22,7 @@ import {
   voidInvocation,
   heartbeat,
   LIFECYCLE_NOT_IMPLEMENTED_MSG,
+  LIFECYCLE_NOT_IMPLEMENTED_CODE,
   settlegrid,
 } from '../index'
 import type {
@@ -102,6 +103,47 @@ describe('lifecycle module — stub throws', () => {
       expect(caught).toBeInstanceOf(Error)
       expect((caught as Error).message).toContain('P3.K1')
       expect((caught as Error).message).toContain('NOT_IMPLEMENTED')
+    }
+  })
+
+  // ─── Hostile-review L2: thrown errors carry `.code` ──────────────────────
+
+  it('LIFECYCLE_NOT_IMPLEMENTED_CODE is exported and equals the sentinel', () => {
+    expect(LIFECYCLE_NOT_IMPLEMENTED_CODE).toBe('NOT_IMPLEMENTED')
+  })
+
+  it('every thrown error carries .code === NOT_IMPLEMENTED (L2 fix)', () => {
+    // Match the SDK's SettleGridError .code pattern so external catch
+    // blocks doing `err.code === 'X'` don't silently miss stub throws.
+    const cases: Array<() => void> = [
+      () => beginInvocation(minimalContext),
+      () => settleInvocation(minimalInvocation),
+      () => voidInvocation(minimalInvocation),
+      () => heartbeat(minimalInvocation),
+    ]
+    for (const fn of cases) {
+      let caught: unknown
+      try {
+        fn()
+      } catch (err) {
+        caught = err
+      }
+      expect(caught).toBeInstanceOf(Error)
+      const codedErr = caught as Error & { code?: string }
+      expect(codedErr.code).toBe(LIFECYCLE_NOT_IMPLEMENTED_CODE)
+      expect(codedErr.code).toBe('NOT_IMPLEMENTED')
+    }
+  })
+
+  it('thrown error is still an instance of Error (for generic catch)', () => {
+    // `.code` attachment is additive — the thrown value MUST remain an
+    // Error instance so existing `catch (e: Error)` patterns keep working.
+    try {
+      beginInvocation(minimalContext)
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error)
+      expect(err).not.toBeInstanceOf(TypeError)
+      expect(err).not.toBeInstanceOf(RangeError)
     }
   })
 })

@@ -318,6 +318,20 @@ export interface DispatchKernel {
  * implementation and are allowed to be present at the type level so
  * consumers can populate them during P2 without a type-level break
  * when P3 ships.
+ *
+ * ## P2.K4 scope note (hostile-review M1)
+ *
+ * Per the P2.K4 spec-diff widening, the same shape is also accepted at
+ * WRAP-TIME via `sg.wrap(handler, options)` (the second arg was
+ * widened to `WrapOptions & MeterContext`). HOWEVER in Phase 2 only
+ * WrapOptions' 3 fields (`method` / `costCents` / `units`) flow
+ * through to the middleware. MeterContext fields passed at wrap-time
+ * are TYPE-LEVEL ONLY — the middleware silently drops them. Consumers
+ * who need request-time context must pass it on the per-invocation
+ * call (the wrapped function's second arg). P3.K1 will wire wrap-time
+ * MeterContext through as defaults, merged with per-call context; for
+ * now, treat wrap-time MeterContext fields as a compile-time assertion
+ * that the shape is correct, not a runtime side-effect.
  */
 export interface MeterContext {
   /**
@@ -325,13 +339,18 @@ export interface MeterContext {
    * `headers['x-api-key']`, `headers.authorization` (Bearer), or
    * `metadata['settlegrid-api-key']` — in that order. Providing it
    * here skips header extraction.
+   *
+   * Must be a non-empty string when provided. Format validation is
+   * deferred to the API key parser — pass what you have and let the
+   * SDK reject invalid keys with `InvalidKeyError`.
    */
   apiKey?: string
 
   /**
    * Optional session identifier for grouping related invocations
    * (e.g., a multi-step tool call flow). Persisted on the Invocation
-   * record when P3.K1's lifecycle API lands.
+   * record when P3.K1's lifecycle API lands. Opaque to the SDK;
+   * consumers own the naming scheme.
    */
   sessionId?: string
 
@@ -341,6 +360,10 @@ export interface MeterContext {
    * this value (`BudgetExceededError`). Today read from
    * `metadata['settlegrid-max-cost-cents']`; P2.K4 promotes it to a
    * first-class field.
+   *
+   * MUST be a non-negative integer. Non-integer / NaN / Infinity /
+   * negative values will be rejected by the middleware's validation
+   * layer (same validation that pricing costCents goes through).
    */
   maxCostCents?: number
 
@@ -411,7 +434,12 @@ export interface Invocation {
   /** Millisecond epoch when the invocation reached a terminal state. */
   settledAt?: number
 
-  /** Error details when status is 'failed'. */
+  /**
+   * Error details. Convention: present if and only if `status` is
+   * `'failed'`. Not type-enforced via discriminated union — that's
+   * overkill for a stub-only P2.K4 shape — but P3.K1 code should
+   * treat `error` as logically tied to the `'failed'` state.
+   */
   error?: {
     code: string
     message: string
