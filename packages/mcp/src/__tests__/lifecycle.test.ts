@@ -180,6 +180,27 @@ describe('SettleGridInstance — lifecycle method delegation', () => {
   it('sg.heartbeat throws NOT_IMPLEMENTED', () => {
     expect(() => sg.heartbeat(minimalInvocation)).toThrowError(EXPECTED_THROW_MSG)
   })
+
+  it('destructured lifecycle methods work without a `this` binding', () => {
+    // Method bodies delegate to module-level stubs and don't reference
+    // `this`, so destructured references must still work. This is a
+    // common usage pattern: `const { beginInvocation } = sg`.
+    const { beginInvocation, settleInvocation, voidInvocation, heartbeat } = sg
+    expect(() => beginInvocation(minimalContext)).toThrowError(EXPECTED_THROW_MSG)
+    expect(() => settleInvocation(minimalInvocation)).toThrowError(EXPECTED_THROW_MSG)
+    expect(() => voidInvocation(minimalInvocation)).toThrowError(EXPECTED_THROW_MSG)
+    expect(() => heartbeat(minimalInvocation)).toThrowError(EXPECTED_THROW_MSG)
+  })
+
+  it('destructured methods still attach .code to thrown errors', () => {
+    const { beginInvocation } = sg
+    try {
+      beginInvocation(minimalContext)
+      expect.unreachable('beginInvocation must throw')
+    } catch (err) {
+      expect((err as Error & { code?: string }).code).toBe('NOT_IMPLEMENTED')
+    }
+  })
 })
 
 // ─── Type-level exports (compile-time assertions via use-site checks) ────
@@ -230,6 +251,67 @@ describe('P2.K4 — type exports are reachable from the public barrel', () => {
     expect(inv.status).toBe('pending')
     expect(invSettled.status).toBe('settled')
     expect(invFailed.status).toBe('failed')
+  })
+
+  it('Invocation accepts all 5 state-machine states (full enum coverage)', () => {
+    // Pin each state so if the union shrinks (e.g., a future refactor
+    // drops 'voided'), this file fails to compile.
+    const pending: Invocation = {
+      id: 'i1',
+      status: 'pending',
+      meterContext: {},
+      startedAt: 1,
+    }
+    const active: Invocation = {
+      id: 'i2',
+      status: 'active',
+      meterContext: {},
+      startedAt: 1,
+      heartbeatAt: 2,
+    }
+    const settled: Invocation = {
+      id: 'i3',
+      status: 'settled',
+      meterContext: {},
+      startedAt: 1,
+      settledAt: 3,
+      costCents: 10,
+    }
+    const voided: Invocation = {
+      id: 'i4',
+      status: 'voided',
+      meterContext: {},
+      startedAt: 1,
+      settledAt: 3,
+    }
+    const failed: Invocation = {
+      id: 'i5',
+      status: 'failed',
+      meterContext: {},
+      startedAt: 1,
+      error: { code: 'TIMEOUT', message: 'operation took too long' },
+    }
+    const allStates: Invocation[] = [pending, active, settled, voided, failed]
+    expect(allStates).toHaveLength(5)
+    expect(allStates.map((i) => i.status)).toEqual([
+      'pending',
+      'active',
+      'settled',
+      'voided',
+      'failed',
+    ])
+  })
+
+  it('Invocation supports the units field (non-per-invocation pricing)', () => {
+    const inv: Invocation = {
+      id: 'i6',
+      status: 'active',
+      meterContext: {},
+      startedAt: 1,
+      method: 'stream',
+      units: 1024, // e.g., tokens for per-token pricing
+    }
+    expect(inv.units).toBe(1024)
   })
 
   it('BeginInvocationOptions and SettleInvocationOptions exports are callable', () => {
