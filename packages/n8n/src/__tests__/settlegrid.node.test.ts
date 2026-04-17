@@ -294,6 +294,72 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
     )
   })
 
+  it('extracts status from response.statusCode as a numeric fallback', async () => {
+    const err = Object.assign(new Error('x'), {
+      response: { statusCode: 404 },
+    })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /SettleGrid tool not found/,
+    )
+  })
+
+  it('parses string httpCode values ("402") as numeric 402', async () => {
+    const err = Object.assign(new Error('x'), { httpCode: '402' })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /Insufficient SettleGrid credits/,
+    )
+  })
+
+  it('ignores non-numeric string httpCode values', async () => {
+    const err = Object.assign(new Error('x'), { httpCode: 'not-a-number' })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    // Falls through to the generic "request failed" message because
+    // status remains undefined when no parseable number is available.
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /SettleGrid API request failed/,
+    )
+  })
+
+  it('ignores NaN / Infinity httpCode values', async () => {
+    const err = Object.assign(new Error('x'), { httpCode: NaN })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
+      /SettleGrid API request failed/,
+    )
+  })
+
+  it('handles non-object errors (string / undefined) gracefully', async () => {
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw 'string error' // eslint-disable-line no-throw-literal
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrow()
+  })
+
   it('honors continueOnFail — emits an error item instead of throwing', async () => {
     const err = Object.assign(new Error('x'), { httpCode: 402 })
     const { ctx } = makeHarness({
