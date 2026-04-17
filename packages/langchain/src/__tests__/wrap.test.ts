@@ -233,6 +233,72 @@ describe('wrapLangchainTool — options + args forwarding', () => {
   })
 })
 
+describe('wrapLangchainTool — header-injection / non-ASCII defense', () => {
+  const injectionPayloads = [
+    ['CRLF', 'sg_live_valid\r\nEvil-Header: x'],
+    ['LF', 'sg_live_valid\nEvil-Header: x'],
+    ['CR', 'sg_live_valid\rEvil-Header: x'],
+    ['NUL byte', 'sg_live_valid\x00xxx'],
+    ['vertical tab', 'sg_live_valid\x0Bxxx'],
+    ['form feed', 'sg_live_valid\x0Cxxx'],
+    ['DEL', 'sg_live_valid\x7F'],
+    ['latin-1 extended', 'sg_live_café'],
+    ['unicode mathematical', '𝐬𝐠_𝐥𝐢𝐯𝐞_xyz'],
+    ['emoji', 'sg_live_🔑xyz'],
+  ] as const
+
+  it.each(injectionPayloads)(
+    'rejects %s injection-style key as INVALID_KEY',
+    async (_label, badKey) => {
+      const wrapped = wrapLangchainTool(async () => ({ ok: true }), {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+      })
+      await expect(
+        wrapped({ q: 'x' }, { configurable: { settlegridKey: badKey } }),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+    },
+  )
+
+  it('accepts printable-ASCII symbols (dash, dot) — future key-format headroom', async () => {
+    const wrapped = wrapLangchainTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped(
+        { q: 'x' },
+        { configurable: { settlegridKey: 'sg_live_abc-123.xyz' } },
+      ),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('rejects array-shaped configurable', async () => {
+    const wrapped = wrapLangchainTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({ q: 'x' }, { configurable: [] as unknown }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('rejects non-string settlegridKey (number / boolean / object)', async () => {
+    const wrapped = wrapLangchainTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    for (const bad of [42, true, { nested: 'x' }, null]) {
+      await expect(
+        wrapped(
+          { q: 'x' },
+          { configurable: { settlegridKey: bad as unknown as string } },
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    }
+  })
+})
+
 describe('wrapLangchainTool — public API', () => {
   it('returns a function with arity 2 (input, config)', () => {
     const wrapped = wrapLangchainTool(async () => 'ok', {
