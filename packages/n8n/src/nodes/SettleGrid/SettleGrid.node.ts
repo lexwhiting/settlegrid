@@ -474,8 +474,14 @@ export class SettleGrid implements INodeType {
               message: 'Tool Slug is required for Invoke Tool.',
             });
           }
-          const method = this.getNodeParameter('method', i, '') as string;
+          const rawMethod = this.getNodeParameter('method', i, '') as string;
+          const method =
+            typeof rawMethod === 'string' ? rawMethod.trim() : '';
           const rawArgs = this.getNodeParameter('args', i, '{}');
+          // parseInvokeArgs returns a defensive shallow copy when raw is an
+          // object — we mutate `body.method` below and must not leak that
+          // mutation back into upstream item data that n8n expression
+          // evaluation may have threaded through.
           const body = parseInvokeArgs.call(this, rawArgs);
           if (method) body.method = method;
 
@@ -611,12 +617,60 @@ async function settleGridApiRequest(
   } catch (error) {
     const status = extractHttpStatus(error);
     const { message, description } = mapSettleGridError(status, error);
-    throw new NodeApiError(this.getNode(), error as JsonObject, {
-      message,
-      description,
-      httpCode: status ? String(status) : undefined,
-    });
+    throw new NodeApiError(
+      this.getNode(),
+      sanitizeErrorForNodeApi(error),
+      {
+        message,
+        description,
+        httpCode: status ? String(status) : undefined,
+      },
+    );
   }
+}
+
+/**
+ * Strip sensitive fields (x-api-key / Authorization) out of an
+ * axios-shaped error before handing it to NodeApiError. n8n may
+ * surface the wrapped error object in logs, the executions UI, and
+ * workflow error-trigger inputs — we must not leak the live
+ * SettleGrid key through any of those surfaces.
+ *
+ * Returns a new object; does not mutate the caller's error.
+ */
+function sanitizeErrorForNodeApi(err: unknown): JsonObject {
+  if (!err || typeof err !== 'object') {
+    return { message: String(err ?? 'Unknown error') };
+  }
+  const src = err as Record<string, unknown>;
+  const clone: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(src)) {
+    clone[k] = scrubAuthHeaders(v, k);
+  }
+  // Error objects expose `message`, `name`, and `stack` as non-enumerable
+  // fields — Object.entries misses them. Re-attach the useful ones.
+  if (err instanceof Error) {
+    if (!('message' in clone)) clone.message = err.message;
+    if (!('name' in clone)) clone.name = err.name;
+  }
+  return clone as JsonObject;
+}
+
+const SENSITIVE_HEADER_RE = /^(x-api-key|authorization|cookie)$/i;
+
+function scrubAuthHeaders(value: unknown, keyHint: string): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((v) => scrubAuthHeaders(v, keyHint));
+  const isHeaderBag = /^(headers?|config|request|response)$/i.test(keyHint);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (isHeaderBag && SENSITIVE_HEADER_RE.test(k)) {
+      out[k] = '[REDACTED]';
+    } else {
+      out[k] = scrubAuthHeaders(v, k);
+    }
+  }
+  return out;
 }
 
 /**
@@ -639,11 +693,10 @@ function extractHttpStatus(err: unknown): number | undefined {
     e.response?.statusCode,
   ];
   for (const c of candidates) {
-    if (typeof c === 'number' && Number.isFinite(c)) return c;
-    if (typeof c === 'string') {
-      const n = Number(c);
-      if (Number.isFinite(n) && n > 0) return n;
-    }
+    const n = typeof c === 'number' ? c : typeof c === 'string' ? Number(c) : NaN;
+    // HTTP status codes are three-digit integers in [100, 599]. Reject
+    // decimals, negatives, zero, strings like "42.5"/"-1"/"0", and NaN.
+    if (Number.isInteger(n) && n >= 100 && n <= 599) return n;
   }
   return undefined;
 }
@@ -707,7 +760,10 @@ function parseInvokeArgs(
 ): IDataObject {
   if (raw === undefined || raw === null || raw === '') return {};
   if (typeof raw === 'object' && !Array.isArray(raw)) {
-    return raw as IDataObject;
+    // Defensive shallow copy — the caller mutates `body.method`; we must
+    // not leak that into a shared upstream object that n8n's expression
+    // evaluation may have handed us by reference.
+    return { ...(raw as IDataObject) };
   }
   if (typeof raw === 'string') {
     try {
