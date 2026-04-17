@@ -241,10 +241,14 @@ export class SettleGrid implements INodeType {
 
       // ------------------------------------------------------------------
       //  Parameters: Invoke Tool
+      //  Spec literal: `toolSlug`, `method`, `args` (JSON). We share the
+      //  existing `slug` parameter above for toolSlug (single field for
+      //  the same data across getTool + invokeTool). `method` and `args`
+      //  use the spec-literal internal names.
       // ------------------------------------------------------------------
       {
         displayName: 'Method',
-        name: 'invokeMethod',
+        name: 'method',
         type: 'string',
         default: '',
         description:
@@ -258,7 +262,7 @@ export class SettleGrid implements INodeType {
       },
       {
         displayName: 'Arguments (JSON)',
-        name: 'invokeArgs',
+        name: 'args',
         type: 'json',
         default: '{}',
         description:
@@ -470,10 +474,10 @@ export class SettleGrid implements INodeType {
               message: 'Tool Slug is required for Invoke Tool.',
             });
           }
-          const invokeMethod = this.getNodeParameter('invokeMethod', i, '') as string;
-          const rawArgs = this.getNodeParameter('invokeArgs', i, '{}');
+          const method = this.getNodeParameter('method', i, '') as string;
+          const rawArgs = this.getNodeParameter('args', i, '{}');
           const body = parseInvokeArgs.call(this, rawArgs);
-          if (invokeMethod) body.method = invokeMethod;
+          if (method) body.method = method;
 
           responseData = await settleGridApiRequest.call(
             this,
