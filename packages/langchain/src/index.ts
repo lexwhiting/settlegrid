@@ -4,6 +4,15 @@ import type { SettleGridToolConfig, SettleGridToolResult } from './tool'
 export { SettleGridTool }
 export type { SettleGridToolConfig, SettleGridToolResult }
 
+// P2.FMT3 — developer-side billing adapter (wrap a local Tool.func
+// with sg.wrap, mirroring @settlegrid/ai-sdk and @settlegrid/mastra).
+export { wrapLangchainTool } from './wrap'
+export type {
+  WrapLangchainToolOptions,
+  LangchainToolInvokeConfig,
+  LangchainToolFunc,
+} from './wrap'
+
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                      */
 /* -------------------------------------------------------------------------- */

@@ -1,0 +1,62 @@
+{
+  "name": "@settlegrid/langchain",
+  "version": "0.2.0",
+  "description": "LangChain billing adapter for SettleGrid — wrap Tool execute functions with per-invocation billing, plus helpers for discovering and invoking marketplace tools.",
+  "keywords": [
+    "langchain",
+    "settlegrid",
+    "mcp",
+    "ai-tools",
+    "tool-calling",
+    "ai-agent-payments",
+    "ai-monetization",
+    "billing",
+    "agent-tools",
+    "sdk"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/langchain"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.1.0",
+    "@settlegrid/mcp": ">=0.2.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "@settlegrid/mcp": "*",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  }
+}

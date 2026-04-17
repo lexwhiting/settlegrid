@@ -1,8 +1,39 @@
-# settlegrid-cursor
+# @settlegrid/cursor
 
-A Cursor-compatible MCP plugin that connects to the [SettleGrid](https://settlegrid.ai) marketplace. Search, browse, and invoke monetized AI tools directly from the Cursor IDE.
+**Billing adapter for Cursor.** Two surfaces:
 
-This plugin wraps the `@settlegrid/discovery` MCP server and exposes the same 6 tools over stdio, which is the transport Cursor uses for MCP servers.
+1. **Developer-side (`wrapCursorTool`)** — wrap an MCP tool handler with per-invocation SettleGrid billing. Use this when you're *building* a paid MCP tool that Cursor users will invoke.
+2. **Consumer-side (`settlegrid-cursor` CLI / MCP server)** — a Cursor-compatible MCP stdio server that connects to the SettleGrid marketplace so you can search, browse, and invoke monetized AI tools directly from the Cursor IDE.
+
+This package wraps `@settlegrid/discovery` and exposes the same 6 tools over stdio.
+
+## Developer usage — `wrapCursorTool`
+
+```typescript
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { wrapCursorTool } from '@settlegrid/cursor'
+import { z } from 'zod'
+
+const server = new McpServer({ name: 'my-tool', version: '1.0.0' })
+
+const billedHandler = wrapCursorTool(
+  async (input: { query: string }) => {
+    const results = await performSearch(input.query)
+    return { content: [{ type: 'text' as const, text: JSON.stringify(results) }] }
+  },
+  { toolSlug: 'my-search', pricing: { defaultCostCents: 2 } },
+)
+
+server.registerTool(
+  'search',
+  { description: 'Search the web', inputSchema: z.object({ query: z.string() }).shape },
+  async (input, extra) => billedHandler(input, extra),
+)
+```
+
+The API key is read from MCP's `_meta['settlegrid-api-key']` field on each tool invocation.
+
+## Consumer usage — `settlegrid-cursor` MCP server
 
 ## Installation
 

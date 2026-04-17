@@ -1,16 +1,51 @@
-# n8n-nodes-settlegrid
+# @settlegrid/n8n
 
-n8n community node for [SettleGrid](https://settlegrid.ai) — discover, browse, and invoke monetized AI tools from your n8n workflows.
+**Billing adapter for n8n.** Two integration modes:
+
+1. **Developer-side (`wrapN8nTool`)** — wrap your custom n8n node's execute logic with per-invocation SettleGrid billing. Use this when you're *building* a paid n8n node.
+2. **Consumer-side (SettleGrid community node)** — discover, browse, and invoke existing monetized AI tools from your n8n workflows.
 
 ## Installation
 
 Install via the n8n community nodes panel, or manually:
 
 ```bash
-npm install n8n-nodes-settlegrid
+npm install @settlegrid/n8n @settlegrid/mcp
 ```
 
 Then restart n8n. The SettleGrid node will appear in the node palette.
+
+## Developer usage — `wrapN8nTool`
+
+Wrap your node's execute function so each call is billed. The API key is sourced from the node's SettleGrid credential and passed in via `context.settlegridKey`.
+
+```typescript
+import type { IExecuteFunctions } from 'n8n-workflow'
+import { wrapN8nTool } from '@settlegrid/n8n'
+
+const billedExecute = wrapN8nTool(
+  async (input: { query: string }) => {
+    const result = await doWork(input.query)
+    return { ok: true, result }
+  },
+  { toolSlug: 'my-n8n-tool', pricing: { defaultCostCents: 3 } },
+)
+
+// Inside your node's execute():
+export async function execute(this: IExecuteFunctions) {
+  const creds = await this.getCredentials('settleGridApi')
+  const query = this.getNodeParameter('query', 0) as string
+  const result = await billedExecute(
+    { query },
+    { settlegridKey: creds.apiKey as string },
+  )
+  return [this.helpers.returnJsonArray([result])]
+}
+```
+
+Errors surface as `InvalidKeyError` (401) and `InsufficientCreditsError` (402).
+
+## Consumer usage — SettleGrid community node
 
 ## Credentials
 
