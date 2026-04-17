@@ -305,3 +305,76 @@ describe('protocol adapter type exports (P1.K1, compile-time)', () => {
     expect(result.metadata.settlementType).toBe('real-time')
   })
 })
+
+// ─── P2.K4 exports (pin against accidental removal) ───────────────────────
+
+describe('P2.K4 lifecycle + MeterContext exports', () => {
+  it('exports the 4 lifecycle stub functions', async () => {
+    const mod = await import('../index')
+    expect(typeof mod.beginInvocation).toBe('function')
+    expect(typeof mod.settleInvocation).toBe('function')
+    expect(typeof mod.voidInvocation).toBe('function')
+    expect(typeof mod.heartbeat).toBe('function')
+  })
+
+  it('exports LIFECYCLE_NOT_IMPLEMENTED_MSG + LIFECYCLE_NOT_IMPLEMENTED_CODE constants', async () => {
+    const mod = await import('../index')
+    expect(mod.LIFECYCLE_NOT_IMPLEMENTED_MSG).toBe('NOT_IMPLEMENTED — see P3.K1')
+    expect(mod.LIFECYCLE_NOT_IMPLEMENTED_CODE).toBe('NOT_IMPLEMENTED')
+  })
+
+  it('MeterContext type accepts the full 6-field shape', () => {
+    const ctx: import('../index').MeterContext = {
+      apiKey: 'sg_live_abc',
+      sessionId: 'sess-1',
+      maxCostCents: 100,
+      metadata: { tag: 'x' },
+      headers: { 'x-api-key': 'sg_live_abc' },
+      mcpMeta: { 'settlegrid-method': 'search' },
+    }
+    expect(ctx.apiKey).toBe('sg_live_abc')
+    expect(ctx.maxCostCents).toBe(100)
+  })
+
+  it('MeterContext type accepts the all-fields-optional empty shape', () => {
+    const ctx: import('../index').MeterContext = {}
+    expect(ctx).toEqual({})
+  })
+
+  it('Invocation type accepts all 5 state-machine states', () => {
+    const states: Array<import('../index').Invocation['status']> = [
+      'pending',
+      'active',
+      'settled',
+      'voided',
+      'failed',
+    ]
+    // If a state is dropped from the union, this line fails to compile.
+    expect(states).toHaveLength(5)
+  })
+
+  it('BeginInvocationOptions and SettleInvocationOptions are exported', () => {
+    const begin: import('../index').BeginInvocationOptions = {
+      method: 'search',
+      units: 3,
+    }
+    const settle: import('../index').SettleInvocationOptions = {
+      costCents: 42,
+      metadata: { receipt: 'abc' },
+    }
+    expect(begin.method).toBe('search')
+    expect(settle.costCents).toBe(42)
+  })
+
+  it('SettleGridInstance has the 4 lifecycle methods', async () => {
+    const mod = await import('../index')
+    const sg = mod.settlegrid.init({
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+    })
+    expect(typeof sg.beginInvocation).toBe('function')
+    expect(typeof sg.settleInvocation).toBe('function')
+    expect(typeof sg.voidInvocation).toBe('function')
+    expect(typeof sg.heartbeat).toBe('function')
+  })
+})
