@@ -1,0 +1,71 @@
+{
+  "name": "@settlegrid/ai-sdk",
+  "version": "0.1.0",
+  "description": "Vercel AI SDK adapter for SettleGrid — wrap tool({ execute }) with per-invocation billing in one line.",
+  "keywords": [
+    "settlegrid",
+    "vercel-ai-sdk",
+    "ai-sdk",
+    "ai-tools",
+    "tool-calling",
+    "ai-agent-payments",
+    "ai-monetization",
+    "sdk"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/ai-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/lexwhiting/settlegrid/issues",
+    "email": "support@settlegrid.ai"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@settlegrid/mcp": ">=0.2.0",
+    "ai": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@settlegrid/mcp": "*",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  }
+}
