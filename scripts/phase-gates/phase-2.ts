@@ -707,6 +707,43 @@ async function check10_k2ProxiesRemoved(): Promise<CheckResult> {
   )
 }
 
+/**
+ * Count `it(...)` and `it.each(...)(...)` declarations in the given
+ * source text. Used by check 11 to enforce the P2.K3 DoD "≥30 test
+ * cases" threshold.
+ *
+ * Matches:
+ *   - `it('label', fn)` — counted (base it declaration)
+ *   - `it.each([...])('label', fn)` — counted (parametric; the
+ *     declaration counts as one even though it spawns N tests at
+ *     runtime, because the DoD threshold is a LOWER BOUND on suite
+ *     size and the actual it.each row count is runtime-only)
+ *
+ * Does NOT match (intentionally):
+ *   - `it.skip(...)`, `it.only(...)`, `it.todo(...)`,
+ *     `it.concurrent(...)`, `it.failing(...)` — disabled/placeholder/
+ *     alternative-execution declarations shouldn't count toward the
+ *     ≥30 threshold. A skipped test isn't exercising the contract.
+ *   - `describe(...)`, `test(...)` — different declaration kinds.
+ *   - `it(...)` inside a string literal or a commented-out line
+ *     (callers strip line comments via `stripLineComments` before
+ *     handing the source to this function).
+ *
+ * Regex rationale:
+ *   `\bit` — word-boundary + literal "it" (won't match "omit", "audit").
+ *   `(?:\.each\([^)]*\))?` — optional `.each(<no-parens>)`. Inner
+ *     arrays are allowed (JS arrays use `[]` not `()`); nested
+ *     function calls would stop matching, but it.each arrays are
+ *     almost always literal rows of primitives.
+ *   `\s*\(` — whitespace + open-paren starting the call. For the
+ *     it.each form this is the SECOND paren (the row array was
+ *     consumed by the optional group).
+ */
+export function countK3TestCases(src: string): number {
+  const matches = src.match(/\bit(?:\.each\([^)]*\))?\s*\(/g) ?? []
+  return matches.length
+}
+
 async function check11_k3SnapshotTest(): Promise<CheckResult> {
   const label = 'K3 — proxy-vs-kernel snapshot test exists + included in test runner'
   // P2.K3 spec: apps/web/src/lib/__tests__/proxy-equivalence.test.ts.
@@ -729,22 +766,19 @@ async function check11_k3SnapshotTest(): Promise<CheckResult> {
   if (!TEST_DECL_RE.test(src)) {
     return fail(11, label, 'file present but contains no test/it/describe declarations')
   }
-  // Spec DoD: "Test file with ≥30 test cases". Count `it(` / `it.each(`
-  // declarations to get an approximation; parametric it.each produces
-  // N tests where N = arg rows, but the declaration count is a lower
-  // bound on the suite size and matches the spec's "≥30" threshold.
-  const itMatches = src.match(/\bit(?:\.each\([^)]*\))?\s*\(/g) ?? []
-  if (itMatches.length < 30) {
+  // Spec DoD: "Test file with ≥30 test cases".
+  const itCount = countK3TestCases(src)
+  if (itCount < 30) {
     return fail(
       11,
       label,
-      `found ${itMatches.length} it()/it.each() declarations, spec requires ≥30`,
+      `found ${itCount} it()/it.each() declarations, spec requires ≥30`,
     )
   }
   return pass(
     11,
     label,
-    `proxy-equivalence.test.ts present with ${itMatches.length} test declarations`,
+    `proxy-equivalence.test.ts present with ${itCount} test declarations`,
   )
 }
 
