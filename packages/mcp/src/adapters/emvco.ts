@@ -201,6 +201,19 @@ export class EmvcoAdapter implements ProtocolAdapter {
       supportedNetworks: [...EMVCO_NETWORKS],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(
+    request: Request,
+    options: EmvcoValidateOptions,
+  ): Promise<EmvcoPaymentResult> {
+    return validateEmvcoPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full EMVCo 402 Payment Required response. */
+  build402Response(options: Emvco402Options): Response {
+    return generateEmvco402Response(options)
+  }
 }
 
 // ─── Module-level validation ───────────────────────────────────────────────

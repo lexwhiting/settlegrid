@@ -218,6 +218,19 @@ export class AlipayAdapter implements ProtocolAdapter {
       acceptedPayments: ['alipay-agent-token'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(
+    request: Request,
+    options: AlipayValidateOptions,
+  ): Promise<AlipayPaymentResult> {
+    return validateAlipayPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full Alipay ACTP 402 Payment Required response. */
+  build402Response(options: Alipay402Options): Response {
+    return generateAlipay402Response(options)
+  }
 }
 
 // ─── Module-level validation ───────────────────────────────────────────────

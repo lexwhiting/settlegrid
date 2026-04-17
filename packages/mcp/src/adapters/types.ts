@@ -209,4 +209,35 @@ export interface ProtocolAdapter {
    * a valid `AcceptEntry`.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry
+
+  /**
+   * P2.K2 — validate a protocol-specific payment and return a
+   * structured result. Optional on the interface so external adapters
+   * written against the P1 contract are not forced to implement it.
+   * The 14 bundled adapters all implement it.
+   *
+   * The `options` argument is intentionally typed as `unknown` at the
+   * interface level because each protocol has its own ValidateOptions
+   * shape (e.g. `MppValidateOptions` carries a Stripe secret,
+   * `KyaPayValidateOptions` carries a JWT verification key). Concrete
+   * adapter classes narrow this to their specific options type — the
+   * interface stays structural so the ProtocolAdapter union remains
+   * assignable from any registered adapter.
+   */
+  verify?(request: Request, options: unknown): Promise<unknown>
+
+  /**
+   * P2.K2 — generate the full protocol-specific 402 Payment Required
+   * Response. Different from `buildChallenge` which builds ONE entry
+   * for the multi-protocol manifest (buildMultiProtocol402's
+   * `accepts[]` array). `build402Response` returns a complete
+   * single-protocol 402 Response with protocol-specific headers and
+   * body (e.g. L402's WWW-Authenticate, MPP's X-Payment-*, x402's
+   * X-Payment-Required).
+   *
+   * Optional on the interface for the same reason as `verify`.
+   * May be sync or async — L402 is async (it mints a Lightning
+   * invoice via LND); the other 13 are sync.
+   */
+  build402Response?(options: unknown): Response | Promise<Response>
 }

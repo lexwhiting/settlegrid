@@ -169,6 +169,16 @@ export class UCPAdapter implements ProtocolAdapter {
       supportedPaymentHandlers: ['google-pay', 'shop-pay', 'stripe'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(request: Request, options: UcpValidateOptions): Promise<UcpPaymentResult> {
+    return validateUcpPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full UCP 402 Payment Required response. */
+  build402Response(options: Ucp402Options): Response {
+    return generateUcp402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
