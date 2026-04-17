@@ -99,8 +99,43 @@ type Dimension = {
 // a link against this root lets a reader click through to the exact
 // file/directory on the default branch — honoring the spec's
 // "anchor every claim with shipped-code citations" requirement.
-const GH_BASE = 'https://github.com/lexwhiting/settlegrid/tree/main'
-const gh = (path: string) => `${GH_BASE}/${path.replace(/^\/+/, '')}`
+const GH_REPO_BASE = 'https://github.com/lexwhiting/settlegrid'
+// GitHub canonical URL shape differs for files vs directories:
+//   - /blob/<ref>/<path>  → single file view
+//   - /tree/<ref>/<path>  → directory view (or ref root)
+// Pass-through works for most paths thanks to GitHub redirects, but the
+// canonical form avoids redirects and is what users expect to copy.
+const FILE_EXT_RE = /\.(ts|tsx|js|mjs|cjs|jsx|md|mdx|json|yml|yaml|toml|svg|sh)$/i
+const gh = (path: string) => {
+  const clean = path.replace(/^\/+/, '')
+  const kind = FILE_EXT_RE.test(clean) ? 'blob' : 'tree'
+  return `${GH_REPO_BASE}/${kind}/main/${clean}`
+}
+
+/**
+ * Safety net for `sourceUrl` values. Accepts:
+ *   - Internal routes: `/foo`, `/foo/bar` (single leading slash, not `//…`)
+ *   - External http(s) URLs
+ * Rejects protocol-relative URLs (`//evil.com`), `javascript:`,
+ * `data:`, `file:`, and any other scheme.
+ *
+ * This runs at build-time on a static constant table, so a bad URL
+ * manifests as a missing link rather than a runtime crash — but
+ * keeping the validation defensive means an accidental `//…` typo or
+ * a future dangerous-scheme addition never silently ships as a
+ * working link.
+ */
+function isSafeSourceUrl(url: string | undefined): url is string {
+  if (!url) return false
+  if (url.startsWith('//')) return false
+  if (url.startsWith('/')) return true
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
 
 const dimensions: Dimension[] = [
   {
@@ -114,7 +149,7 @@ const dimensions: Dimension[] = [
       value: '3 production + 1 demo',
       cite:
         'x402 (primary, production), MCP, A2A extension + AP2 (Jan 2026 demo on Base Sepolia testnet)',
-      sourceUrl: 'https://docs.nevermined.io',
+      sourceUrl: 'https://docs.nevermined.ai',
     },
   },
   {
@@ -129,7 +164,7 @@ const dimensions: Dimension[] = [
       value: 'USDC on Base (crypto-first)',
       cite:
         'Default settlement rail per public docs; Stripe Connect available as fiat alternative',
-      sourceUrl: 'https://docs.nevermined.io',
+      sourceUrl: 'https://docs.nevermined.ai',
     },
   },
   {
@@ -143,7 +178,7 @@ const dimensions: Dimension[] = [
     nevermined: {
       value: '2% flat (+ Stripe fees on fiat)',
       cite: 'Public pricing page',
-      sourceUrl: 'https://nevermined.io/pricing',
+      sourceUrl: 'https://nevermined.ai/pricing',
     },
   },
   {
@@ -169,7 +204,7 @@ const dimensions: Dimension[] = [
     nevermined: {
       value: 'Valory/Olas (investor-customer)',
       cite: 'Valory is also a seed angel investor',
-      sourceUrl: 'https://nevermined.io',
+      sourceUrl: 'https://nevermined.ai',
     },
   },
   {
@@ -184,7 +219,7 @@ const dimensions: Dimension[] = [
     nevermined: {
       value: 'Not documented as a shipped primitive',
       cite: 'No equivalent in public Nevermined docs as of 2026-04-17',
-      sourceUrl: 'https://docs.nevermined.io',
+      sourceUrl: 'https://docs.nevermined.ai',
     },
   },
   {
@@ -198,7 +233,7 @@ const dimensions: Dimension[] = [
     nevermined: {
       value: 'SDKs only (TS + Python)',
       cite: 'No CLI, no framework adapter packages, no template catalog per public docs',
-      sourceUrl: 'https://docs.nevermined.io',
+      sourceUrl: 'https://docs.nevermined.ai',
     },
   },
   {
@@ -212,7 +247,7 @@ const dimensions: Dimension[] = [
     nevermined: {
       value: 'Stripe Connect + EUR/EURC',
       cite: 'EUR/EURC announced March 2026',
-      sourceUrl: 'https://nevermined.io/blog',
+      sourceUrl: 'https://nevermined.ai/blog',
     },
   },
   {
@@ -226,7 +261,7 @@ const dimensions: Dimension[] = [
     nevermined: {
       value: 'Not documented as shipped',
       cite: 'No equivalent public docs as of 2026-04-17',
-      sourceUrl: 'https://docs.nevermined.io',
+      sourceUrl: 'https://docs.nevermined.ai',
     },
   },
 ]
@@ -245,7 +280,7 @@ const neverminedStronger: Point[] = [
   {
     claim: 'Named reference customer',
     cite: 'Valory/Olas (investor-customer) — still a procurement signal SettleGrid has not yet matched',
-    sourceUrl: 'https://nevermined.io',
+    sourceUrl: 'https://nevermined.ai',
   },
   {
     claim: 'Python SDK parity',
@@ -256,7 +291,7 @@ const neverminedStronger: Point[] = [
     claim: 'Brand and SEO head start',
     cite:
       '~30 blog posts ranking for "AI agent payments" and "agentic commerce" since early 2025',
-    sourceUrl: 'https://nevermined.io/blog',
+    sourceUrl: 'https://nevermined.ai/blog',
   },
   {
     claim: 'Public funding signal',
@@ -271,17 +306,17 @@ const neverminedStronger: Point[] = [
   {
     claim: 'EUR/EURC multi-currency',
     cite: 'Announced March 2026',
-    sourceUrl: 'https://nevermined.io/blog',
+    sourceUrl: 'https://nevermined.ai/blog',
   },
   {
     claim: 'Public x402 facilitator as a network service',
     cite: 'Operates a hosted x402 facilitator — SettleGrid currently ships adapter code but not a hosted facilitator',
-    sourceUrl: 'https://docs.nevermined.io',
+    sourceUrl: 'https://docs.nevermined.ai',
   },
   {
     claim: 'Live virtual card issuance',
     cite: 'Nevermined Pay (Visa / VGS integration, April 2026) — virtual cards with spending rules',
-    sourceUrl: 'https://nevermined.io',
+    sourceUrl: 'https://nevermined.ai',
   },
 ]
 
@@ -350,31 +385,30 @@ const settlegridStronger: Point[] = [
  * URLs open in a new tab with rel="noopener noreferrer".
  */
 function Cite({ cite, sourceUrl }: { cite: string; sourceUrl?: string }) {
-  if (!sourceUrl) {
-    return (
-      <div className="text-xs text-gray-500 mt-1 leading-relaxed">{cite}</div>
-    )
+  const wrapperClass = 'text-xs text-gray-500 mt-1 leading-relaxed'
+  const linkClass =
+    'text-gray-500 hover:text-gray-300 underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400'
+  if (!isSafeSourceUrl(sourceUrl)) {
+    return <div className={wrapperClass}>{cite}</div>
   }
-  const isInternal = sourceUrl.startsWith('/')
-  if (isInternal) {
+  // Internal route: exactly one leading slash, NOT `//…` (rejected by
+  // isSafeSourceUrl above so only true internal routes reach here).
+  if (sourceUrl.startsWith('/')) {
     return (
-      <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-        <Link
-          href={sourceUrl}
-          className="text-gray-500 hover:text-gray-300 underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
-        >
+      <div className={wrapperClass}>
+        <Link href={sourceUrl} className={linkClass}>
           {cite}
         </Link>
       </div>
     )
   }
   return (
-    <div className="text-xs text-gray-500 mt-1 leading-relaxed">
+    <div className={wrapperClass}>
       <a
         href={sourceUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-gray-500 hover:text-gray-300 underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+        className={linkClass}
       >
         {cite}
       </a>
@@ -547,7 +581,7 @@ export default function CompareNeverminedPage() {
                   className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5"
                 >
                   <div className="font-semibold text-gray-100 mb-1">{p.claim}</div>
-                  {p.sourceUrl ? (
+                  {isSafeSourceUrl(p.sourceUrl) ? (
                     p.sourceUrl.startsWith('/') ? (
                       <Link
                         href={p.sourceUrl}
@@ -590,7 +624,7 @@ export default function CompareNeverminedPage() {
                   className="bg-[#161822] border border-amber-500/40 rounded-xl p-5"
                 >
                   <div className="font-semibold text-amber-300 mb-1">{p.claim}</div>
-                  {p.sourceUrl ? (
+                  {isSafeSourceUrl(p.sourceUrl) ? (
                     p.sourceUrl.startsWith('/') ? (
                       <Link
                         href={p.sourceUrl}

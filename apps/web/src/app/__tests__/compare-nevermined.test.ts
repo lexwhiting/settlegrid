@@ -247,9 +247,57 @@ describe('P2.MKT1 — a11y hygiene (hostile-review follow-through)', () => {
   })
 })
 
+describe('P2.MKT1 — URL-safety defenses (hostile-review II)', () => {
+  it('exports an isSafeSourceUrl guard', () => {
+    expect(pageSrc).toContain('function isSafeSourceUrl')
+  })
+
+  it('rejects protocol-relative URLs ("//evil.com") from the internal branch', () => {
+    // The Cite component must guard against classifying `//…` as
+    // internal. The source should NOT contain a raw
+    // `sourceUrl.startsWith('/')` branch without first passing
+    // through isSafeSourceUrl which rejects `//`.
+    expect(pageSrc).toMatch(/if \(url\.startsWith\(['"]\/\/['"]\)\) return false/)
+  })
+
+  it('only allows http: and https: schemes for external URLs', () => {
+    expect(pageSrc).toMatch(
+      /parsed\.protocol === ['"]https:['"]\s*\|\|\s*parsed\.protocol === ['"]http:['"]/,
+    )
+  })
+
+  it('rejects malformed URLs via URL-constructor try/catch', () => {
+    expect(pageSrc).toMatch(/new URL\(url\)/)
+    expect(pageSrc).toContain('return false')
+  })
+
+  it('gh() picks /blob/ for files and /tree/ for directories', () => {
+    expect(pageSrc).toMatch(
+      /FILE_EXT_RE\.test\(clean\)\s*\?\s*['"]blob['"]\s*:\s*['"]tree['"]/,
+    )
+  })
+
+  it('gh() emits /blob/main/ for .ts file citations', () => {
+    // sessions.ts is a file; its gh() result should resolve to /blob/.
+    // Since gh() is a function, we verify the FILE_EXT_RE includes 'ts'.
+    expect(pageSrc).toMatch(/FILE_EXT_RE = \/\\\.\((?=[^/]*\bts\b)/)
+  })
+
+  it('uses Nevermined\'s canonical .ai domain (positioning doc source of truth)', () => {
+    expect(pageSrc).not.toContain('nevermined.io')
+    expect(pageSrc).toContain('nevermined.ai')
+  })
+
+  it('/pricing internal route exists (target of two claims\' sourceUrl)', () => {
+    const pricingPage = join(repoRoot, 'apps/web/src/app/pricing/page.tsx')
+    expect(existsSync(pricingPage)).toBe(true)
+  })
+})
+
 describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
-  it('defines a GH_BASE constant for shipped-code citation links', () => {
-    expect(pageSrc).toContain('github.com/lexwhiting/settlegrid/tree/main')
+  it('defines a GH_REPO_BASE constant for shipped-code citation links', () => {
+    expect(pageSrc).toContain('github.com/lexwhiting/settlegrid')
+    expect(pageSrc).toContain('GH_REPO_BASE')
   })
 
   it('every Cell/Point type supports a sourceUrl field', () => {
@@ -264,19 +312,18 @@ describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
   })
 
   it('the shipped-code citations carry GitHub source URLs (via gh() helper)', () => {
-    // Source uses a `gh(path)` helper that concatenates GH_BASE with
-    // the repo path at runtime. Assert both the helper is invoked
-    // with the expected paths AND the helper itself builds the
-    // canonical GitHub URL shape.
+    // Source uses a `gh(path)` helper that concatenates GH_REPO_BASE
+    // with the path, selecting /blob/ vs /tree/ based on whether the
+    // path ends in a file extension.
     expect(pageSrc).toMatch(
       /gh\(['"]apps\/web\/src\/lib\/settlement\/adapters['"]\)/,
     )
     expect(pageSrc).toMatch(
       /gh\(['"]apps\/web\/src\/lib\/settlement\/sessions\.ts['"]\)/,
     )
-    // Verify the helper itself builds the canonical URL format.
+    // Verify the helper itself uses GH_REPO_BASE + kind + /main/ + path.
     expect(pageSrc).toMatch(
-      /const gh = \(path: string\) =>\s*`\$\{GH_BASE\}/,
+      /return\s+`\$\{GH_REPO_BASE\}\/\$\{kind\}\/main\/\$\{clean\}`/,
     )
   })
 
