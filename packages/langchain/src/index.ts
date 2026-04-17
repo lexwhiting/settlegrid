@@ -64,7 +64,7 @@ interface DiscoverResponse {
  *
  * Usage:
  * ```ts
- * import { SettleGridToolkit } from 'langchain-settlegrid'
+ * import { SettleGridToolkit } from '@settlegrid/langchain'
  *
  * const toolkit = new SettleGridToolkit({ apiKey: 'sg_...' })
  * const tools = await toolkit.discoverTools('weather')
