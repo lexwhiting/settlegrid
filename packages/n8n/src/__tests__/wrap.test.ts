@@ -164,6 +164,56 @@ describe('wrapN8nTool — wrap-time validation', () => {
   })
 })
 
+describe('wrapN8nTool — header-injection / non-ASCII defense', () => {
+  const injectionPayloads = [
+    ['CRLF', 'sg_live_valid\r\nEvil: x'],
+    ['LF', 'sg_live_valid\nEvil: x'],
+    ['CR', 'sg_live_valid\rEvil: x'],
+    ['NUL byte', 'sg_live_valid\x00xxx'],
+    ['vertical tab', 'sg_live_valid\x0Bxxx'],
+    ['form feed', 'sg_live_valid\x0Cxxx'],
+    ['DEL', 'sg_live_valid\x7F'],
+    ['latin-1 extended', 'sg_live_café'],
+    ['unicode mathematical', '𝐬𝐠_𝐥𝐢𝐯𝐞_xyz'],
+    ['emoji', 'sg_live_🔑xyz'],
+  ] as const
+
+  it.each(injectionPayloads)(
+    'rejects %s injection-style key as INVALID_KEY',
+    async (_label, badKey) => {
+      const wrapped = wrapN8nTool(async () => ({ ok: true }), {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+      })
+      await expect(
+        wrapped({}, { settlegridKey: badKey }),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+    },
+  )
+
+  it('rejects array-shaped context', async () => {
+    const wrapped = wrapN8nTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, [] as unknown as { settlegridKey: string }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('rejects non-string settlegridKey', async () => {
+    const wrapped = wrapN8nTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    for (const bad of [42, true, { nested: 'x' }, null]) {
+      await expect(
+        wrapped({}, { settlegridKey: bad as unknown as string }),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    }
+  })
+})
+
 describe('wrapN8nTool — public API', () => {
   it('returns a function with arity 2 (input, context)', () => {
     const wrapped = wrapN8nTool(async () => 'ok', {
