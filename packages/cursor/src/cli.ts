@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * settlegrid-cursor — Cursor-compatible MCP plugin for SettleGrid Discovery
+ * @settlegrid/cursor — Cursor-compatible MCP plugin for SettleGrid Discovery
+ * (CLI entry, installed as the `settlegrid-cursor` bin via `npx -y settlegrid-cursor`).
  *
  * Wraps the SettleGrid Discovery MCP server so that Cursor users can search,
  * browse, and invoke monetized AI tools directly from the Cursor IDE.

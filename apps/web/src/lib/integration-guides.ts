@@ -117,7 +117,7 @@ print(result)`,
     slug: 'langchain',
     title: 'Use SettleGrid Tools in LangChain Agents',
     description:
-      'Install the langchain-settlegrid package, discover monetized tools from the SettleGrid marketplace, and pass them to any LangChain agent. Full TypeScript and Python examples included.',
+      'Install the @settlegrid/langchain package, discover monetized tools from the SettleGrid marketplace, and pass them to any LangChain agent. Full TypeScript and Python examples included.',
     framework: 'LangChain',
     language: 'both',
     icon: 'M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244',
@@ -125,7 +125,7 @@ print(result)`,
       'LangChain SettleGrid',
       'LangChain MCP tools',
       'LangChain paid tools',
-      'langchain-settlegrid',
+      '@settlegrid/langchain',
       'LangChain tool marketplace',
       'LangChain agent billing',
       'TypeScript AI agent tools',
@@ -133,7 +133,7 @@ print(result)`,
     steps: [
       {
         heading: 'Install the Package',
-        content: `Install the \`langchain-settlegrid\` package alongside LangChain core. Run \`npm install langchain-settlegrid @langchain/core\` for TypeScript or \`pip install langchain-settlegrid langchain-core\` for Python. The package has a single peer dependency on \`@langchain/core\` version 0.1.0 or later.
+        content: `Install the \`@settlegrid/langchain\` package alongside LangChain core. Run \`npm install @settlegrid/langchain @langchain/core\` for TypeScript or \`pip install @settlegrid/langchain langchain-core\` for Python. The package has a single peer dependency on \`@langchain/core\` version 0.1.0 or later.
 
 If you do not have a SettleGrid account, sign up at settlegrid.ai/register. You need a consumer API key (starts with \`sg_\`) for each tool you want to use. Generate keys from the tool's page in your SettleGrid dashboard — each key is scoped to a single tool for security.
 
@@ -176,7 +176,7 @@ Set up webhook notifications for billing events. SettleGrid can notify your appl
       {
         title: 'TypeScript: Discover and use tools',
         language: 'typescript',
-        code: `import { SettleGridToolkit } from 'langchain-settlegrid'
+        code: `import { SettleGridToolkit } from '@settlegrid/langchain'
 import { ChatOpenAI } from '@langchain/openai'
 import { AgentExecutor, createToolCallingAgent } from 'langchain/agents'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
@@ -215,7 +215,7 @@ for (const tool of tools) {
       {
         title: 'TypeScript: Direct tool creation',
         language: 'typescript',
-        code: `import { SettleGridToolkit } from 'langchain-settlegrid'
+        code: `import { SettleGridToolkit } from '@settlegrid/langchain'
 
 const toolkit = new SettleGridToolkit({
   apiKey: process.env.SETTLEGRID_API_KEY!,
@@ -453,7 +453,7 @@ print(result)`,
     slug: 'n8n',
     title: 'Use SettleGrid Tools in n8n Workflows',
     description:
-      'Install the n8n-nodes-settlegrid community node to discover, browse, and invoke SettleGrid tools directly from your n8n visual automations. No code required.',
+      'Install the @settlegrid/n8n community node to discover, browse, and invoke SettleGrid tools directly from your n8n visual automations. No code required.',
     framework: 'n8n',
     language: 'typescript',
     icon: 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z',
@@ -462,14 +462,14 @@ print(result)`,
       'n8n MCP tools',
       'n8n community node',
       'n8n AI tools',
-      'n8n-nodes-settlegrid',
+      '@settlegrid/n8n',
       'n8n automation billing',
       'no-code AI tools',
     ],
     steps: [
       {
         heading: 'Install the Community Node',
-        content: `Install the n8n-nodes-settlegrid community node in your n8n instance. Go to Settings > Community Nodes and search for "settlegrid", or install manually via \`npm install n8n-nodes-settlegrid\` in your n8n installation directory.
+        content: `Install the @settlegrid/n8n community node in your n8n instance. Go to Settings > Community Nodes and search for "settlegrid", or install manually via \`npm install @settlegrid/n8n\` in your n8n installation directory.
 
 If you are using n8n Cloud, community nodes can be installed from the Settings panel. For self-hosted n8n, restart your instance after installation for the node to appear in the node palette.
 
@@ -508,7 +508,7 @@ All tool invocations through the SettleGrid proxy are metered and billed automat
       {
         title: 'Install via npm',
         language: 'bash',
-        code: `npm install n8n-nodes-settlegrid`,
+        code: `npm install @settlegrid/n8n`,
       },
       {
         title: 'n8n workflow JSON (List Tools)',
@@ -517,7 +517,7 @@ All tool invocations through the SettleGrid proxy are metered and billed automat
   "nodes": [
     {
       "name": "SettleGrid",
-      "type": "n8n-nodes-settlegrid.settlegrid",
+      "type": "@settlegrid/n8n.settleGrid",
       "parameters": {
         "operation": "listTools",
         "category": "data",

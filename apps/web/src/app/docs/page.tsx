@@ -1715,7 +1715,7 @@ npm install -g @settlegrid/discovery`} />
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Use SettleGrid tools in n8n workflows with the official community node. Discover, invoke, and manage billing for any SettleGrid tool directly from your n8n automations.
             </p>
-            <CopyableCodeBlock title="Terminal" code="npm install n8n-nodes-settlegrid" />
+            <CopyableCodeBlock title="Terminal" code="npm install @settlegrid/n8n" />
             <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
               <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Available Operations</h3>
               <div className="space-y-2 text-sm text-gray-400">
@@ -1728,7 +1728,7 @@ npm install -g @settlegrid/discovery`} />
             </div>
             <p className="text-sm text-gray-400 mt-4">
               View the package on{' '}
-              <a href="https://www.npmjs.com/package/n8n-nodes-settlegrid" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">npm</a>.
+              <a href="https://www.npmjs.com/package/@settlegrid/n8n" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">npm</a>.
               n8n has 400K+ users building AI automations — your tools are instantly available to all of them.
             </p>
           </Section>
