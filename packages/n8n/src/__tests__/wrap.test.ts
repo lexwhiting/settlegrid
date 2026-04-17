@@ -164,6 +164,71 @@ describe('wrapN8nTool — wrap-time validation', () => {
   })
 })
 
+describe('wrapN8nTool — fail-fast: no side effects before key validation', () => {
+  it('does not invoke execute or call billed when key is missing', async () => {
+    const execute = vi.fn(async (input: { url: string }) => ({ url: input.url }))
+    const wrapped = wrapN8nTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({ url: 'https://example.com' }, {}),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockWrap).not.toHaveBeenCalled()
+  })
+
+  it('does not invoke execute when key fails injection check', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const wrapped = wrapN8nTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { settlegridKey: 'sg_live\r\nEvil: x' }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockWrap).not.toHaveBeenCalled()
+  })
+})
+
+describe('wrapN8nTool — settlegrid.init wiring', () => {
+  it('forwards toolSlug and pricing to settlegrid.init', () => {
+    wrapN8nTool(async () => 'ok', {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 3 },
+    })
+    expect(mockInit).toHaveBeenCalledWith({
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 3 },
+    })
+  })
+})
+
+describe('wrapN8nTool — execute is called with the original input', () => {
+  it('forwards the un-transformed input to execute on happy path', async () => {
+    const execute = vi.fn(async (input: { items: string[] }) => ({ got: input }))
+    const wrapped = wrapN8nTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const input = { items: ['a', 'b'] }
+    await wrapped(input, { settlegridKey: 'sg_live_abc' })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith(input)
+  })
+
+  it('supports synchronous execute functions', async () => {
+    const execute = vi.fn((input: { n: number }) => input.n + 1)
+    const wrapped = wrapN8nTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const result = await wrapped({ n: 10 }, { settlegridKey: 'sg_live_abc' })
+    expect(result).toBe(11)
+  })
+})
+
 describe('wrapN8nTool — header-injection / non-ASCII defense', () => {
   const injectionPayloads = [
     ['CRLF', 'sg_live_valid\r\nEvil: x'],
