@@ -223,6 +223,26 @@ export function getDrainChannelAddress(): string | undefined {
   return process.env.DRAIN_CHANNEL_ADDRESS
 }
 
+/**
+ * P2.K1 — feature flag for the unified-adapter dispatch path.
+ *
+ * When `true`, the marketplace proxy at /api/proxy/[slug] routes
+ * payment-protocol detection through `protocolRegistry.detect()`
+ * from the bundled `@settlegrid/mcp` adapters (Layer A) instead of
+ * the historical 13-branch hand-rolled chain (Layer B).
+ *
+ * Defaults `false`. Flip to `true` only after P2.K3 ships the
+ * snapshot-equivalence test and a snapshot run shows byte-for-byte
+ * parity for the 9 brokered protocols. The 5 emerging protocols
+ * (l402, alipay/actp, kyapay, emvco, drain) don't yet have adapters
+ * in @settlegrid/mcp; the unified path falls through to the legacy
+ * chain when no adapter matches, so emerging-protocol traffic is
+ * preserved either way.
+ */
+export function useUnifiedAdapters(): boolean {
+  return process.env.USE_UNIFIED_ADAPTERS === 'true'
+}
+
 // Replicate API token — optional, needed for Replicate model crawler
 export function getReplicateToken(): string | undefined {
   return process.env.REPLICATE_API_TOKEN

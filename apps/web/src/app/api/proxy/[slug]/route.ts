@@ -38,7 +38,9 @@ import {
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
+  useUnifiedAdapters,
 } from '@/lib/env'
+import { decideUnifiedDispatch } from './_unified-dispatch'
 
 export const maxDuration = 60
 
@@ -263,6 +265,84 @@ function buildUpstreamHeaders(request: NextRequest): Headers {
   return headers
 }
 
+// ── P2.K1 — Unified-adapter dispatch (feature-flagged) ─────────────────
+//
+// When USE_UNIFIED_ADAPTERS=true, payment-protocol detection is delegated
+// to protocolRegistry.detect() from @settlegrid/mcp (via the
+// `decideUnifiedDispatch` helper in _unified-dispatch.ts) instead of the
+// legacy 13-branch chain. This is a routing change only — once detected,
+// the request is dispatched to the same legacy handler the 13-branch
+// chain would have invoked, so behavior is preserved for the 9 brokered
+// protocols. The 5 emerging protocols (l402, alipay/actp, kyapay, emvco,
+// drain) don't have adapters in @settlegrid/mcp yet; the unified path
+// returns 'no-match' for those, and the caller falls through to the
+// legacy chain so emerging-protocol traffic is preserved either way.
+//
+// Default OFF until P2.K3 ships the snapshot-equivalence test and a
+// snapshot run shows byte-for-byte parity for the 9 brokered protocols.
+
+/**
+ * Bridge from a unified-dispatch decision to the corresponding legacy
+ * handler. Returns `null` when the caller should fall through (no match
+ * or mcp-fallback). When a non-mcp adapter matched, returns the same
+ * NextResponse the legacy chain would have produced.
+ */
+async function tryUnifiedAdapterDispatch(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number,
+): Promise<NextResponse | null> {
+  const decision = await decideUnifiedDispatch(request)
+
+  logger.info('proxy.dispatch', {
+    path: 'unified-adapter',
+    slug,
+    requestId,
+    decision: decision.type,
+    protocol: decision.type === 'unified' ? decision.protocol : undefined,
+    operation:
+      decision.type === 'unified' && decision.paymentContext
+        ? `${decision.paymentContext.operation.service}.${decision.paymentContext.operation.method}`
+        : undefined,
+  })
+
+  if (decision.type !== 'unified') {
+    return null
+  }
+
+  // All 8 non-mcp adapters route to one of three legacy handler
+  // families. If a new adapter is added to @settlegrid/mcp, TypeScript's
+  // exhaustiveness check below will surface this switch as incomplete.
+  switch (decision.protocol) {
+    case 'mpp':
+      return handleMppProxy(request, slug, requestId, startTime)
+    case 'x402':
+      return handleX402Proxy(request, slug, requestId, startTime)
+    case 'ap2':
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    case 'visa-tap':
+      return handleVisaTapProxy(request, slug, requestId, startTime)
+    case 'acp':
+      return handleAcpProxy(request, slug, requestId, startTime)
+    case 'ucp':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    case 'mastercard-vi':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
+    case 'circle-nano':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    case 'mcp':
+      // Should not reach: decideUnifiedDispatch maps mcp → 'mcp-fallback'.
+      return null
+    default: {
+      // Exhaustiveness — an unhandled adapter name is a TS error here.
+      const _exhaustive: never = decision.protocol
+      logger.warn('proxy.unified.unhandled_adapter', { slug, requestId, name: _exhaustive })
+      return null
+    }
+  }
+}
+
 /**
  * Core proxy handler — shared between GET and POST.
  */
@@ -280,6 +360,20 @@ async function handleProxy(
     const rateLimit = await checkRateLimit(sdkLimiter, `proxy:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
+    // ── P2.K1 — Unified-adapter dispatch (feature-flagged) ───────────────────
+    // When USE_UNIFIED_ADAPTERS=true, route protocol detection through
+    // protocolRegistry.detect() from @settlegrid/mcp first. Falls through
+    // to the legacy chain below when no adapter matches (emerging
+    // protocols) or the mcp adapter matches (api-key flow).
+    if (useUnifiedAdapters()) {
+      const dispatched = await tryUnifiedAdapterDispatch(request, slug, requestId, startTime)
+      if (dispatched !== null) return dispatched
+    } else {
+      // Legacy path observability — info level (low-volume) so we can
+      // verify the rollout split via log search without noise.
+      logger.info('proxy.dispatch', { path: 'legacy-13-branch', slug, requestId })
     }
 
     // ── Payment Protocol Detection Chain ────────────────────────────────────
