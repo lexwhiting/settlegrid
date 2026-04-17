@@ -129,6 +129,50 @@ const fail = (id: number, label: string, detail?: string): CheckResult => ({
   detail,
 })
 
+/**
+ * Strip line-comments before substring/regex grepping. Defends against
+ * false-positives from commented-out imports/identifiers (e.g.,
+ * `// import { foo } from '@/lib/x-proxy'` would otherwise trip a
+ * "module still imports the old path" check). Mirrors Phase 1 gate's
+ * approach in hasBuildChallengeDefinition.
+ */
+export function stripLineComments(src: string): string {
+  return src
+    .split('\n')
+    .map((l) => l.replace(/\/\/.*$/, ''))
+    .join('\n')
+}
+
+/**
+ * Match a single test/it/describe declaration at line start, including
+ * vitest modifier forms (test.skip(...), it.each([...])(...) etc.).
+ * Mirrors Phase 1 gate's countVitestDeclarations regex (extended to
+ * also accept describe).
+ */
+const TEST_DECL_RE = /^\s*(test|it|describe)(?:\.[\w$]+)?\s*\(/m
+
+/**
+ * Wrap a check function so unhandled exceptions become FAIL CheckResults
+ * rather than crashing the gate harness mid-run. Without this, a thrown
+ * check would (a) skip AUDIT_LOG writing, (b) lose all check state, and
+ * (c) make `results.at(-1)!` return the wrong CheckResult to logResult.
+ */
+export async function safeCheck(
+  fn: () => Promise<CheckResult>,
+  fallbackId: number,
+  fallbackLabel: string,
+): Promise<CheckResult> {
+  try {
+    return await fn()
+  } catch (err) {
+    return fail(
+      fallbackId,
+      fallbackLabel,
+      `gate harness caught uncaught exception: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
 // ── Distribution-track checks (1-8) ──────────────────────────────────
 
 async function check1_cliInstallable(): Promise<CheckResult> {
@@ -141,14 +185,18 @@ async function check1_cliInstallable(): Promise<CheckResult> {
   }
   const versionRun = runSync('node', [distEntry, '--version'], { timeoutMs: 15_000 })
   if (versionRun.status !== 0) {
-    return fail(1, label, `--version exited ${versionRun.status}: ${versionRun.stderr.trim().slice(0, 200)}`)
+    // slice(-200) takes the tail — error messages are usually most useful
+    // at the end (consistent with the rest of the file).
+    return fail(1, label, `--version exited ${versionRun.status}: ${versionRun.stderr.trim().slice(-200)}`)
   }
   if (!/^\d+\.\d+\.\d+/.test(versionRun.stdout.trim())) {
     return fail(1, label, `--version stdout did not match semver: ${JSON.stringify(versionRun.stdout.slice(0, 80))}`)
   }
-  // Smoke optionally — slow (clones 3 real repos). Only run when not skipping.
+  // Smoke optionally — slow (clones 3 real repos). DEFER (not PASS) when
+  // skipped so the verdict accurately reflects that smoke was not exercised
+  // (consistent with checks 5/8 DEFER-on-skip semantics).
   if (SKIP_TESTS) {
-    return pass(1, label, `--version OK (${versionRun.stdout.trim()}); smoke skipped (--skip-tests)`)
+    return defer(1, label, `--version OK (${versionRun.stdout.trim()}); smoke skipped via --skip-tests`)
   }
   const smoke = runSync('npm', ['--workspace', '@settlegrid/cli', 'run', 'smoke'], {
     timeoutMs: 300_000,
@@ -281,44 +329,41 @@ async function check4_shadowPopulated(): Promise<CheckResult> {
   if (!process.env.DATABASE_URL) {
     return defer(4, label, 'DATABASE_URL not set in env')
   }
-  // Use the existing shadow-index reader to count rows. Spawn a one-shot
-  // tsx process so we don't need to bundle a Postgres client into this
-  // gate script.
+  // Inline pg query via `node -e` — avoids writing a temp file inside
+  // apps/web (which could collide with existing files, leak on SIGINT,
+  // or pollute git status / Next.js compilation). `pg` is a top-level
+  // dep so node resolves it from REPO_ROOT/node_modules. Output is
+  // wrapped in unique markers so any stray stdout from pg/db init can
+  // be filtered out.
   const probe = `
-    import { db } from '@/lib/db'
-    import { mcpShadowIndex } from '@/lib/db/schema-shadow'
-    import { sql } from 'drizzle-orm'
-    const result = await db.select({ c: sql\`count(*)\` }).from(mcpShadowIndex)
-    console.log(JSON.stringify({ count: Number(result[0]?.c ?? 0) }))
-    process.exit(0)
-  `
-  const tmpFile = repoFile('apps', 'web', '.shadow-count-probe.mjs')
+const { Client } = require('pg');
+(async () => {
+  const c = new Client({ connectionString: process.env.DATABASE_URL });
   try {
-    writeFileSync(tmpFile, probe, 'utf-8')
-    const r = runSync('npx', ['tsx', tmpFile], {
-      cwd: repoFile('apps', 'web'),
-      timeoutMs: 30_000,
-    })
-    if (r.status !== 0) {
-      return defer(4, label, `probe exit ${r.status}: ${r.stderr.trim().slice(-200)}`)
-    }
-    try {
-      const out = JSON.parse(r.stdout.trim().split('\n').pop() ?? '{}') as { count?: number }
-      if ((out.count ?? 0) >= 1000) {
-        return pass(4, label, `${out.count} rows`)
-      }
-      return fail(4, label, `only ${out.count ?? 0} rows (expected ≥1000)`)
-    } catch (e) {
-      return fail(4, label, `could not parse probe output: ${(e as Error).message}`)
-    }
+    await c.connect();
+    const r = await c.query("SELECT count(*)::int AS c FROM mcp_shadow_index");
+    process.stdout.write('--SG-RESULT--' + JSON.stringify({ count: Number(r.rows[0].c) }) + '--END--\\n');
   } finally {
-    try {
-      // best-effort cleanup
-      const fs = await import('node:fs/promises')
-      await fs.unlink(tmpFile).catch(() => {})
-    } catch {
-      /* ignore */
+    await c.end();
+  }
+})().catch((err) => { process.stderr.write('probe: ' + err.message + '\\n'); process.exit(1); });
+`
+  const r = runSync('node', ['-e', probe], { timeoutMs: 30_000 })
+  if (r.status !== 0) {
+    return defer(4, label, `probe exit ${r.status}: ${(r.stderr || r.stdout).trim().slice(-200)}`)
+  }
+  const m = r.stdout.match(/--SG-RESULT--(.+?)--END--/)
+  if (!m) {
+    return fail(4, label, 'probe output did not contain SG-RESULT marker')
+  }
+  try {
+    const out = JSON.parse(m[1]) as { count?: number }
+    if ((out.count ?? 0) >= 1000) {
+      return pass(4, label, `${out.count} rows`)
     }
+    return fail(4, label, `only ${out.count ?? 0} rows (expected ≥1000)`)
+  } catch (e) {
+    return fail(4, label, `could not parse probe JSON: ${(e as Error).message}`)
   }
 }
 
@@ -423,10 +468,15 @@ async function check6_workflowGreen(): Promise<CheckResult> {
     return defer(6, label, 'workflow has no runs on main yet (commits not pushed?)')
   }
   const latest = runs[0]
+  // An in-progress run hasn't reached a verdict yet — DEFER instead of
+  // FAIL so the gate doesn't block on a transient state.
+  if (latest.status !== 'completed') {
+    return defer(6, label, `latest run still ${latest.status} on main (not yet completed)`)
+  }
   if (latest.conclusion === 'success') {
     return pass(6, label, `latest run on main: success (${latest.headSha?.slice(0, 7)})`)
   }
-  return fail(6, label, `latest run conclusion: ${latest.conclusion ?? latest.status}`)
+  return fail(6, label, `latest run conclusion: ${latest.conclusion}`)
 }
 
 async function check7_meilisearch(): Promise<CheckResult> {
@@ -438,21 +488,28 @@ async function check7_meilisearch(): Promise<CheckResult> {
   if (!url) {
     return defer(7, label, 'NEXT_PUBLIC_MEILI_URL / MEILI_URL not set')
   }
+  let res: Response
   try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/health`, {
+    res = await fetch(`${url.replace(/\/$/, '')}/health`, {
       signal: AbortSignal.timeout(10_000),
     })
-    if (res.status !== 200) {
-      return fail(7, label, `HTTP ${res.status}`)
-    }
-    const body = (await res.json()) as { status?: string }
-    if (body.status === 'available') {
-      return pass(7, label, `${url}/health → status=available`)
-    }
-    return fail(7, label, `responseBody.status = ${JSON.stringify(body.status)} (expected 'available')`)
   } catch (e) {
     return fail(7, label, `fetch failed: ${(e as Error).message}`)
   }
+  if (res.status !== 200) {
+    return fail(7, label, `HTTP ${res.status}`)
+  }
+  // Distinguish JSON-parse failure from fetch failure for accurate diagnostics.
+  let body: { status?: string }
+  try {
+    body = (await res.json()) as { status?: string }
+  } catch (e) {
+    return fail(7, label, `response body not JSON: ${(e as Error).message}`)
+  }
+  if (body.status === 'available') {
+    return pass(7, label, `${url}/health → status=available`)
+  }
+  return fail(7, label, `responseBody.status = ${JSON.stringify(body.status)} (expected 'available')`)
 }
 
 async function check8_typecheckTests(): Promise<CheckResult> {
@@ -504,8 +561,10 @@ async function check9_k1ProxyUsesKernel(): Promise<CheckResult> {
         continue
       }
       if (!/\.(t|j)sx?$/.test(e.name)) continue
-      const src = readFileSync(full, 'utf-8')
-      if (/from ['"]@\/lib\/.*-proxy['"]/.test(src)) {
+      // Strip line-comments before grepping so commented-out imports don't
+      // false-positive (e.g., `// import { foo } from '@/lib/x-proxy'`).
+      const src = stripLineComments(readFileSync(full, 'utf-8'))
+      if (/from ['"]@\/lib\/[^'"]*-proxy['"]/.test(src)) {
         offending.push(full.replace(REPO_ROOT + '/', ''))
       }
       if (/@settlegrid\/mcp-kernel/.test(src)) {
@@ -570,9 +629,12 @@ async function check11_k3SnapshotTest(): Promise<CheckResult> {
   // Spec: "exists and `pnpm -w test` includes it". The file lives under
   // packages/mcp/src/__tests__ which is in @settlegrid/mcp's vitest glob
   // by default. Verify the file actually contains test declarations
-  // (so we don't false-pass on an empty stub).
-  const src = readFileSync(path, 'utf-8')
-  if (!/^[\s]*(test|it|describe)\s*\(/m.test(src)) {
+  // (so we don't false-pass on an empty stub). Strip comments so
+  // commented-out test stubs don't false-pass either; use the
+  // modifier-aware regex (TEST_DECL_RE) to catch test.skip(), it.each()(),
+  // describe.only(), etc.
+  const src = stripLineComments(readFileSync(path, 'utf-8'))
+  if (!TEST_DECL_RE.test(src)) {
     return fail(11, label, 'file present but contains no test/it/describe declarations')
   }
   return pass(11, label, 'snapshot-equivalence.test.ts present + has test declarations')
@@ -584,9 +646,12 @@ async function check12_k4Lifecycle(): Promise<CheckResult> {
   if (!fileExists(path)) {
     return defer(12, label, `${path} not present`)
   }
-  const src = readFileSync(path, 'utf-8')
+  // Strip comments before grepping so a "// removed MeterContext" line
+  // doesn't false-positive. Use word-boundary so 'beginInvocationFoo'
+  // doesn't satisfy 'beginInvocation'.
+  const src = stripLineComments(readFileSync(path, 'utf-8'))
   const required = ['MeterContext', 'beginInvocation', 'settleInvocation', 'voidInvocation', 'heartbeat']
-  const missing = required.filter((s) => !src.includes(s))
+  const missing = required.filter((s) => !new RegExp(`\\b${s}\\b`).test(src))
   if (missing.length > 0) {
     return fail(12, label, `lifecycle.ts missing exports: ${missing.join(', ')}`)
   }
@@ -641,14 +706,24 @@ async function check15_fmt3Polished(): Promise<CheckResult> {
   // Spec: "all use @settlegrid/* namespace and have updated READMEs".
   const wrongNs: string[] = []
   const noReadme: string[] = []
+  const parseErrors: string[] = []
   for (const p of present) {
-    const pkg = JSON.parse(readFileSync(repoFile('packages', p, 'package.json'), 'utf-8')) as { name?: string }
+    let pkg: { name?: string }
+    try {
+      pkg = JSON.parse(readFileSync(repoFile('packages', p, 'package.json'), 'utf-8')) as { name?: string }
+    } catch (e) {
+      parseErrors.push(`${p}: ${(e as Error).message}`)
+      continue
+    }
     if (!pkg.name?.startsWith('@settlegrid/')) {
       wrongNs.push(`${p}: ${pkg.name}`)
     }
     if (!fileExists(repoFile('packages', p, 'README.md'))) {
       noReadme.push(p)
     }
+  }
+  if (parseErrors.length > 0) {
+    return fail(15, label, `package.json parse error: ${parseErrors[0]}`)
   }
   if (wrongNs.length > 0) {
     return fail(15, label, `non-@settlegrid name: ${wrongNs.join(', ')}`)
@@ -703,7 +778,8 @@ async function check18_rail1RailAdapter(): Promise<CheckResult> {
     : []
   const offending: string[] = []
   for (const f of stripeFiles) {
-    const fileSrc = readFileSync(join(libDir, f), 'utf-8')
+    // Strip comments so a commented-out import doesn't trigger the check.
+    const fileSrc = stripLineComments(readFileSync(join(libDir, f), 'utf-8'))
     if (/from ['"]stripe['"]/.test(fileSrc) || /require\(['"]stripe['"]\)/.test(fileSrc)) {
       offending.push(f)
     }
@@ -805,7 +881,10 @@ export function formatAuditBlock(
   lines.push('| # | Check | Status | Detail |')
   lines.push('|---|-------|--------|--------|')
   for (const r of results) {
-    const safeDetail = (r.detail ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+    // Sanitize detail for a single markdown table cell:
+    //   | → \|     (escape table separator)
+    //   \r,\n → ' ' (collapse line breaks; CR included for Windows tooling)
+    const safeDetail = (r.detail ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ')
     lines.push(`| ${r.id} | ${escapeMd(r.label)} | ${r.status} | ${safeDetail} |`)
   }
   lines.push('')
@@ -848,30 +927,43 @@ async function main(): Promise<void> {
   console.log('')
 
   const results: CheckResult[] = []
+  // Each check is wrapped in safeCheck so a thrown exception inside a
+  // check function becomes a FAIL CheckResult rather than crashing the
+  // gate harness mid-run (which would skip AUDIT_LOG writing and lose
+  // the verdict for all preceding checks).
+  const run = async (
+    fn: () => Promise<CheckResult>,
+    id: number,
+  ): Promise<void> => {
+    const r = await safeCheck(fn, id, fn.name || `check_${id}`)
+    results.push(r)
+    logResult(r)
+  }
+
   console.log('Distribution-track checks (8):')
-  results.push(await check1_cliInstallable()); logResult(results.at(-1)!)
-  results.push(await check2_registryPresent()); logResult(results.at(-1)!)
-  results.push(await check3_canonicalPolished()); logResult(results.at(-1)!)
-  results.push(await check4_shadowPopulated()); logResult(results.at(-1)!)
-  results.push(await check5_ssgBuild()); logResult(results.at(-1)!)
-  results.push(await check6_workflowGreen()); logResult(results.at(-1)!)
-  results.push(await check7_meilisearch()); logResult(results.at(-1)!)
-  results.push(await check8_typecheckTests()); logResult(results.at(-1)!)
+  await run(check1_cliInstallable, 1)
+  await run(check2_registryPresent, 2)
+  await run(check3_canonicalPolished, 3)
+  await run(check4_shadowPopulated, 4)
+  await run(check5_ssgBuild, 5)
+  await run(check6_workflowGreen, 6)
+  await run(check7_meilisearch, 7)
+  await run(check8_typecheckTests, 8)
 
   console.log('')
   console.log('Settlement-layer expansion checks (12):')
-  results.push(await check9_k1ProxyUsesKernel()); logResult(results.at(-1)!)
-  results.push(await check10_k2ProxiesRemoved()); logResult(results.at(-1)!)
-  results.push(await check11_k3SnapshotTest()); logResult(results.at(-1)!)
-  results.push(await check12_k4Lifecycle()); logResult(results.at(-1)!)
-  results.push(await check13_fmt1AiSdk()); logResult(results.at(-1)!)
-  results.push(await check14_fmt2Mastra()); logResult(results.at(-1)!)
-  results.push(await check15_fmt3Polished()); logResult(results.at(-1)!)
-  results.push(await check16_fmt4N8nInvoke()); logResult(results.at(-1)!)
-  results.push(await check17_mkt1Comparison()); logResult(results.at(-1)!)
-  results.push(await check18_rail1RailAdapter()); logResult(results.at(-1)!)
-  results.push(await check19_comp1OfacAupIr()); logResult(results.at(-1)!)
-  results.push(await check20_intl1CountryWise()); logResult(results.at(-1)!)
+  await run(check9_k1ProxyUsesKernel, 9)
+  await run(check10_k2ProxiesRemoved, 10)
+  await run(check11_k3SnapshotTest, 11)
+  await run(check12_k4Lifecycle, 12)
+  await run(check13_fmt1AiSdk, 13)
+  await run(check14_fmt2Mastra, 14)
+  await run(check15_fmt3Polished, 15)
+  await run(check16_fmt4N8nInvoke, 16)
+  await run(check17_mkt1Comparison, 17)
+  await run(check18_rail1RailAdapter, 18)
+  await run(check19_comp1OfacAupIr, 19)
+  await run(check20_intl1CountryWise, 20)
 
   const summary = aggregateResults(results, STRICT_EXPANSION)
 

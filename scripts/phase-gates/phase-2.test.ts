@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateResults, formatAuditBlock, type CheckResult } from './phase-2'
+import { aggregateResults, formatAuditBlock, safeCheck, stripLineComments, type CheckResult } from './phase-2'
 
 const r = (id: number, status: 'PASS' | 'DEFER' | 'FAIL', label = 'check', detail?: string): CheckResult => ({
   id,
@@ -123,5 +123,93 @@ describe('formatAuditBlock', () => {
     const block = formatAuditBlock([], summary, ts, 'default')
     expect(block).toMatch(/\*\*Verdict:\*\* 0 PASS \/ 0 DEFER \/ 0 FAIL \(of 0\)/)
     expect(block).toContain('| # | Check | Status | Detail |')
+  })
+
+  it('collapses CR + CRLF + LF in detail (defends against Windows line endings)', () => {
+    const results = [r(1, 'FAIL', 'check', 'a\r\nb\rc\nd')]
+    const summary = aggregateResults(results, false)
+    const block = formatAuditBlock(results, summary, ts, 'default')
+    const row = block.split('\n').find((l) => l.startsWith('| 1 |'))
+    expect(row).toBeDefined()
+    // All CR/LF runs collapsed to single space — exactly one row, no
+    // smuggled line break that would corrupt the markdown table.
+    expect(row).toContain('a b c d')
+    expect(row).not.toMatch(/[\r\n]/)
+  })
+})
+
+describe('stripLineComments', () => {
+  it('removes // line comments while preserving code lines', () => {
+    const src = `import x from 'y' // this is a comment\nconst foo = 1\n// full line comment\nconst bar = 2`
+    const out = stripLineComments(src)
+    expect(out).toContain("import x from 'y' ")
+    expect(out).not.toContain('this is a comment')
+    expect(out).not.toContain('full line comment')
+    expect(out).toContain('const foo = 1')
+    expect(out).toContain('const bar = 2')
+  })
+
+  it('defeats false-positive grep on commented-out imports', () => {
+    // Regression for check 9 hostile finding — a commented-out
+    // proxy import would otherwise satisfy the "still using lib/*-proxy"
+    // detection regex.
+    const src = `// import { foo } from '@/lib/x-proxy'\nconst y = 1`
+    const stripped = stripLineComments(src)
+    expect(/from ['"]@\/lib\/[^'"]*-proxy['"]/.test(stripped)).toBe(false)
+  })
+
+  it('preserves multi-line strings (only line-comments are stripped)', () => {
+    const src = `const x = 1\nconst y = 2`
+    expect(stripLineComments(src)).toBe(src)
+  })
+
+  it('preserves URLs that contain // (not actually a comment)', () => {
+    // The simple regex strips everything after //, so a string literal
+    // containing `https://example.com` would lose the path. Document
+    // the trade-off: this helper is intentionally simple and is only
+    // safe for grepping, not for source rewriting. The test pins the
+    // current behavior so a future change is intentional.
+    const src = `const url = "https://example.com/foo"`
+    const out = stripLineComments(src)
+    // Yes, the URL gets truncated. Acceptable for our grep-only usage
+    // because the *grep target* (e.g., import paths) doesn't sit inside
+    // a URL string.
+    expect(out).toBe(`const url = "https:`)
+  })
+})
+
+describe('safeCheck', () => {
+  it('returns the wrapped fn result on success', async () => {
+    const fn = async (): Promise<CheckResult> => ({ id: 7, status: 'PASS', label: 'ok' })
+    const r = await safeCheck(fn, 7, 'fallback-label')
+    expect(r).toEqual({ id: 7, status: 'PASS', label: 'ok' })
+  })
+
+  it('converts a thrown Error into a FAIL CheckResult (does not crash harness)', async () => {
+    const fn = async (): Promise<CheckResult> => {
+      throw new Error('synthetic crash from inside check')
+    }
+    const r = await safeCheck(fn, 99, 'crashy-check')
+    expect(r.status).toBe('FAIL')
+    expect(r.id).toBe(99)
+    expect(r.label).toBe('crashy-check')
+    expect(r.detail).toContain('gate harness caught uncaught exception')
+    expect(r.detail).toContain('synthetic crash from inside check')
+  })
+
+  it('handles non-Error throws (string, undefined, object) gracefully', async () => {
+    const stringThrow = async (): Promise<CheckResult> => {
+      throw 'bare string'
+    }
+    const r1 = await safeCheck(stringThrow, 1, 'string-throw')
+    expect(r1.status).toBe('FAIL')
+    expect(r1.detail).toContain('bare string')
+
+    const undefinedThrow = async (): Promise<CheckResult> => {
+      throw undefined
+    }
+    const r2 = await safeCheck(undefinedThrow, 2, 'undef-throw')
+    expect(r2.status).toBe('FAIL')
+    expect(r2.detail).toContain('undefined')
   })
 })
