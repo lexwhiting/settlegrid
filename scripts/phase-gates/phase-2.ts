@@ -147,9 +147,76 @@ export function stripLineComments(src: string): string {
  * Match a single test/it/describe declaration at line start, including
  * vitest modifier forms (test.skip(...), it.each([...])(...) etc.).
  * Mirrors Phase 1 gate's countVitestDeclarations regex (extended to
- * also accept describe).
+ * also accept describe). Exported for direct unit testing.
  */
-const TEST_DECL_RE = /^\s*(test|it|describe)(?:\.[\w$]+)?\s*\(/m
+export const TEST_DECL_RE = /^\s*(test|it|describe)(?:\.[\w$]+)?\s*\(/m
+
+/**
+ * Pure state-machine for check 9 (K1 — proxy uses unified adapter).
+ * Mirrors Phase 1 gate's deriveBuildChallengeCheckState pattern: the
+ * 4 discrete states are extracted so they can be unit-tested without
+ * walking a real apps/web/src/app/api/proxy/ tree.
+ *
+ * States:
+ *   { kernelImports: 0, offendingCount: 0 }  → DEFER, 'uninstrumented'
+ *   { kernelImports: 0, offendingCount: >0 } → DEFER, 'pre-K1'
+ *   { kernelImports: >0, offendingCount: 0 } → PASS,  'k1-complete'
+ *   { kernelImports: >0, offendingCount: >0 } → FAIL, 'partial-migration'
+ *
+ * The "partial-migration" FAIL is the broken invariant — if anything
+ * in proxy/ uses the kernel, *everything* should, otherwise we have
+ * inconsistent dispatch semantics depending on which file routes a
+ * request.
+ */
+export type K1CheckReason =
+  | 'uninstrumented'
+  | 'pre-K1'
+  | 'k1-complete'
+  | 'partial-migration'
+
+export function deriveK1ProxyCheckState(p: {
+  kernelImports: number
+  offendingCount: number
+}): { status: Status; reason: K1CheckReason } {
+  if (p.kernelImports === 0) {
+    return {
+      status: 'DEFER',
+      reason: p.offendingCount > 0 ? 'pre-K1' : 'uninstrumented',
+    }
+  }
+  if (p.offendingCount > 0) {
+    return { status: 'FAIL', reason: 'partial-migration' }
+  }
+  return { status: 'PASS', reason: 'k1-complete' }
+}
+
+/**
+ * Parse the framed output of the check 4 shadow-row-count probe.
+ * Returns either `{ count: number }` or `{ error: string }`. Pure
+ * function — exported for direct unit testing without a live database.
+ *
+ * The probe wraps its result in --SG-RESULT--…--END-- markers so any
+ * incidental stdout from pg client init can't corrupt JSON parsing.
+ */
+export function parseShadowProbeOutput(
+  stdout: string,
+): { count: number } | { error: string } {
+  const m = stdout.match(/--SG-RESULT--(.+?)--END--/)
+  if (!m) {
+    return { error: 'no SG-RESULT marker in probe stdout' }
+  }
+  let parsed: { count?: unknown }
+  try {
+    parsed = JSON.parse(m[1]) as { count?: unknown }
+  } catch (e) {
+    return { error: `JSON parse: ${(e as Error).message}` }
+  }
+  const c = parsed.count
+  if (typeof c !== 'number' || !Number.isFinite(c)) {
+    return { error: `count is not a finite number: ${JSON.stringify(c)}` }
+  }
+  return { count: c }
+}
 
 /**
  * Wrap a check function so unhandled exceptions become FAIL CheckResults
@@ -352,19 +419,14 @@ const { Client } = require('pg');
   if (r.status !== 0) {
     return defer(4, label, `probe exit ${r.status}: ${(r.stderr || r.stdout).trim().slice(-200)}`)
   }
-  const m = r.stdout.match(/--SG-RESULT--(.+?)--END--/)
-  if (!m) {
-    return fail(4, label, 'probe output did not contain SG-RESULT marker')
+  const parsed = parseShadowProbeOutput(r.stdout)
+  if ('error' in parsed) {
+    return fail(4, label, parsed.error)
   }
-  try {
-    const out = JSON.parse(m[1]) as { count?: number }
-    if ((out.count ?? 0) >= 1000) {
-      return pass(4, label, `${out.count} rows`)
-    }
-    return fail(4, label, `only ${out.count ?? 0} rows (expected ≥1000)`)
-  } catch (e) {
-    return fail(4, label, `could not parse probe JSON: ${(e as Error).message}`)
+  if (parsed.count >= 1000) {
+    return pass(4, label, `${parsed.count} rows`)
   }
+  return fail(4, label, `only ${parsed.count} rows (expected ≥1000)`)
 }
 
 async function check5_ssgBuild(): Promise<CheckResult> {
@@ -573,28 +635,24 @@ async function check9_k1ProxyUsesKernel(): Promise<CheckResult> {
     }
   }
   walk(proxyDir)
-  // State machine (mirrors Phase 1 K4 build-challenge check pattern):
-  //   no kernel imports + has lib imports → DEFER (K1 not yet started; pre-K1 state)
-  //   no kernel imports + no lib imports  → DEFER (proxy dir empty/uninstrumented)
-  //   has kernel imports + has lib imports → FAIL (partial migration — broken invariant)
-  //   has kernel imports + no lib imports → PASS (K1 done)
-  if (kernelImports === 0) {
-    return defer(
-      9,
-      label,
-      offending.length > 0
-        ? `pre-K1 state: ${offending.length} lib/*-proxy import(s), 0 kernel imports`
-        : 'no kernel imports and no lib/*-proxy imports — proxy uninstrumented',
-    )
+  const state = deriveK1ProxyCheckState({
+    kernelImports,
+    offendingCount: offending.length,
+  })
+  switch (state.reason) {
+    case 'uninstrumented':
+      return defer(9, label, 'no kernel imports and no lib/*-proxy imports — proxy uninstrumented')
+    case 'pre-K1':
+      return defer(9, label, `pre-K1 state: ${offending.length} lib/*-proxy import(s), 0 kernel imports`)
+    case 'partial-migration':
+      return fail(
+        9,
+        label,
+        `partial migration: ${kernelImports} kernel import(s) but ${offending.length} lib/*-proxy import(s) remain; first: ${offending[0]}`,
+      )
+    case 'k1-complete':
+      return pass(9, label, `${kernelImports} file(s) import @settlegrid/mcp-kernel`)
   }
-  if (offending.length > 0) {
-    return fail(
-      9,
-      label,
-      `partial migration: ${kernelImports} kernel import(s) but ${offending.length} lib/*-proxy import(s) remain; first: ${offending[0]}`,
-    )
-  }
-  return pass(9, label, `${kernelImports} file(s) import @settlegrid/mcp-kernel`)
 }
 
 async function check10_k2ProxiesRemoved(): Promise<CheckResult> {
