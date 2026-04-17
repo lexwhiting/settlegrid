@@ -233,6 +233,90 @@ describe('wrapLangchainTool — options + args forwarding', () => {
   })
 })
 
+describe('wrapLangchainTool — fail-fast: no side effects before key validation', () => {
+  it('does not invoke execute or call sg.wrap billed when key is missing', async () => {
+    const execute = vi.fn(async (input: { q: string }) => ({ echoed: input.q }))
+    const wrapped = wrapLangchainTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(wrapped({ q: 'x' })).rejects.toMatchObject({
+      code: 'INVALID_KEY',
+    })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockWrap).not.toHaveBeenCalled()
+  })
+
+  it('does not invoke execute when key fails injection check', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const wrapped = wrapLangchainTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped(
+        { q: 'x' },
+        { configurable: { settlegridKey: 'sg_live\r\nEvil: x' } },
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockWrap).not.toHaveBeenCalled()
+  })
+})
+
+describe('wrapLangchainTool — settlegrid.init wiring', () => {
+  it('forwards toolSlug and pricing to settlegrid.init', () => {
+    wrapLangchainTool(async () => 'ok', {
+      toolSlug: 'my-lookup',
+      pricing: { defaultCostCents: 7 },
+    })
+    expect(mockInit).toHaveBeenCalledWith({
+      toolSlug: 'my-lookup',
+      pricing: { defaultCostCents: 7 },
+    })
+  })
+
+  it('does not forward `method` to settlegrid.init (method is sg.wrap-scoped)', () => {
+    wrapLangchainTool(async () => 'ok', {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+      method: 'deep-search',
+    })
+    const initCall = mockInit.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(initCall).not.toHaveProperty('method')
+  })
+})
+
+describe('wrapLangchainTool — execute is called with the original input', () => {
+  it('forwards the un-transformed input to execute on happy path', async () => {
+    const execute = vi.fn(async (input: { q: string; nested: { id: number } }) => ({
+      got: input,
+    }))
+    const wrapped = wrapLangchainTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const input = { q: 'hello', nested: { id: 42 } }
+    await wrapped(input, { configurable: { settlegridKey: 'sg_live_abc' } })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith(input)
+  })
+
+  it('supports synchronous execute functions (returns non-promise value)', async () => {
+    const execute = vi.fn((input: { n: number }) => input.n * 2)
+    const wrapped = wrapLangchainTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const result = await wrapped(
+      { n: 21 },
+      { configurable: { settlegridKey: 'sg_live_abc' } },
+    )
+    expect(result).toBe(42)
+    expect(execute).toHaveBeenCalledWith({ n: 21 })
+  })
+})
+
 describe('wrapLangchainTool — header-injection / non-ASCII defense', () => {
   const injectionPayloads = [
     ['CRLF', 'sg_live_valid\r\nEvil-Header: x'],
