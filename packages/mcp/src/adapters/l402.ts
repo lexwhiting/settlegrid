@@ -17,7 +17,7 @@
  * @see https://docs.lightning.engineering/the-lightning-network/l402
  */
 
-import { createHmac, randomBytes } from 'crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { randomUUID } from 'crypto'
 import type {
   AcceptEntry,
@@ -47,7 +47,17 @@ const L402_HEADERS = {
 /** Default macaroon expiry in seconds (1 hour) */
 const DEFAULT_MACAROON_EXPIRY_SECONDS = 3600
 
-/** Dev fallback signing key — production callers supply a real one via options. */
+/**
+ * Dev fallback signing key — production callers MUST supply a real one via
+ * options.signingKey (wired from LND_MACAROON_HEX or L402_SIGNING_KEY in the
+ * lib shim). P2.K2 hostile-review H1: when `enabled=true` and no signingKey
+ * is supplied, `validateL402Payment` and `generateL402_402Response` log a
+ * warning on every call. The fallback stays (to preserve legacy behavior
+ * for dev environments that never set the env var) but is no longer
+ * silent — any production deploy running on the fallback will show up
+ * in the error logs immediately, surfacing the cross-instance macaroon
+ * forgery risk before it matters.
+ */
 const L402_DEV_SIGNING_KEY = 'settlegrid-l402-dev-key'
 
 // ─── Public types ──────────────────────────────────────────────────────────
@@ -140,6 +150,28 @@ function hmacSign(key: string, data: string): string {
   return createHmac('sha256', key).update(data).digest('hex')
 }
 
+/**
+ * Timing-safe hex string comparison. Both args are hex-encoded HMAC-SHA256
+ * digests (always 64 hex chars), but we guard on length mismatch to avoid
+ * timingSafeEqual throwing on unequal buffer sizes — a malformed macaroon
+ * with a shorter signature returns false cleanly instead of a thrown
+ * RangeError (which would propagate past the verifyMacaroon caller).
+ *
+ * Hostile-review M2: the original `===` comparison in `verifyMacaroon`
+ * was a standard timing oracle for HMAC-backed auth tokens. Macaroons
+ * are 16-byte (128-bit) random IDs, so a real attack is infeasible,
+ * but matching the crypto best-practice here is free and removes the
+ * static-analysis flag.
+ */
+function timingSafeHexEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'))
+  } catch {
+    return false
+  }
+}
+
 function mintMacaroon(
   toolSlug: string,
   costCents: number,
@@ -214,7 +246,8 @@ function verifyMacaroon(
     expectedSig = hmacSign(expectedSig, `${caveat.key}=${caveat.value}`)
   }
 
-  if (expectedSig !== macaroon.signature) {
+  // Hostile-review M2: timing-safe comparison of HMAC digests.
+  if (!timingSafeHexEqual(expectedSig, macaroon.signature)) {
     return { valid: false, error: 'Macaroon signature is invalid.' }
   }
 
@@ -504,6 +537,19 @@ export async function validateL402Payment(
     }
   }
 
+  // Hostile-review H1: warn loudly if the dev signing key is being used in
+  // an enabled context. The fallback preserves legacy behavior (matches
+  // apps/web/src/lib/l402-proxy.ts pre-P2.K2), but silent fallback in
+  // production means any two SettleGrid instances with missing config can
+  // forge each other's macaroons. A log line on every validate call
+  // surfaces the misconfiguration immediately without breaking dev.
+  if (!options.signingKey) {
+    logger.warn('l402.signing_key_missing_using_dev_fallback', {
+      toolSlug: toolConfig.slug,
+      note: 'L402 enabled but no signing key supplied; using shared dev key. Set LND_MACAROON_HEX or L402_SIGNING_KEY for production.',
+    })
+  }
+
   const credentials = extractL402Credentials(request)
   if (!credentials) {
     return {
@@ -583,6 +629,16 @@ export async function generateL402_402Response(
   const { toolSlug, costCents, toolName, appUrl } = options
   const logger = options.logger ?? NOOP_LOGGER
   const signingKey = options.signingKey ?? L402_DEV_SIGNING_KEY
+
+  // Hostile-review H1: same warning as validate — a minted macaroon
+  // signed by the dev key is forgeable across instances. We warn once
+  // per 402 generation so ops can grep for misconfigured instances.
+  if (!options.signingKey) {
+    logger.warn('l402.signing_key_missing_using_dev_fallback', {
+      toolSlug,
+      note: 'Minting macaroon with shared dev signing key. Set LND_MACAROON_HEX or L402_SIGNING_KEY for production.',
+    })
+  }
 
   const paymentEndpoint = `${appUrl}/api/proxy/${toolSlug}`
   const description = `${toolName ?? toolSlug} via SettleGrid`

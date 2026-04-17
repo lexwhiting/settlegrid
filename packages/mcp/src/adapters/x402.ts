@@ -494,6 +494,24 @@ export async function validateX402Payment(
       }
     }
 
+    // Hostile-review M1: `paymentAmountBaseUnits` is extracted as a raw
+    // string from the decoded payload (authorization.value for `exact`,
+    // witness.amount for `upto`). The original lib code ran `BigInt(...)`
+    // on it unchecked — a malformed value (e.g. "abc", "0x1", "1.5")
+    // throws SyntaxError which bubbled to the outer catch and surfaced
+    // as X402_FACILITATOR_ERROR. That's the wrong code (the problem is
+    // the request payload, not the facilitator) AND the wrong status
+    // (500, not 402). Validate explicitly and return X402_PAYLOAD_INVALID.
+    if (!/^\d+$/.test(paymentAmountBaseUnits)) {
+      return {
+        valid: false,
+        error: {
+          code: 'X402_PAYLOAD_INVALID',
+          message: `x402 payment amount must be a non-negative decimal integer string (uint256 on the wire); got ${JSON.stringify(paymentAmountBaseUnits)}.`,
+        },
+      }
+    }
+
     const requiredBaseUnits = BigInt(centsToUsdcBaseUnits(toolConfig.costCents))
     const providedBaseUnits = BigInt(paymentAmountBaseUnits || '0')
 

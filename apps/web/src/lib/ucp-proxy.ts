@@ -10,13 +10,13 @@ import {
   validateUcpPayment as validateUcpPaymentCore,
   generateUcp402Response as generateUcp402ResponseCore,
 } from '@settlegrid/mcp'
-import type { UcpPaymentResult, UcpToolConfig, UcpErrorCode } from '@settlegrid/mcp'
+import type { UcpPaymentResult, UcpToolConfig, UcpErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { getAppUrl } from './env'
 import { logger } from './logger'
 
 const ucpAdapter = new UCPAdapter()
 
-const appLogger = {
+const appLogger: AdapterLogger = {
   info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
   warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
   error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
