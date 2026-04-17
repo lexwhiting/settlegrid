@@ -228,26 +228,57 @@ const PRINTABLE_ASCII_RE = /^[\x20-\x7E]+$/
  *
  *   - **RuntimeContext class** (the canonical Mastra shape) — an
  *     object with a `.get(key)` method, typically backed by an
- *     internal Map. We call `.get('settlegridKey')`.
+ *     internal Map. We call `.get('settlegridKey')`. A native ES
+ *     `Map` instance also matches this branch — consumers can use
+ *     a bare `new Map([['settlegridKey', 'sg_live_...']])` in
+ *     contexts where the full framework isn't available.
  *   - **Plain object** — `{ settlegridKey: '...' }`. Some consumers
  *     construct a literal instead of the RuntimeContext class; this
  *     branch keeps them working without forcing a framework dep.
  *
+ * ## Precedence (hostile-review L2)
+ *
+ * When the runtimeContext carries BOTH a `.get` method AND a
+ * `.settlegridKey` property (an unusual but possible shape), the
+ * `.get` call wins. This matches the Mastra-canonical expectation
+ * that RuntimeContext-class access is the primary path; consumers
+ * who need property-access semantics should pass a plain object
+ * with no `.get` method.
+ *
+ * ## Trim (hostile-review L1)
+ *
+ * The extracted key is trimmed before validation so leading /
+ * trailing whitespace doesn't propagate to the `x-api-key` header.
+ * Symmetric with the wrap-time toolSlug / method validation which
+ * also trims. If the trimmed value is empty, the key is rejected.
+ *
  * Returns the validated string key, or `undefined` for any shape
- * that doesn't carry a usable key. Same validation as
- * packages/ai-sdk: non-empty string + printable-ASCII only.
+ * that doesn't carry a usable key. Validation: non-empty trimmed
+ * string + printable-ASCII only (control chars / non-ASCII rejected
+ * at the adapter layer to close the CRLF-injection path before the
+ * fetch layer).
  */
 function extractSettlegridKey(runtimeContext: unknown): string | undefined {
   if (runtimeContext === null || runtimeContext === undefined) return undefined
+  if (typeof runtimeContext !== 'object') return undefined
 
   let candidate: unknown
 
-  // RuntimeContext class shape: object with a `.get(key)` method.
-  if (
-    typeof runtimeContext === 'object' &&
-    'get' in runtimeContext &&
-    typeof (runtimeContext as { get: unknown }).get === 'function'
-  ) {
+  // Hostile-review L3: the `'get' in runtimeContext` check below can
+  // invoke a Proxy `has` trap, which in pathological cases throws.
+  // Wrap the probe so a defective Proxy doesn't crash the tool —
+  // fall through to the plain-object branch or ultimately return
+  // undefined.
+  let hasGetMethod = false
+  try {
+    hasGetMethod =
+      'get' in runtimeContext &&
+      typeof (runtimeContext as { get: unknown }).get === 'function'
+  } catch {
+    hasGetMethod = false
+  }
+
+  if (hasGetMethod) {
     try {
       candidate = (runtimeContext as { get: (k: string) => unknown }).get(
         'settlegridKey',
@@ -257,17 +288,15 @@ function extractSettlegridKey(runtimeContext: unknown): string | undefined {
       // crash the tool. Fall through to treat as "no key found".
       return undefined
     }
-  } else if (
-    typeof runtimeContext === 'object' &&
-    !Array.isArray(runtimeContext)
-  ) {
-    // Plain-object fallback.
+  } else if (!Array.isArray(runtimeContext)) {
     candidate = (runtimeContext as { settlegridKey?: unknown }).settlegridKey
   } else {
     return undefined
   }
 
-  if (typeof candidate !== 'string' || candidate.length === 0) return undefined
-  if (!PRINTABLE_ASCII_RE.test(candidate)) return undefined
-  return candidate
+  if (typeof candidate !== 'string') return undefined
+  const trimmed = candidate.trim()
+  if (trimmed.length === 0) return undefined
+  if (!PRINTABLE_ASCII_RE.test(trimmed)) return undefined
+  return trimmed
 }
