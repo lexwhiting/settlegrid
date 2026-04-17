@@ -59,6 +59,45 @@ export const LIFECYCLE_NOT_IMPLEMENTED_MSG =
   'NOT_IMPLEMENTED — see P3.K1'
 
 /**
+ * Machine-readable error code attached to every stub throw. Exposed as
+ * a constant so callers can do `err.code === LIFECYCLE_NOT_IMPLEMENTED_CODE`
+ * in catch blocks (a subset-match pattern that doesn't depend on the
+ * message string surviving future refactors). Aligned with the
+ * UPPER_SNAKE convention the SDK already uses for `SettleGridErrorCode`
+ * without adding this value to that closed union — the lifecycle stubs
+ * are scaffolding that P3.K1 deletes entirely, so growing the public
+ * error-code union for a transient signal would be wrong.
+ *
+ * Hostile-review L2: thrown errors now carry `.code` so external code
+ * using the SettleGridError-style catch pattern doesn't miss them.
+ */
+export const LIFECYCLE_NOT_IMPLEMENTED_CODE = 'NOT_IMPLEMENTED' as const
+
+/**
+ * Shared throw-site for all 4 lifecycle stubs. Builds an `Error` with
+ * the sentinel message + a `.code` property so catch blocks can match
+ * on either surface:
+ *
+ *   try { sg.beginInvocation(ctx) }
+ *   catch (e) {
+ *     if ((e as { code?: string }).code === 'NOT_IMPLEMENTED') { ... }
+ *     // OR
+ *     if ((e as Error).message.includes('P3.K1')) { ... }
+ *   }
+ *
+ * Using a single throw site means the Error prototype chain, message,
+ * and code are identical across all 4 stubs — tests can share
+ * assertions and P3.K1's "remove the throw" diff is minimal.
+ */
+function notImplementedError(): Error & { code: typeof LIFECYCLE_NOT_IMPLEMENTED_CODE } {
+  const err = new Error(LIFECYCLE_NOT_IMPLEMENTED_MSG) as Error & {
+    code: typeof LIFECYCLE_NOT_IMPLEMENTED_CODE
+  }
+  err.code = LIFECYCLE_NOT_IMPLEMENTED_CODE
+  return err
+}
+
+/**
  * Options for {@link beginInvocation}. `method` is used for pricing
  * resolution; `units` carries the billable multiple for non-
  * per-invocation pricing models (per-token, per-byte, per-second,
@@ -82,7 +121,7 @@ export function beginInvocation(
   _meterContext: MeterContext,
   _options?: BeginInvocationOptions,
 ): Invocation {
-  throw new Error(LIFECYCLE_NOT_IMPLEMENTED_MSG)
+  throw notImplementedError()
 }
 
 /**
@@ -107,7 +146,7 @@ export function settleInvocation(
   _invocation: Invocation,
   _options?: SettleInvocationOptions,
 ): void {
-  throw new Error(LIFECYCLE_NOT_IMPLEMENTED_MSG)
+  throw notImplementedError()
 }
 
 /**
@@ -122,7 +161,7 @@ export function voidInvocation(
   _invocation: Invocation,
   _reason?: string,
 ): void {
-  throw new Error(LIFECYCLE_NOT_IMPLEMENTED_MSG)
+  throw notImplementedError()
 }
 
 /**
@@ -134,5 +173,5 @@ export function voidInvocation(
  * @throws Error `NOT_IMPLEMENTED — see P3.K1` (P2.K4 stub).
  */
 export function heartbeat(_invocation: Invocation): void {
-  throw new Error(LIFECYCLE_NOT_IMPLEMENTED_MSG)
+  throw notImplementedError()
 }

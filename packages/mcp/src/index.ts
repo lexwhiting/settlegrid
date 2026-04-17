@@ -199,18 +199,26 @@ export interface SettleGridInstance {
     // load-bearing at wrap-time and the runtime reads them). So we
     // satisfy both readings with an intersection: at wrap-time, the
     // caller may pass any subset of WrapOptions AND any subset of
-    // MeterContext. Runtime still reads only the WrapOptions fields
-    // today; the MeterContext fields are carried at the type level
-    // for P3.K1, which will start honoring wrap-time defaults
-    // (e.g., a `sessionId` set here is merged into the per-call
-    // context below as a default).
+    // MeterContext.
+    //
+    // WARNING (hostile-review M1): MeterContext fields passed HERE
+    // (at wrap-time) are TYPE-ONLY in P2.K4. The middleware only
+    // destructures `method` / `costCents` / `units` from these
+    // options — `apiKey` / `sessionId` / `maxCostCents` / `headers` /
+    // `metadata` / `mcpMeta` set at wrap-time are SILENTLY IGNORED
+    // until P3.K1 wires them as defaults for the per-call context.
+    // If you need request-time context today, pass it on the
+    // returned wrapper's second arg (see `context?: MeterContext`
+    // below) — that arg IS read by the middleware.
     options?: WrapOptions & MeterContext
   ): (
     args: TArgs,
     // Reading (B): the wrapper's per-invocation second arg is
-    // MeterContext. Middleware still only reads `headers` and
-    // `metadata` today — other MeterContext fields are reserved
-    // for P3.K1 (the lifecycle stubs depend on them).
+    // MeterContext. The middleware reads `headers` and `metadata`
+    // from this object today. Other MeterContext fields (`apiKey`,
+    // `sessionId`, `maxCostCents`, `mcpMeta`) are typed for forward
+    // compat but also currently silently ignored — P3.K1 will wire
+    // them through the lifecycle stubs.
     context?: MeterContext
   ) => Promise<TResult>
 
@@ -870,6 +878,7 @@ export {
   voidInvocation,
   heartbeat,
   LIFECYCLE_NOT_IMPLEMENTED_MSG,
+  LIFECYCLE_NOT_IMPLEMENTED_CODE,
 } from './lifecycle'
 export type {
   BeginInvocationOptions,
