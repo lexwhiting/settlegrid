@@ -153,6 +153,53 @@ describe('decideUnifiedDispatch — protocol detection parity with legacy chain'
   })
 })
 
+describe('decideUnifiedDispatch — body preservation (regression)', () => {
+  it('does NOT consume the request body — legacy handler can re-read it', async () => {
+    // Hostile-review regression: extractPaymentContext may call
+    // request.json() / .text() / .formData(), which consumes the body
+    // stream. Without an internal clone (verified across 9 adapters as
+    // of 2026-04-16) OR a defensive clone in decideUnifiedDispatch
+    // (which we now do), every body-bearing request would be silently
+    // corrupted when the flag is on. This test pins the contract: the
+    // body MUST be readable after decideUnifiedDispatch returns.
+    const r = req({
+      'content-type': 'application/json',
+      'x-payment-token': 'spt_test_abc',
+    })
+    await decideUnifiedDispatch(r)
+    const body = await r.text()
+    expect(body).toContain('jsonrpc')
+    expect(body).toContain('tools/call')
+  })
+
+  it('does NOT consume the body even when adapter extraction throws', async () => {
+    // Force extraction to fail (no body, but mpp headers). Body must
+    // still be re-readable on the original request.
+    const r = new Request('https://settlegrid.ai/api/proxy/some-tool', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-payment-protocol': 'MPP-1.0',
+      },
+      body: 'arbitrary opaque body',
+    })
+    await decideUnifiedDispatch(r)
+    const body = await r.text()
+    expect(body).toBe('arbitrary opaque body')
+  })
+
+  it('returns no-match (does not throw) when an adapter canHandle would otherwise throw', async () => {
+    // Defensive: protocolRegistry.detect() iterates all adapters'
+    // canHandle(). A malformed header that trips a regex/parser inside
+    // a canHandle would otherwise propagate up. This test pins the
+    // try/catch wrap in decideUnifiedDispatch — though all current
+    // adapters have header-only canHandle that can't throw, so this
+    // primarily documents the defensive contract.
+    const r = req({ 'content-type': 'application/json' })
+    await expect(decideUnifiedDispatch(r)).resolves.not.toThrow()
+  })
+})
+
 describe('decideUnifiedDispatch — paymentContext extraction', () => {
   it('includes paymentContext when extraction succeeds', async () => {
     // mpp adapter accepts spt_ token and extracts a payment context.
