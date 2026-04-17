@@ -466,6 +466,121 @@ describe('SettleGrid node — hostile fixes (round 2)', () => {
     expect(shared).toEqual({ q: 'hello' })
   })
 
+  // parseInvokeArgs nullish-input branches (empty / null / undefined)
+  it('parseInvokeArgs: empty string returns empty object', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ args: '' }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect(req.body).toBeUndefined() // empty body → not set
+  })
+
+  it('parseInvokeArgs: null returns empty object', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      params: invokeToolParams({ args: null }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect(req.body).toBeUndefined()
+  })
+
+  it('parseInvokeArgs: undefined returns empty object', async () => {
+    const { ctx, httpRequest } = makeHarness({
+      // Note: no `args` in params at all — getNodeParameter returns the
+      // default '{}' set by the harness, so we must explicitly set to
+      // undefined via params.
+      params: invokeToolParams({ args: undefined }),
+    })
+    await new SettleGrid().execute.call(ctx)
+    const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
+    expect(req.body).toBeUndefined()
+  })
+
+  // sanitizeErrorForNodeApi undefined/null branches — async-throw of
+  // undefined / null is legal JS (e.g., `throw undefined`).
+  it('sanitize: handles throw of undefined', async () => {
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw undefined // eslint-disable-line no-throw-literal
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrow()
+  })
+
+  it('sanitize: handles throw of null', async () => {
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw null // eslint-disable-line no-throw-literal
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrow()
+  })
+
+  it('sanitize: handles throw of a number', async () => {
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw 42 // eslint-disable-line no-throw-literal
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrow()
+  })
+
+  it('sanitize: walks arrays inside errors without flattening them', async () => {
+    // scrubAuthHeaders recurses into arrays (e.g., axios' set-cookie
+    // header is commonly an array). This exercises the Array.isArray
+    // branch at the top of scrubAuthHeaders.
+    const err = Object.assign(new Error('x'), {
+      httpCode: 500,
+      response: {
+        headers: {
+          'set-cookie': ['a=1; path=/', 'b=2; path=/'],
+          Authorization: 'Bearer leaked_token',
+        },
+      },
+    })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    try {
+      await new SettleGrid().execute.call(ctx)
+      expect.fail('should have thrown')
+    } catch (e) {
+      // Authorization still redacted even with array siblings in the
+      // same header bag.
+      expect(JSON.stringify(e)).not.toContain('leaked_token')
+      // The original array on the source is not mutated.
+      expect(
+        (err.response as { headers: { 'set-cookie': string[] } }).headers[
+          'set-cookie'
+        ],
+      ).toEqual(['a=1; path=/', 'b=2; path=/'])
+    }
+  })
+
+  it('sanitize: handles errors with explicit null fields', async () => {
+    // Exercises the `value === null` branch in scrubAuthHeaders —
+    // Object.entries walks to a field whose value is null.
+    const err = Object.assign(new Error('x'), {
+      httpCode: 500,
+      response: null,
+      config: null,
+    })
+    const { ctx } = makeHarness({
+      params: invokeToolParams({ args: '{"x":1}' }),
+      httpRequestImpl: async () => {
+        throw err
+      },
+    })
+    await expect(new SettleGrid().execute.call(ctx)).rejects.toThrow()
+  })
+
   // H2: extractHttpStatus integer+range validation
   it('rejects decimal status codes ("200.5" or 200.5) as non-HTTP', async () => {
     const err = Object.assign(new Error('x'), { httpCode: 200.5 })
