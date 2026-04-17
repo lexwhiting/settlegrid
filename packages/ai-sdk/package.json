@@ -56,11 +56,6 @@
     "@settlegrid/mcp": ">=0.2.0",
     "ai": ">=5.0.0"
   },
-  "peerDependenciesMeta": {
-    "ai": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@settlegrid/mcp": "*",
     "tsup": "^8.3.0",
