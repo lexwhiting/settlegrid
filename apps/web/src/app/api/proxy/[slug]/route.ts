@@ -295,21 +295,31 @@ async function tryUnifiedAdapterDispatch(
 ): Promise<NextResponse | null> {
   const decision = await decideUnifiedDispatch(request)
 
+  // Per P2.K1 DoD ("Observability logs show path used"), tag each request
+  // with one of three path values so a log search tells the full story:
+  //   - 'unified-adapter'      : flag on, unified handled the request.
+  //   - 'unified-then-legacy'  : flag on, unified fell through to legacy
+  //                              chain (mcp-fallback or no-match).
+  //   - 'legacy-13-branch'     : flag off (logged in handleProxy directly).
+  if (decision.type !== 'unified') {
+    logger.info('proxy.dispatch', {
+      path: 'unified-then-legacy',
+      slug,
+      requestId,
+      reason: decision.type,
+    })
+    return null
+  }
+
   logger.info('proxy.dispatch', {
     path: 'unified-adapter',
     slug,
     requestId,
-    decision: decision.type,
-    protocol: decision.type === 'unified' ? decision.protocol : undefined,
-    operation:
-      decision.type === 'unified' && decision.paymentContext
-        ? `${decision.paymentContext.operation.service}.${decision.paymentContext.operation.method}`
-        : undefined,
+    protocol: decision.protocol,
+    operation: decision.paymentContext
+      ? `${decision.paymentContext.operation.service}.${decision.paymentContext.operation.method}`
+      : undefined,
   })
-
-  if (decision.type !== 'unified') {
-    return null
-  }
 
   // All 8 non-mcp adapters route to one of three legacy handler
   // families. If a new adapter is added to @settlegrid/mcp, TypeScript's
