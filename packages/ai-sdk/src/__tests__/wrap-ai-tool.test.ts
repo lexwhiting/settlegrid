@@ -347,6 +347,159 @@ describe('wrapAiTool — wrap-time option validation', () => {
       wrapAiTool(async () => 'ok', { toolSlug: 'my-tool' }),
     ).toThrowError(/pricing/)
   })
+
+  // ─── Hostile-review L1: whitespace-only toolSlug ──────────────────────
+
+  it('throws TypeError for whitespace-only toolSlug (L1 fix)', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', {
+        toolSlug: '   ',
+        pricing: { defaultCostCents: 1 },
+      }),
+    ).toThrowError(/toolSlug/)
+  })
+
+  it('throws TypeError for tab/newline-only toolSlug', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', {
+        toolSlug: '\t\n',
+        pricing: { defaultCostCents: 1 },
+      }),
+    ).toThrowError(/toolSlug/)
+  })
+
+  // ─── Hostile-review L2: array pricing ─────────────────────────────────
+
+  it('throws TypeError when pricing is an array (L2 fix)', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', {
+        toolSlug: 'my-tool',
+        // @ts-expect-error — arrays shouldn't match PricingConfig
+        pricing: [],
+      }),
+    ).toThrowError(/pricing/)
+  })
+
+  it('throws TypeError when options is an array', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', [] as unknown as {
+        toolSlug: string
+        pricing: { defaultCostCents: number }
+      }),
+    ).toThrowError(/options.*object/)
+  })
+
+  // ─── Hostile-review L3: empty / non-string method ─────────────────────
+
+  it('throws TypeError for empty-string method (L3 fix)', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+        method: '',
+      }),
+    ).toThrowError(/method/)
+  })
+
+  it('throws TypeError for whitespace-only method', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+        method: '   ',
+      }),
+    ).toThrowError(/method/)
+  })
+
+  it('throws TypeError for non-string method', () => {
+    expect(() =>
+      wrapAiTool(async () => 'ok', {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+        method: 42 as unknown as string,
+      }),
+    ).toThrowError(/method/)
+  })
+})
+
+// ─── 7. Hostile-review M1: key format sanitization (header injection) ─────
+
+describe('wrapAiTool — M1 fix: settlegridKey format validation', () => {
+  const execute = vi.fn(async () => ({ ok: true }))
+
+  beforeEach(() => {
+    execute.mockClear()
+  })
+
+  const injectionPayloads = [
+    // CRLF injection attempts — header splitting:
+    ['CRLF', 'sg_live_valid\r\nEvil-Header: x'],
+    ['LF', 'sg_live_valid\nEvil-Header: x'],
+    ['CR', 'sg_live_valid\rEvil-Header: x'],
+    // Other control characters:
+    ['NUL byte', 'sg_live_valid\x00xxx'],
+    ['vertical tab', 'sg_live_valid\x0Bxxx'],
+    ['form feed', 'sg_live_valid\x0Cxxx'],
+    ['DEL', 'sg_live_valid\x7F'],
+    // Non-ASCII:
+    ['latin-1 extended', 'sg_live_café'],
+    ['unicode mathematical', '𝐬𝐠_𝐥𝐢𝐯𝐞_xyz'],
+    ['emoji', 'sg_live_🔑xyz'],
+  ] as const
+
+  it.each(injectionPayloads)(
+    'rejects %s injection-style key as INVALID_KEY',
+    async (_label, badKey) => {
+      const wrapped = wrapAiTool(execute, {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+      })
+      await expect(
+        wrapped({ q: 'x' }, { experimental_context: { settlegridKey: badKey } }),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
+
+  it('accepts well-formed sg_live_* keys (printable ASCII baseline)', async () => {
+    const wrapped = wrapAiTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    // A realistic SettleGrid key: alphanumeric + underscores, all ASCII.
+    await expect(
+      wrapped(
+        { q: 'x' },
+        { experimental_context: { settlegridKey: 'sg_live_abc123XYZ_789' } },
+      ),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('accepts keys with symbols in the printable-ASCII range (keeps headroom for future key formats)', async () => {
+    const wrapped = wrapAiTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    // Symbols within 0x20-0x7E are not rejected — we're guarding
+    // against header injection, not enforcing the exact sg_<env>_<alnum>
+    // format (which might evolve).
+    await expect(
+      wrapped(
+        { q: 'x' },
+        { experimental_context: { settlegridKey: 'sg_live_abc-123.xyz' } },
+      ),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('rejects an array as experimental_context (arrays aren\'t plain objects)', async () => {
+    const wrapped = wrapAiTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({ q: 'x' }, { experimental_context: [] }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+  })
 })
 
 // ─── 6. Public API shape ─────────────────────────────────────────────────
