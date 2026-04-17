@@ -646,26 +646,65 @@ async function check9_k1ProxyUsesKernel(): Promise<CheckResult> {
 }
 
 async function check10_k2ProxiesRemoved(): Promise<CheckResult> {
-  const label = 'K2 — 12 lib/*-proxy.ts migrated to adapter classes'
+  const label = 'K2 — 13 lib/*-proxy.ts migrated to adapter classes'
   const libDir = repoFile('apps', 'web', 'src', 'lib')
   const proxyFiles = dirExists(libDir)
     ? readdirSync(libDir).filter((f) => /-proxy\.ts$/.test(f))
     : []
   const adaptersDir = repoFile('packages', 'mcp', 'src', 'adapters')
-  const adaptersExist = dirExists(adaptersDir)
-  if (!adaptersExist) {
+  if (!dirExists(adaptersDir)) {
     return defer(10, label, `${adaptersDir} not present`)
   }
-  // The spec allows thin shims, but if the count of proxy files is the
-  // pre-migration count (12), K2 hasn't run.
-  if (proxyFiles.length >= 12) {
-    return defer(
-      10,
-      label,
-      `${proxyFiles.length} *-proxy.ts files still in lib/ (K2 not yet shipped)`,
-    )
+
+  // P2.K2 ships the lib files as THIN RE-EXPORTS that bind app-side env +
+  // logger to the adapter package. A shim file:
+  //   (a) imports from `@settlegrid/mcp` (brings in the migrated logic),
+  //   (b) is ≤ a reasonable shim budget (previous files were 200–600 LOC).
+  // The count staying at 12 is expected — the check is semantic, not
+  // count-based. Note: `mpp.ts` is the 13th legacy file; it sits at the
+  // lib root without a `-proxy.ts` suffix, so the proxyFiles glob catches
+  // 12 and the mpp shim is checked via the same @settlegrid/mcp-import
+  // test below against its explicit path.
+  if (proxyFiles.length === 0) {
+    // A future refactor that truly deletes the shims (via re-export
+    // maps in @settlegrid/mcp subpaths, say) is also acceptable.
+    return pass(10, label, 'no *-proxy.ts files remain — fully removed')
   }
-  return pass(10, label, `${proxyFiles.length} proxy file(s) remain (acceptable as shims)`)
+
+  // Semantic check: every remaining proxy file must import from
+  // @settlegrid/mcp. Files that still contain the pre-migration business
+  // logic (constants, 200+ LOC of validation) indicate K2 hasn't run.
+  const MAX_SHIM_LOC = 150 // shims are ~30–80 LOC; 150 allows headroom.
+  const offenders: string[] = []
+  for (const f of proxyFiles) {
+    const src = readFileSync(repoFile('apps', 'web', 'src', 'lib', f), 'utf-8')
+    const loc = src.split('\n').length
+    const importsMcp = /from ['"]@settlegrid\/mcp['"]/.test(src)
+    if (!importsMcp || loc > MAX_SHIM_LOC) {
+      offenders.push(`${f} (${loc} LOC${importsMcp ? '' : ', no @settlegrid/mcp import'})`)
+    }
+  }
+
+  // Also verify mpp.ts (the 13th file, without the -proxy suffix) is a shim.
+  const mppPath = repoFile('apps', 'web', 'src', 'lib', 'mpp.ts')
+  if (fileExists(mppPath)) {
+    const src = readFileSync(mppPath, 'utf-8')
+    const loc = src.split('\n').length
+    const importsMcp = /from ['"]@settlegrid\/mcp['"]/.test(src)
+    if (!importsMcp || loc > MAX_SHIM_LOC) {
+      offenders.push(`mpp.ts (${loc} LOC${importsMcp ? '' : ', no @settlegrid/mcp import'})`)
+    }
+  }
+
+  if (offenders.length > 0) {
+    return defer(10, label, `${offenders.length} non-shim file(s): ${offenders.slice(0, 3).join(', ')}${offenders.length > 3 ? '…' : ''}`)
+  }
+
+  return pass(
+    10,
+    label,
+    `${proxyFiles.length + (fileExists(mppPath) ? 1 : 0)} file(s) are thin shims importing @settlegrid/mcp`,
+  )
 }
 
 async function check11_k3SnapshotTest(): Promise<CheckResult> {

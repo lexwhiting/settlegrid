@@ -7,12 +7,19 @@
  *   2. AP2 mandate body with type field matching ap2.mandates.*
  */
 
+import { createHmac } from 'crypto'
 import type {
   AcceptEntry,
   BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
-import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
+import type {
+  AdapterLogger,
+  PaymentContext,
+  ProtocolAdapter,
+  SettlementResult,
+} from './types'
+import { NOOP_LOGGER } from './types'
 import { randomUUID } from 'crypto'
 
 export class AP2Adapter implements ProtocolAdapter {
@@ -167,4 +174,290 @@ export class AP2Adapter implements ProtocolAdapter {
       currency: 'USD',
     }
   }
+}
+
+// ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
+
+const AP2_PROTOCOL_VERSION = '0.1'
+
+const AP2_HTTP_HEADERS = {
+  MANDATE: 'x-ap2-mandate',
+  CREDENTIAL: 'x-ap2-credential',
+  CONSUMER_ID: 'x-ap2-consumer-id',
+  PROTOCOL: 'x-settlegrid-protocol',
+  AGENT_ID: 'x-ap2-agent-id',
+} as const
+
+export interface Ap2PaymentResult {
+  valid: boolean
+  transactionId?: string
+  consumerId?: string
+  amountCents?: number
+  currency?: string
+  paymentMethod?: string
+  mandateType?: string
+  error?: { code: Ap2ErrorCode; message: string }
+}
+
+export type Ap2ErrorCode =
+  | 'AP2_NOT_CONFIGURED'
+  | 'AP2_CREDENTIAL_MISSING'
+  | 'AP2_CREDENTIAL_INVALID'
+  | 'AP2_CREDENTIAL_EXPIRED'
+  | 'AP2_MANDATE_INVALID'
+  | 'AP2_MANDATE_EXPIRED'
+  | 'AP2_AMOUNT_MISMATCH'
+  | 'AP2_PAYMENT_FAILED'
+  | 'AP2_PROVIDER_ERROR'
+
+export interface Ap2ToolConfig {
+  slug: string
+  costCents: number
+  displayName: string
+  merchantId?: string
+}
+
+export interface Ap2ValidateOptions {
+  enabled: boolean
+  toolConfig: Ap2ToolConfig
+  /** HMAC secret for VDC JWT verification. */
+  signingSecret?: string
+  /** Expected issuer claim in VDC JWTs. Defaults to 'settlegrid.ai'. */
+  expectedIssuer?: string
+  logger?: AdapterLogger
+}
+
+export interface Ap2_402Options {
+  toolSlug: string
+  costCents: number
+  toolName?: string
+  merchantId?: string
+  appUrl: string
+}
+
+export function isAp2Request(request: Request): boolean {
+  if (request.headers.get(AP2_HTTP_HEADERS.CREDENTIAL)) return true
+  if (request.headers.get(AP2_HTTP_HEADERS.MANDATE)) return true
+  if (request.headers.get(AP2_HTTP_HEADERS.PROTOCOL) === 'ap2') return true
+
+  const auth = request.headers.get('authorization')
+  if (auth) {
+    const bearer = auth.replace(/^Bearer\s+/i, '')
+    if (bearer.startsWith('ap2_')) return true
+  }
+
+  return false
+}
+
+function extractAp2Credential(request: Request): string | null {
+  const credential = request.headers.get(AP2_HTTP_HEADERS.CREDENTIAL)
+  if (credential) return credential
+
+  const auth = request.headers.get('authorization')
+  if (auth) {
+    const bearer = auth.replace(/^Bearer\s+/i, '')
+    if (bearer.startsWith('ap2_')) return bearer.slice(4)
+  }
+
+  return null
+}
+
+interface VdcClaims {
+  iss: string
+  sub: string
+  aud: string
+  iat: number
+  exp: number
+  mandate_type: string
+  mandate_id: string
+  payment_method: string
+  amount_cents: number
+  currency: string
+}
+
+function verifyVdcJwt(token: string, secretKey: string): VdcClaims | null {
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+
+  const expectedSig = createHmac('sha256', secretKey)
+    .update(`${parts[0]}.${parts[1]}`)
+    .digest('base64url')
+
+  if (parts[2] !== expectedSig) return null
+
+  try {
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as VdcClaims
+  } catch {
+    return null
+  }
+}
+
+export async function validateAp2Payment(
+  request: Request,
+  options: Ap2ValidateOptions,
+): Promise<Ap2PaymentResult> {
+  const { enabled, toolConfig, signingSecret } = options
+  const expectedIssuer = options.expectedIssuer ?? 'settlegrid.ai'
+  const logger = options.logger ?? NOOP_LOGGER
+
+  if (!enabled) {
+    return {
+      valid: false,
+      error: {
+        code: 'AP2_NOT_CONFIGURED',
+        message: 'AP2 payments are not configured on this SettleGrid instance.',
+      },
+    }
+  }
+
+  const credential = extractAp2Credential(request)
+  if (!credential) {
+    return {
+      valid: false,
+      error: {
+        code: 'AP2_CREDENTIAL_MISSING',
+        message:
+          'No AP2 credential found in request. Provide x-ap2-credential header with a valid VDC JWT.',
+      },
+    }
+  }
+
+  if (!signingSecret) {
+    return {
+      valid: false,
+      error: {
+        code: 'AP2_NOT_CONFIGURED',
+        message: 'AP2 signing secret is not configured.',
+      },
+    }
+  }
+
+  try {
+    const claims = verifyVdcJwt(credential, signingSecret)
+
+    if (!claims) {
+      return {
+        valid: false,
+        error: {
+          code: 'AP2_CREDENTIAL_INVALID',
+          message:
+            'AP2 VDC JWT signature verification failed. The credential may have been tampered with or was issued by a different provider.',
+        },
+      }
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    if (claims.exp && now > claims.exp) {
+      return {
+        valid: false,
+        error: {
+          code: 'AP2_CREDENTIAL_EXPIRED',
+          message: `AP2 credential expired ${now - claims.exp}s ago.`,
+        },
+      }
+    }
+
+    if (claims.amount_cents < toolConfig.costCents) {
+      return {
+        valid: false,
+        error: {
+          code: 'AP2_AMOUNT_MISMATCH',
+          message: `AP2 credential authorizes ${claims.amount_cents} cents but tool costs ${toolConfig.costCents} cents.`,
+        },
+      }
+    }
+
+    if (claims.iss !== expectedIssuer) {
+      return {
+        valid: false,
+        error: {
+          code: 'AP2_CREDENTIAL_INVALID',
+          message: `AP2 credential issued by ${claims.iss}, expected ${expectedIssuer}.`,
+        },
+      }
+    }
+
+    const transactionId = randomUUID()
+
+    logger.info('ap2.payment_validated', {
+      toolSlug: toolConfig.slug,
+      consumerId: claims.sub,
+      amountCents: claims.amount_cents,
+      paymentMethod: claims.payment_method,
+      mandateId: claims.mandate_id,
+      transactionId,
+    })
+
+    return {
+      valid: true,
+      transactionId,
+      consumerId: claims.sub,
+      amountCents: claims.amount_cents,
+      currency: claims.currency,
+      paymentMethod: claims.payment_method,
+      mandateType: claims.mandate_type,
+    }
+  } catch (err) {
+    logger.error(
+      'ap2.validation_error',
+      { toolSlug: toolConfig.slug, credential: credential.slice(0, 20) + '...' },
+      err,
+    )
+    return {
+      valid: false,
+      error: {
+        code: 'AP2_PROVIDER_ERROR',
+        message:
+          err instanceof Error ? err.message : 'Unexpected error during AP2 payment validation.',
+      },
+    }
+  }
+}
+
+export function generateAp2_402Response(options: Ap2_402Options): Response {
+  const { toolSlug, costCents, toolName, merchantId, appUrl } = options
+  const paymentEndpoint = `${appUrl}/api/proxy/${toolSlug}`
+  const effectiveMerchantId = merchantId ?? 'settlegrid_platform'
+  const description = `${toolName ?? toolSlug} via SettleGrid`
+
+  const body = {
+    error: 'payment_required',
+    protocol: 'ap2',
+    version: AP2_PROTOCOL_VERSION,
+    amount_cents: costCents,
+    currency: 'usd',
+    description,
+    merchant_id: effectiveMerchantId,
+    tool: toolSlug,
+    pricing_model: 'per-call',
+    payment_endpoint: paymentEndpoint,
+    available_skills: [
+      {
+        skill: 'get_eligible_payment_methods',
+        description: 'List payment methods available for this tool',
+        endpoint: `${appUrl}/api/ap2/skills/get_eligible_payment_methods`,
+      },
+      {
+        skill: 'provision_credentials',
+        description: 'Get a VDC credential to pay for this tool',
+        endpoint: `${appUrl}/api/ap2/skills/provision_credentials`,
+      },
+    ],
+    accepted_credential_types: ['vdc_jwt'],
+    mandate_types: [
+      'ap2.mandates.IntentMandate',
+      'ap2.mandates.CartMandate',
+      'ap2.mandates.PaymentMandate',
+    ],
+    directory_url: `${appUrl}/api/v1/discover`,
+    instructions: `To pay, obtain a VDC credential by calling the provision_credentials skill, then re-send the request with x-ap2-credential header containing the VDC JWT authorizing at least ${costCents} cents.`,
+  }
+
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'X-SettleGrid-Protocol': 'ap2',
+    'Cache-Control': 'no-store',
+  })
+
+  return new Response(JSON.stringify(body), { status: 402, headers })
 }

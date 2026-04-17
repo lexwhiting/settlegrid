@@ -320,6 +320,13 @@ async function tryUnifiedAdapterDispatch(
     ucp: isUcpEnabled,
     'mastercard-vi': isMastercardEnabled,
     'circle-nano': isCircleNanoEnabled,
+    // P2.K2 — five emerging protocols now have adapter-registry entries
+    // so their enabled-check is part of the equivalence contract too.
+    l402: isL402Enabled,
+    alipay: isAlipayEnabled,
+    kyapay: isKyaPayEnabled,
+    emvco: isEmvcoEnabled,
+    drain: isDrainEnabled,
   }
   const verdict = shouldDispatchUnified(decision, enabledMap)
 
@@ -367,6 +374,19 @@ async function tryUnifiedAdapterDispatch(
       return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
     case 'circle-nano':
       return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    // P2.K2 — five emerging protocols. L402 has its own handler (the
+    // 402 response is async because it mints a Lightning invoice); the
+    // other four route through the generic handleProtocolProxy switch.
+    case 'l402':
+      return handleL402Proxy(request, slug, requestId, startTime)
+    case 'alipay':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'alipay')
+    case 'kyapay':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'kyapay')
+    case 'emvco':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'emvco')
+    case 'drain':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'drain')
     case 'mcp':
       // Should not reach: decideUnifiedDispatch maps mcp → 'mcp-fallback'.
       return null

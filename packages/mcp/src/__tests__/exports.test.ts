@@ -157,7 +157,7 @@ describe('settlegrid namespace has all expected members', () => {
 // runtime (value imports).
 
 describe('protocol adapter value exports (P1.K1)', () => {
-  it('exports protocolRegistry singleton with all 9 adapters registered', async () => {
+  it('exports protocolRegistry singleton with all 14 adapters registered', async () => {
     const mod = await import('../index')
     expect(mod.protocolRegistry).toBeDefined()
     expect(typeof mod.protocolRegistry.register).toBe('function')
@@ -166,7 +166,8 @@ describe('protocol adapter value exports (P1.K1)', () => {
     expect(typeof mod.protocolRegistry.list).toBe('function')
     expect(typeof mod.protocolRegistry.has).toBe('function')
     expect(typeof mod.protocolRegistry.clear).toBe('function')
-    expect(mod.protocolRegistry.list().length).toBe(9)
+    // P2.K2 — 9 brokered + 5 emerging (l402, alipay, kyapay, emvco, drain) = 14
+    expect(mod.protocolRegistry.list().length).toBe(14)
   })
 
   it('exports ProtocolRegistry class (constructable)', async () => {
@@ -177,14 +178,14 @@ describe('protocol adapter value exports (P1.K1)', () => {
     expect(registry.list()).toHaveLength(0) // fresh instance starts empty
   })
 
-  it('exports DETECTION_PRIORITY constant with 9 protocol names', async () => {
+  it('exports DETECTION_PRIORITY constant with 14 protocol names', async () => {
     const mod = await import('../index')
     expect(Array.isArray(mod.DETECTION_PRIORITY)).toBe(true)
-    expect(mod.DETECTION_PRIORITY).toHaveLength(9)
+    expect(mod.DETECTION_PRIORITY).toHaveLength(14)
     // Priority order is load-bearing: most-specific first (mpp) → fallback last (mcp)
     expect(mod.DETECTION_PRIORITY[0]).toBe('mpp')
     expect(mod.DETECTION_PRIORITY[mod.DETECTION_PRIORITY.length - 1]).toBe('mcp')
-    // Every entry is one of the 9 known protocol names
+    // Every entry is one of the 14 known protocol names (9 brokered + 5 emerging)
     const known = new Set([
       'mcp',
       'x402',
@@ -195,6 +196,11 @@ describe('protocol adapter value exports (P1.K1)', () => {
       'acp',
       'mastercard-vi',
       'circle-nano',
+      'l402',
+      'alipay',
+      'kyapay',
+      'emvco',
+      'drain',
     ])
     for (const p of mod.DETECTION_PRIORITY) {
       expect(known.has(p)).toBe(true)
@@ -238,7 +244,7 @@ describe('protocol adapter type exports (P1.K1, compile-time)', () => {
     expect(registry.has('mcp')).toBe(true)
   })
 
-  it('ProtocolName union covers all 9 protocol slugs', async () => {
+  it('ProtocolName union covers all 14 protocol slugs', async () => {
     // Every valid ProtocolName literal is assignable to the exported type.
     // If ProtocolName were not exported or its union shrank, this test
     // would fail to compile.
@@ -252,8 +258,14 @@ describe('protocol adapter type exports (P1.K1, compile-time)', () => {
       'acp',
       'mastercard-vi',
       'circle-nano',
+      // P2.K2 — five emerging protocols
+      'l402',
+      'alipay',
+      'kyapay',
+      'emvco',
+      'drain',
     ]
-    expect(names).toHaveLength(9)
+    expect(names).toHaveLength(14)
   })
 
   it('PaymentContext, PaymentType, IdentityType are usable as value types', () => {
