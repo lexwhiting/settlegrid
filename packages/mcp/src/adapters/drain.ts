@@ -350,6 +350,19 @@ export class DrainAdapter implements ProtocolAdapter {
       chainId: POLYGON_CHAIN_ID,
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(
+    request: Request,
+    options: DrainValidateOptions,
+  ): Promise<DrainPaymentResult> {
+    return validateDrainPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full DRAIN 402 Payment Required response. */
+  build402Response(options: Drain402Options): Response {
+    return generateDrain402Response(options)
+  }
 }
 
 // ─── Module-level validation ───────────────────────────────────────────────

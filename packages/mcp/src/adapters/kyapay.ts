@@ -300,6 +300,19 @@ export class KyaPayAdapter implements ProtocolAdapter {
       acceptedPayments: ['kyapay-jwt'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(
+    request: Request,
+    options: KyaPayValidateOptions,
+  ): Promise<KyaPayPaymentResult> {
+    return validateKyaPayPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full KYAPay 402 Payment Required response. */
+  build402Response(options: KyaPay402Options): Response {
+    return generateKyaPay402Response(options)
+  }
 }
 
 // ─── Module-level validation ───────────────────────────────────────────────

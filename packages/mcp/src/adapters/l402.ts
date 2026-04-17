@@ -468,6 +468,16 @@ export class L402Adapter implements ProtocolAdapter {
       acceptedPayments: ['lightning-invoice'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(request: Request, options: L402ValidateOptions): Promise<L402PaymentResult> {
+    return validateL402Payment(request, options)
+  }
+
+  /** P2.K2 — generate a full L402 402 Payment Required response (async: mints Lightning invoice). */
+  async build402Response(options: L402_402Options): Promise<Response> {
+    return generateL402_402Response(options)
+  }
 }
 
 // ─── Module-level validation (P2.K2) ───────────────────────────────────────

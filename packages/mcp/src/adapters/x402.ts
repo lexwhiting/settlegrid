@@ -214,6 +214,16 @@ export class X402Adapter implements ProtocolAdapter {
       maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. See mpp.ts for the full rationale. */
+  async verify(request: Request, options: X402ValidateOptions): Promise<X402ProxyPaymentResult> {
+    return validateX402Payment(request, options)
+  }
+
+  /** P2.K2 — generate a full x402 402 Payment Required response. */
+  build402Response(options: X402_402Options): Response {
+    return generateX402_402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────

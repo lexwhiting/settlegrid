@@ -174,6 +174,19 @@ export class MastercardVIAdapter implements ProtocolAdapter {
       acceptedCredentials: ['sd-jwt-verifiable-intent'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(
+    request: Request,
+    options: MastercardValidateOptions,
+  ): Promise<MastercardPaymentResult> {
+    return validateMastercardPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full Mastercard VI 402 Payment Required response. */
+  build402Response(options: Mastercard402Options): Response {
+    return generateMastercard402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────

@@ -174,6 +174,16 @@ export class AP2Adapter implements ProtocolAdapter {
       currency: 'USD',
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(request: Request, options: Ap2ValidateOptions): Promise<Ap2PaymentResult> {
+    return validateAp2Payment(request, options)
+  }
+
+  /** P2.K2 — generate a full AP2 402 Payment Required response. */
+  build402Response(options: Ap2_402Options): Response {
+    return generateAp2_402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
