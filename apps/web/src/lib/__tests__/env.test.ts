@@ -123,24 +123,35 @@ describe('env module', () => {
     // P2.K3 flipped the default from off to on once the
     // apps/web/src/lib/__tests__/proxy-equivalence.test.ts snapshot test
     // proved byte-for-byte parity between the legacy 13-branch chain and
-    // the unified adapter-registry dispatch path. Only the literal string
-    // 'false' disables — any other value (including unset) leaves the
-    // unified path on. The permissive default is intentional: a typo in
-    // the env var should NOT silently disable the now-canonical path.
+    // the unified adapter-registry dispatch path.
     //
-    // See env.ts for the full rationale and history.
+    // The P2.K3 hostile-review pass made the opt-out case-insensitive
+    // and whitespace-tolerant — an operator setting FALSE in an
+    // emergency rollback should not have to discover via another
+    // failed deploy that the flag is case-sensitive. Typos (e.g.
+    // 'flase') still leave the unified path on; that's the
+    // rollout-safety half of the contract.
+    //
+    // See env.ts for the full rationale + design-tension analysis.
     it.each([
-      ['false', false], // only literal 'false' opts out
+      // Explicit OFF (various cases + whitespace): all disable.
+      ['false', false],
+      ['FALSE', false], // case-insensitive opt-out
+      ['False', false], // case-insensitive opt-out
+      ['fAlSe', false], // case-insensitive opt-out (pathological case)
+      ['  false  ', false], // surrounding whitespace tolerated
+      ['false\n', false], // trailing newline tolerated
+      // Everything else leaves the unified path on.
       ['true', true],
-      ['TRUE', true], // case-insensitive-adjacent: not 'false' → true
+      ['TRUE', true],
       ['True', true],
       ['1', true],
       ['yes', true],
       ['on', true],
       ['', true],
-      ['false ', true], // trailing whitespace — string ≠ 'false'
-      [' false', true], // leading whitespace — string ≠ 'false'
-      ['FALSE', true], // case-sensitive opt-out
+      ['flase', true], // typo: safe default, stays on
+      ['no', true], // other falsy-ish strings: stay on (not the opt-out value)
+      ['0', true],
     ])('USE_UNIFIED_ADAPTERS=%j → %j', async (value, expected) => {
       process.env.USE_UNIFIED_ADAPTERS = value
       const { useUnifiedAdapters } = await import('@/lib/env')
