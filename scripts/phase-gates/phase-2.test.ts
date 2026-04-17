@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   aggregateResults,
+  countK3TestCases,
   deriveK1ProxyCheckState,
   formatAuditBlock,
   parseShadowProbeOutput,
@@ -336,5 +337,112 @@ describe('safeCheck', () => {
     const r2 = await safeCheck(undefinedThrow, 2, 'undef-throw')
     expect(r2.status).toBe('FAIL')
     expect(r2.detail).toContain('undefined')
+  })
+})
+
+describe('countK3TestCases (P2.K3 — gate check 11 threshold helper)', () => {
+  // Counts it() and it.each()() declarations used by check11 to enforce
+  // the DoD "≥30 test cases" threshold. Disabled/placeholder modifiers
+  // (.skip / .only / .todo / .concurrent / .failing) are deliberately
+  // NOT counted — a skipped test isn't exercising the contract, so
+  // counting it toward the threshold would false-pass check 11.
+
+  it('counts a single it() declaration', () => {
+    expect(countK3TestCases(`it('foo', () => {})`)).toBe(1)
+  })
+
+  it('counts multiple it() declarations', () => {
+    const src = `
+      it('first', () => {})
+      it('second', () => {})
+      it('third', () => {})
+    `
+    expect(countK3TestCases(src)).toBe(3)
+  })
+
+  it('counts it.each() declarations (parametric)', () => {
+    const src = `
+      it.each([[1], [2], [3]])('row %s', (n) => {})
+    `
+    expect(countK3TestCases(src)).toBe(1)
+  })
+
+  it('counts mixed it() and it.each() declarations', () => {
+    const src = `
+      it('plain', () => {})
+      it.each([['a'], ['b']])('param %s', (x) => {})
+      it('another plain', () => {})
+    `
+    expect(countK3TestCases(src)).toBe(3)
+  })
+
+  it('does NOT count it.skip() (disabled tests)', () => {
+    expect(countK3TestCases(`it.skip('disabled', () => {})`)).toBe(0)
+  })
+
+  it('does NOT count it.only() (focused — may be a mistake left in main)', () => {
+    // .only is runtime-valid but counting it would false-pass if a
+    // reviewer accidentally leaves `it.only` in a commit that drops
+    // the rest of the file to <30 cases.
+    expect(countK3TestCases(`it.only('focused', () => {})`)).toBe(0)
+  })
+
+  it('does NOT count it.todo() (placeholder)', () => {
+    expect(countK3TestCases(`it.todo('planned')`)).toBe(0)
+  })
+
+  it('does NOT count it.concurrent() or it.failing()', () => {
+    expect(countK3TestCases(`it.concurrent('async', async () => {})`)).toBe(0)
+    expect(countK3TestCases(`it.failing('expect-fail', () => {})`)).toBe(0)
+  })
+
+  it('does NOT count describe() or test()', () => {
+    const src = `
+      describe('group', () => {
+        test('legacy-style', () => {})
+      })
+    `
+    expect(countK3TestCases(src)).toBe(0)
+  })
+
+  it('does NOT match identifiers containing "it" as a substring', () => {
+    // The \b word boundary in the regex prevents matches inside
+    // identifiers like 'submit', 'audit', 'omit'.
+    const src = `
+      const submit = () => {}
+      const audit = () => {}
+      const omit = (k) => {}
+    `
+    expect(countK3TestCases(src)).toBe(0)
+  })
+
+  it('does NOT count it() inside a single-line comment after strip', () => {
+    // Callers run stripLineComments first. Simulate that here.
+    const stripped = stripLineComments(`
+      // it('commented out', () => {})
+      it('real', () => {})
+    `)
+    expect(countK3TestCases(stripped)).toBe(1)
+  })
+
+  it('on the real proxy-equivalence.test.ts file: produces ≥30', async () => {
+    // End-to-end sanity: the actual P2.K3 snapshot test file should
+    // count to ≥30. This is the invariant check11 asserts.
+    const { readFile } = await import('fs/promises')
+    const path = new URL(
+      '../../apps/web/src/lib/__tests__/proxy-equivalence.test.ts',
+      import.meta.url,
+    )
+    const src = await readFile(path, 'utf-8')
+    const stripped = stripLineComments(src)
+    expect(countK3TestCases(stripped)).toBeGreaterThanOrEqual(30)
+  })
+
+  it('handles empty input', () => {
+    expect(countK3TestCases('')).toBe(0)
+  })
+
+  it('handles input with no test declarations', () => {
+    expect(countK3TestCases('const x = 1; function y() {}')).toBe(0)
   })
 })
