@@ -34,14 +34,11 @@ export class MastercardVIAdapter implements ProtocolAdapter {
 
   /**
    * Detect if this request is a Mastercard Verifiable Intent payment.
-   * MC VI requests have:
-   *   - x-mc-verifiable-intent header (SD-JWT credential chain)
-   *   - OR x-settlegrid-protocol: mastercard-vi
+   * P2.K3 delegates to the module-level `isMastercardRequest` helper
+   * for a single detection surface.
    */
   canHandle(request: Request): boolean {
-    const hasIntentHeader = request.headers.get('x-mc-verifiable-intent') !== null
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'mastercard-vi'
-    return hasIntentHeader || hasProtocolHeader
+    return isMastercardRequest(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {

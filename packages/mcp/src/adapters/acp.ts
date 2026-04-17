@@ -29,15 +29,11 @@ export class ACPAdapter implements ProtocolAdapter {
   readonly displayName = 'Agentic Commerce Protocol (OpenAI + Stripe)'
 
   /**
-   * Detect if this request is an ACP checkout.
-   * ACP requests have:
-   *   - x-acp-token header (ACP checkout token)
-   *   - OR x-settlegrid-protocol: acp
+   * Detect if this request is an ACP checkout. P2.K3 delegates to the
+   * module-level `isAcpRequest` helper for a single detection surface.
    */
   canHandle(request: Request): boolean {
-    const hasAcpToken = request.headers.get('x-acp-token') !== null
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'acp'
-    return hasAcpToken || hasProtocolHeader
+    return isAcpRequest(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {
