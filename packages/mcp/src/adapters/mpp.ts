@@ -52,30 +52,16 @@ export class MPPAdapter implements ProtocolAdapter {
   readonly displayName = 'Machine Payments Protocol (Stripe + Tempo)'
 
   /**
-   * Detect if this request is an MPP payment.
-   * Extended detection to cover all MPP header patterns including
-   * the deep SPT integration headers.
+   * Detect if this request is an MPP payment. P2.K3 delegates to the
+   * module-level `isMppRequest` helper so both the adapter-class surface
+   * (used by `protocolRegistry.detect()`) and the lib-shim surface
+   * (used by the legacy 13-branch chain in route.ts) share one
+   * implementation. Detection divergence between the two paths was
+   * surfaced by `apps/web/src/lib/__tests__/proxy-equivalence.test.ts`
+   * and unifying through a single helper is the simplest fix.
    */
   canHandle(request: Request): boolean {
-    // Deep integration: X-Payment-Protocol header
-    const protocolHeader = request.headers.get('x-payment-protocol')
-    if (protocolHeader?.startsWith('MPP')) return true
-
-    // Deep integration: X-Payment-Token with SPT prefix
-    const paymentToken = request.headers.get('x-payment-token')
-    if (paymentToken?.startsWith('spt_')) return true
-
-    // Legacy: x-mpp-credential header
-    const hasMppCredential = request.headers.get('x-mpp-credential') !== null
-
-    // Legacy: explicit protocol header
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'mpp'
-
-    // Authorization bearer with MPP or SPT prefix
-    const auth = request.headers.get('authorization')
-    const hasAuthMpp = auth?.includes('mpp_') === true || auth?.includes('spt_') === true
-
-    return hasMppCredential || hasProtocolHeader || hasAuthMpp
+    return isMppRequest(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {
@@ -315,6 +301,14 @@ export function isMppRequest(request: Request): boolean {
   }
 
   if (request.headers.get('x-mpp-credential')) return true
+
+  // P2.K3 — explicit SettleGrid protocol hint. The other 8 existing
+  // adapters' isXRequest helpers all support this; MPP was the pattern
+  // outlier pre-K3. Added here to align — the previous canHandle also
+  // supported this hint, so unifying canHandle → isMppRequest only
+  // works if isMppRequest covers the same surface.
+  if (request.headers.get('x-settlegrid-protocol') === 'mpp') return true
+
   return false
 }
 

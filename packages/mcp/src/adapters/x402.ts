@@ -56,15 +56,13 @@ export class X402Adapter implements ProtocolAdapter {
   readonly displayName = 'x402 Protocol (Coinbase)'
 
   /**
-   * Detect if this request is an x402 payment.
-   * x402 requests have:
-   *   - A PAYMENT-SIGNATURE header (base64-encoded payment proof)
-   *   - OR x-settlegrid-protocol: x402
+   * Detect if this request is an x402 payment. P2.K3 delegates to the
+   * module-level `isX402Request` helper so the adapter-class surface
+   * and the lib-shim surface share one implementation — see mpp.ts
+   * canHandle for the full rationale.
    */
   canHandle(request: Request): boolean {
-    const hasPaymentSig = request.headers.get('payment-signature') !== null
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'x402'
-    return hasPaymentSig || hasProtocolHeader
+    return isX402Request(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {

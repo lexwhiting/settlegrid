@@ -709,22 +709,43 @@ async function check10_k2ProxiesRemoved(): Promise<CheckResult> {
 
 async function check11_k3SnapshotTest(): Promise<CheckResult> {
   const label = 'K3 — proxy-vs-kernel snapshot test exists + included in test runner'
-  const path = repoFile('packages', 'mcp', 'src', '__tests__', 'snapshot-equivalence.test.ts')
+  // P2.K3 spec: apps/web/src/lib/__tests__/proxy-equivalence.test.ts.
+  // The prior session's gate looked for
+  // packages/mcp/src/__tests__/snapshot-equivalence.test.ts — that was a
+  // guess; the canonical location per phase-2-distribution.md §P2.K3 is
+  // in apps/web because the test must invoke BOTH the legacy chain
+  // (apps/web lib shims) AND the unified dispatch helper — neither of
+  // which live in packages/mcp — so the test can't live in packages/mcp
+  // without breaking the no-upstream-dep invariant on that package.
+  const path = repoFile('apps', 'web', 'src', 'lib', '__tests__', 'proxy-equivalence.test.ts')
   if (!fileExists(path)) {
     return defer(11, label, `${path} not present`)
   }
-  // Spec: "exists and `pnpm -w test` includes it". The file lives under
-  // packages/mcp/src/__tests__ which is in @settlegrid/mcp's vitest glob
-  // by default. Verify the file actually contains test declarations
-  // (so we don't false-pass on an empty stub). Strip comments so
-  // commented-out test stubs don't false-pass either; use the
-  // modifier-aware regex (TEST_DECL_RE) to catch test.skip(), it.each()(),
-  // describe.only(), etc.
+  // Verify the file actually contains test declarations (so we don't
+  // false-pass on an empty stub). Strip comments so commented-out stubs
+  // don't false-pass either; use the modifier-aware regex (TEST_DECL_RE)
+  // to catch test.skip(), it.each()(), describe.only(), etc.
   const src = stripLineComments(readFileSync(path, 'utf-8'))
   if (!TEST_DECL_RE.test(src)) {
     return fail(11, label, 'file present but contains no test/it/describe declarations')
   }
-  return pass(11, label, 'snapshot-equivalence.test.ts present + has test declarations')
+  // Spec DoD: "Test file with ≥30 test cases". Count `it(` / `it.each(`
+  // declarations to get an approximation; parametric it.each produces
+  // N tests where N = arg rows, but the declaration count is a lower
+  // bound on the suite size and matches the spec's "≥30" threshold.
+  const itMatches = src.match(/\bit(?:\.each\([^)]*\))?\s*\(/g) ?? []
+  if (itMatches.length < 30) {
+    return fail(
+      11,
+      label,
+      `found ${itMatches.length} it()/it.each() declarations, spec requires ≥30`,
+    )
+  }
+  return pass(
+    11,
+    label,
+    `proxy-equivalence.test.ts present with ${itMatches.length} test declarations`,
+  )
 }
 
 async function check12_k4Lifecycle(): Promise<CheckResult> {

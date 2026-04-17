@@ -585,11 +585,17 @@ describe('Protocol detection edge cases', () => {
     expect(registry.detect(req)?.name).toBe('mcp')
   })
 
-  it('empty payment-signature matches x402', () => {
+  it('empty payment-signature does NOT match x402 (P2.K3: truthy check)', () => {
+    // Pre-P2.K3, the x402 canHandle used `headers.get('payment-signature') !== null`
+    // which matched an empty-string header. P2.K3 unified canHandle through the
+    // module-level isX402Request (copied from the original lib/x402-proxy.ts),
+    // which uses a truthy check — an empty-string payment-signature is a
+    // malformed request, not an x402 trigger. Both legacy + unified paths
+    // now agree that empty does not match.
     const req = new Request('http://localhost/api/settle', {
       headers: { 'payment-signature': '' },
     })
-    expect(registry.detect(req)?.name).toBe('x402')
+    expect(registry.detect(req)?.name).not.toBe('x402')
   })
 
   it('Authorization header without sg_ prefix does not match MCP', () => {

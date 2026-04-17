@@ -224,23 +224,42 @@ export function getDrainChannelAddress(): string | undefined {
 }
 
 /**
- * P2.K1 — feature flag for the unified-adapter dispatch path.
+ * Feature flag for the unified-adapter dispatch path.
  *
  * When `true`, the marketplace proxy at /api/proxy/[slug] routes
  * payment-protocol detection through `protocolRegistry.detect()`
  * from the bundled `@settlegrid/mcp` adapters (Layer A) instead of
  * the historical 13-branch hand-rolled chain (Layer B).
  *
- * Defaults `false`. Flip to `true` only after P2.K3 ships the
- * snapshot-equivalence test and a snapshot run shows byte-for-byte
- * parity for the 9 brokered protocols. The 5 emerging protocols
- * (l402, alipay/actp, kyapay, emvco, drain) don't yet have adapters
- * in @settlegrid/mcp; the unified path falls through to the legacy
- * chain when no adapter matches, so emerging-protocol traffic is
- * preserved either way.
+ * ## History
+ *
+ *   - P2.K1 shipped this flag defaulting to `false` (strict-truthy
+ *     `'true'` only enables), so the legacy 13-branch chain remained
+ *     authoritative while the unified path was shadow-validated.
+ *   - P2.K2 migrated the validation + 402-generation logic into the
+ *     adapter package so both dispatch paths delegate to the same
+ *     underlying functions.
+ *   - P2.K3 shipped the proxy-equivalence.test.ts snapshot test that
+ *     asserts byte-parity between the two paths, and reordered the
+ *     legacy chain to match the adapter registry's DETECTION_PRIORITY.
+ *     After both, the two paths are provably equivalent and this
+ *     function now DEFAULTS TO `true`. Set USE_UNIFIED_ADAPTERS='false'
+ *     explicitly to opt out (operational rollback hatch if an unforeseen
+ *     adapter-registry bug needs the legacy chain to take over).
+ *
+ * ## Value semantics (post-P2.K3)
+ *
+ *   - `'false'` → legacy 13-branch chain (opt-out).
+ *   - anything else, including unset / undefined / empty string
+ *     / `'true'` / `'TRUE'` / `'1'` → unified adapter dispatch.
+ *
+ * The permissive default matches the operational intent: once the
+ * equivalence test is green, the unified path is canonical. A typo
+ * in the env var ('flase') no longer silently disables the unified
+ * path the way the P2.K1 strict-truthy contract would have.
  */
 export function useUnifiedAdapters(): boolean {
-  return process.env.USE_UNIFIED_ADAPTERS === 'true'
+  return process.env.USE_UNIFIED_ADAPTERS !== 'false'
 }
 
 // Replicate API token — optional, needed for Replicate model crawler
