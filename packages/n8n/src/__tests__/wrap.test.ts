@@ -162,6 +162,45 @@ describe('wrapN8nTool — wrap-time validation', () => {
       }),
     ).toThrowError(/method/)
   })
+
+  it('throws TypeError for missing pricing', () => {
+    expect(() =>
+      wrapN8nTool(async () => 'ok', {
+        toolSlug: 't',
+      } as unknown as { toolSlug: string; pricing: { defaultCostCents: number } }),
+    ).toThrowError(/pricing/)
+  })
+
+  it('throws TypeError for array pricing', () => {
+    expect(() =>
+      wrapN8nTool(async () => 'ok', {
+        toolSlug: 't',
+        // @ts-expect-error — arrays shouldn't match PricingConfig
+        pricing: [],
+      }),
+    ).toThrowError(/pricing/)
+  })
+
+  it('throws TypeError for non-object pricing (string)', () => {
+    expect(() =>
+      wrapN8nTool(async () => 'ok', {
+        toolSlug: 't',
+        // @ts-expect-error — strings shouldn't match PricingConfig
+        pricing: 'cheap',
+      }),
+    ).toThrowError(/pricing/)
+  })
+
+  it('throws TypeError for non-string method (number)', () => {
+    expect(() =>
+      wrapN8nTool(async () => 'ok', {
+        toolSlug: 't',
+        pricing: { defaultCostCents: 1 },
+        // @ts-expect-error — method must be a string
+        method: 42,
+      }),
+    ).toThrowError(/method/)
+  })
 })
 
 describe('wrapN8nTool — fail-fast: no side effects before key validation', () => {
@@ -276,6 +315,31 @@ describe('wrapN8nTool — header-injection / non-ASCII defense', () => {
         wrapped({}, { settlegridKey: bad as unknown as string }),
       ).rejects.toMatchObject({ code: 'INVALID_KEY' })
     }
+  })
+})
+
+describe('wrapN8nTool — method forwarding', () => {
+  it('forwards a valid method to sg.wrap WrapOptions', () => {
+    const instance = { wrap: vi.fn(() => async () => 'ok') }
+    mockInit.mockImplementationOnce(() => instance)
+    wrapN8nTool(async () => 'ok', {
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+      method: 'lookup',
+    })
+    expect(instance.wrap).toHaveBeenCalledWith(expect.any(Function), {
+      method: 'lookup',
+    })
+  })
+
+  it('omits method from WrapOptions when not provided', () => {
+    const instance = { wrap: vi.fn(() => async () => 'ok') }
+    mockInit.mockImplementationOnce(() => instance)
+    wrapN8nTool(async () => 'ok', {
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+    })
+    expect(instance.wrap).toHaveBeenCalledWith(expect.any(Function), {})
   })
 })
 
