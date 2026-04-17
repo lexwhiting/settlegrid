@@ -55,9 +55,10 @@
   },
   "devDependencies": {
     "@settlegrid/mcp": "*",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "n8n-workflow": "^1.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.1.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^2.1.0"
   }
 }
