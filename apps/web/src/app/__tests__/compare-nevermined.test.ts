@@ -247,6 +247,48 @@ describe('P2.MKT1 — a11y hygiene (hostile-review follow-through)', () => {
   })
 })
 
+describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
+  it('defines a GH_BASE constant for shipped-code citation links', () => {
+    expect(pageSrc).toContain('github.com/lexwhiting/settlegrid/tree/main')
+  })
+
+  it('every Cell/Point type supports a sourceUrl field', () => {
+    expect(pageSrc).toMatch(/sourceUrl\?\s*:\s*string/)
+  })
+
+  it('renders citations as links when sourceUrl is present', () => {
+    // The Cite component renders <a> for external links or Next <Link>
+    // for internal ones — verify both branches exist in source.
+    expect(pageSrc).toContain('function Cite(')
+    expect(pageSrc).toMatch(/target="_blank"[\s\S]{0,200}rel="noopener noreferrer"/)
+  })
+
+  it('the shipped-code citations carry GitHub source URLs (via gh() helper)', () => {
+    // Source uses a `gh(path)` helper that concatenates GH_BASE with
+    // the repo path at runtime. Assert both the helper is invoked
+    // with the expected paths AND the helper itself builds the
+    // canonical GitHub URL shape.
+    expect(pageSrc).toMatch(
+      /gh\(['"]apps\/web\/src\/lib\/settlement\/adapters['"]\)/,
+    )
+    expect(pageSrc).toMatch(
+      /gh\(['"]apps\/web\/src\/lib\/settlement\/sessions\.ts['"]\)/,
+    )
+    // Verify the helper itself builds the canonical URL format.
+    expect(pageSrc).toMatch(
+      /const gh = \(path: string\) =>\s*`\$\{GH_BASE\}/,
+    )
+  })
+
+  it('the Python SDK claim links to PyPI', () => {
+    expect(pageSrc).toContain('pypi.org/project/payments-py')
+  })
+
+  it('the pricing-related claims link to the internal /pricing route', () => {
+    expect(pageSrc).toMatch(/sourceUrl:\s*['"]\/pricing['"]/)
+  })
+})
+
 describe('P2.MKT1 — SEO / metadata', () => {
   it('exports a title containing "SettleGrid vs Nevermined"', () => {
     expect(pageSrc).toMatch(/title:\s*['"]SettleGrid vs Nevermined/)
