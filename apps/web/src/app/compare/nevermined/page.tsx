@@ -80,6 +80,13 @@ const jsonLdBreadcrumb = {
 type Cell = {
   value: string
   cite: string
+  /**
+   * One-click verification link. For shipped-code citations: a GitHub
+   * link to the file or directory on `main`. For external claims: the
+   * upstream URL. When absent, the cite text is non-clickable (use
+   * only for narrative notes that have no single source URL).
+   */
+  sourceUrl?: string
 }
 
 type Dimension = {
@@ -88,17 +95,26 @@ type Dimension = {
   nevermined: Cell
 }
 
+// Canonical base for shipped-code citations. Rendering a bare path as
+// a link against this root lets a reader click through to the exact
+// file/directory on the default branch — honoring the spec's
+// "anchor every claim with shipped-code citations" requirement.
+const GH_BASE = 'https://github.com/lexwhiting/settlegrid/tree/main'
+const gh = (path: string) => `${GH_BASE}/${path.replace(/^\/+/, '')}`
+
 const dimensions: Dimension[] = [
   {
     label: 'Protocol breadth',
     settlegrid: {
       value: '9 shipped adapters',
       cite: 'MCP, x402, AP2, MPP, ACP, UCP, Visa TAP, Mastercard VI, Circle Nano — apps/web/src/lib/settlement/adapters/',
+      sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
     },
     nevermined: {
       value: '3 production + 1 demo',
       cite:
-        'x402 (primary, production), MCP, A2A extension + AP2 (Jan 2026 demo on Base Sepolia testnet) — nevermined.ai/docs',
+        'x402 (primary, production), MCP, A2A extension + AP2 (Jan 2026 demo on Base Sepolia testnet)',
+      sourceUrl: 'https://docs.nevermined.io',
     },
   },
   {
@@ -106,12 +122,14 @@ const dimensions: Dimension[] = [
     settlegrid: {
       value: 'Protocol-neutral (runtime detection)',
       cite:
-        'Every request routed through `protocolRegistry.detect()` — packages/mcp/src/adapters/',
+        'Every request routed through protocolRegistry.detect() — packages/mcp/src/adapters/',
+      sourceUrl: gh('packages/mcp/src/adapters'),
     },
     nevermined: {
       value: 'USDC on Base (crypto-first)',
       cite:
-        'Default settlement rail per nevermined.ai docs; Stripe Connect available as fiat alternative',
+        'Default settlement rail per public docs; Stripe Connect available as fiat alternative',
+      sourceUrl: 'https://docs.nevermined.io',
     },
   },
   {
@@ -120,10 +138,12 @@ const dimensions: Dimension[] = [
       value: '0% → 5% progressive',
       cite:
         '0% on first $1K/mo, 2% $1K–$10K, 3% $10K–$50K, 5% $50K+ — apps/web/src/app/pricing/page.tsx',
+      sourceUrl: '/pricing',
     },
     nevermined: {
       value: '2% flat (+ Stripe fees on fiat)',
-      cite: 'Public pricing page at nevermined.ai/pricing',
+      cite: 'Public pricing page',
+      sourceUrl: 'https://nevermined.io/pricing',
     },
   },
   {
@@ -132,10 +152,12 @@ const dimensions: Dimension[] = [
       value: 'TypeScript (Python planned)',
       cite:
         '@settlegrid/mcp + ai-sdk + mastra + langchain + n8n + cursor on npm; no Python SDK yet',
+      sourceUrl: 'https://www.npmjs.com/org/settlegrid',
     },
     nevermined: {
       value: 'TypeScript + Python',
-      cite: 'payments (TS) and payments-py (Python) — github.com/nevermined-io',
+      cite: 'payments (TS) and payments-py (Python)',
+      sourceUrl: 'https://github.com/nevermined-io',
     },
   },
   {
@@ -146,7 +168,8 @@ const dimensions: Dimension[] = [
     },
     nevermined: {
       value: 'Valory/Olas (investor-customer)',
-      cite: 'Valory is also a seed angel investor — nevermined.ai/customers',
+      cite: 'Valory is also a seed angel investor',
+      sourceUrl: 'https://nevermined.io',
     },
   },
   {
@@ -156,10 +179,12 @@ const dimensions: Dimension[] = [
         'Atomic commit/rollback across agent chains',
       cite:
         'recordHop, finalizeSession, processSettlementBatch, rollbackSettlementBatch — apps/web/src/lib/settlement/sessions.ts',
+      sourceUrl: gh('apps/web/src/lib/settlement/sessions.ts'),
     },
     nevermined: {
       value: 'Not documented as a shipped primitive',
-      cite: 'No equivalent in public nevermined.ai docs as of 2026-04-17',
+      cite: 'No equivalent in public Nevermined docs as of 2026-04-17',
+      sourceUrl: 'https://docs.nevermined.io',
     },
   },
   {
@@ -168,10 +193,12 @@ const dimensions: Dimension[] = [
       value: 'CLI + 5 adapter packages + 1,022 templates',
       cite:
         'create-settlegrid-tool, @settlegrid/{ai-sdk,mastra,langchain,n8n,cursor}, settlegrid-mcpb + open-source-servers/ (1,022 templates)',
+      sourceUrl: gh('packages'),
     },
     nevermined: {
       value: 'SDKs only (TS + Python)',
-      cite: 'No CLI, no framework adapter packages, no template catalog per nevermined.ai docs',
+      cite: 'No CLI, no framework adapter packages, no template catalog per public docs',
+      sourceUrl: 'https://docs.nevermined.io',
     },
   },
   {
@@ -180,10 +207,12 @@ const dimensions: Dimension[] = [
       value: 'Stripe Connect + Asia-Pacific rail stubs',
       cite:
         'alipay-proxy, kyapay-proxy, emvco-proxy, drain-proxy stubs — apps/web/src/lib/settlement/adapters/ (experimental status documented)',
+      sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
     },
     nevermined: {
       value: 'Stripe Connect + EUR/EURC',
-      cite: 'EUR/EURC announced March 2026 — nevermined.ai/blog',
+      cite: 'EUR/EURC announced March 2026',
+      sourceUrl: 'https://nevermined.io/blog',
     },
   },
   {
@@ -192,10 +221,12 @@ const dimensions: Dimension[] = [
       value: 'Shipped compliance / identity / fraud / currency primitives',
       cite:
         'apps/web/src/lib/settlement/{compliance,identity,currency}.ts + apps/web/src/lib/fraud.ts',
+      sourceUrl: gh('apps/web/src/lib/settlement'),
     },
     nevermined: {
       value: 'Not documented as shipped',
       cite: 'No equivalent public docs as of 2026-04-17',
+      sourceUrl: 'https://docs.nevermined.io',
     },
   },
 ]
@@ -207,21 +238,25 @@ const dimensions: Dimension[] = [
 type Point = {
   claim: string
   cite: string
+  sourceUrl?: string
 }
 
 const neverminedStronger: Point[] = [
   {
     claim: 'Named reference customer',
     cite: 'Valory/Olas (investor-customer) — still a procurement signal SettleGrid has not yet matched',
+    sourceUrl: 'https://nevermined.io',
   },
   {
     claim: 'Python SDK parity',
-    cite: 'payments-py on PyPI — pypi.org/project/payments-py/. SettleGrid ships TypeScript only today.',
+    cite: 'payments-py on PyPI. SettleGrid ships TypeScript only today.',
+    sourceUrl: 'https://pypi.org/project/payments-py/',
   },
   {
     claim: 'Brand and SEO head start',
     cite:
-      '~30 blog posts ranking for "AI agent payments" and "agentic commerce" since early 2025 — nevermined.ai/blog',
+      '~30 blog posts ranking for "AI agent payments" and "agentic commerce" since early 2025',
+    sourceUrl: 'https://nevermined.io/blog',
   },
   {
     claim: 'Public funding signal',
@@ -235,15 +270,18 @@ const neverminedStronger: Point[] = [
   },
   {
     claim: 'EUR/EURC multi-currency',
-    cite: 'Announced March 2026 — nevermined.ai/blog',
+    cite: 'Announced March 2026',
+    sourceUrl: 'https://nevermined.io/blog',
   },
   {
     claim: 'Public x402 facilitator as a network service',
     cite: 'Operates a hosted x402 facilitator — SettleGrid currently ships adapter code but not a hosted facilitator',
+    sourceUrl: 'https://docs.nevermined.io',
   },
   {
     claim: 'Live virtual card issuance',
     cite: 'Nevermined Pay (Visa / VGS integration, April 2026) — virtual cards with spending rules',
+    sourceUrl: 'https://nevermined.io',
   },
 ]
 
@@ -252,43 +290,97 @@ const settlegridStronger: Point[] = [
     claim: '9 protocol adapters shipped in production code',
     cite:
       'MCP, x402, AP2, MPP, ACP, UCP, Visa TAP, Mastercard VI, Circle Nano — apps/web/src/lib/settlement/adapters/',
+    sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
   },
   {
     claim: 'True rail-neutrality in the detection chain',
     cite:
       'Every protocol is treated as a peer based on the incoming request signature — no default-chain bias — packages/mcp/src/adapters/',
+    sourceUrl: gh('packages/mcp/src/adapters'),
   },
   {
     claim: 'Progressive 0% → 5% pricing (free below $1K/mo)',
     cite:
       'apps/web/src/app/pricing/page.tsx — materially better than a flat 2% at the long-tail end',
+    sourceUrl: '/pricing',
   },
   {
     claim: '1,022 pre-wired open-source MCP server templates',
     cite:
       'open-source-servers/ — distribution asset a competitor cannot easily replicate',
+    sourceUrl: gh('open-source-servers'),
   },
   {
     claim: 'Multi-hop atomic settlement primitives',
     cite:
       'recordHop + finalizeSession + processSettlementBatch + rollbackSettlementBatch — apps/web/src/lib/settlement/sessions.ts — unique moat for multi-agent workflow billing',
+    sourceUrl: gh('apps/web/src/lib/settlement/sessions.ts'),
   },
   {
     claim: 'Framework distribution breadth',
     cite:
       'create-settlegrid-tool CLI + @settlegrid/{ai-sdk, mastra, langchain, n8n, cursor} + settlegrid-mcpb — published to npm under the @settlegrid org',
+    sourceUrl: 'https://www.npmjs.com/org/settlegrid',
   },
   {
     claim: 'Shipped compliance / identity / fraud / currency primitives',
     cite:
       'apps/web/src/lib/settlement/{compliance,identity,currency}.ts + apps/web/src/lib/fraud.ts — procurement-checkbox features',
+    sourceUrl: gh('apps/web/src/lib/settlement'),
   },
   {
     claim: 'Asia-Pacific rail coverage (stubs, experimental)',
     cite:
       'alipay-proxy, kyapay-proxy, emvco-proxy, drain-proxy — scaffolding in place; functional status documented per adapter',
+    sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
   },
 ]
+
+/* -------------------------------------------------------------------------- */
+/*  Renderers                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Render a citation as a clickable link when a sourceUrl is present,
+ * plain text otherwise. Keeps every verifiable claim one click away
+ * from its source — shipped-code citations link to GitHub on `main`,
+ * external citations link to the upstream URL.
+ *
+ * Internal routes (starting with `/`) use Next.js <Link>; external
+ * URLs open in a new tab with rel="noopener noreferrer".
+ */
+function Cite({ cite, sourceUrl }: { cite: string; sourceUrl?: string }) {
+  if (!sourceUrl) {
+    return (
+      <div className="text-xs text-gray-500 mt-1 leading-relaxed">{cite}</div>
+    )
+  }
+  const isInternal = sourceUrl.startsWith('/')
+  if (isInternal) {
+    return (
+      <div className="text-xs text-gray-500 mt-1 leading-relaxed">
+        <Link
+          href={sourceUrl}
+          className="text-gray-500 hover:text-gray-300 underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+        >
+          {cite}
+        </Link>
+      </div>
+    )
+  }
+  return (
+    <div className="text-xs text-gray-500 mt-1 leading-relaxed">
+      <a
+        href={sourceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-gray-500 hover:text-gray-300 underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+      >
+        {cite}
+      </a>
+    </div>
+  )
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Page                                                                       */
@@ -383,17 +475,19 @@ export default function CompareNeverminedPage() {
                         <div className="font-medium text-gray-100">
                           {d.settlegrid.value}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-                          {d.settlegrid.cite}
-                        </div>
+                        <Cite
+                          cite={d.settlegrid.cite}
+                          sourceUrl={d.settlegrid.sourceUrl}
+                        />
                       </td>
                       <td className="align-top px-5 py-4 border-b border-[#2A2D3E]">
                         <div className="font-medium text-gray-100">
                           {d.nevermined.value}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-                          {d.nevermined.cite}
-                        </div>
+                        <Cite
+                          cite={d.nevermined.cite}
+                          sourceUrl={d.nevermined.sourceUrl}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -416,18 +510,20 @@ export default function CompareNeverminedPage() {
                       SettleGrid
                     </div>
                     <div className="text-sm text-gray-100">{d.settlegrid.value}</div>
-                    <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-                      {d.settlegrid.cite}
-                    </div>
+                    <Cite
+                      cite={d.settlegrid.cite}
+                      sourceUrl={d.settlegrid.sourceUrl}
+                    />
                   </div>
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
                       Nevermined
                     </div>
                     <div className="text-sm text-gray-100">{d.nevermined.value}</div>
-                    <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-                      {d.nevermined.cite}
-                    </div>
+                    <Cite
+                      cite={d.nevermined.cite}
+                      sourceUrl={d.nevermined.sourceUrl}
+                    />
                   </div>
                 </div>
               ))}
@@ -451,7 +547,27 @@ export default function CompareNeverminedPage() {
                   className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5"
                 >
                   <div className="font-semibold text-gray-100 mb-1">{p.claim}</div>
-                  <div className="text-sm text-gray-400 leading-relaxed">{p.cite}</div>
+                  {p.sourceUrl ? (
+                    p.sourceUrl.startsWith('/') ? (
+                      <Link
+                        href={p.sourceUrl}
+                        className="text-sm text-gray-400 hover:text-gray-300 leading-relaxed underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+                      >
+                        {p.cite}
+                      </Link>
+                    ) : (
+                      <a
+                        href={p.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-400 hover:text-gray-300 leading-relaxed underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+                      >
+                        {p.cite}
+                      </a>
+                    )
+                  ) : (
+                    <div className="text-sm text-gray-400 leading-relaxed">{p.cite}</div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -474,7 +590,27 @@ export default function CompareNeverminedPage() {
                   className="bg-[#161822] border border-amber-500/40 rounded-xl p-5"
                 >
                   <div className="font-semibold text-amber-300 mb-1">{p.claim}</div>
-                  <div className="text-sm text-gray-400 leading-relaxed">{p.cite}</div>
+                  {p.sourceUrl ? (
+                    p.sourceUrl.startsWith('/') ? (
+                      <Link
+                        href={p.sourceUrl}
+                        className="text-sm text-gray-400 hover:text-gray-300 leading-relaxed underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+                      >
+                        {p.cite}
+                      </Link>
+                    ) : (
+                      <a
+                        href={p.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-400 hover:text-gray-300 leading-relaxed underline underline-offset-2 decoration-gray-700 hover:decoration-gray-400"
+                      >
+                        {p.cite}
+                      </a>
+                    )
+                  ) : (
+                    <div className="text-sm text-gray-400 leading-relaxed">{p.cite}</div>
+                  )}
                 </li>
               ))}
             </ul>
