@@ -40,7 +40,7 @@ import {
   isAcpEnabled,
   useUnifiedAdapters,
 } from '@/lib/env'
-import { decideUnifiedDispatch } from './_unified-dispatch'
+import { decideUnifiedDispatch, shouldDispatchUnified, type EnabledMap } from './_unified-dispatch'
 
 export const maxDuration = 60
 
@@ -299,25 +299,19 @@ async function tryUnifiedAdapterDispatch(
   // with one of three path values so a log search tells the full story:
   //   - 'unified-adapter'      : flag on, unified handled the request.
   //   - 'unified-then-legacy'  : flag on, unified fell through to legacy
-  //                              chain (mcp-fallback or no-match).
+  //                              chain (no-match, mcp-fallback, or
+  //                              protocol-disabled).
   //   - 'legacy-13-branch'     : flag off (logged in handleProxy directly).
-  if (decision.type !== 'unified') {
-    logger.info('proxy.dispatch', {
-      path: 'unified-then-legacy',
-      slug,
-      requestId,
-      reason: decision.type,
-    })
-    return null
-  }
-
+  //
   // Equivalence preservation: the legacy chain checks isXEnabled() before
   // each isXRequest(). The unified path here MUST do the same, otherwise
   // a request with mpp headers but no STRIPE_MPP_SECRET configured would
   // 5xx via handleMppProxy in unified mode but 401 (fall-through to API
   // key flow) in legacy mode — exactly the kind of silent divergence
-  // P2.K3's snapshot test exists to catch.
-  const enabledChecks: Record<string, () => boolean> = {
+  // P2.K3's snapshot test exists to catch. The pure shouldDispatchUnified
+  // helper encapsulates this decision; production passes the real env
+  // helpers, tests pass synthetic predicates.
+  const enabledMap: EnabledMap = {
     mpp: isMppEnabled,
     x402: isX402Enabled,
     ap2: isAp2Enabled,
@@ -327,18 +321,15 @@ async function tryUnifiedAdapterDispatch(
     'mastercard-vi': isMastercardEnabled,
     'circle-nano': isCircleNanoEnabled,
   }
-  const enabledFn = enabledChecks[decision.protocol]
-  if (enabledFn && !enabledFn()) {
-    // Protocol detected but its env config is missing — fall through to
-    // legacy chain, which will skip the same isXEnabled() check and
-    // ultimately route to the standard API key flow (matching the
-    // flag-off behavior).
+  const verdict = shouldDispatchUnified(decision, enabledMap)
+
+  if (!verdict.dispatch) {
     logger.info('proxy.dispatch', {
       path: 'unified-then-legacy',
       slug,
       requestId,
-      reason: 'protocol-disabled',
-      protocol: decision.protocol,
+      reason: verdict.reason,
+      protocol: verdict.protocol,
     })
     return null
   }
@@ -347,19 +338,19 @@ async function tryUnifiedAdapterDispatch(
     path: 'unified-adapter',
     slug,
     requestId,
-    protocol: decision.protocol,
+    protocol: verdict.protocol,
     // Defensive optional chaining — `operation` is required by the
     // PaymentContext type, but a future adapter returning a malformed
     // shape would otherwise throw a TypeError on field access.
-    operation: decision.paymentContext?.operation
-      ? `${decision.paymentContext.operation.service}.${decision.paymentContext.operation.method}`
+    operation: verdict.paymentContext?.operation
+      ? `${verdict.paymentContext.operation.service}.${verdict.paymentContext.operation.method}`
       : undefined,
   })
 
   // All 8 non-mcp adapters route to one of three legacy handler
   // families. If a new adapter is added to @settlegrid/mcp, TypeScript's
   // exhaustiveness check below will surface this switch as incomplete.
-  switch (decision.protocol) {
+  switch (verdict.protocol) {
     case 'mpp':
       return handleMppProxy(request, slug, requestId, startTime)
     case 'x402':
@@ -380,9 +371,15 @@ async function tryUnifiedAdapterDispatch(
       // Should not reach: decideUnifiedDispatch maps mcp → 'mcp-fallback'.
       return null
     default: {
-      // Exhaustiveness — an unhandled adapter name is a TS error here.
-      const _exhaustive: never = decision.protocol
-      logger.warn('proxy.unified.unhandled_adapter', { slug, requestId, name: _exhaustive })
+      // Exhaustiveness: after all 9 ProtocolName cases above return,
+      // `verdict` narrows to `never` here. Assigning the whole verdict
+      // (not verdict.protocol — TS quirk: property access on a
+      // never-narrowed variable resolves to `any`) preserves the
+      // compile-time check. Adding a new adapter to @settlegrid/mcp
+      // without updating this switch fails tsc on this line.
+      const _exhaustive: never = verdict
+      void _exhaustive
+      logger.warn('proxy.unified.unhandled_adapter', { slug, requestId })
       return null
     }
   }

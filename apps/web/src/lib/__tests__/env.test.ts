@@ -118,4 +118,33 @@ describe('env module', () => {
     expect(env1.DATABASE_URL).toBe('postgres://localhost/test')
     expect(env1.NEXT_PUBLIC_SUPABASE_URL).toBe('https://dljdthtrsuxglybhmqox.supabase.co')
   })
+
+  describe('useUnifiedAdapters (P2.K1 feature flag)', () => {
+    // Strict-truthy: only the literal string 'true' enables. This is a
+    // safe-default — a typo like 'TRUE' or '1' won't accidentally flip
+    // the unified-adapter dispatch path on in production. The contract
+    // is documented in env.ts; these tests pin it.
+    it.each([
+      ['true', true],
+      ['false', false],
+      ['TRUE', false], // case-sensitive
+      ['True', false], // case-sensitive
+      ['1', false],
+      ['yes', false],
+      ['on', false],
+      ['', false],
+      ['true ', false], // trailing whitespace not trimmed
+      [' true', false], // leading whitespace not trimmed
+    ])('USE_UNIFIED_ADAPTERS=%j → %j', async (value, expected) => {
+      process.env.USE_UNIFIED_ADAPTERS = value
+      const { useUnifiedAdapters } = await import('@/lib/env')
+      expect(useUnifiedAdapters()).toBe(expected)
+    })
+
+    it('returns false when USE_UNIFIED_ADAPTERS is unset (default off per spec)', async () => {
+      delete process.env.USE_UNIFIED_ADAPTERS
+      const { useUnifiedAdapters } = await import('@/lib/env')
+      expect(useUnifiedAdapters()).toBe(false)
+    })
+  })
 })
