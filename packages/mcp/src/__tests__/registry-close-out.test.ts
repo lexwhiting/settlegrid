@@ -160,12 +160,13 @@ describe('ProtocolRegistry — close-out coverage (P1.K1)', () => {
   })
 
   describe('detectionPriority getter', () => {
-    it('returns a readonly array of the 9 protocol names in priority order', () => {
+    it('returns a readonly array of the 14 protocol names in priority order', () => {
       const priority = registry.detectionPriority
-      expect(priority).toHaveLength(9)
+      // P2.K2: 9 brokered + 5 emerging (l402, alipay, kyapay, emvco, drain) = 14
+      expect(priority).toHaveLength(14)
       // First is mpp (most specific), last is mcp (fallback)
       expect(priority[0]).toBe('mpp')
-      expect(priority[8]).toBe('mcp')
+      expect(priority[priority.length - 1]).toBe('mcp')
     })
 
     it('reflects the module-level DETECTION_PRIORITY constant', () => {

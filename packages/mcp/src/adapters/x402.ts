@@ -12,7 +12,13 @@ import type {
   BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
-import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
+import type {
+  AdapterLogger,
+  PaymentContext,
+  ProtocolAdapter,
+  SettlementResult,
+} from './types'
+import { NOOP_LOGGER } from './types'
 import { randomUUID } from 'crypto'
 
 /**
@@ -208,4 +214,397 @@ export class X402Adapter implements ProtocolAdapter {
       maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
     }
   }
+}
+
+// ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
+
+const X402_PROTOCOL_VERSION = 2
+
+/** USDC contract addresses per CAIP-2 network. */
+const USDC_ADDRESSES: Record<string, string> = {
+  'eip155:8453': '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  'eip155:84532': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  'eip155:1': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+}
+
+const X402_HEADER_NAMES = {
+  PAYMENT: 'X-Payment',
+  PAYMENT_SIGNATURE: 'payment-signature',
+  PAYMENT_REQUIRED: 'X-Payment-Required',
+  PROTOCOL: 'x-settlegrid-protocol',
+} as const
+
+export interface X402ProxyPaymentResult {
+  valid: boolean
+  txHash?: string
+  payerAddress?: string
+  network?: string
+  amountUsdc?: string
+  scheme?: 'exact' | 'upto'
+  error?: { code: X402ProxyErrorCode; message: string }
+}
+
+export type X402ProxyErrorCode =
+  | 'X402_NOT_CONFIGURED'
+  | 'X402_PAYMENT_MISSING'
+  | 'X402_PAYLOAD_INVALID'
+  | 'X402_SIGNATURE_INVALID'
+  | 'X402_EXPIRED'
+  | 'X402_INSUFFICIENT_BALANCE'
+  | 'X402_NETWORK_UNSUPPORTED'
+  | 'X402_SETTLEMENT_FAILED'
+  | 'X402_FACILITATOR_ERROR'
+
+export interface X402ToolConfig {
+  slug: string
+  costCents: number
+  displayName: string
+  recipientAddress?: string
+}
+
+export interface X402ValidateOptions {
+  enabled: boolean
+  toolConfig: X402ToolConfig
+  /** URL of the x402 facilitator service (optional — local verification otherwise). */
+  facilitatorUrl?: string
+  logger?: AdapterLogger
+}
+
+export interface X402_402Options {
+  toolSlug: string
+  costCents: number
+  toolName?: string
+  recipientAddress?: string
+  appUrl: string
+  /** Optional fallback payment address when recipientAddress is unset. */
+  fallbackPaymentAddress?: string
+}
+
+export function isX402Request(request: Request): boolean {
+  if (request.headers.get(X402_HEADER_NAMES.PAYMENT)) return true
+  if (request.headers.get(X402_HEADER_NAMES.PAYMENT_SIGNATURE)) return true
+  if (request.headers.get(X402_HEADER_NAMES.PROTOCOL) === 'x402') return true
+
+  const auth = request.headers.get('authorization')
+  if (auth) {
+    const bearer = auth.replace(/^Bearer\s+/i, '')
+    if (bearer.startsWith('x402_')) return true
+  }
+
+  return false
+}
+
+function decodePaymentHeader(encoded: string): Record<string, unknown> | null {
+  try {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf-8')
+    return JSON.parse(decoded) as Record<string, unknown>
+  } catch {
+    try {
+      return JSON.parse(encoded) as Record<string, unknown>
+    } catch {
+      return null
+    }
+  }
+}
+
+function extractX402Payload(request: Request): Record<string, unknown> | null {
+  const xPayment = request.headers.get(X402_HEADER_NAMES.PAYMENT)
+  if (xPayment) return decodePaymentHeader(xPayment)
+
+  const paymentSig = request.headers.get(X402_HEADER_NAMES.PAYMENT_SIGNATURE)
+  if (paymentSig) return decodePaymentHeader(paymentSig)
+
+  const auth = request.headers.get('authorization')
+  if (auth) {
+    const bearer = auth.replace(/^Bearer\s+/i, '')
+    if (bearer.startsWith('x402_')) return decodePaymentHeader(bearer.slice(5))
+  }
+
+  return null
+}
+
+function centsToUsdcBaseUnits(cents: number): string {
+  return String(cents * 10_000)
+}
+
+interface FacilitatorSettleResult {
+  success: boolean
+  txHash?: string
+  error?: string
+}
+
+async function settleViaFacilitator(
+  facilitatorUrl: string,
+  payload: Record<string, unknown>,
+  logger: AdapterLogger,
+): Promise<FacilitatorSettleResult> {
+  try {
+    const response = await fetch(`${facilitatorUrl}/settle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => ({}))) as Record<string, unknown>
+      const errorMessage = (errorBody.error as string) ?? `Facilitator returned HTTP ${response.status}`
+      return { success: false, error: errorMessage }
+    }
+
+    const data = (await response.json()) as Record<string, unknown>
+    return {
+      success: true,
+      txHash: typeof data.txHash === 'string' ? data.txHash : undefined,
+    }
+  } catch (err) {
+    logger.error('x402.facilitator_error', { facilitatorUrl }, err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to reach x402 facilitator.',
+    }
+  }
+}
+
+export async function validateX402Payment(
+  request: Request,
+  options: X402ValidateOptions,
+): Promise<X402ProxyPaymentResult> {
+  const { enabled, toolConfig, facilitatorUrl } = options
+  const logger = options.logger ?? NOOP_LOGGER
+
+  if (!enabled) {
+    return {
+      valid: false,
+      error: {
+        code: 'X402_NOT_CONFIGURED',
+        message: 'x402 payments are not configured on this SettleGrid instance.',
+      },
+    }
+  }
+
+  const payload = extractX402Payload(request)
+  if (!payload) {
+    return {
+      valid: false,
+      error: {
+        code: 'X402_PAYMENT_MISSING',
+        message:
+          'No x402 payment proof found in request. Provide X-Payment header with base64-encoded payment payload.',
+      },
+    }
+  }
+
+  try {
+    const scheme = (payload.scheme as string) ?? 'exact'
+    if (scheme !== 'exact' && scheme !== 'upto') {
+      return {
+        valid: false,
+        error: {
+          code: 'X402_PAYLOAD_INVALID',
+          message: `Unsupported x402 scheme: ${scheme}. Supported: exact, upto.`,
+        },
+      }
+    }
+
+    const network = (payload.network as string) ?? DEFAULT_X402_NETWORK
+    if (!USDC_ADDRESSES[network]) {
+      return {
+        valid: false,
+        error: {
+          code: 'X402_NETWORK_UNSUPPORTED',
+          message: `Unsupported network: ${network}. Supported: eip155:8453 (Base), eip155:84532 (Base Sepolia), eip155:1 (Ethereum).`,
+        },
+      }
+    }
+
+    const innerPayload = payload.payload as Record<string, unknown> | undefined
+    let payerAddress = ''
+    let paymentAmountBaseUnits = '0'
+
+    if (scheme === 'exact' && innerPayload) {
+      const authorization = innerPayload.authorization as Record<string, unknown> | undefined
+      if (authorization) {
+        payerAddress = (authorization.from as string) ?? ''
+        paymentAmountBaseUnits = (authorization.value as string) ?? '0'
+
+        const signature = innerPayload.signature as string | undefined
+        if (!signature || !signature.startsWith('0x')) {
+          return {
+            valid: false,
+            error: {
+              code: 'X402_SIGNATURE_INVALID',
+              message: 'Missing or invalid signature in x402 exact payment payload.',
+            },
+          }
+        }
+
+        const now = Math.floor(Date.now() / 1000)
+        const validAfter = parseInt(String(authorization.validAfter ?? '0'), 10)
+        const validBefore = parseInt(String(authorization.validBefore ?? '0'), 10)
+
+        if (Number.isFinite(validAfter) && now < validAfter) {
+          return {
+            valid: false,
+            error: {
+              code: 'X402_EXPIRED',
+              message: `Payment authorization not yet valid: becomes valid in ${validAfter - now}s.`,
+            },
+          }
+        }
+        if (Number.isFinite(validBefore) && validBefore > 0 && now > validBefore) {
+          return {
+            valid: false,
+            error: {
+              code: 'X402_EXPIRED',
+              message: `Payment authorization expired ${now - validBefore}s ago.`,
+            },
+          }
+        }
+      }
+    } else if (scheme === 'upto' && innerPayload) {
+      const witness = innerPayload.witness as Record<string, unknown> | undefined
+      const permit = innerPayload.permit as Record<string, unknown> | undefined
+      if (witness) {
+        payerAddress = (witness.recipient as string) ?? ''
+        paymentAmountBaseUnits = (witness.amount as string) ?? '0'
+      }
+
+      if (permit) {
+        const deadline = parseInt(String(permit.deadline ?? '0'), 10)
+        const now = Math.floor(Date.now() / 1000)
+        if (Number.isFinite(deadline) && deadline > 0 && now > deadline) {
+          return {
+            valid: false,
+            error: {
+              code: 'X402_EXPIRED',
+              message: `Permit2 deadline expired ${now - deadline}s ago.`,
+            },
+          }
+        }
+      }
+    }
+
+    const requiredBaseUnits = BigInt(centsToUsdcBaseUnits(toolConfig.costCents))
+    const providedBaseUnits = BigInt(paymentAmountBaseUnits || '0')
+
+    if (providedBaseUnits < requiredBaseUnits) {
+      const providedUsdc = Number(providedBaseUnits) / 1e6
+      const requiredUsdc = Number(requiredBaseUnits) / 1e6
+      return {
+        valid: false,
+        error: {
+          code: 'X402_INSUFFICIENT_BALANCE',
+          message: `Payment amount ${providedUsdc.toFixed(6)} USDC is less than required ${requiredUsdc.toFixed(6)} USDC (${toolConfig.costCents} cents).`,
+        },
+      }
+    }
+
+    if (facilitatorUrl) {
+      const settleResult = await settleViaFacilitator(facilitatorUrl, payload, logger)
+      if (!settleResult.success) {
+        return {
+          valid: false,
+          payerAddress: payerAddress || undefined,
+          network,
+          scheme: scheme as 'exact' | 'upto',
+          error: {
+            code: 'X402_SETTLEMENT_FAILED',
+            message: settleResult.error ?? 'x402 facilitator rejected the payment.',
+          },
+        }
+      }
+
+      logger.info('x402.payment_settled', {
+        toolSlug: toolConfig.slug,
+        txHash: settleResult.txHash,
+        payerAddress,
+        network,
+        scheme,
+        amountBaseUnits: paymentAmountBaseUnits,
+      })
+
+      return {
+        valid: true,
+        txHash: settleResult.txHash,
+        payerAddress: payerAddress || undefined,
+        network,
+        amountUsdc: paymentAmountBaseUnits,
+        scheme: scheme as 'exact' | 'upto',
+      }
+    }
+
+    logger.info('x402.payment_accepted_local', {
+      toolSlug: toolConfig.slug,
+      payerAddress,
+      network,
+      scheme,
+      amountBaseUnits: paymentAmountBaseUnits,
+      note: 'No facilitator URL configured; accepted based on structural validation.',
+    })
+
+    return {
+      valid: true,
+      payerAddress: payerAddress || undefined,
+      network,
+      amountUsdc: paymentAmountBaseUnits,
+      scheme: scheme as 'exact' | 'upto',
+    }
+  } catch (err) {
+    logger.error('x402.validation_error', { toolSlug: toolConfig.slug }, err)
+    return {
+      valid: false,
+      error: {
+        code: 'X402_FACILITATOR_ERROR',
+        message: err instanceof Error ? err.message : 'Unexpected error during x402 payment validation.',
+      },
+    }
+  }
+}
+
+export function generateX402_402Response(options: X402_402Options): Response {
+  const { toolSlug, costCents, toolName, recipientAddress, appUrl, fallbackPaymentAddress } = options
+  const paymentEndpoint = `${appUrl}/api/proxy/${toolSlug}`
+  const amountBaseUnits = centsToUsdcBaseUnits(costCents)
+  const effectiveRecipient = recipientAddress ?? fallbackPaymentAddress ?? ZERO_ADDRESS
+
+  const body = {
+    x402Version: X402_PROTOCOL_VERSION,
+    error: 'payment_required',
+    resource: {
+      url: paymentEndpoint,
+      description: `${toolName ?? toolSlug} via SettleGrid`,
+      mimeType: 'application/json',
+    },
+    accepts: [
+      {
+        scheme: 'exact',
+        network: DEFAULT_X402_NETWORK,
+        amount: amountBaseUnits,
+        asset: USDC_ADDRESSES[DEFAULT_X402_NETWORK],
+        payTo: effectiveRecipient,
+        maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
+      },
+      {
+        scheme: 'upto',
+        network: DEFAULT_X402_NETWORK,
+        amount: amountBaseUnits,
+        asset: USDC_ADDRESSES[DEFAULT_X402_NETWORK],
+        payTo: effectiveRecipient,
+        maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
+      },
+    ],
+    tool: toolSlug,
+    pricing_model: 'per-call',
+    cost_cents: costCents,
+    directory_url: `${appUrl}/api/v1/discover`,
+    instructions: `To pay, re-send the request with X-Payment header containing a base64-encoded x402 payment payload (EIP-3009 or Permit2) authorizing at least ${amountBaseUnits} USDC base units (${costCents} cents).`,
+  }
+
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    [X402_HEADER_NAMES.PAYMENT_REQUIRED]: Buffer.from(JSON.stringify(body.accepts)).toString('base64'),
+    'Cache-Control': 'no-store',
+  })
+
+  return new Response(JSON.stringify(body), { status: 402, headers })
 }

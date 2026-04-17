@@ -8,6 +8,11 @@ import { CircleNanoAdapter } from './circle-nano'
 import { MastercardVIAdapter } from './mastercard-vi'
 import { ACPAdapter } from './acp'
 import { UCPAdapter } from './ucp'
+import { L402Adapter } from './l402'
+import { AlipayAdapter } from './alipay'
+import { KyaPayAdapter } from './kyapay'
+import { EmvcoAdapter } from './emvco'
+import { DrainAdapter } from './drain'
 
 // ─── Adapter Metrics ──────────────────────────────────────────────────────────
 
@@ -62,6 +67,11 @@ class AdapterMetricsTracker implements MetricsTracker {
       acp: this.getMetrics('acp'),
       'mastercard-vi': this.getMetrics('mastercard-vi'),
       'circle-nano': this.getMetrics('circle-nano'),
+      l402: this.getMetrics('l402'),
+      alipay: this.getMetrics('alipay'),
+      kyapay: this.getMetrics('kyapay'),
+      emvco: this.getMetrics('emvco'),
+      drain: this.getMetrics('drain'),
     }
   }
 
@@ -73,7 +83,12 @@ class AdapterMetricsTracker implements MetricsTracker {
 // ─── Protocol Detection Priority ──────────────────────────────────────────────
 //
 // When a request has headers matching multiple adapters (e.g. both x-api-key
-// and payment-signature), the most-specific protocol wins:
+// and payment-signature), the most-specific protocol wins. The five P2.K2
+// emerging protocols (l402, alipay, kyapay, emvco, drain) are appended AFTER
+// the brokered ones — they have disjoint header prefixes, so the ordering
+// is a tie-breaker for the (rare) multi-header probe case, and it matches
+// the legacy chain order in apps/web/src/app/api/proxy/[slug]/route.ts so
+// P2.K3's byte-parity snapshot compares cleanly.
 //
 //   1. mpp          (x-mpp-credential or Bearer mpp_* — HTTP 402 challenge-response)
 //   2. circle-nano  (x-circle-nano-auth — x402-compatible, check before x402)
@@ -83,7 +98,12 @@ class AdapterMetricsTracker implements MetricsTracker {
 //   6. acp          (x-acp-token — Stripe SPT via OpenAI)
 //   7. ucp          (x-ucp-session — session-based checkout)
 //   8. visa-tap     (x-visa-agent-token or explicit x-settlegrid-protocol: visa-tap)
-//   9. mcp          (fallback — any x-api-key or Bearer sg_ token)
+//   9. l402         (Authorization: L402 — Bitcoin Lightning)
+//  10. alipay       (x-alipay-agent-token — ACTP, Ant Group)
+//  11. kyapay       (x-kyapay-token — Skyfire/Visa Intelligent Commerce)
+//  12. emvco        (x-emvco-agent-token — card networks)
+//  13. drain        (x-drain-voucher — EIP-712 off-chain USDC)
+//  14. mcp          (fallback — any x-api-key or Bearer sg_ token)
 //
 
 const DETECTION_PRIORITY: ProtocolName[] = [
@@ -95,6 +115,11 @@ const DETECTION_PRIORITY: ProtocolName[] = [
   'acp',
   'ucp',
   'visa-tap',
+  'l402',
+  'alipay',
+  'kyapay',
+  'emvco',
+  'drain',
   'mcp',
 ]
 
@@ -116,7 +141,8 @@ class ProtocolRegistry {
 
   /**
    * Detect the correct adapter for a request using priority order.
-   * Priority: mpp > circle-nano > x402 > mastercard-vi > ap2 > acp > ucp > visa-tap > mcp.
+   * Priority: mpp > circle-nano > x402 > mastercard-vi > ap2 > acp > ucp >
+   * visa-tap > l402 > alipay > kyapay > emvco > drain > mcp.
    * This ensures that a request with both an API key (MCP) and a
    * payment-signature (x402) routes to x402, not MCP.
    */
@@ -154,7 +180,7 @@ export const protocolRegistry = new ProtocolRegistry()
 export const adapterMetrics = new AdapterMetricsTracker()
 
 // ─── Auto-registration ───────────────────────────────────────────────────────
-// All nine adapters are registered when the settlement module loads.
+// All fourteen adapters are registered when the settlement module loads.
 // Import order follows detection priority (most specific first).
 
 protocolRegistry.register(new MPPAdapter())
@@ -165,6 +191,11 @@ protocolRegistry.register(new AP2Adapter())
 protocolRegistry.register(new ACPAdapter())
 protocolRegistry.register(new UCPAdapter())
 protocolRegistry.register(new TAPAdapter())
+protocolRegistry.register(new L402Adapter())
+protocolRegistry.register(new AlipayAdapter())
+protocolRegistry.register(new KyaPayAdapter())
+protocolRegistry.register(new EmvcoAdapter())
+protocolRegistry.register(new DrainAdapter())
 protocolRegistry.register(new MCPAdapter())
 
 export { ProtocolRegistry, DETECTION_PRIORITY }
