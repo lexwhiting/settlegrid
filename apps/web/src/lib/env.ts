@@ -247,19 +247,33 @@ export function getDrainChannelAddress(): string | undefined {
  *     explicitly to opt out (operational rollback hatch if an unforeseen
  *     adapter-registry bug needs the legacy chain to take over).
  *
- * ## Value semantics (post-P2.K3)
+ * ## Value semantics (post-P2.K3 + P2.K3 hostile review)
  *
- *   - `'false'` → legacy 13-branch chain (opt-out).
+ *   - `'false'` / `'FALSE'` / `'False'` / ` false ` (any case + surrounding
+ *     whitespace) → legacy 13-branch chain (opt-out).
  *   - anything else, including unset / undefined / empty string
- *     / `'true'` / `'TRUE'` / `'1'` → unified adapter dispatch.
+ *     / `'true'` / `'TRUE'` / `'1'` / `'flase'` (typo) → unified.
  *
- * The permissive default matches the operational intent: once the
- * equivalence test is green, the unified path is canonical. A typo
- * in the env var ('flase') no longer silently disables the unified
- * path the way the P2.K1 strict-truthy contract would have.
+ * Two design tensions inform the case-insensitive, whitespace-tolerant
+ * opt-out:
+ *
+ *   1. Typos in the OFF value should leave the unified path on — this
+ *      is the rollout-safety argument (a fat-fingered operator doesn't
+ *      silently revert to legacy during a routine deploy).
+ *   2. Explicit OFF intent (operator sets `USE_UNIFIED_ADAPTERS=FALSE`
+ *      as a rollback) MUST disable, regardless of case or surrounding
+ *      whitespace — this is the operational-rollback argument. In an
+ *      emergency, the operator should NOT have to discover the flag
+ *      is case-sensitive via another failed deploy.
+ *
+ * P2.K3's initial implementation was strict-case (`!== 'false'`); the
+ * hostile-review pass loosened it to `!== 'false'` after trim +
+ * lowercase. Both intents are now satisfied: `'flase'` stays on (typo
+ * → no match → not 'false' → unified), `'FALSE'` goes off (lowercased
+ * to 'false' → match → legacy).
  */
 export function useUnifiedAdapters(): boolean {
-  return process.env.USE_UNIFIED_ADAPTERS !== 'false'
+  return process.env.USE_UNIFIED_ADAPTERS?.trim().toLowerCase() !== 'false'
 }
 
 // Replicate API token — optional, needed for Replicate model crawler

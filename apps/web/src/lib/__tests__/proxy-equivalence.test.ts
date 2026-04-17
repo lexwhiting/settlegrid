@@ -64,19 +64,63 @@ import {
   type EnabledMap,
   type ProtocolName,
 } from '@/app/api/proxy/[slug]/_unified-dispatch'
-import { isMppRequest } from '@/lib/mpp'
-import { isCircleNanoRequest, isCircleNanoEnabled } from '@/lib/circle-nano-proxy'
-import { isX402Request } from '@/lib/x402-proxy'
-import { isMastercardRequest, isMastercardEnabled } from '@/lib/mastercard-proxy'
-import { isAp2Request } from '@/lib/ap2-proxy'
-import { isAcpRequest } from '@/lib/acp-proxy'
-import { isUcpRequest, isUcpEnabled } from '@/lib/ucp-proxy'
-import { isVisaTapRequest } from '@/lib/visa-tap-proxy'
-import { isL402Request } from '@/lib/l402-proxy'
-import { isAlipayRequest } from '@/lib/alipay-proxy'
-import { isKyaPayRequest } from '@/lib/kyapay-proxy'
-import { isEmvcoRequest } from '@/lib/emvco-proxy'
-import { isDrainRequest } from '@/lib/drain-proxy'
+// Level 1 + invalid-payload imports (isXRequest helpers + generate402
+// helpers for Level 2).
+import {
+  isMppRequest,
+  generateMpp402Response as legacyMpp,
+} from '@/lib/mpp'
+import {
+  isCircleNanoRequest,
+  isCircleNanoEnabled,
+  generateCircleNano402Response as legacyCnano,
+} from '@/lib/circle-nano-proxy'
+import {
+  isX402Request,
+  generateX402_402Response as legacyX402,
+} from '@/lib/x402-proxy'
+import {
+  isMastercardRequest,
+  isMastercardEnabled,
+  generateMastercard402Response as legacyMc,
+} from '@/lib/mastercard-proxy'
+import {
+  isAp2Request,
+  generateAp2_402Response as legacyAp2,
+} from '@/lib/ap2-proxy'
+import {
+  isAcpRequest,
+  generateAcp402Response as legacyAcp,
+} from '@/lib/acp-proxy'
+import {
+  isUcpRequest,
+  isUcpEnabled,
+  generateUcp402Response as legacyUcp,
+} from '@/lib/ucp-proxy'
+import {
+  isVisaTapRequest,
+  generateVisaTap402Response as legacyTap,
+} from '@/lib/visa-tap-proxy'
+import {
+  isL402Request,
+  generateL402_402Response as legacyL402,
+} from '@/lib/l402-proxy'
+import {
+  isAlipayRequest,
+  generateAlipay402Response as legacyAlipay,
+} from '@/lib/alipay-proxy'
+import {
+  isKyaPayRequest,
+  generateKyaPay402Response as legacyKyapay,
+} from '@/lib/kyapay-proxy'
+import {
+  isEmvcoRequest,
+  generateEmvco402Response as legacyEmvco,
+} from '@/lib/emvco-proxy'
+import {
+  isDrainRequest,
+  generateDrain402Response as legacyDrain,
+} from '@/lib/drain-proxy'
 import {
   isMppEnabled,
   isX402Enabled,
@@ -89,6 +133,23 @@ import {
   isEmvcoEnabled,
   isDrainEnabled,
 } from '@/lib/env'
+// Level 2 adapter-class imports (used to call build402Response for the
+// byte-for-byte comparison against the legacy lib-shim path).
+import {
+  MPPAdapter,
+  X402Adapter,
+  AP2Adapter,
+  TAPAdapter,
+  ACPAdapter,
+  UCPAdapter,
+  MastercardVIAdapter,
+  CircleNanoAdapter,
+  L402Adapter,
+  AlipayAdapter,
+  KyaPayAdapter,
+  EmvcoAdapter,
+  DrainAdapter,
+} from '@settlegrid/mcp'
 
 // ─── Canonical decision shape (what we compare between paths) ──────────────
 
@@ -886,64 +947,22 @@ describe('P2.K3 — invalid-payload: neither path falsely matches', () => {
 // — the value of this block is to PIN that invariant against future
 // refactors.
 //
-// Volatile fields excluded from comparison: L402 macaroon IDs
-// (randomBytes per-mint), L402 r_hash (randomBytes in the mock path).
-// All other fields must be identical.
-
-import {
-  generateMpp402Response as legacyMpp,
-} from '@/lib/mpp'
-import {
-  generateX402_402Response as legacyX402,
-} from '@/lib/x402-proxy'
-import {
-  generateAp2_402Response as legacyAp2,
-} from '@/lib/ap2-proxy'
-import {
-  generateVisaTap402Response as legacyTap,
-} from '@/lib/visa-tap-proxy'
-import {
-  generateAcp402Response as legacyAcp,
-} from '@/lib/acp-proxy'
-import {
-  generateUcp402Response as legacyUcp,
-} from '@/lib/ucp-proxy'
-import {
-  generateMastercard402Response as legacyMc,
-} from '@/lib/mastercard-proxy'
-import {
-  generateCircleNano402Response as legacyCnano,
-} from '@/lib/circle-nano-proxy'
-import {
-  generateL402_402Response as legacyL402,
-} from '@/lib/l402-proxy'
-import {
-  generateAlipay402Response as legacyAlipay,
-} from '@/lib/alipay-proxy'
-import {
-  generateKyaPay402Response as legacyKyapay,
-} from '@/lib/kyapay-proxy'
-import {
-  generateEmvco402Response as legacyEmvco,
-} from '@/lib/emvco-proxy'
-import {
-  generateDrain402Response as legacyDrain,
-} from '@/lib/drain-proxy'
-import {
-  MPPAdapter,
-  X402Adapter,
-  AP2Adapter,
-  TAPAdapter,
-  ACPAdapter,
-  UCPAdapter,
-  MastercardVIAdapter,
-  CircleNanoAdapter,
-  L402Adapter,
-  AlipayAdapter,
-  KyaPayAdapter,
-  EmvcoAdapter,
-  DrainAdapter,
-} from '@settlegrid/mcp'
+// Volatile fields excluded from comparison (via `omit` in normalize()):
+//   - L402 `macaroon` — base64-encoded, contains randomBytes(16) id
+//     minted fresh each call. Diverges between two mint calls even
+//     when signing key is identical.
+//   - L402 `macaroon_id` — the raw 16-byte hex id (same random source
+//     as above; field is just a flattened view of macaroon.id).
+//   - L402 `r_hash` — in the mock-invoice path (LND_REST_URL unset),
+//     this is randomBytes(32). Diverges each call.
+//   - L402 `invoice` — mock-invoice path builds this from randomBytes(20).
+//   - L402 `instructions` — the human-readable instructions string
+//     embeds the minted macaroon substring, so it differs per call.
+//     Excluding is cosmetic (no contract depends on instructions
+//     matching byte-for-byte) but necessary to make the assertion
+//     pass.
+//
+// All other fields MUST be identical.
 
 interface NormalizedResponse {
   status: number
@@ -1168,30 +1187,44 @@ describe('P2.K3 Level 3 — useUnifiedAdapters flag toggle', () => {
   // `if (useUnifiedAdapters())` — if the flag reads wrong, the entire
   // unified path is bypassed, so this is the tightest no-DB check we can
   // give.
+  //
+  // Hostile-review M1: uses `vi.stubEnv` instead of direct
+  // `process.env.X = ...` assignment so the outer `afterEach`'s
+  // `vi.unstubAllEnvs()` correctly rolls back. Direct assignment leaks
+  // into subsequent test files if they import env.ts.
 
   it('flag reads true when USE_UNIFIED_ADAPTERS is unset (P2.K3 default)', async () => {
-    delete process.env.USE_UNIFIED_ADAPTERS
+    vi.stubEnv('USE_UNIFIED_ADAPTERS', undefined as unknown as string)
+    // vi.stubEnv with undefined simulates "unset" in vitest.
     const { useUnifiedAdapters } = await import('@/lib/env')
     expect(useUnifiedAdapters()).toBe(true)
   })
 
   it('flag reads true when USE_UNIFIED_ADAPTERS is explicitly "true"', async () => {
-    process.env.USE_UNIFIED_ADAPTERS = 'true'
+    vi.stubEnv('USE_UNIFIED_ADAPTERS', 'true')
     const { useUnifiedAdapters } = await import('@/lib/env')
     expect(useUnifiedAdapters()).toBe(true)
   })
 
-  it('flag reads false ONLY for the literal string "false"', async () => {
-    process.env.USE_UNIFIED_ADAPTERS = 'false'
+  it('flag reads false for the literal string "false"', async () => {
+    vi.stubEnv('USE_UNIFIED_ADAPTERS', 'false')
     const { useUnifiedAdapters } = await import('@/lib/env')
     expect(useUnifiedAdapters()).toBe(false)
   })
 
+  it('flag reads false for case-insensitive + whitespace-tolerant opt-out (H1 fix)', async () => {
+    for (const value of ['FALSE', 'False', 'fAlSe', '  false  ', 'false\n']) {
+      vi.stubEnv('USE_UNIFIED_ADAPTERS', value)
+      const { useUnifiedAdapters } = await import('@/lib/env')
+      expect(useUnifiedAdapters()).toBe(false)
+    }
+  })
+
   it('typos do not silently disable the unified path', async () => {
-    // 'flase', 'FALSE', 'False' all leave the unified path on —
-    // the safe-default intent of the P2.K3 flip.
-    for (const typo of ['flase', 'FALSE', 'False', 'no', '0']) {
-      process.env.USE_UNIFIED_ADAPTERS = typo
+    // Rollout-safety half of the contract: a typo in the OFF value
+    // leaves the unified path on (safe default).
+    for (const typo of ['flase', 'no', '0', 'off', 'disabled']) {
+      vi.stubEnv('USE_UNIFIED_ADAPTERS', typo)
       const { useUnifiedAdapters } = await import('@/lib/env')
       expect(useUnifiedAdapters()).toBe(true)
     }
