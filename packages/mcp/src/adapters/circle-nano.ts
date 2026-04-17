@@ -196,6 +196,19 @@ export class CircleNanoAdapter implements ProtocolAdapter {
       acceptedPayments: ['eip3009-nanopayment'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(
+    request: Request,
+    options: CircleNanoValidateOptions,
+  ): Promise<CircleNanoPaymentResult> {
+    return validateCircleNanoPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full Circle Nano 402 Payment Required response. */
+  build402Response(options: CircleNano402Options): Response {
+    return generateCircleNano402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────

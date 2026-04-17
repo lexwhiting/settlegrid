@@ -126,6 +126,16 @@ export class TAPAdapter implements ProtocolAdapter {
       acceptedTokens: ['visa-agent-token'],
     }
   }
+
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(request: Request, options: VisaTapValidateOptions): Promise<VisaTapPaymentResult> {
+    return validateVisaTapPayment(request, options)
+  }
+
+  /** P2.K2 — generate a full Visa TAP 402 Payment Required response. */
+  build402Response(options: VisaTap402Options): Response {
+    return generateVisaTap402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────

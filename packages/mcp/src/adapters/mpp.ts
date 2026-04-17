@@ -231,6 +231,26 @@ export class MPPAdapter implements ProtocolAdapter {
       currency: 'USD',
     }
   }
+
+  /**
+   * P2.K2 — spec-aligned verify() method. Delegates to the
+   * module-level `validateMppPayment` so the implementation lives in
+   * one place; the class method is the canonical call-site per spec
+   * ("migrate validation logic into ... new verify() method").
+   */
+  async verify(request: Request, options: MppValidateOptions): Promise<MppPaymentResult> {
+    return validateMppPayment(request, options)
+  }
+
+  /**
+   * P2.K2 — generate a full MPP 402 Payment Required response.
+   * Separate from `buildChallenge` (which builds ONE entry for the
+   * multi-protocol manifest); `build402Response` returns a complete
+   * MPP-specific Response with the X-Payment-* protocol headers.
+   */
+  build402Response(options: Mpp402Options): Response {
+    return generateMpp402Response(options)
+  }
 }
 
 // ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
