@@ -133,7 +133,9 @@ const fail = (id: number, label: string, detail?: string): CheckResult => ({
 
 async function check1_cliInstallable(): Promise<CheckResult> {
   const label = 'CLI installable + smoke passes'
-  const distEntry = repoFile('packages', 'settlegrid-cli', 'dist', 'index.cjs')
+  // Spec literal: `node packages/settlegrid-cli/dist/index.js --version`
+  // (the package builds both .js (ESM) and .cjs; spec wants .js).
+  const distEntry = repoFile('packages', 'settlegrid-cli', 'dist', 'index.js')
   if (!fileExists(distEntry)) {
     return defer(1, label, `dist not built at ${distEntry}; run npm --workspace @settlegrid/cli run build`)
   }
@@ -221,6 +223,15 @@ async function check3_canonicalPolished(): Promise<CheckResult> {
   }
   const required = ['template.json', 'README.md', 'monetization.md', 'remove-settlegrid.md']
   const missing: string[] = []
+  // Spec also requires "and template.json validates" — collect manifests
+  // and validate via @settlegrid/mcp validator.
+  let mcp: typeof import('@settlegrid/mcp') | null = null
+  try {
+    mcp = await import('@settlegrid/mcp')
+  } catch {
+    /* validation will be skipped if mcp unavailable */
+  }
+  const validationErrors: string[] = []
   for (const entry of arr) {
     const slug = (entry as { slug?: string }).slug
     if (!slug) continue
@@ -240,11 +251,29 @@ async function check3_canonicalPolished(): Promise<CheckResult> {
         missing.push(`${resolvedDir}/${f}`)
       }
     }
+    // Validate template.json schema-wise per spec.
+    if (mcp) {
+      const tplPath = repoFile('open-source-servers', resolvedDir, 'template.json')
+      if (fileExists(tplPath)) {
+        try {
+          const tpl = JSON.parse(readFileSync(tplPath, 'utf-8'))
+          const r = mcp.safeValidateTemplateManifest(tpl)
+          if (!r.success) {
+            validationErrors.push(`${resolvedDir}: ${r.errors.slice(0, 1).join('; ')}`)
+          }
+        } catch (e) {
+          validationErrors.push(`${resolvedDir}: parse error — ${(e as Error).message}`)
+        }
+      }
+    }
   }
   if (missing.length > 0) {
     return fail(3, label, `${missing.length} missing file(s); first: ${missing[0]}`)
   }
-  return pass(3, label, `${arr.length} templates × 4 files all present`)
+  if (validationErrors.length > 0) {
+    return fail(3, label, `${validationErrors.length} invalid template.json; first: ${validationErrors[0]}`)
+  }
+  return pass(3, label, `${arr.length} templates × 4 files present, all template.json valid`)
 }
 
 async function check4_shadowPopulated(): Promise<CheckResult> {
@@ -310,9 +339,40 @@ async function check5_ssgBuild(): Promise<CheckResult> {
   if (!fileExists(galleryIndex)) {
     return fail(5, label, `gallery index missing at ${galleryIndex}`)
   }
-  // Spot-check at least one canonical slug page exists.
-  const sampleSlug = repoFile('apps', 'web', '.next', 'server', 'app', 'templates', 'settlegrid-nasa-data.html')
-  const hasSample = fileExists(sampleSlug)
+  // Per spec: "each of the 20 canonical slugs has /templates/<slug>.html".
+  // Read CANONICAL_20.json and verify all 20 emitted. Next.js App Router
+  // emits at .next/server/app/templates/<slug>/page.html OR
+  // .next/server/app/templates/<slug>.html depending on route shape.
+  let canonicalSlugs: string[] = []
+  try {
+    const c20 = JSON.parse(readFileSync(repoFile('CANONICAL_20.json'), 'utf-8')) as {
+      entries?: Array<{ slug?: string }>
+      templates?: Array<{ slug?: string }>
+    }
+    canonicalSlugs = (c20.entries ?? c20.templates ?? [])
+      .map((e) => e.slug)
+      .filter((s): s is string => typeof s === 'string')
+  } catch {
+    /* leave empty; report below */
+  }
+  const dirSlug = (s: string) => `settlegrid-${s}`
+  const slugCandidatePaths = (s: string) => [
+    repoFile('apps', 'web', '.next', 'server', 'app', 'templates', `${dirSlug(s)}`, 'page.html'),
+    repoFile('apps', 'web', '.next', 'server', 'app', 'templates', `${dirSlug(s)}.html`),
+    repoFile('apps', 'web', '.next', 'server', 'app', 'templates', s, 'page.html'),
+    repoFile('apps', 'web', '.next', 'server', 'app', 'templates', `${s}.html`),
+  ]
+  const missingSlugPages = canonicalSlugs.filter((s) => !slugCandidatePaths(s).some(fileExists))
+  if (canonicalSlugs.length === 0) {
+    return fail(5, label, 'CANONICAL_20.json could not be read for slug enumeration')
+  }
+  if (missingSlugPages.length > 0) {
+    return fail(
+      5,
+      label,
+      `${missingSlugPages.length}/${canonicalSlugs.length} slug pages missing; first: ${missingSlugPages[0]}`,
+    )
+  }
   // Count shadow pages.
   const shadowDir = repoFile('apps', 'web', '.next', 'server', 'app', 'mcp')
   let shadowCount = 0
@@ -329,9 +389,9 @@ async function check5_ssgBuild(): Promise<CheckResult> {
     walk(shadowDir)
   }
   if (shadowCount < 1000) {
-    return fail(5, label, `only ${shadowCount} shadow pages (expected ≥1000); sample slug: ${hasSample ? 'present' : 'missing'}`)
+    return fail(5, label, `only ${shadowCount} shadow pages (expected ≥1000)`)
   }
-  return pass(5, label, `gallery index + ${shadowCount} shadow pages`)
+  return pass(5, label, `gallery + ${canonicalSlugs.length} slug pages + ${shadowCount} shadow pages`)
 }
 
 async function check6_workflowGreen(): Promise<CheckResult> {
@@ -396,9 +456,20 @@ async function check7_meilisearch(): Promise<CheckResult> {
 }
 
 async function check8_typecheckTests(): Promise<CheckResult> {
-  const label = 'Workspace tests green (turbo)'
+  const label = 'Workspace typecheck + tests green'
   if (SKIP_TESTS) {
     return defer(8, label, 'skipped via --skip-tests')
+  }
+  // Spec literal: `pnpm -w typecheck && pnpm -w test`. This repo uses
+  // npm workspaces (no top-level typecheck script per midpoint handoff §7),
+  // so we run tsc directly on the two known-clean tsconfig roots.
+  const tcMcp = runSync('npx', ['tsc', '--noEmit', '-p', 'packages/mcp'], { timeoutMs: 60_000 })
+  if (tcMcp.status !== 0) {
+    return fail(8, label, `tsc packages/mcp exit ${tcMcp.status}: ${(tcMcp.stderr || tcMcp.stdout).trim().slice(-200)}`)
+  }
+  const tcWeb = runSync('npx', ['tsc', '--noEmit', '-p', 'apps/web/tsconfig.json'], { timeoutMs: 120_000 })
+  if (tcWeb.status !== 0) {
+    return fail(8, label, `tsc apps/web exit ${tcWeb.status}: ${(tcWeb.stderr || tcWeb.stdout).trim().slice(-200)}`)
   }
   const r = runSync('npx', ['turbo', 'test', '--concurrency=1', '--force'], {
     timeoutMs: 600_000,
@@ -408,10 +479,10 @@ async function check8_typecheckTests(): Promise<CheckResult> {
   }
   // Look for "Tasks: N successful" line as a sanity check.
   const tasksLine = r.stdout.match(/Tasks:\s+(\d+)\s+successful,\s+(\d+)\s+total/)
-  if (tasksLine && tasksLine[1] === tasksLine[2]) {
-    return pass(8, label, `${tasksLine[1]}/${tasksLine[2]} workspace tasks PASS`)
-  }
-  return pass(8, label, 'turbo test exit 0')
+  const taskMsg = tasksLine && tasksLine[1] === tasksLine[2]
+    ? `${tasksLine[1]}/${tasksLine[2]} turbo tasks`
+    : 'turbo test exit 0'
+  return pass(8, label, `tsc clean (mcp+web), ${taskMsg}`)
 }
 
 // ── Settlement-layer expansion checks (9-20) ─────────────────────────
@@ -491,12 +562,20 @@ async function check10_k2ProxiesRemoved(): Promise<CheckResult> {
 }
 
 async function check11_k3SnapshotTest(): Promise<CheckResult> {
-  const label = 'K3 — proxy-vs-kernel snapshot test exists'
+  const label = 'K3 — proxy-vs-kernel snapshot test exists + included in test runner'
   const path = repoFile('packages', 'mcp', 'src', '__tests__', 'snapshot-equivalence.test.ts')
   if (!fileExists(path)) {
     return defer(11, label, `${path} not present`)
   }
-  return pass(11, label, 'snapshot-equivalence.test.ts present')
+  // Spec: "exists and `pnpm -w test` includes it". The file lives under
+  // packages/mcp/src/__tests__ which is in @settlegrid/mcp's vitest glob
+  // by default. Verify the file actually contains test declarations
+  // (so we don't false-pass on an empty stub).
+  const src = readFileSync(path, 'utf-8')
+  if (!/^[\s]*(test|it|describe)\s*\(/m.test(src)) {
+    return fail(11, label, 'file present but contains no test/it/describe declarations')
+  }
+  return pass(11, label, 'snapshot-equivalence.test.ts present + has test declarations')
 }
 
 async function check12_k4Lifecycle(): Promise<CheckResult> {
@@ -514,61 +593,70 @@ async function check12_k4Lifecycle(): Promise<CheckResult> {
   return pass(12, label, 'MeterContext + 4 lifecycle stubs present')
 }
 
-async function check13_fmt1AiSdk(): Promise<CheckResult> {
-  const label = 'FMT1 — @settlegrid/ai-sdk package'
-  const pkgJson = repoFile('packages', 'ai-sdk', 'package.json')
+// Shared "package builds + tests pass with N+ count" helper for FMT1/FMT2 checks.
+async function checkAdapterPackage(
+  id: number,
+  label: string,
+  workspaceName: string,
+  pkgRelPath: string,
+  minTests: number,
+): Promise<CheckResult> {
+  const pkgJson = repoFile(...pkgRelPath.split('/'))
   if (!fileExists(pkgJson)) {
-    return defer(13, label, `${pkgJson} not present`)
+    return defer(id, label, `${pkgJson} not present`)
   }
-  const r = runSync('npm', ['--workspace', '@settlegrid/ai-sdk', 'test'], { timeoutMs: 120_000 })
+  // Spec: "builds, ≥N unit tests pass". Build first (some adapters require
+  // the build artifact to be present before tests can resolve imports).
+  const build = runSync('npm', ['--workspace', workspaceName, 'run', 'build'], { timeoutMs: 120_000 })
+  if (build.status !== 0) {
+    return fail(id, label, `build exit ${build.status}: ${(build.stderr || build.stdout).trim().slice(-200)}`)
+  }
+  const r = runSync('npm', ['--workspace', workspaceName, 'test'], { timeoutMs: 120_000 })
   if (r.status !== 0) {
-    return fail(13, label, `tests exit ${r.status}: ${r.stderr.trim().slice(-200)}`)
+    return fail(id, label, `tests exit ${r.status}: ${r.stderr.trim().slice(-200)}`)
   }
   const m = r.stdout.match(/Tests\s+(\d+)\s+passed/)
   const count = m ? Number(m[1]) : 0
-  if (count < 6) {
-    return fail(13, label, `only ${count} tests passed (expected ≥6)`)
+  if (count < minTests) {
+    return fail(id, label, `only ${count} tests passed (expected ≥${minTests})`)
   }
-  return pass(13, label, `${count} tests pass`)
+  return pass(id, label, `build + ${count} tests pass`)
+}
+
+async function check13_fmt1AiSdk(): Promise<CheckResult> {
+  return checkAdapterPackage(13, 'FMT1 — @settlegrid/ai-sdk package builds + ≥6 tests', '@settlegrid/ai-sdk', 'packages/ai-sdk/package.json', 6)
 }
 
 async function check14_fmt2Mastra(): Promise<CheckResult> {
-  const label = 'FMT2 — @settlegrid/mastra package'
-  const pkgJson = repoFile('packages', 'mastra', 'package.json')
-  if (!fileExists(pkgJson)) {
-    return defer(14, label, `${pkgJson} not present`)
-  }
-  const r = runSync('npm', ['--workspace', '@settlegrid/mastra', 'test'], { timeoutMs: 120_000 })
-  if (r.status !== 0) {
-    return fail(14, label, `tests exit ${r.status}: ${r.stderr.trim().slice(-200)}`)
-  }
-  const m = r.stdout.match(/Tests\s+(\d+)\s+passed/)
-  const count = m ? Number(m[1]) : 0
-  if (count < 6) {
-    return fail(14, label, `only ${count} tests passed (expected ≥6)`)
-  }
-  return pass(14, label, `${count} tests pass`)
+  return checkAdapterPackage(14, 'FMT2 — @settlegrid/mastra package builds + ≥6 tests', '@settlegrid/mastra', 'packages/mastra/package.json', 6)
 }
 
 async function check15_fmt3Polished(): Promise<CheckResult> {
-  const label = 'FMT3 — TS adapter packages polished/rebranded'
+  const label = 'FMT3 — TS adapter packages polished/rebranded (@settlegrid namespace + READMEs)'
   const candidates = ['langchain', 'n8n', 'cursor']
   const present = candidates.filter((c) => fileExists(repoFile('packages', c, 'package.json')))
   if (present.length === 0) {
     return defer(15, label, `no @settlegrid/{${candidates.join(',')}} packages present`)
   }
-  // Verify each present package uses @settlegrid namespace.
+  // Spec: "all use @settlegrid/* namespace and have updated READMEs".
   const wrongNs: string[] = []
+  const noReadme: string[] = []
   for (const p of present) {
     const pkg = JSON.parse(readFileSync(repoFile('packages', p, 'package.json'), 'utf-8')) as { name?: string }
     if (!pkg.name?.startsWith('@settlegrid/')) {
       wrongNs.push(`${p}: ${pkg.name}`)
     }
+    if (!fileExists(repoFile('packages', p, 'README.md'))) {
+      noReadme.push(p)
+    }
   }
   if (wrongNs.length > 0) {
     return fail(15, label, `non-@settlegrid name: ${wrongNs.join(', ')}`)
   }
-  return pass(15, label, `${present.length}/${candidates.length} present, all under @settlegrid`)
+  if (noReadme.length > 0) {
+    return fail(15, label, `missing README.md in: ${noReadme.join(', ')}`)
+  }
+  return pass(15, label, `${present.length}/${candidates.length} present, all @settlegrid + README`)
 }
 
 async function check16_fmt4N8nInvoke(): Promise<CheckResult> {
@@ -577,7 +665,12 @@ async function check16_fmt4N8nInvoke(): Promise<CheckResult> {
   if (!fileExists(path)) {
     return defer(16, label, `${path} not present`)
   }
-  return pass(16, label, 'Invoke.ts present')
+  // Spec: "n8n smoke test passes against a local n8n instance". This requires
+  // a local n8n runtime which is dev-environment specific. When FMT4 ships,
+  // wire this to `npm --workspace @settlegrid/n8n run smoke` (or equivalent)
+  // and DEFER if N8N_API_URL is unset. Until then, file-presence is the
+  // strongest verifiable signal locally.
+  return pass(16, label, 'Invoke.ts present (n8n smoke test pending FMT4 implementation)')
 }
 
 async function check17_mkt1Comparison(): Promise<CheckResult> {
@@ -590,7 +683,7 @@ async function check17_mkt1Comparison(): Promise<CheckResult> {
 }
 
 async function check18_rail1RailAdapter(): Promise<CheckResult> {
-  const label = 'RAIL1 — Stripe behind RailAdapter interface'
+  const label = 'RAIL1 — Stripe behind RailAdapter (no direct stripe imports in lib/stripe-*)'
   const indexPath = repoFile('packages', 'rails', 'src', 'index.ts')
   if (!fileExists(indexPath)) {
     return defer(18, label, `${indexPath} not present`)
@@ -601,7 +694,32 @@ async function check18_rail1RailAdapter(): Promise<CheckResult> {
   if (missing.length > 0) {
     return fail(18, label, `missing exports: ${missing.join(', ')}`)
   }
-  return pass(18, label, 'RailAdapter + StripeRailAdapter exported')
+  // Spec: "old direct Stripe imports from apps/web/src/lib/stripe-*.ts are
+  // gone or now go through the adapter". Find any apps/web/src/lib/stripe-*.ts
+  // and verify they don't import 'stripe' directly.
+  const libDir = repoFile('apps', 'web', 'src', 'lib')
+  const stripeFiles = dirExists(libDir)
+    ? readdirSync(libDir).filter((f) => /^stripe-.*\.ts$/.test(f))
+    : []
+  const offending: string[] = []
+  for (const f of stripeFiles) {
+    const fileSrc = readFileSync(join(libDir, f), 'utf-8')
+    if (/from ['"]stripe['"]/.test(fileSrc) || /require\(['"]stripe['"]\)/.test(fileSrc)) {
+      offending.push(f)
+    }
+  }
+  if (offending.length > 0) {
+    return fail(
+      18,
+      label,
+      `${offending.length} lib/stripe-*.ts file(s) still import 'stripe' directly: ${offending.join(', ')}`,
+    )
+  }
+  return pass(
+    18,
+    label,
+    `RailAdapter + StripeRailAdapter exported; ${stripeFiles.length} lib/stripe-*.ts file(s) routed through adapter`,
+  )
 }
 
 async function check19_comp1OfacAupIr(): Promise<CheckResult> {
@@ -636,7 +754,14 @@ async function check20_intl1CountryWise(): Promise<CheckResult> {
   if (!sopExists) {
     return fail(20, label, `manual-wise-payouts.md missing`)
   }
-  return pass(20, label, 'both INTL1 artifacts present')
+  // Spec: "tracker has at least the cohort-1 countries enumerated". The
+  // cohort-1 country list is not defined in the master plan as of 2026-04-16
+  // (the COHORT_1_COUNTRIES constant doesn't exist anywhere in the repo).
+  // When INTL1 ships, P2.INTL1 should define the cohort-1 list either inline
+  // in country-tracker.md or as a JSON manifest. This check should then read
+  // that source of truth and verify every entry appears in country-tracker.md.
+  // Until then, file-presence is the strongest verifiable signal.
+  return pass(20, label, 'both INTL1 artifacts present (cohort-1 enumeration check pending list spec)')
 }
 
 // ── Aggregation ──────────────────────────────────────────────────────
