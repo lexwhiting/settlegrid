@@ -60,8 +60,8 @@ function invokeToolParams(overrides: Params = {}): Params {
     resource: 'tool',
     operation: 'invokeTool',
     slug: 'weather-lookup',
-    invokeMethod: '',
-    invokeArgs: '{}',
+    method: '',
+    args: '{}',
     ...overrides,
   }
 }
@@ -90,19 +90,19 @@ describe('SettleGrid node — node description (P2.FMT4)', () => {
     )
   })
 
-  it('exposes invokeArgs as a JSON-typed parameter', () => {
+  it('exposes args as a JSON-typed parameter', () => {
     const node = new SettleGrid()
     const argsProp = node.description.properties.find(
-      (p) => p.name === 'invokeArgs',
+      (p) => p.name === 'args',
     )
     expect(argsProp?.type).toBe('json')
     expect(argsProp?.default).toBe('{}')
   })
 
-  it('exposes invokeMethod only for invokeTool', () => {
+  it('exposes method only for invokeTool', () => {
     const node = new SettleGrid()
     const methodProp = node.description.properties.find(
-      (p) => p.name === 'invokeMethod',
+      (p) => p.name === 'method',
     )
     expect(methodProp?.displayOptions?.show?.operation).toEqual(['invokeTool'])
   })
@@ -113,7 +113,7 @@ describe('SettleGrid node — Invoke Tool happy path', () => {
 
   it('POSTs to /api/proxy/{slug} with the x-api-key header', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"query":"Tokyo weather"}' }),
+      params: invokeToolParams({ args: '{"query":"Tokyo weather"}' }),
     })
     const node = new SettleGrid()
     const result = await node.execute.call(ctx)
@@ -128,11 +128,11 @@ describe('SettleGrid node — Invoke Tool happy path', () => {
     expect(result).toEqual([[{ json: { ok: true } }]])
   })
 
-  it('appends `method` to the body when invokeMethod is provided', async () => {
+  it('appends `method` to the body when method is provided', async () => {
     const { ctx, httpRequest } = makeHarness({
       params: invokeToolParams({
-        invokeArgs: '{"q":"hi"}',
-        invokeMethod: 'search',
+        args: '{"q":"hi"}',
+        method: 'search',
       }),
     })
     await new SettleGrid().execute.call(ctx)
@@ -166,16 +166,16 @@ describe('SettleGrid node — Invoke Tool happy path', () => {
     )
   })
 
-  it('accepts invokeArgs as an object (expression evaluation)', async () => {
+  it('accepts args as an object (expression evaluation)', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: { pre: 'evaluated', n: 1 } }),
+      params: invokeToolParams({ args: { pre: 'evaluated', n: 1 } }),
     })
     await new SettleGrid().execute.call(ctx)
     const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
     expect(req.body).toEqual({ pre: 'evaluated', n: 1 })
   })
 
-  it('defaults to empty body when invokeArgs is "{}"', async () => {
+  it('defaults to empty body when args is "{}"', async () => {
     const { ctx, httpRequest } = makeHarness({ params: invokeToolParams() })
     await new SettleGrid().execute.call(ctx)
     const req = httpRequest.mock.calls[0][0] as Record<string, unknown>
@@ -184,7 +184,7 @@ describe('SettleGrid node — Invoke Tool happy path', () => {
 
   it('runs once per input item', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       inputs: [{ json: {} }, { json: {} }, { json: {} }],
     })
     await new SettleGrid().execute.call(ctx)
@@ -193,7 +193,7 @@ describe('SettleGrid node — Invoke Tool happy path', () => {
 
   it('unwraps array responses into separate output items', async () => {
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => [{ id: 1 }, { id: 2 }],
     })
     const result = await new SettleGrid().execute.call(ctx)
@@ -210,7 +210,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
       statusCode: status,
     })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -255,7 +255,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('falls back to a generic message when status is unknown', async () => {
     const err = new Error('network failure')
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -268,7 +268,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('all HTTP-status errors are thrown as NodeApiError instances', async () => {
     const err = Object.assign(new Error('boom'), { httpCode: 402 })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -284,7 +284,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('extracts status from response.status when httpCode/statusCode are missing', async () => {
     const err = Object.assign(new Error('x'), { response: { status: 402 } })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -299,7 +299,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
       response: { statusCode: 404 },
     })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -312,7 +312,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('parses string httpCode values ("402") as numeric 402', async () => {
     const err = Object.assign(new Error('x'), { httpCode: '402' })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -325,7 +325,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('ignores non-numeric string httpCode values', async () => {
     const err = Object.assign(new Error('x'), { httpCode: 'not-a-number' })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -340,7 +340,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('ignores NaN / Infinity httpCode values', async () => {
     const err = Object.assign(new Error('x'), { httpCode: NaN })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw err
       },
@@ -352,7 +352,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
 
   it('handles non-object errors (string / undefined) gracefully', async () => {
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       httpRequestImpl: async () => {
         throw 'string error' // eslint-disable-line no-throw-literal
       },
@@ -363,7 +363,7 @@ describe('SettleGrid node — Invoke Tool error mapping (P2.FMT4 DoD)', () => {
   it('honors continueOnFail — emits an error item instead of throwing', async () => {
     const err = Object.assign(new Error('x'), { httpCode: 402 })
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       continueOnFail: true,
       httpRequestImpl: async () => {
         throw err
@@ -398,36 +398,36 @@ describe('SettleGrid node — Invoke Tool input validation', () => {
     )
   })
 
-  it('throws NodeApiError when invokeArgs is malformed JSON', async () => {
+  it('throws NodeApiError when args is malformed JSON', async () => {
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{not json' }),
+      params: invokeToolParams({ args: '{not json' }),
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
       /not valid JSON/,
     )
   })
 
-  it('throws NodeApiError when invokeArgs is a JSON array', async () => {
+  it('throws NodeApiError when args is a JSON array', async () => {
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '[1,2,3]' }),
+      params: invokeToolParams({ args: '[1,2,3]' }),
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
       /must be a JSON object/,
     )
   })
 
-  it('throws NodeApiError when invokeArgs is a JSON primitive', async () => {
+  it('throws NodeApiError when args is a JSON primitive', async () => {
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '42' }),
+      params: invokeToolParams({ args: '42' }),
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
       /must be a JSON object/,
     )
   })
 
-  it('throws NodeApiError when invokeArgs is a number (non-object, non-string)', async () => {
+  it('throws NodeApiError when args is a number (non-object, non-string)', async () => {
     const { ctx } = makeHarness({
-      params: invokeToolParams({ invokeArgs: 42 }),
+      params: invokeToolParams({ args: 42 }),
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
       /must be an object or a JSON string/,
@@ -436,7 +436,7 @@ describe('SettleGrid node — Invoke Tool input validation', () => {
 
   it('does NOT call httpRequest when validation fails', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{not json' }),
+      params: invokeToolParams({ args: '{not json' }),
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrow()
     expect(httpRequest).not.toHaveBeenCalled()
@@ -448,7 +448,7 @@ describe('SettleGrid node — credential validation (hostile fix)', () => {
 
   it('throws NodeApiError when credential apiKey is missing', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: { apiKey: '' },
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
@@ -459,7 +459,7 @@ describe('SettleGrid node — credential validation (hostile fix)', () => {
 
   it('throws NodeApiError when credential apiKey is whitespace-only', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: { apiKey: '   ' },
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
@@ -470,7 +470,7 @@ describe('SettleGrid node — credential validation (hostile fix)', () => {
 
   it('throws NodeApiError when credential apiKey is non-string (object)', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: { apiKey: { nested: 'x' } as unknown as string },
     })
     await expect(new SettleGrid().execute.call(ctx)).rejects.toThrowError(
@@ -481,7 +481,7 @@ describe('SettleGrid node — credential validation (hostile fix)', () => {
 
   it('trims whitespace on credential apiKey before forwarding', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: { apiKey: '  sg_live_trimmed  ' },
     })
     await new SettleGrid().execute.call(ctx)
@@ -493,7 +493,7 @@ describe('SettleGrid node — credential validation (hostile fix)', () => {
 
   it('falls back to default baseUrl when credential baseUrl is non-string', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: {
         apiKey: 'sg_live_x',
         baseUrl: 42 as unknown as string,
@@ -510,7 +510,7 @@ describe('SettleGrid node — credentials integration (P2.FMT4 DoD)', () => {
 
   it('reads credentials exactly once per execute() call', async () => {
     const { ctx, getCredentials } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       inputs: [{ json: {} }, { json: {} }],
     })
     await new SettleGrid().execute.call(ctx)
@@ -520,7 +520,7 @@ describe('SettleGrid node — credentials integration (P2.FMT4 DoD)', () => {
 
   it('forwards the apiKey from credentials as the x-api-key header verbatim', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: { apiKey: 'sg_live_custom_key_XYZ789' },
     })
     await new SettleGrid().execute.call(ctx)
@@ -532,7 +532,7 @@ describe('SettleGrid node — credentials integration (P2.FMT4 DoD)', () => {
 
   it('defaults baseUrl to https://settlegrid.ai when credential omits it', async () => {
     const { ctx, httpRequest } = makeHarness({
-      params: invokeToolParams({ invokeArgs: '{"x":1}' }),
+      params: invokeToolParams({ args: '{"x":1}' }),
       credentials: { apiKey: 'sg_live_x' },
     })
     await new SettleGrid().execute.call(ctx)
