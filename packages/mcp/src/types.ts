@@ -295,3 +295,125 @@ export interface DispatchKernel {
    */
   handle(request: Request, runHandler: DispatchHandler): Promise<Response>
 }
+
+// ─── P2.K4 — typed MeterContext + Invocation lifecycle ──────────────────────
+//
+// Per settlement-layer-architecture.md, the second arg of `sg.wrap`'s
+// returned wrapper function is formalized as a typed `MeterContext`. The
+// runtime behavior is unchanged in P2.K4 — the kernel still reads the
+// same `headers` and `metadata` fields it always has — but consumers now
+// have a named, documented shape to target for future lifecycle work
+// (streaming, long-running invocations) that P3.K1 will implement.
+//
+// The interface is INTENTIONALLY all-optional so existing callers who
+// pass `{ headers, metadata }` still typecheck cleanly. Future additions
+// here (tracing identifiers, operator-supplied fraud signals, etc.)
+// should follow the same opt-in pattern.
+
+/**
+ * Typed context passed into the wrapper function returned by `sg.wrap`.
+ *
+ * All fields are optional. The runtime currently reads `headers` and
+ * `metadata`; the other fields are reserved for the P3.K1 lifecycle
+ * implementation and are allowed to be present at the type level so
+ * consumers can populate them during P2 without a type-level break
+ * when P3 ships.
+ */
+export interface MeterContext {
+  /**
+   * Explicit API key to bill. When absent, the SDK extracts it from
+   * `headers['x-api-key']`, `headers.authorization` (Bearer), or
+   * `metadata['settlegrid-api-key']` — in that order. Providing it
+   * here skips header extraction.
+   */
+  apiKey?: string
+
+  /**
+   * Optional session identifier for grouping related invocations
+   * (e.g., a multi-step tool call flow). Persisted on the Invocation
+   * record when P3.K1's lifecycle API lands.
+   */
+  sessionId?: string
+
+  /**
+   * Per-invocation budget ceiling in cents. When set, the middleware
+   * rejects before handler execution if the operation's cost exceeds
+   * this value (`BudgetExceededError`). Today read from
+   * `metadata['settlegrid-max-cost-cents']`; P2.K4 promotes it to a
+   * first-class field.
+   */
+  maxCostCents?: number
+
+  /**
+   * Free-form metadata object. Currently carries
+   * `settlegrid-max-cost-cents` (see above); P3.K1 will migrate that
+   * off into the typed field and keep this available for
+   * consumer-defined tags (request IDs, tracing spans, etc.).
+   */
+  metadata?: Record<string, unknown>
+
+  /**
+   * HTTP-style headers. Currently the primary extraction surface
+   * for `x-api-key` and `Authorization: Bearer sg_*`. Passed
+   * through unchanged to the middleware.
+   */
+  headers?: Record<string, string | string[] | undefined>
+
+  /**
+   * MCP-protocol `_meta` passthrough. The SDK reads
+   * `_meta['settlegrid-api-key']` / `_meta['settlegrid-method']` /
+   * `_meta['settlegrid-service']` when available. Provided here as
+   * a typed field so MCP tool servers don't need to shoehorn MCP
+   * metadata through `metadata`.
+   */
+  mcpMeta?: Record<string, unknown>
+}
+
+/**
+ * State-machine record of a single billable invocation. Produced by
+ * `beginInvocation(ctx)` and transitioned through
+ * `heartbeat` / `settleInvocation` / `voidInvocation` for the P3.K1
+ * lifecycle API. In P2.K4 the stubs throw `NOT_IMPLEMENTED`; the shape
+ * is defined now so consumers can type against it.
+ *
+ * State transitions (P3.K1 reference):
+ *   pending  → active (beginInvocation completes + first heartbeat)
+ *   active   → settled (settleInvocation with final cost)
+ *   active   → voided  (voidInvocation cancels with no charge)
+ *   active   → failed  (handler threw; middleware records + voids)
+ *   pending  → failed  (beginInvocation itself errored)
+ */
+export interface Invocation {
+  /** UUID / ULID — unique within this SettleGrid instance. */
+  id: string
+
+  /** Current state-machine state. */
+  status: 'pending' | 'active' | 'settled' | 'voided' | 'failed'
+
+  /** The MeterContext this invocation was opened against. */
+  meterContext: MeterContext
+
+  /** Operation method name (for pricing resolution). */
+  method?: string
+
+  /** Units billed when the operation uses a non-invocation pricing model. */
+  units?: number
+
+  /** Final cost charged, in cents. Set on settleInvocation. */
+  costCents?: number
+
+  /** Millisecond epoch when beginInvocation was called. */
+  startedAt: number
+
+  /** Millisecond epoch of the most recent heartbeat (if any). */
+  heartbeatAt?: number
+
+  /** Millisecond epoch when the invocation reached a terminal state. */
+  settledAt?: number
+
+  /** Error details when status is 'failed'. */
+  error?: {
+    code: string
+    message: string
+  }
+}

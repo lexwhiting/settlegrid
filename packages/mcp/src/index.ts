@@ -24,8 +24,17 @@
 
 import { normalizeConfig, validatePricingConfig } from './config'
 import { createMiddleware, extractApiKey } from './middleware'
+import {
+  beginInvocation as _beginInvocation,
+  settleInvocation as _settleInvocation,
+  voidInvocation as _voidInvocation,
+  heartbeat as _heartbeat,
+} from './lifecycle'
+import type { BeginInvocationOptions, SettleInvocationOptions } from './lifecycle'
 import type {
   GeneralizedPricingConfig,
+  Invocation,
+  MeterContext,
   PricingConfig,
   SettleGridConfig,
   WrapOptions,
@@ -75,6 +84,9 @@ export type {
   PricingModel,
   ValidateKeyResponse,
   MeterResponse,
+  // P2.K4 — typed MeterContext + Invocation lifecycle
+  MeterContext,
+  Invocation,
 } from './types'
 
 export type { NormalizedConfig } from './config'
@@ -178,10 +190,14 @@ export interface SettleGridInstance {
     options?: WrapOptions
   ): (
     args: TArgs,
-    context?: {
-      headers?: Record<string, string | string[] | undefined>
-      metadata?: Record<string, unknown>
-    }
+    // P2.K4: the wrapper's second arg is now formalized as
+    // MeterContext (a superset of the historical { headers, metadata }
+    // shape — all fields optional, so existing callers keep working).
+    // Runtime is unchanged; the middleware still only reads
+    // `headers` and `metadata` today. Additional MeterContext fields
+    // (apiKey, sessionId, maxCostCents, mcpMeta) are reserved for the
+    // P3.K1 lifecycle implementation.
+    context?: MeterContext
   ) => Promise<TResult>
 
   /**
@@ -239,6 +255,49 @@ export interface SettleGridInstance {
    * ```
    */
   clearCache(): void
+
+  /**
+   * P2.K4 — open an invocation against the supplied {@link MeterContext}.
+   * Returns an {@link Invocation} record that can be advanced through
+   * {@link SettleGridInstance.heartbeat} and finalized with
+   * {@link SettleGridInstance.settleInvocation} or
+   * {@link SettleGridInstance.voidInvocation}.
+   *
+   * **P2.K4 behavior**: throws `NOT_IMPLEMENTED — see P3.K1`. The shape
+   * is frozen so consumers can write code against it; P3.K1 replaces
+   * the throw with the real reservation + state-machine logic.
+   */
+  beginInvocation(
+    meterContext: MeterContext,
+    options?: BeginInvocationOptions,
+  ): Invocation
+
+  /**
+   * P2.K4 — terminal success for an invocation: charge the consumer
+   * and mark it settled.
+   *
+   * **P2.K4 behavior**: throws `NOT_IMPLEMENTED — see P3.K1`.
+   */
+  settleInvocation(
+    invocation: Invocation,
+    options?: SettleInvocationOptions,
+  ): void
+
+  /**
+   * P2.K4 — terminal cancel for an invocation: release the
+   * reservation, no charge, record the void reason.
+   *
+   * **P2.K4 behavior**: throws `NOT_IMPLEMENTED — see P3.K1`.
+   */
+  voidInvocation(invocation: Invocation, reason?: string): void
+
+  /**
+   * P2.K4 — periodic keep-alive for long-running invocations. P3.K1
+   * will advance `heartbeatAt` on the invocation record.
+   *
+   * **P2.K4 behavior**: throws `NOT_IMPLEMENTED — see P3.K1`.
+   */
+  heartbeat(invocation: Invocation): void
 }
 
 // ─── Main SDK namespace ──────────────────────────────────────────────────────
@@ -434,6 +493,28 @@ export const settlegrid = {
 
       clearCache() {
         middleware.clearCache()
+      },
+
+      // ── P2.K4 — Lifecycle API stubs ──────────────────────────────
+      // Each method delegates to the corresponding module-level stub
+      // in `./lifecycle`. All 4 throw `NOT_IMPLEMENTED — see P3.K1`
+      // today. P3.K1 will replace the throws with real
+      // reservation/charge/void/heartbeat logic; the interface is
+      // pinned now so consumers can write code against it.
+      beginInvocation(meterContext, options) {
+        return _beginInvocation(meterContext, options)
+      },
+
+      settleInvocation(invocation, options) {
+        return _settleInvocation(invocation, options)
+      },
+
+      voidInvocation(invocation, reason) {
+        return _voidInvocation(invocation, reason)
+      },
+
+      heartbeat(invocation) {
+        return _heartbeat(invocation)
       },
     }
 
@@ -754,3 +835,24 @@ export type {
   BuildChallengeOptions,
   AcceptEntry,
 } from './402-builder'
+
+// ─── Lifecycle API (P2.K4 stubs; P3.K1 implementation) ──────────────────
+//
+// Re-exports the 4 lifecycle stub functions + their option types. The
+// matching methods on `SettleGridInstance` delegate to these; both
+// surfaces are provided so callers can use the free-function form
+// (e.g. when lifting lifecycle into an external orchestration layer)
+// or the instance-method form (for consumers that already hold a
+// `sg = settlegrid.init(...)` handle).
+
+export {
+  beginInvocation,
+  settleInvocation,
+  voidInvocation,
+  heartbeat,
+  LIFECYCLE_NOT_IMPLEMENTED_MSG,
+} from './lifecycle'
+export type {
+  BeginInvocationOptions,
+  SettleInvocationOptions,
+} from './lifecycle'

@@ -1320,11 +1320,18 @@ describe('createDispatchKernel', () => {
         toolSlug: 'test-tool',
         pricing: { defaultCostCents: 5 },
       })
-      // Public surface: wrap / validateKey / meter / clearCache only
+      // Public surface: wrap / validateKey / meter / clearCache +
+      // P2.K4 lifecycle stubs (beginInvocation / settleInvocation /
+      // voidInvocation / heartbeat). `__kernel__` is non-enumerable
+      // and must NOT appear here.
       expect(Object.keys(sg).sort()).toEqual([
+        'beginInvocation',
         'clearCache',
+        'heartbeat',
         'meter',
+        'settleInvocation',
         'validateKey',
+        'voidInvocation',
         'wrap',
       ])
       // JSON-serialized instance must not include __kernel__
