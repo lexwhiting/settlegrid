@@ -19,7 +19,13 @@ import type {
   BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
-import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
+import type {
+  AdapterLogger,
+  PaymentContext,
+  ProtocolAdapter,
+  SettlementResult,
+} from './types'
+import { NOOP_LOGGER } from './types'
 import { randomUUID } from 'crypto'
 
 export class MastercardVIAdapter implements ProtocolAdapter {
@@ -168,4 +174,159 @@ export class MastercardVIAdapter implements ProtocolAdapter {
       acceptedCredentials: ['sd-jwt-verifiable-intent'],
     }
   }
+}
+
+// ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
+
+const MC_PROTOCOL_VERSION = '1.0'
+
+const MC_HTTP_HEADERS = {
+  VERIFIABLE_INTENT: 'x-mc-verifiable-intent',
+  INTENT_ID: 'x-mc-intent-id',
+  PROTOCOL: 'x-settlegrid-protocol',
+} as const
+
+export interface MastercardPaymentResult {
+  valid: boolean
+  authorizationRef?: string
+  intentId?: string
+  amountCents?: number
+  error?: { code: MastercardErrorCode; message: string }
+}
+
+export type MastercardErrorCode =
+  | 'MC_NOT_CONFIGURED'
+  | 'MC_INTENT_MISSING'
+  | 'MC_INTENT_INVALID'
+  | 'MC_INTENT_EXPIRED'
+  | 'MC_AUTHORIZATION_DECLINED'
+  | 'MC_API_ERROR'
+
+export interface MastercardToolConfig {
+  slug: string
+  costCents: number
+  displayName: string
+  merchantId?: string
+}
+
+export interface MastercardValidateOptions {
+  enabled: boolean
+  toolConfig: MastercardToolConfig
+  logger?: AdapterLogger
+}
+
+export interface Mastercard402Options {
+  toolSlug: string
+  costCents: number
+  toolName?: string
+  merchantId?: string
+  appUrl: string
+}
+
+export function isMastercardRequest(request: Request): boolean {
+  if (request.headers.get(MC_HTTP_HEADERS.VERIFIABLE_INTENT)) return true
+  if (request.headers.get(MC_HTTP_HEADERS.PROTOCOL) === 'mastercard-vi') return true
+
+  const auth = request.headers.get('authorization')
+  if (auth) {
+    const bearer = auth.replace(/^Bearer\s+/i, '')
+    if (bearer.startsWith('mcvi_')) return true
+  }
+
+  return false
+}
+
+export async function validateMastercardPayment(
+  request: Request,
+  options: MastercardValidateOptions,
+): Promise<MastercardPaymentResult> {
+  const { enabled, toolConfig } = options
+  const logger = options.logger ?? NOOP_LOGGER
+
+  if (!enabled) {
+    return {
+      valid: false,
+      error: {
+        code: 'MC_NOT_CONFIGURED',
+        message: 'Mastercard Verifiable Intent is not configured on this SettleGrid instance.',
+      },
+    }
+  }
+
+  const intentHeader = request.headers.get(MC_HTTP_HEADERS.VERIFIABLE_INTENT)
+  if (!intentHeader) {
+    return {
+      valid: false,
+      error: {
+        code: 'MC_INTENT_MISSING',
+        message:
+          'No Mastercard Verifiable Intent found in request. Provide x-mc-verifiable-intent header with an SD-JWT credential chain.',
+      },
+    }
+  }
+
+  const intentId = request.headers.get(MC_HTTP_HEADERS.INTENT_ID) ?? undefined
+
+  try {
+    // TODO: Verify SD-JWT credential chain (3-layer delegation)
+    // TODO: Submit authorization to Mastercard API
+    logger.info('mastercard.payment_accepted_stub', {
+      toolSlug: toolConfig.slug,
+      intentId,
+      note: 'Mastercard validation is stub; accepted based on structural validation.',
+    })
+
+    return {
+      valid: true,
+      intentId,
+      amountCents: toolConfig.costCents,
+    }
+  } catch (err) {
+    logger.error('mastercard.validation_error', { toolSlug: toolConfig.slug }, err)
+    return {
+      valid: false,
+      error: {
+        code: 'MC_API_ERROR',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Unexpected error during Mastercard payment validation.',
+      },
+    }
+  }
+}
+
+export function generateMastercard402Response(options: Mastercard402Options): Response {
+  const { toolSlug, costCents, toolName, merchantId, appUrl } = options
+  const paymentEndpoint = `${appUrl}/api/proxy/${toolSlug}`
+  const effectiveMerchantId = merchantId ?? 'settlegrid_platform'
+  const description = `${toolName ?? toolSlug} via SettleGrid`
+
+  const body = {
+    error: 'payment_required',
+    protocol: 'mastercard-vi',
+    version: MC_PROTOCOL_VERSION,
+    amount_cents: costCents,
+    currency: 'usd',
+    description,
+    merchant_id: effectiveMerchantId,
+    tool: toolSlug,
+    pricing_model: 'per-call',
+    payment_endpoint: paymentEndpoint,
+    accepted_credentials: ['sd-jwt-verifiable-intent'],
+    credential_requirements: {
+      delegation_chain: ['credential-provider', 'user', 'agent'],
+      signature_algorithm: 'ES256',
+    },
+    directory_url: `${appUrl}/api/v1/discover`,
+    instructions: `To pay, obtain a Mastercard Verifiable Intent SD-JWT credential chain, then re-send the request with x-mc-verifiable-intent header.`,
+  }
+
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'X-SettleGrid-Protocol': 'mastercard-vi',
+    'Cache-Control': 'no-store',
+  })
+
+  return new Response(JSON.stringify(body), { status: 402, headers })
 }

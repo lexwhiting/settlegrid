@@ -518,7 +518,205 @@ export type {
   PaymentContext,
   SettlementStatus,
   SettlementResult,
+  AdapterLogger,
 } from './adapters/types'
+export { NOOP_LOGGER } from './adapters/types'
+
+// ─── P2.K2 — Adapter classes + per-protocol validate/402 helpers ────────────
+//
+// P2.K2 promotes the 13 `apps/web/src/lib/*-proxy.ts` detection + validation
+// + 402 generation helpers into the bundled adapter package so the unified
+// adapter path is self-contained. The app-side lib files now re-export from
+// here with env/logger bindings. Every adapter file exports:
+//   - `class <X>Adapter` — canHandle, extractPaymentContext, formatResponse,
+//     formatError, buildChallenge (the existing ProtocolAdapter interface)
+//   - `is<X>Request(request)` — pure header detection helper
+//   - `validate<X>Payment(request, options)` — validation (env-agnostic)
+//   - `generate<X>402Response(options)` — 402 generation (env-agnostic)
+//   - Result / ErrorCode / ToolConfig / ValidateOptions / 402Options types
+
+export {
+  MPPAdapter,
+  isMppRequest,
+  validateMppPayment,
+  generateMpp402Response,
+} from './adapters/mpp'
+export type {
+  MppPaymentResult,
+  MppErrorCode,
+  MppToolConfig,
+  MppValidateOptions,
+  Mpp402Options,
+} from './adapters/mpp'
+
+export {
+  X402Adapter,
+  isX402Request,
+  validateX402Payment,
+  generateX402_402Response,
+} from './adapters/x402'
+export type {
+  X402ProxyPaymentResult,
+  X402ProxyErrorCode,
+  X402ToolConfig,
+  X402ValidateOptions,
+  X402_402Options,
+} from './adapters/x402'
+
+export {
+  AP2Adapter,
+  isAp2Request,
+  validateAp2Payment,
+  generateAp2_402Response,
+} from './adapters/ap2'
+export type {
+  Ap2PaymentResult,
+  Ap2ErrorCode,
+  Ap2ToolConfig,
+  Ap2ValidateOptions,
+  Ap2_402Options,
+} from './adapters/ap2'
+
+export {
+  TAPAdapter,
+  isVisaTapRequest,
+  validateVisaTapPayment,
+  generateVisaTap402Response,
+} from './adapters/tap'
+export type {
+  VisaTapPaymentResult,
+  VisaTapErrorCode,
+  VisaTapToolConfig,
+  VisaTapValidateOptions,
+  VisaTap402Options,
+} from './adapters/tap'
+
+export {
+  ACPAdapter,
+  isAcpRequest,
+  validateAcpPayment,
+  generateAcp402Response,
+} from './adapters/acp'
+export type {
+  AcpPaymentResult,
+  AcpErrorCode,
+  AcpToolConfig,
+  AcpValidateOptions,
+  Acp402Options,
+} from './adapters/acp'
+
+export {
+  UCPAdapter,
+  isUcpRequest,
+  validateUcpPayment,
+  generateUcp402Response,
+} from './adapters/ucp'
+export type {
+  UcpPaymentResult,
+  UcpErrorCode,
+  UcpToolConfig,
+  UcpValidateOptions,
+  Ucp402Options,
+} from './adapters/ucp'
+
+export {
+  MastercardVIAdapter,
+  isMastercardRequest,
+  validateMastercardPayment,
+  generateMastercard402Response,
+} from './adapters/mastercard-vi'
+export type {
+  MastercardPaymentResult,
+  MastercardErrorCode,
+  MastercardToolConfig,
+  MastercardValidateOptions,
+  Mastercard402Options,
+} from './adapters/mastercard-vi'
+
+export {
+  CircleNanoAdapter,
+  isCircleNanoRequest,
+  validateCircleNanoPayment,
+  generateCircleNano402Response,
+} from './adapters/circle-nano'
+export type {
+  CircleNanoPaymentResult,
+  CircleNanoErrorCode,
+  CircleNanoToolConfig,
+  CircleNanoValidateOptions,
+  CircleNano402Options,
+} from './adapters/circle-nano'
+
+export { MCPAdapter } from './adapters/mcp'
+
+// ─── P2.K2 — five new emerging-protocol adapters ────────────────────────────
+
+export {
+  L402Adapter,
+  validateL402Payment,
+  generateL402_402Response,
+} from './adapters/l402'
+export type {
+  L402PaymentResult,
+  L402ErrorCode,
+  L402ToolConfig,
+  L402ValidateOptions,
+  L402_402Options,
+} from './adapters/l402'
+
+export {
+  AlipayAdapter,
+  validateAlipayPayment,
+  generateAlipay402Response,
+} from './adapters/alipay'
+export type {
+  AlipayPaymentResult,
+  AlipayErrorCode,
+  AlipayToolConfig,
+  AlipayValidateOptions,
+  Alipay402Options,
+} from './adapters/alipay'
+
+export {
+  KyaPayAdapter,
+  validateKyaPayPayment,
+  generateKyaPay402Response,
+} from './adapters/kyapay'
+export type {
+  KyaPayPaymentResult,
+  KyaPayErrorCode,
+  KyaPayToolConfig,
+  KyaPayValidateOptions,
+  KyaPay402Options,
+} from './adapters/kyapay'
+
+export {
+  EmvcoAdapter,
+  EMVCO_NETWORKS,
+  validateEmvcoPayment,
+  generateEmvco402Response,
+} from './adapters/emvco'
+export type {
+  EmvcoPaymentResult,
+  EmvcoErrorCode,
+  EmvcoToolConfig,
+  EmvcoNetwork,
+  EmvcoValidateOptions,
+  Emvco402Options,
+} from './adapters/emvco'
+
+export {
+  DrainAdapter,
+  validateDrainPayment,
+  generateDrain402Response,
+} from './adapters/drain'
+export type {
+  DrainPaymentResult,
+  DrainErrorCode,
+  DrainToolConfig,
+  DrainValidateOptions,
+  Drain402Options,
+} from './adapters/drain'
 
 // ─── Cross-protocol dispatch kernel (P1.K2) ──────────────────────────────
 //

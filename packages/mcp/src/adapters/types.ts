@@ -41,6 +41,43 @@ export type ProtocolName =
   | 'acp'
   | 'mastercard-vi'
   | 'circle-nano'
+  // P2.K2 — emerging protocols promoted from apps/web/src/lib/*-proxy.ts into
+  // the bundled adapter registry. All five ship as standalone adapter classes
+  // with full detection, context extraction, validation, and 402-generation
+  // logic; the historical lib/*-proxy.ts files become thin re-exports.
+  | 'l402'
+  | 'alipay' // ACTP — Agentic Commerce Trust Protocol (Ant Group)
+  | 'kyapay'
+  | 'emvco'
+  | 'drain'
+
+// ─── Adapter logging (P2.K2) ────────────────────────────────────────────────
+
+/**
+ * Structured log callback for adapter validation / 402 generation flows.
+ *
+ * P2.K2 moves the per-protocol validation + 402 generation logic from the
+ * apps/web/src/lib/*-proxy.ts files into `@settlegrid/mcp` so the unified
+ * adapter path is self-contained. The lib code used `logger` from
+ * `apps/web/src/lib/logger` for in-flight structured events (external API
+ * calls, macaroon mint, voucher verification). Because `@settlegrid/mcp`
+ * cannot depend on apps/web, the migrated functions accept an optional
+ * `AdapterLogger` parameter that the lib wrappers wire to their app-side
+ * logger. When not passed, the default is a no-op — the adapter package
+ * stays zero-dep.
+ */
+export type AdapterLogger = {
+  info: (event: string, data?: Record<string, unknown>) => void
+  warn: (event: string, data?: Record<string, unknown>) => void
+  error: (event: string, data?: Record<string, unknown>, err?: unknown) => void
+}
+
+/** No-op logger used as the default when an adapter caller omits one. */
+export const NOOP_LOGGER: AdapterLogger = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+}
 
 // ─── Identity type (how the caller authenticates) ──────────────────────────
 

@@ -16,7 +16,13 @@ import type {
   BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
-import type { PaymentContext, ProtocolAdapter, SettlementResult } from './types'
+import type {
+  AdapterLogger,
+  PaymentContext,
+  ProtocolAdapter,
+  SettlementResult,
+} from './types'
+import { NOOP_LOGGER } from './types'
 import { randomUUID } from 'crypto'
 
 export class CircleNanoAdapter implements ProtocolAdapter {
@@ -190,4 +196,161 @@ export class CircleNanoAdapter implements ProtocolAdapter {
       acceptedPayments: ['eip3009-nanopayment'],
     }
   }
+}
+
+// ─── Module-level types + validation + 402 generation (P2.K2) ──────────────
+
+const CIRCLE_NANO_PROTOCOL_VERSION = '1.0'
+
+const CIRCLE_NANO_HTTP_HEADERS = {
+  AUTH: 'x-circle-nano-auth',
+  WALLET: 'x-circle-nano-wallet',
+  PROTOCOL: 'x-settlegrid-protocol',
+} as const
+
+export interface CircleNanoPaymentResult {
+  valid: boolean
+  confirmationId?: string
+  payerAddress?: string
+  amountUsdc?: string
+  error?: { code: CircleNanoErrorCode; message: string }
+}
+
+export type CircleNanoErrorCode =
+  | 'CIRCLE_NANO_NOT_CONFIGURED'
+  | 'CIRCLE_NANO_AUTH_MISSING'
+  | 'CIRCLE_NANO_AUTH_INVALID'
+  | 'CIRCLE_NANO_INSUFFICIENT_FUNDS'
+  | 'CIRCLE_NANO_API_ERROR'
+
+export interface CircleNanoToolConfig {
+  slug: string
+  costCents: number
+  displayName: string
+}
+
+export interface CircleNanoValidateOptions {
+  enabled: boolean
+  toolConfig: CircleNanoToolConfig
+  logger?: AdapterLogger
+}
+
+export interface CircleNano402Options {
+  toolSlug: string
+  costCents: number
+  toolName?: string
+  appUrl: string
+}
+
+export function isCircleNanoRequest(request: Request): boolean {
+  if (request.headers.get(CIRCLE_NANO_HTTP_HEADERS.AUTH)) return true
+  if (request.headers.get(CIRCLE_NANO_HTTP_HEADERS.PROTOCOL) === 'circle-nano') return true
+
+  const auth = request.headers.get('authorization')
+  if (auth) {
+    const bearer = auth.replace(/^Bearer\s+/i, '')
+    if (bearer.startsWith('cnano_')) return true
+  }
+
+  return false
+}
+
+export async function validateCircleNanoPayment(
+  request: Request,
+  options: CircleNanoValidateOptions,
+): Promise<CircleNanoPaymentResult> {
+  const { enabled, toolConfig } = options
+  const logger = options.logger ?? NOOP_LOGGER
+
+  if (!enabled) {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_NOT_CONFIGURED',
+        message: 'Circle Nanopayments are not configured on this SettleGrid instance.',
+      },
+    }
+  }
+
+  const authHeader = request.headers.get(CIRCLE_NANO_HTTP_HEADERS.AUTH)
+  if (!authHeader) {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_AUTH_MISSING',
+        message:
+          'No Circle Nanopayment authorization found in request. Provide x-circle-nano-auth header with an EIP-3009 authorization.',
+      },
+    }
+  }
+
+  const walletAddress = request.headers.get(CIRCLE_NANO_HTTP_HEADERS.WALLET) ?? undefined
+
+  try {
+    // TODO: Verify EIP-3009 authorization payload
+    // TODO: Submit to Circle Nanopayments API for off-chain confirmation
+    const confirmationId = randomUUID()
+
+    logger.info('circle_nano.payment_accepted_stub', {
+      toolSlug: toolConfig.slug,
+      walletAddress,
+      confirmationId,
+      note: 'Circle Nano validation is stub; accepted based on structural validation.',
+    })
+
+    return {
+      valid: true,
+      confirmationId,
+      payerAddress: walletAddress,
+    }
+  } catch (err) {
+    logger.error('circle_nano.validation_error', { toolSlug: toolConfig.slug }, err)
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_API_ERROR',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Unexpected error during Circle Nanopayment validation.',
+      },
+    }
+  }
+}
+
+export function generateCircleNano402Response(options: CircleNano402Options): Response {
+  const { toolSlug, costCents, toolName, appUrl } = options
+  const paymentEndpoint = `${appUrl}/api/proxy/${toolSlug}`
+  const description = `${toolName ?? toolSlug} via SettleGrid`
+  const amountBaseUnits = String(costCents * 10_000)
+
+  const body = {
+    error: 'payment_required',
+    protocol: 'circle-nano',
+    version: CIRCLE_NANO_PROTOCOL_VERSION,
+    amount_cents: costCents,
+    amount_usdc_base_units: amountBaseUnits,
+    currency: 'usdc',
+    description,
+    tool: toolSlug,
+    pricing_model: 'per-call',
+    payment_endpoint: paymentEndpoint,
+    accepted_payments: ['eip3009-nanopayment'],
+    settlement: {
+      type: 'off-chain-immediate',
+      batch_settlement: 'periodic-on-chain',
+      network: 'eip155:8453',
+      asset: 'USDC',
+    },
+    directory_url: `${appUrl}/api/v1/discover`,
+    instructions: `To pay, create an EIP-3009 transferWithAuthorization for at least ${amountBaseUnits} USDC base units, then re-send the request with x-circle-nano-auth header.`,
+  }
+
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'X-SettleGrid-Protocol': 'circle-nano',
+    'Cache-Control': 'no-store',
+  })
+
+  return new Response(JSON.stringify(body), { status: 402, headers })
 }
