@@ -12,14 +12,13 @@ import {
 import type {
   KyaPayPaymentResult,
   KyaPayToolConfig,
-  KyaPayErrorCode,
-} from '@settlegrid/mcp'
+  KyaPayErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isKyaPayEnabled, getKyaPayVerificationKey, getAppUrl } from './env'
 import { logger } from './logger'
 
 const kyapayAdapter = new KyaPayAdapter()
 
-const appLogger = {
+const appLogger: AdapterLogger = {
   info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
   warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
   error: (event: string, data?: Record<string, unknown>, err?: unknown) =>

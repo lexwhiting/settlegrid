@@ -7,7 +7,7 @@
  *   2. AP2 mandate body with type field matching ap2.mandates.*
  */
 
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 import type {
   AcceptEntry,
   BuildChallengeOptions,
@@ -293,7 +293,17 @@ function verifyVdcJwt(token: string, secretKey: string): VdcClaims | null {
     .update(`${parts[0]}.${parts[1]}`)
     .digest('base64url')
 
-  if (parts[2] !== expectedSig) return null
+  // Hostile-review M2: timing-safe comparison of HS256 VDC JWT signatures.
+  // Length check first because timingSafeEqual throws on unequal buffer
+  // lengths — a truncated signature returns false cleanly.
+  if (parts[2].length !== expectedSig.length) return null
+  try {
+    if (!timingSafeEqual(Buffer.from(parts[2]), Buffer.from(expectedSig))) {
+      return null
+    }
+  } catch {
+    return null
+  }
 
   try {
     return JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as VdcClaims
