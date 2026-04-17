@@ -48,7 +48,17 @@ export type DispatchDecision =
 export async function decideUnifiedDispatch(
   request: Request,
 ): Promise<DispatchDecision> {
-  const adapter = protocolRegistry.detect(request)
+  // Defensive: protocolRegistry.detect() iterates DETECTION_PRIORITY
+  // and calls each adapter's canHandle(). canHandle is supposed to be
+  // header-only and pure, but a malformed header could trip a regex
+  // or parser inside a future external adapter. Treat any throw as
+  // "no match" so the legacy chain handles the request.
+  let adapter: ReturnType<typeof protocolRegistry.detect>
+  try {
+    adapter = protocolRegistry.detect(request)
+  } catch {
+    return { type: 'no-match' }
+  }
   if (!adapter) {
     return { type: 'no-match' }
   }
@@ -57,7 +67,15 @@ export async function decideUnifiedDispatch(
   }
   let paymentContext: PaymentContext | undefined
   try {
-    paymentContext = await adapter.extractPaymentContext(request)
+    // Belt-and-suspenders: clone the request before passing to
+    // extractPaymentContext. All 9 adapters in @settlegrid/mcp
+    // currently clone internally (verified 2026-04-16), but the
+    // ProtocolAdapter contract doesn't *require* internal cloning.
+    // A future external adapter that forgets would silently corrupt
+    // the body for every request — a particularly nasty bug because
+    // it would only surface as wrong responses in P2.K3 snapshot
+    // diffs, not as test failures.
+    paymentContext = await adapter.extractPaymentContext(request.clone())
   } catch {
     // Swallow — the legacy handler will re-extract and produce the
     // canonical protocol error response. We only use the context for

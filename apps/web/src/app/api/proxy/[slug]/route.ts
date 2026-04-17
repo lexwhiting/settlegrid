@@ -311,12 +311,47 @@ async function tryUnifiedAdapterDispatch(
     return null
   }
 
+  // Equivalence preservation: the legacy chain checks isXEnabled() before
+  // each isXRequest(). The unified path here MUST do the same, otherwise
+  // a request with mpp headers but no STRIPE_MPP_SECRET configured would
+  // 5xx via handleMppProxy in unified mode but 401 (fall-through to API
+  // key flow) in legacy mode — exactly the kind of silent divergence
+  // P2.K3's snapshot test exists to catch.
+  const enabledChecks: Record<string, () => boolean> = {
+    mpp: isMppEnabled,
+    x402: isX402Enabled,
+    ap2: isAp2Enabled,
+    'visa-tap': isVisaTapEnabled,
+    acp: isAcpEnabled,
+    ucp: isUcpEnabled,
+    'mastercard-vi': isMastercardEnabled,
+    'circle-nano': isCircleNanoEnabled,
+  }
+  const enabledFn = enabledChecks[decision.protocol]
+  if (enabledFn && !enabledFn()) {
+    // Protocol detected but its env config is missing — fall through to
+    // legacy chain, which will skip the same isXEnabled() check and
+    // ultimately route to the standard API key flow (matching the
+    // flag-off behavior).
+    logger.info('proxy.dispatch', {
+      path: 'unified-then-legacy',
+      slug,
+      requestId,
+      reason: 'protocol-disabled',
+      protocol: decision.protocol,
+    })
+    return null
+  }
+
   logger.info('proxy.dispatch', {
     path: 'unified-adapter',
     slug,
     requestId,
     protocol: decision.protocol,
-    operation: decision.paymentContext
+    // Defensive optional chaining — `operation` is required by the
+    // PaymentContext type, but a future adapter returning a malformed
+    // shape would otherwise throw a TypeError on field access.
+    operation: decision.paymentContext?.operation
       ? `${decision.paymentContext.operation.service}.${decision.paymentContext.operation.method}`
       : undefined,
   })
