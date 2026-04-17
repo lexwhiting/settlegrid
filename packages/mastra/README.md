@@ -20,13 +20,16 @@ import { wrapMastraTool } from '@settlegrid/mastra'
 import { z } from 'zod'
 
 // 1. Wrap your tool's execute function.
+//    Your execute takes `input` directly — the wrapper extracts it
+//    from Mastra's `{ context, runtimeContext, mastra }` param for
+//    you, so you don't need to destructure `context` yourself.
 const searchTool = createTool({
   id: 'search',
   description: 'Search the web',
   inputSchema: z.object({ query: z.string() }),
   execute: wrapMastraTool(
-    async ({ context }) => {
-      const results = await performSearch(context.query)
+    async (input) => {
+      const results = await performSearch(input.query)
       return { results }
     },
     {
@@ -87,7 +90,11 @@ Wraps a tool's `execute` function with SettleGrid billing.
 #### Returns
 
 A function matching Mastra's `createTool` execute contract:
-`(input, { runtimeContext }) => Promise<result>`.
+`({ context, runtimeContext, mastra? }) => Promise<result>` (one
+destructured object argument).
+
+Your execute function remains `(input) => result` — the adapter
+handles the unwrap from Mastra's `{ context }` field.
 
 #### runtimeContext extraction
 
