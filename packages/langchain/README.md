@@ -1,17 +1,53 @@
-# langchain-settlegrid
+# @settlegrid/langchain
 
-Use paid SettleGrid tools in LangChain agents. Discover tools from the SettleGrid marketplace and use them as native LangChain `Tool` instances with automatic billing, metering, and usage tracking.
+**Billing adapter for LangChain.** Two integration modes:
+
+1. **Developer-side (`wrapLangchainTool`)** — wrap your local `DynamicStructuredTool` / `Tool` with per-invocation SettleGrid billing. Use this when you're *building* a paid LangChain tool.
+2. **Consumer-side (`SettleGridToolkit`)** — discover and invoke existing marketplace tools as native LangChain `Tool` instances. Use this when you want to *use* paid marketplace tools in an agent.
 
 ## Install
 
 ```bash
-npm install langchain-settlegrid @langchain/core
+npm install @settlegrid/langchain @settlegrid/mcp @langchain/core
 ```
 
-## Quick Start
+## Developer usage — `wrapLangchainTool`
+
+Wrap your tool's `func` so each call is billed through SettleGrid. The API key is read from `config.configurable.settlegridKey` at invocation time.
 
 ```typescript
-import { SettleGridToolkit } from 'langchain-settlegrid'
+import { DynamicStructuredTool } from '@langchain/core/tools'
+import { wrapLangchainTool } from '@settlegrid/langchain'
+import { z } from 'zod'
+
+const billedFunc = wrapLangchainTool(
+  async (input: { query: string }) => {
+    const data = await doExpensiveWork(input.query)
+    return JSON.stringify(data)
+  },
+  { toolSlug: 'my-search', pricing: { defaultCostCents: 2 } },
+)
+
+export const mySearch = new DynamicStructuredTool({
+  name: 'my-search',
+  description: 'Search the web (paid)',
+  schema: z.object({ query: z.string() }),
+  func: billedFunc,
+})
+
+// At runtime, pass the API key via RunnableConfig:
+const result = await mySearch.invoke(
+  { query: 'hello' },
+  { configurable: { settlegridKey: 'sg_live_...' } },
+)
+```
+
+Errors surface as `InvalidKeyError` (401) and `InsufficientCreditsError` (402) from `@settlegrid/mcp`.
+
+## Consumer usage — `SettleGridToolkit`
+
+```typescript
+import { SettleGridToolkit } from '@settlegrid/langchain'
 
 const toolkit = new SettleGridToolkit({ apiKey: 'sg_...' })
 
