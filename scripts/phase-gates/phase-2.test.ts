@@ -227,29 +227,28 @@ describe('TEST_DECL_RE', () => {
   })
 })
 
-describe('deriveK1ProxyCheckState', () => {
-  it('uninstrumented: 0 kernel + 0 lib → DEFER, uninstrumented', () => {
-    expect(deriveK1ProxyCheckState({ kernelImports: 0, offendingCount: 0 }))
-      .toEqual({ status: 'DEFER', reason: 'uninstrumented' })
+describe('deriveK1ProxyCheckState (2-state, post-2026-04-16 K1/K2 split)', () => {
+  it('k1-pending: 0 unified refs → DEFER, k1-pending', () => {
+    expect(deriveK1ProxyCheckState({ unifiedRefs: 0 }))
+      .toEqual({ status: 'DEFER', reason: 'k1-pending' })
   })
 
-  it('pre-K1: 0 kernel + N lib → DEFER, pre-K1', () => {
-    expect(deriveK1ProxyCheckState({ kernelImports: 0, offendingCount: 5 }))
-      .toEqual({ status: 'DEFER', reason: 'pre-K1' })
+  it('k1-shipped: 1 unified ref → PASS, k1-shipped', () => {
+    expect(deriveK1ProxyCheckState({ unifiedRefs: 1 }))
+      .toEqual({ status: 'PASS', reason: 'k1-shipped' })
   })
 
-  it('k1-complete: N kernel + 0 lib → PASS, k1-complete', () => {
-    expect(deriveK1ProxyCheckState({ kernelImports: 3, offendingCount: 0 }))
-      .toEqual({ status: 'PASS', reason: 'k1-complete' })
+  it('k1-shipped: many unified refs → PASS', () => {
+    expect(deriveK1ProxyCheckState({ unifiedRefs: 17 }).status).toBe('PASS')
   })
 
-  it('partial-migration: N kernel + M lib → FAIL, partial-migration (broken invariant)', () => {
-    expect(deriveK1ProxyCheckState({ kernelImports: 3, offendingCount: 2 }))
-      .toEqual({ status: 'FAIL', reason: 'partial-migration' })
-  })
-
-  it('partial-migration triggers even with single mixed import', () => {
-    expect(deriveK1ProxyCheckState({ kernelImports: 1, offendingCount: 1 }).status).toBe('FAIL')
+  it('does not regress to old 4-state model — K2 removal is check 10s job, not check 9s', () => {
+    // Pin the K1/K2 separation: K1 is "add unified path", K2 is
+    // "remove lib/*-proxy". Coexistence (K1 done, K2 pending) is a
+    // valid intermediate state and must NOT FAIL check 9.
+    const k1OnlyState = deriveK1ProxyCheckState({ unifiedRefs: 5 })
+    expect(k1OnlyState.status).toBe('PASS')
+    expect(k1OnlyState.reason).toBe('k1-shipped')
   })
 })
 
