@@ -29,15 +29,11 @@ export class UCPAdapter implements ProtocolAdapter {
   readonly displayName = 'Universal Commerce Protocol (Google + Shopify)'
 
   /**
-   * Detect if this request is a UCP checkout.
-   * UCP requests have:
-   *   - x-ucp-session header (session-based checkout)
-   *   - OR x-settlegrid-protocol: ucp
+   * Detect if this request is a UCP checkout. P2.K3 delegates to the
+   * module-level `isUcpRequest` helper for a single detection surface.
    */
   canHandle(request: Request): boolean {
-    const hasUcpSession = request.headers.get('x-ucp-session') !== null
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'ucp'
-    return hasUcpSession || hasProtocolHeader
+    return isUcpRequest(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {

@@ -29,15 +29,12 @@ export class TAPAdapter implements ProtocolAdapter {
   readonly displayName = 'Visa TAP (Trusted Agent Protocol)'
 
   /**
-   * Detect if this request is a Visa TAP payment.
-   * TAP requests have:
-   *   - x-settlegrid-protocol: visa-tap
-   *   - OR x-visa-agent-token header
+   * Detect if this request is a Visa TAP payment. P2.K3 delegates to
+   * the module-level `isVisaTapRequest` helper for a single detection
+   * surface.
    */
   canHandle(request: Request): boolean {
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'visa-tap'
-    const hasVisaToken = request.headers.get('x-visa-agent-token') !== null
-    return hasProtocolHeader || hasVisaToken
+    return isVisaTapRequest(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {

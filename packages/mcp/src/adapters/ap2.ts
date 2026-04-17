@@ -27,15 +27,11 @@ export class AP2Adapter implements ProtocolAdapter {
   readonly displayName = 'AP2 Protocol (Google Agentic Payments)'
 
   /**
-   * Detect if this request is an AP2 payment.
-   * AP2 requests have:
-   *   - x-settlegrid-protocol: ap2
-   *   - OR x-ap2-mandate header
+   * Detect if this request is an AP2 payment. P2.K3 delegates to the
+   * module-level `isAp2Request` helper for a single detection surface.
    */
   canHandle(request: Request): boolean {
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'ap2'
-    const hasAp2Mandate = request.headers.get('x-ap2-mandate') !== null
-    return hasProtocolHeader || hasAp2Mandate
+    return isAp2Request(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {

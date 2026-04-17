@@ -442,45 +442,55 @@ async function handleProxy(
     // Check each payment protocol in priority order. When a protocol is
     // enabled and the request matches its headers, use that protocol's
     // payment flow instead of the standard API key flow.
+    //
+    // P2.K3: The ordering below mirrors @settlegrid/mcp's DETECTION_PRIORITY
+    // exactly — circle-nano before x402 (x402-compatible, more specific),
+    // mastercard-vi immediately after x402. This matters ONLY for requests
+    // that carry headers triggering more than one protocol (e.g. both
+    // x-circle-nano-auth AND payment-signature); otherwise disjoint
+    // triggers make order irrelevant. Matching the registry's order is
+    // what enables the P2.K3 proxy-equivalence.test.ts snapshot test to
+    // pass byte-for-byte — and therefore what makes the USE_UNIFIED_ADAPTERS
+    // default-flip to `true` a no-op from the consumer's perspective.
 
     // 1. Stripe MPP (Machine Payments Protocol — Stripe + Tempo)
     if (isMppEnabled() && isMppRequest(request)) {
       return handleMppProxy(request, slug, requestId, startTime)
     }
 
-    // 2. x402 (Coinbase — USDC on Base blockchain)
+    // 2. Circle Nanopayments (x402-compatible, more specific headers win)
+    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    }
+
+    // 3. x402 (Coinbase — USDC on Base blockchain)
     if (isX402Enabled() && isX402Request(request)) {
       return handleX402Proxy(request, slug, requestId, startTime)
     }
 
-    // 3. AP2 (Google Agentic Payments Protocol)
-    if (isAp2Enabled() && isAp2Request(request)) {
-      return handleAp2Proxy(request, slug, requestId, startTime)
-    }
-
-    // 4. Visa TAP (Trusted Agent Protocol)
-    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
-      return handleVisaTapProxy(request, slug, requestId, startTime)
-    }
-
-    // 5. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
-    if (isAcpEnabled() && isAcpRequest(request)) {
-      return handleAcpProxy(request, slug, requestId, startTime)
-    }
-
-    // 6. UCP (Universal Commerce Protocol)
-    if (isUcpEnabled() && isUcpRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
-    }
-
-    // 7. Mastercard Verifiable Intent
+    // 4. Mastercard Verifiable Intent (SD-JWT credential chain)
     if (isMastercardEnabled() && isMastercardRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
     }
 
-    // 8. Circle Nanopayments
-    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    // 5. AP2 (Google Agentic Payments Protocol)
+    if (isAp2Enabled() && isAp2Request(request)) {
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    }
+
+    // 6. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
+    if (isAcpEnabled() && isAcpRequest(request)) {
+      return handleAcpProxy(request, slug, requestId, startTime)
+    }
+
+    // 7. UCP (Universal Commerce Protocol)
+    if (isUcpEnabled() && isUcpRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    }
+
+    // 8. Visa TAP (Trusted Agent Protocol)
+    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
+      return handleVisaTapProxy(request, slug, requestId, startTime)
     }
 
     // 9. L402 (Bitcoin Lightning)

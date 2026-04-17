@@ -119,32 +119,38 @@ describe('env module', () => {
     expect(env1.NEXT_PUBLIC_SUPABASE_URL).toBe('https://dljdthtrsuxglybhmqox.supabase.co')
   })
 
-  describe('useUnifiedAdapters (P2.K1 feature flag)', () => {
-    // Strict-truthy: only the literal string 'true' enables. This is a
-    // safe-default — a typo like 'TRUE' or '1' won't accidentally flip
-    // the unified-adapter dispatch path on in production. The contract
-    // is documented in env.ts; these tests pin it.
+  describe('useUnifiedAdapters (feature flag — P2.K3 flipped default to true)', () => {
+    // P2.K3 flipped the default from off to on once the
+    // apps/web/src/lib/__tests__/proxy-equivalence.test.ts snapshot test
+    // proved byte-for-byte parity between the legacy 13-branch chain and
+    // the unified adapter-registry dispatch path. Only the literal string
+    // 'false' disables — any other value (including unset) leaves the
+    // unified path on. The permissive default is intentional: a typo in
+    // the env var should NOT silently disable the now-canonical path.
+    //
+    // See env.ts for the full rationale and history.
     it.each([
+      ['false', false], // only literal 'false' opts out
       ['true', true],
-      ['false', false],
-      ['TRUE', false], // case-sensitive
-      ['True', false], // case-sensitive
-      ['1', false],
-      ['yes', false],
-      ['on', false],
-      ['', false],
-      ['true ', false], // trailing whitespace not trimmed
-      [' true', false], // leading whitespace not trimmed
+      ['TRUE', true], // case-insensitive-adjacent: not 'false' → true
+      ['True', true],
+      ['1', true],
+      ['yes', true],
+      ['on', true],
+      ['', true],
+      ['false ', true], // trailing whitespace — string ≠ 'false'
+      [' false', true], // leading whitespace — string ≠ 'false'
+      ['FALSE', true], // case-sensitive opt-out
     ])('USE_UNIFIED_ADAPTERS=%j → %j', async (value, expected) => {
       process.env.USE_UNIFIED_ADAPTERS = value
       const { useUnifiedAdapters } = await import('@/lib/env')
       expect(useUnifiedAdapters()).toBe(expected)
     })
 
-    it('returns false when USE_UNIFIED_ADAPTERS is unset (default off per spec)', async () => {
+    it('returns true when USE_UNIFIED_ADAPTERS is unset (P2.K3 default on)', async () => {
       delete process.env.USE_UNIFIED_ADAPTERS
       const { useUnifiedAdapters } = await import('@/lib/env')
-      expect(useUnifiedAdapters()).toBe(false)
+      expect(useUnifiedAdapters()).toBe(true)
     })
   })
 })

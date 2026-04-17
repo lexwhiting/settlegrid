@@ -30,15 +30,12 @@ export class CircleNanoAdapter implements ProtocolAdapter {
   readonly displayName = 'Circle Nanopayments (USDC)'
 
   /**
-   * Detect if this request is a Circle Nanopayment.
-   * Circle Nano requests have:
-   *   - x-circle-nano-auth header (EIP-3009 transferWithAuthorization)
-   *   - OR x-settlegrid-protocol: circle-nano
+   * Detect if this request is a Circle Nanopayment. P2.K3 delegates to
+   * the module-level `isCircleNanoRequest` helper for a single
+   * detection surface.
    */
   canHandle(request: Request): boolean {
-    const hasNanoAuth = request.headers.get('x-circle-nano-auth') !== null
-    const hasProtocolHeader = request.headers.get('x-settlegrid-protocol') === 'circle-nano'
-    return hasNanoAuth || hasProtocolHeader
+    return isCircleNanoRequest(request)
   }
 
   async extractPaymentContext(request: Request): Promise<PaymentContext> {
