@@ -56,15 +56,19 @@ export async function POST(request: NextRequest) {
       appUrl: getAppUrl(),
     })
 
+    // P2.RAIL1 resumability: two-step flow — persist the externalId
+    // BETWEEN account creation and onboarding-link creation. If the
+    // link step fails, the next retry reuses the already-persisted ID
+    // instead of creating an orphan duplicate account. Matches the
+    // pre-refactor persist order exactly.
     const existingAccountId = developer.stripeConnectId ?? undefined
-    const { url, externalId } = await adapter.startOnboarding({
+    const { externalId, created } = await adapter.ensureAccount({
       developerId: auth.id,
       email: auth.email,
       existingExternalId: existingAccountId,
     })
 
-    // If the adapter created a new account, persist the ID.
-    if (!existingAccountId) {
+    if (created) {
       await db
         .update(developers)
         .set({
@@ -74,6 +78,8 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(developers.id, auth.id))
     }
+
+    const { url } = await adapter.createOnboardingLink(externalId)
 
     writeAuditLog({
       developerId: auth.id,

@@ -66,13 +66,28 @@ export interface StripeRailAdapterOptions {
 }
 
 /**
+ * Stripe-specific extensions to the RailAdapter interface. Exposes
+ * two-step onboarding primitives (`ensureAccount` +
+ * `createOnboardingLink`) that callers use when they need to persist
+ * the externalId to their DB BETWEEN the two Stripe API calls.
+ * Consumers that don't need resumability use the plain
+ * `startOnboarding` method defined on `RailAdapter`.
+ */
+export interface StripeRailAdapter extends RailAdapter {
+  ensureAccount(
+    dev: DeveloperProfile,
+  ): Promise<{ externalId: string; created: boolean }>
+  createOnboardingLink(externalId: string): Promise<{ url: string }>
+}
+
+/**
  * Factory for the Stripe Connect rail adapter. Returns a
- * RailAdapter-conforming object that closes over the injected
- * Stripe client and configuration.
+ * StripeRailAdapter (which satisfies the base RailAdapter interface
+ * plus the Stripe-specific two-step onboarding primitives).
  */
 export function createStripeRailAdapter(
   opts: StripeRailAdapterOptions,
-): RailAdapter {
+): StripeRailAdapter {
   if (!opts || typeof opts !== 'object') {
     throw new TypeError(
       'createStripeRailAdapter: `opts` is required and must be an object.',
@@ -93,38 +108,73 @@ export function createStripeRailAdapter(
   const accountType = opts.accountType ?? 'express'
   const webhookSecret = opts.webhookSecret
 
+  /**
+   * Ensure a Stripe Connect account exists for the developer.
+   * Returns the existing externalId when one is provided OR creates a
+   * new Connect account. Split out from `startOnboarding` so callers
+   * can persist the new externalId to their DB BETWEEN account
+   * creation and onboarding-link creation — critical for resumability
+   * when accountLinks.create fails (otherwise the next retry creates
+   * an orphan duplicate account).
+   */
+  async function ensureAccount(
+    dev: DeveloperProfile,
+  ): Promise<{ externalId: string; created: boolean }> {
+    if (!dev || typeof dev !== 'object') {
+      throw new TypeError('ensureAccount: `dev` is required.')
+    }
+    if (!dev.developerId) {
+      throw new TypeError('ensureAccount: `dev.developerId` is required.')
+    }
+    if (!dev.email) {
+      throw new TypeError('ensureAccount: `dev.email` is required.')
+    }
+    if (dev.existingExternalId) {
+      return { externalId: dev.existingExternalId, created: false }
+    }
+    const account = await stripe.accounts.create({
+      type: accountType,
+      email: dev.email,
+      metadata: { developerId: dev.developerId },
+      capabilities: { transfers: { requested: true } },
+    })
+    return { externalId: account.id, created: true }
+  }
+
+  /**
+   * Create the account-onboarding link for an existing external
+   * account. Caller MUST have already persisted the externalId before
+   * calling this — if the link creation fails, a retry can re-call
+   * this with the same externalId rather than orphaning another
+   * account.
+   */
+  async function createOnboardingLink(
+    externalId: string,
+  ): Promise<{ url: string }> {
+    if (!externalId || typeof externalId !== 'string') {
+      throw new TypeError('createOnboardingLink: `externalId` is required.')
+    }
+    const accountLink = await stripe.accountLinks.create({
+      account: externalId,
+      refresh_url: `${appUrl}/dashboard/settings?stripe=refresh`,
+      return_url: `${appUrl}/api/stripe/connect/callback?account_id=${externalId}`,
+      type: 'account_onboarding',
+    })
+    return { url: accountLink.url }
+  }
+
+  /**
+   * Convenience wrapper: ensureAccount + createOnboardingLink. Callers
+   * that want the two-step resumable flow should call the primitives
+   * directly; callers fine with the atomic "create + link or fail"
+   * shape can call this. RailAdapter interface contract.
+   */
   async function startOnboarding(
     dev: DeveloperProfile,
   ): Promise<{ url: string; externalId: string }> {
-    if (!dev || typeof dev !== 'object') {
-      throw new TypeError('startOnboarding: `dev` is required.')
-    }
-    if (!dev.developerId) {
-      throw new TypeError('startOnboarding: `dev.developerId` is required.')
-    }
-    if (!dev.email) {
-      throw new TypeError('startOnboarding: `dev.email` is required.')
-    }
-
-    let accountId = dev.existingExternalId
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: accountType,
-        email: dev.email,
-        metadata: { developerId: dev.developerId },
-        capabilities: { transfers: { requested: true } },
-      })
-      accountId = account.id
-    }
-
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${appUrl}/dashboard/settings?stripe=refresh`,
-      return_url: `${appUrl}/api/stripe/connect/callback?account_id=${accountId}`,
-      type: 'account_onboarding',
-    })
-
-    return { url: accountLink.url, externalId: accountId }
+    const { externalId } = await ensureAccount(dev)
+    const { url } = await createOnboardingLink(externalId)
+    return { url, externalId }
   }
 
   async function syncOnboardingStatus(
@@ -188,8 +238,12 @@ export function createStripeRailAdapter(
       cancel_url: params.cancelUrl,
       customer_email: params.customerEmail,
       metadata: {
-        developerId: params.developerId,
+        // Caller-supplied metadata first, then our developerId so it
+        // ALWAYS wins — a malicious caller passing
+        // `metadata: { developerId: 'OVERRIDE' }` cannot forge the
+        // developer identity on the top-up session.
         ...(params.metadata ?? {}),
+        developerId: params.developerId,
       },
     })
 
@@ -303,7 +357,7 @@ export function createStripeRailAdapter(
     }
   }
 
-  const adapter: RailAdapter = {
+  const adapter: StripeRailAdapter = {
     id: 'stripe-connect',
     displayName: STRIPE_CONNECT_DISPLAY_NAME,
     legalStructure: 'platform',
@@ -314,6 +368,8 @@ export function createStripeRailAdapter(
     syncOnboardingStatus,
     createTopupSession,
     handleWebhook,
+    ensureAccount,
+    createOnboardingLink,
   }
 
   return adapter
@@ -377,11 +433,8 @@ export const STRIPE_CONNECT_PRICING = {
     'Reference only — actual Stripe fees depend on country, card type, and currency. See https://stripe.com/pricing',
 } as const
 
-/**
- * Named export for the adapter FACTORY (matches the spec's expected
- * `StripeRailAdapter` identifier). Re-export pattern: consumers write
- * `new StripeRailAdapter({ stripe, appUrl })` OR
- * `createStripeRailAdapter({ stripe, appUrl })` — both produce the
- * same RailAdapter instance.
- */
-export const StripeRailAdapter = createStripeRailAdapter
+// The `StripeRailAdapter` interface is exported above. The factory
+// is `createStripeRailAdapter`. No runtime alias is necessary — TS
+// declaration-namespace rules let `StripeRailAdapter` refer to the
+// interface when used as a type, and the factory function is always
+// spelled `createStripeRailAdapter` when invoked.

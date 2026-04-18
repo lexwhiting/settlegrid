@@ -29,13 +29,13 @@ export type {
 
 export {
   createStripeRailAdapter,
-  StripeRailAdapter,
   STRIPE_CONNECT_CAPABILITIES,
   STRIPE_CONNECT_COMPLIANCE,
   STRIPE_CONNECT_PRICING,
   STRIPE_CONNECT_DISPLAY_NAME,
   type StripeRailAdapterOptions,
   type StripeClient,
+  type StripeRailAdapter,
 } from './stripe-connect'
 
 export {
