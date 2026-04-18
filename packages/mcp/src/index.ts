@@ -891,7 +891,6 @@ export type {
 /* -------------------------------------------------------------------------- */
 export {
   createStripeRailAdapter,
-  StripeRailAdapter,
   STRIPE_CONNECT_CAPABILITIES,
   STRIPE_CONNECT_COMPLIANCE,
   STRIPE_CONNECT_PRICING,
@@ -914,6 +913,7 @@ export type {
   SettleGridInternalEvent,
   SettleGridInternalEventKind,
   StripeRailAdapterOptions,
+  StripeRailAdapter,
   StripeClient,
   BuildRegistryOptions,
   RailRegistry,
