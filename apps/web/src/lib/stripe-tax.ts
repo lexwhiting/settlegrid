@@ -79,8 +79,12 @@ export function withAutomaticTax(
   return {
     ...config,
     automatic_tax: { enabled: true },
-    billing_address_collection:
-      config.billing_address_collection ?? 'required',
+    // Hostile-review fix: FORCE 'required' regardless of caller
+    // input. A caller setting `billing_address_collection: 'auto'`
+    // would otherwise bypass the address requirement — that's
+    // exactly the bypass check (c) in the P2.TAX1 spec asks us
+    // to prevent. The only way to sign up is with an address.
+    billing_address_collection: 'required',
     customer_update:
       config.customer_update ?? { address: 'auto', name: 'auto' },
     tax_id_collection:
@@ -300,8 +304,23 @@ export function extractTaxFromInvoice(
     'tax' | 'total_tax_amounts' | 'automatic_tax' | 'customer_address'
   >,
 ): TaxBreakdown {
-  const taxCents =
-    typeof invoice.tax === 'number' && invoice.tax > 0 ? invoice.tax : 0
+  // Hostile-review fix: `invoice.tax` is deprecated on newer Stripe
+  // API versions (it returns null; the breakdown moves entirely to
+  // `total_tax_amounts[]`). If invoice.tax isn't a positive number,
+  // fall back to summing the amounts in total_tax_amounts[] so we
+  // don't silently under-report collected tax to the ledger.
+  let taxCents = 0
+  if (typeof invoice.tax === 'number' && invoice.tax > 0) {
+    taxCents = invoice.tax
+  } else if (Array.isArray(invoice.total_tax_amounts)) {
+    taxCents = invoice.total_tax_amounts.reduce((sum, entry) => {
+      const amount =
+        entry && typeof entry.amount === 'number' && entry.amount > 0
+          ? entry.amount
+          : 0
+      return sum + amount
+    }, 0)
+  }
   const firstBreakdown = invoice.total_tax_amounts?.[0]
   const taxRate =
     firstBreakdown && typeof firstBreakdown.tax_rate === 'object'
