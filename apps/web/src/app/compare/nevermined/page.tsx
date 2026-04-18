@@ -16,6 +16,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
+import { gh, isSafeSourceUrl } from './helpers'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -95,47 +96,8 @@ type Dimension = {
   nevermined: Cell
 }
 
-// Canonical base for shipped-code citations. Rendering a bare path as
-// a link against this root lets a reader click through to the exact
-// file/directory on the default branch — honoring the spec's
-// "anchor every claim with shipped-code citations" requirement.
-const GH_REPO_BASE = 'https://github.com/lexwhiting/settlegrid'
-// GitHub canonical URL shape differs for files vs directories:
-//   - /blob/<ref>/<path>  → single file view
-//   - /tree/<ref>/<path>  → directory view (or ref root)
-// Pass-through works for most paths thanks to GitHub redirects, but the
-// canonical form avoids redirects and is what users expect to copy.
-const FILE_EXT_RE = /\.(ts|tsx|js|mjs|cjs|jsx|md|mdx|json|yml|yaml|toml|svg|sh)$/i
-const gh = (path: string) => {
-  const clean = path.replace(/^\/+/, '')
-  const kind = FILE_EXT_RE.test(clean) ? 'blob' : 'tree'
-  return `${GH_REPO_BASE}/${kind}/main/${clean}`
-}
-
-/**
- * Safety net for `sourceUrl` values. Accepts:
- *   - Internal routes: `/foo`, `/foo/bar` (single leading slash, not `//…`)
- *   - External http(s) URLs
- * Rejects protocol-relative URLs (`//evil.com`), `javascript:`,
- * `data:`, `file:`, and any other scheme.
- *
- * This runs at build-time on a static constant table, so a bad URL
- * manifests as a missing link rather than a runtime crash — but
- * keeping the validation defensive means an accidental `//…` typo or
- * a future dangerous-scheme addition never silently ships as a
- * working link.
- */
-function isSafeSourceUrl(url: string | undefined): url is string {
-  if (!url) return false
-  if (url.startsWith('//')) return false
-  if (url.startsWith('/')) return true
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
-  } catch {
-    return false
-  }
-}
+// gh() + isSafeSourceUrl live in ./helpers so they can be unit-tested
+// directly. See helpers.ts for contract + rationale.
 
 const dimensions: Dimension[] = [
   {

@@ -247,40 +247,26 @@ describe('P2.MKT1 — a11y hygiene (hostile-review follow-through)', () => {
   })
 })
 
-describe('P2.MKT1 — URL-safety defenses (hostile-review II)', () => {
-  it('exports an isSafeSourceUrl guard', () => {
-    expect(pageSrc).toContain('function isSafeSourceUrl')
-  })
-
-  it('rejects protocol-relative URLs ("//evil.com") from the internal branch', () => {
-    // The Cite component must guard against classifying `//…` as
-    // internal. The source should NOT contain a raw
-    // `sourceUrl.startsWith('/')` branch without first passing
-    // through isSafeSourceUrl which rejects `//`.
-    expect(pageSrc).toMatch(/if \(url\.startsWith\(['"]\/\/['"]\)\) return false/)
-  })
-
-  it('only allows http: and https: schemes for external URLs', () => {
+describe('P2.MKT1 — URL-safety wiring in the page', () => {
+  // The helpers themselves are unit-tested in
+  // compare-nevermined-helpers.test.ts. This suite just asserts the
+  // page imports and uses them (rather than rolling its own
+  // `startsWith('/')` classifier which had the phishing bug).
+  it('imports gh() and isSafeSourceUrl from ./helpers', () => {
     expect(pageSrc).toMatch(
-      /parsed\.protocol === ['"]https:['"]\s*\|\|\s*parsed\.protocol === ['"]http:['"]/,
+      /import\s*\{[^}]*\bgh\b[^}]*\bisSafeSourceUrl\b[^}]*\}\s*from\s*['"]\.\/helpers['"]/,
     )
   })
 
-  it('rejects malformed URLs via URL-constructor try/catch', () => {
-    expect(pageSrc).toMatch(/new URL\(url\)/)
-    expect(pageSrc).toContain('return false')
+  it('does NOT redefine the helpers inline (they live in ./helpers.ts)', () => {
+    expect(pageSrc).not.toMatch(/^function isSafeSourceUrl/m)
+    expect(pageSrc).not.toMatch(/^const gh = /m)
   })
 
-  it('gh() picks /blob/ for files and /tree/ for directories', () => {
-    expect(pageSrc).toMatch(
-      /FILE_EXT_RE\.test\(clean\)\s*\?\s*['"]blob['"]\s*:\s*['"]tree['"]/,
-    )
-  })
-
-  it('gh() emits /blob/main/ for .ts file citations', () => {
-    // sessions.ts is a file; its gh() result should resolve to /blob/.
-    // Since gh() is a function, we verify the FILE_EXT_RE includes 'ts'.
-    expect(pageSrc).toMatch(/FILE_EXT_RE = \/\\\.\((?=[^/]*\bts\b)/)
+  it('uses isSafeSourceUrl() rather than raw startsWith for link branching', () => {
+    // Protect against a refactor that reverts to the buggy
+    // startsWith('/') classification.
+    expect(pageSrc).toContain('isSafeSourceUrl(')
   })
 
   it('uses Nevermined\'s canonical .ai domain (positioning doc source of truth)', () => {
@@ -295,9 +281,17 @@ describe('P2.MKT1 — URL-safety defenses (hostile-review II)', () => {
 })
 
 describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
-  it('defines a GH_REPO_BASE constant for shipped-code citation links', () => {
-    expect(pageSrc).toContain('github.com/lexwhiting/settlegrid')
-    expect(pageSrc).toContain('GH_REPO_BASE')
+  it('uses GitHub as the shipped-code citation target (via gh() helper)', () => {
+    // GH_REPO_BASE now lives in helpers.ts — verify it through the
+    // helpers file directly.
+    const helpersPath = join(
+      repoRoot,
+      'apps/web/src/app/compare/nevermined/helpers.ts',
+    )
+    expect(existsSync(helpersPath)).toBe(true)
+    const helpersSrc = readFileSync(helpersPath, 'utf8')
+    expect(helpersSrc).toContain('GH_REPO_BASE')
+    expect(helpersSrc).toContain('github.com/lexwhiting/settlegrid')
   })
 
   it('every Cell/Point type supports a sourceUrl field', () => {
@@ -311,19 +305,15 @@ describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
     expect(pageSrc).toMatch(/target="_blank"[\s\S]{0,200}rel="noopener noreferrer"/)
   })
 
-  it('the shipped-code citations carry GitHub source URLs (via gh() helper)', () => {
-    // Source uses a `gh(path)` helper that concatenates GH_REPO_BASE
-    // with the path, selecting /blob/ vs /tree/ based on whether the
-    // path ends in a file extension.
+  it('the shipped-code citations invoke gh() with the expected paths', () => {
+    // Source uses the `gh(path)` helper (imported from ./helpers)
+    // to build canonical GitHub URLs. Assert the invocations line up
+    // with the dirs/files those claims anchor to.
     expect(pageSrc).toMatch(
       /gh\(['"]apps\/web\/src\/lib\/settlement\/adapters['"]\)/,
     )
     expect(pageSrc).toMatch(
       /gh\(['"]apps\/web\/src\/lib\/settlement\/sessions\.ts['"]\)/,
-    )
-    // Verify the helper itself uses GH_REPO_BASE + kind + /main/ + path.
-    expect(pageSrc).toMatch(
-      /return\s+`\$\{GH_REPO_BASE\}\/\$\{kind\}\/main\/\$\{clean\}`/,
     )
   })
 
