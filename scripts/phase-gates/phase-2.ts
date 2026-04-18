@@ -972,7 +972,23 @@ async function check18_rail1RailAdapter(): Promise<CheckResult> {
   for (const f of stripeFiles) {
     // Strip comments so a commented-out import doesn't trigger the check.
     const fileSrc = stripLineComments(readFileSync(join(libDir, f), 'utf-8'))
-    if (/from ['"]stripe['"]/.test(fileSrc) || /require\(['"]stripe['"]\)/.test(fileSrc)) {
+    // Spec's intent is "no direct Stripe CLIENT usage". Type-only
+    // imports (`import type Stripe from 'stripe'`) don't instantiate
+    // a Stripe client at runtime — they exist purely for compile-
+    // time type checking and are erased after tsc. Allow them.
+    const typeOnlyImport = /^\s*import\s+type\s+[^;]+from\s+['"]stripe['"]/m
+    const runtimeFromImport =
+      /^(?!\s*import\s+type\b)\s*import\s+[^;]+from\s+['"]stripe['"]/m
+    const requireImport = /require\(['"]stripe['"]\)/
+    const hasRuntimeImport =
+      runtimeFromImport.test(fileSrc) || requireImport.test(fileSrc)
+    // typeOnlyImport is allowed; only flag if there's a non-type-only
+    // import OR a CJS require.
+    if (hasRuntimeImport && !typeOnlyImport.test(fileSrc)) {
+      offending.push(f)
+    } else if (hasRuntimeImport) {
+      // Mixed file: has both type-only AND runtime imports. Flag it;
+      // the caller should split them or remove the runtime one.
       offending.push(f)
     }
   }

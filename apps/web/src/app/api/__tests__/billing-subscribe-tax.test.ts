@@ -310,6 +310,124 @@ describe('P2.TAX1 — billing-address collected BEFORE checkout (spec req 5, re-
   })
 })
 
+describe('P2.TAX1 — pre-existing subscribe-route guards (coverage close-out)', () => {
+  it('returns 429 when rate limit is exceeded', async () => {
+    const { checkRateLimit } = await import('@/lib/rate-limit')
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({
+      success: false,
+      limit: 10,
+      remaining: 0,
+      reset: Date.now(),
+    })
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(429)
+    const body = await response.json()
+    expect(body.code).toBe('RATE_LIMIT_EXCEEDED')
+  })
+
+  it('returns 401 when auth fails', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(
+      new Error('Authentication required'),
+    )
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(401)
+    const body = await response.json()
+    expect(body.code).toBe('UNAUTHORIZED')
+  })
+
+  it('returns 401 with generic message when auth throws a non-Error', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce('string-error')
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(401)
+    const body = await response.json()
+    expect(body.code).toBe('UNAUTHORIZED')
+  })
+
+  it('returns 400 INVALID_PLAN when plan has no Stripe price ID', async () => {
+    const originalBuilder = process.env.STRIPE_PRICE_BUILDER
+    const originalStarter = process.env.STRIPE_PRICE_STARTER
+    delete process.env.STRIPE_PRICE_BUILDER
+    delete process.env.STRIPE_PRICE_STARTER
+    // Re-import so the module reads the fresh env.
+    vi.resetModules()
+    try {
+      const { POST } = await import('../billing/subscribe/route')
+      const req = new NextRequest('http://localhost/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ plan: 'builder' }),
+      })
+      const response = await POST(req)
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.code).toBe('INVALID_PLAN')
+    } finally {
+      if (originalBuilder) process.env.STRIPE_PRICE_BUILDER = originalBuilder
+      if (originalStarter) process.env.STRIPE_PRICE_STARTER = originalStarter
+      vi.resetModules()
+    }
+  })
+
+  it('founding members are returned with foundingMember:true without creating a Stripe session', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        isFoundingMember: true,
+      },
+    ])
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.foundingMember).toBe(true)
+    expect(mockStripeCheckoutSessions.create).not.toHaveBeenCalled()
+    expect(mockStripeCustomers.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 EXISTING_SUBSCRIPTION when developer already has a subscription', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: 'cus_X',
+        stripeSubscriptionId: 'sub_EXISTING',
+        isFoundingMember: false,
+      },
+    ])
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.code).toBe('EXISTING_SUBSCRIPTION')
+    expect(mockStripeCheckoutSessions.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 NOT_FOUND when developer record is missing', async () => {
+    mockDb.limit.mockResolvedValue([])
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(404)
+    const body = await response.json()
+    expect(body.code).toBe('NOT_FOUND')
+  })
+
+  it('returns 500 SUBSCRIBE_ERROR when Stripe checkout creation throws', async () => {
+    mockStripeCheckoutSessions.create.mockRejectedValueOnce(
+      new Error('Stripe API is down'),
+    )
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe('SUBSCRIBE_ERROR')
+  })
+
+  it('returns 500 with stringified message when a non-Error is thrown', async () => {
+    mockStripeCheckoutSessions.create.mockImplementationOnce(() => {
+      throw 'raw string error' // eslint-disable-line no-throw-literal
+    })
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.error).toBe('raw string error')
+  })
+})
+
 describe('P2.TAX1 — hostile-review (a) regression guard: subscribe cannot ship untaxed', () => {
   it('config is the SAME regardless of plan (no branch can skip tax)', async () => {
     await postSubscribe('builder')

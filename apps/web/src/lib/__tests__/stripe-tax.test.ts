@@ -261,6 +261,58 @@ describe('validateEuVatId — hostile-review (d): reverse-charge requires VIES v
     expect(result.errorCode).toBe('VIES_UNAVAILABLE')
   })
 
+  it('falls back to the default error message when VIES omits userError', async () => {
+    // VIES responds `{isValid: false}` with no userError text. Our
+    // helper supplies its own default message rather than leaking
+    // undefined. Covers the `?? 'VIES reports...'` fallback.
+    const fakeFetch = vi.fn(async () =>
+      new Response(JSON.stringify({ isValid: false }), { status: 200 }),
+    )
+    const result = await validateEuVatId('DE123456789', {
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+    })
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('INVALID')
+    expect(result.errorMessage).toBe(
+      'VIES reports this VAT ID is not registered.',
+    )
+  })
+
+  it('surfaces a generic message when the thrown value is NOT an Error', async () => {
+    // Edge case: some fetch implementations throw non-Error values
+    // (strings, plain objects, numbers). Cover the `err instanceof
+    // Error ? err.message : 'VIES call failed unexpectedly.'`
+    // fallback.
+    const fakeFetch = vi.fn(async () => {
+      throw 'network layer oops' // eslint-disable-line no-throw-literal
+    })
+    const result = await validateEuVatId('DE123456789', {
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+    })
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('VIES_UNAVAILABLE')
+    expect(result.errorMessage).toBe('VIES call failed unexpectedly.')
+  })
+
+  it('uses globalThis.fetch when fetchImpl is not provided', async () => {
+    // Covers the `opts.fetchImpl ?? fetch` fallback. We mock
+    // globalThis.fetch for the duration of the test then restore.
+    const originalFetch = globalThis.fetch
+    const mockFetch = vi.fn(async () =>
+      new Response(JSON.stringify({ isValid: true, name: 'Acme GmbH' }), {
+        status: 200,
+      }),
+    )
+    globalThis.fetch = mockFetch as unknown as typeof fetch
+    try {
+      const result = await validateEuVatId('DE123456789')
+      expect(result.valid).toBe(true)
+      expect(mockFetch).toHaveBeenCalledOnce()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it('accepts XI (Northern Ireland) as a VIES-compatible non-EU code', async () => {
     const fakeFetch = vi.fn(async () =>
       new Response(JSON.stringify({ isValid: true }), { status: 200 }),
