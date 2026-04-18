@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
-import { parseBody, successResponse, errorResponse } from '@/lib/api'
+import { parseBody, successResponse, errorResponse, ParseBodyError } from '@/lib/api'
 import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -20,8 +20,48 @@ const PLAN_PRICE_IDS: Record<string, string | undefined> = {
   scale: process.env.STRIPE_PRICE_SCALE?.trim(),
 }
 
+/**
+ * P2.TAX1 — billing-address collected BEFORE Checkout so Stripe Tax
+ * has the address on the Stripe Customer record at rate-calculation
+ * time (and so reconciliation can attribute the charge to a
+ * jurisdiction even if Stripe's hosted UI later lets the customer
+ * override it). All fields except country are optional to stay
+ * backwards-compatible with the pre-TAX1 signup UI; when the whole
+ * address is missing the route still works via
+ * `billing_address_collection: 'required'` on the Checkout Session
+ * (Stripe's hosted form collects it). The TWO paths are intentional:
+ *
+ *   - UI-collected path (preferred): the signup form POSTs the
+ *     full address; we update the Stripe Customer before creating
+ *     the Checkout Session. Rate is known BEFORE the customer sees
+ *     Stripe's hosted page.
+ *
+ *   - Fallback path (backstop): no address in the body; Stripe's
+ *     hosted form collects it; Stripe Tax calculates at checkout.
+ *
+ * Either way, no charge is ever created without an address — the
+ * Checkout Session ALWAYS has billing_address_collection: required.
+ */
+const billingAddressSchema = z
+  .object({
+    // ISO-3166 alpha-2 country code. Required because Stripe Tax
+    // needs at least the country to calculate the rate.
+    country: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .length(2, 'country must be a 2-letter ISO-3166 alpha-2 code'),
+    line1: z.string().trim().max(200).optional(),
+    line2: z.string().trim().max(200).optional(),
+    city: z.string().trim().max(100).optional(),
+    state: z.string().trim().max(100).optional(),
+    postal_code: z.string().trim().max(20).optional(),
+  })
+  .optional()
+
 const subscribeSchema = z.object({
   plan: z.enum(['builder', 'scale']),
+  billing_address: billingAddressSchema,
 })
 
 /** POST /api/billing/subscribe — create a Stripe Checkout session for plan subscription */
@@ -88,6 +128,22 @@ export async function POST(request: NextRequest) {
       const customer = await stripe.customers.create({
         email: auth.email,
         metadata: { developerId: auth.id },
+        // P2.TAX1 — stamp the billing address on the Stripe Customer
+        // at creation time so Stripe Tax has it available BEFORE the
+        // Checkout Session is rendered. Omitted when the signup UI
+        // didn't collect it (backwards-compat path).
+        ...(body.billing_address
+          ? {
+              address: {
+                country: body.billing_address.country,
+                line1: body.billing_address.line1,
+                line2: body.billing_address.line2,
+                city: body.billing_address.city,
+                state: body.billing_address.state,
+                postal_code: body.billing_address.postal_code,
+              },
+            }
+          : {}),
       })
       stripeCustomerId = customer.id
 
@@ -95,6 +151,21 @@ export async function POST(request: NextRequest) {
         .update(developers)
         .set({ stripeCustomerId })
         .where(eq(developers.id, auth.id))
+    } else if (body.billing_address) {
+      // Re-using an existing Stripe Customer — update its address so
+      // Stripe Tax uses the freshly-collected value. A customer who
+      // moves jurisdictions between plan attempts sees the new rate
+      // immediately. No-op when body.billing_address is absent.
+      await stripe.customers.update(stripeCustomerId, {
+        address: {
+          country: body.billing_address.country,
+          line1: body.billing_address.line1,
+          line2: body.billing_address.line2,
+          city: body.billing_address.city,
+          state: body.billing_address.state,
+          postal_code: body.billing_address.postal_code,
+        },
+      })
     }
 
     const appUrl = getAppUrl()
@@ -139,6 +210,12 @@ export async function POST(request: NextRequest) {
 
     return successResponse({ checkoutUrl: session.url }, 201)
   } catch (error) {
+    // P2.TAX1 — surface validation errors (bad billing_address, bad
+    // plan, malformed body) as 400 instead of 500. ParseBodyError
+    // carries its own statusCode and a 'VALIDATION_ERROR' tag.
+    if (error instanceof ParseBodyError) {
+      return errorResponse(error.message, error.statusCode, 'VALIDATION_ERROR')
+    }
     const msg = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
     logger.error('billing.subscribe.error', { message: msg, stack })
