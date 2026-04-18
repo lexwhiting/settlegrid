@@ -121,9 +121,31 @@ export function serializeCsv(headers: string[], rows: Row[]): string {
 /*  GitHub location fetch                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Hostile-review fix: GitHub rate-limit exhaustion is NOT a silent
+ * per-row failure. When we see 403 with a ratelimit header at 0, we
+ * throw `RateLimitError` so the script stops and the operator re-runs
+ * later. Without this, all remaining rows degrade to UNKNOWN and the
+ * operator produces a half-populated CSV that looks complete.
+ */
+export class RateLimitError extends Error {
+  constructor(public readonly resetAt: number | null) {
+    super(
+      `GitHub API rate limit exhausted${
+        resetAt ? ` (resets at ${new Date(resetAt * 1000).toISOString()})` : ''
+      }. Re-run the backfill after the reset.`,
+    )
+    this.name = 'RateLimitError'
+  }
+}
+
 export async function fetchGithubLocation(
   githubUrl: string | undefined,
-  opts: { token?: string; fetchImpl?: typeof fetch } = {},
+  opts: {
+    token?: string
+    fetchImpl?: typeof fetch
+    timeoutMs?: number
+  } = {},
 ): Promise<string | null> {
   if (!githubUrl) return null
   const username = extractGithubUsername(githubUrl)
@@ -132,6 +154,11 @@ export async function fetchGithubLocation(
   if (!token) return null // skip — backfillCountry will fall through to domain
   const url = `https://api.github.com/users/${encodeURIComponent(username)}`
   const fetchImpl = opts.fetchImpl ?? fetch
+  // Hostile-review fix: hard timeout. Without this a single hung
+  // GitHub response blocks the entire backfill sequentially.
+  const timeoutMs = opts.timeoutMs ?? 5000
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetchImpl(url, {
       headers: {
@@ -139,12 +166,32 @@ export async function fetchGithubLocation(
         Authorization: `Bearer ${token}`,
         'X-GitHub-Api-Version': '2022-11-28',
       },
+      signal: controller.signal,
     })
-    if (!response.ok) return null
+    if (!response.ok) {
+      // 403 with x-ratelimit-remaining=0 = rate exhausted → throw,
+      // don't silently swallow. Other 403s (private user, token
+      // scope issue) degrade per-row.
+      if (response.status === 403) {
+        const remaining = response.headers.get('x-ratelimit-remaining')
+        if (remaining === '0') {
+          const resetHeader = response.headers.get('x-ratelimit-reset')
+          const resetAt = resetHeader ? Number(resetHeader) : null
+          throw new RateLimitError(
+            Number.isFinite(resetAt) ? resetAt : null,
+          )
+        }
+      }
+      return null
+    }
     const body = (await response.json()) as { location?: string | null }
     return body.location ?? null
-  } catch {
+  } catch (err) {
+    // Re-throw RateLimitError so it halts the whole backfill.
+    if (err instanceof RateLimitError) throw err
     return null
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
@@ -172,18 +219,33 @@ export function extractGithubUsername(url: string): string | null {
 
 export async function enrichRow(
   row: Row,
-  opts: { token?: string; fetchImpl?: typeof fetch } = {},
+  opts: { token?: string; fetchImpl?: typeof fetch; timeoutMs?: number } = {},
 ): Promise<Row> {
-  // Only call GitHub when we have a URL + a token AND we need help:
-  // if the ccTLD alone would resolve to a country, we skip the API
-  // call to save rate-limit quota.
   const domainHit = row['domain'] ? row['domain'] : undefined
 
-  const githubLocation = await fetchGithubLocation(row['github_url'], opts)
-  const country = backfillCountry({
-    githubLocation,
-    domain: domainHit,
-  })
+  // Hostile-review fix: preserve a pre-existing VALID country_iso.
+  // A manually-set country_iso (e.g., the reviewer verified via
+  // LinkedIn that a prospect with a stale GitHub Canada location
+  // is actually based in India) must survive a re-run of this
+  // backfill script. Only UNKNOWN / empty / invalid values get
+  // overwritten with the fresh heuristic output.
+  const existing = (row['country_iso'] ?? '').trim().toUpperCase()
+  const existingIsValid =
+    existing.length === 2 &&
+    /^[A-Z]{2}$/.test(existing) &&
+    existing !== 'UN' // guard against "UN" which isn't a country
+
+  let country: string
+  if (existingIsValid) {
+    country = existing
+  } else {
+    const githubLocation = await fetchGithubLocation(row['github_url'], opts)
+    country = backfillCountry({
+      githubLocation,
+      domain: domainHit,
+    })
+  }
+
   const segment = classifyProspect(country)
   return {
     ...row,
