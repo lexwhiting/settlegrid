@@ -383,4 +383,76 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
 
     expect(response.status).toBe(404)
   })
+
+  // P2.INTL2 hostile-review regression: previously the public detail route
+  // hand-rolled a predicate missing status='unclaimed', so every unclaimed
+  // tool card in the marketplace linked to a 404. This test locks in that
+  // the predicate goes through the canonical marketplaceInclusionSql helper.
+  it('returns 200 for unclaimed tool (matches marketplace visibility)', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-u',
+        name: 'Unclaimed Tool',
+        slug: 'unclaimed-tool',
+        description: 'A shadow-directory crawl result',
+        status: 'unclaimed',
+        listedInMarketplace: true,
+        pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+        developerName: 'Crawler Stub',
+      },
+    ])
+
+    const request = makeRequest('/api/tools/public/unclaimed-tool')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'unclaimed-tool' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.status).toBe('unclaimed')
+  })
+
+  it('returns 200 for draft tool when listedInMarketplace=true (claimed-but-not-monetized)', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-d',
+        name: 'Claimed Draft',
+        slug: 'claimed-draft',
+        description: 'Claimed, pricing pending',
+        status: 'draft',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 0 },
+        developerName: 'Dev In Stripe-Unsupported Region',
+      },
+    ])
+
+    const request = makeRequest('/api/tools/public/claimed-draft')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'claimed-draft' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.status).toBe('draft')
+    expect(data.data.listedInMarketplace).toBe(true)
+  })
+
+  it('serializes status + listedInMarketplace so the detail page can render the right variant', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-a',
+        name: 'Active Tool',
+        slug: 'active-tool',
+        description: 'Published',
+        status: 'active',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 10 },
+        developerName: 'Dev',
+      },
+    ])
+
+    const request = makeRequest('/api/tools/public/active-tool')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'active-tool' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data).toHaveProperty('status', 'active')
+    expect(data.data).toHaveProperty('listedInMarketplace', true)
+  })
 })
