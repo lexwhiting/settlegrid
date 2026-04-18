@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, or } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { marketplaceInclusionSql } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -21,16 +22,11 @@ export async function GET(
 
     const { slug } = await params
 
-    // P2.INTL2 — a tool is publicly viewable when either:
-    //   (a) status = 'active' (fully published), OR
-    //   (b) status = 'draft' AND listedInMarketplace = true
-    //       (claimed-but-not-yet-monetized, opted into marketplace
-    //        visibility — the INTL2 feature that lets developers in
-    //        Stripe-unsupported corridors keep their listing visible).
-    // Must mirror the marketplace-inclusion rule in
-    // apps/web/src/lib/marketplace-visibility.ts — a tool that
-    // appears in the marketplace MUST have a working detail page,
-    // otherwise the "Claimed" badge links to a 404.
+    // P2.INTL2 — use the canonical marketplace inclusion predicate so the
+    // detail route and the marketplace queries can't drift. Hostile-review
+    // hotfix: the previous hand-rolled predicate omitted status='unclaimed',
+    // which caused every unclaimed tool card in the marketplace grid to link
+    // to a 404 page.
     const results = await db
       .select({
         id: tools.id,
@@ -47,18 +43,7 @@ export async function GET(
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(
-        and(
-          eq(tools.slug, slug),
-          or(
-            eq(tools.status, 'active'),
-            and(
-              eq(tools.status, 'draft'),
-              eq(tools.listedInMarketplace, true),
-            ),
-          ),
-        ),
-      )
+      .where(and(eq(tools.slug, slug), marketplaceInclusionSql()))
       .limit(1)
 
     if (results.length === 0) {

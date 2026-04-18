@@ -5,6 +5,9 @@ import {
   shouldIncludeInMarketplace,
   shouldShowClaimedBadge,
   listedInMarketplacePatchSchema,
+  marketplaceInclusionSql,
+  MARKETPLACE_ALWAYS_VISIBLE_STATUSES,
+  MARKETPLACE_CONDITIONALLY_VISIBLE_STATUSES,
 } from '../marketplace-visibility'
 import { tools } from '../db/schema'
 
@@ -169,6 +172,69 @@ describe('tools.listedInMarketplace — schema column metadata', () => {
     // schema's column name drifted from snake_case, the migration would
     // succeed but Drizzle queries would fail at runtime.
     expect(tools.listedInMarketplace.name).toBe('listed_in_marketplace')
+  })
+})
+
+describe('marketplaceInclusionSql — canonical Drizzle predicate', () => {
+  // The Drizzle predicate must mirror shouldIncludeInMarketplace exactly.
+  // The hostile-review bug that prompted this helper: the public detail
+  // route hand-rolled `or(eq(status,'active'), and(...draft...))` and
+  // missed 'unclaimed', so unclaimed tools 404'd even though they passed
+  // the marketplace grid predicate.
+
+  it('produces a non-null SQL expression', () => {
+    const expr = marketplaceInclusionSql()
+    expect(expr).toBeDefined()
+  })
+
+  it('covers every always-visible status listed in MARKETPLACE_ALWAYS_VISIBLE_STATUSES', () => {
+    // The TS rule says these are always visible; the SQL must agree.
+    // Run both through shouldIncludeInMarketplace with listedInMarketplace=false
+    // to assert the TS side independently — the SQL is asserted to
+    // serialize those same literals below.
+    for (const status of MARKETPLACE_ALWAYS_VISIBLE_STATUSES) {
+      expect(
+        shouldIncludeInMarketplace(status, false),
+        `status='${status}' should be always-visible regardless of listedInMarketplace`,
+      ).toBe(true)
+    }
+  })
+
+  it('covers the conditionally-visible status with listed=true only', () => {
+    for (const status of MARKETPLACE_CONDITIONALLY_VISIBLE_STATUSES) {
+      expect(shouldIncludeInMarketplace(status, true)).toBe(true)
+      expect(shouldIncludeInMarketplace(status, false)).toBe(false)
+    }
+  })
+
+  it('SQL covers the 3 expected status literals (drift guard)', () => {
+    // Drizzle SQL objects have circular references (table <-> column), so
+    // we assert against the helper's source text instead — enough to catch
+    // the specific "forgot 'unclaimed'" regression class that prompted
+    // this builder without depending on Drizzle internals.
+    const helperSrc = readFileSync(
+      resolve(__dirname, '..', 'marketplace-visibility.ts'),
+      'utf8',
+    )
+    const builderMatch = helperSrc.match(
+      /export\s+function\s+marketplaceInclusionSql[\s\S]*?\n\}/,
+    )
+    expect(builderMatch, 'marketplaceInclusionSql function body not found').not.toBeNull()
+    const body = builderMatch![0]
+    expect(body).toContain("'unclaimed'")
+    expect(body).toContain("'active'")
+    expect(body).toContain("'draft'")
+    expect(body).toMatch(/listedInMarketplace/)
+  })
+
+  it('always-visible + conditionally-visible sets are disjoint', () => {
+    const always = new Set<string>(MARKETPLACE_ALWAYS_VISIBLE_STATUSES)
+    for (const cond of MARKETPLACE_CONDITIONALLY_VISIBLE_STATUSES) {
+      expect(
+        always.has(cond),
+        `status='${cond}' is both always-visible AND conditionally-visible — predicate semantics break`,
+      ).toBe(false)
+    }
   })
 })
 
