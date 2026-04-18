@@ -56,6 +56,98 @@ describe('postLedgerEntry', () => {
     ).rejects.toThrow('Ledger entry amount must be positive, got 0')
   })
 
+  // P2.TAX1 — tax validation at the app layer (hostile-review (b))
+  it('rejects negative taxCents', async () => {
+    await expect(
+      postLedgerEntry({
+        debitAccountId: 'acct-1',
+        creditAccountId: 'acct-2',
+        amountCents: 100,
+        category: 'purchase',
+        description: 'test',
+        taxCents: -1,
+      })
+    ).rejects.toThrow('taxCents must be a non-negative integer')
+  })
+
+  it('rejects non-integer taxCents', async () => {
+    await expect(
+      postLedgerEntry({
+        debitAccountId: 'acct-1',
+        creditAccountId: 'acct-2',
+        amountCents: 100,
+        category: 'purchase',
+        description: 'test',
+        taxCents: 1.5,
+      })
+    ).rejects.toThrow('taxCents must be a non-negative integer')
+  })
+
+  it('rejects NaN / Infinity taxCents', async () => {
+    await expect(
+      postLedgerEntry({
+        debitAccountId: 'acct-1',
+        creditAccountId: 'acct-2',
+        amountCents: 100,
+        category: 'purchase',
+        description: 'test',
+        taxCents: NaN,
+      })
+    ).rejects.toThrow('taxCents must be a non-negative integer')
+  })
+
+  it('rejects taxCents>0 without taxJurisdiction (tax must be traceable)', async () => {
+    await expect(
+      postLedgerEntry({
+        debitAccountId: 'acct-1',
+        creditAccountId: 'acct-2',
+        amountCents: 1900,
+        category: 'purchase',
+        description: 'Builder plan',
+        taxCents: 361,
+      })
+    ).rejects.toThrow('collected tax must be traceable to an authority')
+  })
+
+  it('accepts taxCents=0 without taxJurisdiction (non-tax entries)', async () => {
+    // Should not throw at the validation layer; the actual DB write
+    // is still mocked so we just check that validation passes.
+    mockTransaction.mockImplementation(async (cb) => {
+      return cb({
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: () => [
+                { id: 'acct-1', version: 1, balanceCents: 1000 },
+              ],
+            }),
+          }),
+        }),
+        insert: () => ({
+          values: () => ({
+            returning: () => [{ id: 'entry-1' }],
+          }),
+        }),
+        update: () => ({
+          set: () => ({
+            where: () => ({
+              returning: () => [{ id: 'acct-1' }],
+            }),
+          }),
+        }),
+      })
+    })
+    await expect(
+      postLedgerEntry({
+        debitAccountId: 'acct-1',
+        creditAccountId: 'acct-2',
+        amountCents: 100,
+        category: 'metering',
+        description: 'per-call fee',
+      })
+    ).resolves.toBeDefined()
+  })
+
   it('rejects negative amount', async () => {
     await expect(
       postLedgerEntry({
