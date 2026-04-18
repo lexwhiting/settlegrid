@@ -150,6 +150,22 @@ describe('parseGithubLocation — free-text → ISO α-2', () => {
     // state); parser must return null rather than inventing.
     expect(parseGithubLocation('NY')).toBeNull()
   })
+
+  it('returns null when the input is ONLY flag emoji (stripped to empty)', () => {
+    // Covers the `if (clean.length === 0) return null` branch —
+    // a location that's purely a flag emoji with no text strips
+    // to empty and bails out cleanly rather than throwing.
+    expect(parseGithubLocation('🇮🇳')).toBeNull()
+    expect(parseGithubLocation('🇳🇬 🇵🇰')).toBeNull()
+  })
+
+  it('2-letter token that looks ISO-shaped but is NOT a known country returns null', () => {
+    // Covers the false branch of `if (ALL_ISO_COUNTRIES.has(asUpper))`.
+    // "ZZ" is a valid 2-letter-shape token but not a country.
+    expect(parseGithubLocation('SomewhereCity, ZZ')).toBeNull()
+    // "XY" also not a country.
+    expect(parseGithubLocation('XY')).toBeNull()
+  })
 })
 
 describe('parseDomainTld — ccTLD → ISO α-2', () => {

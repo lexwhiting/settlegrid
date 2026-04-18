@@ -293,43 +293,101 @@ export async function backfillFile(
 /*  CLI entry                                                                  */
 /* -------------------------------------------------------------------------- */
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2)
+export interface CliOptions {
+  argv: string[]
+  env: Record<string, string | undefined>
+  fetchImpl?: typeof fetch
+  readFile?: (path: string) => string
+  writeFile?: (path: string, data: string) => void
+  existsSync?: (path: string) => boolean
+  logger?: { error: (msg: string) => void }
+}
+
+export interface CliResult {
+  /** POSIX-style exit code. 0 = success, 1 = error, 2 = usage error. */
+  exitCode: number
+  /** The output CSV path that was written, if any. */
+  outputPath?: string
+  /** The summary counts for the operator. */
+  summary?: {
+    rowsWritten: number
+    activateCount: number
+    waitlistCount: number
+    unknownCount: number
+    skippedGithubLookup: number
+  }
+}
+
+/**
+ * CLI body as a pure function — exported so the test suite can
+ * exercise argument parsing, usage-error exit codes, the full
+ * read/enrich/write pipeline, and the error-handling branches
+ * without spawning a subprocess.
+ */
+export async function runCli(opts: CliOptions): Promise<CliResult> {
+  const logger = opts.logger ?? console
+  const readFile = opts.readFile ?? ((p: string) => readFileSync(p, 'utf8'))
+  const writeFile =
+    opts.writeFile ?? ((p: string, d: string) => writeFileSync(p, d, 'utf8'))
+  const fileExists = opts.existsSync ?? existsSync
+
+  const args = opts.argv.slice(2)
   const inIdx = args.indexOf('--in')
   const outIdx = args.indexOf('--out')
   if (inIdx < 0 || outIdx < 0 || !args[inIdx + 1] || !args[outIdx + 1]) {
-    console.error(
+    logger.error(
       'Usage: npx tsx scripts/outreach/backfill-country.ts --in <input.csv> --out <output.csv>\n' +
         '\n' +
         'Required columns in input.csv: email. Optional: github_url, domain, segment, country_iso, stripe_supported.\n' +
-        'Env: GITHUB_TOKEN (for github_url lookup; without it, the GitHub heuristic is skipped and the domain ccTLD is the only signal).\n',
+        'Env: GITHUB_TOKEN (for github_url lookup; without it, the GitHub heuristic is skipped and the domain ccTLD is the only signal).',
     )
-    process.exit(2)
+    return { exitCode: 2 }
   }
   const inPath = resolve(args[inIdx + 1])
   const outPath = resolve(args[outIdx + 1])
-  if (!existsSync(inPath)) {
-    console.error(`backfill-country: input file not found: ${inPath}`)
-    process.exit(1)
+  if (!fileExists(inPath)) {
+    logger.error(`backfill-country: input file not found: ${inPath}`)
+    return { exitCode: 1 }
   }
-  const src = readFileSync(inPath, 'utf8')
+
+  const src = readFile(inPath)
   const parsed = parseCsv(src)
-  const token = process.env.GITHUB_TOKEN
-  const result = await backfillFile(src, { token })
-  // Ensure the output has country_iso + stripe_supported columns
-  // in the header even if the input lacked them.
-  const headers = new Set<string>(parsed.headers)
-  headers.add('country_iso')
-  headers.add('stripe_supported')
-  headers.add('segment')
-  writeFileSync(outPath, serializeCsv([...headers], result.rows), 'utf8')
-  console.error(
-    `backfill-country: wrote ${result.rows.length} rows → ${outPath}\n` +
-      `  activate-now:                        ${result.activateCount}\n` +
-      `  stripe-unsupported-corridor-waitlist:${result.waitlistCount}\n` +
-      `  cold-unknown-country:                ${result.unknownCount}\n` +
-      `  github-lookup skipped (no token):    ${result.skippedGithubLookup}`,
-  )
+  const token = opts.env.GITHUB_TOKEN
+
+  try {
+    const result = await backfillFile(src, {
+      token,
+      fetchImpl: opts.fetchImpl,
+    })
+    const headers = new Set<string>(parsed.headers)
+    headers.add('country_iso')
+    headers.add('stripe_supported')
+    headers.add('segment')
+    writeFile(outPath, serializeCsv([...headers], result.rows))
+    logger.error(
+      `backfill-country: wrote ${result.rows.length} rows → ${outPath}\n` +
+        `  activate-now:                        ${result.activateCount}\n` +
+        `  stripe-unsupported-corridor-waitlist:${result.waitlistCount}\n` +
+        `  cold-unknown-country:                ${result.unknownCount}\n` +
+        `  github-lookup skipped (no token):    ${result.skippedGithubLookup}`,
+    )
+    return {
+      exitCode: 0,
+      outputPath: outPath,
+      summary: {
+        rowsWritten: result.rows.length,
+        activateCount: result.activateCount,
+        waitlistCount: result.waitlistCount,
+        unknownCount: result.unknownCount,
+        skippedGithubLookup: result.skippedGithubLookup,
+      },
+    }
+  } catch (err) {
+    logger.error(
+      `backfill-country: fatal ${err instanceof Error ? err.message : String(err)}`,
+    )
+    return { exitCode: 1 }
+  }
 }
 
 // Run when invoked directly (tsx + node). Skipped when imported as
@@ -338,8 +396,7 @@ const isMain =
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith('backfill-country.ts')
 if (isMain) {
-  main().catch((err: unknown) => {
-    console.error('backfill-country: fatal', err)
-    process.exit(1)
+  runCli({ argv: process.argv, env: process.env }).then((r) => {
+    process.exit(r.exitCode)
   })
 }
