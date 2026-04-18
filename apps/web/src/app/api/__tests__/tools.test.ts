@@ -81,6 +81,8 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
+  or: vi.fn().mockImplementation((...args: unknown[]) => ({ or: args })),
+  desc: vi.fn().mockImplementation((a: unknown) => ({ desc: a })),
 }))
 
 vi.mock('@/lib/quality-gates', () => ({

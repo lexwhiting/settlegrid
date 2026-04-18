@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -21,6 +21,16 @@ export async function GET(
 
     const { slug } = await params
 
+    // P2.INTL2 — a tool is publicly viewable when either:
+    //   (a) status = 'active' (fully published), OR
+    //   (b) status = 'draft' AND listedInMarketplace = true
+    //       (claimed-but-not-yet-monetized, opted into marketplace
+    //        visibility — the INTL2 feature that lets developers in
+    //        Stripe-unsupported corridors keep their listing visible).
+    // Must mirror the marketplace-inclusion rule in
+    // apps/web/src/lib/marketplace-visibility.ts — a tool that
+    // appears in the marketplace MUST have a working detail page,
+    // otherwise the "Claimed" badge links to a 404.
     const results = await db
       .select({
         id: tools.id,
@@ -28,6 +38,8 @@ export async function GET(
         slug: tools.slug,
         description: tools.description,
         category: tools.category,
+        status: tools.status,
+        listedInMarketplace: tools.listedInMarketplace,
         currentVersion: tools.currentVersion,
         pricingConfig: tools.pricingConfig,
         developerName: developers.name,
@@ -35,7 +47,18 @@ export async function GET(
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
+      .where(
+        and(
+          eq(tools.slug, slug),
+          or(
+            eq(tools.status, 'active'),
+            and(
+              eq(tools.status, 'draft'),
+              eq(tools.listedInMarketplace, true),
+            ),
+          ),
+        ),
+      )
       .limit(1)
 
     if (results.length === 0) {
@@ -102,6 +125,11 @@ export async function GET(
         slug: tool.slug,
         description: tool.description ?? '',
         category: tool.category ?? 'other',
+        // P2.INTL2 — the detail page renders differently when a tool is
+        // visible via the draft+listedInMarketplace path (no pricing yet).
+        // Without these fields the page would still show Buy Credits.
+        status: tool.status,
+        listedInMarketplace: tool.listedInMarketplace,
         currentVersion: tool.currentVersion,
         pricingConfig: tool.pricingConfig ?? { defaultCostCents: 0 },
         developerName: tool.developerName ?? 'Anonymous',
