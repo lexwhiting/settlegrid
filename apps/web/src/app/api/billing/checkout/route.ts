@@ -8,6 +8,7 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getStripeClient } from '@/lib/rails'
+import { canPurchaseCredits } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -63,7 +64,10 @@ export async function POST(request: NextRequest) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    if (tool.status !== 'active') {
+    if (!canPurchaseCredits(tool.status)) {
+      // Rule mirrors apps/web/src/app/tools/[slug]/page.tsx and
+      // components/storefront/buy-credits-button.tsx — the canonical
+      // helper is canPurchaseCredits in lib/marketplace-visibility.ts.
       return errorResponse('Tool is not active.', 400, 'TOOL_NOT_ACTIVE')
     }
 

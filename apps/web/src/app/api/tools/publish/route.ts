@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
+import { validateToolForActivation } from '@/lib/quality-gates'
 
 export const maxDuration = 60
 
@@ -238,6 +239,13 @@ export async function PUT(request: NextRequest) {
     }
     let isCreate = false
 
+    // Producer-audit #8 — the API-key publish path previously wrote
+    // status='active' unconditionally, bypassing the quality gates that
+    // the dashboard PATCH /api/tools/[id]/status enforces. Two-phase
+    // write: (1) upsert as 'draft', (2) run validateToolForActivation,
+    // (3) flip to 'active' iff it passes. A failed gate leaves the
+    // tool in 'draft' state — the correct fail-closed behavior.
+
     if (existing) {
       // Verify ownership
       if (existing.developerId !== auth.id) {
@@ -260,7 +268,7 @@ export async function PUT(request: NextRequest) {
           tags: body.tags ?? [],
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
-          status: 'active',
+          status: 'draft',
           updatedAt: new Date(),
         })
         .where(and(eq(tools.id, existing.id), eq(tools.developerId, auth.id)))
@@ -304,7 +312,7 @@ export async function PUT(request: NextRequest) {
           tags: body.tags ?? [],
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
-          status: 'active',
+          status: 'draft',
         })
         .returning({
           id: tools.id,
@@ -330,6 +338,31 @@ export async function PUT(request: NextRequest) {
         version: body.version,
         requestId,
       })
+    }
+
+    // Producer-audit #8 — quality gate. The tool is in 'draft' state right
+    // now; flip to 'active' only if it passes the same checks the dashboard
+    // enforces. A failed gate returns 422 and leaves the tool in draft —
+    // the developer can fix the issues and re-run publish.
+    const gateResult = await validateToolForActivation(toolRecord.id, auth.id)
+    if (!gateResult.passed) {
+      return errorResponse(
+        'Tool does not meet quality requirements for the Showcase',
+        422,
+        'QUALITY_GATE_FAILED',
+        requestId,
+        { failures: gateResult.failures, toolId: toolRecord.id, currentStatus: 'draft' },
+      )
+    }
+
+    const [activated] = await db
+      .update(tools)
+      .set({ status: 'active', updatedAt: new Date() })
+      .where(and(eq(tools.id, toolRecord.id), eq(tools.developerId, auth.id)))
+      .returning({ status: tools.status, updatedAt: tools.updatedAt })
+
+    if (activated) {
+      toolRecord = { ...toolRecord, status: activated.status, updatedAt: activated.updatedAt }
     }
 
     // Audit log

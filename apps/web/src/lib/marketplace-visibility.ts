@@ -47,6 +47,45 @@ export function shouldShowClaimedBadge(status: string): boolean {
 }
 
 /**
+ * Whether a marketplace tool card should render the "Unclaimed" badge.
+ * True for shadow-directory entries (`status='unclaimed'`) that haven't
+ * been claimed by a maintainer yet. Paired with `shouldShowClaimedBadge`
+ * so every marketplace-visible tool can be classified:
+ *   unclaimed → "Unclaimed"
+ *   draft     → "Claimed" (amber — has an owner, no pricing yet)
+ *   active    → no badge
+ *
+ * Replaces a hand-rolled heuristic in tool-card.tsx
+ * (`status==='active' && totalRevenueCents===0 && !verified`) that fired
+ * on "published-but-no-traffic" rather than on the actual unclaimed state,
+ * causing shadow-directory tools to display without any badge.
+ */
+export function shouldShowUnclaimedBadge(status: string): boolean {
+  return status === 'unclaimed'
+}
+
+/**
+ * Whether a tool is purchasable via the Buy Credits flow.
+ *
+ * True iff `status='active'` — the developer has completed Stripe Connect
+ * onboarding and has a pricing config. Draft (claimed but no payments live
+ * in their region) and unclaimed (no owner) tools cannot receive payouts
+ * and must NOT be purchasable.
+ *
+ * Mirrored by:
+ *   - `apps/web/src/app/api/billing/checkout/route.ts` (server-side gate)
+ *   - `apps/web/src/app/tools/[slug]/page.tsx` (render-side gate)
+ *   - `apps/web/src/components/storefront/buy-credits-button.tsx` (defense-in-depth)
+ *
+ * Extracted so the three sites cannot drift — the producer-audit punch
+ * list flagged this as the same bug class as the INTL2 marketplace
+ * predicate drift.
+ */
+export function canPurchaseCredits(status: string): boolean {
+  return status === 'active'
+}
+
+/**
  * Zod schema for the PATCH /api/tools/[id]/listed-in-marketplace request body.
  * Exported so the route handler and the regression tests share one definition
  * of the wire shape.
