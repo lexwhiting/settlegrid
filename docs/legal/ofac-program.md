@@ -10,7 +10,7 @@
 
 ## 1. Purpose + legal basis
 
-The Office of Foreign Assets Control (OFAC) administers US economic sanctions. OFAC sanctions apply **strict civil liability** — a merchant who facilitates a transaction involving a sanctioned person or jurisdiction can face a civil penalty of up to **$1.37M per violation (2024 figure, adjusted annually) or twice the transaction value** under 50 USC § 1705 (IEEPA). **Intent is not required for civil penalties.**
+The Office of Foreign Assets Control (OFAC) administers US economic sanctions. OFAC sanctions apply **strict civil liability** — a merchant who facilitates a transaction involving a sanctioned person or jurisdiction can face a civil penalty equal to **the IEEPA civil-penalty maximum as adjusted annually by OFAC under the Federal Civil Penalties Inflation Adjustment Act, OR twice the value of the prohibited transaction, whichever is greater**, under 50 USC § 1705 (IEEPA). The adjusted maximum is published at https://ofac.treasury.gov/civil-penalties each year. **Intent is not required for civil penalties.**
 
 SettleGrid's business model — routing SaaS subscription payments through Stripe Connect — places it squarely inside the scope of OFAC obligations. Stripe conducts its own continuous screening, but under a "causing a violation" theory SettleGrid can still be named as a party if SettleGrid's onboarding or continuous-screening gaps result in a US financial institution processing a prohibited transaction. The defense against that theory is a documented, consistently executed OFAC compliance program. This document is that program.
 
@@ -79,10 +79,10 @@ The highest-risk scenario is **Scenario D in the incident-response playbook** (`
 
 ### 4.1 Onboarding-time screening
 
-Every developer signup is screened against the OFAC Specially Designated Nationals and Blocked Persons (SDN) list **before** the developer account is created. The check runs synchronously in the registration handler:
+Every developer signup MUST be screened against the OFAC Specially Designated Nationals and Blocked Persons (SDN) list **before** the developer account is created. The check design — to be wired in Phase 3 per §8 Implementation status:
 
-- **Source:** Treasury Sanctions List Search API at https://sanctionssearch.ofac.treas.gov/. Free, no API key required.
-- **Match criteria:** fuzzy name match (first + last or legal entity name). Any match with score ≥ 0.85 routes to manual review before the account is provisioned.
+- **Data source:** the OFAC SDN list is published by Treasury in machine-readable formats (XML, CSV, delimited text) at https://ofac.treasury.gov/specially-designated-nationals-and-blocked-persons-list-sdn-human-readable-lists and https://ofac.treasury.gov/consolidated-sanctions-list-data-files. OFAC also operates a public search interface at https://sanctionssearch.ofac.treas.gov/. Our implementation downloads the list daily and screens locally; we do NOT make a per-registration HTTP call to the search interface (that surface isn't a documented REST API and depending on it would make every signup brittle against Treasury's availability).
+- **Match criteria:** fuzzy name match (first + last or legal entity name) against the local SDN index. Any match with score ≥ 0.85 routes to manual review before the account is provisioned.
 - **Geographic check:** ISO-3166 alpha-2 country from the registrant's billing address. Residence in a comprehensively sanctioned jurisdiction (§3.2) is an automatic block.
 - **Outcome logged:** every screening attempt (hit or miss, score, query terms, timestamp, reviewer if manual) is written to an append-only audit log retained for seven years. See §4.5.
 
@@ -90,7 +90,7 @@ A developer who passes screening is assigned an internal `ofac_screened_at` time
 
 ### 4.2 Continuous (monthly) re-screening
 
-The SDN list is updated by OFAC on an irregular cadence. A person not listed at onboarding can be listed three weeks later. SettleGrid runs a monthly re-screening job against the current SDN list:
+The SDN list is updated by OFAC on an irregular cadence. A person not listed at onboarding can be listed three weeks later. SettleGrid WILL run a monthly re-screening job against the current SDN list (to be wired in Phase 3 per §8):
 
 - **Schedule:** first Monday of each month, at 09:00 UTC, via Vercel Cron.
 - **Scope:** every developer whose account status is `active`.
@@ -167,14 +167,14 @@ When a screening hit or suspected violation is identified:
 
 ### 6.2 Voluntary self-disclosure
 
-OFAC's Economic Sanctions Enforcement Guidelines treat voluntary self-disclosure as a significant mitigating factor — **up to 50% reduction in civil penalties**. The package includes:
+OFAC's **Economic Sanctions Enforcement Guidelines (31 CFR Part 501, Appendix A)** treat voluntary self-disclosure as a significant mitigating factor — **up to 50% reduction in civil penalties**. The package includes:
 
 - Timeline of the transaction(s)
 - Facts establishing the apparent violation
 - Corrective actions taken
 - Internal-controls updates to prevent recurrence
 
-Template: https://ofac.treasury.gov/disclosure. SettleGrid's counsel finalizes and submits. The compliance officer does NOT submit unilaterally because a botched disclosure can waive the mitigation entirely.
+Process: the Enforcement Guidelines at 31 CFR Part 501, App. A, §II.I (https://www.ecfr.gov/current/title-31/subtitle-B/chapter-V/part-501/appendix-Appendix%20A%20to%20Part%20501) describe what constitutes a voluntary self-disclosure + what mitigation applies. Current submission channels are listed on OFAC's contact page (https://ofac.treasury.gov/contact-ofac). SettleGrid's counsel finalizes and submits through the current OFAC-published channel. The compliance officer does NOT submit unilaterally because a botched disclosure can waive the mitigation entirely.
 
 ### 6.3 Stripe notification
 
@@ -201,14 +201,41 @@ Any future SettleGrid employee with customer-facing or risk responsibilities rea
 
 | Trigger | Review scope |
 |---|---|
-| Annual (anniversary of effective date) | Full document, §1–§8 |
+| Annual (anniversary of effective date) | Full document, §1–§9 |
 | Quarterly | §5.3 onboarding-check penetration test |
 | Monthly | §4.2 re-screening run verification |
 | On material change | Any of: new product launched, new jurisdiction supported, new employee hired, SDN listing removed/added for an existing developer, chargeback spike |
 
 ---
 
-## 8. Contact + records
+## 8. Implementation status
+
+This program documents the controls SettleGrid commits to, including some that are **not yet wired in code**. This section is the honest breakdown so an external reviewer (counsel, OFAC, Stripe risk) can see exactly what's operational today vs. what's on the Phase-3 build plan. **Do not mis-read "will run" language in §4 as "is running right now."**
+
+| Control | Section | Status today | Target activation |
+|---|---|---|---|
+| Contractual sanctions representation in Developer ToS | §4.4 | **Deferred** — ToS draft is still under counsel review (E-001 in `docs/legal/lawyer-engagement-log.md`). Representation clause is in the draft; awaits final-form sign-off. | Phase 2 close (~2026-05-09) |
+| Geographic blocking at onboarding (comprehensively-sanctioned jurisdictions) | §4.3 | **Not yet wired.** The jurisdiction list is canonical in this doc; the block isn't enforced in the signup handler. | Phase 3 (P3.COMP or equivalent) |
+| Onboarding-time SDN screening | §4.1 | **Not yet wired.** Design documented here; no code currently screens registrants against the SDN list. | Phase 3 |
+| Monthly re-screening cron | §4.2 | **Not yet scheduled.** Will ship alongside the onboarding check so both paths share the same local SDN-index implementation. | Phase 3 |
+| Append-only audit trail for OFAC events | §4.5 | **Not yet wired** (depends on §4.1 and §4.2). Schema shape documented in §4.5; table not yet migrated. | Phase 3 |
+| Founder OFAC Academy completion | §7.1 | **Scheduled.** Target completion by 2026-06-17 (60 days from program effective date). Log: `docs/legal/ofac-training-log.md`. | 2026-06-17 |
+| External counsel review of this program | §5.2 | **In progress.** Retained under E-001 (`docs/legal/lawyer-engagement-log.md`). | Phase 2 close |
+| Quarterly onboarding-check penetration test | §5.3 | **Blocked on §4.1.** First run after onboarding screening ships. | Phase 3 |
+
+**Launch-defensibility posture until the Phase 3 controls activate:**
+
+Until the onboarding SDN check, re-screening cron, and audit trail are all live, SettleGrid's OFAC posture rests on:
+1. Stripe's own continuous screening of Connect Platform accounts (Stripe is a large regulated entity with its own SDN program)
+2. The comprehensively-sanctioned-jurisdictions list being enforced by the Developer ToS representation (once executed) even without the infrastructure-layer block
+3. Manual review of all high-value or unusual signups by the compliance officer (solo founder volume makes this tractable)
+4. Voluntary self-disclosure posture (§6.2) committing to OFAC engagement on any discovered issue, with counsel in hand
+
+The P3 build plan moves these from "commitment" to "automated + auditable" before any external event (Stripe audit, OFAC inquiry, regulatory examination) forces the question.
+
+---
+
+## 9. Contact + records
 
 - **Compliance officer email:** compliance@settlegrid.ai (routes to founder inbox)
 - **OFAC Compliance Hotline:** 1-800-540-6322 (Treasury)

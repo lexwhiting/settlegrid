@@ -156,7 +156,7 @@ Hit all four in the first hour (this is the detailed version of the one-pager ab
 - OFAC inquiry arriving via counsel or directly
 
 **Impact**
-- Civil penalty up to $1.37M per violation under IEEPA (2024 figure)
+- Civil penalty up to the IEEPA-adjusted maximum (or twice the transaction value, whichever is greater) per 50 USC § 1705 and OFAC's annual inflation-adjustment at https://ofac.treasury.gov/civil-penalties
 - Reputational harm that scales with the sanctioned party's notoriety
 - Stripe likely issues its own de-platforming review (see §1)
 
