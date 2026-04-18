@@ -482,6 +482,14 @@ describe('createTopupSession', () => {
     }
   })
 
+  it('rejects missing params object', async () => {
+    await expect(
+      adapter.createTopupSession(
+        undefined as unknown as Parameters<typeof adapter.createTopupSession>[0],
+      ),
+    ).rejects.toThrowError(/params/)
+  })
+
   it('rejects missing currency', async () => {
     await expect(
       adapter.createTopupSession({
