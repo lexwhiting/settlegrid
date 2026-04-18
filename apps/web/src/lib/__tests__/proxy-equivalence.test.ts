@@ -1212,10 +1212,14 @@ describe('P2.K3 Level 3 — useUnifiedAdapters flag toggle', () => {
     expect(useUnifiedAdapters()).toBe(false)
   })
 
+  // useUnifiedAdapters is a plain feature-flag reader in @/lib/env, not a
+  // React hook — but the `use*` naming convention trips react-hooks/rules-of-hooks
+  // when called inside a `for` loop. Scoped disables on the two call sites.
   it('flag reads false for case-insensitive + whitespace-tolerant opt-out (H1 fix)', async () => {
     for (const value of ['FALSE', 'False', 'fAlSe', '  false  ', 'false\n']) {
       vi.stubEnv('USE_UNIFIED_ADAPTERS', value)
       const { useUnifiedAdapters } = await import('@/lib/env')
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       expect(useUnifiedAdapters()).toBe(false)
     }
   })
@@ -1226,6 +1230,7 @@ describe('P2.K3 Level 3 — useUnifiedAdapters flag toggle', () => {
     for (const typo of ['flase', 'no', '0', 'off', 'disabled']) {
       vi.stubEnv('USE_UNIFIED_ADAPTERS', typo)
       const { useUnifiedAdapters } = await import('@/lib/env')
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       expect(useUnifiedAdapters()).toBe(true)
     }
   })

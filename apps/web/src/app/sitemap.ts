@@ -42,7 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Shadow directory pages ─────────────────────────────────────────────
-  let shadowEntries: MetadataRoute.Sitemap = []
+  const shadowEntries: MetadataRoute.Sitemap = []
   try {
     const shadowRows = await db
       .select({

@@ -429,6 +429,7 @@ async function handleProxy(
     // protocolRegistry.detect() from @settlegrid/mcp first. Falls through
     // to the legacy chain below when no adapter matches (emerging
     // protocols) or the mcp adapter matches (api-key flow).
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- not a React hook; `use*` is the feature-flag reader convention in @/lib/env
     if (useUnifiedAdapters()) {
       const dispatched = await tryUnifiedAdapterDispatch(request, slug, requestId, startTime)
       if (dispatched !== null) return dispatched

@@ -9,7 +9,7 @@
  *       against VIES, not on customer-supplied text alone
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   withAutomaticTax,
   withAutomaticTaxOnSubscription,
@@ -284,7 +284,7 @@ describe('validateEuVatId — hostile-review (d): reverse-charge requires VIES v
     // Error ? err.message : 'VIES call failed unexpectedly.'`
     // fallback.
     const fakeFetch = vi.fn(async () => {
-      throw 'network layer oops' // eslint-disable-line no-throw-literal
+      throw 'network layer oops'
     })
     const result = await validateEuVatId('DE123456789', {
       fetchImpl: fakeFetch as unknown as typeof fetch,
