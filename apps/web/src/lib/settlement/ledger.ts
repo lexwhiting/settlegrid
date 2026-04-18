@@ -21,6 +21,20 @@ export interface PostEntryParams {
   batchId?: string
   description: string
   metadata?: Record<string, unknown>
+  /**
+   * P2.TAX1 — tax portion of this entry in minor currency units.
+   * Defaults to 0 for non-tax entries (metering, payouts, transfers).
+   * SaaS subscription charges SHOULD pass the tax amount extracted
+   * from the Stripe Invoice via `extractTaxFromInvoice()`.
+   */
+  taxCents?: number
+  /**
+   * ISO-3166 alpha-2 country code for non-US; 'US-<state>' for US.
+   * REQUIRED when `taxCents > 0` — the DB check constraint rejects
+   * tax-without-jurisdiction so reconciliation can always trace a
+   * collected tax amount back to its authority.
+   */
+  taxJurisdiction?: string
 }
 
 /**
@@ -46,6 +60,8 @@ export async function postLedgerEntry(params: PostEntryParams): Promise<{
     batchId,
     description,
     metadata,
+    taxCents = 0,
+    taxJurisdiction,
   } = params
 
   if (amountCents <= 0) {
@@ -54,6 +70,21 @@ export async function postLedgerEntry(params: PostEntryParams): Promise<{
 
   if (debitAccountId === creditAccountId) {
     throw new Error('Debit and credit accounts must be different')
+  }
+
+  // P2.TAX1 — fail fast at the application layer on tax/jurisdiction
+  // mismatch. The DB check constraint is the last line of defense;
+  // this surfaces the error with context rather than a cryptic
+  // constraint-violation SQLSTATE to the caller.
+  if (!Number.isInteger(taxCents) || taxCents < 0) {
+    throw new Error(
+      `Ledger entry taxCents must be a non-negative integer, got ${taxCents}`,
+    )
+  }
+  if (taxCents > 0 && !taxJurisdiction) {
+    throw new Error(
+      `Ledger entry has taxCents=${taxCents} but no taxJurisdiction — collected tax must be traceable to an authority`,
+    )
   }
 
   return await db.transaction(async (tx) => {
@@ -87,6 +118,8 @@ export async function postLedgerEntry(params: PostEntryParams): Promise<{
         counterpartyAccountId: creditAccountId,
         description,
         metadata: metadata ?? null,
+        taxCents,
+        taxJurisdiction: taxJurisdiction ?? null,
       })
       .returning({ id: ledgerEntries.id })
 
@@ -103,6 +136,8 @@ export async function postLedgerEntry(params: PostEntryParams): Promise<{
         counterpartyAccountId: debitAccountId,
         description,
         metadata: metadata ?? null,
+        taxCents,
+        taxJurisdiction: taxJurisdiction ?? null,
       })
       .returning({ id: ledgerEntries.id })
 
