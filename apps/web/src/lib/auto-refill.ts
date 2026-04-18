@@ -1,14 +1,9 @@
-import Stripe from 'stripe'
 import { eq, and } from 'drizzle-orm'
 import { db } from './db'
 import { consumers, consumerToolBalances, purchases } from './db/schema'
 import { getRedis, tryRedis } from './redis'
 import { logger } from './logger'
-import { getStripeSecretKey } from './env'
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
-}
+import { getStripeClient } from './rails'
 
 function autoRefillLockKey(consumerId: string, toolId: string): string {
   return `autorefill:lock:${consumerId}:${toolId}`
@@ -83,7 +78,7 @@ export async function triggerAutoRefill(
 
   try {
     // 5. Create and confirm PaymentIntent
-    const stripe = getStripe()
+    const stripe = getStripeClient()
     const amountCents = balance.autoRefillAmountCents
 
     const paymentIntent = await stripe.paymentIntents.create({

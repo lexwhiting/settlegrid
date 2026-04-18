@@ -1,18 +1,17 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { developers, webhookEndpoints } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getStripeSecretKey } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { planChangedEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { getTierConfig } from '@/lib/tier-config'
+import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 30
 
@@ -28,10 +27,6 @@ const PLAN_ORDER = ['free', 'builder', 'scale'] as const
 const changePlanSchema = z.object({
   plan: z.enum(['builder', 'scale']),
 })
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 /** POST /api/billing/change-plan — switch an existing subscription to a different plan */
 export async function POST(request: NextRequest) {
@@ -93,7 +88,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
 
     // Retrieve the current subscription to get the subscription item ID
     const subscription = await stripe.subscriptions.retrieve(developer.stripeSubscriptionId)

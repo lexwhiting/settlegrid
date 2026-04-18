@@ -1,14 +1,14 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse } from '@/lib/api'
-import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 30
 
@@ -22,10 +22,6 @@ const PLAN_PRICE_IDS: Record<string, string | undefined> = {
 const subscribeSchema = z.object({
   plan: z.enum(['builder', 'scale']),
 })
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 /** POST /api/billing/subscribe — create a Stripe Checkout session for plan subscription */
 export async function POST(request: NextRequest) {
@@ -83,7 +79,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
     let stripeCustomerId = developer.stripeCustomerId
 
     // Create or reuse Stripe customer

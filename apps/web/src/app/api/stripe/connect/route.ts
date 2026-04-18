@@ -1,26 +1,25 @@
 import { NextRequest } from 'next/server'
-import Stripe from 'stripe'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { createStripeRailAdapter } from '@settlegrid/mcp'
 import type { StripeClient } from '@settlegrid/mcp'
+import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 60
 
 /**
  * P2.RAIL1 — All Stripe SDK calls now go through the adapter.
  * This route handler is a thin orchestrator: auth → DB lookup →
- * adapter.startOnboarding → DB write → response.
+ * adapter.ensureAccount → persist → adapter.createOnboardingLink
+ * → response. The Stripe client is sourced from the shared rails
+ * module so there's a single memoized client per process.
  */
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const adapter = createStripeRailAdapter({
-      stripe: getStripe() as unknown as StripeClient,
+      stripe: getStripeClient() as unknown as StripeClient,
       appUrl: getAppUrl(),
     })
 

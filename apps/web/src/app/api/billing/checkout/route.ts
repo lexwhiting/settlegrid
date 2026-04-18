@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { purchases, tools, consumers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 60
 
@@ -24,10 +24,6 @@ const checkoutSchema = z.object({
     .min(MIN_CUSTOM_AMOUNT, `Minimum amount is ${MIN_CUSTOM_AMOUNT} cents`)
     .max(MAX_CUSTOM_AMOUNT, `Maximum amount is ${MAX_CUSTOM_AMOUNT} cents`),
 })
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,7 +74,7 @@ export async function POST(request: NextRequest) {
       .where(eq(consumers.id, auth.id))
       .limit(1)
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
     let stripeCustomerId = consumer?.stripeCustomerId
 
     if (!stripeCustomerId) {
