@@ -806,6 +806,14 @@ export const ledgerEntries = pgTable(
     counterpartyAccountId: uuid('counterparty_account_id'),
     description: text('description').notNull(),
     metadata: jsonb('metadata'),
+    // P2.TAX1 — tax portion of this entry (see Stripe Tax wiring in
+    // apps/web/src/lib/stripe-tax.ts). Non-tax entries (metering,
+    // payouts, internal transfers) MUST write 0 so reconciliation
+    // queries can SUM without coalescing.
+    taxCents: integer('tax_cents').notNull().default(0),
+    // ISO-3166 alpha-2 country code for non-US; 'US-<state>' (e.g.,
+    // 'US-CA') for US. NULL when no tax was collected.
+    taxJurisdiction: varchar('tax_jurisdiction', { length: 8 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -815,6 +823,16 @@ export const ledgerEntries = pgTable(
     index('ledger_entries_created_at_idx').on(table.createdAt),
     check('ledger_entries_amount_positive', sql`${table.amountCents} > 0`),
     check('ledger_entries_entry_type_check', sql`${table.entryType} IN ('debit', 'credit')`),
+    // P2.TAX1 — tax-cents and jurisdiction are tied: non-zero tax
+    // MUST have a jurisdiction recorded, so an auditor can always
+    // trace a collected tax amount back to the authority it was
+    // collected for.
+    check(
+      'ledger_entries_tax_jurisdiction_required',
+      sql`(${table.taxCents} = 0 AND ${table.taxJurisdiction} IS NULL)
+          OR (${table.taxCents} > 0 AND ${table.taxJurisdiction} IS NOT NULL)
+          OR (${table.taxCents} = 0 AND ${table.taxJurisdiction} IS NOT NULL)`,
+    ),
   ]
 )
 
