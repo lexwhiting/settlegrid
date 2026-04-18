@@ -138,6 +138,15 @@ export function createStripeRailAdapter(
       metadata: { developerId: dev.developerId },
       capabilities: { transfers: { requested: true } },
     })
+    // Defensive: Stripe's typings say id is always a string on
+    // create, but a malformed response (proxy stripped fields, etc.)
+    // would let an undefined slip into the caller's DB persist. Fail
+    // fast here instead.
+    if (typeof account.id !== 'string' || account.id.length === 0) {
+      throw new Error(
+        'ensureAccount: Stripe accounts.create returned no account id',
+      )
+    }
     return { externalId: account.id, created: true }
   }
 
@@ -157,9 +166,17 @@ export function createStripeRailAdapter(
     const accountLink = await stripe.accountLinks.create({
       account: externalId,
       refresh_url: `${appUrl}/dashboard/settings?stripe=refresh`,
-      return_url: `${appUrl}/api/stripe/connect/callback?account_id=${externalId}`,
+      return_url: `${appUrl}/api/stripe/connect/callback?account_id=${encodeURIComponent(externalId)}`,
       type: 'account_onboarding',
     })
+    // Defensive: accountLink.url is always a string per Stripe's
+    // typings, but a malformed response would leave the caller
+    // redirecting the developer to `undefined`.
+    if (typeof accountLink.url !== 'string' || accountLink.url.length === 0) {
+      throw new Error(
+        'createOnboardingLink: Stripe accountLinks.create returned no url',
+      )
+    }
     return { url: accountLink.url }
   }
 
@@ -197,9 +214,20 @@ export function createStripeRailAdapter(
       code = 'incomplete'
     }
 
+    // Stripe's Account object has no single "status" string. For the
+    // debug field we compose the three flags that DRIVE the code,
+    // so a reader troubleshooting a status can see exactly which
+    // Stripe signals were true. Matches the pattern other rails'
+    // adapters should follow (Paddle would use its `status` enum,
+    // etc.).
+    const nativeStatus =
+      `charges_enabled=${chargesEnabled};` +
+      `payouts_enabled=${payoutsEnabled};` +
+      `details_submitted=${detailsSubmitted}`
+
     return {
       code,
-      nativeStatus: code,
+      nativeStatus,
       chargesEnabled,
       payoutsEnabled,
       detailsSubmitted,
@@ -220,6 +248,14 @@ export function createStripeRailAdapter(
     if (!params.currency || typeof params.currency !== 'string') {
       throw new TypeError('createTopupSession: `currency` is required.')
     }
+    // Stripe requires lowercase ISO-4217 with no leading/trailing
+    // whitespace. Normalize defensively — "USD " from user input or
+    // sloppy upstream pipes would otherwise cause a 400 from Stripe
+    // with a confusing "Invalid currency" error.
+    const currency = params.currency.trim().toLowerCase()
+    if (currency.length === 0) {
+      throw new TypeError('createTopupSession: `currency` is required.')
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -227,7 +263,7 @@ export function createStripeRailAdapter(
       line_items: [
         {
           price_data: {
-            currency: params.currency.toLowerCase(),
+            currency,
             product_data: { name: 'SettleGrid credit top-up' },
             unit_amount: params.amountMinorUnits,
           },
