@@ -1048,6 +1048,99 @@ async function check20_intl1CountryWise(): Promise<CheckResult> {
   return pass(20, label, 'both INTL1 artifacts present (cohort-1 enumeration check pending list spec)')
 }
 
+async function check21_intl2MarketplaceVisibility(): Promise<CheckResult> {
+  const label = 'INTL2 — marketplace visibility for claimed-but-unpublished tools'
+  // P2.INTL2 added 2026-04-14. Six DoD items to verify:
+  //   1. Migration with sensible defaults
+  //   2. Marketplace query updated
+  //   3. Claim route sets listedInMarketplace=true
+  //   4. Dashboard toggle works
+  //   5. Claimed badge displayed
+  //   6. At least 8 tests
+  const migration = repoFile('apps', 'web', 'drizzle', '0001_listed_in_marketplace.sql')
+  const visibilityHelper = repoFile('apps', 'web', 'src', 'lib', 'marketplace-visibility.ts')
+  const toggleRoute = repoFile(
+    'apps', 'web', 'src', 'app', 'api', 'tools', '[id]',
+    'listed-in-marketplace', 'route.ts',
+  )
+  const claimRoute = repoFile('apps', 'web', 'src', 'app', 'api', 'tools', 'claim', 'route.ts')
+  const marketplaceContent = repoFile(
+    'apps', 'web', 'src', 'app', 'marketplace', 'marketplace-content.tsx',
+  )
+  const toolCard = repoFile(
+    'apps', 'web', 'src', 'components', 'marketplace', 'tool-card.tsx',
+  )
+  const visibilityTests = repoFile(
+    'apps', 'web', 'src', 'lib', '__tests__', 'marketplace-visibility.test.ts',
+  )
+
+  const artifacts = [
+    { name: '0001_listed_in_marketplace.sql', path: migration },
+    { name: 'marketplace-visibility.ts', path: visibilityHelper },
+    { name: '[id]/listed-in-marketplace/route.ts', path: toggleRoute },
+    { name: 'tools/claim/route.ts', path: claimRoute },
+    { name: 'marketplace-content.tsx', path: marketplaceContent },
+    { name: 'marketplace/tool-card.tsx', path: toolCard },
+    { name: 'marketplace-visibility.test.ts', path: visibilityTests },
+  ]
+  const missing = artifacts.filter((a) => !fileExists(a.path)).map((a) => a.name)
+  if (missing.length === artifacts.length) {
+    return defer(21, label, 'no INTL2 artifacts present')
+  }
+  if (missing.length > 0) {
+    return fail(21, label, `missing: ${missing.join(', ')}`)
+  }
+
+  // Spec DoD item 3 — claim route sets listedInMarketplace=true
+  const claimSrc = readFileSync(claimRoute, 'utf-8')
+  if (!/listedInMarketplace\s*:\s*true/.test(claimSrc)) {
+    return fail(
+      21,
+      label,
+      'claim route does not set listedInMarketplace=true (spec DoD item 3)',
+    )
+  }
+
+  // Spec DoD item 6 — at least 8 tests
+  const testSrc = readFileSync(visibilityTests, 'utf-8')
+  const testCount = (testSrc.match(/\bit\s*\(/g) ?? []).length
+  if (testCount < 8) {
+    return fail(
+      21,
+      label,
+      `only ${testCount} tests found in marketplace-visibility.test.ts; spec requires ≥8`,
+    )
+  }
+
+  // Marketplace query must include the draft-with-listed path (not
+  // just ['active', 'unclaimed']) — regression guard against the
+  // original bug P2.INTL2 fixes.
+  const marketplaceSrc = readFileSync(marketplaceContent, 'utf-8')
+  if (!/listedInMarketplace/.test(marketplaceSrc)) {
+    return fail(
+      21,
+      label,
+      `marketplace-content.tsx does not reference listedInMarketplace — the visibility fix may have regressed`,
+    )
+  }
+
+  // Tool card must render the claimed badge.
+  const toolCardSrc = readFileSync(toolCard, 'utf-8')
+  if (!/shouldShowClaimedBadge/.test(toolCardSrc)) {
+    return fail(
+      21,
+      label,
+      `marketplace/tool-card.tsx does not call shouldShowClaimedBadge — badge rendering regressed`,
+    )
+  }
+
+  return pass(
+    21,
+    label,
+    `all 7 INTL2 artifacts present; claim route sets listedInMarketplace=true; ${testCount} tests (≥8 required); marketplace query + badge wired`,
+  )
+}
+
 // ── Aggregation ──────────────────────────────────────────────────────
 
 export function aggregateResults(
@@ -1172,6 +1265,7 @@ async function main(): Promise<void> {
   await run(check18_rail1RailAdapter, 18)
   await run(check19_comp1OfacAupIr, 19)
   await run(check20_intl1CountryWise, 20)
+  await run(check21_intl2MarketplaceVisibility, 21)
 
   const summary = aggregateResults(results, STRICT_EXPANSION)
 
