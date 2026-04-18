@@ -86,12 +86,14 @@ export interface RailDisplayMetadata {
 }
 
 /**
- * Produce a plain-JSON display metadata array for every rail in the
- * registry. Safe to pass into client components — contains no
- * function references, no Stripe client, no secrets.
+ * Pure iteration over an arbitrary registry. Extracted so unit tests
+ * can exercise the defensive `if (!adapter) continue` branch with a
+ * crafted registry shape (e.g., { 'stripe-connect': undefined })
+ * without monkey-patching module state.
  */
-export function getRailDisplayMetadata(): RailDisplayMetadata[] {
-  const registry = getRailRegistry()
+export function buildRailDisplayMetadata(
+  registry: RailRegistry,
+): RailDisplayMetadata[] {
   const entries: RailDisplayMetadata[] = []
   for (const [id, adapter] of Object.entries(registry) as Array<
     [RailId, RailAdapter | undefined]
@@ -109,14 +111,32 @@ export function getRailDisplayMetadata(): RailDisplayMetadata[] {
 }
 
 /**
- * Resolve the display name for the Stripe Connect rail. Used by the
- * dashboard settings page so the label reads from the registry
- * instead of a hardcoded "Stripe" string — if the registry ever
- * renames the rail, the UI updates automatically.
+ * Produce a plain-JSON display metadata array for every rail in the
+ * server-side registry. Safe to pass into client components —
+ * contains no function references, no Stripe client, no secrets.
+ */
+export function getRailDisplayMetadata(): RailDisplayMetadata[] {
+  return buildRailDisplayMetadata(getRailRegistry())
+}
+
+/**
+ * Pure display-name resolver, extracted so unit tests can exercise
+ * the `?? 'Stripe Connect'` fallback with a registry that has the
+ * stripe-connect slot unpopulated.
+ */
+export function resolveStripeConnectDisplayName(
+  registry: RailRegistry,
+): string {
+  return registry['stripe-connect']?.displayName ?? 'Stripe Connect'
+}
+
+/**
+ * Resolve the display name for the Stripe Connect rail from the
+ * server-side registry. Used by the dashboard settings page so the
+ * label reads from a single source of truth.
  */
 export function getStripeConnectDisplayName(): string {
-  const registry = getRailRegistry()
-  return registry['stripe-connect']?.displayName ?? 'Stripe Connect'
+  return resolveStripeConnectDisplayName(getRailRegistry())
 }
 
 /**
