@@ -18,6 +18,7 @@ import {
   extractGithubUsername,
   fetchGithubLocation,
   parseCsv,
+  runCli,
   serializeCsv,
 } from './backfill-country'
 
@@ -490,5 +491,166 @@ describe('backfillFile — end-to-end', () => {
     // Output must contain both enriched rows with the right columns
     expect(out).toContain('ada@acme.us,acme.us,US,true,activate-now')
     expect(out).toContain('kunle@acme.ng,acme.ng,NG,false,stripe-unsupported-corridor-waitlist')
+  })
+})
+
+describe('runCli — CLI entry-point tests (coverage close-out)', () => {
+  function makeCtx() {
+    const errors: string[] = []
+    const files = new Map<string, string>()
+    const ctx = {
+      errors,
+      files,
+      logger: {
+        error: (msg: string) => {
+          errors.push(msg)
+        },
+      },
+      readFile: (p: string) => {
+        const v = files.get(p)
+        if (v === undefined) throw new Error(`no file: ${p}`)
+        return v
+      },
+      writeFile: (p: string, d: string) => {
+        files.set(p, d)
+      },
+      existsSync: (p: string) => files.has(p),
+    }
+    return ctx
+  }
+
+  it('returns exit code 2 with usage when --in is missing', async () => {
+    const ctx = makeCtx()
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--out', '/tmp/out.csv'],
+      env: {},
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(2)
+    expect(ctx.errors[0]).toMatch(/Usage:/)
+  })
+
+  it('returns exit code 2 when --out is missing', async () => {
+    const ctx = makeCtx()
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--in', '/tmp/in.csv'],
+      env: {},
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(2)
+  })
+
+  it('returns exit code 2 when --in has no value', async () => {
+    const ctx = makeCtx()
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--in'],
+      env: {},
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(2)
+  })
+
+  it('returns exit code 1 when input file does not exist', async () => {
+    const ctx = makeCtx()
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--in', '/tmp/missing.csv', '--out', '/tmp/out.csv'],
+      env: {},
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(1)
+    expect(ctx.errors[0]).toMatch(/input file not found/)
+  })
+
+  it('happy path: reads, enriches, writes output with right shape', async () => {
+    const ctx = makeCtx()
+    ctx.files.set(
+      '/tmp/in.csv',
+      'email,domain\nada@acme.us,acme.us\nkunle@acme.ng,acme.ng\n',
+    )
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--in', '/tmp/in.csv', '--out', '/tmp/out.csv'],
+      env: {},
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.outputPath).toBe('/tmp/out.csv')
+    expect(result.summary).toEqual({
+      rowsWritten: 2,
+      activateCount: 1,
+      waitlistCount: 1,
+      unknownCount: 0,
+      skippedGithubLookup: 0,
+    })
+    const outCsv = ctx.files.get('/tmp/out.csv') ?? ''
+    expect(outCsv).toContain('country_iso')
+    expect(outCsv).toContain('stripe_supported')
+    expect(outCsv).toContain('segment')
+    expect(outCsv).toContain('US,true,activate-now')
+    expect(outCsv).toContain('NG,false,stripe-unsupported-corridor-waitlist')
+  })
+
+  it('output header includes country_iso / stripe_supported / segment even when absent in input', async () => {
+    const ctx = makeCtx()
+    ctx.files.set('/tmp/in.csv', 'email,domain\nada@acme.us,acme.us\n')
+    await runCli({
+      argv: ['node', 'script.ts', '--in', '/tmp/in.csv', '--out', '/tmp/out.csv'],
+      env: {},
+      ...ctx,
+    })
+    const outCsv = ctx.files.get('/tmp/out.csv') ?? ''
+    const headerLine = outCsv.split('\n')[0]
+    expect(headerLine).toContain('country_iso')
+    expect(headerLine).toContain('stripe_supported')
+    expect(headerLine).toContain('segment')
+  })
+
+  it('returns exit code 1 when backfillFile throws (rate-limit)', async () => {
+    const ctx = makeCtx()
+    ctx.files.set(
+      '/tmp/in.csv',
+      'email,github_url\nada@acme.com,https://github.com/ada\n',
+    )
+    const rateLimitFetch = vi.fn(
+      async () =>
+        new Response('', {
+          status: 403,
+          headers: { 'x-ratelimit-remaining': '0' },
+        }),
+    )
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--in', '/tmp/in.csv', '--out', '/tmp/out.csv'],
+      env: { GITHUB_TOKEN: 'ghp_fake' },
+      fetchImpl: rateLimitFetch as unknown as typeof fetch,
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(1)
+    expect(ctx.errors.some((e) => /rate limit/i.test(e))).toBe(true)
+    // The output file was NOT written — partial progress is worse
+    // than no progress for operator clarity.
+    expect(ctx.files.has('/tmp/out.csv')).toBe(false)
+  })
+
+  it('passes through the GITHUB_TOKEN env var to the fetch', async () => {
+    const ctx = makeCtx()
+    ctx.files.set(
+      '/tmp/in.csv',
+      'email,domain,github_url\nada@x.com,x.com,https://github.com/ada\n',
+    )
+    const fakeFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ location: 'Berlin, Germany' }), {
+          status: 200,
+        }),
+    )
+    const result = await runCli({
+      argv: ['node', 'script.ts', '--in', '/tmp/in.csv', '--out', '/tmp/out.csv'],
+      env: { GITHUB_TOKEN: 'ghp_test_token' },
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+      ...ctx,
+    })
+    expect(result.exitCode).toBe(0)
+    const call = fakeFetch.mock.calls[0]
+    const init = call[1] as { headers: Record<string, string> }
+    expect(init.headers.Authorization).toBe('Bearer ghp_test_token')
   })
 })
