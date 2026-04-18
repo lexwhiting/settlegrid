@@ -54,6 +54,19 @@ describe('withAutomaticTax — hostile-review (a) + (c): tax + billing-address c
     expect(session.billing_address_collection).toBe('required')
   })
 
+  it('OVERRIDES caller-supplied billing_address_collection="auto" (bypass defense)', () => {
+    // Hostile-review II: check (c) says billing-address collection
+    // cannot be bypassed. A caller setting 'auto' would silently
+    // make the Stripe Checkout UI skip the address field, breaking
+    // Stripe Tax rate calculation. The helper must force 'required'.
+    const session = withAutomaticTax({
+      mode: 'subscription',
+      line_items: [{ price: 'price_x', quantity: 1 }],
+      billing_address_collection: 'auto',
+    })
+    expect(session.billing_address_collection).toBe('required')
+  })
+
   it('enables tax_id_collection by default (EU B2B reverse-charge path)', () => {
     const session = withAutomaticTax({
       mode: 'subscription',
@@ -354,6 +367,65 @@ describe('extractTaxFromInvoice — hostile-review (b): tax_cents populated on l
       customer_address: null,
     } as unknown as Parameters<typeof extractTaxFromInvoice>[0])
     expect(breakdown.reverseCharged).toBe(false)
+  })
+
+  it('falls back to summing total_tax_amounts when invoice.tax is null (newer API)', () => {
+    // Hostile-review II: newer Stripe API versions return null for
+    // invoice.tax — the breakdown moves entirely to
+    // total_tax_amounts[]. Without this fallback, taxCents would
+    // silently be 0 and the ledger would under-report collected tax.
+    const breakdown = extractTaxFromInvoice({
+      tax: null,
+      total_tax_amounts: [
+        {
+          amount: 380,
+          inclusive: false,
+          tax_rate: { country: 'DE', tax_type: 'vat', percentage: 19 },
+        },
+      ],
+      automatic_tax: { status: 'complete', enabled: true, liability: null },
+      customer_address: null,
+    } as unknown as Parameters<typeof extractTaxFromInvoice>[0])
+    expect(breakdown.taxCents).toBe(380)
+    expect(breakdown.taxJurisdiction).toBe('DE')
+  })
+
+  it('sums total_tax_amounts across multiple rate entries (composite tax)', () => {
+    // US sales tax often splits state + county. Stripe Tax models
+    // this as two entries in total_tax_amounts[]. Both must be
+    // summed to get the total collected tax.
+    const breakdown = extractTaxFromInvoice({
+      tax: null,
+      total_tax_amounts: [
+        {
+          amount: 150,
+          inclusive: false,
+          tax_rate: { country: 'US', state: 'CA', tax_type: 'sales_tax' },
+        },
+        {
+          amount: 50,
+          inclusive: false,
+          tax_rate: { country: 'US', state: 'CA', tax_type: 'sales_tax' },
+        },
+      ],
+      automatic_tax: { status: 'complete', enabled: true, liability: null },
+      customer_address: null,
+    } as unknown as Parameters<typeof extractTaxFromInvoice>[0])
+    expect(breakdown.taxCents).toBe(200)
+  })
+
+  it('ignores negative / zero entries in the fallback sum', () => {
+    const breakdown = extractTaxFromInvoice({
+      tax: null,
+      total_tax_amounts: [
+        { amount: 100, inclusive: false, tax_rate: { country: 'DE', tax_type: 'vat' } },
+        { amount: -5, inclusive: false, tax_rate: { country: 'DE', tax_type: 'vat' } },
+        { amount: 0, inclusive: false, tax_rate: { country: 'DE', tax_type: 'vat' } },
+      ],
+      automatic_tax: { status: 'complete', enabled: true, liability: null },
+      customer_address: null,
+    } as unknown as Parameters<typeof extractTaxFromInvoice>[0])
+    expect(breakdown.taxCents).toBe(100)
   })
 
   it('handles non-object tax_rate (string ID) by treating as no jurisdiction', () => {

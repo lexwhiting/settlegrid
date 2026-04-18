@@ -86,6 +86,16 @@ export async function postLedgerEntry(params: PostEntryParams): Promise<{
       `Ledger entry has taxCents=${taxCents} but no taxJurisdiction — collected tax must be traceable to an authority`,
     )
   }
+  // Hostile-review fix: tax is a PORTION of the total charge, so
+  // taxCents MUST be <= amountCents. An entry with amountCents=100
+  // and taxCents=500 is meaningless — a corrupt Stripe response or
+  // an upstream bug that passes the wrong field. Catch it at the
+  // application layer instead of writing garbage to the ledger.
+  if (taxCents > amountCents) {
+    throw new Error(
+      `Ledger entry taxCents=${taxCents} exceeds amountCents=${amountCents} — tax cannot exceed the total charge`,
+    )
+  }
 
   return await db.transaction(async (tx) => {
     // 1. Read both accounts with current versions
