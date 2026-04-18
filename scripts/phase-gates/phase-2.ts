@@ -1134,10 +1134,38 @@ async function check21_intl2MarketplaceVisibility(): Promise<CheckResult> {
     )
   }
 
+  // Hostile-review regression guard: the public detail route must use the
+  // canonical marketplaceInclusionSql helper. Previously it hand-rolled a
+  // predicate that omitted 'unclaimed', so every unclaimed card in the
+  // marketplace linked to a 404 page.
+  const publicRoutePath = repoFile(
+    'apps', 'web', 'src', 'app', 'api', 'tools', 'public', '[slug]', 'route.ts',
+  )
+  if (!fileExists(publicRoutePath)) {
+    return fail(21, label, 'public tool detail route missing')
+  }
+  const publicRouteSrc = readFileSync(publicRoutePath, 'utf-8')
+  if (!/marketplaceInclusionSql/.test(publicRouteSrc)) {
+    return fail(
+      21,
+      label,
+      `public/[slug]/route.ts does not use marketplaceInclusionSql — unclaimed cards will 404`,
+    )
+  }
+  // The visibility helper must export the canonical Drizzle builder.
+  const visibilitySrc = readFileSync(visibilityHelper, 'utf-8')
+  if (!/export\s+function\s+marketplaceInclusionSql/.test(visibilitySrc)) {
+    return fail(
+      21,
+      label,
+      'marketplace-visibility.ts is missing marketplaceInclusionSql export — drift guard is unplugged',
+    )
+  }
+
   return pass(
     21,
     label,
-    `all 7 INTL2 artifacts present; claim route sets listedInMarketplace=true; ${testCount} tests (≥8 required); marketplace query + badge wired`,
+    `all 7 INTL2 artifacts present; claim route sets listedInMarketplace=true; ${testCount} tests (≥8 required); marketplace query + badge wired; public detail route uses canonical marketplaceInclusionSql`,
   )
 }
 

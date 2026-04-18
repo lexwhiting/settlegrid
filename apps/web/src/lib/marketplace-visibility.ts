@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { eq, and, or, type SQL } from 'drizzle-orm'
+import { tools } from './db/schema'
 
 /**
  * P2.INTL2 marketplace inclusion rule.
@@ -52,3 +54,37 @@ export function shouldShowClaimedBadge(status: string): boolean {
 export const listedInMarketplacePatchSchema = z.object({
   listedInMarketplace: z.boolean(),
 })
+
+/**
+ * P2.INTL2 — the four statuses a marketplace-visible tool can have.
+ *
+ * Kept here so the TS helper (`shouldIncludeInMarketplace`) and the Drizzle
+ * predicate builder (`marketplaceInclusionSql`) read from one list. Drift
+ * between them used to let unclaimed tools pass the marketplace predicate
+ * but fail the detail-route predicate — the exact class of bug this module
+ * is meant to prevent.
+ */
+export const MARKETPLACE_ALWAYS_VISIBLE_STATUSES = ['unclaimed', 'active'] as const
+export const MARKETPLACE_CONDITIONALLY_VISIBLE_STATUSES = ['draft'] as const
+
+/**
+ * Canonical Drizzle predicate mirroring `shouldIncludeInMarketplace`.
+ *
+ * SQL call sites (marketplace content page, /api/marketplace, trending,
+ * /api/tools/public/[slug]) MUST use this instead of hand-rolling the
+ * expression. Hand-rolled versions drifted — the public detail route
+ * omitted 'unclaimed', which caused every unclaimed tool card in the
+ * marketplace to link to a 404 page.
+ *
+ * The predicate matches the TS rule one-to-one:
+ *   - status IN ('unclaimed', 'active')                           → always in
+ *   - status = 'draft' AND listed_in_marketplace = true          → conditionally in
+ *   - any other status                                            → excluded
+ */
+export function marketplaceInclusionSql(): SQL {
+  return or(
+    eq(tools.status, 'unclaimed'),
+    eq(tools.status, 'active'),
+    and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+  )!
+}
