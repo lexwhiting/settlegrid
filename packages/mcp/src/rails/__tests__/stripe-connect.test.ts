@@ -346,6 +346,133 @@ describe('createTopupSession — metadata-override defense (hostile-review I)', 
   })
 })
 
+describe('ensureAccount / createOnboardingLink — defensive response validation (hostile-review II)', () => {
+  let stripe: StripeClient
+  let mocks: Mocks
+  let adapter: StripeRailAdapter
+
+  beforeEach(() => {
+    ;({ stripe, mocks } = buildMockStripe())
+    adapter = createStripeRailAdapter({ stripe, appUrl: 'https://settlegrid.ai' })
+  })
+
+  it('ensureAccount throws if Stripe returns no account id', async () => {
+    mocks.accountsCreate.mockResolvedValue({ id: undefined })
+    await expect(
+      adapter.ensureAccount({ developerId: 'd', email: 'e@f.g' }),
+    ).rejects.toThrowError(/no account id/)
+  })
+
+  it('ensureAccount throws if Stripe returns empty-string account id', async () => {
+    mocks.accountsCreate.mockResolvedValue({ id: '' })
+    await expect(
+      adapter.ensureAccount({ developerId: 'd', email: 'e@f.g' }),
+    ).rejects.toThrowError(/no account id/)
+  })
+
+  it('ensureAccount throws if Stripe returns a non-string account id', async () => {
+    mocks.accountsCreate.mockResolvedValue({ id: 42 })
+    await expect(
+      adapter.ensureAccount({ developerId: 'd', email: 'e@f.g' }),
+    ).rejects.toThrowError(/no account id/)
+  })
+
+  it('createOnboardingLink throws if Stripe returns no url', async () => {
+    mocks.accountLinksCreate.mockResolvedValue({ url: undefined })
+    await expect(
+      adapter.createOnboardingLink('acct_1'),
+    ).rejects.toThrowError(/no url/)
+  })
+
+  it('createOnboardingLink throws if Stripe returns empty url', async () => {
+    mocks.accountLinksCreate.mockResolvedValue({ url: '' })
+    await expect(
+      adapter.createOnboardingLink('acct_1'),
+    ).rejects.toThrowError(/no url/)
+  })
+
+  it('createOnboardingLink URL-encodes externalId in the return_url', async () => {
+    // An externalId containing characters that have meaning in a
+    // URL query string (e.g., &) would previously be interpolated
+    // verbatim, letting a crafted externalId inject extra query
+    // params into the callback URL.
+    mocks.accountLinksCreate.mockResolvedValue({ url: 'https://stripe.com/x' })
+    await adapter.createOnboardingLink('acct_&injected=payload')
+    const call = mocks.accountLinksCreate.mock.calls[0][0]
+    expect(call.return_url).toContain('account_id=acct_%26injected%3Dpayload')
+    expect(call.return_url).not.toContain('&injected=')
+  })
+})
+
+describe('createTopupSession — currency normalization (hostile-review II)', () => {
+  let stripe: StripeClient
+  let mocks: Mocks
+  let adapter: StripeRailAdapter
+
+  beforeEach(() => {
+    ;({ stripe, mocks } = buildMockStripe())
+    adapter = createStripeRailAdapter({ stripe, appUrl: 'https://x' })
+    mocks.sessionsCreate.mockResolvedValue({ id: 'cs', url: 'https://x' })
+  })
+
+  it('trims whitespace from currency before sending to Stripe', async () => {
+    await adapter.createTopupSession({
+      developerId: 'd',
+      amountMinorUnits: 100,
+      currency: '  USD  ',
+      successUrl: 's',
+      cancelUrl: 'c',
+    })
+    const call = mocks.sessionsCreate.mock.calls[0][0]
+    expect(call.line_items[0].price_data.currency).toBe('usd')
+  })
+
+  it('rejects whitespace-only currency', async () => {
+    await expect(
+      adapter.createTopupSession({
+        developerId: 'd',
+        amountMinorUnits: 100,
+        currency: '   ',
+        successUrl: 's',
+        cancelUrl: 'c',
+      }),
+    ).rejects.toThrowError(/currency/)
+  })
+})
+
+describe('syncOnboardingStatus — nativeStatus is meaningful (hostile-review II)', () => {
+  let stripe: StripeClient
+  let mocks: Mocks
+  let adapter: StripeRailAdapter
+
+  beforeEach(() => {
+    ;({ stripe, mocks } = buildMockStripe())
+    adapter = createStripeRailAdapter({ stripe, appUrl: 'https://x' })
+  })
+
+  it('nativeStatus composes the three underlying flags (not the normalized code)', async () => {
+    mocks.accountsRetrieve.mockResolvedValue({
+      charges_enabled: true,
+      payouts_enabled: false,
+      details_submitted: true,
+    })
+    const status = await adapter.syncOnboardingStatus('acct_1')
+    expect(status.nativeStatus).toContain('charges_enabled=true')
+    expect(status.nativeStatus).toContain('payouts_enabled=false')
+    expect(status.nativeStatus).toContain('details_submitted=true')
+    // Guard against regression to the meaningless nativeStatus=code:
+    expect(status.nativeStatus).not.toBe(status.code)
+  })
+
+  it('nativeStatus for a fully-incomplete account includes all three false', async () => {
+    mocks.accountsRetrieve.mockResolvedValue({})
+    const status = await adapter.syncOnboardingStatus('acct_1')
+    expect(status.nativeStatus).toBe(
+      'charges_enabled=false;payouts_enabled=false;details_submitted=false',
+    )
+  })
+})
+
 describe('syncOnboardingStatus', () => {
   let stripe: StripeClient
   let mocks: Mocks
