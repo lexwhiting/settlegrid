@@ -412,8 +412,8 @@ export default function SettingsPage() {
     // surface here automatically.
     fetch('/api/rails')
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { data?: { rails?: RailDisplayMeta[] } } | null) => {
-        if (data?.data?.rails) setRails(data.data.rails)
+      .then((data: { rails?: RailDisplayMeta[] } | null) => {
+        if (data?.rails) setRails(data.rails)
       })
       .catch(() => {
         // Network error — fall back to an empty list; the card

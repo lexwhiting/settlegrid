@@ -94,6 +94,89 @@ describe('getRailDisplayMetadata', () => {
   })
 })
 
+describe('getStripeConnectDisplayName', () => {
+  beforeEach(async () => {
+    const mod = await import('../rails')
+    mod.__resetRailRegistry()
+  })
+
+  it('returns the Stripe Connect display name from the registry', async () => {
+    const { getStripeConnectDisplayName } = await import('../rails')
+    expect(getStripeConnectDisplayName()).toBe('Stripe Connect')
+  })
+})
+
+describe('buildRailDisplayMetadata — pure iteration (defensive branches)', () => {
+  it('skips entries with undefined adapter values', async () => {
+    const { buildRailDisplayMetadata } = await import('../rails')
+    const registry = {
+      'stripe-connect': undefined,
+      'paddle': undefined,
+    }
+    expect(buildRailDisplayMetadata(registry)).toEqual([])
+  })
+
+  it('returns an empty array for a fully-empty registry', async () => {
+    const { buildRailDisplayMetadata } = await import('../rails')
+    expect(buildRailDisplayMetadata({})).toEqual([])
+  })
+
+  it('returns metadata for populated entries only', async () => {
+    const { buildRailDisplayMetadata } = await import('../rails')
+    const fakeAdapter = {
+      id: 'stripe-connect' as const,
+      displayName: 'Stripe Connect',
+      legalStructure: 'platform' as const,
+      capabilities: {
+        individualCountries: [],
+        businessCountries: [],
+        payoutCurrencies: [],
+        acceptCurrencies: [],
+        supportsMeteredCheckout: true,
+        supportsApplicationFees: true,
+      },
+      compliance: {} as never,
+      pricing: { percentBps: 30, flatCents: 30 },
+      startOnboarding: vi.fn(),
+      syncOnboardingStatus: vi.fn(),
+      createTopupSession: vi.fn(),
+      handleWebhook: vi.fn(),
+    }
+    const registry = { 'stripe-connect': fakeAdapter, 'paddle': undefined }
+    const result = buildRailDisplayMetadata(registry)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('stripe-connect')
+    expect(result[0].percentBps).toBe(30)
+    expect(result[0].flatCents).toBe(30)
+  })
+})
+
+describe('resolveStripeConnectDisplayName — pure resolver (fallback branch)', () => {
+  it('returns the adapter displayName when populated', async () => {
+    const { resolveStripeConnectDisplayName } = await import('../rails')
+    // Minimal shape — only displayName is read by the resolver; other
+    // fields cast through unknown to satisfy the RailAdapter contract.
+    const registry = {
+      'stripe-connect': { displayName: 'Stripe Connect Standard' },
+    } as unknown as Parameters<typeof resolveStripeConnectDisplayName>[0]
+    expect(resolveStripeConnectDisplayName(registry)).toBe(
+      'Stripe Connect Standard',
+    )
+  })
+
+  it('falls back to literal "Stripe Connect" when slot is empty', async () => {
+    const { resolveStripeConnectDisplayName } = await import('../rails')
+    expect(resolveStripeConnectDisplayName({})).toBe('Stripe Connect')
+  })
+
+  it('falls back to literal "Stripe Connect" when slot is explicitly undefined', async () => {
+    const { resolveStripeConnectDisplayName } = await import('../rails')
+    expect(
+      resolveStripeConnectDisplayName({ 'stripe-connect': undefined }),
+    ).toBe('Stripe Connect')
+  })
+})
+
 describe('__resetRailRegistry — hostile-review II guard', () => {
   let originalEnv: string | undefined
 
