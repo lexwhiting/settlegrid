@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import {
+  RateLimitError,
   backfillFile,
   enrichRow,
   extractGithubUsername,
@@ -251,6 +252,188 @@ describe('enrichRow', () => {
     })
     expect(enriched.country_iso).toBe('PK')
     expect(enriched.segment).toBe('stripe-unsupported-corridor-waitlist')
+  })
+})
+
+describe('fetchGithubLocation — hostile-review fixes (timeout + rate-limit)', () => {
+  it('throws RateLimitError on GitHub 403 with x-ratelimit-remaining=0', async () => {
+    // Hostile-review: silent null on rate-limit exhaustion degrades
+    // every remaining prospect to UNKNOWN. The operator must know
+    // the backfill is incomplete — throw so the script stops.
+    const fakeFetch = vi.fn(
+      async () =>
+        new Response('', {
+          status: 403,
+          headers: {
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 3600),
+          },
+        }),
+    )
+    await expect(
+      fetchGithubLocation('https://github.com/ada', {
+        token: 'ghp_fake',
+        fetchImpl: fakeFetch as unknown as typeof fetch,
+      }),
+    ).rejects.toThrowError(RateLimitError)
+  })
+
+  it('does NOT throw on 403 without rate-limit headers (e.g., private user)', async () => {
+    const fakeFetch = vi.fn(async () => new Response('', { status: 403 }))
+    const result = await fetchGithubLocation('https://github.com/ada', {
+      token: 'ghp_fake',
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+    })
+    expect(result).toBeNull()
+  })
+
+  it('does NOT throw on 403 with x-ratelimit-remaining > 0 (scope issue, not exhaustion)', async () => {
+    const fakeFetch = vi.fn(
+      async () =>
+        new Response('', {
+          status: 403,
+          headers: { 'x-ratelimit-remaining': '42' },
+        }),
+    )
+    const result = await fetchGithubLocation('https://github.com/ada', {
+      token: 'ghp_fake',
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+    })
+    expect(result).toBeNull()
+  })
+
+  it('honors the timeout when GitHub hangs', async () => {
+    const fakeFetch = vi.fn(
+      async (_url: string, init?: { signal?: AbortSignal }) => {
+        // Emulate abort: if the signal fires, throw an AbortError.
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(
+              Object.assign(new Error('aborted'), { name: 'AbortError' }),
+            )
+          })
+          // Otherwise never resolve — simulates a hang.
+        })
+      },
+    )
+    const result = await fetchGithubLocation('https://github.com/ada', {
+      token: 'ghp_fake',
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+      timeoutMs: 10,
+    })
+    // Times out, falls into the catch, returns null.
+    expect(result).toBeNull()
+  })
+})
+
+describe('enrichRow — preserve existing country_iso (hostile-review fix)', () => {
+  it('preserves a valid manually-set country_iso (does NOT overwrite with heuristic)', async () => {
+    // Hostile-review: a reviewer manually verified this prospect is
+    // in India via LinkedIn. Their GitHub location says "Canada"
+    // (stale). Re-running the backfill must NOT clobber IN with CA.
+    const fakeFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ location: 'Toronto, Canada' }), {
+          status: 200,
+        }),
+    )
+    const row = {
+      email: 'ada@acme.com',
+      domain: 'acme.com',
+      github_url: 'https://github.com/ada',
+      country_iso: 'IN', // manually set
+    }
+    const enriched = await enrichRow(row, {
+      token: 'ghp_fake',
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+    })
+    expect(enriched.country_iso).toBe('IN')
+    expect(enriched.stripe_supported).toBe('true')
+    expect(enriched.segment).toBe('activate-now')
+    // GitHub API is NOT called when we have a valid existing value
+    // (fetch quota preserved).
+    expect(fakeFetch).not.toHaveBeenCalled()
+  })
+
+  it('OVERWRITES country_iso="UNKNOWN" on re-run (allow later GitHub info to fill in)', async () => {
+    const fakeFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ location: 'Berlin, Germany' }), {
+          status: 200,
+        }),
+    )
+    const row = {
+      email: 'ada@acme.com',
+      domain: 'acme.com',
+      github_url: 'https://github.com/ada',
+      country_iso: 'UNKNOWN',
+    }
+    const enriched = await enrichRow(row, {
+      token: 'ghp_fake',
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+    })
+    expect(enriched.country_iso).toBe('DE')
+  })
+
+  it('OVERWRITES invalid country_iso (e.g., typo or "UN")', async () => {
+    const row = {
+      email: 'ada@acme.ng',
+      domain: 'acme.ng',
+      country_iso: 'UN', // not a country code
+    }
+    const enriched = await enrichRow(row)
+    expect(enriched.country_iso).toBe('NG')
+  })
+
+  it('OVERWRITES empty-string country_iso', async () => {
+    const row = {
+      email: 'ada@acme.us',
+      domain: 'acme.us',
+      country_iso: '',
+    }
+    const enriched = await enrichRow(row)
+    expect(enriched.country_iso).toBe('US')
+  })
+})
+
+describe('enrichRow — sanctions-blocked routing (hostile-review fix)', () => {
+  it('prospect with country_iso=IR routes to sanctions-blocked (not waitlist)', async () => {
+    const row = {
+      email: 'blocked@example.ir',
+      domain: 'example.com',
+      country_iso: 'IR',
+    }
+    const enriched = await enrichRow(row)
+    expect(enriched.country_iso).toBe('IR')
+    expect(enriched.segment).toBe('sanctions-blocked')
+    // Sanctions-blocked is NOT Stripe-supported, but that's not the
+    // distinguishing property — the dedicated segment is.
+    expect(enriched.stripe_supported).toBe('false')
+  })
+})
+
+describe('backfillFile — rate-limit halts the run (hostile-review fix)', () => {
+  it('propagates RateLimitError up from the first row that hits it', async () => {
+    // Hostile-review: partial-CSV production is worse than no CSV
+    // at all, because the operator can't easily tell which rows
+    // are authoritative. Stop on first rate-limit signal.
+    const fakeFetch = vi.fn(
+      async () =>
+        new Response('', {
+          status: 403,
+          headers: { 'x-ratelimit-remaining': '0' },
+        }),
+    )
+    const src =
+      'email,github_url\n' +
+      'a@x.com,https://github.com/a\n' +
+      'b@x.com,https://github.com/b\n'
+    await expect(
+      backfillFile(src, {
+        token: 'ghp_fake',
+        fetchImpl: fakeFetch as unknown as typeof fetch,
+      }),
+    ).rejects.toThrowError(RateLimitError)
   })
 })
 

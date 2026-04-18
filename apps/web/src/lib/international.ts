@@ -62,19 +62,62 @@ export function isCohort1(isoCode: string): boolean {
 }
 
 /**
+ * OFAC comprehensively-sanctioned jurisdictions (`docs/legal/ofac-program.md`
+ * §3.2). Prospects from these countries must NEVER be routed to the
+ * waitlist — the waitlist implies "we'll figure out a payout rail
+ * for you eventually", which is incompatible with sanctions
+ * compliance. They route to `sanctions-blocked` instead and get no
+ * further outbound email.
+ *
+ * This list mirrors the OFAC program's §3.2 manually; we don't
+ * import it as a constant because OFAC program is markdown, not
+ * code. If either list changes, the other must be updated.
+ * Hostile-review test guards the coordination.
+ */
+export const SANCTIONS_BLOCKED_COUNTRIES = [
+  'CU', // Cuba
+  'IR', // Iran
+  'KP', // North Korea (DPRK)
+  'SY', // Syria
+  // Note: Crimea, DNR, LNR are sub-national regions of Ukraine and
+  // don't have their own ISO-3166 α-2 code in the standard set.
+  // Address-level review catches those — the free-text parser
+  // returns UNKNOWN for "Crimea" / "Donetsk" / "Luhansk" because
+  // they're not in LOCATION_LOOKUP, which is the right conservative
+  // behavior.
+] as const
+
+const SANCTIONS_BLOCKED_SET: ReadonlySet<string> = new Set(
+  SANCTIONS_BLOCKED_COUNTRIES,
+)
+
+/** Is this country comprehensively sanctioned by OFAC? */
+export function isSanctionsBlocked(isoCode: string): boolean {
+  return SANCTIONS_BLOCKED_SET.has(isoCode.toUpperCase())
+}
+
+/**
  * Classify a prospect's country into one of the outreach segments
  * per `data/international/country-tracker.md` §4.
+ *
+ * Precedence (hostile-review fix): sanctions block is checked BEFORE
+ * Stripe support. A prospect from Iran is `sanctions-blocked` and
+ * does NOT continue to the waitlist, regardless of any other factor.
  */
 export type OutreachSegment =
   | 'activate-now'
   | 'stripe-unsupported-corridor-waitlist'
   | 'cold-unknown-country'
+  | 'sanctions-blocked'
 
 export function classifyProspect(
   countryIso: string | null | undefined,
 ): OutreachSegment {
   if (!countryIso || countryIso.toUpperCase() === 'UNKNOWN') {
     return 'cold-unknown-country'
+  }
+  if (isSanctionsBlocked(countryIso)) {
+    return 'sanctions-blocked'
   }
   return isStripeSupported(countryIso)
     ? 'activate-now'
@@ -327,7 +370,9 @@ const LOCATION_LOOKUP: Record<string, string> = {
   'hamburg': 'DE',
   'cologne': 'DE',
   'köln': 'DE',
-  'paris': 'FR',
+  // 'paris' deliberately OMITTED — there are Paris, TX and Paris, ON
+  // and the ambiguity matters more than the convenience. "Paris,
+  // France" still matches via the 'france' country-name entry.
   'lyon': 'FR',
   'amsterdam': 'NL',
   'rotterdam': 'NL',
