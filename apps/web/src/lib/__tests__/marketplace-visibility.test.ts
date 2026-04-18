@@ -4,6 +4,8 @@ import { resolve } from 'node:path'
 import {
   shouldIncludeInMarketplace,
   shouldShowClaimedBadge,
+  shouldShowUnclaimedBadge,
+  canPurchaseCredits,
   listedInMarketplacePatchSchema,
   marketplaceInclusionSql,
   MARKETPLACE_ALWAYS_VISIBLE_STATUSES,
@@ -172,6 +174,78 @@ describe('tools.listedInMarketplace — schema column metadata', () => {
     // schema's column name drifted from snake_case, the migration would
     // succeed but Drizzle queries would fail at runtime.
     expect(tools.listedInMarketplace.name).toBe('listed_in_marketplace')
+  })
+})
+
+describe('shouldShowUnclaimedBadge — marketplace "Unclaimed" badge', () => {
+  it('renders the badge for status=unclaimed (shadow-directory entries)', () => {
+    expect(shouldShowUnclaimedBadge('unclaimed')).toBe(true)
+  })
+
+  it('does NOT render for status=draft (that is the "Claimed" badge)', () => {
+    expect(shouldShowUnclaimedBadge('draft')).toBe(false)
+  })
+
+  it('does NOT render for status=active (published tools get no badge)', () => {
+    expect(shouldShowUnclaimedBadge('active')).toBe(false)
+  })
+
+  it('does NOT render for unknown statuses', () => {
+    for (const status of ['', 'deleted', 'hidden', 'archived']) {
+      expect(shouldShowUnclaimedBadge(status)).toBe(false)
+    }
+  })
+
+  it('is disjoint with shouldShowClaimedBadge — a tool card never shows both', () => {
+    // Invariant: every status either shows Unclaimed XOR Claimed XOR no badge.
+    for (const status of ['unclaimed', 'active', 'draft', 'deleted', '']) {
+      const both = shouldShowUnclaimedBadge(status) && shouldShowClaimedBadge(status)
+      expect(both, `status='${status}' fires both badges — UX double-up`).toBe(false)
+    }
+  })
+})
+
+describe('canPurchaseCredits — Buy Credits purchase gate', () => {
+  // The canonical rule used by:
+  //   - apps/web/src/app/api/billing/checkout/route.ts (server gate)
+  //   - apps/web/src/app/tools/[slug]/page.tsx (render gate)
+  // Drift between those two is the exact bug the producer-side audit
+  // flagged — this suite exists to catch it.
+
+  it('allows purchases on active tools', () => {
+    expect(canPurchaseCredits('active')).toBe(true)
+  })
+
+  it('blocks purchases on draft tools (no Stripe Connect in developer region yet)', () => {
+    expect(canPurchaseCredits('draft')).toBe(false)
+  })
+
+  it('blocks purchases on unclaimed tools (no owner → no payout recipient)', () => {
+    expect(canPurchaseCredits('unclaimed')).toBe(false)
+  })
+
+  it('blocks purchases on deleted/hidden/unknown statuses', () => {
+    for (const status of ['deleted', 'hidden', 'archived', '', 'active ']) {
+      expect(
+        canPurchaseCredits(status),
+        `status='${status}' should block purchases (fail-closed)`,
+      ).toBe(false)
+    }
+  })
+
+  it('is strictly narrower than shouldIncludeInMarketplace', () => {
+    // A tool can be marketplace-visible but not purchasable (draft, unclaimed);
+    // the reverse should never be true — a purchasable tool is always visible.
+    // This invariant guards against future drift where canPurchase widens to
+    // statuses that shouldIncludeInMarketplace excludes.
+    for (const status of ['unclaimed', 'active', 'draft']) {
+      if (canPurchaseCredits(status)) {
+        expect(
+          shouldIncludeInMarketplace(status, true),
+          `purchasable status='${status}' must also be marketplace-visible`,
+        ).toBe(true)
+      }
+    }
   })
 })
 

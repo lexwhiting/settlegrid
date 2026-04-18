@@ -861,8 +861,19 @@ async function handleProxy(
     // Only charge if upstream returned success
     const actualCost = upstreamOk && !auth.isTestKey ? costCents : 0
 
+    // Consumer-audit #2 — track actual collected cents separately from the
+    // intended cost. The atomic UPDATEs below may fail when two concurrent
+    // invocations drain the balance between the pre-check and the deduct.
+    // If the deduct fails we must NOT credit the developer — the upstream
+    // response already shipped (a free invocation), but paying the dev from
+    // a phantom balance would create a revenue leak and negative-sum
+    // accounting. Previously the revenue/balance updates ran unconditionally
+    // on `actualCost > 0` regardless of whether the money actually moved.
+    let collectedCents = 0
+    let collectedFrom: 'per_tool' | 'global' | 'none' = 'none'
+
     if (actualCost > 0) {
-      // Atomic balance deduction
+      // Atomic per-tool balance deduction (conditional on sufficient funds).
       const [updatedBalance] = await db
         .update(consumerToolBalances)
         .set({
@@ -878,8 +889,11 @@ async function handleProxy(
         )
         .returning({ balanceCents: consumerToolBalances.balanceCents })
 
-      if (!updatedBalance) {
-        // Per-tool balance insufficient — fallback to global balance
+      if (updatedBalance) {
+        collectedCents = actualCost
+        collectedFrom = 'per_tool'
+      } else {
+        // Per-tool balance insufficient — fallback to global balance.
         const [globalDeduct] = await db
           .update(consumers)
           .set({
@@ -893,27 +907,35 @@ async function handleProxy(
           )
           .returning({ globalBalanceCents: consumers.globalBalanceCents })
 
-        if (!globalDeduct) {
-          logger.warn('proxy.balance_race_condition', {
+        if (globalDeduct) {
+          collectedCents = actualCost
+          collectedFrom = 'global'
+        } else {
+          // Both conditional UPDATEs failed — the consumer's balance was
+          // drained by a concurrent invocation between our pre-check and
+          // this deduct. The upstream already ran. Log at ERROR level (not
+          // warn) so ops can reconcile, and return the response to the
+          // consumer without crediting the developer.
+          logger.error('proxy.balance_race_unpaid_invocation', {
             slug,
             consumerId: auth.consumerId,
+            toolId: auth.toolId,
             costCents: actualCost,
             requestId,
+            message: 'Concurrent invocation drained balance between pre-check and deduct. Upstream shipped; no charge collected; developer not credited.',
           })
         }
       }
-      // Always update tool revenue and developer balance on successful upstream
-      {
-        // Increment tool revenue + developer balance
-        const developerShareCents = Math.floor(actualCost * (auth.developerRevenueSharePct / 100))
+      // Only credit tool revenue + developer balance if we actually collected.
+      if (collectedCents > 0) {
+        const developerShareCents = Math.floor(collectedCents * (auth.developerRevenueSharePct / 100))
 
-        // Fire-and-forget: update tool stats + developer balance
         Promise.all([
           db
             .update(tools)
             .set({
               totalInvocations: sql`${tools.totalInvocations} + 1`,
-              totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+              totalRevenueCents: sql`${tools.totalRevenueCents} + ${collectedCents}`,
               updatedAt: new Date(),
             })
             .where(eq(tools.id, auth.toolId)),
@@ -927,6 +949,16 @@ async function handleProxy(
         ]).catch((err) => {
           logger.error('proxy.billing_update_error', { slug, requestId }, err)
         })
+      } else {
+        // Lost race: still increment invocation count so activity metrics
+        // reflect reality, but do NOT touch revenue or developer balance.
+        db.update(tools)
+          .set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(tools.id, auth.toolId))
+          .catch(() => {})
       }
     } else if (upstreamOk) {
       // Free tool or test key — still increment invocation count
@@ -940,14 +972,15 @@ async function handleProxy(
         .catch(() => {})
     }
 
-    // Record invocation (with fraud flag and test mode metadata)
+    // Record invocation (with fraud flag, test mode, and the balance-race
+    // outcome so reconciliation queries can find unpaid invocations).
     db.insert(invocations)
       .values({
         toolId: auth.toolId,
         consumerId: auth.consumerId,
         apiKeyId: auth.keyId,
         method: `proxy:${request.method}`,
-        costCents: actualCost,
+        costCents: collectedCents,
         latencyMs,
         status: upstreamOk ? 'success' : 'error',
         isTest: auth.isTestKey,
@@ -956,6 +989,10 @@ async function handleProxy(
           proxy: true,
           upstreamStatus,
           toolSlug: slug,
+          // Preserve the intended vs. collected split for reconciliation.
+          intendedCostCents: actualCost,
+          collectedCostCents: collectedCents,
+          collectedFrom,
           ...(auth.isTestKey ? { isTest: true } : {}),
           ...(fraudResult.flagged ? { fraudRiskScore: fraudResult.riskScore, fraudSignals: fraudResult.signals } : {}),
         },

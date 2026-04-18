@@ -1097,13 +1097,19 @@ async function check21_intl2MarketplaceVisibility(): Promise<CheckResult> {
     return fail(21, label, `missing: ${missing.join(', ')}`)
   }
 
-  // Spec DoD item 3 — claim route sets listedInMarketplace=true
+  // Spec DoD item 3 — claim route preserves listedInMarketplace=true by
+  // default. Accept either the literal assignment (`listedInMarketplace: true`)
+  // or the default-fallback pattern (`listedInMarketplace ?? true` — used
+  // when the route accepts an opt-out via request body per
+  // producer-audit #11). Both preserve the INTL2 default contract.
   const claimSrc = readFileSync(claimRoute, 'utf-8')
-  if (!/listedInMarketplace\s*:\s*true/.test(claimSrc)) {
+  const literalDefault = /listedInMarketplace\s*:\s*true/.test(claimSrc)
+  const fallbackDefault = /listedInMarketplace\s*=\s*body\.listedInMarketplace\s*\?\?\s*true/.test(claimSrc)
+  if (!literalDefault && !fallbackDefault) {
     return fail(
       21,
       label,
-      'claim route does not set listedInMarketplace=true (spec DoD item 3)',
+      'claim route does not preserve listedInMarketplace=true default (spec DoD item 3)',
     )
   }
 
