@@ -218,6 +218,7 @@ export async function PUT(request: NextRequest) {
         id: tools.id,
         developerId: tools.developerId,
         name: tools.name,
+        status: tools.status,
       })
       .from(tools)
       .where(eq(tools.slug, body.slug))
@@ -242,9 +243,17 @@ export async function PUT(request: NextRequest) {
     // Producer-audit #8 — the API-key publish path previously wrote
     // status='active' unconditionally, bypassing the quality gates that
     // the dashboard PATCH /api/tools/[id]/status enforces. Two-phase
-    // write: (1) upsert as 'draft', (2) run validateToolForActivation,
-    // (3) flip to 'active' iff it passes. A failed gate leaves the
-    // tool in 'draft' state — the correct fail-closed behavior.
+    // write: (1) upsert, (2) run validateToolForActivation, (3) flip
+    // to 'active' iff it passes.
+    //
+    // Regression-guard (post-audit fix): the UPDATE path preserves
+    // `existing.status` through the initial write instead of
+    // demoting to 'draft'. Previously a re-publish of a working
+    // active tool that failed the gate would drop the tool offline
+    // until fixed — surprising behavior for developers who expect
+    // a failed update to leave their live tool alone. Now only
+    // brand-new tools (CREATE path) default to 'draft'.
+    const statusOnInitialWrite = existing ? existing.status : 'draft'
 
     if (existing) {
       // Verify ownership
@@ -257,7 +266,8 @@ export async function PUT(request: NextRequest) {
         )
       }
 
-      // Update existing tool
+      // Update existing tool — preserve status so a failed gate below
+      // doesn't demote a currently-active tool.
       const [updated] = await db
         .update(tools)
         .set({
@@ -268,7 +278,7 @@ export async function PUT(request: NextRequest) {
           tags: body.tags ?? [],
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
-          status: 'draft',
+          status: statusOnInitialWrite,
           updatedAt: new Date(),
         })
         .where(and(eq(tools.id, existing.id), eq(tools.developerId, auth.id)))
@@ -340,10 +350,12 @@ export async function PUT(request: NextRequest) {
       })
     }
 
-    // Producer-audit #8 — quality gate. The tool is in 'draft' state right
-    // now; flip to 'active' only if it passes the same checks the dashboard
-    // enforces. A failed gate returns 422 and leaves the tool in draft —
-    // the developer can fix the issues and re-run publish.
+    // Producer-audit #8 — quality gate. Flip to 'active' only if the
+    // checks the dashboard enforces all pass. On failure return 422 WITHOUT
+    // touching status — CREATE tools stay at 'draft' (they never were
+    // active), UPDATE tools stay at `existing.status` (e.g., an already-
+    // active tool stays active with the new body fields; a draft stays a
+    // draft). The developer can fix issues and re-run publish.
     const gateResult = await validateToolForActivation(toolRecord.id, auth.id)
     if (!gateResult.passed) {
       return errorResponse(
@@ -351,7 +363,11 @@ export async function PUT(request: NextRequest) {
         422,
         'QUALITY_GATE_FAILED',
         requestId,
-        { failures: gateResult.failures, toolId: toolRecord.id, currentStatus: 'draft' },
+        {
+          failures: gateResult.failures,
+          toolId: toolRecord.id,
+          currentStatus: statusOnInitialWrite,
+        },
       )
     }
 
