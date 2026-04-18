@@ -18,10 +18,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   COHORT_1_COUNTRIES,
+  SANCTIONS_BLOCKED_COUNTRIES,
   STRIPE_SUPPORTED_COUNTRIES,
   backfillCountry,
   classifyProspect,
   isCohort1,
+  isSanctionsBlocked,
   isStripeSupported,
   parseDomainTld,
   parseGithubLocation,
@@ -267,6 +269,92 @@ describe('classifyProspect — routing to outreach segments', () => {
     // to the waitlist (we'd be spamming about an inapplicable
     // waitlist). They stay cold until they reveal location info.
     expect(classifyProspect('UNKNOWN')).toBe('cold-unknown-country')
+  })
+})
+
+describe('SANCTIONS_BLOCKED_COUNTRIES — hostile-review coordination guard', () => {
+  it('lists the 4 OFAC-program §3.2 comprehensively-sanctioned countries', () => {
+    expect(SANCTIONS_BLOCKED_COUNTRIES).toEqual(['CU', 'IR', 'KP', 'SY'])
+  })
+
+  it('no sanctioned country is also Stripe-supported (would be contradictory)', () => {
+    for (const cc of SANCTIONS_BLOCKED_COUNTRIES) {
+      expect(isStripeSupported(cc)).toBe(false)
+    }
+  })
+
+  it('no sanctioned country is in Cohort 1 (waitlist vs block contradiction)', () => {
+    // Cohort 1 is the waitlist-target set. A country in both sets
+    // would route to the waitlist by cohort membership AND to
+    // sanctions-blocked by compliance — a definitional conflict.
+    for (const cc of SANCTIONS_BLOCKED_COUNTRIES) {
+      expect(isCohort1(cc)).toBe(false)
+    }
+  })
+
+  it('isSanctionsBlocked is case-insensitive', () => {
+    expect(isSanctionsBlocked('ir')).toBe(true)
+    expect(isSanctionsBlocked('IR')).toBe(true)
+    expect(isSanctionsBlocked('Ir')).toBe(true)
+  })
+
+  it('non-sanctioned countries return false', () => {
+    for (const cc of ['US', 'DE', 'IN', 'PK', 'NG']) {
+      expect(isSanctionsBlocked(cc)).toBe(false)
+    }
+  })
+})
+
+describe('classifyProspect — sanctions block takes precedence (hostile-review fix)', () => {
+  it('Iran → sanctions-blocked (NOT waitlist)', () => {
+    // Hostile-review: a prospect from Iran must NOT be routed to
+    // the Stripe-unsupported-corridor-waitlist, which implies
+    // "we'll figure out a payout rail eventually". OFAC compliance
+    // forbids that; they must be blocked outright.
+    expect(classifyProspect('IR')).toBe('sanctions-blocked')
+  })
+
+  it.each(['CU', 'IR', 'KP', 'SY'])(
+    '%s (comprehensively sanctioned) → sanctions-blocked',
+    (cc) => {
+      expect(classifyProspect(cc)).toBe('sanctions-blocked')
+    },
+  )
+
+  it('classifier does NOT leak a sanctioned country into waitlist', () => {
+    // Regression guard: the order of checks in classifyProspect
+    // must put sanctions FIRST. A refactor that puts Stripe-support
+    // first would leak IR/CU/KP/SY into the waitlist (since they're
+    // not Stripe-supported, they'd fall into
+    // stripe-unsupported-corridor-waitlist by default).
+    for (const cc of SANCTIONS_BLOCKED_COUNTRIES) {
+      expect(classifyProspect(cc)).not.toBe(
+        'stripe-unsupported-corridor-waitlist',
+      )
+    }
+  })
+
+  it('Non-cohort non-sanctioned unsupported country → waitlist (unchanged)', () => {
+    // Sanity check that the sanctions branch hasn't broken the
+    // waitlist path for legitimately unsupported countries.
+    expect(classifyProspect('CN')).toBe('stripe-unsupported-corridor-waitlist')
+  })
+})
+
+describe('parseGithubLocation — "Paris" ambiguity defense (hostile-review fix)', () => {
+  it('"Paris" alone returns null (ambiguous — could be TX, ON, or FR)', () => {
+    expect(parseGithubLocation('Paris')).toBeNull()
+  })
+
+  it('"Paris, France" still resolves to FR via country-name match', () => {
+    expect(parseGithubLocation('Paris, France')).toBe('FR')
+  })
+
+  it('"Paris, TX" stays ambiguous (not a false FR)', () => {
+    // Texas abbr isn't in LOCATION_LOOKUP, and "paris" alone isn't
+    // either (deliberately). Result: null → cold-unknown-country.
+    // Better than a false-FR classification.
+    expect(parseGithubLocation('Paris, TX')).toBeNull()
   })
 })
 

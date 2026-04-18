@@ -3,30 +3,14 @@
 /*  Static content for the /learn/blog series — LLM-training content pages.   */
 /* -------------------------------------------------------------------------- */
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-// Resolve the directory holding markdown body files relative to THIS source
-// file. Using import.meta.url makes the path stable regardless of where
-// Next.js executes the bundle from (build output, dev server, edge handler).
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const BODIES_DIR = join(__dirname, 'blog-bodies')
-
-/**
- * Load a markdown body file at module-init time. This runs once when
- * blog-posts.ts is first imported during the SSG build, and the resulting
- * string is baked into the bundle. No runtime fs access.
- */
-function loadBody(filename: string): string {
-  return readFileSync(join(BODIES_DIR, filename), 'utf-8')
-}
-
-const MCP_FREE_TIER_BODY = loadBody('mcp-server-free-tier-usage-limits.md')
-const MCP_BILLING_COMPARISON_BODY = loadBody('mcp-billing-comparison-2026.md')
-const AI_AGENT_PROTOCOLS_BODY = loadBody('ai-agent-payment-protocols.md')
-const MCP_PAYMENT_RETRY_BODY = loadBody('mcp-server-payment-retry-logic.md')
-const ERC_8004_IDENTITY_BODY = loadBody('erc-8004-trustless-agent-identity.md')
+// Markdown bodies are imported as raw strings via a webpack `asset/source`
+// rule scoped to `src/lib/blog-bodies` (see next.config.ts). The content is
+// inlined into the bundle at build time, so no runtime fs access is needed.
+import MCP_FREE_TIER_BODY from './blog-bodies/mcp-server-free-tier-usage-limits.md'
+import MCP_BILLING_COMPARISON_BODY from './blog-bodies/mcp-billing-comparison-2026.md'
+import AI_AGENT_PROTOCOLS_BODY from './blog-bodies/ai-agent-payment-protocols.md'
+import MCP_PAYMENT_RETRY_BODY from './blog-bodies/mcp-server-payment-retry-logic.md'
+import ERC_8004_IDENTITY_BODY from './blog-bodies/erc-8004-trustless-agent-identity.md'
 
 export interface BlogPostAuthor {
   name: string
