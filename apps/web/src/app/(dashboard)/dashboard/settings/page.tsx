@@ -8,6 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+// P2.RAIL1 — source the rail label from the registry's public
+// constant so renaming the rail (e.g., "Stripe Connect Standard")
+// updates the UI from a single source of truth. Client-safe — the
+// constant pulls no Stripe SDK code into the client bundle.
+import { STRIPE_CONNECT_DISPLAY_NAME } from '@settlegrid/mcp'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { useToast } from '@/components/ui/toast'
@@ -1110,14 +1115,14 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Payouts</CardTitle>
-                <CardDescription>Manage your Stripe Connect and payout preferences</CardDescription>
+                <CardDescription>Manage your {STRIPE_CONNECT_DISPLAY_NAME} and payout preferences</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 {/* Stripe Connect Status */}
                 <div className="flex items-center gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Stripe Connect
+                      {STRIPE_CONNECT_DISPLAY_NAME}
                     </label>
                     <div className="flex items-center gap-3">
                       <Badge
@@ -1127,7 +1132,7 @@ export default function SettingsPage() {
                       </Badge>
                       {profile?.stripeConnectStatus !== 'active' && (
                         <Button size="sm" onClick={connectStripe} disabled={connecting}>
-                          {connecting ? 'Connecting...' : profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : 'Connect Stripe'}
+                          {connecting ? 'Connecting...' : profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : `Connect ${STRIPE_CONNECT_DISPLAY_NAME}`}
                         </Button>
                       )}
                     </div>

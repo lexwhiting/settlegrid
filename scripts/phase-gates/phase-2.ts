@@ -932,9 +932,28 @@ async function check17_mkt1Comparison(): Promise<CheckResult> {
 
 async function check18_rail1RailAdapter(): Promise<CheckResult> {
   const label = 'RAIL1 — Stripe behind RailAdapter (no direct stripe imports in lib/stripe-*)'
-  const indexPath = repoFile('packages', 'rails', 'src', 'index.ts')
-  if (!fileExists(indexPath)) {
-    return defer(18, label, `${indexPath} not present`)
+  // P2.RAIL1 spec says
+  //   "Define RailAdapter interface in packages/mcp/src/rails/types.ts
+  //    Create packages/mcp/src/rails/stripe-connect.ts ... registry.ts"
+  // i.e., the rails scaffold lives INSIDE @settlegrid/mcp, not in a
+  // standalone packages/rails/ workspace. Accept EITHER layout:
+  //   (a) packages/rails/src/index.ts (forward-compat for a future
+  //       split into a standalone @settlegrid/rails package)
+  //   (b) packages/mcp/src/rails/index.ts (what the spec literally
+  //       prescribes; ships today)
+  const standalonePath = repoFile('packages', 'rails', 'src', 'index.ts')
+  const mcpSubPath = repoFile('packages', 'mcp', 'src', 'rails', 'index.ts')
+  let indexPath: string
+  if (fileExists(standalonePath)) {
+    indexPath = standalonePath
+  } else if (fileExists(mcpSubPath)) {
+    indexPath = mcpSubPath
+  } else {
+    return defer(
+      18,
+      label,
+      `neither ${standalonePath} nor ${mcpSubPath} is present`,
+    )
   }
   const src = readFileSync(indexPath, 'utf-8')
   const required = ['RailAdapter', 'StripeRailAdapter']
