@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, purchases, consumerToolBalances, consumers, tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
-import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
+import { getStripeWebhookSecret } from '@/lib/env'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 import {
   creditPurchaseConfirmationEmail,
@@ -13,6 +13,7 @@ import {
   paymentFailedEmail,
   sendEmail,
 } from '@/lib/email'
+import { getStripeClient } from '@/lib/rails'
 
 /** Valid paid plan tiers that map from Stripe subscription metadata.
  * 'starter' and 'growth' are legacy tiers — mapped to 'builder' internally. */
@@ -31,10 +32,6 @@ function normalizeTier(plan: string): string {
 
 export const maxDuration = 60
 
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 /**
  * Look up consumer email and tool name for sending transactional emails.
@@ -94,7 +91,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('Missing Stripe signature.', 400, 'MISSING_SIGNATURE')
     }
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
     let event: Stripe.Event
 
     try {

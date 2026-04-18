@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
-import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { stripeConnectCompleteEmail, sendEmail } from '@/lib/email'
 import { createStripeRailAdapter } from '@settlegrid/mcp'
 import type { StripeClient, OnboardingStatusCode } from '@settlegrid/mcp'
+import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 60
 
@@ -19,9 +19,6 @@ export const maxDuration = 60
  * adapter so ALL rails map to the same normalized
  * OnboardingStatusCode enum.
  */
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
-}
 
 // Keep the DB value a string to preserve the existing schema; map
 // OnboardingStatusCode → the legacy string the column historically
@@ -61,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     const adapter = createStripeRailAdapter({
-      stripe: getStripe() as unknown as StripeClient,
+      stripe: getStripeClient() as unknown as StripeClient,
       appUrl,
     })
 
