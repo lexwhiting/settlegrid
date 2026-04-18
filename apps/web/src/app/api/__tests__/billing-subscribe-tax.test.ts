@@ -47,6 +47,7 @@ const { mockDb, mockRequireDeveloper, mockStripeCheckoutSessions, mockStripeCust
   }
   const mockStripeCustomers = {
     create: vi.fn().mockResolvedValue({ id: 'cus_TEST' }),
+    update: vi.fn().mockResolvedValue({ id: 'cus_TEST' }),
   }
   return {
     mockDb,
@@ -105,12 +106,17 @@ beforeEach(() => {
   })
 })
 
-async function postSubscribe(plan: 'builder' | 'scale') {
+async function postSubscribe(
+  plan: 'builder' | 'scale',
+  opts: { billing_address?: Record<string, string> } = {},
+) {
   const { POST } = await import('../billing/subscribe/route')
+  const body: Record<string, unknown> = { plan }
+  if (opts.billing_address) body.billing_address = opts.billing_address
   const req = new NextRequest('http://localhost/api/billing/subscribe', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify(body),
   })
   return POST(req)
 }
@@ -185,6 +191,122 @@ describe('P2.TAX1 — three E2E scenarios share the SAME checkout config (spec D
     // tax_id_collection=enabled surfaces that input; without it,
     // a UK B2B customer has no way to signal reverse-charge.
     expect(call.tax_id_collection).toEqual({ enabled: true })
+  })
+})
+
+describe('P2.TAX1 — billing-address collected BEFORE checkout (spec req 5, re-audit fix)', () => {
+  it('stamps address on NEW Stripe Customer when UI sends billing_address', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        isFoundingMember: false,
+      },
+    ])
+    await postSubscribe('builder', {
+      billing_address: {
+        country: 'DE',
+        line1: 'Musterstraße 1',
+        city: 'Berlin',
+        postal_code: '10115',
+      },
+    })
+    const createCall = mockStripeCustomers.create.mock.calls[0][0]
+    expect(createCall.address).toEqual({
+      country: 'DE',
+      line1: 'Musterstraße 1',
+      line2: undefined,
+      city: 'Berlin',
+      state: undefined,
+      postal_code: '10115',
+    })
+  })
+
+  it('UPDATES existing Stripe Customer address when UI sends billing_address', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: 'cus_EXISTING',
+        stripeSubscriptionId: null,
+        isFoundingMember: false,
+      },
+    ])
+    await postSubscribe('builder', {
+      billing_address: { country: 'GB', city: 'London', postal_code: 'EC1A 1BB' },
+    })
+    expect(mockStripeCustomers.update).toHaveBeenCalledWith('cus_EXISTING', {
+      address: {
+        country: 'GB',
+        line1: undefined,
+        line2: undefined,
+        city: 'London',
+        state: undefined,
+        postal_code: 'EC1A 1BB',
+      },
+    })
+  })
+
+  it('uppercases + trims 2-letter country code', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        isFoundingMember: false,
+      },
+    ])
+    await postSubscribe('builder', { billing_address: { country: ' de ' } })
+    const createCall = mockStripeCustomers.create.mock.calls[0][0]
+    expect(createCall.address?.country).toBe('DE')
+  })
+
+  it('rejects non-2-letter country code with 400', async () => {
+    const response = await postSubscribe('builder', {
+      billing_address: { country: 'USA' } as unknown as { country: string },
+    })
+    // 422 Unprocessable Entity: Zod validation failure (not a
+    // malformed JSON body, which would be 400). parseBody
+    // distinguishes the two.
+    expect(response.status).toBe(422)
+  })
+
+  it('rejects missing country (address provided but incomplete)', async () => {
+    const response = await postSubscribe('builder', {
+      billing_address: { city: 'Nowhere' } as unknown as { country: string },
+    })
+    // 422 Unprocessable Entity: Zod validation failure (not a
+    // malformed JSON body, which would be 400). parseBody
+    // distinguishes the two.
+    expect(response.status).toBe(422)
+  })
+
+  it('BACKWARDS-COMPAT: accepts subscribe with NO billing_address (fallback path)', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        isFoundingMember: false,
+      },
+    ])
+    const response = await postSubscribe('builder')
+    expect(response.status).toBe(201)
+    // Customer created WITHOUT address — Stripe Checkout's
+    // billing_address_collection: 'required' will collect it.
+    const createCall = mockStripeCustomers.create.mock.calls[0][0]
+    expect(createCall.address).toBeUndefined()
+    // And the Checkout Session still requires address collection.
+    const sessionCall = mockStripeCheckoutSessions.create.mock.calls[0][0]
+    expect(sessionCall.billing_address_collection).toBe('required')
+  })
+
+  it('no Stripe Customer update call when body has no billing_address + existing customer', async () => {
+    mockDb.limit.mockResolvedValue([
+      {
+        stripeCustomerId: 'cus_EXISTING',
+        stripeSubscriptionId: null,
+        isFoundingMember: false,
+      },
+    ])
+    await postSubscribe('builder')
+    expect(mockStripeCustomers.update).not.toHaveBeenCalled()
   })
 })
 
