@@ -7,9 +7,42 @@
 
 ---
 
+## One-page runbook (print-and-keep-by-keyboard)
+
+> This is the scannable summary the P2.COMP1 spec asked for. Detailed procedures for each scenario are in §1–§5 below.
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│  FIRST HOUR — ALL INCIDENTS                                                   │
+│  1. Identify the scenario (A–E below). Unknown → §6, escalate.                │
+│  2. Contain (pause whatever the scenario calls for).                          │
+│  3. Notify — counsel ≤2h if regulatory (A/C/D); Stripe ≤4h if A/B/E.          │
+│  4. Log — open docs/legal/incidents/YYYY-MM-DD-<scenario>.md; UTC timestamps. │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+| # | Scenario | Trigger | Pause | Notify | First deliverable |
+|---|---|---|---|---|---|
+| **A** | **Stripe de-platforms SettleGrid** (replaces spec's "Polar terminates" — Polar rail abandoned per Pattern A+) | Stripe risk email citing Restricted Businesses / Connect Platform Agreement; sudden payout hold; chargeback rate crossing 0.4% aggregate | New developer onboarding; new subscriptions. Do NOT pause existing subscriptions (creates chargeback risk). | Counsel ≤2h. Respond to Stripe ≤4h with numbered facts. | Counsel-vetted response to Stripe within 24h; backup-MoR activation within 48h if de-platforming confirmed |
+| **B** | **Stripe forces manual review** | Volume/chargeback spike; dashboard banner; risk-team documentation request | New developer onboarding (velocity cap); no public-channel responses | Stripe ≤1h ack; counsel on-call (engage if Connect Platform Agreement breach hinted) | Documentation package — ToS, AUP, OFAC program, chargeback trend, sample charges — within 24h |
+| **C** | **FL/NJ enforcement action** | Cease-and-desist; subpoena; consumer complaint alleging unlicensed money transmission | **NOT operations.** Pausing can be framed as admitting jurisdiction. Counsel decides. | **Counsel within 2h — no direct response.** Every comms goes through counsel. | Counsel-drafted factual response citing agent-of-payee analysis; 10–30 day window |
+| **D** | **OFAC violation** | Monthly re-screen hit; onboarding-match escalation; third-party report; OFAC inquiry | Developer account — stop payouts, block subscriptions. Immediate, before counsel. | Counsel ≤2h. Stripe proactive notification same day. **Do not email developer yet.** | Voluntary self-disclosure package via https://ofac.treasury.gov/disclosure (counsel submits, up to 50% penalty reduction), within 5 business days |
+| **E** | **Chargeback cascade** | Velocity alert ≥0.5% platform; single-developer >1% in 7 days; Stripe Managed Risk flag | Implicated developer account (Hold per AUP §5.2); consider platform-wide onboarding freeze in the implicated category | Stripe proactive (≤4h); counsel if exposure ≥$10K | Source triage (single developer vs platform-wide); rolling-reserve activation; refund-resolution outreach to affected consumers |
+
+**Decision shortcuts:**
+
+- **"Do I email the developer?"** — NO in Scenarios C + D until counsel approves. YES in Scenarios A/B/E (with coordinator involvement) for operational updates.
+- **"Do I pause payouts?"** — YES in Scenarios A (platform-wide if needed), D (implicated developer), E (implicated developer + category). NO in C (pausing admits jurisdiction).
+- **"Is this public?"** — Assume NO until counsel says YES. Premature disclosure is a one-way door.
+- **"Who writes the response?"** — Scenarios A/B: compliance officer can draft, counsel reviews. Scenarios C/D: counsel drafts, compliance officer reviews. Scenario E: operations, no external response required beyond Stripe.
+
+**Mapping to compliance-posture.md:** Scenario labels A–E match `private/master-plan/compliance-posture.md` §"Failure mode scenarios". Scenario A was originally "Polar terminates"; the Pattern A+ pivot (2026-04-14) replaced the Polar rail with Stripe-only + pre-arranged backup MoR. The backup MoR (Paddle or Lemon Squeezy) is the contingency that replaces the Polar-rail insurance from the original analysis.
+
+---
+
 ## 0. First-responder checklist
 
-Hit all four in the first hour:
+Hit all four in the first hour (this is the detailed version of the one-pager above):
 
 1. **Identify + classify** — match to one of the five scenarios (§1–§5). If it doesn't match, add a §6 entry and escalate.
 2. **Contain** — pause whatever the scenario calls for (account, payouts, signups, rail).
