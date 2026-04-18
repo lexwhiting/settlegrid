@@ -239,7 +239,7 @@ The P3 build plan moves these from "commitment" to "automated + auditable" befor
 
 - **Compliance officer email:** compliance@settlegrid.ai (routes to founder inbox)
 - **OFAC Compliance Hotline:** 1-800-540-6322 (Treasury)
-- **Voluntary self-disclosure submission:** https://ofac.treasury.gov/disclosure
+- **Voluntary self-disclosure submission channels:** see OFAC's current contact page at https://ofac.treasury.gov/contact-ofac and the Enforcement Guidelines regulation at 31 CFR Part 501 App. A §II.I. Counsel finalizes + submits.
 - **Counsel of record:** *TBD — see `docs/legal/tax-registrations.md` for the Phase 2 lawyer engagement that will be retained for OFAC review as well.*
 
 ### 8.1 Related documents

@@ -138,7 +138,7 @@ Hit all four in the first hour (this is the detailed version of the one-pager ab
 1. Counsel-drafted response — typically a factual statement of SettleGrid's model + the legal basis for the agent-of-payee position
 2. If the state requires additional factual showing: provide counsel-reviewed transaction samples + compliance documentation. Do NOT provide raw data dumps without counsel review.
 3. If enforcement demands registration: counsel evaluates whether to register (costly, slow, invites other states to do the same) or to exit the state (geographic block, honoring existing subscriptions to end-of-term)
-4. File a change-log entry in `docs/legal/incidents/` and update `docs/legal/compliance-posture.md` with the enforcement outcome
+4. File a change-log entry in `docs/legal/incidents/` and update `private/master-plan/compliance-posture.md` with the enforcement outcome
 
 **Resolution criteria**
 - No action filed: close incident, capture lessons, re-run counsel review if the state's theory is novel
