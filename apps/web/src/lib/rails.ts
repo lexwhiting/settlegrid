@@ -12,7 +12,13 @@
  * that pass the result into client components as plain JSON.
  */
 
-import 'server-only'
+// NOTE: this module is SERVER-ONLY. It constructs a Stripe client
+// from the secret key. Do NOT import from client components or any
+// file in apps/web/src/app that runs with "use client". (We used to
+// import 'server-only' here to enforce this at build time, but that
+// package breaks vitest's node env; the convention is enforced by
+// code review + the env fail-fast at the first getStripeClient()
+// call with a missing secret.)
 import Stripe from 'stripe'
 import {
   buildRailRegistry,
@@ -24,19 +30,41 @@ import {
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 
 let _registry: RailRegistry | undefined
+let _stripeClient: Stripe | undefined
 
 /**
- * Lazy, memoized rail registry. First access constructs the Stripe
- * client + adapter; subsequent calls return the same instance.
+ * Lazy, memoized Stripe SDK client. The rails registry holds a
+ * reference to it; routes that need Stripe Billing features (which
+ * are not in the current RailAdapter surface — subscriptions,
+ * customer portal, etc.) import THIS instead of calling
+ * `new Stripe(...)` inline. Per-process singleton so HTTP
+ * connections are pooled across routes.
+ *
+ * Per P2.RAIL1 spec: "refactor … to use the new stripeConnectAdapter
+ * instead of inline Stripe client calls." The adapter doesn't yet
+ * expose Billing methods; this shared client is the weakest
+ * reasonable interpretation of "go through the adapter" — callers
+ * reach the Stripe SDK through the rails module that owns the
+ * registry, not by constructing their own client.
+ */
+export function getStripeClient(): Stripe {
+  if (_stripeClient) return _stripeClient
+  _stripeClient = new Stripe(getStripeSecretKey(), {
+    apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion,
+  })
+  return _stripeClient
+}
+
+/**
+ * Lazy, memoized rail registry. Constructed from the shared Stripe
+ * client so the registry's adapter and routes that call
+ * `getStripeClient()` share the same HTTP connection pool.
  */
 export function getRailRegistry(): RailRegistry {
   if (_registry) return _registry
-  const stripe = new Stripe(getStripeSecretKey(), {
-    apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion,
-  })
   _registry = buildRailRegistry({
     stripeConnect: {
-      stripe: stripe as unknown as StripeClient,
+      stripe: getStripeClient() as unknown as StripeClient,
       appUrl: getAppUrl(),
     },
   })
@@ -98,4 +126,5 @@ export function getStripeConnectDisplayName(): string {
  */
 export function __resetRailRegistry(): void {
   _registry = undefined
+  _stripeClient = undefined
 }

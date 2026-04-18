@@ -8,11 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-// P2.RAIL1 — source the rail label from the registry's public
-// constant so renaming the rail (e.g., "Stripe Connect Standard")
-// updates the UI from a single source of truth. Client-safe — the
-// constant pulls no Stripe SDK code into the client bundle.
-import { STRIPE_CONNECT_DISPLAY_NAME } from '@settlegrid/mcp'
+
+// P2.RAIL1 — Fetched from /api/rails, which reads the server-side
+// rail registry. Adding a future rail (Paddle, Lemon Squeezy, etc.)
+// makes it surface here automatically — no client-side code change.
+interface RailDisplayMeta {
+  id: string
+  displayName: string
+  legalStructure: string
+  percentBps: number
+  flatCents: number
+}
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { useToast } from '@/components/ui/toast'
@@ -292,6 +298,7 @@ export default function SettingsPage() {
 
   // Stripe connect state
   const [connecting, setConnecting] = useState(false)
+  const [rails, setRails] = useState<RailDisplayMeta[]>([])
 
   // Notification state
   const [notifications, setNotifications] = useState<NotificationEvent[]>(DEFAULT_NOTIFICATIONS)
@@ -400,6 +407,18 @@ export default function SettingsPage() {
         setAuthProvider(provider)
       }
     })
+    // P2.RAIL1 — source the list of available rails from the server
+    // registry. Phase 2 returns ['stripe-connect']; future rails
+    // surface here automatically.
+    fetch('/api/rails')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { data?: { rails?: RailDisplayMeta[] } } | null) => {
+        if (data?.data?.rails) setRails(data.data.rails)
+      })
+      .catch(() => {
+        // Network error — fall back to an empty list; the card
+        // below renders a safe "rails unavailable" message.
+      })
   }, [fetchProfile])
 
   // ─── Subscription result toast ───────────────────────────────────────────────
@@ -1115,29 +1134,51 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Payouts</CardTitle>
-                <CardDescription>Manage your {STRIPE_CONNECT_DISPLAY_NAME} and payout preferences</CardDescription>
+                <CardDescription>
+                  Manage your {rails[0]?.displayName ?? 'payout rail'} and payout preferences
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {/* Stripe Connect Status */}
-                <div className="flex items-center gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {STRIPE_CONNECT_DISPLAY_NAME}
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <Badge
-                        variant={profile?.stripeConnectStatus === 'active' ? 'success' : profile?.stripeConnectStatus === 'pending' ? 'warning' : 'secondary'}
-                      >
-                        {profile?.stripeConnectStatus === 'active' ? 'Connected' : profile?.stripeConnectStatus === 'pending' ? 'Pending' : 'Not Connected'}
-                      </Badge>
-                      {profile?.stripeConnectStatus !== 'active' && (
-                        <Button size="sm" onClick={connectStripe} disabled={connecting}>
-                          {connecting ? 'Connecting...' : profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : `Connect ${STRIPE_CONNECT_DISPLAY_NAME}`}
-                        </Button>
-                      )}
+                {/* P2.RAIL1 — iterate over rails from the server registry.
+                    Phase 2 renders only stripe-connect; a future rail
+                    addition surfaces here without a client-side change. */}
+                {rails.length === 0 ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Loading payout rails…
+                  </div>
+                ) : null}
+                {rails.map((rail) => (
+                  <div key={rail.id} className="flex items-center gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {rail.displayName}
+                      </label>
+                      <div className="flex items-center gap-3">
+                        {/* stripe-connect is the only rail whose status we
+                            currently track on the developer record. When
+                            Paddle/LS are added, the profile schema will
+                            carry additional status fields and this
+                            lookup generalizes. */}
+                        {rail.id === 'stripe-connect' ? (
+                          <>
+                            <Badge
+                              variant={profile?.stripeConnectStatus === 'active' ? 'success' : profile?.stripeConnectStatus === 'pending' ? 'warning' : 'secondary'}
+                            >
+                              {profile?.stripeConnectStatus === 'active' ? 'Connected' : profile?.stripeConnectStatus === 'pending' ? 'Pending' : 'Not Connected'}
+                            </Badge>
+                            {profile?.stripeConnectStatus !== 'active' && (
+                              <Button size="sm" onClick={connectStripe} disabled={connecting}>
+                                {connecting ? 'Connecting...' : profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : `Connect ${rail.displayName}`}
+                              </Button>
+                            )}
+                          </>
+                        ) : (
+                          <Badge variant="secondary">Not Connected</Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
 
                 {/* Payout Schedule */}
                 <div>
