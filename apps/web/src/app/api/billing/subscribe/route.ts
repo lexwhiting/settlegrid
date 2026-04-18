@@ -9,6 +9,7 @@ import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { getStripeClient } from '@/lib/rails'
+import { withAutomaticTax } from '@/lib/stripe-tax'
 
 export const maxDuration = 30
 
@@ -98,29 +99,37 @@ export async function POST(request: NextRequest) {
 
     const appUrl = getAppUrl()
 
-    // Create Stripe Checkout Session in subscription mode
-    const session = await stripe.checkout.sessions.create({
-      customer: stripeCustomerId,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${appUrl}/dashboard/settings?subscription=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/dashboard/settings?subscription=cancelled`,
-      metadata: {
-        developerId: auth.id,
-        plan: body.plan,
-      },
-      subscription_data: {
+    // P2.TAX1 — wrap checkout params with withAutomaticTax() so the
+    // session enables Stripe Tax, requires a billing address (so
+    // Stripe can pick the right rate), and enables tax_id_collection
+    // for EU B2B reverse-charge. ALL subscription checkout paths
+    // MUST go through this helper — creating a session without it
+    // is a compliance bug (SettleGrid would charge Builder/Scale at
+    // the gross amount without remitting VAT).
+    const session = await stripe.checkout.sessions.create(
+      withAutomaticTax({
+        customer: stripeCustomerId,
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${appUrl}/dashboard/settings?subscription=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}/dashboard/settings?subscription=cancelled`,
         metadata: {
           developerId: auth.id,
           plan: body.plan,
         },
-      },
-    })
+        subscription_data: {
+          metadata: {
+            developerId: auth.id,
+            plan: body.plan,
+          },
+        },
+      }),
+    )
 
     logger.info('billing.subscribe.checkout_created', {
       developerId: auth.id,
