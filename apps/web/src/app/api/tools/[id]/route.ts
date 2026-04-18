@@ -8,6 +8,7 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -257,19 +258,31 @@ export async function PATCH(
         updatedAt: tools.updatedAt,
       })
 
-    // Auto-insert changelog entry when version changes
+    // Producer-audit #4 — auto-insert changelog entry when the version
+    // changes. Previously fire-and-forget (.then/.catch swallowed everything),
+    // which let the version bump commit while the changelog insert silently
+    // failed, diverging `currentVersion` from the changelog history. Now
+    // awaited; a failure is logged loudly but still non-fatal — the version
+    // bump is the authoritative state, so we'd rather ship a missing
+    // changelog entry than fail the whole PATCH for a telemetry-grade insert.
     if (body.currentVersion !== undefined && body.currentVersion !== existing.currentVersion) {
       const changeType = detectChangeType(existing.currentVersion, body.currentVersion)
-      db.insert(toolChangelogs)
-        .values({
+      try {
+        await db.insert(toolChangelogs).values({
           toolId: id,
           version: body.currentVersion,
           changeType,
           summary: `Version updated from ${existing.currentVersion} to ${body.currentVersion}`,
           details: { previousVersion: existing.currentVersion },
         })
-        .then(() => {})
-        .catch(() => {})
+      } catch (err) {
+        logger.error('tools.patch.changelog_insert_failed', {
+          toolId: id,
+          fromVersion: existing.currentVersion,
+          toVersion: body.currentVersion,
+          message: 'version bump committed but changelog insert failed — history will show a gap at this version bump',
+        }, err)
+      }
     }
 
     // Audit log: tool updated

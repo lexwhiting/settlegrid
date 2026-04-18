@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getCategoryBySlug } from '@/lib/categories'
+import { canPurchaseCredits } from '@/lib/marketplace-visibility'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -537,7 +538,7 @@ export default async function ToolStorefrontPage({
               <div className="mt-8 bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
                 <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Quick Start</h2>
                 <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                  {tool.status === 'active' && (
+                  {canPurchaseCredits(tool.status ?? '') && (
                     <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
                   )}
                   {tool.status === 'draft' && (
@@ -563,7 +564,7 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
 
             {/* Purchase sidebar */}
             <div>
-              {tool.status === 'active' ? (
+              {canPurchaseCredits(tool.status ?? '') ? (
                 <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-brand p-6 sticky top-8">
                   <h3 className="font-semibold text-indigo dark:text-gray-100 mb-4">Buy Credits</h3>
                   <div className="space-y-2 mb-6">

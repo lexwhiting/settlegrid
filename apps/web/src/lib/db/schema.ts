@@ -1155,3 +1155,29 @@ export const mcpShadowIndex = pgTable(
     index('mcp_shadow_last_updated_idx').on(desc(table.lastUpdated)),
   ]
 )
+
+/**
+ * Consumer-audit #1: Stripe webhook idempotency ledger.
+ *
+ * Stripe retries webhooks on HTTP errors or if the acknowledgement is
+ * slow. Without dedup, a retried `checkout.session.completed` would
+ * credit the consumer twice. This table records every processed event
+ * ID and is consulted BEFORE any state change so retries become no-ops.
+ *
+ * `eventId` is the Stripe event ID (e.g., `evt_1OaZ...`), which Stripe
+ * guarantees is unique per event. The unique index on that column is
+ * load-bearing — the insert-or-conflict pattern in the webhook handler
+ * depends on it to detect duplicates atomically.
+ */
+export const processedWebhookEvents = pgTable(
+  'processed_webhook_events',
+  {
+    eventId: text('event_id').primaryKey(),
+    source: text('source').notNull().default('stripe'), // 'stripe' | future providers
+    eventType: text('event_type').notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('processed_webhook_events_processed_at_idx').on(desc(table.processedAt)),
+  ],
+)
