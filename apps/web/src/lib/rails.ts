@@ -120,11 +120,18 @@ export function getStripeConnectDisplayName(): string {
 }
 
 /**
- * TEST ONLY — reset the memoized registry. Not exported from any
- * public entry; call-sites that need this import from the file
- * directly in test setup.
+ * TEST ONLY — reset the memoized registry + Stripe client.
+ *
+ * Exported so per-test setup can force a rebuild. Refuses outside
+ * NODE_ENV==='test' so a misdirected prod call can't DoS us by
+ * forcing a registry + Stripe-client reconstruction on every request.
  */
 export function __resetRailRegistry(): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error(
+      '__resetRailRegistry is test-only. Refusing to run outside NODE_ENV===test.',
+    )
+  }
   _registry = undefined
   _stripeClient = undefined
 }
