@@ -15,6 +15,8 @@ By using SettleGrid, you agree to this AUP. Your violation of this AUP is a mate
 
 This AUP is additive to — not in lieu of — the acceptable-use policies of SettleGrid's upstream providers, including Stripe's Restricted Businesses List at https://stripe.com/legal/restricted-businesses and any MoR provider SettleGrid integrates in the future. Where a provider's AUP prohibits conduct this AUP allows, the provider's AUP wins. SettleGrid cannot accept a payment the underlying rail refuses.
 
+**Polar AUP note.** The P2.COMP1 spec asked this AUP to mirror both Stripe's and Polar's Restricted-Business lists. Polar was abandoned on 2026-04-14 after Polar declined SettleGrid's merchant application on marketplace/facilitation-AUP grounds (see `private/master-plan/multi-rail-architecture.md` — Pattern A+ pivot, and `docs/legal/polar-onboarding-status.md`). Polar's AUP is no longer a live constraint. The prohibitions below remain a superset of Polar's AUP as of the April 2026 snapshot; if SettleGrid ever activates a backup MoR (Paddle, Lemon Squeezy) the new MoR's Restricted-Business list is folded into this AUP via an amendment at that time (see §6).
+
 ---
 
 ## 2. Prohibited business categories
