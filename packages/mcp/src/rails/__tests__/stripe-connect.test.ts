@@ -9,12 +9,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   createStripeRailAdapter,
-  StripeRailAdapter,
   STRIPE_CONNECT_CAPABILITIES,
   STRIPE_CONNECT_COMPLIANCE,
   STRIPE_CONNECT_PRICING,
   STRIPE_CONNECT_DISPLAY_NAME,
   type StripeClient,
+  type StripeRailAdapter,
 } from '../stripe-connect'
 
 type MockFn = ReturnType<typeof vi.fn>
@@ -97,8 +97,19 @@ describe('createStripeRailAdapter — construction validation', () => {
 })
 
 describe('StripeRailAdapter — exports', () => {
-  it('StripeRailAdapter is an alias for the factory', () => {
-    expect(StripeRailAdapter).toBe(createStripeRailAdapter)
+  it('createStripeRailAdapter is the Stripe rail factory', () => {
+    expect(typeof createStripeRailAdapter).toBe('function')
+  })
+
+  it('StripeRailAdapter type is structurally assignable from the factory return value', () => {
+    // Compile-time check: if this file compiles, the type is wired.
+    const { stripe } = buildMockStripe()
+    const adapter: StripeRailAdapter = createStripeRailAdapter({
+      stripe,
+      appUrl: 'https://x',
+    })
+    expect(typeof adapter.ensureAccount).toBe('function')
+    expect(typeof adapter.createOnboardingLink).toBe('function')
   })
 
   it('exposes static metadata (capabilities, compliance, pricing, display name)', () => {
@@ -201,6 +212,137 @@ describe('startOnboarding', () => {
     await expect(
       adapter.startOnboarding({ developerId: 'd', email: '' }),
     ).rejects.toThrowError(/email/)
+  })
+})
+
+describe('ensureAccount / createOnboardingLink — resumability primitives (hostile-review I)', () => {
+  let stripe: StripeClient
+  let mocks: Mocks
+  let adapter: StripeRailAdapter
+
+  beforeEach(() => {
+    ;({ stripe, mocks } = buildMockStripe())
+    adapter = createStripeRailAdapter({
+      stripe,
+      appUrl: 'https://settlegrid.ai',
+    })
+  })
+
+  it('ensureAccount returns created:true when creating a new account', async () => {
+    mocks.accountsCreate.mockResolvedValue({ id: 'acct_NEW' })
+    const result = await adapter.ensureAccount({
+      developerId: 'd1',
+      email: 'a@b.com',
+    })
+    expect(result.created).toBe(true)
+    expect(result.externalId).toBe('acct_NEW')
+    expect(mocks.accountsCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('ensureAccount returns created:false when existingExternalId is provided', async () => {
+    const result = await adapter.ensureAccount({
+      developerId: 'd1',
+      email: 'a@b.com',
+      existingExternalId: 'acct_EXISTING',
+    })
+    expect(result.created).toBe(false)
+    expect(result.externalId).toBe('acct_EXISTING')
+    expect(mocks.accountsCreate).not.toHaveBeenCalled()
+  })
+
+  it('createOnboardingLink does not touch accounts.create', async () => {
+    mocks.accountLinksCreate.mockResolvedValue({ url: 'https://stripe.com/x' })
+    await adapter.createOnboardingLink('acct_ANY')
+    expect(mocks.accountsCreate).not.toHaveBeenCalled()
+    expect(mocks.accountLinksCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('createOnboardingLink rejects missing externalId', async () => {
+    await expect(adapter.createOnboardingLink('')).rejects.toThrowError(
+      /externalId/,
+    )
+  })
+
+  it('resumability: if createOnboardingLink fails, ensureAccount retry with the already-created ID skips account creation', async () => {
+    // First call creates an account.
+    mocks.accountsCreate.mockResolvedValue({ id: 'acct_ORPHAN' })
+    const first = await adapter.ensureAccount({ developerId: 'd', email: 'e@f.g' })
+    expect(first.externalId).toBe('acct_ORPHAN')
+    expect(first.created).toBe(true)
+
+    // Caller persists externalId to DB. Then link creation fails.
+    mocks.accountLinksCreate.mockRejectedValue(new Error('stripe 500'))
+    await expect(adapter.createOnboardingLink(first.externalId)).rejects.toThrow()
+
+    // On retry the caller passes existingExternalId = 'acct_ORPHAN'
+    // and ensureAccount reuses rather than creating a duplicate.
+    mocks.accountsCreate.mockClear()
+    const second = await adapter.ensureAccount({
+      developerId: 'd',
+      email: 'e@f.g',
+      existingExternalId: 'acct_ORPHAN',
+    })
+    expect(mocks.accountsCreate).not.toHaveBeenCalled()
+    expect(second.externalId).toBe('acct_ORPHAN')
+    expect(second.created).toBe(false)
+  })
+
+  it('startOnboarding (convenience wrapper) chains ensureAccount + createOnboardingLink', async () => {
+    mocks.accountsCreate.mockResolvedValue({ id: 'acct_W' })
+    mocks.accountLinksCreate.mockResolvedValue({ url: 'https://stripe.com/link' })
+    const result = await adapter.startOnboarding({
+      developerId: 'd',
+      email: 'e@f.g',
+    })
+    expect(mocks.accountsCreate).toHaveBeenCalledTimes(1)
+    expect(mocks.accountLinksCreate).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ externalId: 'acct_W', url: 'https://stripe.com/link' })
+  })
+})
+
+describe('createTopupSession — metadata-override defense (hostile-review I)', () => {
+  let stripe: StripeClient
+  let mocks: Mocks
+  let adapter: StripeRailAdapter
+
+  beforeEach(() => {
+    ;({ stripe, mocks } = buildMockStripe())
+    adapter = createStripeRailAdapter({ stripe, appUrl: 'https://x' })
+    mocks.sessionsCreate.mockResolvedValue({ id: 'cs', url: 'https://x' })
+  })
+
+  it('does NOT allow caller metadata to override developerId', async () => {
+    // A malicious caller could try to forge the developer identity on
+    // the top-up session by injecting their own developerId via the
+    // metadata map. The adapter must put its own developerId AFTER
+    // the spread so it always wins.
+    await adapter.createTopupSession({
+      developerId: 'real_dev',
+      amountMinorUnits: 100,
+      currency: 'USD',
+      successUrl: 's',
+      cancelUrl: 'c',
+      metadata: { developerId: 'ATTACKER' },
+    })
+    const call = mocks.sessionsCreate.mock.calls[0][0]
+    expect(call.metadata.developerId).toBe('real_dev')
+  })
+
+  it('preserves other caller metadata alongside the canonical developerId', async () => {
+    await adapter.createTopupSession({
+      developerId: 'real_dev',
+      amountMinorUnits: 100,
+      currency: 'USD',
+      successUrl: 's',
+      cancelUrl: 'c',
+      metadata: { campaign: 'launch', source: 'website' },
+    })
+    const call = mocks.sessionsCreate.mock.calls[0][0]
+    expect(call.metadata).toEqual({
+      campaign: 'launch',
+      source: 'website',
+      developerId: 'real_dev',
+    })
   })
 })
 
