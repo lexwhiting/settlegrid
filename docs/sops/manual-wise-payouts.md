@@ -103,7 +103,57 @@ The second-rail candidates as of 2026-04-18 are Paddle, Lemon Squeezy, and Wise 
 
 ---
 
-## 7. Rollback / recovery
+## 7. Manual reconciliation
+
+The manual Wise stopgap has NO automated reconciliation — Wise Business account activity does not flow into the unified ledger automatically the way Stripe webhook events do. The founder reconciles by hand on a fixed cadence; a miss here is an audit finding, not just operational slop.
+
+### 7.1 Cadence
+
+| Trigger | Scope | Deliverable |
+|---|---|---|
+| After every Wise payout | Single transaction | Row appended to `docs/legal/manual-payouts/<YYYY-Qn>/ledger.md` with Wise txn ID, ledger entry IDs, FX rate, fees. |
+| Monthly (last business day) | Prior month | Compare Wise Business statement vs `SELECT ... FROM ledger_entries WHERE category='payout' AND metadata->>'wiseFees' IS NOT NULL` for the period. Any mismatch is a stop-the-line. |
+| Quarterly (with Stripe Tax filing, per `docs/legal/quarterly-tax-filing-sop.md`) | Prior quarter | Full tie-out: Wise account balance + month-end + sum(transfers) must equal ledger's payout-category sum + fees for the period. |
+| Year-end (tax prep) | Full calendar year | 1042-S filing readiness — aggregate payments per developer, verify W-8BEN on file for each, prepare 1042-S forms via counsel. |
+
+### 7.2 Monthly reconciliation procedure
+
+1. **Pull the Wise statement** — CSV export from wise.com/business for the prior month.
+2. **Pull the ledger slice** — SQL:
+   ```sql
+   SELECT
+     operation_id AS wise_txn_id,
+     amount_cents AS settlegrid_amount_cents,
+     metadata->>'wiseFees' AS wise_fees_cents,
+     metadata->>'fxRate' AS fx_rate,
+     metadata->>'recipientCurrency' AS recipient_currency,
+     created_at
+   FROM ledger_entries
+   WHERE category = 'payout'
+     AND metadata->>'wiseFees' IS NOT NULL
+     AND created_at >= '<month-start>'
+     AND created_at <  '<month-end>'
+     AND entry_type = 'debit'  -- payout debits the platform operational account
+   ORDER BY created_at;
+   ```
+3. **Match** — every Wise transaction in the statement MUST map to exactly one ledger row (by `wise_txn_id`). Unmatched rows on either side are stop-the-line.
+4. **Fee reconciliation** — Wise's stated sender fee per transaction MUST equal the `metadata.wiseFees` we recorded.
+5. **FX rate sanity** — Wise's FX rate must be within 0.5% of the rate recorded in `metadata.fxRate` (Wise uses mid-market at transfer-initiation time; we record at the same moment, so drift is minimal).
+6. **File the reconciliation** — save the matched-pairs CSV to `docs/legal/manual-payouts/<YYYY-Qn>/<YYYY-MM>-reconciliation.csv` + a one-paragraph note on any discrepancies.
+
+### 7.3 Discrepancy-resolution playbook
+
+| Discrepancy | Root cause candidates | Resolution |
+|---|---|---|
+| Wise shows a transfer that's not in the ledger | Founder executed a Wise transfer without writing the ledger entry; or the ledger write failed silently | Write the missing ledger entry (reconstruct from the Wise PDF); flag as a gap in the execution procedure |
+| Ledger has an entry but no Wise transaction matches | Wise transfer was canceled or returned, but ledger wasn't reversed | Reverse the ledger entry with a compensating entry + note |
+| Fee mismatch | Wise's fee schedule updated mid-period | Record the new fee in ledger metadata for future transactions; no correction needed for the current mismatch if it's a Wise-side schedule change |
+| FX rate >0.5% off | Execution delay between ledger record and Wise transfer | Record the actual rate in the compensating-entry metadata; watch for repeat cases (process improvement signal) |
+| Wise transfer to a non-waitlisted developer | Operational error — pay to a developer outside §1 eligibility | Immediate review of the misdirected payment; attempt recall if Wise's window allows; ledger retains the original entry + compensating write |
+
+---
+
+## 8. Rollback / recovery
 
 If a manual Wise payout fails to land (returned payment, incorrect recipient details, Wise account review):
 
@@ -114,7 +164,7 @@ If a manual Wise payout fails to land (returned payment, incorrect recipient det
 
 ---
 
-## 8. Contact + change log
+## 9. Contact + change log
 
 - **Operational questions:** founder (compliance@settlegrid.ai)
 - **Developer-side questions:** developers reach the founder via the reply thread from the waitlist-confirmation email; no dedicated support portal for this volume.
