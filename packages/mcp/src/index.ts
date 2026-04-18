@@ -884,3 +884,37 @@ export type {
   BeginInvocationOptions,
   SettleInvocationOptions,
 } from './lifecycle'
+
+/* -------------------------------------------------------------------------- */
+/*  P2.RAIL1 — Rail adapter scaffolding (Stripe Connect today; Paddle / LS /  */
+/*  Wise / Razorpay / Flutterwave as reserved future slots).                  */
+/* -------------------------------------------------------------------------- */
+export {
+  createStripeRailAdapter,
+  StripeRailAdapter,
+  STRIPE_CONNECT_CAPABILITIES,
+  STRIPE_CONNECT_COMPLIANCE,
+  STRIPE_CONNECT_PRICING,
+  STRIPE_CONNECT_DISPLAY_NAME,
+  buildRailRegistry,
+  requireRail,
+  listRails,
+  RESERVED_RAIL_IDS,
+} from './rails'
+export type {
+  RailId,
+  RailAdapter,
+  RailCapabilities,
+  LegalStructure,
+  ComplianceResponsibility,
+  DeveloperProfile as RailDeveloperProfile,
+  OnboardingStatus,
+  OnboardingStatusCode,
+  TopupParams,
+  SettleGridInternalEvent,
+  SettleGridInternalEventKind,
+  StripeRailAdapterOptions,
+  StripeClient,
+  BuildRegistryOptions,
+  RailRegistry,
+} from './rails'

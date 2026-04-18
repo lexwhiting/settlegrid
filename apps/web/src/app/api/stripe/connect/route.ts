@@ -8,10 +8,16 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { createStripeRailAdapter } from '@settlegrid/mcp'
+import type { StripeClient } from '@settlegrid/mcp'
 
 export const maxDuration = 60
 
-
+/**
+ * P2.RAIL1 — All Stripe SDK calls now go through the adapter.
+ * This route handler is a thin orchestrator: auth → DB lookup →
+ * adapter.startOnboarding → DB write → response.
+ */
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
 }
@@ -32,10 +38,6 @@ export async function POST(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
-    const stripe = getStripe()
-    const appUrl = getAppUrl()
-
-    // Get developer's current Stripe Connect status
     const [developer] = await db
       .select({
         stripeConnectId: developers.stripeConnectId,
@@ -49,50 +51,41 @@ export async function POST(request: NextRequest) {
       return errorResponse('Developer not found.', 404, 'NOT_FOUND')
     }
 
-    let accountId = developer.stripeConnectId
+    const adapter = createStripeRailAdapter({
+      stripe: getStripe() as unknown as StripeClient,
+      appUrl: getAppUrl(),
+    })
 
-    // Create Stripe Connect Express account if not exists
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        email: auth.email,
-        metadata: { developerId: auth.id },
-        capabilities: {
-          transfers: { requested: true },
-        },
-      })
+    const existingAccountId = developer.stripeConnectId ?? undefined
+    const { url, externalId } = await adapter.startOnboarding({
+      developerId: auth.id,
+      email: auth.email,
+      existingExternalId: existingAccountId,
+    })
 
-      accountId = account.id
-
+    // If the adapter created a new account, persist the ID.
+    if (!existingAccountId) {
       await db
         .update(developers)
         .set({
-          stripeConnectId: accountId,
+          stripeConnectId: externalId,
           stripeConnectStatus: 'pending',
           updatedAt: new Date(),
         })
         .where(eq(developers.id, auth.id))
     }
 
-    // Create account link for onboarding
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${appUrl}/dashboard/settings?stripe=refresh`,
-      return_url: `${appUrl}/api/stripe/connect/callback?account_id=${accountId}`,
-      type: 'account_onboarding',
-    })
-
     writeAuditLog({
       developerId: auth.id,
       action: 'billing.stripe_connect_started',
       resourceType: 'stripe_account',
-      resourceId: accountId,
-      details: { stripeAccountId: accountId },
+      resourceId: externalId,
+      details: { stripeAccountId: externalId },
       ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
       userAgent: request.headers.get('user-agent') ?? undefined,
     }).catch(() => {/* fire-and-forget */})
 
-    return successResponse({ url: accountLink.url })
+    return successResponse({ url })
   } catch (error) {
     return internalErrorResponse(error)
   }
