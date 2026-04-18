@@ -429,9 +429,15 @@ async function check5_ssgBuild(): Promise<CheckResult> {
     return fail(5, label, `build exit ${r.status}: ${r.stderr.trim().slice(-300)}`)
   }
   // Verify expected static output. Next.js emits to .next/server/app/...
-  const galleryIndex = repoFile('apps', 'web', '.next', 'server', 'app', 'templates', 'page.html')
-  if (!fileExists(galleryIndex)) {
-    return fail(5, label, `gallery index missing at ${galleryIndex}`)
+  // Next 15's App Router writes the route index as a sibling .html file
+  // (templates.html) rather than nesting it as templates/page.html — accept
+  // either layout since this is version-dependent.
+  const galleryIndexCandidates = [
+    repoFile('apps', 'web', '.next', 'server', 'app', 'templates', 'page.html'),
+    repoFile('apps', 'web', '.next', 'server', 'app', 'templates.html'),
+  ]
+  if (!galleryIndexCandidates.some(fileExists)) {
+    return fail(5, label, `gallery index missing; checked: ${galleryIndexCandidates.join(', ')}`)
   }
   // Per spec: "each of the 20 canonical slugs has /templates/<slug>.html".
   // Read CANONICAL_20.json and verify all 20 emitted. Next.js App Router
