@@ -254,6 +254,16 @@ describe('loadAllRuns', () => {
     expect(r.errors).toHaveLength(1)
     expect(r.errors[0].file).toBe('2-bad.json')
   })
+
+  // ENOENT is swallowed (treated as "no runs yet" so the page still
+  // renders during initial setup), but other filesystem errors MUST
+  // propagate so the route's error.tsx boundary can render a proper
+  // failure page — matching the hostile spec's error-boundary contract.
+  it('rethrows when target path exists but is not a directory', async () => {
+    const filePath = path.join(tmpDir, 'not-a-dir.json')
+    await fsp.writeFile(filePath, 'hello')
+    await expect(loadAllRuns(filePath)).rejects.toThrow()
+  })
 })
 
 describe('cumulativeSpend', () => {
