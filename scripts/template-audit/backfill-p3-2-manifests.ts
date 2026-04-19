@@ -81,7 +81,7 @@ const TEMPLATER_TO_GALLERY_CATEGORY: Record<string, GalleryCategory> = {
   'ml-monitoring': 'devtools',
 };
 
-function mapCategory(templaterCategory: string): GalleryCategory {
+export function mapCategory(templaterCategory: string): GalleryCategory {
   return TEMPLATER_TO_GALLERY_CATEGORY[templaterCategory] ?? 'other';
 }
 
@@ -125,7 +125,7 @@ function parseArgs(argv: string[]): { runJsonl: string } {
 // Extract metadata from a template's on-disk files
 // ---------------------------------------------------------------------------
 
-async function readPkg(templateDir: string): Promise<Record<string, unknown> | null> {
+export async function readPkg(templateDir: string): Promise<Record<string, unknown> | null> {
   try {
     const raw = await fsp.readFile(path.join(templateDir, 'package.json'), 'utf-8');
     return JSON.parse(raw) as Record<string, unknown>;
@@ -134,7 +134,7 @@ async function readPkg(templateDir: string): Promise<Record<string, unknown> | n
   }
 }
 
-async function readServerTs(templateDir: string): Promise<string | null> {
+export async function readServerTs(templateDir: string): Promise<string | null> {
   try {
     return await fsp.readFile(path.join(templateDir, 'src/server.ts'), 'utf-8');
   } catch {
@@ -147,7 +147,7 @@ async function readServerTs(templateDir: string): Promise<string | null> {
  * in server.ts. Regex-based since we don't ship an AST parser here.
  * Falls back to 1 if not found.
  */
-function extractDefaultCostCents(serverTs: string): number {
+export function extractDefaultCostCents(serverTs: string): number {
   const m = serverTs.match(/defaultCostCents\s*:\s*(\d+)/);
   if (m) {
     const v = Number.parseInt(m[1], 10);
@@ -168,7 +168,7 @@ const HTTP_VERBS = new Set([
   'get', 'post', 'put', 'delete', 'patch', 'head', 'options',
 ]);
 
-function extractCapabilities(serverTs: string): string[] {
+export function extractCapabilities(serverTs: string): string[] {
   const caps = new Set<string>();
   // Only match lowercase snake_case identifiers — sg.wrap method names
   // are conventionally verb-prefixed snake_case (get_thing, search_items).
@@ -188,14 +188,14 @@ function extractCapabilities(serverTs: string): string[] {
   return Array.from(caps).sort();
 }
 
-function humanizeName(slug: string): string {
+export function humanizeName(slug: string): string {
   return slug
     .split('-')
     .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
     .join(' ');
 }
 
-function buildManifest(
+export function buildManifest(
   slug: string,
   templaterCategory: string,
   pkg: Record<string, unknown>,
@@ -277,7 +277,7 @@ interface RunSummary {
   skippedAlreadyHadTemplateJson: number;
 }
 
-function buildRunSummary(
+export function buildRunSummary(
   attempts: AttemptTelemetry[],
   backfilledCount: number,
   skippedCount: number,
@@ -340,7 +340,10 @@ function buildRunSummary(
 // templateSlug; require explicit validation before path concatenation so
 // the backfill can't be tricked into writing outside OSS_ROOT even if the
 // target directory pre-exists by some other means.
-const SLUG_REGEX = /^[a-z0-9][a-z0-9-]*$/;
+export const SLUG_REGEX = /^[a-z0-9][a-z0-9-]*$/;
+
+export interface AttemptTelemetryExport extends AttemptTelemetry {}
+export type { RunSummary, TemplateManifest, GalleryCategory };
 
 async function main(): Promise<void> {
   const { runJsonl } = parseArgs(process.argv);
