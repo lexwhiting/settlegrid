@@ -1,0 +1,44 @@
+{
+  "slug": "milvus",
+  "name": "Milvus",
+  "description": "MCP server for Milvus with SettleGrid billing. Create and manage vector database collections in Milvus via its RESTful API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "rag",
+    "milvus",
+    "vector-database",
+    "embeddings",
+    "similarity-search",
+    "machine-learning",
+    "collections",
+    "vector-search",
+    "ann"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-milvus"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_collection"
+  ],
+  "featured": false
+}

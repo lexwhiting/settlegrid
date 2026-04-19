@@ -1,0 +1,43 @@
+{
+  "slug": "cohere-embed",
+  "name": "Cohere Embed",
+  "description": "MCP server for Cohere Embed with SettleGrid billing. Generate semantic text embeddings using Cohere's embedding models for similarity, search, and classification tasks.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "embeddings",
+    "semantic-search",
+    "nlp",
+    "cohere",
+    "vectors",
+    "similarity",
+    "text-embeddings",
+    "machine-learning"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-cohere-embed"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 3
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "embed_single",
+    "embed_texts"
+  ],
+  "featured": false
+}

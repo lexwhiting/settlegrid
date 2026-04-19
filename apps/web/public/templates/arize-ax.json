@@ -1,0 +1,52 @@
+{
+  "slug": "arize-ax",
+  "name": "Arize Ax",
+  "description": "MCP server for Arize AX with SettleGrid billing. Manage spaces, models, and monitors in Arize AX — the AI observability and LLM evaluation platform.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "ml-monitoring",
+    "arize",
+    "llm",
+    "observability",
+    "monitoring",
+    "ml-models",
+    "ai-evaluation",
+    "spaces",
+    "monitors",
+    "mlops"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-arize-ax"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "delete_model",
+    "delete_monitor",
+    "get_model",
+    "get_monitor",
+    "get_space",
+    "list_models",
+    "list_monitors",
+    "list_spaces"
+  ],
+  "featured": false
+}

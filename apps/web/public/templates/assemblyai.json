@@ -1,0 +1,52 @@
+{
+  "slug": "assemblyai",
+  "name": "Assemblyai",
+  "description": "MCP server for AssemblyAI with SettleGrid billing. Transcribe audio, retrieve transcripts, and generate AI-powered summaries and insights using AssemblyAI's speech-to-text and LeMUR APIs.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "speech",
+    "transcription",
+    "speech-to-text",
+    "audio",
+    "lemur",
+    "summarization",
+    "nlp",
+    "captions",
+    "subtitles",
+    "assemblyai"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-assemblyai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "ask_lemur",
+    "export_transcript",
+    "generate_action_items",
+    "generate_summary",
+    "get_transcript_sentences",
+    "get_transcription",
+    "list_transcriptions",
+    "submit_transcription"
+  ],
+  "featured": false
+}

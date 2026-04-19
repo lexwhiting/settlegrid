@@ -1,0 +1,49 @@
+{
+  "slug": "promptlayer",
+  "name": "Promptlayer",
+  "description": "MCP server for PromptLayer with SettleGrid billing. Track, manage, and retrieve LLM prompt requests and templates via the PromptLayer API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "prompt-engineering",
+    "promptlayer",
+    "llm",
+    "prompt",
+    "tracking",
+    "openai",
+    "logging",
+    "templates",
+    "monitoring"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-promptlayer"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "add_request_tags",
+    "create_request_log",
+    "get_prompt_template",
+    "get_request",
+    "list_prompt_templates",
+    "search_requests"
+  ],
+  "featured": false
+}

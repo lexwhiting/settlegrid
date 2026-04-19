@@ -1,0 +1,51 @@
+{
+  "slug": "gretel-ai",
+  "name": "Gretel Ai",
+  "description": "MCP server for Gretel.ai with SettleGrid billing. Manage Gretel.ai projects, models, and synthetic data generation via the Gretel REST API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "synthetic-data",
+    "privacy",
+    "anonymization",
+    "machine-learning",
+    "data-generation",
+    "gretel",
+    "data-science",
+    "models",
+    "projects"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-gretel-ai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_project",
+    "get_model",
+    "get_model_records",
+    "get_project",
+    "get_project_records",
+    "list_artifacts",
+    "list_models",
+    "list_projects"
+  ],
+  "featured": false
+}

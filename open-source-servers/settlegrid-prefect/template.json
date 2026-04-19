@@ -1,0 +1,51 @@
+{
+  "slug": "prefect",
+  "name": "Prefect",
+  "description": "MCP server for Prefect with SettleGrid billing. Manage and monitor Prefect Cloud workflows, flow runs, deployments, and task runs via the Prefect REST API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "data-pipelines",
+    "prefect",
+    "workflow",
+    "orchestration",
+    "dataflow",
+    "flow-runs",
+    "deployments",
+    "task-runs",
+    "automation",
+    "pipeline"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-prefect"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_flow_run_from_deployment",
+    "filter_deployments",
+    "filter_flow_runs",
+    "filter_flows",
+    "filter_logs",
+    "get_deployment",
+    "get_flow",
+    "get_flow_run"
+  ],
+  "featured": false
+}
