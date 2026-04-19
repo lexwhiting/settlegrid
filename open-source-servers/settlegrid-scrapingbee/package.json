@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-scrapingbee",
+  "version": "1.0.0",
+  "description": "MCP server for ScrapingBee with SettleGrid billing. Scrape any webpage's HTML content with proxy rotation and optional JavaScript rendering via the ScrapingBee API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "scraping",
+    "web-scraping",
+    "proxy",
+    "headless-browser",
+    "html",
+    "javascript-rendering",
+    "data-extraction",
+    "automation",
+    "crawling"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-scrapingbee"
+  }
+}

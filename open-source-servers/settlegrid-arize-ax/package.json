@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-arize-ax",
+  "version": "1.0.0",
+  "description": "MCP server for Arize AX with SettleGrid billing. Manage spaces, models, and monitors in Arize AX — the AI observability and LLM evaluation platform.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "arize",
+    "llm",
+    "observability",
+    "monitoring",
+    "ml-models",
+    "ai-evaluation",
+    "spaces",
+    "monitors",
+    "mlops"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-arize-ax"
+  }
+}

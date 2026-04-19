@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-recraft",
+  "version": "1.0.0",
+  "description": "MCP server for Recraft with SettleGrid billing. Generate, edit, vectorize, upscale, and manage AI-powered images and custom styles via the Recraft API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "image-generation",
+    "ai-art",
+    "vectorize",
+    "upscale",
+    "background-removal",
+    "image-editing",
+    "generative-ai",
+    "design",
+    "recraft",
+    "styles"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-recraft"
+  }
+}

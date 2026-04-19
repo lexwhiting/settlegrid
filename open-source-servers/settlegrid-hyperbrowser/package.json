@@ -1,0 +1,36 @@
+{
+  "name": "settlegrid-hyperbrowser",
+  "version": "1.0.0",
+  "description": "MCP server for Hyperbrowser with SettleGrid billing. Create and manage headless browser sessions via the Hyperbrowser API for web scraping and automation.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "browser",
+    "headless",
+    "scraping",
+    "automation",
+    "sessions",
+    "web",
+    "playwright",
+    "puppeteer"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-hyperbrowser"
+  }
+}

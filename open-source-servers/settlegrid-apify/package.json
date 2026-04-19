@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-apify",
+  "version": "1.0.0",
+  "description": "MCP server for Apify with SettleGrid billing. Manage and run Apify Actors, datasets, and key-value stores via the Apify platform API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "apify",
+    "actors",
+    "web-scraping",
+    "automation",
+    "datasets",
+    "crawling",
+    "scraping",
+    "cloud",
+    "robotics",
+    "rpa"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-apify"
+  }
+}

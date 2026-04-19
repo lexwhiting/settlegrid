@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-tonic-fabricate",
+  "version": "1.0.0",
+  "description": "MCP server for Tonic Fabricate with SettleGrid billing. Generate realistic synthetic data at scale using Tonic Fabricate's API-driven data generation engine.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "synthetic-data",
+    "data-generation",
+    "fabricate",
+    "tonic",
+    "test-data",
+    "privacy",
+    "fake-data",
+    "data-masking",
+    "development",
+    "qa"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-tonic-fabricate"
+  }
+}
