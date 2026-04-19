@@ -88,6 +88,43 @@ describe('isValidSnapshot', () => {
       }),
     ).toBe(false)
   })
+
+  // --- hostile regressions --------------------------------------------
+  // Attacker / upstream bug lands NaN or Infinity in a numeric field.
+  // Plain `typeof v === 'number'` accepts both. UI would display `$NaN`
+  // throughout the cards + chart. Must reject.
+
+  it('rejects NaN totalCostUsdTracked', () => {
+    expect(
+      isValidSnapshot({ ...makeSnapshot(), totalCostUsdTracked: Number.NaN }),
+    ).toBe(false)
+  })
+
+  it('rejects Infinity durationSeconds', () => {
+    expect(
+      isValidSnapshot({
+        ...makeSnapshot(),
+        durationSeconds: Number.POSITIVE_INFINITY,
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects -Infinity in cluster count', () => {
+    expect(
+      isValidSnapshot({
+        ...makeSnapshot(),
+        topFailureClusters: [
+          { verdict: 'x', count: Number.NEGATIVE_INFINITY },
+        ],
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects NaN rejectRatePct', () => {
+    expect(
+      isValidSnapshot({ ...makeSnapshot(), rejectRatePct: Number.NaN }),
+    ).toBe(false)
+  })
 })
 
 describe('loadAllRuns', () => {
@@ -177,6 +214,45 @@ describe('loadAllRuns', () => {
     const r = await loadAllRuns(tmpDir)
     expect(r.runs).toHaveLength(1)
     expect(r.errors).toHaveLength(0)
+  })
+
+  // --- hostile requirement (b) -------------------------------------------
+  // Spec requires: "malformed snapshot JSON doesn't crash the page".
+  // The stronger guarantee we deliver: a single bad file does NOT take
+  // down the other runs. The dashboard degrades gracefully, surfacing
+  // which files failed in the errors channel while rendering the rest.
+
+  it('does not throw when every file in the directory is malformed', async () => {
+    await fsp.writeFile(path.join(tmpDir, 'a.json'), 'not json')
+    await fsp.writeFile(path.join(tmpDir, 'b.json'), '{ "partial": ')
+    await fsp.writeFile(
+      path.join(tmpDir, 'c.json'),
+      JSON.stringify({ someOtherShape: true }),
+    )
+    const r = await loadAllRuns(tmpDir)
+    expect(r.runs).toHaveLength(0)
+    expect(r.errors).toHaveLength(3)
+    // All three failures should surface — file names preserved for the
+    // UI to display the "could not load" banner.
+    expect(new Set(r.errors.map((e) => e.file))).toEqual(
+      new Set(['a.json', 'b.json', 'c.json']),
+    )
+  })
+
+  it('returns good + bad files side-by-side rather than failing on first bad file', async () => {
+    await fsp.writeFile(
+      path.join(tmpDir, '1-good.json'),
+      JSON.stringify(makeSnapshot({ runId: 'a' })),
+    )
+    await fsp.writeFile(path.join(tmpDir, '2-bad.json'), '{ not parseable')
+    await fsp.writeFile(
+      path.join(tmpDir, '3-good.json'),
+      JSON.stringify(makeSnapshot({ runId: 'b' })),
+    )
+    const r = await loadAllRuns(tmpDir)
+    expect(r.runs).toHaveLength(2)
+    expect(r.errors).toHaveLength(1)
+    expect(r.errors[0].file).toBe('2-bad.json')
   })
 })
 

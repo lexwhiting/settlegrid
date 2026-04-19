@@ -40,7 +40,14 @@ export interface TemplaterRunSnapshot {
  * Dashboards that 500 when a single snapshot is malformed are brittle;
  * the loader isolates bad snapshots and reports them separately so the
  * rest of the dashboard keeps rendering.
+ *
+ * Numeric fields are validated with Number.isFinite — `typeof n === 'number'`
+ * accepts NaN and Infinity, which would render as `$NaN` in the UI.
  */
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+
 export function isValidSnapshot(x: unknown): x is TemplaterRunSnapshot {
   if (!x || typeof x !== 'object') return false
   const o = x as Record<string, unknown>
@@ -48,23 +55,23 @@ export function isValidSnapshot(x: unknown): x is TemplaterRunSnapshot {
     typeof o.runId === 'string' &&
     typeof o.startedAt === 'string' &&
     typeof o.completedAt === 'string' &&
-    typeof o.durationSeconds === 'number' &&
-    typeof o.totalAttempts === 'number' &&
-    typeof o.passed === 'number' &&
-    typeof o.rejected === 'number' &&
-    typeof o.failed === 'number' &&
-    typeof o.rejectRatePct === 'number' &&
-    typeof o.totalCostUsdTracked === 'number' &&
-    typeof o.costPerSuccessfulTemplateUsdTracked === 'number' &&
-    typeof o.tokensInTracked === 'number' &&
-    typeof o.tokensOutTracked === 'number' &&
+    isFiniteNumber(o.durationSeconds) &&
+    isFiniteNumber(o.totalAttempts) &&
+    isFiniteNumber(o.passed) &&
+    isFiniteNumber(o.rejected) &&
+    isFiniteNumber(o.failed) &&
+    isFiniteNumber(o.rejectRatePct) &&
+    isFiniteNumber(o.totalCostUsdTracked) &&
+    isFiniteNumber(o.costPerSuccessfulTemplateUsdTracked) &&
+    isFiniteNumber(o.tokensInTracked) &&
+    isFiniteNumber(o.tokensOutTracked) &&
     Array.isArray(o.topFailureClusters) &&
     o.topFailureClusters.every(
       (c) =>
         c &&
         typeof c === 'object' &&
         typeof (c as Record<string, unknown>).verdict === 'string' &&
-        typeof (c as Record<string, unknown>).count === 'number',
+        isFiniteNumber((c as Record<string, unknown>).count),
     )
   )
 }
