@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-fireworks-ai",
+  "version": "1.0.0",
+  "description": "MCP server for Fireworks AI with SettleGrid billing. Access Fireworks AI inference endpoints for chat completions, text completions, embeddings, and image generation using fast open-source models.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "fireworks",
+    "llm",
+    "chat",
+    "completions",
+    "embeddings",
+    "image-generation",
+    "inference",
+    "open-source-models",
+    "ai",
+    "generative-ai"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fireworks-ai"
+  }
+}

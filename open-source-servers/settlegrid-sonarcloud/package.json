@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-sonarcloud",
+  "version": "1.0.0",
+  "description": "MCP server for SonarCloud with SettleGrid billing. Query SonarCloud projects, issues, metrics, and quality gates via the SonarCloud Web API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "sonarcloud",
+    "code-quality",
+    "static-analysis",
+    "security",
+    "code-coverage",
+    "issues",
+    "metrics",
+    "quality-gate",
+    "devops",
+    "ci-cd"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-sonarcloud"
+  }
+}
