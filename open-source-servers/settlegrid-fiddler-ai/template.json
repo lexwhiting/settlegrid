@@ -1,0 +1,49 @@
+{
+  "slug": "fiddler-ai",
+  "name": "Fiddler Ai",
+  "description": "MCP server for Fiddler AI with SettleGrid billing. Manage and monitor AI models on the Fiddler platform — list, create, inspect, update, delete, and generate models from samples.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "ml-monitoring",
+    "fiddler",
+    "mlops",
+    "model-monitoring",
+    "machine-learning",
+    "model-management",
+    "explainability",
+    "drift",
+    "observability",
+    "data-science"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fiddler-ai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_model",
+    "delete_model",
+    "generate_model_from_samples",
+    "get_model",
+    "list_models",
+    "update_model"
+  ],
+  "featured": false
+}

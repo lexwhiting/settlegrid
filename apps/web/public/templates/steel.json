@@ -1,0 +1,52 @@
+{
+  "slug": "steel",
+  "name": "Steel",
+  "description": "MCP server for Steel with SettleGrid billing. Manage headless browser sessions, PDFs, and screenshots via the Steel API for AI agents.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "browser-automation",
+    "browser",
+    "headless",
+    "automation",
+    "scraping",
+    "ai-agents",
+    "sessions",
+    "screenshots",
+    "pdf",
+    "web"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-steel"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_session",
+    "get_pdf",
+    "get_screenshot",
+    "get_session",
+    "list_pdfs",
+    "list_screenshots",
+    "list_sessions",
+    "release_session"
+  ],
+  "featured": false
+}

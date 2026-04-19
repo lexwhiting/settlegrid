@@ -1,0 +1,51 @@
+{
+  "slug": "langfuse-datasets",
+  "name": "Langfuse Datasets",
+  "description": "MCP server for Langfuse Datasets with SettleGrid billing. Manage Langfuse annotation queues and their items for LLM observability and evaluation workflows.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "eval-tools",
+    "langfuse",
+    "llm",
+    "observability",
+    "annotation",
+    "evaluation",
+    "datasets",
+    "queues",
+    "tracing"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-langfuse-datasets"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_annotation_queue",
+    "create_queue_item",
+    "delete_queue_item",
+    "get_annotation_queue",
+    "get_queue_item",
+    "list_annotation_queues",
+    "list_queue_items",
+    "update_queue_item"
+  ],
+  "featured": false
+}

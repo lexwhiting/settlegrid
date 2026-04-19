@@ -1,0 +1,48 @@
+{
+  "slug": "openrouter",
+  "name": "Openrouter",
+  "description": "MCP server for OpenRouter with SettleGrid billing. Access and route requests to hundreds of AI language models via the OpenRouter unified API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "llm-gateways",
+    "llm",
+    "language-model",
+    "openrouter",
+    "chat",
+    "completions",
+    "gpt",
+    "claude",
+    "inference",
+    "routing"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-openrouter"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_chat_completion",
+    "get_credits",
+    "get_generation",
+    "get_model",
+    "list_models"
+  ],
+  "featured": false
+}

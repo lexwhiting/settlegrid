@@ -1,0 +1,43 @@
+{
+  "slug": "nanonets",
+  "name": "Nanonets",
+  "description": "MCP server for Nanonets with SettleGrid billing. Interact with Nanonets OCR models to retrieve model details and upload training images via URL.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "document-intelligence",
+    "ocr",
+    "nanonets",
+    "machine-learning",
+    "image-recognition",
+    "document-processing",
+    "training",
+    "optical-character-recognition"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nanonets"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_model_details",
+    "upload_training_images_by_url"
+  ],
+  "featured": false
+}

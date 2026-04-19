@@ -1,0 +1,47 @@
+{
+  "slug": "browserless",
+  "name": "Browserless",
+  "description": "MCP server for Browserless with SettleGrid billing. Capture screenshots, generate PDFs, scrape page content, and extract structured data from web pages using the Browserless headless browser REST API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "browser-automation",
+    "browserless",
+    "headless-browser",
+    "screenshot",
+    "pdf",
+    "web-scraping",
+    "automation",
+    "html",
+    "puppeteer",
+    "content-extraction"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-browserless"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 3
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_page_content",
+    "scrape_page",
+    "smart_scrape_page",
+    "take_screenshot"
+  ],
+  "featured": false
+}
