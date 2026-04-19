@@ -63,23 +63,76 @@ declare module '@settlegrid/mcp' {
   export class RateLimitedError extends SettleGridError { retryAfterSeconds?: number }
 }
 
-// Minimal Node ambient declarations so templates that use process.env,
+// Minimal Node + Web ambient declarations so templates that use process.env,
 // fetch, console etc. type-check without resolving @types/node from the
 // target template's node_modules (which we don't have).
+//
+// IMPORTANT: these must be permissive enough to accept valid template code
+// WITHOUT introducing false positives. A false positive on a well-formed
+// template (e.g. settlegrid-minecraft's \`return { ...await res.json() }\`)
+// would flag a good template as REMOVE-worthy. Return types default to
+// \`any\` so spreading / indexing results is always permitted.
+
 declare const process: { env: Record<string, string | undefined> }
 declare const console: {
   log(...args: any[]): void
   error(...args: any[]): void
   warn(...args: any[]): void
   info(...args: any[]): void
+  debug(...args: any[]): void
 }
-declare function fetch(input: any, init?: any): Promise<any>
+declare function fetch(input: any, init?: any): Promise<Response>
+declare interface Response {
+  ok: boolean
+  status: number
+  statusText: string
+  headers: any
+  url: string
+  json(): Promise<any>
+  text(): Promise<string>
+  arrayBuffer(): Promise<any>
+  blob(): Promise<any>
+  clone(): Response
+}
 declare class URL {
   constructor(input: string, base?: string)
-  searchParams: { set(k: string, v: string): void; get(k: string): string | null }
+  searchParams: {
+    set(k: string, v: string): void
+    get(k: string): string | null
+    append(k: string, v: string): void
+    has(k: string): boolean
+    delete(k: string): void
+    toString(): string
+  }
+  toString(): string
+  pathname: string
+  href: string
+  origin: string
+  host: string
+}
+declare class URLSearchParams {
+  constructor(init?: any)
+  set(k: string, v: string): void
+  get(k: string): string | null
   toString(): string
 }
 declare type RequestInit = any
+declare type HeadersInit = any
+declare class Buffer {
+  static from(input: any, encoding?: string): Buffer
+  toString(encoding?: string): string
+  length: number
+}
+declare class TextEncoder {
+  encode(input: string): any
+}
+declare class TextDecoder {
+  decode(input: any): string
+}
+declare function setTimeout(cb: () => void, ms: number): any
+declare function clearTimeout(handle: any): void
+declare function setInterval(cb: () => void, ms: number): any
+declare function clearInterval(handle: any): void
 `.trim();
 
 export const tscCompileRule: Rule = {
