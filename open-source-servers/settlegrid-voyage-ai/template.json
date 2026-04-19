@@ -1,0 +1,45 @@
+{
+  "slug": "voyage-ai",
+  "name": "Voyage Ai",
+  "description": "MCP server for Voyage AI with SettleGrid billing. Generate high-quality text embeddings using Voyage AI's embedding models via the Voyage AI API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "embeddings",
+    "text-embedding",
+    "vector",
+    "semantic-search",
+    "nlp",
+    "machine-learning",
+    "voyage-ai",
+    "retrieval",
+    "similarity"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-voyage-ai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 3
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_document_embeddings",
+    "create_embeddings",
+    "create_query_embedding"
+  ],
+  "featured": false
+}

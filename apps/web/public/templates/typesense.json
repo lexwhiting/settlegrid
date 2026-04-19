@@ -1,0 +1,51 @@
+{
+  "slug": "typesense",
+  "name": "Typesense",
+  "description": "MCP server for Typesense with SettleGrid billing. Search, index, and manage collections and documents on a self-hosted Typesense search engine.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "vector-dbs",
+    "search",
+    "typesense",
+    "full-text-search",
+    "collections",
+    "documents",
+    "indexing",
+    "open-source",
+    "self-hosted"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-typesense"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_collection",
+    "delete_collection",
+    "delete_documents",
+    "get_collection",
+    "index_document",
+    "list_collections",
+    "search_documents",
+    "update_documents"
+  ],
+  "featured": false
+}

@@ -1,0 +1,51 @@
+{
+  "slug": "llamaparse",
+  "name": "Llamaparse",
+  "description": "MCP server for LlamaParse with SettleGrid billing. Upload documents for AI-powered parsing and retrieve results in markdown, text, or JSON format via the LlamaIndex LlamaParse API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "document-intelligence",
+    "llamaparse",
+    "llamaindex",
+    "document-parsing",
+    "pdf",
+    "markdown",
+    "ocr",
+    "text-extraction",
+    "llm",
+    "document-ai"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-llamaparse"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 2,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "delete_job",
+    "get_job_status",
+    "get_page_image",
+    "get_result_json",
+    "get_result_markdown",
+    "get_result_text",
+    "upload_file_for_parsing"
+  ],
+  "featured": false
+}

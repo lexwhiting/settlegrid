@@ -1,0 +1,51 @@
+{
+  "slug": "hightouch",
+  "name": "Hightouch",
+  "description": "MCP server for Hightouch with SettleGrid billing. Interact with Hightouch syncs, models, sources, and destinations via the Hightouch REST API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "data-pipelines",
+    "hightouch",
+    "reverse-etl",
+    "syncs",
+    "models",
+    "destinations",
+    "sources",
+    "data-integration",
+    "pipeline",
+    "etl"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-hightouch"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_model",
+    "get_sync",
+    "list_destinations",
+    "list_models",
+    "list_sources",
+    "list_sync_runs",
+    "list_syncs",
+    "trigger_sync"
+  ],
+  "featured": false
+}

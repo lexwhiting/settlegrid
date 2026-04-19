@@ -1,0 +1,45 @@
+{
+  "slug": "deepl-document",
+  "name": "Deepl Document",
+  "description": "MCP server for DeepL Document Translation with SettleGrid billing. Upload, check status, and download translated documents using the DeepL API.",
+  "version": "1.0.0",
+  "category": "productivity",
+  "tags": [
+    "translation",
+    "deepl",
+    "document",
+    "language",
+    "nlp",
+    "localization",
+    "word",
+    "pdf",
+    "multilingual"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-deepl-document"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 2
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "download_document",
+    "get_document_status",
+    "upload_document"
+  ],
+  "featured": false
+}

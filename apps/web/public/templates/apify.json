@@ -1,0 +1,51 @@
+{
+  "slug": "apify",
+  "name": "Apify",
+  "description": "MCP server for Apify with SettleGrid billing. Manage and run Apify Actors, datasets, and key-value stores via the Apify platform API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "scraping",
+    "apify",
+    "actors",
+    "web-scraping",
+    "automation",
+    "datasets",
+    "crawling",
+    "cloud",
+    "robotics",
+    "rpa"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-apify"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_actor",
+    "get_actor_run",
+    "get_dataset_items",
+    "get_key_value_store_record",
+    "list_actor_runs",
+    "list_actors",
+    "run_actor"
+  ],
+  "featured": false
+}

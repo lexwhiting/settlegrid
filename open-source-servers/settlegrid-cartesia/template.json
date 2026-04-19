@@ -1,0 +1,42 @@
+{
+  "slug": "cartesia",
+  "name": "Cartesia",
+  "description": "MCP server for Cartesia with SettleGrid billing. Convert text to speech and retrieve audio bytes using Cartesia's high-quality TTS API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "speech",
+    "text-to-speech",
+    "tts",
+    "audio",
+    "voice",
+    "speech-synthesis",
+    "cartesia",
+    "audio-generation"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-cartesia"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "synthesize_speech"
+  ],
+  "featured": false
+}

@@ -1,0 +1,43 @@
+{
+  "slug": "comet-ml",
+  "name": "Comet Ml",
+  "description": "MCP server for Comet ML with SettleGrid billing. Access Comet ML experiment tracking data including workspaces, projects, and experiment metrics via the Comet REST API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "eval-tools",
+    "machine-learning",
+    "experiment-tracking",
+    "mlops",
+    "comet",
+    "metrics",
+    "model-monitoring",
+    "data-science"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-comet-ml"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_user_workspaces"
+  ],
+  "featured": false
+}
