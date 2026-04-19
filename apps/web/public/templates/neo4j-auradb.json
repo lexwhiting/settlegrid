@@ -1,0 +1,45 @@
+{
+  "slug": "neo4j-auradb",
+  "name": "Neo4j Auradb",
+  "description": "MCP server for Neo4j AuraDB Query API with SettleGrid billing. Execute Cypher queries against a Neo4j AuraDB instance using the Neo4j Query API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "knowledge-graphs",
+    "neo4j",
+    "graph",
+    "database",
+    "cypher",
+    "auradb",
+    "query",
+    "graphdb",
+    "nosql"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-neo4j-auradb"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 2,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "run_cypher_query",
+    "run_read_query"
+  ],
+  "featured": false
+}
