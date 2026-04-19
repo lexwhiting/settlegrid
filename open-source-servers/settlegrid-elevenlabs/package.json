@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-elevenlabs",
   "version": "1.0.0",
-  "description": "MCP server for ElevenLabs with SettleGrid billing. Text-to-speech with realistic AI voices and voice cloning",
+  "description": "MCP server for ElevenLabs with SettleGrid billing. Generate sound effects, retrieve speech history, and isolate audio using the ElevenLabs AI audio API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,11 +19,16 @@
     "settlegrid",
     "mcp",
     "ai",
+    "elevenlabs",
+    "text-to-speech",
     "tts",
-    "voice",
+    "sound-effects",
+    "audio",
+    "ai-voice",
     "speech",
-    "ai",
-    "audio"
+    "audio-isolation",
+    "voice-generation",
+    "sound-generation"
   ],
   "license": "MIT",
   "repository": {

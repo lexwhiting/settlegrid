@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-milvus",
+  "version": "1.0.0",
+  "description": "MCP server for Milvus with SettleGrid billing. Create and manage vector database collections in Milvus via its RESTful API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "milvus",
+    "vector-database",
+    "embeddings",
+    "similarity-search",
+    "ai",
+    "machine-learning",
+    "collections",
+    "vector-search",
+    "ann"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-milvus"
+  }
+}

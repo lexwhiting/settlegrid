@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-weave",
+  "version": "1.0.0",
+  "description": "MCP server for Weave (Weights & Biases) with SettleGrid billing. Query, manage, and analyze LLM traces, calls, objects, feedback, and cost data via the Weights & Biases Weave Service API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "llm",
+    "tracing",
+    "observability",
+    "wandb",
+    "weave",
+    "ai",
+    "evaluation",
+    "monitoring",
+    "calls",
+    "feedback"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-weave"
+  }
+}

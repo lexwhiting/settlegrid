@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-lilt",
+  "version": "1.0.0",
+  "description": "MCP server for Lilt with SettleGrid billing. Access Lilt's translation and content generation services including adaptive machine translation, document management, and AI-powered content creation.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "translation",
+    "machine-translation",
+    "localization",
+    "content-generation",
+    "nlp",
+    "language",
+    "lilt",
+    "documents",
+    "adaptive-mt"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-lilt"
+  }
+}
