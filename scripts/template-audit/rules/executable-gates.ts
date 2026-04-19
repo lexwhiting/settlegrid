@@ -96,24 +96,33 @@ declare interface Response {
 }
 declare class URL {
   constructor(input: string, base?: string)
-  searchParams: {
-    set(k: string, v: string): void
-    get(k: string): string | null
-    append(k: string, v: string): void
-    has(k: string): boolean
-    delete(k: string): void
-    toString(): string
-  }
+  searchParams: URLSearchParams
   toString(): string
   pathname: string
   href: string
   origin: string
   host: string
+  hostname: string
+  port: string
+  protocol: string
+  search: string
+  hash: string
+  username: string
+  password: string
 }
 declare class URLSearchParams {
   constructor(init?: any)
   set(k: string, v: string): void
   get(k: string): string | null
+  getAll(k: string): string[]
+  append(k: string, v: string): void
+  has(k: string): boolean
+  delete(k: string): void
+  forEach(cb: (v: string, k: string) => void): void
+  keys(): IterableIterator<string>
+  values(): IterableIterator<string>
+  entries(): IterableIterator<[string, string]>
+  [Symbol.iterator](): IterableIterator<[string, string]>
   toString(): string
 }
 declare type RequestInit = any

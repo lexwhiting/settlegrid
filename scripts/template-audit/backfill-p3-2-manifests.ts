@@ -288,8 +288,15 @@ function buildRunSummary(
   const totalCost = attempts.reduce((s, a) => s + (a.costUsdAttempt ?? 0), 0);
   const tokensIn = attempts.reduce((s, a) => s + (a.tokensInAttempt ?? 0), 0);
   const tokensOut = attempts.reduce((s, a) => s + (a.tokensOutAttempt ?? 0), 0);
+  // Guard against malformed timestamps — `new Date(garbage).getTime()` is
+  // NaN, which would make durationSeconds also NaN and serialize as null in
+  // the summary JSON. Clamp to 0 if either end is unparseable.
   const start = new Date(attempts[0].startedAt).getTime();
   const end = new Date(attempts[attempts.length - 1].completedAt).getTime();
+  const durationSeconds =
+    Number.isFinite(start) && Number.isFinite(end) && end >= start
+      ? Math.round((end - start) / 1000)
+      : 0;
 
   const verdictCounts = new Map<string, number>();
   for (const a of attempts) {
@@ -305,7 +312,7 @@ function buildRunSummary(
     runId: attempts[0].runId,
     startedAt: attempts[0].startedAt,
     completedAt: attempts[attempts.length - 1].completedAt,
-    durationSeconds: Math.round((end - start) / 1000),
+    durationSeconds,
     totalAttempts: attempts.length,
     passed,
     rejected,
@@ -328,24 +335,61 @@ function buildRunSummary(
 // Main
 // ---------------------------------------------------------------------------
 
+// Slug format constraint — same shape the Templater pipeline + P2.6 schema
+// enforce. A hostile JSONL line could try `../../../etc/hostile` for the
+// templateSlug; require explicit validation before path concatenation so
+// the backfill can't be tricked into writing outside OSS_ROOT even if the
+// target directory pre-exists by some other means.
+const SLUG_REGEX = /^[a-z0-9][a-z0-9-]*$/;
+
 async function main(): Promise<void> {
   const { runJsonl } = parseArgs(process.argv);
   const raw = await fsp.readFile(runJsonl, 'utf-8');
-  const attempts = raw
-    .split('\n')
-    .filter((l) => l.trim().length > 0)
-    .map((l) => JSON.parse(l) as AttemptTelemetry);
 
-  console.log(`[backfill] Loaded ${attempts.length} attempts from ${runJsonl}`);
+  // Parse each line individually — a single malformed line must NOT take
+  // down the whole backfill. Log skipped lines and proceed with the
+  // survivors. Resilient to hand-edited JSONL files.
+  const lines = raw.split('\n').filter((l) => l.trim().length > 0);
+  const attempts: AttemptTelemetry[] = [];
+  let parseSkips = 0;
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      const parsed = JSON.parse(lines[i]) as AttemptTelemetry;
+      attempts.push(parsed);
+    } catch (err) {
+      parseSkips++;
+      console.warn(
+        `[backfill] skipping malformed JSONL line ${i + 1}: ${(err as Error).message.slice(0, 120)}`,
+      );
+    }
+  }
+  console.log(
+    `[backfill] Loaded ${attempts.length} attempts from ${runJsonl}${parseSkips > 0 ? ` (${parseSkips} malformed lines skipped)` : ''}`,
+  );
+
+  if (attempts.length === 0) {
+    console.error('[backfill] No valid attempts in JSONL; nothing to do.');
+    process.exit(1);
+  }
 
   const passes = attempts.filter((a) => a.verdict === 'pass' && a.templateSlug);
   console.log(`[backfill] ${passes.length} passes with templateSlug; processing…`);
 
   let backfilled = 0;
   let skipped = 0;
+  let invalidSlug = 0;
   const missingDir: string[] = [];
   for (const attempt of passes) {
     const slug = attempt.templateSlug!;
+    // Reject hostile slugs BEFORE path construction. Logs a structured
+    // warning so operators can trace JSONL integrity issues.
+    if (!SLUG_REGEX.test(slug)) {
+      invalidSlug++;
+      console.warn(
+        `[backfill] skip: invalid slug "${slug.slice(0, 80)}" (must match ${SLUG_REGEX})`,
+      );
+      continue;
+    }
     const dir = path.join(OSS_ROOT, `settlegrid-${slug}`);
     try {
       await fsp.stat(dir);
@@ -373,7 +417,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `[backfill] template.json: ${backfilled} written, ${skipped} pre-existing, ${missingDir.length} missing dirs`,
+    `[backfill] template.json: ${backfilled} written, ${skipped} pre-existing, ${missingDir.length} missing dirs, ${invalidSlug} invalid slugs rejected`,
   );
   if (missingDir.length > 0) {
     console.warn(`[backfill] missing dirs (passes without on-disk templates): ${missingDir.join(', ')}`);
