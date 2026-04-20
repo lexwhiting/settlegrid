@@ -133,15 +133,30 @@ export interface IndexRowState {
 /**
  * Parse a GitHub web URL into { owner, repo }.
  * Accepts `https://github.com/owner/repo` and `https://github.com/owner/repo.git`.
+ *
+ * GitHub repo names allow `.` (e.g., `express.js`, `vue-router.git`).
+ * The regex uses non-greedy matching on the repo segment so a trailing
+ * `.git` is stripped correctly without capturing part of the repo name.
+ * Owner and repo character classes are restricted to characters GitHub
+ * actually permits — this rejects URLs with query strings, fragments,
+ * deeper paths, or garbage characters that the old permissive regex
+ * silently accepted.
  */
 export function parseGithubUrl(url: string): { owner: string; repo: string } {
-  const m = url.match(/^https:\/\/github\.com\/([^/]+)\/([^/.]+)(?:\.git)?\/?$/)
+  const m = url.match(
+    /^https:\/\/github\.com\/([a-zA-Z0-9][a-zA-Z0-9-]*)\/([a-zA-Z0-9._-]+?)(?:\.git)?\/?$/,
+  )
   if (!m) throw new Error(`Not a GitHub web URL: ${url}`)
   return { owner: m[1], repo: m[2] }
 }
 
 /**
  * Pick a description variant from project metadata.
+ *
+ * The `never` annotation on the exhaustiveness check will produce a TS
+ * error if a new `DescriptionVariant` value is added without a case
+ * here — and the runtime throw protects against malformed JSON input
+ * where the variant field is something the type system can't see.
  */
 export function pickDescription(
   project: ProjectMetadata,
@@ -154,6 +169,10 @@ export function pickDescription(
       return project.descriptionMedium
     case 'long':
       return project.descriptionLong
+    default: {
+      const _exhaustive: never = variant
+      throw new Error(`Unknown descriptionVariant: ${JSON.stringify(_exhaustive)}`)
+    }
   }
 }
 
@@ -474,13 +493,26 @@ export function renderPacket(
 }
 
 /**
+ * Result of parsing an existing README.md. Carries both the preserved
+ * rows AND the lines that LOOKED like table rows but couldn't be
+ * parsed — surfacing these lets the builder warn the founder so that
+ * broken edits don't silently disappear on regeneration.
+ */
+export interface ParsedIndex {
+  preserved: Map<string, IndexRowState>
+  /** Lines starting with `| <digits> |` that didn't match the row shape. */
+  unparseableRows: string[]
+}
+
+/**
  * Parse an existing generated README.md to recover the founder's
  * edits in the Status / Sent / Result URL columns so regeneration
  * doesn't destroy hand-maintained state.
  *
- * Returns a map keyed by directory slug. Slugs that don't appear in
- * the input (or lines that don't match the table-row shape) are
- * simply absent from the map; callers fall back to defaults.
+ * Returns parsed rows keyed by directory slug, plus a list of
+ * lines that looked like table rows but failed to match the shape.
+ * Callers that care about edit safety should surface the
+ * `unparseableRows` — silent data loss is worse than a noisy warning.
  *
  * The regex aligns to the row format `renderIndex` emits:
  *   | NN | [Name](url) | `type` | `verification` |
@@ -488,24 +520,32 @@ export function renderPacket(
  * The `.md` link is the stable anchor — it's the only cell whose
  * content is fully owned by the builder.
  */
-export function parseExistingIndex(
-  content: string,
-): Map<string, IndexRowState> {
-  const result = new Map<string, IndexRowState>()
-  if (!content) return result
-  const rowRe =
+export function parseExistingIndex(content: string): ParsedIndex {
+  const preserved = new Map<string, IndexRowState>()
+  const unparseableRows: string[] = []
+  if (!content) return { preserved, unparseableRows }
+
+  // Line-level sniff: anything starting with `| <digits> |` is
+  // probably a table row the founder cares about.
+  const ROW_SNIFF = /^\|\s*\d+\s*\|/
+  const FULL_ROW =
     /^\|\s*\d+\s*\|[^|]*\|\s*`[^`]*`\s*\|\s*`[^`]*`\s*\|\s*\[`([^`]+)\.md`\]\([^)]*\)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$/
+
   for (const line of content.split('\n')) {
-    const m = line.match(rowRe)
-    if (!m) continue
+    if (!ROW_SNIFF.test(line)) continue
+    const m = line.match(FULL_ROW)
+    if (!m) {
+      unparseableRows.push(line)
+      continue
+    }
     const [, slug, status, sent, resultUrl] = m
-    result.set(slug, {
+    preserved.set(slug, {
       status: status.trim(),
       sent: sent.trim(),
       resultUrl: resultUrl.trim(),
     })
   }
-  return result
+  return { preserved, unparseableRows }
 }
 
 /**
@@ -596,6 +636,36 @@ export async function loadDirectories(
   return parsed as DirectoriesFile
 }
 
+/**
+ * Warning fields that ALWAYS block the build, independent of
+ * --strict. A bad slug can escape the output directory via
+ * `path.join(outputDir, `${slug}.md`)`, so writing any file is unsafe
+ * until the slug is known to match the expected shape.
+ */
+const BLOCKING_VALIDATION_FIELDS = new Set<string>(['slug'])
+
+/**
+ * Validate the shape of the project metadata itself. Catches empty
+ * logo arrays, missing URLs, and similar misconfigurations early so
+ * the builder fails with a clear message instead of a cryptic
+ * TypeError deep in renderPacket.
+ */
+function assertProjectMetadataShape(project: ProjectMetadata): void {
+  if (!project.name || !project.name.trim()) {
+    throw new Error('projectMetadata.name must be a non-empty string')
+  }
+  if (!project.logo || project.logo.length === 0) {
+    throw new Error(
+      'projectMetadata.logo must contain at least one entry (renderPacket reads logo[0])',
+    )
+  }
+  if (!project.urls?.github || !project.urls.github.startsWith('https://')) {
+    throw new Error(
+      'projectMetadata.urls.github must be an HTTPS URL (parseGithubUrl depends on it)',
+    )
+  }
+}
+
 export async function buildPackets(
   opts: BuildPacketsOptions = {},
 ): Promise<BuildResult> {
@@ -604,6 +674,8 @@ export async function buildPackets(
   const strict = opts.strict ?? false
   const only = opts.only
   const project = opts.project ?? projectMetadata
+
+  assertProjectMetadataShape(project)
 
   const file = await loadDirectories(directoriesPath)
   let directories = file.directories
@@ -637,6 +709,21 @@ export async function buildPackets(
     seen.add(dir.slug)
   }
 
+  // Blocking validations — bad slugs would let us write outside the
+  // intended output directory. Refuse to write anything until fixed,
+  // regardless of --strict.
+  const blocking = warnings.filter((w) =>
+    BLOCKING_VALIDATION_FIELDS.has(w.field),
+  )
+  if (blocking.length > 0) {
+    const lines = blocking.map(
+      (w) => `  [${w.slug}] ${w.field}: ${w.message}`,
+    )
+    throw new Error(
+      `Refusing to build: ${blocking.length} blocking validation error(s):\n${lines.join('\n')}`,
+    )
+  }
+
   if (strict && warnings.length > 0) {
     const lines = warnings.map(
       (w) => `  [${w.slug}] ${w.field}: ${w.message}`,
@@ -664,11 +751,19 @@ export async function buildPackets(
 
   // Preserve founder edits in Status / Sent / Result URL columns across
   // regenerations. Missing file is normal on a first build; malformed
-  // content yields an empty map (callers then fall back to defaults).
+  // content yields an empty preserved map (callers then fall back to
+  // defaults), but lines that LOOKED like rows and didn't parse are
+  // surfaced as warnings so silent data loss is visible.
   let preserved = new Map<string, IndexRowState>()
   try {
     const existing = await readFile(indexPath, 'utf-8')
-    preserved = parseExistingIndex(existing)
+    const parsed = parseExistingIndex(existing)
+    preserved = parsed.preserved
+    for (const badLine of parsed.unparseableRows) {
+      console.warn(
+        `WARN: existing README row didn't parse; its Status/Sent/Result URL edits will NOT be preserved:\n  ${badLine.trim()}`,
+      )
+    }
   } catch {
     // README doesn't exist yet — first build.
   }
