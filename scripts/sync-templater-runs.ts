@@ -193,7 +193,7 @@ export async function sync(opts: SyncOptions): Promise<SyncResult> {
   return result
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const opts = parseArgs(process.argv)
   console.log(`[sync-templater-runs] source: ${opts.source}`)
   console.log(`[sync-templater-runs] dest:   ${opts.dest}`)
