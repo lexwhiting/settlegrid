@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { promises as fsp } from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { sync, parseArgs, type SyncOptions } from '../sync-templater-runs.js'
+import { sync, parseArgs, main, type SyncOptions } from '../sync-templater-runs.js'
 
 // Mirrors the agent-emitter summary shape just enough to pass
 // looksLikeSummary().
@@ -226,5 +226,92 @@ describe('sync', () => {
     expect(finalContent.passed).toBe(1)
     // The second (b-summary) is the one flagged invalid.
     expect(r.invalid[0].file).toBe('b-summary.json')
+  })
+})
+
+describe('main (CLI entrypoint)', () => {
+  let src: string
+  let dst: string
+  let originalArgv: string[]
+  let originalExitCode: number | string | null | undefined
+  let consoleLog: ReturnType<typeof vi.spyOn>
+  let consoleWarn: ReturnType<typeof vi.spyOn>
+
+  beforeEach(async () => {
+    src = await fsp.mkdtemp(path.join(os.tmpdir(), 'main-src-'))
+    dst = await fsp.mkdtemp(path.join(os.tmpdir(), 'main-dst-'))
+    originalArgv = process.argv
+    originalExitCode = process.exitCode
+    process.exitCode = undefined
+    // Mute script output so the test harness stays readable.
+    consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
+    consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(async () => {
+    process.argv = originalArgv
+    process.exitCode = originalExitCode
+    consoleLog.mockRestore()
+    consoleWarn.mockRestore()
+    await fsp.rm(src, { recursive: true, force: true })
+    await fsp.rm(dst, { recursive: true, force: true })
+  })
+
+  it('leaves exitCode unset on a clean run (no invalids)', async () => {
+    await fsp.writeFile(
+      path.join(src, 'a-summary.json'),
+      JSON.stringify(baseSummary),
+      'utf-8',
+    )
+    process.argv = [
+      'node', 'sync-templater-runs.ts',
+      '--source', src, '--dest', dst,
+    ]
+    await main()
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('sets exitCode=2 when any file is invalid', async () => {
+    // Malformed JSON — should be flagged invalid.
+    await fsp.writeFile(
+      path.join(src, 'bad-summary.json'),
+      '{ not parseable',
+      'utf-8',
+    )
+    process.argv = [
+      'node', 'sync-templater-runs.ts',
+      '--source', src, '--dest', dst,
+    ]
+    await main()
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('returns early without exiting when source dir is missing', async () => {
+    process.argv = [
+      'node', 'sync-templater-runs.ts',
+      '--source', path.join(src, 'does-not-exist'),
+      '--dest', dst,
+    ]
+    await main()
+    expect(process.exitCode).toBeUndefined()
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.stringContaining('source directory does not exist'),
+    )
+  })
+
+  it('logs dry-run message when --dry-run is passed', async () => {
+    await fsp.writeFile(
+      path.join(src, 'a-summary.json'),
+      JSON.stringify(baseSummary),
+      'utf-8',
+    )
+    process.argv = [
+      'node', 'sync-templater-runs.ts',
+      '--source', src, '--dest', dst, '--dry-run',
+    ]
+    await main()
+    expect(consoleLog).toHaveBeenCalledWith(
+      expect.stringContaining('DRY RUN'),
+    )
   })
 })
