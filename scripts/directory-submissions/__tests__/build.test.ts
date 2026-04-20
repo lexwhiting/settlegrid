@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { writeFile, mkdir, readFile, rm, mkdtemp, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -11,6 +11,7 @@ import {
   renderIndex,
   renderPacket,
   validateDirectory,
+  type DescriptionVariant,
   type DirectoriesFile,
   type Directory,
 } from '../build.js'
@@ -135,6 +136,43 @@ describe('parseGithubUrl', () => {
       parseGithubUrl('https://github.com/foo/bar/tree/main'),
     ).toThrow(/Not a GitHub web URL/)
   })
+
+  // --- H11 regressions -----------------------------------------------
+  // Prior regex `[^/.]+` excluded `.` from repo names, rejecting valid
+  // names like `express.js` and `vue-router.test` — AND accepted
+  // garbage like `bar#readme` because `#` wasn't in the exclusion set.
+
+  it('accepts a repo name containing a dot', () => {
+    expect(parseGithubUrl('https://github.com/foo/express.js')).toEqual({
+      owner: 'foo',
+      repo: 'express.js',
+    })
+  })
+
+  it('strips .git suffix from a dotted repo name', () => {
+    expect(parseGithubUrl('https://github.com/foo/express.js.git')).toEqual({
+      owner: 'foo',
+      repo: 'express.js',
+    })
+  })
+
+  it('rejects URL with fragment hash in repo segment', () => {
+    expect(() =>
+      parseGithubUrl('https://github.com/foo/bar#readme'),
+    ).toThrow(/Not a GitHub web URL/)
+  })
+
+  it('rejects URL with query string on the repo segment', () => {
+    expect(() =>
+      parseGithubUrl('https://github.com/foo/bar?tab=readme'),
+    ).toThrow(/Not a GitHub web URL/)
+  })
+
+  it('rejects owner starting with a hyphen (GitHub disallows)', () => {
+    expect(() => parseGithubUrl('https://github.com/-foo/bar')).toThrow(
+      /Not a GitHub web URL/,
+    )
+  })
 })
 
 // ── pickDescription ────────────────────────────────────────────────────────
@@ -156,6 +194,15 @@ describe('pickDescription', () => {
     expect(pickDescription(FIXTURE_PROJECT, 'long')).toBe(
       FIXTURE_PROJECT.descriptionLong,
     )
+  })
+
+  // H22 regression — a JSON file could slip through with an unknown
+  // variant; without a default case the function returned undefined
+  // and downstream `.length` crashed with a confusing TypeError.
+  it('throws a clear error on an unknown variant', () => {
+    expect(() =>
+      pickDescription(FIXTURE_PROJECT, 'xlarge' as DescriptionVariant),
+    ).toThrow(/Unknown descriptionVariant/)
   })
 })
 
@@ -362,14 +409,16 @@ describe('renderIndex', () => {
 })
 
 describe('parseExistingIndex', () => {
-  it('returns an empty map on empty input', () => {
-    expect(parseExistingIndex('').size).toBe(0)
+  it('returns an empty result on empty input', () => {
+    const r = parseExistingIndex('')
+    expect(r.preserved.size).toBe(0)
+    expect(r.unparseableRows).toEqual([])
   })
 
-  it('returns an empty map when no table rows are present', () => {
-    expect(
-      parseExistingIndex('# Not a tracker\n\nJust prose.\n').size,
-    ).toBe(0)
+  it('returns an empty result when no table rows are present', () => {
+    const r = parseExistingIndex('# Not a tracker\n\nJust prose.\n')
+    expect(r.preserved.size).toBe(0)
+    expect(r.unparseableRows).toEqual([])
   })
 
   it('extracts slug + 3 preserved columns from a real tracker row', () => {
@@ -379,17 +428,33 @@ describe('parseExistingIndex', () => {
       '| 01 | [Foo](https://foo.example) | `form` | `verified` | [`foo.md`](./foo.md) | accepted | 2026-04-21 | https://foo/ok |',
       '| 02 | [Bar](https://bar.example) | `pr` | `partial` | [`bar.md`](./bar.md) | not-sent | — | — |',
     ].join('\n')
-    const m = parseExistingIndex(content)
-    expect(m.get('foo')).toEqual({
+    const r = parseExistingIndex(content)
+    expect(r.preserved.get('foo')).toEqual({
       status: 'accepted',
       sent: '2026-04-21',
       resultUrl: 'https://foo/ok',
     })
-    expect(m.get('bar')).toEqual({
+    expect(r.preserved.get('bar')).toEqual({
       status: 'not-sent',
       sent: '—',
       resultUrl: '—',
     })
+    expect(r.unparseableRows).toEqual([])
+  })
+
+  it('flags table-looking rows that do not parse (H3 fix)', () => {
+    // Line 1: malformed — missing the packet link column entirely.
+    // Line 2: well-formed — must still parse.
+    // The heuristic is "looks like a row if it starts with | NN |".
+    const content = [
+      '| 01 | [Broken](https://x.example) | totally wrong shape |',
+      '| 02 | [Good](https://g.example) | `form` | `verified` | [`good.md`](./good.md) | sent | 2026-04-21 | — |',
+    ].join('\n')
+    const r = parseExistingIndex(content)
+    expect(r.preserved.get('good')?.status).toBe('sent')
+    // The broken row must be surfaced so the caller can warn.
+    expect(r.unparseableRows).toHaveLength(1)
+    expect(r.unparseableRows[0]).toContain('Broken')
   })
 
   it('round-trips through renderIndex without drift', () => {
@@ -399,9 +464,10 @@ describe('parseExistingIndex', () => {
     ]
     const initial = renderIndex(dirs, FIXTURE_PROJECT)
     const parsed1 = parseExistingIndex(initial)
-    const second = renderIndex(dirs, FIXTURE_PROJECT, parsed1)
+    const second = renderIndex(dirs, FIXTURE_PROJECT, parsed1.preserved)
     const parsed2 = parseExistingIndex(second)
-    expect(parsed2).toEqual(parsed1)
+    expect(parsed2.preserved).toEqual(parsed1.preserved)
+    expect(parsed2.unparseableRows).toEqual([])
   })
 })
 
@@ -518,7 +584,7 @@ describe('buildPackets', () => {
     ).rejects.toThrow(/Strict mode:/)
   })
 
-  it('detects duplicate slugs and warns', async () => {
+  it('refuses to build on duplicate slugs (would silently overwrite the first packet on writeFile)', async () => {
     const dirsJson = join(tmpDir, 'directories.json')
     await writeDirsJson(dirsJson, {
       schemaVersion: 1,
@@ -528,16 +594,13 @@ describe('buildPackets', () => {
         makeDir({ slug: 'dup', name: 'Second' }),
       ],
     })
-    const r = await buildPackets({
-      directoriesJsonPath: dirsJson,
-      outputDir: join(tmpDir, 'packets'),
-      project: FIXTURE_PROJECT,
-    })
-    expect(
-      r.warnings.some(
-        (w) => w.slug === 'dup' && w.message === 'Duplicate slug',
-      ),
-    ).toBe(true)
+    await expect(
+      buildPackets({
+        directoriesJsonPath: dirsJson,
+        outputDir: join(tmpDir, 'packets'),
+        project: FIXTURE_PROJECT,
+      }),
+    ).rejects.toThrow(/Refusing to build.*Duplicate slug/s)
   })
 
   it('writes a README.md index referencing every generated packet', async () => {
@@ -604,6 +667,142 @@ describe('buildPackets', () => {
     expect(secondContent).toMatch(
       /\| 02 \| \[Beta\][^\n]*?\| not-sent \| — \| — \|/,
     )
+  })
+
+  // --- H14/H15 regression ---------------------------------------------
+  // A malformed slug like `../evil` would let path.join escape the
+  // output directory. Non-strict mode previously only warned; the
+  // write proceeded and wrote outside the intended dir. BuildPackets
+  // must now refuse unconditionally.
+
+  it('refuses to build when any directory slug fails the shape check (even in non-strict mode)', async () => {
+    const dirsJson = join(tmpDir, 'directories.json')
+    const outDir = join(tmpDir, 'packets')
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [makeDir({ slug: '../evil' })],
+    })
+    await expect(
+      buildPackets({
+        directoriesJsonPath: dirsJson,
+        outputDir: outDir,
+        project: FIXTURE_PROJECT,
+      }),
+    ).rejects.toThrow(/Refusing to build/)
+
+    // And nothing was written outside the packets dir.
+    await expect(readFile(join(tmpDir, 'evil.md'), 'utf-8')).rejects.toThrow(
+      /ENOENT/,
+    )
+  })
+
+  it('refuses slugs with path-escape sequences even when strict is false', async () => {
+    // Explicitly mix good + bad so the bad one doesn't poison the
+    // overall shape — the build must still refuse.
+    const dirsJson = join(tmpDir, 'directories.json')
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [
+        makeDir({ slug: 'good-one' }),
+        makeDir({ slug: '/absolute/path' }),
+      ],
+    })
+    await expect(
+      buildPackets({
+        directoriesJsonPath: dirsJson,
+        outputDir: join(tmpDir, 'packets'),
+        strict: false,
+        project: FIXTURE_PROJECT,
+      }),
+    ).rejects.toThrow(/Refusing to build/)
+  })
+
+  // --- H7 regression --------------------------------------------------
+  // renderPacket reads `project.logo[0].path` unguarded. An empty
+  // logo array used to crash with a cryptic TypeError deep in the
+  // render. assertProjectMetadataShape now catches it up front.
+
+  it('throws a clear error when projectMetadata.logo is empty', async () => {
+    const badProject = { ...FIXTURE_PROJECT, logo: [] }
+    const dirsJson = join(tmpDir, 'directories.json')
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [makeDir()],
+    })
+    await expect(
+      buildPackets({
+        directoriesJsonPath: dirsJson,
+        outputDir: join(tmpDir, 'packets'),
+        project: badProject,
+      }),
+    ).rejects.toThrow(/logo must contain at least one entry/)
+  })
+
+  it('throws a clear error when projectMetadata.urls.github is not HTTPS', async () => {
+    const badProject = {
+      ...FIXTURE_PROJECT,
+      urls: { ...FIXTURE_PROJECT.urls, github: 'ftp://bad' },
+    }
+    const dirsJson = join(tmpDir, 'directories.json')
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [makeDir()],
+    })
+    await expect(
+      buildPackets({
+        directoriesJsonPath: dirsJson,
+        outputDir: join(tmpDir, 'packets'),
+        project: badProject,
+      }),
+    ).rejects.toThrow(/urls\.github must be an HTTPS URL/)
+  })
+
+  // --- H3 regression --------------------------------------------------
+  // If the founder breaks a row's shape (e.g., collapses columns),
+  // the old parser silently dropped it. Now buildPackets surfaces
+  // the bad line via console.warn so the founder knows their edits
+  // didn't round-trip.
+
+  it('warns via stderr when an existing README row has been broken by manual edits', async () => {
+    const dirsJson = join(tmpDir, 'directories.json')
+    const outDir = join(tmpDir, 'packets')
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [makeDir({ slug: 'alpha', name: 'Alpha' })],
+    })
+    // First build, then corrupt the row.
+    await buildPackets({
+      directoriesJsonPath: dirsJson,
+      outputDir: outDir,
+      project: FIXTURE_PROJECT,
+    })
+    const indexPath = join(outDir, 'README.md')
+    const current = await readFile(indexPath, 'utf-8')
+    const corrupted = current.replace(
+      /\| 01 \| \[Alpha\][^\n]*$/m,
+      '| 01 | [Alpha] this row no longer has the right shape at all',
+    )
+    await writeFile(indexPath, corrupted, 'utf-8')
+
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {})
+    try {
+      await buildPackets({
+        directoriesJsonPath: dirsJson,
+        outputDir: outDir,
+        project: FIXTURE_PROJECT,
+      })
+      const calls = warnSpy.mock.calls.flat().join('\n')
+      expect(calls).toMatch(/existing README row didn't parse/)
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it('new directories added after the initial build get default row values', async () => {
