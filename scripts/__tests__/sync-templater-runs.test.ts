@@ -42,6 +42,22 @@ describe('parseArgs', () => {
   it('sets dryRun with --dry-run', () => {
     expect(run(['--dry-run']).dryRun).toBe(true)
   })
+
+  // --- hostile: flag parsing ------------------------------------------
+
+  it('throws when --source is provided without a value', () => {
+    expect(() => run(['--source'])).toThrow(/--source requires a value/)
+  })
+
+  it('throws when --dest is provided without a value', () => {
+    expect(() => run(['--dest'])).toThrow(/--dest requires a value/)
+  })
+
+  it('throws when --source value is another flag (arg eaten by mistake)', () => {
+    expect(() => run(['--source', '--dry-run'])).toThrow(
+      /--source requires a value/,
+    )
+  })
 })
 
 describe('sync', () => {
@@ -161,5 +177,54 @@ describe('sync', () => {
     // dst dir still empty because dry-run skipped writes
     const written = await fsp.readdir(dst)
     expect(written).toHaveLength(0)
+  })
+
+  // --- hostile: runId collision detection -----------------------------
+
+  it('detects when two runIds collide to the same safe-slug', async () => {
+    // "run.a" and "run/a" both slug to "run_a" via [^A-Za-z0-9_-] → _
+    // Only the first-seen wins; the second is flagged invalid rather
+    // than silently overwriting on disk.
+    await writeSummary(src, 'a-summary.json', {
+      ...baseSummary,
+      runId: 'run.a',
+    })
+    await writeSummary(src, 'b-summary.json', {
+      ...baseSummary,
+      runId: 'run/a',
+    })
+    const r = await sync(opts())
+    // Only one snapshot lands on disk.
+    const written = await fsp.readdir(dst)
+    expect(written).toHaveLength(1)
+    expect(r.copied).toHaveLength(1)
+    expect(r.invalid).toHaveLength(1)
+    expect(r.invalid[0].reason).toMatch(/collides/)
+  })
+
+  it('second colliding summary is flagged, first wins', async () => {
+    await writeSummary(src, 'a-summary.json', {
+      ...baseSummary,
+      runId: 'run.a',
+      passed: 1,
+    })
+    await writeSummary(src, 'b-summary.json', {
+      ...baseSummary,
+      runId: 'run a',
+      passed: 2,
+    })
+    const r = await sync(opts())
+    // Whichever wins, only one file on disk, no overwrites between them.
+    const written = await fsp.readdir(dst)
+    expect(written).toHaveLength(1)
+    expect(r.copied).toHaveLength(1)
+    expect(r.invalid).toHaveLength(1)
+    // File that "won" has first-seen content (passed=1, from a-summary)
+    const finalContent = JSON.parse(
+      await fsp.readFile(path.join(dst, 'run_a.json'), 'utf-8'),
+    )
+    expect(finalContent.passed).toBe(1)
+    // The second (b-summary) is the one flagged invalid.
+    expect(r.invalid[0].file).toBe('b-summary.json')
   })
 })

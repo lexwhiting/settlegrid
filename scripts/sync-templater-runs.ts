@@ -49,10 +49,20 @@ export function parseArgs(argv: string[]): SyncOptions {
     dest: DEFAULT_DEST,
     dryRun: false,
   }
+  // Require a value for --source/--dest. Without this check, passing
+  // `--source` (with no argument) would silently set source=undefined
+  // and crash later at readdir with a cryptic TypeError. Surface the
+  // bad invocation up-front instead.
+  const requireValue = (flag: string, value: string | undefined): string => {
+    if (value === undefined || value.startsWith('--')) {
+      throw new Error(`${flag} requires a value`)
+    }
+    return value
+  }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
-    if (a === '--source') opts.source = argv[++i]
-    else if (a === '--dest') opts.dest = argv[++i]
+    if (a === '--source') opts.source = requireValue('--source', argv[++i])
+    else if (a === '--dest') opts.dest = requireValue('--dest', argv[++i])
     else if (a === '--dry-run') opts.dryRun = true
     else if (a === '--help' || a === '-h') {
       console.log(
@@ -115,6 +125,12 @@ export async function sync(opts: SyncOptions): Promise<SyncResult> {
     await fsp.mkdir(opts.dest, { recursive: true })
   }
 
+  // Track safe-slugged IDs emitted in this run so we can detect
+  // collisions (e.g., runIds "run/a" and "run-a" both slug to the
+  // same dest name). Silent overwrite would mean the dashboard loses
+  // a snapshot — report as invalid instead.
+  const seenDestNames = new Map<string, string>() // destName -> source file
+
   for (const file of summaries) {
     const srcPath = path.join(opts.source, file)
     let raw: string
@@ -141,6 +157,17 @@ export async function sync(opts: SyncOptions): Promise<SyncResult> {
     // isn't [A-Za-z0-9_-] with "_".
     const safeId = runId.replace(/[^A-Za-z0-9_-]/g, '_')
     const destName = `${safeId}.json`
+
+    const priorFile = seenDestNames.get(destName)
+    if (priorFile) {
+      result.invalid.push({
+        file,
+        reason: `runId collides with ${priorFile} after safe-slug (both produce ${destName}); rename one upstream`,
+      })
+      continue
+    }
+    seenDestNames.set(destName, file)
+
     const destPath = path.join(opts.dest, destName)
 
     // Re-stringify with consistent formatting so idempotency is robust
@@ -183,6 +210,15 @@ async function main(): Promise<void> {
   for (const c of r.copied) console.log(`  + ${c}`)
   for (const u of r.unchanged) console.log(`  = ${u}`)
   for (const inv of r.invalid) console.warn(`  ! ${inv.file}: ${inv.reason}`)
+
+  // Exit non-zero when any file failed to sync so CI/CD (or an
+  // operator piping stdout) notices. Previously silent: the script
+  // would exit 0 with "1 invalid file" only visible in stderr, and
+  // an unattended sync could land a half-empty committed snapshot
+  // directory.
+  if (r.invalid.length > 0) {
+    process.exitCode = 2
+  }
 }
 
 // Run `main` when invoked directly (not when imported by tests).
