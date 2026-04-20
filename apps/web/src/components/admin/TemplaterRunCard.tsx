@@ -1,4 +1,6 @@
 import type { TemplaterRunSnapshot } from '@/lib/templater-runs'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 
 function formatCost(usd: number): string {
   if (usd === 0) return '$0.00'
@@ -21,22 +23,26 @@ function formatDate(iso: string): string {
   }
 }
 
+function rejectRateBadgeVariant(
+  pct: number,
+): 'success' | 'warning' | 'destructive' {
+  if (pct > 50) return 'destructive'
+  if (pct > 20) return 'warning'
+  return 'success'
+}
+
 export function TemplaterRunCard({ run }: { run: TemplaterRunSnapshot }) {
   const isRetry = run.runId.startsWith('retry-')
   const passRate =
     run.totalAttempts > 0 ? (run.passed / run.totalAttempts) * 100 : 0
 
   return (
-    <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5">
+    <Card className="p-5">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-mono text-gray-300 truncate">{run.runId}</h3>
-            {isRetry && (
-              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 shrink-0">
-                retry
-              </span>
-            )}
+            {isRetry && <Badge variant="secondary">retry</Badge>}
           </div>
           <p className="text-xs text-gray-500">
             {formatDate(run.startedAt)} · {formatDuration(run.durationSeconds)}
@@ -58,17 +64,18 @@ export function TemplaterRunCard({ run }: { run: TemplaterRunSnapshot }) {
           </p>
         </div>
         <div>
-          <p
-            className={`text-2xl font-bold tabular-nums ${
-              run.rejectRatePct > 50
-                ? 'text-red-400'
+          <div className="flex items-center gap-2">
+            <p className="text-2xl font-bold text-gray-100 tabular-nums">
+              {run.rejectRatePct.toFixed(1)}%
+            </p>
+            <Badge variant={rejectRateBadgeVariant(run.rejectRatePct)}>
+              {run.rejectRatePct > 50
+                ? 'high'
                 : run.rejectRatePct > 20
-                  ? 'text-amber-400'
-                  : 'text-green-400'
-            }`}
-          >
-            {run.rejectRatePct.toFixed(1)}%
-          </p>
+                  ? 'elevated'
+                  : 'ok'}
+            </Badge>
+          </div>
           <p className="text-xs text-gray-500 mt-0.5">Reject rate</p>
         </div>
         <div>
@@ -113,6 +120,6 @@ export function TemplaterRunCard({ run }: { run: TemplaterRunSnapshot }) {
           {run.costTrackingNote}
         </p>
       )}
-    </div>
+    </Card>
   )
 }
