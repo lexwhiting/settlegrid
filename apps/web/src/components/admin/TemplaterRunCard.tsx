@@ -98,9 +98,12 @@ export function TemplaterRunCard({ run }: { run: TemplaterRunSnapshot }) {
             Top failure modes
           </p>
           <ul className="space-y-1.5">
-            {run.topFailureClusters.slice(0, 5).map((c) => (
+            {run.topFailureClusters.slice(0, 5).map((c, i) => (
+              // Verdict + index — duplicate verdicts within a single run
+              // would collide on key alone. The agents emitter clusters
+              // by verdict before write, but stay defensive.
               <li
-                key={c.verdict}
+                key={`${c.verdict}-${i}`}
                 className="flex items-center justify-between text-sm"
               >
                 <span className="text-gray-300 font-mono text-xs truncate">
