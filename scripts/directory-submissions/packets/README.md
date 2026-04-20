@@ -48,7 +48,7 @@ _(Add a per-directory note here as you process each row — e.g., "2026-04-21: C
 
 ## Regeneration
 
-This file is generated. Manual edits to the submission tracker table (Status/Sent/Result URL columns) survive regeneration **only if** you add them to a separate tracker file or commit them after running the builder. Current builder behavior: the full file is overwritten on every run.
+This file is generated. When you regenerate (`npx tsx scripts/directory-submissions/build.ts`) the builder reads the existing file first and preserves the per-row **Status**, **Sent**, and **Result URL** columns — so founder edits to those three columns survive. Everything else (directory list, types, packet links, section prose) is overwritten from the sources of truth.
 
-_TODO for a future iteration: persist per-directory status in a sidecar file and preserve it across runs. Scaffold-time design ships the overwrite-everything version to keep the build logic simple._
+Edit only the three preserved columns inline. Do not reorder rows: the builder re-sorts by slug and then merges your values in by slug.
 

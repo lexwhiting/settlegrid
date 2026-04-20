@@ -65,13 +65,21 @@ export interface PrFormat {
 export interface Directory {
   slug: string
   name: string
-  homepage: string
+  /**
+   * Directory homepage / landing URL. Named `url` to match the P3.7
+   * spec's schema enumeration.
+   */
+  url: string
   submissionType: SubmissionType
   submissionUrl: string | null
   submissionStatus: SubmissionStatus
   requiredFields: string[]
   charLimits: Record<string, CharLimit>
-  logoRequirement: {
+  /**
+   * Logo format/size constraint. Named `logoSize` to match the P3.7
+   * spec's schema enumeration.
+   */
+  logoSize: {
     width: number
     height: number
     format: 'png' | 'svg' | 'jpg'
@@ -107,6 +115,17 @@ export interface BuildResult {
   packets: { slug: string; path: string; lengthBytes: number }[]
   warnings: ValidationWarning[]
   indexPath: string
+}
+
+/**
+ * Per-directory state the founder edits directly in the generated
+ * README.md tracker table. Preserved across regenerations so the
+ * checklist keeps working as a living document.
+ */
+export interface IndexRowState {
+  status: string
+  sent: string
+  resultUrl: string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -160,11 +179,11 @@ export function validateDirectory(
   if (!dir.name) {
     warnings.push({ slug: dir.slug, field: 'name', message: 'name is empty' })
   }
-  if (!dir.homepage.startsWith('https://')) {
+  if (!dir.url.startsWith('https://')) {
     warnings.push({
       slug: dir.slug,
-      field: 'homepage',
-      message: `homepage should be an HTTPS URL (got: ${dir.homepage})`,
+      field: 'url',
+      message: `url should be an HTTPS URL (got: ${dir.url})`,
     })
   }
   if (
@@ -266,7 +285,7 @@ export function renderPacket(
   // Header
   sections.push(`# Submission Packet — ${dir.name}`)
   sections.push('')
-  sections.push(`**Directory:** ${dir.homepage}`)
+  sections.push(`**Directory:** ${dir.url}`)
   sections.push(`**Submission type:** \`${dir.submissionType}\``)
   sections.push(`**Submission status:** \`${dir.submissionStatus}\` (verified upstream 2026-04-20)`)
   if (dir.submissionUrl) {
@@ -333,8 +352,8 @@ export function renderPacket(
   // Logo / screenshots
   sections.push('## 2. Assets')
   sections.push('')
-  if (dir.logoRequirement) {
-    const { width, height, format } = dir.logoRequirement
+  if (dir.logoSize) {
+    const { width, height, format } = dir.logoSize
     sections.push(
       `This directory requires a **${width}×${height} ${format.toUpperCase()}** logo. None of the on-disk logo files match that exact spec, so you'll need to convert:`,
     )
@@ -441,8 +460,8 @@ export function renderPacket(
   sections.push(`## ${stepHeaderIdx + 3}. Founder checklist`)
   sections.push('')
   sections.push('- [ ] Directory is confirmed live and legitimate (especially if `submissionStatus != verified`)')
-  if (dir.logoRequirement) {
-    sections.push(`- [ ] Logo converted to ${dir.logoRequirement.width}×${dir.logoRequirement.height} ${dir.logoRequirement.format}`)
+  if (dir.logoSize) {
+    sections.push(`- [ ] Logo converted to ${dir.logoSize.width}×${dir.logoSize.height} ${dir.logoSize.format}`)
   }
   sections.push('- [ ] Required fields populated from section 1')
   sections.push('- [ ] Description pasted verbatim (no silent rewrites that inflate scope)')
@@ -455,11 +474,51 @@ export function renderPacket(
 }
 
 /**
+ * Parse an existing generated README.md to recover the founder's
+ * edits in the Status / Sent / Result URL columns so regeneration
+ * doesn't destroy hand-maintained state.
+ *
+ * Returns a map keyed by directory slug. Slugs that don't appear in
+ * the input (or lines that don't match the table-row shape) are
+ * simply absent from the map; callers fall back to defaults.
+ *
+ * The regex aligns to the row format `renderIndex` emits:
+ *   | NN | [Name](url) | `type` | `verification` |
+ *        [`slug.md`](./slug.md) | status | sent | resultUrl |
+ * The `.md` link is the stable anchor — it's the only cell whose
+ * content is fully owned by the builder.
+ */
+export function parseExistingIndex(
+  content: string,
+): Map<string, IndexRowState> {
+  const result = new Map<string, IndexRowState>()
+  if (!content) return result
+  const rowRe =
+    /^\|\s*\d+\s*\|[^|]*\|\s*`[^`]*`\s*\|\s*`[^`]*`\s*\|\s*\[`([^`]+)\.md`\]\([^)]*\)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$/
+  for (const line of content.split('\n')) {
+    const m = line.match(rowRe)
+    if (!m) continue
+    const [, slug, status, sent, resultUrl] = m
+    result.set(slug, {
+      status: status.trim(),
+      sent: sent.trim(),
+      resultUrl: resultUrl.trim(),
+    })
+  }
+  return result
+}
+
+/**
  * Render the top-level packets/README.md founder checklist.
+ *
+ * If `preserved` is supplied, rows for known slugs use the preserved
+ * Status / Sent / Result URL values so founder edits survive
+ * regeneration. Unknown slugs get defaults.
  */
 export function renderIndex(
   directories: Directory[],
   project: ProjectMetadata,
+  preserved: Map<string, IndexRowState> = new Map(),
 ): string {
   const lines: string[] = []
   lines.push('# Directory Submission Packets — Founder Checklist')
@@ -488,8 +547,13 @@ export function renderIndex(
   lines.push('|---|-----------|------|--------------|--------|--------|------|------------|')
   directories.forEach((dir, i) => {
     const num = String(i + 1).padStart(2, '0')
+    const row = preserved.get(dir.slug) ?? {
+      status: 'not-sent',
+      sent: '—',
+      resultUrl: '—',
+    }
     lines.push(
-      `| ${num} | [${dir.name}](${dir.homepage}) | \`${dir.submissionType}\` | \`${dir.submissionStatus}\` | [\`${dir.slug}.md\`](./${dir.slug}.md) | not-sent | — | — |`,
+      `| ${num} | [${dir.name}](${dir.url}) | \`${dir.submissionType}\` | \`${dir.submissionStatus}\` | [\`${dir.slug}.md\`](./${dir.slug}.md) | ${row.status} | ${row.sent} | ${row.resultUrl} |`,
     )
   })
   lines.push('')
@@ -507,9 +571,9 @@ export function renderIndex(
   lines.push('')
   lines.push('## Regeneration')
   lines.push('')
-  lines.push('This file is generated. Manual edits to the submission tracker table (Status/Sent/Result URL columns) survive regeneration **only if** you add them to a separate tracker file or commit them after running the builder. Current builder behavior: the full file is overwritten on every run.')
+  lines.push('This file is generated. When you regenerate (`npx tsx scripts/directory-submissions/build.ts`) the builder reads the existing file first and preserves the per-row **Status**, **Sent**, and **Result URL** columns — so founder edits to those three columns survive. Everything else (directory list, types, packet links, section prose) is overwritten from the sources of truth.')
   lines.push('')
-  lines.push('_TODO for a future iteration: persist per-directory status in a sidecar file and preserve it across runs. Scaffold-time design ships the overwrite-everything version to keep the build logic simple._')
+  lines.push('Edit only the three preserved columns inline. Do not reorder rows: the builder re-sorts by slug and then merges your values in by slug.')
   lines.push('')
   return lines.join('\n')
 }
@@ -597,9 +661,21 @@ export async function buildPackets(
   }
 
   const indexPath = join(outputDir, 'README.md')
+
+  // Preserve founder edits in Status / Sent / Result URL columns across
+  // regenerations. Missing file is normal on a first build; malformed
+  // content yields an empty map (callers then fall back to defaults).
+  let preserved = new Map<string, IndexRowState>()
+  try {
+    const existing = await readFile(indexPath, 'utf-8')
+    preserved = parseExistingIndex(existing)
+  } catch {
+    // README doesn't exist yet — first build.
+  }
+
   // Pass the full (possibly filtered) sorted list to renderIndex so --only
   // still produces a coherent (if single-row) index.
-  const indexContent = renderIndex(sorted, project) + '\n'
+  const indexContent = renderIndex(sorted, project, preserved) + '\n'
   await writeFile(indexPath, indexContent, 'utf-8')
 
   console.log(`Built ${packets.length} packet(s) → ${outputDir}`)
