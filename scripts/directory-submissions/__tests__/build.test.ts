@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import {
   buildPackets,
   loadDirectories,
+  parseExistingIndex,
   parseGithubUrl,
   pickDescription,
   renderIndex,
@@ -68,7 +69,7 @@ function makeDir(overrides: Partial<Directory> = {}): Directory {
   return {
     slug: 'sample-dir',
     name: 'Sample Directory',
-    homepage: 'https://sample.example',
+    url: 'https://sample.example',
     submissionType: 'form',
     submissionUrl: 'https://sample.example/submit',
     submissionStatus: 'verified',
@@ -76,7 +77,7 @@ function makeDir(overrides: Partial<Directory> = {}): Directory {
     charLimits: {
       description: { max: 200, source: 'docs' },
     },
-    logoRequirement: null,
+    logoSize: null,
     descriptionVariant: 'medium',
     prFormat: null,
     instructions: 'Fill the form. Click submit.',
@@ -192,10 +193,10 @@ describe('validateDirectory', () => {
     expect(w.some((x) => x.field === 'slug')).toBe(true)
   })
 
-  it('flags a non-HTTPS homepage', () => {
-    const dir = makeDir({ homepage: 'http://sample.example' })
+  it('flags a non-HTTPS url', () => {
+    const dir = makeDir({ url: 'http://sample.example' })
     const w = validateDirectory(dir, FIXTURE_PROJECT)
-    expect(w.some((x) => x.field === 'homepage')).toBe(true)
+    expect(w.some((x) => x.field === 'url')).toBe(true)
   })
 
   it('flags a non-HTTPS submissionUrl', () => {
@@ -261,9 +262,9 @@ describe('renderPacket', () => {
     expect(out).not.toContain('## 3. Exact PR diff')
   })
 
-  it('renders logo-conversion instructions when logoRequirement set', () => {
+  it('renders logo-conversion instructions when logoSize set', () => {
     const dir = makeDir({
-      logoRequirement: { width: 400, height: 400, format: 'png' },
+      logoSize: { width: 400, height: 400, format: 'png' },
     })
     const out = renderPacket(dir, FIXTURE_PROJECT)
     expect(out).toContain('400×400 PNG')
@@ -332,6 +333,75 @@ describe('renderIndex', () => {
   it('lists the default status as not-sent', () => {
     const out = renderIndex([makeDir()], FIXTURE_PROJECT)
     expect(out).toContain('not-sent')
+  })
+
+  it('uses preserved Status / Sent / Result URL values when supplied', () => {
+    const preserved = new Map([
+      [
+        'a',
+        {
+          status: 'accepted',
+          sent: '2026-04-21',
+          resultUrl: 'https://x.example/accepted-a',
+        },
+      ],
+    ])
+    const out = renderIndex(
+      [makeDir({ slug: 'a', name: 'A' }), makeDir({ slug: 'b', name: 'B' })],
+      FIXTURE_PROJECT,
+      preserved,
+    )
+    // Preserved row carries the founder-edited values (row is prefixed
+    // with the zero-padded index, e.g. `| 01 | [A](...) | ...`).
+    expect(out).toMatch(
+      /\| 01 \| \[A\].*\[`a\.md`\].*accepted.*2026-04-21.*https:\/\/x\.example\/accepted-a/,
+    )
+    // Unpreserved row falls back to defaults.
+    expect(out).toMatch(/\| 02 \| \[B\].*\[`b\.md`\].*not-sent.*— \| — \|/)
+  })
+})
+
+describe('parseExistingIndex', () => {
+  it('returns an empty map on empty input', () => {
+    expect(parseExistingIndex('').size).toBe(0)
+  })
+
+  it('returns an empty map when no table rows are present', () => {
+    expect(
+      parseExistingIndex('# Not a tracker\n\nJust prose.\n').size,
+    ).toBe(0)
+  })
+
+  it('extracts slug + 3 preserved columns from a real tracker row', () => {
+    const content = [
+      '| # | Directory | Type | Verification | Packet | Status | Sent | Result URL |',
+      '|---|-----------|------|--------------|--------|--------|------|------------|',
+      '| 01 | [Foo](https://foo.example) | `form` | `verified` | [`foo.md`](./foo.md) | accepted | 2026-04-21 | https://foo/ok |',
+      '| 02 | [Bar](https://bar.example) | `pr` | `partial` | [`bar.md`](./bar.md) | not-sent | — | — |',
+    ].join('\n')
+    const m = parseExistingIndex(content)
+    expect(m.get('foo')).toEqual({
+      status: 'accepted',
+      sent: '2026-04-21',
+      resultUrl: 'https://foo/ok',
+    })
+    expect(m.get('bar')).toEqual({
+      status: 'not-sent',
+      sent: '—',
+      resultUrl: '—',
+    })
+  })
+
+  it('round-trips through renderIndex without drift', () => {
+    const dirs = [
+      makeDir({ slug: 'alpha', name: 'Alpha' }),
+      makeDir({ slug: 'beta', name: 'Beta' }),
+    ]
+    const initial = renderIndex(dirs, FIXTURE_PROJECT)
+    const parsed1 = parseExistingIndex(initial)
+    const second = renderIndex(dirs, FIXTURE_PROJECT, parsed1)
+    const parsed2 = parseExistingIndex(second)
+    expect(parsed2).toEqual(parsed1)
   })
 })
 
@@ -489,6 +559,97 @@ describe('buildPackets', () => {
     const indexContent = await readFile(join(outDir, 'README.md'), 'utf-8')
     expect(indexContent).toContain('[`one.md`](./one.md)')
     expect(indexContent).toContain('[`two.md`](./two.md)')
+  })
+
+  it('preserves founder edits to Status / Sent / Result URL across regeneration', async () => {
+    const dirsJson = join(tmpDir, 'directories.json')
+    const outDir = join(tmpDir, 'packets')
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [
+        makeDir({ slug: 'alpha', name: 'Alpha' }),
+        makeDir({ slug: 'beta', name: 'Beta' }),
+      ],
+    })
+
+    // First build — fresh defaults.
+    await buildPackets({
+      directoriesJsonPath: dirsJson,
+      outputDir: outDir,
+      project: FIXTURE_PROJECT,
+    })
+    const indexPath = join(outDir, 'README.md')
+    const firstContent = await readFile(indexPath, 'utf-8')
+
+    // Founder edits alpha's row in place.
+    const editedContent = firstContent.replace(
+      /(\| 01 \| \[Alpha\][^\n]*?)\| not-sent \| — \| — \|/,
+      '$1| accepted | 2026-04-22 | https://alpha.example/listed |',
+    )
+    expect(editedContent).not.toBe(firstContent) // sanity: edit actually landed
+    await writeFile(indexPath, editedContent, 'utf-8')
+
+    // Regenerate — preservation must kick in.
+    await buildPackets({
+      directoriesJsonPath: dirsJson,
+      outputDir: outDir,
+      project: FIXTURE_PROJECT,
+    })
+    const secondContent = await readFile(indexPath, 'utf-8')
+    expect(secondContent).toContain('accepted')
+    expect(secondContent).toContain('2026-04-22')
+    expect(secondContent).toContain('https://alpha.example/listed')
+    // And beta's defaults are still defaults.
+    expect(secondContent).toMatch(
+      /\| 02 \| \[Beta\][^\n]*?\| not-sent \| — \| — \|/,
+    )
+  })
+
+  it('new directories added after the initial build get default row values', async () => {
+    const dirsJson = join(tmpDir, 'directories.json')
+    const outDir = join(tmpDir, 'packets')
+    // First build: only alpha.
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [makeDir({ slug: 'alpha', name: 'Alpha' })],
+    })
+    await buildPackets({
+      directoriesJsonPath: dirsJson,
+      outputDir: outDir,
+      project: FIXTURE_PROJECT,
+    })
+    const indexPath = join(outDir, 'README.md')
+    // Founder edits alpha.
+    const first = await readFile(indexPath, 'utf-8')
+    await writeFile(
+      indexPath,
+      first.replace(/\| not-sent \| — \| — \|/, '| sent | 2026-04-22 | — |'),
+      'utf-8',
+    )
+
+    // Now expand to two directories and rebuild.
+    await writeDirsJson(dirsJson, {
+      schemaVersion: 1,
+      verifiedAt: '2026-04-20',
+      directories: [
+        makeDir({ slug: 'alpha', name: 'Alpha' }),
+        makeDir({ slug: 'beta', name: 'Beta' }),
+      ],
+    })
+    await buildPackets({
+      directoriesJsonPath: dirsJson,
+      outputDir: outDir,
+      project: FIXTURE_PROJECT,
+    })
+    const second = await readFile(indexPath, 'utf-8')
+    // alpha's edit is preserved.
+    expect(second).toMatch(/\| 01 \| \[Alpha\][^\n]*\| sent \| 2026-04-22 \| — \|/)
+    // beta gets the fresh default row.
+    expect(second).toMatch(
+      /\| 02 \| \[Beta\][^\n]*\| not-sent \| — \| — \|/,
+    )
   })
 })
 
