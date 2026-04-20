@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { forbidden, unauthorized } from 'next/navigation'
 import Link from 'next/link'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import {
@@ -9,27 +9,29 @@ import {
   TEMPLATER_RUNS_DIR,
 } from '@/lib/templater-runs'
 import { TemplaterRunCard } from '@/components/admin/TemplaterRunCard'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 
 const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Match the landing-page pattern: show a generic 404 on auth failure
- * so unauthenticated probes don't confirm that /admin/templater exists.
- * The hostile reviewer for P3.4 flagged this as a hard requirement.
+ * Spec requires unauthenticated requests receive 401, not 200/404.
+ * Next 15's unauthorized() + forbidden() helpers throw navigation
+ * interrupts caught by the matching boundaries (unauthorized.tsx /
+ * forbidden.tsx in this route folder).
  */
-async function requireAdmin(): Promise<{ email: string }> {
+async function requireAdmin(): Promise<void> {
   let auth
   try {
     auth = await requireDeveloper()
   } catch {
-    notFound()
+    unauthorized()
   }
   if (!ADMIN_EMAILS.includes(auth.email)) {
-    notFound()
+    forbidden()
   }
-  return { email: auth.email }
 }
 
 function formatCost(usd: number): string {
@@ -40,6 +42,15 @@ function formatCost(usd: number): string {
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat('en-US').format(n)
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card className="p-4">
+      <p className="text-xl font-bold text-gray-100 tabular-nums">{value}</p>
+      <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+    </Card>
+  )
 }
 
 export default async function TemplaterAdminPage() {
@@ -72,7 +83,7 @@ export default async function TemplaterAdminPage() {
         </div>
 
         {errors.length > 0 && (
-          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <Card className="mb-6 border-amber-500/30 bg-amber-500/5 p-4">
             <p className="text-sm font-medium text-amber-400 mb-2">
               {errors.length} snapshot file{errors.length === 1 ? '' : 's'} could not be loaded
             </p>
@@ -83,11 +94,11 @@ export default async function TemplaterAdminPage() {
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         )}
 
         {runs.length === 0 ? (
-          <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-8 text-center">
+          <Card className="p-8 text-center">
             <p className="text-sm text-gray-400 mb-2">No run snapshots yet.</p>
             <p className="text-xs text-gray-500">
               Run{' '}
@@ -96,50 +107,35 @@ export default async function TemplaterAdminPage() {
               </code>{' '}
               to pull summaries from the agents repo.
             </p>
-          </div>
+          </Card>
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-4">
-                <p className="text-xl font-bold text-gray-100 tabular-nums">
-                  {formatNumber(totals.runs)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Runs</p>
-              </div>
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-4">
-                <p className="text-xl font-bold text-gray-100 tabular-nums">
-                  {formatNumber(totals.templatesProduced)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Templates produced</p>
-              </div>
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-4">
-                <p className="text-xl font-bold text-gray-100 tabular-nums">
-                  {formatNumber(totals.attempts)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Total attempts</p>
-              </div>
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-4">
-                <p className="text-xl font-bold text-gray-100 tabular-nums">
-                  {formatCost(totals.totalCostUsd)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Tracked spend</p>
-              </div>
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-4">
-                <p className="text-xl font-bold text-gray-100 tabular-nums">
-                  {formatCost(totals.avgCostPerTemplateUsd)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">$ / template (avg)</p>
-              </div>
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-4">
-                <p className="text-xl font-bold text-gray-100 tabular-nums">
-                  {totals.avgRejectRatePct.toFixed(1)}%
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Avg reject rate</p>
-              </div>
+              <SummaryStat label="Runs" value={formatNumber(totals.runs)} />
+              <SummaryStat
+                label="Templates produced"
+                value={formatNumber(totals.templatesProduced)}
+              />
+              <SummaryStat
+                label="Total attempts"
+                value={formatNumber(totals.attempts)}
+              />
+              <SummaryStat
+                label="Tracked spend"
+                value={formatCost(totals.totalCostUsd)}
+              />
+              <SummaryStat
+                label="$ / template (avg)"
+                value={formatCost(totals.avgCostPerTemplateUsd)}
+              />
+              <SummaryStat
+                label="Avg reject rate"
+                value={`${totals.avgRejectRatePct.toFixed(1)}%`}
+              />
             </div>
 
             {spend.length > 0 && (
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-8">
+              <Card className="p-5 mb-8">
                 <h3 className="text-sm font-medium text-gray-400 mb-4">
                   Cumulative spend ({spend.length} run{spend.length === 1 ? '' : 's'})
                 </h3>
@@ -175,14 +171,19 @@ export default async function TemplaterAdminPage() {
                 <p className="text-[10px] text-gray-600 italic mt-3">
                   Spend reflects tracked Haiku costs only; Sonnet spend is not currently instrumented (see per-run notes).
                 </p>
-              </div>
+              </Card>
             )}
 
             {failureModes.length > 0 && (
-              <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-5 mb-8">
-                <h3 className="text-sm font-medium text-gray-400 mb-4">
-                  Aggregate failure modes (across all runs)
-                </h3>
+              <Card className="p-5 mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="text-sm font-medium text-gray-400">
+                    Aggregate failure modes (across all runs)
+                  </h3>
+                  <Badge variant="destructive">
+                    {failureModes.reduce((n, f) => n + f.count, 0)} total
+                  </Badge>
+                </div>
                 <ul className="space-y-2">
                   {failureModes.map((f) => (
                     <li key={f.verdict} className="flex items-center gap-3 text-sm">
@@ -201,7 +202,7 @@ export default async function TemplaterAdminPage() {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Card>
             )}
 
             <div className="mb-4">

@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../../'),
   serverExternalPackages: ['postgres'],
+  experimental: {
+    // Unlock unauthorized()/forbidden() navigation helpers (Next 15.1+)
+    // so server components can return proper 401/403 HTTP statuses.
+    // Used by /admin/templater (P3.4).
+    authInterrupts: true,
+  },
 }
 
 export default withSentryConfig(nextConfig, {
