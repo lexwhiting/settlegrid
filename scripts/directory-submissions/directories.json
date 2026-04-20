@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-04-20",
+  "directories": [
+    {
+      "slug": "appcypher-awesome-mcp-servers",
+      "name": "awesome-mcp-servers (appcypher)",
+      "homepage": "https://github.com/appcypher/awesome-mcp-servers",
+      "submissionType": "pr",
+      "submissionUrl": "https://github.com/appcypher/awesome-mcp-servers/compare",
+      "submissionStatus": "verified",
+      "requiredFields": ["name", "repoUrl", "description", "category"],
+      "charLimits": {
+        "description": {
+          "max": 140,
+          "source": "awesome-list convention; README entries observed at 80-140 chars"
+        }
+      },
+      "logoRequirement": null,
+      "descriptionVariant": "medium",
+      "prFormat": {
+        "file": "README.md",
+        "categoryHint": "💰 Finance & Payments (suggested — confirm section exists; if not, propose adding it in the PR)",
+        "entryTemplate": "[![](icon-url)]({homepage}) [{name}]({github}) - {description}"
+      },
+      "instructions": "1. Fork `https://github.com/appcypher/awesome-mcp-servers`.\n2. Check the README's table of contents for a finance/payments/monetization section. If one exists, add the entry there. If not, the PR may propose a new section; justify it in the PR description.\n3. Use the entry template (see `prFormat.entryTemplate`). The icon URL should be a direct link to the 32×32 or 64×64 PNG in this repo (`apps/web/public/favicon-32.png`). GitHub serves raw assets at `https://raw.githubusercontent.com/lexwhiting/settlegrid/main/apps/web/public/favicon-32.png`.\n4. Commit with a descriptive message (e.g., `Add SettleGrid (settlement layer for AI tools)`).\n5. Open a PR against `main`. Reference the CONTRIBUTING.md if the list has merge-style expectations.",
+      "notes": "appcypher list uses emoji-prefixed category headers (e.g., 📂 File Systems, 🔄 Version Control). A 'Finance & Payments' or 'Monetization' section may not exist yet — if not, the PR is effectively proposing a new category, which has a lower merge rate. Fallback: file under '💬 Communication' if it relates to agent orchestration, or '🤖 AI & ML' if a more specific bucket isn't available."
+    },
+    {
+      "slug": "cline-mcp-marketplace",
+      "name": "Cline MCP Marketplace",
+      "homepage": "https://github.com/cline/mcp-marketplace",
+      "submissionType": "issue",
+      "submissionUrl": "https://github.com/cline/mcp-marketplace/issues/new?template=mcp-server-submission.yml",
+      "submissionStatus": "verified",
+      "requiredFields": [
+        "repoUrl",
+        "logoPng400",
+        "installTestConfirmation",
+        "stabilityConfirmation",
+        "descriptionLong"
+      ],
+      "charLimits": {},
+      "logoRequirement": {
+        "width": 400,
+        "height": 400,
+        "format": "png"
+      },
+      "descriptionVariant": "long",
+      "prFormat": null,
+      "instructions": "1. Confirm an `llms-install.md` exists at the SettleGrid MCP server repo root (or that the README contains everything Cline needs to set up the server from a blank slate). This is a Cline review requirement.\n2. Test the install path: open Cline, point it at the repo's README.md (or llms-install.md), and verify Cline can bring the server up without manual steps.\n3. Convert a logo to 400×400 PNG. Starting from `apps/web/public/logos/icon-color.svg`: `npx sharp-cli -i apps/web/public/logos/icon-color.svg -o /tmp/settlegrid-400.png resize 400 400` (or use an online SVG→PNG tool).\n4. Open the submission issue using the template URL (see `submissionUrl`). Paste the long description. Attach the 400×400 PNG.\n5. Check the two confirmation boxes: install-test confirmation and stability confirmation.\n6. Submit. Review by Cline team evaluates community adoption, developer credibility, project maturity, and security.",
+      "notes": "Cline reviews gate on security audit quality — be prepared to answer questions about the SDK's code execution surface. Use the SDK's existing sandbox notes (see packages/mcp/README.md)."
+    },
+    {
+      "slug": "glama",
+      "name": "Glama",
+      "homepage": "https://glama.ai/mcp/servers",
+      "submissionType": "form",
+      "submissionUrl": "https://glama.ai/mcp/servers",
+      "submissionStatus": "partial",
+      "requiredFields": ["name", "repoUrl", "description"],
+      "charLimits": {
+        "description": {
+          "max": 500,
+          "source": "unverified — no public docs found; field caps observed on the 'Add Server' dialog at submission time"
+        }
+      },
+      "logoRequirement": null,
+      "descriptionVariant": "long",
+      "prFormat": null,
+      "instructions": "1. Go to `https://glama.ai/mcp/servers` and click 'Add Server' in the navigation.\n2. Glama may require an account — sign in via GitHub if prompted.\n3. Paste the values below into the form fields as they map. Observed fields (verified at submission time): Name, Repository URL, Description. Any additional fields that appear — categories, tags, pricing — use the `tags` array and the SettleGrid landing page for context.\n4. Submit. Glama's directory had 21,842 servers listed as of 2026-04-20, so review turnaround is typically automated for GitHub-backed repos.",
+      "notes": "This packet's field list is partial — the public Glama docs did not expose the full 'Add Server' form schema as of 2026-04-20. Verify the actual form fields at submission time and report back so this packet can be hardened."
+    },
+    {
+      "slug": "habitoai-awesome-mcp-servers",
+      "name": "awesome-mcp-servers (habitoai)",
+      "homepage": "https://github.com/habitoai/awesome-mcp-servers",
+      "submissionType": "pr",
+      "submissionUrl": "https://github.com/habitoai/awesome-mcp-servers/compare",
+      "submissionStatus": "verified",
+      "requiredFields": ["name", "repoUrl", "description", "category"],
+      "charLimits": {
+        "description": {
+          "max": 140,
+          "source": "awesome-list convention; habitoai entries observed at 60-140 chars"
+        }
+      },
+      "logoRequirement": null,
+      "descriptionVariant": "medium",
+      "prFormat": {
+        "file": "README.md",
+        "categoryHint": "AI Services or Developer Tools (confirm section exists; habitoai uses plain-text category names, not emoji-prefixed)",
+        "entryTemplate": "*   [{name}]({github}) - {description}"
+      },
+      "instructions": "1. Read `CONTRIBUTING.md` in the repo — habitoai has explicit contribution rules that govern PR acceptance.\n2. Fork the repo. Pick the best-fit category in the README's table of contents ('AI Services', 'Developer Tools', 'Databases', etc.). If no obvious bucket, the PR can propose adding a 'Billing & Monetization' section; justify in the PR description.\n3. Add the bullet using the entry template (see `prFormat.entryTemplate`). Keep description under 140 chars.\n4. Commit and open the PR. Reference CONTRIBUTING.md in the PR body to show alignment.",
+      "notes": "habitoai's list is MIT-licensed and has a Code of Conduct. PRs are reviewed — don't chain submissions across multiple awesome-lists in the same PR window without confirming each accepts the format."
+    },
+    {
+      "slug": "lobehub",
+      "name": "LobeHub MCP Market",
+      "homepage": "https://lobehub.com/mcp",
+      "submissionType": "form",
+      "submissionUrl": "https://lobehub.com/mcp",
+      "submissionStatus": "partial",
+      "requiredFields": ["name", "repoUrl", "description"],
+      "charLimits": {
+        "description": {
+          "max": 500,
+          "source": "unverified — docs reference a 'skill.md' at lobehub.com/mcp/skill.md with full instructions; verify at submission time"
+        }
+      },
+      "logoRequirement": null,
+      "descriptionVariant": "long",
+      "prFormat": null,
+      "instructions": "1. Go to `https://lobehub.com/mcp` and click 'Submit MCP'.\n2. LobeHub references a detailed instruction document at `https://lobehub.com/mcp/skill.md` — read this first; it may specify a GitHub-side file (like `lobehub.json`) the repo needs to host before the submission will be accepted.\n3. Paste the name, repo URL, and long description. If a logo or screenshots are accepted, attach the SVG logo and 2-3 screenshots from `apps/web/public/screenshots/`.\n4. Submit. LobeHub's review process is not documented publicly; typical turnaround is unknown.",
+      "notes": "This packet is partial — the lobehub.com/mcp/submit endpoint returned 403 (not publicly documented), and the skill.md flow was not inspectable in scaffold-time research. Verify the actual submission path at submission time and update this packet."
+    },
+    {
+      "slug": "mcpmarket",
+      "name": "MCPMarket",
+      "homepage": "https://mcpmarket.com",
+      "submissionType": "unknown",
+      "submissionUrl": null,
+      "submissionStatus": "unverified",
+      "requiredFields": [],
+      "charLimits": {},
+      "logoRequirement": null,
+      "descriptionVariant": "long",
+      "prFormat": null,
+      "instructions": "**Submission path is NOT verified.** During scaffold research (2026-04-20), mcpmarket.com returned HTTP 429 (rate-limited) on the homepage and the /add path. The directory is listed in the P3.7 directory list but no concrete submission mechanism was confirmed.\n\nAction items for the founder before using this packet:\n1. Open `https://mcpmarket.com` in a browser. Confirm the site is alive and appears to be a legitimate MCP directory (not a domain squat).\n2. Look for a 'Submit', 'Add Server', 'Contribute', or 'Contact' link.\n3. If a submission path exists, follow it and paste the canonical values below (name, descriptions, tags, URLs).\n4. If no submission path exists but there's a contact email, reach out with the long description and attached logo/screenshots.\n5. Update this packet's `submissionStatus` to `verified` once the path is confirmed, and record the actual fields in `requiredFields`.",
+      "notes": "If MCPMarket turns out to be abandoned, low-quality, or a fabricated directory, remove it from `directories.json` rather than submitting — the hostile-audit rule 'no fabricated directory URLs' extends to 'no submission to zombie directories that dilute brand trust'."
+    },
+    {
+      "slug": "mcpservers-org",
+      "name": "mcpservers.org",
+      "homepage": "https://mcpservers.org",
+      "submissionType": "form",
+      "submissionUrl": "https://mcpservers.org/submit",
+      "submissionStatus": "verified",
+      "requiredFields": [
+        "serverName",
+        "shortDescription",
+        "link",
+        "category",
+        "contactEmail"
+      ],
+      "charLimits": {
+        "shortDescription": {
+          "max": 200,
+          "source": "no declared cap; form field size observed at ~200 chars"
+        }
+      },
+      "logoRequirement": null,
+      "descriptionVariant": "medium",
+      "prFormat": null,
+      "instructions": "1. Go to `https://mcpservers.org/submit`.\n2. Fill the form with the values below: Server Name, Short Description, Link (use the GitHub repo URL for this one — some directories prefer docs URL, but mcpservers.org indexes from the Git repository), Category (use the most specific category available; 'Finance', 'Payments', or 'Infrastructure' if present), Contact Email.\n3. The free tier suffices — the $39 'Premium Submit' upgrades to a dofollow backlink and faster review, but is not required for listing. Note: use the free tier for the first submission.\n4. Submit. This form is also the canonical submission path for `wong2/awesome-mcp-servers` (that repo explicitly redirects PR authors here), so this one form covers two directories.",
+      "notes": "mcpservers.org doubles as the canonical entry for wong2/awesome-mcp-servers — a single submission here covers both listings. Don't also file a PR against wong2's repo; it will be rejected per their README."
+    },
+    {
+      "slug": "pipedream-awesome-mcp-servers",
+      "name": "awesome-mcp-servers (PipedreamHQ)",
+      "homepage": "https://github.com/PipedreamHQ/awesome-mcp-servers",
+      "submissionType": "pr",
+      "submissionUrl": "https://github.com/PipedreamHQ/awesome-mcp-servers/compare",
+      "submissionStatus": "partial",
+      "requiredFields": ["name", "repoUrl", "description"],
+      "charLimits": {
+        "description": {
+          "max": 200,
+          "source": "awesome-list convention; PipedreamHQ entries observed at 100-200 chars"
+        }
+      },
+      "logoRequirement": null,
+      "descriptionVariant": "medium",
+      "prFormat": {
+        "file": "README.md",
+        "categoryHint": "No clear category section for third-party servers",
+        "entryTemplate": "- [{name}]({github}) - {description}"
+      },
+      "instructions": "**Before submitting: verify this directory accepts third-party MCP servers.** Observed during scaffold research (2026-04-20): every entry in PipedreamHQ's list links to `https://mcp.pipedream.com/app/{slug}` — suggesting this is a list of Pipedream's own MCP app integrations, not a general-purpose awesome-list. No `CONTRIBUTING.md` was found.\n\nIf the list does accept third-party servers:\n1. Fork `https://github.com/PipedreamHQ/awesome-mcp-servers`.\n2. Check the README for category structure.\n3. Add the bullet using the entry template.\n4. Open a PR with a clear justification for adding a non-Pipedream-hosted server.\n\nIf the list is Pipedream-internal only: skip this directory. The founder can pursue a Pipedream app listing separately (unrelated to this packet).",
+      "notes": "Partial verification: repo exists but README is Pipedream-app-centric. A direct PR without prior confirmation of external-server acceptance has a high rejection probability."
+    },
+    {
+      "slug": "pulsemcp",
+      "name": "PulseMCP",
+      "homepage": "https://www.pulsemcp.com",
+      "submissionType": "hybrid",
+      "submissionUrl": "https://www.pulsemcp.com/submit",
+      "submissionStatus": "verified",
+      "requiredFields": ["mcpRegistryPublication", "serverUrl"],
+      "charLimits": {},
+      "logoRequirement": null,
+      "descriptionVariant": "medium",
+      "prFormat": null,
+      "instructions": "PulseMCP does not have a direct web form. Their flow is: publish to the Official MCP Registry first, then PulseMCP ingests daily and processes weekly.\n\n1. **Publish to the Official MCP Registry.** This is the upstream source. See https://github.com/modelcontextprotocol/registry for the current registry publication flow (JSON entry in a specific repo location, or via the registry API).\n2. Wait ~1 week after the registry entry is live. PulseMCP's ingest runs daily, their processing runs weekly.\n3. If after a week the listing hasn't appeared on pulsemcp.com, go to `https://www.pulsemcp.com/submit` and send an email via the address listed on that page with:\n   - The URL (GitHub repo, subfolder, or standalone site)\n   - A short note explaining the listing\n   - Any adjustments requested to an existing listing\n4. No separate form submission — email is the only direct channel.",
+      "notes": "PulseMCP is explicit: they ingest from the Official MCP Registry. Submitting to them without first publishing to the registry is a waste of effort. Treat Registry publication as a prerequisite, not a parallel task."
+    },
+    {
+      "slug": "smithery",
+      "name": "Smithery",
+      "homepage": "https://smithery.ai",
+      "submissionType": "cli",
+      "submissionUrl": "https://smithery.ai/new",
+      "submissionStatus": "verified",
+      "requiredFields": ["publicHttpsUrl", "namespaceAndName"],
+      "charLimits": {},
+      "logoRequirement": null,
+      "descriptionVariant": "long",
+      "prFormat": null,
+      "instructions": "Smithery has two publication paths:\n\n**Path A — Web UI**:\n1. Go to `https://smithery.ai/new`.\n2. Enter your server's public HTTPS URL (e.g., `https://mcp.settlegrid.ai/<server-slug>`).\n3. Set the namespace + name (e.g., `@settlegrid/settlegrid-mcp`).\n4. Submit.\n\n**Path B — CLI**:\n1. Run: `npx smithery mcp publish \"https://mcp.settlegrid.ai/<server-slug>\" -n @settlegrid/settlegrid-mcp`\n2. Follow the auth prompts.\n\n**Optional server-card.json**: For richer metadata (logo, description, categories, pricing), host a static file at `<server-url>/.well-known/mcp/server-card.json`. Smithery reads this on ingest. Use the long description (see `descriptionLong` in project metadata) as the `description` field.",
+      "notes": "Smithery is 'bring your own hosting' — SettleGrid must have a deployed MCP server URL before this submission works. As of the SettleGrid v0.2.0 SDK, the public MCP server URL is TBD — the founder needs to deploy a reference server before this packet is actionable."
+    },
+    {
+      "slug": "vercel-templates-gallery",
+      "name": "Vercel Templates Gallery",
+      "homepage": "https://vercel.com/templates",
+      "submissionType": "gallery",
+      "submissionUrl": null,
+      "submissionStatus": "unverified",
+      "requiredFields": [],
+      "charLimits": {},
+      "logoRequirement": null,
+      "descriptionVariant": "long",
+      "prFormat": null,
+      "instructions": "**No public self-serve submission path exists as of 2026-04-20.** Verified during scaffold research: `vercel.com/templates/submit` returns 404, and `vercel.com/docs/projects/templates/contributing` does not exist. The Vercel Templates Gallery is editorially curated.\n\nAction items for the founder:\n1. Identify a suitable Vercel-native SettleGrid template (e.g., a minimal 'SettleGrid + Next.js API monetization' starter under `packages/create-settlegrid-tool/templates/` that deploys cleanly to Vercel).\n2. Confirm the template has a live demo deployment on Vercel.\n3. Reach out via Vercel's official channels: (a) Twitter DM to `@vercel` or `@rauchg`, (b) email `templates@vercel.com` (confirm address active before sending), (c) the community Discord's template-request channel.\n4. Include the template repo URL, a live demo URL, a short description (160 chars), and 2-3 screenshots.\n\nAlternative: publish the template as a `Deploy to Vercel` one-click button on the settlegrid.ai landing page. This doesn't require gallery approval and captures most of the value (deep-linked deploys).",
+      "notes": "This is the weakest directory in the P3.7 list in terms of actionable submission path. The Deploy-to-Vercel button approach may yield more than the gallery submission. Consider dropping this from the active outreach list after the founder confirms no faster path exists."
+    }
+  ]
+}
