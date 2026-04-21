@@ -121,6 +121,7 @@ export const ACADEMY_LESSONS: AcademyLesson[] = [
       'stripe machine payments protocol',
       'x402 payment protocol',
       'agent payment rail',
+      'pick the right payment rail',
       'mcp payment protocol comparison',
       'settlegrid vs stripe',
       'settlegrid vs x402',
@@ -171,6 +172,7 @@ export const ACADEMY_LESSONS: AcademyLesson[] = [
     datePublished: '2026-04-20',
     dateModified: '2026-04-20',
     keywords: [
+      'how to calculate margin on an ai api',
       'calculate margin ai api',
       'ai api margin',
       'mcp tool margin calculation',
