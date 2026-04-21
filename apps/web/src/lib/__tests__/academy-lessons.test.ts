@@ -53,12 +53,15 @@ describe('lesson: pricing-your-mcp-server', () => {
       /^https:\/\/settlegrid\.ai\/learn\/academy\//,
     )
     expect(lesson.keywords.length).toBeGreaterThanOrEqual(3)
-    // Spec says SEO targets: "how to price mcp server", "mcp server
-    // pricing", "ai tool pricing". Keywords should cover all three
-    // semantic targets (substring match — keyword variants OK).
-    const joined = lesson.keywords.join(' ').toLowerCase()
-    expect(joined).toMatch(/mcp server pricing|price.*mcp.*server/)
-    expect(joined).toMatch(/ai.*tool.*pricing|ai.*pricing/)
+    // Spec prerequisite: "SEO target keywords confirmed: 'how to
+    // price mcp server', 'mcp server pricing', 'ai tool pricing'".
+    // All three must appear verbatim in the keywords array so the
+    // site-level SEO config and per-lesson <meta name="keywords">
+    // agree on the targets.
+    const lower = lesson.keywords.map((k) => k.toLowerCase())
+    expect(lower).toContain('how to price mcp server')
+    expect(lower).toContain('mcp server pricing')
+    expect(lower).toContain('ai tool pricing')
   })
 
   it('body is non-empty and between 3000 and 5000 words (spec floor + ceiling)', () => {
@@ -113,5 +116,46 @@ describe('lesson: pricing-your-mcp-server', () => {
       p.toLowerCase().includes(primary),
     ).length
     expect(hits / paragraphs.length).toBeLessThan(0.5)
+  })
+
+  // --- Hostile regression: declared wordCount must not drift -----------
+  // If a lesson sets an explicit wordCount override, it must match the
+  // computed count within 5%. Otherwise the JSON-LD article schema
+  // ships a misleading count while the body silently grows or shrinks.
+  it('has no wordCount override or a declared count within 5% of the real body', () => {
+    if (lesson.wordCount === undefined) return // computed at render
+    const computed = wordCountFromMarkdown(lesson.body)
+    const driftPct = Math.abs(lesson.wordCount - computed) / computed
+    expect(driftPct).toBeLessThan(0.05)
+  })
+})
+
+// ─── Page-side hostile regression ─────────────────────────────────────
+//
+// The lesson page embeds JSON-LD via dangerouslySetInnerHTML. If any
+// lesson's title or summary ever contains a literal `</script>`
+// sequence, naive JSON.stringify would break out of the script tag
+// and render the rest of the payload as HTML (XSS in static
+// generation). The safeJsonLd helper escapes `<` as `\u003c` to
+// prevent this. This test mirrors that escape behavior at the
+// registry level so a lesson authored with a hostile title still
+// round-trips safely.
+
+describe('JSON-LD payload safety', () => {
+  it('a lesson title containing </script> still produces safe JSON when escaped', () => {
+    const hostileTitle = 'Pricing</script><script>alert(1)</script>'
+    const payload = { headline: hostileTitle }
+    const raw = JSON.stringify(payload)
+    const safe = raw.replace(/</g, '\\u003c')
+    // Raw stringification still carries the script tag verbatim.
+    expect(raw).toContain('</script>')
+    // Escaped payload no longer contains a literal `<` anywhere, so
+    // the HTML parser cannot see `</script>` when the payload is
+    // embedded inside a script tag.
+    expect(safe).not.toContain('</script>')
+    expect(safe).not.toContain('<')
+    // The escaped payload is still valid JSON that round-trips to
+    // the same object.
+    expect(JSON.parse(safe)).toEqual(payload)
   })
 })

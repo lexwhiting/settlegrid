@@ -19,6 +19,26 @@ export function generateStaticParams() {
   return ACADEMY_SLUGS.map((slug) => ({ slug }))
 }
 
+// ─── JSON-LD safe serializer ────────────────────────────────────────────────
+
+/**
+ * Serialize a JSON-LD object for embedding inside a `<script>` tag.
+ *
+ * `JSON.stringify` does not escape `</script>` — a lesson whose title
+ * contained a literal `</script>` sequence would break out of the
+ * script tag and render the remainder of the JSON as HTML. Escaping
+ * `<` to its unicode form `\u003c` preserves JSON parsing
+ * (JSON parsers treat the escape identically) while making it
+ * impossible to close the script tag via the serialized payload.
+ *
+ * This is the same mitigation React's server-rendering docs
+ * recommend for any `dangerouslySetInnerHTML` that embeds a
+ * structured payload in a script tag.
+ */
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, '\\u003c')
+}
+
 // ─── Metadata ───────────────────────────────────────────────────────────────
 
 export async function generateMetadata({
@@ -31,6 +51,14 @@ export async function generateMetadata({
   if (!lesson) return { title: 'Lesson Not Found | SettleGrid' }
 
   const title = `${lesson.title} | SettleGrid Academy`
+
+  // Fall back to the site-wide OG card when a lesson doesn't ship its
+  // own. Twitter's `summary_large_image` card requires an image URL —
+  // omitting it makes Twitter silently drop the card or fall back to
+  // the smaller `summary` variant, which undercuts the SEO goal of
+  // the Academy.
+  const DEFAULT_OG_IMAGE = 'https://settlegrid.ai/brand/og-image.svg'
+  const ogImage = lesson.ogImage ?? DEFAULT_OG_IMAGE
 
   return {
     title,
@@ -47,12 +75,13 @@ export async function generateMetadata({
       modifiedTime: lesson.dateModified,
       authors: [lesson.author.name],
       section: 'Monetization Academy',
-      ...(lesson.ogImage ? { images: [{ url: lesson.ogImage }] } : {}),
+      images: [{ url: ogImage }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description: lesson.summary,
+      images: [ogImage],
     },
     other: {
       'article:published_time': lesson.datePublished,
@@ -189,13 +218,13 @@ export default async function AcademyLessonPage({
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(jsonLdArticle),
+              __html: safeJsonLd(jsonLdArticle),
             }}
           />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(jsonLdBreadcrumb),
+              __html: safeJsonLd(jsonLdBreadcrumb),
             }}
           />
 
