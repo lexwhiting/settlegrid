@@ -120,7 +120,7 @@ Dynamic pricing that over-rotates destroys trust. If your price changes every ho
 
 ## Three Short Case Studies
 
-Three real pricing patterns from the MCP ecosystem, sanitized but instructive.
+Three illustrative pricing patterns drawn from common MCP-ecosystem dynamics. Each sketch is a composite teaching example rather than a specific named tool — the numbers and behaviors are the kind of thing that plays out in practice, not a claim about any one real deployment.
 
 **A sentiment-analysis tool that started at 2 cents.** The developer's cost floor was about 1 cent (Haiku inference plus a few tenths of a cent for infrastructure). They launched at 2 cents per call, expecting thin margins but high volume. Adoption was decent but revenue was stuck at a ceiling. An A/B test comparing 2 cents vs 5 cents showed volume dropped by about 20% at 5 cents, but revenue grew by about 90%. They settled at 4 cents as the revenue-maximizing point and doubled their monthly earnings without changing the tool at all. Lesson: your first price is almost always too low.
 

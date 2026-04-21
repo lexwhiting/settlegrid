@@ -184,6 +184,70 @@ describe('lesson 1 — pricing-your-mcp-server SEO targets', () => {
   })
 })
 
+// ─── Hostile anti-pattern regressions ──────────────────────────────
+//
+// These tests encode specific hostile-audit findings from P3.9 so the
+// problematic phrases can't creep back in via future edits. Each
+// assertion corresponds to a real fix applied to the content.
+
+describe('content anti-patterns (no regressions)', () => {
+  it.each(ACADEMY_LESSONS.map((l) => [l.slug, l] as const))(
+    '%s does not claim case studies are "actual patterns, lightly sanitized"',
+    (_slug, lesson) => {
+      // P3.9 hostile H5/H8: case studies in lessons were framed as
+      // "actual patterns from the MCP ecosystem, lightly sanitized"
+      // but were synthetic teaching examples. Honest framing is
+      // "illustrative" or "composite" — not "actual" or "real".
+      const body = lesson.body.toLowerCase()
+      expect(body).not.toContain('lightly sanitized')
+      expect(body).not.toContain('actual patterns from the mcp')
+      expect(body).not.toContain('real pricing patterns from the mcp')
+    },
+  )
+
+  it('lesson 3 does not list specific x402 chain names uncited', () => {
+    // P3.9 hostile H6: the lesson used to enumerate "Base, Polygon,
+    // Arbitrum, Solana" as Coinbase-facilitator chains without
+    // citation. The set changes, and the LF press release only
+    // names Solana specifically. Safer framing: point at the x402
+    // Foundation docs and let readers check the current list.
+    const lesson = getAcademyLessonBySlug('stripe-vs-settlegrid-vs-x402')!
+    expect(lesson.body).not.toMatch(/Base,\s*Polygon,\s*Arbitrum,\s*Solana/)
+  })
+
+  it('lesson 3 does not attribute MCP to "AAIF" without a citation', () => {
+    // P3.9 hostile H1: the lesson used to say "maintained now by the
+    // Anthropic-donated AAIF / Model Context Protocol project"
+    // without a citation link. Anthropic's current MCP stewardship
+    // arrangement isn't material to the lesson's argument, so the
+    // framing was dropped entirely.
+    const lesson = getAcademyLessonBySlug('stripe-vs-settlegrid-vs-x402')!
+    expect(lesson.body).not.toContain('AAIF')
+    expect(lesson.body).not.toContain('Anthropic-donated')
+  })
+
+  it('lesson 3 does not claim a specific SettleGrid launch quarter', () => {
+    // P3.9 hostile H2: the comparison table's Launch row said "Late
+    // 2025" for SettleGrid, which is more specific than is
+    // citable. The column now reads just "2025".
+    const lesson = getAcademyLessonBySlug('stripe-vs-settlegrid-vs-x402')!
+    expect(lesson.body).not.toContain('Late 2025')
+    expect(lesson.body).not.toContain('Q4 2025')
+  })
+
+  it('lesson 3 does not use the specific "$100K/month" DIY threshold', () => {
+    // P3.9 hostile H4: the earlier version said "At high revenue
+    // scale (typically $100K+/month), the DIY approach starts to
+    // make sense" — a specific figure presented without a source.
+    // The softer $10K-$100K range a few paragraphs later is the
+    // only remaining reference to the threshold, and it's explicitly
+    // caveated.
+    const lesson = getAcademyLessonBySlug('stripe-vs-settlegrid-vs-x402')!
+    expect(lesson.body).not.toContain('$100K+/month')
+    expect(lesson.body).not.toContain('typically $100K+')
+  })
+})
+
 describe('lesson 3 — stripe-vs-settlegrid-vs-x402 (sensitive content)', () => {
   const lesson = getAcademyLessonBySlug('stripe-vs-settlegrid-vs-x402')!
 
