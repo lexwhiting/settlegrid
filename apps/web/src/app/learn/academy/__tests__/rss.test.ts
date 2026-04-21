@@ -239,6 +239,88 @@ describe('buildRssFeed', () => {
     }
   })
 
+  it('renders author without parentheses when author.url is absent', () => {
+    // Coverage gap: every real lesson in the registry sets
+    // `author.url` via the SHARED_AUTHOR constant, so the
+    // falsy-url branch of the ternary never executes in the
+    // real-registry tests. Drive it explicitly with a synthetic
+    // lesson whose author has no url.
+    const base = ACADEMY_LESSONS[0]
+    const noUrlLesson = {
+      ...base,
+      slug: 'no-url-author',
+      canonicalUrl: 'https://settlegrid.ai/learn/academy/no-url-author',
+      author: { name: 'Anonymous Contributor', bio: 'test' },
+    }
+    const out = buildRssFeed([noUrlLesson])
+    expect(out).toContain('<dc:creator>Anonymous Contributor</dc:creator>')
+    // And the URL-form should not appear.
+    expect(out).not.toContain('Anonymous Contributor (')
+  })
+
+  it('handles a lesson with no keywords (empty category list)', () => {
+    // Coverage gap: the `keywords.slice(0, 5).map(...).join('\n')`
+    // expression produces an empty string when keywords is empty.
+    // The surrounding template still emits a well-formed item.
+    const base = ACADEMY_LESSONS[0]
+    const noKeywordsLesson = {
+      ...base,
+      slug: 'no-keywords',
+      canonicalUrl: 'https://settlegrid.ai/learn/academy/no-keywords',
+      keywords: [] as string[],
+    }
+    const out = buildRssFeed([noKeywordsLesson])
+    // No <category> elements at all for this item.
+    expect(out).not.toMatch(/<category>[^<]*<\/category>/)
+    // But the item itself renders with the other required fields.
+    expect(out).toContain('<item>')
+    expect(out).toContain(
+      '<guid isPermaLink="true">https://settlegrid.ai/learn/academy/no-keywords</guid>',
+    )
+  })
+
+  it('sorts by publish date when dates differ (primary sort branch)', () => {
+    // Coverage gap: all 5 real lessons share the same datePublished
+    // ('2026-04-20'), so the sort comparator only ever hits its
+    // tie-breaker path. Drive the primary date-sort branch with
+    // two lessons whose dates differ and assert the newer wins.
+    const base = ACADEMY_LESSONS[0]
+    const older = {
+      ...base,
+      slug: 'older-lesson',
+      canonicalUrl: 'https://settlegrid.ai/learn/academy/older-lesson',
+      datePublished: '2025-01-15',
+    }
+    const newer = {
+      ...base,
+      slug: 'newer-lesson',
+      canonicalUrl: 'https://settlegrid.ai/learn/academy/newer-lesson',
+      datePublished: '2026-06-01',
+    }
+    const out = buildRssFeed([older, newer])
+    // Newer item must appear before older in feed document order.
+    const newerPos = out.indexOf('newer-lesson')
+    const olderPos = out.indexOf('older-lesson')
+    expect(newerPos).toBeLessThan(olderPos)
+    expect(newerPos).toBeGreaterThan(-1)
+    expect(olderPos).toBeGreaterThan(-1)
+  })
+
+  it('caps <category> elements at 5 even when keywords has more', () => {
+    // Coverage of the `.slice(0, 5)` behavior at the upper bound.
+    const base = ACADEMY_LESSONS[0]
+    const manyKeywordsLesson = {
+      ...base,
+      slug: 'many-keywords',
+      canonicalUrl: 'https://settlegrid.ai/learn/academy/many-keywords',
+      keywords: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+    }
+    const out = buildRssFeed([manyKeywordsLesson])
+    // Exactly 5 <category> elements for this one item.
+    const categoryCount = (out.match(/<category>/g) ?? []).length
+    expect(categoryCount).toBe(5)
+  })
+
   it('emits an empty <channel> gracefully when no lessons exist', () => {
     const out = buildRssFeed([])
     expect(out).toContain('<rss version="2.0"')
