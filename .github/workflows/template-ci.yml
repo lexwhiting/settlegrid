@@ -1,10 +1,26 @@
 name: Template CI (weekly codemods)
 
 # Weekly sweep: runs all registered codemods against every template
-# under open-source-servers/ and packages/create-settlegrid-tool/
-# templates/. Consolidates any resulting changes into a single PR
-# labeled `template-ci` and assigned to the founder.
+# under open-source-servers/ and opens a PR with any resulting
+# changes. Labeled `template-ci` and assigned to the founder.
 #
+# ─── Setup prerequisite ───────────────────────────────────────────
+# This workflow handles the CODEMOD half of template maintenance.
+# The DEPENDENCY half is handled by the Renovate GitHub App, which
+# must be installed separately:
+#
+#   1. Visit https://github.com/apps/renovate
+#   2. Install the app on the `settlegrid` repo
+#   3. Renovate will read `renovate.json` and open scoped PRs
+#      for template dependency updates on the same Sunday cron.
+#
+# Both streams converge on the `template-ci` label so the founder
+# reviews them together. This workflow does NOT invoke Renovate
+# itself — invoking Renovate CLI from an Action requires
+# self-hosted auth setup. The App-based pattern is the standard
+# Renovate integration.
+#
+# ─── Security posture ────────────────────────────────────────────
 # The workflow NEVER pushes to main directly (hostile audit a):
 # peter-evans/create-pull-request always commits to a fresh branch
 # and opens a PR. The default branch is never a push target.
