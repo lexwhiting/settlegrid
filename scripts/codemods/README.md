@@ -81,6 +81,21 @@ The codemod test suite uses `node:test` (built-in, no vitest dependency) for con
 | `sdk-version-bump` | Bump `@settlegrid/mcp` dependency range in `package.json` and rewrite deprecated imports in `src/server.ts` via a per-version rename map | `--from <version> --to <version>` |
 | `sdk-breaking-changes` | Apply a registry of known `@settlegrid/mcp` breaking-change transforms across every template's `src/` tree (no `--from`/`--to` required) — rename `costCents` to `priceCents`, rewrite `@settlegrid/mcp/legacy` to the canonical import, rename `SGError` to `SettleGridError`, remove deprecated `sg.debug()` calls | _(none)_ |
 
+## Weekly CI Pipeline (P3.11)
+
+The template-ci workflow (`.github/workflows/template-ci.yml`) runs
+this batch every Sunday at 06:00 UTC, creating a single PR per
+week labeled `template-ci` and assigned to the founder.
+
+**Prerequisite:** the [Renovate GitHub App](https://github.com/apps/renovate)
+must be installed on the repo. Renovate handles the dependency-
+update half of template maintenance (driven by the committed
+`renovate.json`); this workflow handles the codemod half. Both
+streams converge on the `template-ci` label. The workflow does
+NOT invoke Renovate CLI itself — the App-based pattern is the
+standard Renovate integration and avoids a second auth
+configuration.
+
 ## Batch Runner (P3.11)
 
 The `run-all.mjs` runner applies every registered codemod to every

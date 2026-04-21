@@ -9,9 +9,24 @@
   "dependencyDashboard": true,
   "rangeStrategy": "bump",
   "commitMessagePrefix": "deps(templates):",
+  "includePaths": [
+    "open-source-servers/**",
+    "packages/create-settlegrid-tool/templates/**"
+  ],
+  "ignorePaths": [
+    "apps/**",
+    "packages/mcp/**",
+    "packages/create-settlegrid-tool/src/**",
+    "docs/**",
+    "scripts/**"
+  ],
   "packageRules": [
     {
-      "description": "Group all patch updates into a single PR. Auto-merge is safe at the patch level — semver promises no API surface change.",
+      "description": "Group all patch updates across templates into a single PR. Auto-merge is safe at the patch level — semver promises no API surface change.",
+      "matchFileNames": [
+        "open-source-servers/**/package.json",
+        "packages/create-settlegrid-tool/templates/**/package.json"
+      ],
       "matchUpdateTypes": ["patch", "pin", "digest"],
       "groupName": "template patch updates",
       "automerge": true,
@@ -19,20 +34,28 @@
       "platformAutomerge": true
     },
     {
-      "description": "Minor updates get a single grouped PR per week; founder reviews before merge. Never auto-merged — minors sometimes ship behavior changes despite semver guarantees.",
+      "description": "Minor updates across templates get a single grouped PR per week; founder reviews before merge. Never auto-merged — minors sometimes ship behavior changes despite semver guarantees.",
+      "matchFileNames": [
+        "open-source-servers/**/package.json",
+        "packages/create-settlegrid-tool/templates/**/package.json"
+      ],
       "matchUpdateTypes": ["minor"],
       "groupName": "template minor updates",
       "automerge": false
     },
     {
-      "description": "Major updates land as separate PRs so breaking changes are reviewed one-by-one. Auto-merge is explicitly disabled (hostile audit b: no major auto-merge).",
+      "description": "Major updates across templates land as separate PRs so breaking changes are reviewed one-by-one. Auto-merge is explicitly disabled (hostile audit b: no major auto-merge).",
+      "matchFileNames": [
+        "open-source-servers/**/package.json",
+        "packages/create-settlegrid-tool/templates/**/package.json"
+      ],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "dependencyDashboardApproval": true,
       "labels": ["template-ci", "dependencies", "breaking-change"]
     },
     {
-      "description": "The @settlegrid/mcp SDK is our own package — treat minor and major bumps as breaking-change candidates and route through the codemod framework rather than Renovate direct.",
+      "description": "The @settlegrid/mcp SDK is our own package — treat minor and major bumps as breaking-change candidates and route through the codemod framework rather than Renovate direct. Applies repo-wide because the SDK is a dependency in templates AND apps.",
       "matchPackageNames": ["@settlegrid/mcp"],
       "matchUpdateTypes": ["minor", "major"],
       "labels": ["template-ci", "dependencies", "sdk-upgrade"],
