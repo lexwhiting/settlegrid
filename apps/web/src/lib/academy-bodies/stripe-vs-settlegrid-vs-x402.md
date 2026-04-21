@@ -24,7 +24,7 @@ x402 is an HTTP-native payment standard whose [official site](https://www.x402.o
 
 x402 was originally developed at Coinbase (the [coinbase/x402 repo](https://github.com/coinbase/x402) is described as "a payments protocol for the internet, built on HTTP") and has since moved under the Linux Foundation. The [x402 Foundation was launched on April 2, 2026](https://www.linuxfoundation.org/press/linux-foundation-is-launching-the-x402-foundation-and-welcoming-the-contribution-of-the-x402-protocol) at MCP Dev Summit North America, with founding members including Adyen, AWS, American Express, Base, Circle, Cloudflare, Coinbase, Google, Mastercard, Microsoft, Polygon Labs, Shopify, Solana Foundation, Stripe, and Visa — a notably broad cross-industry coalition. The release cites Solana as "one of the earliest adopters of x402, driving nearly 65% of x402 transaction volume this year."
 
-The x402 protocol is network-agnostic by design — the x402.org site notes that it's "a neutral standard, not tied to any specific network" and "supports as many networks / schemes as you want." In practice today, most x402 volume settles in USDC on chains Coinbase's facilitator supports (Base, Polygon, Arbitrum, Solana, and others — verify at the x402 Foundation docs at the time of integration). x402.org's homepage displays live metrics — "75.41M transactions, $24.24M volume in the last 30 days" at time of this writing — indicating material production usage.
+The x402 protocol is network-agnostic by design — the x402.org site notes that it's "a neutral standard, not tied to any specific network" and "supports as many networks / schemes as you want." In practice today, most x402 volume settles in stablecoins via Coinbase's facilitator, with the supported chain list published in the [x402 Foundation docs](https://www.x402.org) (verify at integration time, as the set expands). x402.org's homepage displays live metrics — "75.41M transactions, $24.24M volume in the last 30 days" at time of this writing — indicating material production usage.
 
 For a tool developer, x402 means "any agent that can pay USDC (or other stablecoin via an x402-compatible facilitator) can call your tool, without creating an account on your platform or holding funds in your custody." The trade-off is that your callers need a crypto-native wallet or wallet-abstracted equivalent — the same friction that has historically limited crypto payment adoption in non-crypto-native developer cohorts.
 
@@ -48,7 +48,7 @@ SettleGrid isn't a payment transport protocol; it's a billing platform that *use
 
 The genuine overlap SettleGrid has with each of the two is:
 
-- **vs Stripe MPP + DIY billing:** if you're willing to build your own metering, dashboards, fraud detection, and multi-protocol routing on top of Stripe MPP, you can skip SettleGrid. Trade-off: it's several weeks of engineering and ongoing maintenance, versus a 5-minute integration. At high revenue scale (typically $100K+/month), the DIY approach starts to make sense because platform fees exceed engineering cost.
+- **vs Stripe MPP + DIY billing:** if you're willing to build your own metering, dashboards, fraud detection, and multi-protocol routing on top of Stripe MPP, you can skip SettleGrid. Trade-off: several weeks of engineering and ongoing maintenance, versus a platform integration. The specific revenue level at which DIY becomes economically preferable depends on your engineering cost and protocol ambitions — discussed further in the section below.
 
 - **vs x402 direct:** if your callers are entirely crypto-native and you're comfortable operating a crypto-native tool (handling wallet connectivity, stablecoin volatility edge cases, chain-specific facilitator selection), you can integrate x402 directly and skip the SettleGrid layer. Trade-off: your addressable agent market is smaller than it would be with multi-protocol support.
 
@@ -58,16 +58,16 @@ Pulling the above into a single comparison, with every cell backed by the cited 
 
 | Dimension | Stripe MPP | x402 | SettleGrid |
 |-----------|------------|------|------------|
-| Launch | [March 2026](https://stripe.com/blog/machine-payments-protocol) | Coinbase-origin; [LF Foundation April 2026](https://www.linuxfoundation.org/press/linux-foundation-is-launching-the-x402-foundation-and-welcoming-the-contribution-of-the-x402-protocol) | Late 2025 |
+| Launch | [March 2026](https://stripe.com/blog/machine-payments-protocol) | Coinbase-origin; [LF Foundation April 2026](https://www.linuxfoundation.org/press/linux-foundation-is-launching-the-x402-foundation-and-welcoming-the-contribution-of-the-x402-protocol) | 2025 |
 | Governance | Stripe + Tempo (co-authors) | Linux Foundation (x402 Foundation) | Private company |
 | Layer | Payment transport | Payment transport | Billing + settlement platform |
 | Settlement currency | Fiat (Stripe's rails) | Stablecoin (network-agnostic) | Multi-protocol (fiat + stablecoin via sub-integrations) |
-| Typical caller auth | [SPT (Shared Payment Token)](https://stripe.com/blog/agentic-commerce-suite) | Crypto wallet signature | API key (MCP-native) + pass-through to rails |
-| Typical caller ergonomics | Easiest for fiat-native enterprise agents | Easiest for crypto-native agents | Designed to abstract rail selection |
-| Tool-side integration effort | Medium (direct API integration) | Medium (x402 SDKs in 4 languages) | Low (2 lines of code) |
-| Built-in metering | No | No | Yes (per-call, tiered, freemium, outcome-based) |
+| Typical caller auth | [SPT (Shared Payment Token)](https://stripe.com/blog/agentic-commerce-suite) | Crypto wallet signature | Platform-issued API key, routed to the chosen rail |
+| Typical caller ergonomics | Fits fiat-native enterprise agents naturally | Fits crypto-native agents naturally | Designed to abstract rail selection |
+| Integration surface | Direct API: your code handles metering, dashboards, fraud tooling | Direct SDK (TypeScript, Python, Go, Java): your code handles metering, dashboards, fraud tooling | Wrapped: platform ships metering, dashboards, fraud tooling |
+| Built-in metering | No (payment protocol, not a billing layer) | No (payment protocol, not a billing layer) | Yes (per-call, tiered, freemium, outcome-based) |
 | Built-in fraud detection | Yes ([Radar for agents](https://stripe.com/blog/agentic-commerce-suite)) | No (rail-level controls only) | Yes (platform-level) |
-| Agent-side adoption surface | Stripe-connected agents; growing | Coinbase-sphere agents + x402 Foundation members | Multi-protocol via Smart Proxy |
+| Agent-side adoption surface | Stripe-connected agents | Coinbase-sphere agents + x402 Foundation members | Multi-protocol via Smart Proxy |
 | Platform/settlement fee | Stripe's standard fees (`2.9% + 30¢` on cards, `0.8%` ACH — see [Stripe pricing](https://stripe.com/pricing)) | On-chain gas + facilitator fee (varies by chain) | Progressive take rate: 0% on first $1K/mo, up to 5% at $50K+ |
 
 Two caveats on the table. First, some of these cells describe the "typical" case rather than hard limitations — x402 is network-agnostic, so "stablecoin" is the usual case but not the protocol definition. Check each project's current docs at integration time if the answer matters. Second, the comparison deliberately uses the same shape for each column; in practice, the three options aren't head-to-head substitutes for every use case.
@@ -96,7 +96,7 @@ The three-by-three matrix of "what's your caller base × what's your team capaci
 
 The argument for multi-protocol support is that agent ecosystems are pluralistic — some agents are built on Coinbase AgentKit (x402-native), some on Anthropic's MCP SDK (MCP-native), some on Stripe's Agent Toolkit (Stripe MPP-native), some on custom stacks. A tool that supports only one protocol excludes the agents that prefer the others. A tool that supports all three captures traffic from all three.
 
-Implementing this yourself is non-trivial. Each protocol has its own authentication model (API keys for MCP, SPTs for MPP, crypto wallet signatures for x402), its own settlement lifecycle (instant for in-custody balances, on-chain finality for x402), and its own failure modes (declined cards vs insufficient balance vs chain reorg). Harmonizing these into a single consistent experience requires a middleware layer.
+Implementing this yourself is non-trivial. Each protocol has its own authentication model (SPTs for Stripe MPP, crypto wallet signatures for x402, and typically platform-issued API keys when MCP tools are reached through a managed billing layer), its own settlement lifecycle (instant for in-custody balances, on-chain finality for x402), and its own failure modes (declined cards vs insufficient balance vs chain reorg). Harmonizing these into a single consistent experience requires a middleware layer.
 
 That middleware layer is what SettleGrid (and in different forms, other billing platforms) provides. The value proposition isn't "SettleGrid is a better protocol" — it's "SettleGrid handles the protocol fragmentation so you don't have to." If you're willing to handle that fragmentation yourself, you'll save platform fees at the cost of engineering time. The math flips somewhere between $10K and $100K monthly revenue, depending on how much your engineering time is worth and how many protocols you want to support.
 
@@ -132,7 +132,7 @@ Several specific things are frequently gotten wrong in comparative discussions o
 
 ### "Stripe MPP is Stripe's version of MCP"
 
-Not quite. [MCP](/learn/blog/mcp-billing-comparison-2026) is a protocol for agents to discover and call tools (maintained now by the Anthropic-donated AAIF / Model Context Protocol project); it deliberately does not include payment semantics in its core spec. Stripe MPP is a payment protocol designed to be complementary to MCP — an MCP tool can accept payments via Stripe MPP. They're two different standards at different layers.
+Not quite. [MCP](/learn/blog/mcp-billing-comparison-2026) is a protocol for agents to discover and call tools — built originally at Anthropic and now maintained as an open-source project at [github.com/modelcontextprotocol](https://github.com/modelcontextprotocol). Importantly, MCP's core spec deliberately does not include payment semantics. Stripe MPP is a payment protocol designed to be complementary to MCP: an MCP tool can accept payments via Stripe MPP, but neither standard subsumes the other. They sit at different layers of the stack.
 
 ### "x402 is only for crypto-native agents"
 

@@ -121,7 +121,7 @@ This model is ergonomically simple for the caller (no plan to pick) and naturall
 
 ## Three Short Case Studies
 
-The theory is cleaner than the real world. Three actual patterns from the MCP ecosystem, lightly sanitized.
+The theory is cleaner than the real world. Four illustrative patterns drawn from common MCP-ecosystem dynamics — composite teaching examples rather than claims about any specific named tools, but representative of the decisions operators actually face.
 
 The sentiment-analysis tool from [lesson 1](/learn/academy/pricing-your-mcp-server) landed at per-call because its usage pattern was wildly bursty across callers. Attempts to test subscription failed because no single plan fit more than a third of their callers. The fix was to run per-call exclusively and add a volume discount at 50K calls/month to keep large callers from churning to DIY alternatives.
 
