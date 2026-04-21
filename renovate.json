@@ -1,0 +1,53 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "UTC",
+  "schedule": ["before 6am on sunday"],
+  "labels": ["template-ci", "dependencies"],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 5,
+  "dependencyDashboard": true,
+  "rangeStrategy": "bump",
+  "commitMessagePrefix": "deps(templates):",
+  "packageRules": [
+    {
+      "description": "Group all patch updates into a single PR. Auto-merge is safe at the patch level — semver promises no API surface change.",
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "groupName": "template patch updates",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Minor updates get a single grouped PR per week; founder reviews before merge. Never auto-merged — minors sometimes ship behavior changes despite semver guarantees.",
+      "matchUpdateTypes": ["minor"],
+      "groupName": "template minor updates",
+      "automerge": false
+    },
+    {
+      "description": "Major updates land as separate PRs so breaking changes are reviewed one-by-one. Auto-merge is explicitly disabled (hostile audit b: no major auto-merge).",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "dependencyDashboardApproval": true,
+      "labels": ["template-ci", "dependencies", "breaking-change"]
+    },
+    {
+      "description": "The @settlegrid/mcp SDK is our own package — treat minor and major bumps as breaking-change candidates and route through the codemod framework rather than Renovate direct.",
+      "matchPackageNames": ["@settlegrid/mcp"],
+      "matchUpdateTypes": ["minor", "major"],
+      "labels": ["template-ci", "dependencies", "sdk-upgrade"],
+      "automerge": false,
+      "dependencyDashboardApproval": true,
+      "prBodyTemplate": "Renovate detected a minor or major bump of `@settlegrid/mcp`. Before merging, run the codemod suite to migrate any breaking-change usage in the templates:\n\n```\nnode scripts/codemods/run-all.mjs --apply --smoke-test 10\n```\n\nIf the codemod suite reports no changes, the bump is safe to merge. If it modifies files, open a follow-up PR with the codemod changes first and merge this PR after."
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "template-ci"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on sunday"],
+    "automerge": true
+  }
+}
