@@ -15,13 +15,32 @@ export const BASE_URL = 'https://settlegrid.ai'
 export const FEED_URL = `${BASE_URL}/learn/academy/rss.xml`
 
 /**
+ * Strip C0 control characters that are illegal in XML 1.0
+ * (U+0000-U+0008, U+000B, U+000C, U+000E-U+001F, U+007F).
+ * Tab (\t, U+0009), LF (\n, U+000A), and CR (\r, U+000D) are
+ * permitted by XML 1.0 so they're preserved.
+ *
+ * Without this, a stray form feed or null byte in a lesson title
+ * would produce invalid XML that feed readers refuse to parse,
+ * even though the five-entity escape alone (handled below) looks
+ * complete.
+ */
+function stripInvalidXmlChars(str: string): string {
+  return str.replace(
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+    '',
+  )
+}
+
+/**
  * Escape a string for safe embedding inside XML text nodes and
- * attribute values. Covers the five XML-reserved characters.
- * The ampersand pass runs first so the other replacements don't
+ * attribute values. Covers the five XML-reserved characters AND
+ * strips the C0 control characters XML 1.0 prohibits. The
+ * ampersand pass runs first so the other replacements don't
  * re-escape their inserted `&` characters.
  */
 export function escapeXml(str: string): string {
-  return str
+  return stripInvalidXmlChars(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -34,9 +53,18 @@ export function escapeXml(str: string): string {
  * format RSS 2.0 requires for `pubDate` and `lastBuildDate`. The
  * ISO date is parsed as UTC to avoid timezone drift across build
  * machines.
+ *
+ * Throws on invalid input. An unchecked bad date would silently
+ * emit `<pubDate>Invalid Date</pubDate>` — valid XML shape but
+ * broken RSS, which feed readers refuse to parse. Fail loudly at
+ * the source rather than ship a broken feed.
  */
 export function toRfc822(iso: string): string {
-  return new Date(`${iso}T00:00:00Z`).toUTCString()
+  const d = new Date(`${iso}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) {
+    throw new Error(`toRfc822: invalid ISO date ${JSON.stringify(iso)}`)
+  }
+  return d.toUTCString()
 }
 
 /**
