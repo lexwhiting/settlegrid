@@ -10,6 +10,7 @@ import {
   renameSgErrorToSettleGridError,
   removeSgDebugCalls,
   applyAllTransforms,
+  fileReferencesSdk,
   TRANSFORMS,
   run,
 } from '../sdk-breaking-changes.mjs'
@@ -244,6 +245,102 @@ test('applyAllTransforms: is idempotent (hostile audit (c) requirement)', () => 
   assert.deepEqual(pass2.touchedBy, [])
 })
 
+// --- H2 regression: file-level SDK-presence gate -----------------
+// Without the gate, a third-party library using `.wrap(h, {
+// costCents: 5 })` or a local `SGError` class would be
+// misrenamed. The gate skips any file that doesn't reference
+// @settlegrid/mcp at the source level.
+
+test('fileReferencesSdk: true for files importing @settlegrid/mcp', () => {
+  assert.equal(
+    fileReferencesSdk(`import { settlegrid } from '@settlegrid/mcp'`),
+    true,
+  )
+})
+
+test('fileReferencesSdk: true for files importing the legacy subpath', () => {
+  assert.equal(
+    fileReferencesSdk(`import { x } from '@settlegrid/mcp/legacy'`),
+    true,
+  )
+})
+
+test('fileReferencesSdk: false for files without any SDK reference', () => {
+  assert.equal(
+    fileReferencesSdk(`const foo = require('third-party')`),
+    false,
+  )
+})
+
+test('fileReferencesSdk: false for non-string input', () => {
+  assert.equal(fileReferencesSdk(null), false)
+  assert.equal(fileReferencesSdk(undefined), false)
+  assert.equal(fileReferencesSdk(42), false)
+})
+
+test('applyAllTransforms: skips files that do NOT import @settlegrid/mcp even when they contain codemod-targetable patterns', () => {
+  // Hostile scenario: third-party library's `.wrap()` helper uses a
+  // costCents field of its own. Without the gate, this would be
+  // misrewritten.
+  const before = `
+    import { wrapper } from 'third-party-lib'
+    const billed = wrapper.wrap(handler, { costCents: 5 })
+  `
+  const { changed, source, touchedBy } = applyAllTransforms(before)
+  assert.equal(changed, false)
+  assert.equal(source, before)
+  assert.deepEqual(touchedBy, [])
+})
+
+test('applyAllTransforms: applies when the file does import @settlegrid/mcp', () => {
+  const before = `
+    import { settlegrid } from '@settlegrid/mcp'
+    const sg = settlegrid.init({ toolSlug: 't' })
+    const billed = sg.wrap(handler, { costCents: 5 })
+  `
+  const { changed, touchedBy } = applyAllTransforms(before)
+  assert.equal(changed, true)
+  assert.ok(touchedBy.includes('rename-costCents-to-priceCents'))
+})
+
+// --- H4 regression: binder guards for SGError rename -------------
+// Without the expanded binder guards, a local class or type
+// declaration named SGError (shadowing the import) would have
+// its binder clobbered.
+
+test('SGError rename: does NOT clobber a local class declaration named SGError', () => {
+  const before = `
+    import { SGError } from '@settlegrid/mcp'
+    class SGError extends Error {
+      constructor(message: string) { super(message) }
+    }
+  `
+  const { source } = renameSgErrorToSettleGridError(before)
+  // The import is renamed (from the SDK).
+  assert.ok(source.includes('SettleGridError'))
+  // But the class declaration binder (the name being introduced
+  // by `class SGError`) must be preserved.
+  assert.ok(source.includes('class SGError'))
+})
+
+test('SGError rename: does NOT clobber a local function named SGError', () => {
+  const before = `
+    import { SGError } from '@settlegrid/mcp'
+    function SGError(code: string) { return new Error(code) }
+  `
+  const { source } = renameSgErrorToSettleGridError(before)
+  assert.ok(source.includes('function SGError'))
+})
+
+test('SGError rename: does NOT clobber a TSTypeAliasDeclaration named SGError', () => {
+  const before = `
+    import { SGError } from '@settlegrid/mcp'
+    type SGError = { code: string }
+  `
+  const { source } = renameSgErrorToSettleGridError(before)
+  assert.ok(source.includes('type SGError'))
+})
+
 test('applyAllTransforms: returns unchanged on a clean file', () => {
   const clean = `
     import { settlegrid } from '@settlegrid/mcp'
@@ -288,7 +385,11 @@ test('run(): writes files in apply mode, leaves disk untouched in dry-run', asyn
   try {
     await mkdir(join(tmp, 'src'), { recursive: true })
     const srcPath = join(tmp, 'src', 'server.ts')
-    const originalContent = `sg.wrap(h, { costCents: 5 })\n`
+    // The @settlegrid/mcp import is required so the H2 file-level
+    // SDK-presence gate permits the transform to run. Without the
+    // import, the whole file is skipped — which is the correct
+    // behavior for hostile-safety.
+    const originalContent = `import { settlegrid } from '@settlegrid/mcp'\nsg.wrap(h, { costCents: 5 })\n`
     await writeFile(srcPath, originalContent)
 
     // Dry-run: disk unchanged.
@@ -341,12 +442,13 @@ test('run(): malformed .ts surfaces a structured error, not a crash', async () =
   const tmp = await mkdtemp(join(tmpdir(), 'sbc-'))
   try {
     await mkdir(join(tmp, 'src'), { recursive: true })
-    // Content that references sg.wrap so the transform is exercised,
-    // but with a deliberately unbalanced brace that the parser will
-    // reject.
+    // Content that references @settlegrid/mcp so the file-level
+    // gate permits it, and sg.wrap so the transform is exercised,
+    // but with a deliberately unbalanced brace that the parser
+    // will reject.
     await writeFile(
       join(tmp, 'src', 'bad.ts'),
-      `sg.wrap(h, { costCents: 5 \n`,
+      `import { settlegrid } from '@settlegrid/mcp'\nsg.wrap(h, { costCents: 5 \n`,
     )
     const result = await run(tmp, { dryRun: true })
     assert.ok(result.errors.length > 0)

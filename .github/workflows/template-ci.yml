@@ -75,9 +75,14 @@ jobs:
         id: dryrun
         run: |
           node scripts/codemods/run-all.mjs 2>&1 | tee /tmp/codemods-dryrun.log
-          # Extract the files-touched count from the final summary.
-          # Empty run = exit without creating a PR.
-          touched=$(grep -oE '[0-9]+ files would touch' /tmp/codemods-dryrun.log | head -1 | grep -oE '[0-9]+' || echo "0")
+          # Consume the machine-readable summary line emitted by
+          # run-all.mjs: `[run-all] files-touched=N`. Grepping this
+          # token is stable across prose changes in the runner's
+          # human output. Defaults to 0 if (for some reason) the
+          # token is missing — the workflow then skips the apply
+          # step, which is the safe outcome.
+          touched=$(grep -oE 'files-touched=[0-9]+' /tmp/codemods-dryrun.log | head -1 | cut -d= -f2 || echo "0")
+          touched=${touched:-0}
           echo "files_touched=$touched" >> "$GITHUB_OUTPUT"
           echo "Dry run found $touched file(s) to touch."
 

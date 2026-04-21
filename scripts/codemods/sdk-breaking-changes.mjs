@@ -227,9 +227,13 @@ export function renameSgErrorToSettleGridError(source) {
       }
     })
 
-  // Identifier-rename pass with the same binder guards sdk-version-bump
-  // uses — avoid renaming property access, object keys, class method
-  // names, or declaration binders.
+  // Identifier-rename pass. Mirrors the sdk-version-bump.js binder
+  // guards verbatim so a local symbol named SGError (a shadowing
+  // function, class, type, enum, or label) isn't renamed by this
+  // transform. Without these guards, a template that had
+  // `class SGError extends Error { ... }` locally would have its
+  // class declaration clobbered even though the class is
+  // semantically unrelated to the SDK's SGError type.
   if (localsToRename.size > 0) {
     root.find(j.Identifier).forEach((nodePath) => {
       const oldName = nodePath.value.name
@@ -237,12 +241,15 @@ export function renameSgErrorToSettleGridError(source) {
       if (!newName) return
       const parent = nodePath.parent && nodePath.parent.value
       if (!parent) return
+      // Skip property access like `foo.SGError` (not a reference to the
+      // imported binding).
       if (
         parent.type === 'MemberExpression' &&
         parent.property === nodePath.value &&
         !parent.computed
       )
         return
+      // Skip object property keys (`Property` = ESTree, `ObjectProperty` = babel).
       if (
         (parent.type === 'Property' ||
           parent.type === 'ObjectProperty') &&
@@ -250,7 +257,47 @@ export function renameSgErrorToSettleGridError(source) {
         !parent.computed
       )
         return
+      // Skip class method / property keys.
+      if (
+        (parent.type === 'ClassMethod' ||
+          parent.type === 'ClassProperty' ||
+          parent.type === 'MethodDefinition' ||
+          parent.type === 'PropertyDefinition') &&
+        parent.key === nodePath.value &&
+        !parent.computed
+      )
+        return
+      // Skip BINDERS: the identifier is the name being introduced by
+      // a declaration, not a reference to our import.
+      if (
+        (parent.type === 'FunctionDeclaration' ||
+          parent.type === 'FunctionExpression') &&
+        parent.id === nodePath.value
+      )
+        return
+      if (
+        (parent.type === 'ClassDeclaration' ||
+          parent.type === 'ClassExpression') &&
+        parent.id === nodePath.value
+      )
+        return
       if (parent.type === 'VariableDeclarator' && parent.id === nodePath.value)
+        return
+      if (
+        (parent.type === 'TSEnumDeclaration' ||
+          parent.type === 'TSInterfaceDeclaration' ||
+          parent.type === 'TSTypeAliasDeclaration' ||
+          parent.type === 'TSModuleDeclaration') &&
+        parent.id === nodePath.value
+      )
+        return
+      // Skip labels and label references (`break SGError;`).
+      if (
+        (parent.type === 'LabeledStatement' ||
+          parent.type === 'BreakStatement' ||
+          parent.type === 'ContinueStatement') &&
+        parent.label === nodePath.value
+      )
         return
       nodePath.value.name = newName
     })
@@ -338,11 +385,45 @@ export const TRANSFORMS = [
 ]
 
 /**
+ * Source-level presence check: does this file import anything
+ * from `@settlegrid/mcp` (either the canonical path or the
+ * `/legacy` subpath)? We gate every transform on this because
+ * otherwise a third-party library using unrelated patterns like
+ * `.wrap(h, { costCents: 5 })` or a local `SGError` class could
+ * be misrewritten. Files that don't import the SDK can't be
+ * affected by SDK breaking changes, so skipping them is the
+ * correct narrow behavior.
+ *
+ * Exception: `rewrite-legacy-import-path` runs before this gate
+ * because its whole job IS introducing the `@settlegrid/mcp`
+ * import. Applying it on a file that already has a canonical
+ * import is also fine (no-op). Files with NO SDK reference at
+ * all skip everything.
+ */
+export function fileReferencesSdk(source) {
+  if (typeof source !== 'string') return false
+  // Substring check is sufficient — the transforms themselves
+  // operate at AST level so a string-level false positive just
+  // lets them parse and no-op. A false NEGATIVE would skip
+  // legitimate SDK files; the substring covers imports in
+  // every syntactic form we emit.
+  return source.includes('@settlegrid/mcp')
+}
+
+/**
  * Apply every transform in sequence to a single source string.
  * Returns `{ changed, source, touchedBy }` where `touchedBy` is
  * the ordered list of transform names that produced changes.
+ *
+ * Files that don't reference `@settlegrid/mcp` at all are
+ * skipped entirely — this prevents misrenaming unrelated
+ * third-party code that happens to share a pattern (e.g., a
+ * `.wrap()` helper with its own `costCents` field).
  */
 export function applyAllTransforms(source) {
+  if (!fileReferencesSdk(source)) {
+    return { changed: false, source, touchedBy: [] }
+  }
   let current = source
   let changed = false
   const touchedBy = []
