@@ -74,6 +74,15 @@ describe('lesson: pricing-your-mcp-server', () => {
     expect(h2Count).toBeGreaterThanOrEqual(6)
   })
 
+  it('body has H3 subheadings for nested sections (spec: "h1-h3 structure")', () => {
+    // The page.tsx renders the lesson title as H1; the body provides
+    // H2 top-level sections and H3 subsections. At least 8 H3s gives
+    // us real nested structure for SEO (each H3 becomes an anchor id
+    // via rehype-slug) without being so many that the TOC explodes.
+    const h3Count = (lesson.body.match(/^###\s+/gm) ?? []).length
+    expect(h3Count).toBeGreaterThanOrEqual(8)
+  })
+
   it('contains at least 3 internal links (blog posts or shadow directory)', () => {
     // Match markdown links whose target begins with /learn/blog/ or /mcp
     const internalLinks = [

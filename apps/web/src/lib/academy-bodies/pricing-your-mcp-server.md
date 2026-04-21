@@ -10,57 +10,91 @@ This lesson walks through the end-to-end pricing decision for an MCP tool: how t
 
 A price below your cost floor is a subsidy. A price barely above your cost floor is a margin trap — one AWS bill spike and your tool is unprofitable. The first move is to know your floor precisely.
 
-For most MCP tools, the cost floor is the sum of four line items per call: the underlying model inference cost (if you wrap an LLM), the infrastructure cost (compute, bandwidth, storage), the third-party API cost (if you call someone else's service), and the settlement cost (payment processing fees). Let's walk through each.
+For most MCP tools, the cost floor is the sum of four line items per call: model inference (if you wrap an LLM), infrastructure (compute, bandwidth, storage), third-party API fees (if you call someone else's paid service), and settlement (payment processing fees). Walk through each in order.
 
-**Model inference.** If your tool calls a Claude or OpenAI or open-weights model under the hood, the per-call model cost dominates everything else. At current [Anthropic API pricing](https://claude.com/pricing), a single Sonnet 4.6 call that sends 4K tokens in and returns 1K tokens out costs about `(4 × $3 + 1 × $15) / 1000 = $0.027` per call. A similar Haiku 4.5 call costs about `(4 × $1 + 1 × $5) / 1000 = $0.009`. Opus 4.7 is roughly 5× Sonnet. If your tool is a Sonnet wrapper and you charge 5 cents per call, your inference margin is about 45%; at 3 cents, you lose money on every call.
+### Model inference
 
-**Infrastructure.** A lightweight Node.js handler on a serverless platform costs fractions of a cent per call at low volume. But if your tool does non-trivial work — a Playwright browser session, a database query against Postgres, a vector search over a large index — infrastructure can easily match or exceed model cost. Measure cost-per-call at your actual deployment, not your napkin-math estimate.
+If your tool calls Claude, GPT, or any paid model under the hood, model cost usually dominates everything else. At current [Anthropic API pricing](https://claude.com/pricing), a Sonnet 4.6 call with 4K tokens in and 1K tokens out costs about `(4 × $3 + 1 × $15) / 1000 = $0.027`. The same shape on Haiku 4.5 costs about `$0.009`. Opus 4.7 runs roughly 5× Sonnet. If you're a Sonnet wrapper charging 5 cents per call, your inference margin is about 45%; at 3 cents, you lose money on every call. Prompt caching (cache reads at `$0.30 / MTok` on Sonnet) and the batch API's flat 50% discount on asynchronous jobs can cut this floor further, but only if your workload tolerates the caching TTL or the batch latency.
 
-**Third-party APIs.** If you call Google, OpenAI, a financial-data provider, or any paid upstream API, their rate is part of your floor. Do not assume you can pass their cost through at-cost; payment processing fees come off the top and you still need margin for your own work.
+### Infrastructure
 
-**Settlement.** Stripe charges 2.9% + 30¢ for a US card and 0.8% for ACH direct debit, capped at $5 per transaction, per their [pricing page](https://stripe.com/pricing). That 30-cent fixed fee is a catastrophe for sub-dollar charges — a 5-cent call would lose 600% of its revenue to Stripe if settled individually. This is why MCP billing platforms settle in batches: consumers prepay into a balance, agents draw against it, and the platform batches those draws into larger Stripe charges so the 30¢ fee gets amortized across thousands of sub-cent operations. When you pick a billing layer, check whether it handles this batching for you or leaves you to build it.
+A lightweight Node.js handler on a serverless platform costs fractions of a cent per call at low volume. But if your tool does real work — a Playwright browser session, a Postgres query on a large table, a vector search over an index — infrastructure can easily match or exceed model cost. Measure per-call cost at your actual deployment, not from a napkin estimate. Instrument an invocation counter and divide your monthly bill by the month's call volume; the result is almost always higher than you expect.
 
-Add those four numbers and you have your cost floor per call. For a typical LLM-wrapper tool, it tends to land between `$0.01` and `$0.08`. For a pure-compute tool with no third-party cost, it can be under `$0.005`. For a tool that calls a premium data provider (Bloomberg, Clearbit at list), it can exceed `$0.50`. Know your number before you name your price.
+### Third-party APIs
+
+If you call Google, OpenAI, a financial-data provider, or any paid upstream service, their per-call rate is part of your floor. Don't assume you can pass that cost through at-cost: payment processing fees come off the top, and you still need margin for your own work. The rule of thumb is to charge at least `(upstream cost + 20%) + settlement fee + your margin`.
+
+### Settlement
+
+Stripe charges `2.9% + 30¢` for a US card and `0.8%` for ACH direct debit (capped at `$5` per transaction), per their [pricing page](https://stripe.com/pricing). The 30-cent fixed fee is a catastrophe for sub-dollar charges — a 5-cent call would lose 600% of its revenue to Stripe if settled individually. This is why MCP billing platforms settle in batches: consumers prepay into a balance, agents draw against it, and the platform batches those draws into larger Stripe charges so the 30¢ floor gets amortized across thousands of sub-cent operations. When you pick a billing layer, check whether it batches for you or leaves you to build the batching pipeline yourself.
+
+Add those four numbers and you have your cost floor per call. For a typical LLM-wrapper tool, it tends to land between `$0.01` and `$0.08`. For a pure-compute tool with no third-party cost, it can be under `$0.005`. For a tool that calls a premium data provider at list price (Bloomberg, Clearbit), it can exceed `$0.50`. Know your number before you name your price.
 
 ## Five Pricing Models and When to Use Each
 
-There is no universally "right" pricing model for an MCP server. There are five models the ecosystem has converged on, each with a usage pattern that makes it shine.
+There is no universally correct pricing model for an MCP server. There are five models the ecosystem has converged on, each with a usage pattern that makes it shine.
 
-**Per-call billing.** One call, one charge, one price. This is the default for a reason: it maps exactly onto how agents consume tools. A reasoning loop picks up a tool, invokes it, pays, and moves on. There is no commitment, no minimum, no end-of-month surprise. You can read more about how per-call works operationally in the [per-call billing guide](/learn/blog/per-call-billing-ai-agents), but the pricing move is: pick a price per invocation, announce it in the `experimental.payment` capability or your listing, and let agents self-select based on budget. Per-call is the right default for any tool where each invocation is a discrete unit of value and the cost is roughly uniform across calls.
+### Per-call billing
 
-**Subscription.** A monthly fee for unlimited access (or access up to a soft cap). Subscriptions work for tools where an agent operator can predict usage roughly — for example, a coding-assistant tool where the usage pattern is "developer uses this for 8 hours a day, five days a week, for a month." Subscriptions fail when usage is unpredictable or bursty, because the operator either overpays for unused capacity or hits a ceiling and can't complete a task. For MCP specifically, subscriptions are a hard sell to agent operators because agents don't plan for fixed calendar intervals; they plan for goals.
+One call, one charge, one price. This is the default for a reason: it maps exactly onto how agents consume tools. A reasoning loop picks up a tool, invokes it, pays, and moves on. No commitment, no minimum, no end-of-month surprise. See the [per-call billing guide](/learn/blog/per-call-billing-ai-agents) for the operational mechanics; the pricing move is simply to pick a price per invocation, expose it in the `experimental.payment` capability or your listing, and let agents self-select against their budget. Per-call is the right default for any tool where each invocation is a discrete unit of value and cost is roughly uniform across calls.
 
-**Tiered pricing.** Different prices for different calls to the same tool. A `search` method might cost 1 cent; a `deep_research` method that runs a full Sonnet analysis might cost 25 cents. Tiered pricing is right when your tool exposes a range of operations with very different underlying costs and a call-site can reasonably predict which tier it needs. It's wrong when the cost is hidden behind a single method signature and the caller can't tell which tier they'll land in.
+### Subscription
 
-**Freemium.** Some calls are free; others are paid. The SettleGrid SDK supports this natively: set `costCents: 0` on introductory methods, set positive costs on the real-work methods. Freemium is the right model when discovery matters more than revenue on the first call — when the agent needs to verify your tool works before committing to a paid call. The [MCP server free-tier guide](/learn/blog/mcp-server-free-tier-usage-limits) walks through the configuration in detail. Freemium is wrong when every call has non-trivial cost and free usage will be abused by scraping or benchmarking bots.
+A monthly fee for unlimited access (or access up to a soft cap). Subscriptions work for tools where the caller can predict usage well — for example, a coding-assistant tool where the pattern is "developer uses this for 8 hours a day, five days a week." Subscriptions fail when usage is unpredictable or bursty, because the operator either overpays for unused capacity or hits a ceiling and can't complete the task. For MCP specifically, subscriptions are a hard sell: agents don't plan for calendar intervals, they plan for goals.
 
-**Outcome-based.** Charge only when your tool succeeds, measured against a concrete outcome. A compliance-check tool might charge only when it finds a violation; a deduplication tool might charge only on matches returned. Outcome-based pricing is the hardest model to implement correctly because it requires a machine-verifiable success signal, but it's the most agent-friendly option for tools whose success rate is uncertain. Agents love outcome-based pricing because it bounds downside: the worst case of a failed call is wasted latency, not wasted dollars.
+### Tiered pricing
 
-For most first-time MCP monetizers, per-call is the right starting point. You can switch models later without breaking callers, as long as your chosen billing layer makes switching easy — pricing changes that require redeploying the tool or reshaping the MCP interface are the ones that break agent clients.
+Different prices for different calls to the same tool. A `search` method might cost 1 cent; a `deep_research` method that runs a full Sonnet analysis might cost 25 cents. Tiered pricing is right when your tool exposes a range of operations with very different underlying costs, and the caller can reasonably predict which tier a given invocation needs. It's wrong when the cost is hidden behind a single method signature and the caller can't tell which tier they'll land in — agents that can't preview cost will avoid your tool entirely.
+
+### Freemium
+
+Some calls are free; others are paid. The SettleGrid SDK supports this natively: set `costCents: 0` on introductory methods, positive costs on the real-work ones. Freemium is the right model when discovery matters more than revenue on the first call — when an agent needs to verify your tool works before committing. The [MCP server free-tier guide](/learn/blog/mcp-server-free-tier-usage-limits) walks through the configuration in detail. Freemium is wrong when every call has non-trivial cost and free usage will be abused by scraping or benchmarking bots; in that case a tiny paid floor (sub-cent, with a pre-funded balance requirement) is a better filter.
+
+### Outcome-based
+
+Charge only when your tool succeeds against a concrete, machine-verifiable outcome. A compliance-check tool charges only when it finds a violation; a deduplication tool charges only on matches returned. Outcome-based is the hardest model to implement — it requires an unambiguous success signal that both sides trust — but it's the most agent-friendly option for tools with uncertain success rates. Agents prefer it because the worst case of a failed call is wasted latency, not wasted dollars.
+
+For most first-time MCP monetizers, per-call is the right starting point. You can switch models later without breaking callers, as long as your billing layer makes switching easy — pricing changes that require redeploying the tool or reshaping the MCP interface are the ones that break agent clients.
 
 ## Benchmarking Against the Real Ecosystem
 
-Copying a competitor's price is lazy but copying a whole pricing ecosystem is smart. Three benchmarks matter for most MCP tool developers: what LLM providers charge, what payment rails cost, and what tools in your specific category are earning.
+Copying a competitor's price is lazy, but copying an entire pricing ecosystem is smart. Three benchmarks matter for most MCP tool developers: what LLM providers charge, what payment rails cost, and what tools in your specific category are earning.
 
-**LLM inference benchmarks.** If your tool wraps an LLM, your floor is set by the underlying model. Anthropic's [current API pricing](https://claude.com/pricing) lists Claude Opus 4.7 at `$5 / MTok` input and `$25 / MTok` output, Sonnet 4.6 at `$3 / $15`, and Haiku 4.5 at `$1 / $5`. Anthropic's prompt-caching rates are an order of magnitude cheaper on reads (Sonnet cache reads at `$0.30 / MTok`), and the batch API offers a flat 50% discount on asynchronous jobs. OpenAI publishes comparable tiers for GPT-5, GPT-4o, and the o-series at [openai.com/api/pricing](https://openai.com/api/pricing). Check both pages at the time you're pricing; rates change every few months, and a stale number is worse than no number. The useful move isn't to copy these rates — your customers aren't calling you to do raw inference; they're calling you for packaged work — but to be able to answer "why does your tool cost more/less than running the model directly?"
+### LLM inference benchmarks
 
-**Payment-rail benchmarks.** Stripe is the floor for fiat payment processing: `2.9% + 30¢` for a US card, `+ 1.5%` for international, `0.8%` with a `$5` cap for ACH, per [Stripe's pricing page](https://stripe.com/pricing). The 30¢ per-transaction floor is why micropayments have historically been impossible — you can't charge 5 cents for a call when the processor takes 30 cents to handle the charge. The MCP ecosystem has worked around this with pre-funded balances and batched settlement (see the [MCP billing comparison](/learn/blog/mcp-billing-comparison-2026) for how different platforms handle it). If you're building billing yourself, the 30¢ Stripe floor forces your minimum practical per-call price up to about `$1` before margins make sense — which is why almost no serious MCP monetization happens outside a platform that handles batching.
+If your tool wraps an LLM, your floor is set by the underlying model. Anthropic's [current API pricing](https://claude.com/pricing) lists Claude Opus 4.7 at `$5 / MTok` input and `$25 / MTok` output, Sonnet 4.6 at `$3 / $15`, and Haiku 4.5 at `$1 / $5`. Prompt caching reads are about an order of magnitude cheaper (Sonnet reads at `$0.30 / MTok`), and the batch API offers a flat 50% discount on asynchronous jobs. OpenAI publishes comparable tiers for GPT-5, GPT-4o, and the o-series at [openai.com/api/pricing](https://openai.com/api/pricing). Check both pages at the time you're pricing — rates change every few months, and a stale number is worse than no number. The useful move isn't to copy inference rates; your customers aren't calling you to do raw inference, they're calling you for packaged work. The move is to be able to answer: "why does your tool cost more, or less, than running the model directly?"
 
-**Category benchmarks.** The going rate for an MCP tool in your specific category is the most predictive benchmark you have. Data-enrichment tools typically price between `$0.02` and `$0.50` per call with a median near `$0.08`; web search is cheaper, with a median near `$0.03`; code analysis runs between `$0.05` and `$1.00` with a median near `$0.15`. These aren't rules; they're the distribution of successful tools today. If your tool is 3× the category median, you need a clear value story. If it's 10× below, you're likely leaving money on the table — or your tool isn't as differentiated as you think it is.
+### Payment-rail benchmarks
+
+Stripe is the floor for fiat payment processing: `2.9% + 30¢` per US card transaction, `+ 1.5%` for international cards, `0.8%` with a `$5` cap for ACH direct debit, per [Stripe's pricing page](https://stripe.com/pricing). That 30-cent per-transaction floor is why micropayments have historically been impossible — you can't charge 5 cents for a call when the processor takes 30 cents to handle the charge. The MCP ecosystem works around this with pre-funded balances and batched settlement; the [MCP billing comparison](/learn/blog/mcp-billing-comparison-2026) breaks down how different platforms handle it. If you build billing yourself without batching, the Stripe floor forces your minimum practical per-call price up to about `$1` before margins make sense — which is why almost no serious MCP monetization happens outside a platform that amortizes the fixed fee.
+
+### Category benchmarks
+
+The going rate for an MCP tool in your specific category is the most predictive benchmark you have. Data-enrichment tools typically price between `$0.02` and `$0.50` per call with a median near `$0.08`; web search sits lower, median near `$0.03`; code analysis runs between `$0.05` and `$1.00` with a median near `$0.15`. These aren't rules — they're the observed distribution of tools that are actually earning revenue today. If your tool is 3× the category median, you need a clear value story to support the premium. If it's 10× below, you're probably leaving money on the table — or your tool isn't as differentiated as you think it is.
 
 ## Pricing Psychology When the Buyer Is a Machine
 
-Traditional pricing psychology — charm pricing ($9.99 vs $10), anchoring, loss aversion — assumes a human reader making a fast subconscious decision. AI agents don't have subconsciousness. But they do have pricing behaviors that feel like psychology, and getting them wrong is expensive.
+Traditional pricing psychology — charm pricing ($9.99 vs $10), anchoring, loss aversion — assumes a human reader making a fast subconscious decision. AI agents don't have a subconscious. But they do have pricing behaviors that feel like psychology, and getting them wrong is expensive.
 
-**Round numbers beat charm numbers.** `$0.05` is parsed, stored, and reasoned about more reliably than `$0.049`. Agent planners that compute expected cost over a multi-tool plan round and truncate; they don't appreciate the anchoring move. Pick round numbers in your smallest practical unit.
+### Round numbers beat charm numbers
 
-**Bounded cost wins over unbounded cost.** An agent that needs to stay under a $5 budget strongly prefers a tool with a published per-call ceiling over a tool whose cost varies with input length unless the input is trivially bounded. If your cost is variable, either publish the upper bound or offer a `payment/quote` method that returns an exact number before commitment. Both moves make you selectable by planners that otherwise skip variable-cost tools.
+`$0.05` is parsed, stored, and reasoned about more reliably than `$0.049`. Agent planners that compute expected cost over a multi-tool plan round and truncate; they don't appreciate the anchoring move, and some tokenize the extra digit as noise. Pick round numbers in your smallest practical unit and stop there.
 
-**Failure modes are part of price.** An agent compares your 5-cent tool against a competitor's 6-cent tool not by price alone, but by (price ÷ success rate). A 5-cent tool that fails 30% of the time is effectively 7-cent per successful call — worse than a 6-cent tool with 100% success. This is why outcome-based pricing has a psychological edge: it guarantees a success-adjusted price that planners can reason about.
+### Bounded cost wins over unbounded cost
 
-**Trust is cheap at low prices, expensive at high prices.** Below a penny per call, agents are willing to call a tool they haven't verified — the downside is capped by the caller's balance. Above a dollar, most agents will route through a higher-trust channel (a known vendor, a cached result, a human confirmation step). The tier-break is category-dependent but the pattern is universal: cheap tools can leverage discovery; expensive tools have to earn trust separately. Price above that threshold only if you're willing to do the trust-building work.
+An agent that needs to stay under a $5 budget strongly prefers a tool with a published per-call ceiling over a tool whose cost varies with input length (unless that input is trivially bounded). If your cost is variable, either publish the upper bound in your listing or offer a `payment/quote` method that returns an exact number before commitment. Both moves make you selectable by planners that otherwise skip variable-cost tools entirely.
 
-**Listed price is your brand.** Agents don't feel shame when they pay $2.50, but human operators reviewing agent bills do. The agent-for-the-human dynamic means your price must survive a post-hoc review by a skeptical finance person. If a reasonable reviewer would flinch at the number, expect pushback.
+### Failure modes are part of price
+
+An agent compares your 5-cent tool against a competitor's 6-cent tool not by price alone but by `(price / success_rate)`. A 5-cent tool that fails 30% of the time is effectively 7 cents per successful call — worse than a 6-cent tool with a 100% success rate. This is why outcome-based pricing has a psychological edge: it guarantees a success-adjusted price that planners can reason about without knowing the failure rate.
+
+### Trust is cheap at low prices, expensive at high prices
+
+Below a penny per call, agents are willing to call a tool they haven't verified — the downside is capped by the caller's balance. Above a dollar, most agents route through a higher-trust channel (a known vendor, a cached result, a human confirmation step). The tier-break is category-dependent but the pattern is universal: cheap tools can ride pure discovery; expensive tools have to earn trust separately. Price above that threshold only if you're also willing to do the trust-building work.
+
+### Listed price is your brand
+
+Agents don't feel shame when they pay $2.50, but the human operator reviewing agent bills at month-end does. The agent-for-the-human dynamic means your price must survive a post-hoc review by a skeptical finance person. If a reasonable reviewer would flinch at the number, expect pushback — and design for the reviewer, not only the agent.
 
 ## When Dynamic Pricing Helps — and When It Hurts
 
@@ -70,11 +104,17 @@ For most first-year MCP tools, that test fails. A tool with 500 calls a month do
 
 When the test passes, three dynamic-pricing moves are worth considering.
 
-**Price experiments.** Run an A/B test: 50% of traffic sees price A, 50% sees price B, for 48 to 72 hours. Measure total revenue (price × volume) for each variant. Most developers find their revenue-maximizing price is 20 to 50% higher than their initial guess — initial pricing tends to underprice because it's pegged to cost floor plus a small margin, not to value delivered.
+### Price experiments
 
-**Time-of-day pricing.** If your tool's cost varies predictably by time (e.g., infrastructure is more expensive at peak AWS hours, or a third-party API you call has peak-tier pricing), reflect that in your tool's price. Agent planners that care about cost will route around peak prices by deferring non-urgent work; agent planners that care about latency will pay the premium. Both are fine outcomes.
+Run an A/B test: 50% of traffic sees price A, 50% sees price B, for 48 to 72 hours. Measure total revenue (price × volume) for each variant. Most developers find their revenue-maximizing price is 20 to 50% higher than their initial guess — first prices tend to be pegged to cost floor plus a thin margin rather than to value delivered, and the market tolerates more than you think.
 
-**Per-caller pricing.** Different price tiers for different consumer types — free-tier for individual developers, premium-tier for enterprise agents with higher usage. This is tiered pricing applied to identity rather than method. It requires knowing who's calling, which in practice means an API key scheme that distinguishes consumer types.
+### Time-of-day pricing
+
+If your tool's cost varies predictably by time (infrastructure more expensive at peak cloud hours, or an upstream API with peak-tier pricing), reflect that in your price. Planners that care about cost will route around peak by deferring non-urgent work; planners that care about latency will pay the premium. Both are fine outcomes, and the price signal does the scheduling for you.
+
+### Per-caller pricing
+
+Different prices for different consumer types — free-tier for individual developers, premium-tier for enterprise agents with higher usage. This is tiered pricing applied to identity rather than method. It requires knowing who's calling, which in practice means an API key scheme that distinguishes consumer types.
 
 Dynamic pricing that over-rotates destroys trust. If your price changes every hour in unpredictable ways, agent planners stop caching your quoted price and start avoiding your tool; or worse, human operators get flagged bills they can't explain. The rule is: dynamic pricing should be explainable in one sentence to a non-technical stakeholder. If you can't explain it, don't ship it.
 
