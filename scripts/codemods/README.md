@@ -79,6 +79,32 @@ The codemod test suite uses `node:test` (built-in, no vitest dependency) for con
 | Name | Purpose | Inputs |
 |------|---------|--------|
 | `sdk-version-bump` | Bump `@settlegrid/mcp` dependency range in `package.json` and rewrite deprecated imports in `src/server.ts` via a per-version rename map | `--from <version> --to <version>` |
+| `sdk-breaking-changes` | Apply a registry of known `@settlegrid/mcp` breaking-change transforms across every template's `src/` tree (no `--from`/`--to` required) — rename `costCents` to `priceCents`, rewrite `@settlegrid/mcp/legacy` to the canonical import, rename `SGError` to `SettleGridError`, remove deprecated `sg.debug()` calls | _(none)_ |
+
+## Batch Runner (P3.11)
+
+The `run-all.mjs` runner applies every registered codemod to every
+template under the configured roots (`open-source-servers/*` and
+`packages/create-settlegrid-tool/templates/*`). Used by the weekly
+`template-ci` GitHub Actions workflow to sweep the whole corpus.
+
+```bash
+# Dry-run every codemod against every template
+node scripts/codemods/run-all.mjs
+
+# Apply and smoke-test 5 random templates post-apply
+node scripts/codemods/run-all.mjs --apply --smoke-test 5
+```
+
+Exit codes:
+- `0` — clean pass (or dry-run with no errors)
+- `1` — at least one template errored during codemod execution
+- `2` — post-apply smoke test found a typecheck regression
+- `3` — argument / configuration error
+
+The smoke-test sample is seeded by the current ISO date, so two
+runs on the same day test the same templates — important for
+reproducing a regression.
 
 ## Files
 
