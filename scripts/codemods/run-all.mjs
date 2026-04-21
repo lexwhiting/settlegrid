@@ -176,17 +176,26 @@ export function sampleForSmokeTest(arr, n, seed) {
 // tsc smoke test
 // ---------------------------------------------------------------------------
 
+/** Upper bound on how long `tsc --noEmit` may run per template.
+ * A template with an infinite type-resolution loop would otherwise
+ * hang the smoke test forever and block the whole CI run. 120s is
+ * generous for a single-template typecheck — a real template's
+ * tsc run finishes in a few seconds. */
+const TSC_TIMEOUT_MS = 120_000
+
 /**
  * Run `tsc --noEmit` against a single template directory. Returns
- * `{ ok: boolean, stderr: string }`. Non-zero exit = regression.
+ * `{ ok, stderr, skipped, timedOut }`. Non-zero exit = regression;
+ * timeout is also treated as a regression (ok: false).
  *
  * Templates typically have their own `tsconfig.json`; if not,
  * skip them (nothing to typecheck).
  */
-export async function runTscOnTemplate(templateDir) {
+export async function runTscOnTemplate(templateDir, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? TSC_TIMEOUT_MS
   const tsconfig = path.join(templateDir, 'tsconfig.json')
   if (!existsSync(tsconfig)) {
-    return { ok: true, stderr: '', skipped: true }
+    return { ok: true, stderr: '', skipped: true, timedOut: false }
   }
   return new Promise((resolve) => {
     const child = spawn(
@@ -195,16 +204,36 @@ export async function runTscOnTemplate(templateDir) {
       { cwd: templateDir, stdio: ['ignore', 'pipe', 'pipe'] },
     )
     let stderr = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      // SIGKILL to unconditionally stop a runaway tsc. SIGTERM
+      // would let the process catch and ignore it.
+      child.kill('SIGKILL')
+    }, timeoutMs)
+
     child.stdout?.on('data', (d) => (stderr += d.toString()))
     child.stderr?.on('data', (d) => (stderr += d.toString()))
     child.on('close', (code) => {
-      resolve({ ok: code === 0, stderr, skipped: false })
+      clearTimeout(timer)
+      if (timedOut) {
+        resolve({
+          ok: false,
+          stderr: `tsc timed out after ${timeoutMs}ms\n${stderr}`,
+          skipped: false,
+          timedOut: true,
+        })
+      } else {
+        resolve({ ok: code === 0, stderr, skipped: false, timedOut: false })
+      }
     })
     child.on('error', (err) => {
+      clearTimeout(timer)
       resolve({
         ok: false,
         stderr: `spawn error: ${err.message}`,
         skipped: false,
+        timedOut: false,
       })
     })
   })
@@ -294,6 +323,14 @@ async function cliMain() {
       `${args.apply ? 'touched' : 'would touch'}, ` +
       `${result.totals.errors} template(s) errored`,
   )
+
+  // Machine-readable summary line. Consumers (the template-ci
+  // workflow specifically) grep for `files-touched=<N>` rather
+  // than parsing the human prose — so the wording above can
+  // change without breaking automation.
+  console.log(`[run-all] files-touched=${result.totals.filesTouched}`)
+  console.log(`[run-all] errors=${result.totals.errors}`)
+  console.log(`[run-all] templates=${result.templatesDiscovered}`)
 
   for (const [name, stats] of Object.entries(result.perCodemod)) {
     console.log(
