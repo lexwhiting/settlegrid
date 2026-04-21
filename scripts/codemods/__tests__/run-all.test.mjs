@@ -89,6 +89,22 @@ test('discoverTemplates: skips roots that do not exist', async () => {
   }
 })
 
+test('discoverTemplates: skips roots where readdir fails (e.g., path is a file)', async () => {
+  // Covers the catch branch: existsSync passes (because the path
+  // exists) but readdir fails (because the path is a file, not a
+  // directory). The function must continue to the next root.
+  const tmp = await mkdtemp(join(tmpdir(), 'disc-'))
+  try {
+    // Create a file named 'weird-root' at the level where we'd
+    // normally expect a root directory.
+    await writeFile(join(tmp, 'weird-root'), 'this is a file not a dir')
+    const result = await discoverTemplates(['weird-root'], tmp)
+    assert.deepEqual(result, [])
+  } finally {
+    await rm(tmp, { recursive: true, force: true })
+  }
+})
+
 // ─── sampleForSmokeTest (deterministic seeded-random) ──────────────
 
 test('sampleForSmokeTest: returns empty array for n=0', () => {
@@ -140,6 +156,41 @@ test('runAll: dry-run on empty roots returns zero totals', async () => {
     assert.equal(result.templatesDiscovered, 0)
     assert.equal(result.totals.filesTouched, 0)
     assert.equal(result.totals.errors, 0)
+  } finally {
+    await rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('runAll: aggregates per-template errors in perCodemod.errors', async () => {
+  // Covers lines ~280-284: the error-aggregation branch in runAll
+  // that pushes per-template failures into the codemod's error
+  // list. Driven by a template with a malformed .ts file that the
+  // parser rejects.
+  const tmp = await mkdtemp(join(tmpdir(), 'ra-'))
+  try {
+    const badTemplate = join(tmp, 'open-source-servers', 'broken')
+    await mkdir(join(badTemplate, 'src'), { recursive: true })
+    // Include the SDK import so the H2 gate permits transforms;
+    // deliberately break the brace balance so jscodeshift parse
+    // fails.
+    await writeFile(
+      join(badTemplate, 'src', 'bad.ts'),
+      `import { settlegrid } from '@settlegrid/mcp'\nsg.wrap(h, { costCents: 5 \n`,
+    )
+    const result = await runAll({
+      apply: false,
+      baseDir: tmp,
+      roots: ['open-source-servers'],
+      codemods: ['sdk-breaking-changes'],
+    })
+    assert.equal(result.totals.errors, 1)
+    const cm = result.perCodemod['sdk-breaking-changes']
+    assert.equal(cm.errors.length, 1)
+    assert.ok(
+      cm.errors[0].template.includes('broken'),
+      `expected error template to include "broken", got ${cm.errors[0].template}`,
+    )
+    assert.ok(cm.errors[0].errors.length > 0)
   } finally {
     await rm(tmp, { recursive: true, force: true })
   }

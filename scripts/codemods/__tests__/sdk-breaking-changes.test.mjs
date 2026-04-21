@@ -438,6 +438,26 @@ test('run(): skips templates with no src/ directory', async () => {
   }
 })
 
+test('run(): skips templates where src/ exists but contains no .ts files', async () => {
+  // Covers the branch at line ~509: `src/: no .ts files`. Without
+  // this test the branch is dead.
+  const tmp = await mkdtemp(join(tmpdir(), 'sbc-'))
+  try {
+    await mkdir(join(tmp, 'src'), { recursive: true })
+    // Drop a non-TS file — shouldn't be picked up by walkTsFiles.
+    await writeFile(join(tmp, 'src', 'config.json'), '{}')
+    const result = await run(tmp, { dryRun: true })
+    assert.ok(
+      result.skipped.some((s) => s.includes('no .ts files')),
+      `expected a "no .ts files" skip reason, got: ${JSON.stringify(result.skipped)}`,
+    )
+    assert.equal(result.filesTouched.length, 0)
+    assert.equal(result.errors.length, 0)
+  } finally {
+    await rm(tmp, { recursive: true, force: true })
+  }
+})
+
 test('run(): malformed .ts surfaces a structured error, not a crash', async () => {
   const tmp = await mkdtemp(join(tmpdir(), 'sbc-'))
   try {
