@@ -1,0 +1,137 @@
+name: Template CI (weekly codemods)
+
+# Weekly sweep: runs all registered codemods against every template
+# under open-source-servers/ and packages/create-settlegrid-tool/
+# templates/. Consolidates any resulting changes into a single PR
+# labeled `template-ci` and assigned to the founder.
+#
+# The workflow NEVER pushes to main directly (hostile audit a):
+# peter-evans/create-pull-request always commits to a fresh branch
+# and opens a PR. The default branch is never a push target.
+
+on:
+  schedule:
+    # Sunday 06:00 UTC — matches the renovate.json schedule so
+    # both sweeps land in the same weekly window.
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run only (no PR created)'
+        type: boolean
+        default: false
+
+# The workflow writes to disk during codemod apply and needs PR
+# creation permissions. Pull-requests: write lets the bot open a
+# PR; contents: write lets peter-evans/create-pull-request push
+# the generated branch. Neither permits force-push to protected
+# branches by itself — branch-protection rules on main still apply.
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: template-ci
+  cancel-in-progress: false
+
+jobs:
+  run-codemods:
+    name: template-ci / weekly codemods
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history so the PR branch commit has the full graph.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dry-run codemods (preview before applying)
+        id: dryrun
+        run: |
+          node scripts/codemods/run-all.mjs 2>&1 | tee /tmp/codemods-dryrun.log
+          # Extract the files-touched count from the final summary.
+          # Empty run = exit without creating a PR.
+          touched=$(grep -oE '[0-9]+ files would touch' /tmp/codemods-dryrun.log | head -1 | grep -oE '[0-9]+' || echo "0")
+          echo "files_touched=$touched" >> "$GITHUB_OUTPUT"
+          echo "Dry run found $touched file(s) to touch."
+
+      - name: Apply codemods (writes to disk)
+        if: steps.dryrun.outputs.files_touched != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          node scripts/codemods/run-all.mjs --apply --smoke-test 5
+
+      - name: Check for changes
+        if: steps.dryrun.outputs.files_touched != '0' && github.event.inputs.dry_run != 'true'
+        id: git_status
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            git status --porcelain | head -40
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.git_status.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # Fixed branch name so a second weekly run updates the
+          # existing PR rather than opening a parallel one. If the
+          # prior PR has been merged/closed, a fresh branch opens
+          # automatically.
+          branch: template-ci/weekly-codemods
+          base: main
+          title: 'template-ci: weekly codemod sweep'
+          body: |
+            Automated weekly codemod sweep applied to every template
+            under `open-source-servers/` and
+            `packages/create-settlegrid-tool/templates/`.
+
+            **What changed**
+            See the diff. The codemod suite covers:
+
+            - `costCents` → `priceCents` in `sg.wrap()` options
+            - `@settlegrid/mcp/legacy` → `@settlegrid/mcp` import paths
+            - `SGError` → `SettleGridError`
+            - Removal of deprecated `sg.debug()` calls
+
+            **Verification**
+            - Each transform is pure + idempotent (running twice is
+              a no-op).
+            - Post-apply smoke test ran `tsc --noEmit` on 5 random
+              templates (seeded by today's date).
+            - If the smoke test failed, the workflow would have
+              exited non-zero before opening this PR.
+
+            **Review checklist**
+            - [ ] Confirm the diff matches the stated transforms.
+            - [ ] Run `node scripts/codemods/run-all.mjs` locally
+              and verify the dry-run summary matches this PR's
+              changes (idempotency check).
+            - [ ] If any transform should NOT apply to a specific
+              template, add an opt-out marker and re-run.
+          commit-message: |
+            chore(templates): weekly codemod sweep
+
+            Applied the sdk-breaking-changes codemod suite to every
+            template under open-source-servers/ and packages/
+            create-settlegrid-tool/templates/.
+
+            See the PR body for the full transform list and the
+            post-apply smoke-test result.
+          labels: template-ci
+          assignees: lexwhiting
+          # delete-branch ensures a merged or closed PR doesn't
+          # leave a stale branch behind — the next weekly run will
+          # start fresh.
+          delete-branch: true
