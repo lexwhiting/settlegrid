@@ -9,7 +9,20 @@ export const metadata: Metadata = {
   title: 'SettleGrid Academy — Monetization Lessons for AI Tool Developers',
   description:
     "Long-form lessons on pricing, payment rails, tool-calling economics, and margin math for developers monetizing MCP tools and AI APIs. Citation-heavy, built to stand alone as SEO entry points.",
-  alternates: { canonical: 'https://settlegrid.ai/learn/academy' },
+  alternates: {
+    canonical: 'https://settlegrid.ai/learn/academy',
+    // RSS auto-discovery: feed readers (Feedly, Inoreader, NetNewsWire,
+    // etc.) look for `<link rel="alternate" type="application/rss+xml">`
+    // in the page head. Next.js's `alternates.types` field emits
+    // exactly that tag. Using `metadata.other` with a custom key
+    // like `alternate-rss` produces a `<meta name="alternate-rss">`
+    // tag that no reader looks for — auto-discovery would silently
+    // not work.
+    types: {
+      'application/rss+xml':
+        'https://settlegrid.ai/learn/academy/rss.xml',
+    },
+  },
   keywords: [
     'mcp academy',
     'ai tool monetization academy',
@@ -33,12 +46,6 @@ export const metadata: Metadata = {
     description:
       'Long-form lessons on pricing, payment rails, tool-calling economics, and margin math.',
     images: ['https://settlegrid.ai/brand/og-image.svg'],
-  },
-  other: {
-    // RSS auto-discovery: let feed readers find the Academy feed
-    // directly from the landing page `<head>` per the conventional
-    // `link rel=alternate` pattern.
-    'alternate-rss': '/learn/academy/rss.xml',
   },
 }
 
