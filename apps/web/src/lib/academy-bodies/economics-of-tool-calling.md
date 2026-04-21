@@ -46,7 +46,7 @@ Fees stack subtly. A 5-cent per-call tool paying `2.9% + 30¢` to Stripe direct 
 
 ### Dispute and refund tail
 
-Tool calls that fail, time out, or produce unsatisfactory outputs sometimes get refunded. Refunded calls carry their cost (you already ran the compute) but reverse their revenue. A 2% refund rate on a 50%-margin tool drops effective margin to 49%; a 10% refund rate drops it to 45%. Refund rate is a proxy for quality — the best way to control it is to improve output consistency, but some baseline rate is unavoidable.
+Tool calls that fail, time out, or produce unsatisfactory outputs sometimes get refunded. Refunded calls carry their cost (you already ran the compute) but reverse their revenue. A 2% refund rate on a 50%-margin tool drops effective margin to 49%; a 10% refund rate drops it to 45%. Refund rate is a proxy for quality — the best way to control it is to improve output consistency, but some baseline rate is unavoidable. The [MCP payment retry logic guide](/learn/blog/mcp-server-payment-retry-logic) covers the operational side of handling failed payments and refunds — the billing-layer decisions you make there directly affect your realized margin.
 
 Mitigation: measure refund rate as a dashboard metric, not a quarterly review metric. A refund rate that drifts from 2% to 5% between pricing experiments is telling you something about the experiment — either the new pricing attracted worse-fit callers or something else shifted.
 

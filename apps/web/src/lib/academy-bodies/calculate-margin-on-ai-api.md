@@ -105,7 +105,7 @@ This is a healthier-than-it-looks business. The dominant cost is the upstream AP
 
 Per-call gross margin at `$0.12`: `($0.12 − $0.0320) / $0.12` = **73.3%**.
 
-The negotiation is the biggest margin lever on this kind of tool. If you're paying list price to a paid upstream API and your spend is above $2K-5K/month, ask for a volume discount. Most upstream providers negotiate; the worst answer is no.
+The negotiation is the biggest margin lever on this kind of tool. If you're paying list price to a paid upstream API and your spend is above $2K-5K/month, ask for a volume discount. Most upstream providers negotiate; the worst answer is no. For tools that want to pass through upstream cost rather than absorb it entirely, the platform-choice discussion in the [MCP billing comparison](/learn/blog/mcp-billing-comparison-2026) matters — different billing layers expose different cost-passthrough mechanics (transparent markup vs flat-fee vs volume-tiered).
 
 ## Example 3: Compute-Only Tool
 
@@ -133,7 +133,7 @@ Compute-only tools need volume to be economically meaningful. If you can't see a
 
 What counts as a "healthy" margin depends on the tool category. AI APIs in different categories have structurally different cost profiles, and comparing a compute-only tool's 95% margin against an LLM-wrapper tool's 65% margin as if they were the same category produces wrong conclusions.
 
-These ranges reflect typical unit economics across the MCP ecosystem. They're not rules — your specific tool may legitimately land outside these ranges — but they're useful reality checks when you're trying to decide if your margin is good or bad.
+These ranges reflect typical unit economics across the MCP ecosystem, aligned with the [per-call pricing benchmarks table](/learn/blog/per-call-billing-ai-agents#pricing-benchmarks) that the pricing-fundamentals lesson also references. They're not rules — your specific tool may legitimately land outside these ranges — but they're useful reality checks when you're trying to decide if your margin is good or bad.
 
 | Category | Typical gross margin | Why the range |
 |----------|---------------------:|---------------|

@@ -119,6 +119,19 @@ describe.each(ACADEMY_LESSONS.map((l) => [l.slug, l] as const))(
       expect(internalLinks.length).toBeGreaterThanOrEqual(3)
     })
 
+    it('contains at least 2 blog-post links (P3.9 spec: link to ≥2 blog posts)', () => {
+      // The P3.9 spec step 5 explicitly requires "lessons link to
+      // each other AND to ≥2 blog posts" — not just any internal
+      // links. Enforcing this separately catches the case where a
+      // lesson satisfies the generic ≥3 internal-links test via
+      // academy cross-links alone, which is cheaper than properly
+      // tying into the broader /learn/blog corpus.
+      const blogLinks = [
+        ...lesson.body.matchAll(/\]\(\/learn\/blog\/[^)]+\)/g),
+      ]
+      expect(blogLinks.length).toBeGreaterThanOrEqual(2)
+    })
+
     it('does not stuff its primary keyword into every paragraph', () => {
       // Use each lesson's first keyword as its primary phrase. If more
       // than 50% of paragraphs contain the literal phrase, treat as
