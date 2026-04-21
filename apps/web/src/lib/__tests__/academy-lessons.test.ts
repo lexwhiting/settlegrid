@@ -16,8 +16,11 @@ import {
 } from '../blog-posts'
 
 describe('ACADEMY_LESSONS registry', () => {
-  it('has at least one lesson (Phase 3 launch lesson 1)', () => {
-    expect(ACADEMY_LESSONS.length).toBeGreaterThanOrEqual(1)
+  it('has at least 5 lessons (Phase 3 full Academy launch)', () => {
+    // P3.8 shipped lesson 1; P3.9 shipped lessons 2-5. The registry
+    // floor is now 5 — if a lesson gets silently removed this test
+    // surfaces the regression.
+    expect(ACADEMY_LESSONS.length).toBeGreaterThanOrEqual(5)
   })
 
   it('every lesson has a unique slug', () => {
@@ -34,6 +37,24 @@ describe('ACADEMY_LESSONS registry', () => {
   it('ACADEMY_SLUGS mirrors the lesson list', () => {
     expect(ACADEMY_SLUGS).toEqual(ACADEMY_LESSONS.map((l) => l.slug))
   })
+
+  it('every relatedSlug refers to a real lesson (no dangling references)', () => {
+    const validSlugs = new Set(ACADEMY_SLUGS)
+    for (const l of ACADEMY_LESSONS) {
+      for (const related of l.relatedSlugs) {
+        expect(
+          validSlugs.has(related),
+          `lesson ${l.slug} references unknown related ${related}`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('no lesson lists itself as a related slug', () => {
+    for (const l of ACADEMY_LESSONS) {
+      expect(l.relatedSlugs).not.toContain(l.slug)
+    }
+  })
 })
 
 describe('getAcademyLessonBySlug', () => {
@@ -48,94 +69,157 @@ describe('getAcademyLessonBySlug', () => {
   })
 })
 
-describe('lesson: pricing-your-mcp-server', () => {
-  const lesson = getAcademyLessonBySlug('pricing-your-mcp-server')!
+// ─── Universal per-lesson checks ────────────────────────────────────
+//
+// These assertions run against every lesson in the registry. If a
+// future lesson is added and any of these checks fails, the registry
+// test surfaces it before the build ships broken content.
 
-  it('has all required metadata fields populated', () => {
-    expect(lesson.title).toBeTruthy()
-    expect(lesson.summary).toBeTruthy()
-    expect(lesson.datePublished).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(lesson.dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(lesson.readingTime).toBeTruthy()
-    expect(lesson.author.name).toBeTruthy()
-    expect(lesson.canonicalUrl).toMatch(
-      /^https:\/\/settlegrid\.ai\/learn\/academy\//,
-    )
-    expect(lesson.keywords.length).toBeGreaterThanOrEqual(3)
-    // Spec prerequisite: "SEO target keywords confirmed: 'how to
-    // price mcp server', 'mcp server pricing', 'ai tool pricing'".
-    // All three must appear verbatim in the keywords array so the
-    // site-level SEO config and per-lesson <meta name="keywords">
-    // agree on the targets.
-    const lower = lesson.keywords.map((k) => k.toLowerCase())
+describe.each(ACADEMY_LESSONS.map((l) => [l.slug, l] as const))(
+  'lesson: %s',
+  (_slug, lesson) => {
+    it('has all required metadata fields populated', () => {
+      expect(lesson.title).toBeTruthy()
+      expect(lesson.summary).toBeTruthy()
+      expect(lesson.datePublished).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(lesson.dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(lesson.readingTime).toBeTruthy()
+      expect(lesson.author.name).toBeTruthy()
+      expect(lesson.canonicalUrl).toMatch(
+        /^https:\/\/settlegrid\.ai\/learn\/academy\//,
+      )
+      // Canonical URL must contain the slug (typo-resistance).
+      expect(lesson.canonicalUrl).toContain(`/academy/${lesson.slug}`)
+      expect(lesson.keywords.length).toBeGreaterThanOrEqual(3)
+    })
+
+    it('body is between 3000 and 5000 words (spec floor + ceiling)', () => {
+      expect(lesson.body).toBeTruthy()
+      expect(lesson.body.length).toBeGreaterThan(10_000)
+      const wc = wordCountFromMarkdown(lesson.body)
+      expect(wc).toBeGreaterThanOrEqual(3000)
+      expect(wc).toBeLessThanOrEqual(5000)
+    })
+
+    it('body uses proper H2 structure (at least 6 top-level sections)', () => {
+      const h2Count = (lesson.body.match(/^##\s+/gm) ?? []).length
+      expect(h2Count).toBeGreaterThanOrEqual(6)
+    })
+
+    it('body has H3 subheadings for nested structure (spec: h1-h3)', () => {
+      const h3Count = (lesson.body.match(/^###\s+/gm) ?? []).length
+      expect(h3Count).toBeGreaterThanOrEqual(8)
+    })
+
+    it('contains at least 3 internal links (blog, academy, or shadow)', () => {
+      // Match any /learn/blog/*, /learn/academy/*, or /mcp* link.
+      const internalLinks = [
+        ...lesson.body.matchAll(/\]\((\/(?:learn\/(?:blog|academy)|mcp)[^)]*)\)/g),
+      ]
+      expect(internalLinks.length).toBeGreaterThanOrEqual(3)
+    })
+
+    it('does not stuff its primary keyword into every paragraph', () => {
+      // Use each lesson's first keyword as its primary phrase. If more
+      // than 50% of paragraphs contain the literal phrase, treat as
+      // stuffing.
+      const primary = lesson.keywords[0].toLowerCase()
+      const paragraphs = lesson.body
+        .split(/\n\n/)
+        .filter((p) => p.trim().length > 0)
+      const hits = paragraphs.filter((p) =>
+        p.toLowerCase().includes(primary),
+      ).length
+      expect(hits / paragraphs.length).toBeLessThan(0.5)
+    })
+
+    it('declared wordCount (if any) is within 5% of the computed count', () => {
+      if (lesson.wordCount === undefined) return
+      const computed = wordCountFromMarkdown(lesson.body)
+      const driftPct = Math.abs(lesson.wordCount - computed) / computed
+      expect(driftPct).toBeLessThan(0.05)
+    })
+  },
+)
+
+// ─── Lesson-specific SEO keyword checks ────────────────────────────────
+//
+// Each lesson has spec-defined SEO target phrases that must appear
+// verbatim in its keywords array. These assertions encode the specific
+// targets per lesson so a rename of the keywords array doesn't
+// silently drop an SEO target.
+
+describe('lesson 1 — pricing-your-mcp-server SEO targets', () => {
+  const lesson = getAcademyLessonBySlug('pricing-your-mcp-server')!
+  const lower = lesson.keywords.map((k) => k.toLowerCase())
+
+  it('includes the three P3.8 SEO target phrases', () => {
     expect(lower).toContain('how to price mcp server')
     expect(lower).toContain('mcp server pricing')
     expect(lower).toContain('ai tool pricing')
   })
 
-  it('body is non-empty and between 3000 and 5000 words (spec floor + ceiling)', () => {
-    expect(lesson.body).toBeTruthy()
-    expect(lesson.body.length).toBeGreaterThan(10_000)
-    const wc = wordCountFromMarkdown(lesson.body)
-    expect(wc).toBeGreaterThanOrEqual(3000)
-    expect(wc).toBeLessThanOrEqual(5000)
-  })
-
-  it('body uses proper H2 structure (at least 6 top-level sections for TOC)', () => {
-    const h2Count = (lesson.body.match(/^##\s+/gm) ?? []).length
-    expect(h2Count).toBeGreaterThanOrEqual(6)
-  })
-
-  it('body has H3 subheadings for nested sections (spec: "h1-h3 structure")', () => {
-    // The page.tsx renders the lesson title as H1; the body provides
-    // H2 top-level sections and H3 subsections. At least 8 H3s gives
-    // us real nested structure for SEO (each H3 becomes an anchor id
-    // via rehype-slug) without being so many that the TOC explodes.
-    const h3Count = (lesson.body.match(/^###\s+/gm) ?? []).length
-    expect(h3Count).toBeGreaterThanOrEqual(8)
-  })
-
-  it('contains at least 3 internal links (blog posts or shadow directory)', () => {
-    // Match markdown links whose target begins with /learn/blog/ or /mcp
-    const internalLinks = [
-      ...lesson.body.matchAll(/\]\((\/(?:learn\/blog|mcp)[^)]*)\)/g),
-    ]
-    expect(internalLinks.length).toBeGreaterThanOrEqual(3)
-  })
-
-  it('cites competitor/ecosystem pricing with external links (no bare figures)', () => {
-    // Spec + hostile audit: "no hallucinated pricing from real
-    // competitors — every benchmark has a citation link". The body
-    // must link out to Anthropic, OpenAI, and Stripe so every
-    // citable pricing claim can be verified.
+  it('cites the three competitor pricing sources verbatim in the body', () => {
+    // Anthropic + OpenAI + Stripe pricing URLs are the spec-cited
+    // sources the body was built against. If any of these URLs
+    // disappears from the body, the benchmark claim they support is
+    // orphaned — the test forces a deliberate citation update when
+    // the body changes.
     expect(lesson.body).toMatch(/\]\(https:\/\/claude\.com\/pricing\)/)
     expect(lesson.body).toMatch(/\]\(https:\/\/openai\.com\/api\/pricing\)/)
     expect(lesson.body).toMatch(/\]\(https:\/\/stripe\.com\/pricing\)/)
   })
+})
 
-  it('does not stuff the primary keyword into every paragraph', () => {
-    // Heuristic hostile check: count paragraphs (double-newline
-    // separated) that contain the literal primary keyword phrase.
-    // If >50% of paragraphs contain the literal phrase, it's stuffing.
-    const paragraphs = lesson.body
-      .split(/\n\n/)
-      .filter((p) => p.trim().length > 0)
-    const primary = 'mcp server pricing'
-    const hits = paragraphs.filter((p) =>
-      p.toLowerCase().includes(primary),
-    ).length
-    expect(hits / paragraphs.length).toBeLessThan(0.5)
+describe('lesson 3 — stripe-vs-settlegrid-vs-x402 (sensitive content)', () => {
+  const lesson = getAcademyLessonBySlug('stripe-vs-settlegrid-vs-x402')!
+
+  it('cites Stripe MPP announcement', () => {
+    expect(lesson.body).toMatch(
+      /\]\(https:\/\/stripe\.com\/blog\/machine-payments-protocol\)/,
+    )
   })
 
-  // --- Hostile regression: declared wordCount must not drift -----------
-  // If a lesson sets an explicit wordCount override, it must match the
-  // computed count within 5%. Otherwise the JSON-LD article schema
-  // ships a misleading count while the body silently grows or shrinks.
-  it('has no wordCount override or a declared count within 5% of the real body', () => {
-    if (lesson.wordCount === undefined) return // computed at render
-    const computed = wordCountFromMarkdown(lesson.body)
-    const driftPct = Math.abs(lesson.wordCount - computed) / computed
-    expect(driftPct).toBeLessThan(0.05)
+  it('cites Stripe Agentic Commerce Suite blog', () => {
+    expect(lesson.body).toMatch(
+      /\]\(https:\/\/stripe\.com\/blog\/agentic-commerce-suite\)/,
+    )
+  })
+
+  it('cites the Stripe Agent Toolkit docs', () => {
+    expect(lesson.body).toMatch(/\]\(https:\/\/docs\.stripe\.com\/agents\)/)
+  })
+
+  it('cites x402.org', () => {
+    expect(lesson.body).toMatch(/\]\(https:\/\/www\.x402\.org\)/)
+  })
+
+  it('cites the x402 GitHub repo', () => {
+    expect(lesson.body).toMatch(
+      /\]\(https:\/\/github\.com\/coinbase\/x402\)/,
+    )
+  })
+
+  it('cites the Linux Foundation x402 Foundation press release', () => {
+    expect(lesson.body).toMatch(
+      /\]\(https:\/\/www\.linuxfoundation\.org\/press\/linux-foundation-is-launching-the-x402-foundation/,
+    )
+  })
+
+  it('has more external citations than lesson 1 (sensitive content bar)', () => {
+    // Lesson 3 makes claims about live competitor products. The bar
+    // is "every competitor claim is cited from their public docs."
+    // An easy check is that the competitive-comparison lesson has
+    // more external URLs than the pricing fundamentals lesson.
+    const lesson1 = getAcademyLessonBySlug('pricing-your-mcp-server')!
+    const countExternal = (body: string) =>
+      [...body.matchAll(/\]\(https:\/\/[^)]+\)/g)].length
+    const externalLesson3 = countExternal(lesson.body)
+    const externalLesson1 = countExternal(lesson1.body)
+    expect(externalLesson3).toBeGreaterThanOrEqual(externalLesson1)
+    // Absolute floor — a sensitive-content lesson must have at least
+    // 10 external citations regardless of what lesson 1 carries.
+    expect(externalLesson3).toBeGreaterThanOrEqual(10)
   })
 })
 
