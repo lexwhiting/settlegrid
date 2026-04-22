@@ -29,6 +29,10 @@ import { MCPAdapter } from './mcp'
 import { X402Adapter } from './x402'
 import { AP2Adapter } from './ap2'
 import { TAPAdapter } from './tap'
+// P3.K1 — the legacy Layer A MPP implementation was replaced by a
+// re-export stub that forwards to `@settlegrid/mcp`. This import
+// transitively resolves to the SDK's MPPAdapter. See `./mpp.ts`
+// header for the rationale.
 import { MPPAdapter } from './mpp'
 import { CircleNanoAdapter } from './circle-nano'
 import { MastercardVIAdapter } from './mastercard-vi'
@@ -211,7 +215,14 @@ export const adapterMetrics = new AdapterMetricsTracker()
 // All nine adapters are registered when the settlement module loads.
 // Import order follows detection priority (most specific first).
 
-protocolRegistry.register(new MPPAdapter())
+// P3.K1 — the SDK's MPPAdapter types `extractPaymentContext` against
+// the broad 14-protocol `ProtocolName` union (includes l402, alipay,
+// etc.), whereas Layer A's narrower ProtocolAdapter interface uses
+// the 9-protocol union. The MPP adapter only ever returns
+// `protocol: 'mpp'` at runtime, so the drift is type-level only; the
+// cast acknowledges that. Layer A retires in P2.K1 and this cast
+// goes with it.
+protocolRegistry.register(new MPPAdapter() as unknown as ProtocolAdapter)
 protocolRegistry.register(new CircleNanoAdapter())
 protocolRegistry.register(new X402Adapter())
 protocolRegistry.register(new MastercardVIAdapter())
