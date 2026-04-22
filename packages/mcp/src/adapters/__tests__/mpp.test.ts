@@ -268,6 +268,48 @@ describe('MPPAdapter.detect — body signatures', () => {
     expect(result.reasons.some((r) => r.includes('X-Payment-Token'))).toBe(true)
     expect(result.reasons.some((r) => r.startsWith('body:'))).toBe(true)
   })
+
+  it('H1: skips body inspection when Content-Length exceeds 64 KiB cap', async () => {
+    // Hostile fix H1 — oversize bodies must NOT be materialized into
+    // a JS string or parsed. This test lies about Content-Length with
+    // a header value well above the cap; the adapter should skip body
+    // inspection entirely (body reason absent) while preserving any
+    // header-level confidence. Without the fix, the adapter would
+    // buffer and parse the whole body as a memory amplification vector.
+    const adapter = newAdapter()
+    const smallBody = JSON.stringify({ protocol: 'mpp' })
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: {
+        'X-Payment-Token': 'spt_abc',
+        'Content-Length': String(10 * 1024 * 1024), // 10 MiB — fabricated
+        'Content-Type': 'application/json',
+      },
+      body: smallBody,
+    })
+    const result = await adapter.detect(req)
+    // Header stands; body path is short-circuited by Content-Length.
+    expect(result.confidence).toBeCloseTo(0.9, 10)
+    expect(result.reasons.some((r) => r.startsWith('body:'))).toBe(false)
+  })
+
+  it('H1: skips body inspection when post-read body text exceeds the cap', async () => {
+    // Defense-in-depth against a spoofed / missing Content-Length:
+    // build a body that is actually > 64 KiB and confirm detect
+    // stops before JSON.parse. Use a valid-but-oversize MPP envelope
+    // so the ONLY reason the body score is absent is the size cap.
+    const adapter = newAdapter()
+    const filler = 'A'.repeat(64 * 1024 + 1000) // > 64 KiB
+    const oversizeEnvelope = JSON.stringify({ protocol: 'mpp', pad: filler })
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: oversizeEnvelope,
+    })
+    const result = await adapter.detect(req)
+    expect(result.confidence).toBe(0)
+    expect(result.reasons).toEqual([])
+  })
 })
 
 // ─── canHandle / detect consistency ──────────────────────────────────────
@@ -312,6 +354,44 @@ describe('MPPAdapter.buildChallenge — overloaded AcceptEntry + envelope paths'
     expect(env.amount).toBe(75)
     expect(env.merchant_id).toBe('acct_test_overload')
     expect(env.currency).toBe('usd')
+  })
+
+  it('H3: throws a TypeError with a clean message on null options', () => {
+    const adapter = newAdapter()
+    expect(() =>
+      // @ts-expect-error intentional null
+      adapter.buildChallenge(null),
+    ).toThrow(TypeError)
+    expect(() =>
+      // @ts-expect-error intentional null
+      adapter.buildChallenge(null),
+    ).toThrow(/non-null object/)
+  })
+
+  it('H3: throws on undefined options', () => {
+    const adapter = newAdapter()
+    expect(() =>
+      // @ts-expect-error intentional undefined
+      adapter.buildChallenge(undefined),
+    ).toThrow(TypeError)
+  })
+
+  it('H3: throws on primitive options (number, string, boolean)', () => {
+    const adapter = newAdapter()
+    for (const bad of [42, 'hello', true, false] as const) {
+      expect(() =>
+        // @ts-expect-error intentional primitive
+        adapter.buildChallenge(bad),
+      ).toThrow(TypeError)
+    }
+  })
+
+  it('H3: throws on array options', () => {
+    const adapter = newAdapter()
+    expect(() =>
+      // @ts-expect-error intentional array
+      adapter.buildChallenge([]),
+    ).toThrow(TypeError)
   })
 })
 
@@ -769,6 +849,36 @@ describe('MPPAdapter.settle', () => {
       currency: 'USD',
     })
     expect(result.event.data.currency).toBe('usd')
+  })
+
+  it('H6: rejects an empty-string currency before mutating cache', async () => {
+    const adapter = newAdapter()
+    await expect(
+      adapter.settle({ ...baseSettlement, invocationId: 'inv_empty_cur', currency: '' }),
+    ).rejects.toThrow(/ISO-4217/)
+    // Cache MUST NOT be populated for a rejected input — confirm by
+    // running a clean settle afterward with a different currency.
+    const ok = await adapter.settle({
+      ...baseSettlement,
+      invocationId: 'inv_empty_cur',
+      currency: 'usd',
+    })
+    expect(ok.status).toBe('settled')
+    expect(ok.event.data.currency).toBe('usd')
+  })
+
+  it('H6: rejects a malformed ISO-4217 currency', async () => {
+    const adapter = newAdapter()
+    await expect(
+      adapter.settle({ ...baseSettlement, invocationId: 'inv_bad_cur', currency: 'US$' }),
+    ).rejects.toThrow(/ISO-4217/)
+    await expect(
+      adapter.settle({
+        ...baseSettlement,
+        invocationId: 'inv_bad_cur2',
+        currency: 'DOLLARS',
+      }),
+    ).rejects.toThrow(/ISO-4217/)
   })
 
   it('omits externalAccountId + data.paymentId/sessionId when input lacks them', async () => {

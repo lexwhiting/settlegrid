@@ -37,6 +37,25 @@ const MPP_PROTOCOL_VERSION = '1.0'
 const MPP_TOKEN_PREFIX = 'spt_'
 const MPP_CREDENTIAL_PREFIX = 'mpp_'
 
+/**
+ * P3.K1 hostile fix H1 — maximum request body size, in bytes, that
+ * `detect()` will read before giving up on body-shape inspection.
+ *
+ * The 64 KiB cap is ~1000× larger than any realistic MPP envelope or
+ * Stripe PaymentIntent representation (both are well under 2 KiB).
+ * An attacker sending a multi-megabyte body to a detection endpoint
+ * would otherwise force the adapter to buffer the whole body into a
+ * JS string before `JSON.parse` — a memory amplification vector
+ * against every tool that registers the MPP adapter.
+ *
+ * Requests larger than this cap return header-only confidence. The
+ * registered headers (`X-Payment-Protocol`, `X-Payment-Token`, etc.)
+ * are ALWAYS inspected regardless of body size — so MPP requests
+ * with legitimate oversize payloads still route correctly as long
+ * as they carry an MPP header.
+ */
+const MPP_DETECT_MAX_BODY_BYTES = 64 * 1024
+
 const MPP_HTTP_HEADERS = {
   PROTOCOL: 'X-Payment-Protocol',
   TOKEN: 'X-Payment-Token',
@@ -56,9 +75,28 @@ export class MPPAdapter implements ProtocolAdapter {
   // caller does not inject its own store. Maps invocationId → cached
   // MppSettleResult so that a repeat call with the same invocationId
   // returns the original result and does NOT re-emit the settlement
-  // event. A real settlement path wires an injected store backed by
-  // the DB ledger; this Map is purely an in-adapter fallback so tests
-  // and development flows get idempotent behavior out of the box.
+  // event.
+  //
+  // Hostile fix H7 — this Map is UNBOUNDED. Each unique invocationId
+  // adds a permanent entry that is never evicted. Long-running
+  // processes MUST inject an external `idempotencyStore` via
+  // `MppSettleDependencies` (typically backed by the DB ledger) or
+  // this Map will leak memory over time. The default in-memory store
+  // is explicitly scoped to tests + short-lived dev invocations.
+  //
+  // Hostile fix H5 — the check-then-set-then-await-ledger sequence
+  // has a narrow race window during the `recordInvocation` await. A
+  // concurrent settle() for the same invocationId entering the
+  // function AFTER the cache.set but BEFORE the recordInvocation
+  // await completes will read `'already-settled'` — even if the
+  // first call's ledger write later fails and rolls back the cache.
+  // In single-threaded JS this window is only reachable through
+  // explicit interleaving (Promise.all of two pending settles for
+  // the same ID); the common case is race-free. Callers that need
+  // strict consistency MUST serialize settle() calls per
+  // invocationId upstream, or read from the injected ledger after
+  // settle() resolves rather than trusting a transient
+  // `'already-settled'` return from a concurrent caller.
   private readonly settleCache = new Map<string, MppSettleResult>()
 
   /**
@@ -69,6 +107,21 @@ export class MPPAdapter implements ProtocolAdapter {
    * implementation. Detection divergence between the two paths was
    * surfaced by `apps/web/src/lib/__tests__/proxy-equivalence.test.ts`
    * and unifying through a single helper is the simplest fix.
+   *
+   * P3.K1 hostile fix H2 — `canHandle` is HEADERS-ONLY and SYNCHRONOUS
+   * because `ProtocolRegistry.detect()` is a sync fast-path dispatcher
+   * that probes every registered adapter's canHandle. Making canHandle
+   * async would cascade into 13 sibling adapters + the registry. The
+   * richer body-aware probe is `detect()` (async).
+   *
+   * INVARIANT: an MPP request MUST carry one of the MPP headers
+   * (X-Payment-Protocol, X-Payment-Token, x-mpp-credential,
+   * x-settlegrid-protocol, or Authorization: Bearer spt_* or mpp_*)
+   * to be routable by the registry. A body-only MPP envelope with no
+   * MPP headers will NOT dispatch to this adapter — the kernel
+   * instead returns its default 402 manifest, letting the consumer
+   * retry with a proper MPP header. `detect()`'s body-level score
+   * is diagnostic (for logging / scoring), not routing.
    */
   canHandle(request: Request): boolean {
     return isMppRequest(request)
@@ -229,10 +282,29 @@ export class MPPAdapter implements ProtocolAdapter {
   buildChallenge(
     options: BuildChallengeOptions | MppChallengeOptions,
   ): AcceptEntry | MppChallengeEnvelope {
+    // Hostile fix H3 — reject non-object input up front with a
+    // specific error. Without this guard, a call like
+    // `adapter.buildChallenge(null)` or `adapter.buildChallenge(undefined)`
+    // would fall through to `narrowOptions.method` and throw an
+    // opaque TypeError deep inside the AcceptEntry path. The explicit
+    // check surfaces the misuse with an actionable message.
     if (
-      options !== null &&
-      typeof options === 'object' &&
-      !Array.isArray(options) &&
+      options === null ||
+      options === undefined ||
+      typeof options !== 'object' ||
+      Array.isArray(options)
+    ) {
+      throw new TypeError(
+        `buildChallenge: \`options\` must be a non-null object; received ${
+          options === null
+            ? 'null'
+            : Array.isArray(options)
+              ? 'array'
+              : typeof options
+        }.`,
+      )
+    }
+    if (
       'merchantId' in options &&
       typeof (options as MppChallengeOptions).merchantId === 'string'
     ) {
@@ -391,18 +463,47 @@ export class MPPAdapter implements ProtocolAdapter {
   /**
    * Inspect the request body for an MPP envelope or Stripe payment
    * intent shape. Returns `null` when the body is missing, already
-   * consumed, non-JSON, or matches no known shape. Never throws —
-   * `detect()` must remain resilient to any body shape an attacker
-   * could send.
+   * consumed, oversize, non-JSON, or matches no known shape. Never
+   * throws — `detect()` must remain resilient to any body shape an
+   * attacker could send.
+   *
+   * Hostile fix H1 — body size is capped at `MPP_DETECT_MAX_BODY_BYTES`
+   * so a hostile client cannot amplify memory usage by sending a
+   * huge body to the detection endpoint. A Content-Length header
+   * above the cap short-circuits before the body is materialized;
+   * a missing/malformed Content-Length falls back to a post-read
+   * length check. Either path returns `null` cleanly.
    */
   private async sniffBodyShape(
     request: Request,
   ): Promise<'mpp-envelope' | 'stripe-payment-intent' | null> {
     try {
       if (request.bodyUsed) return null
+
+      // Fast-path: honor Content-Length when present. Hostile clients
+      // can lie about Content-Length to bypass this, but honest ones
+      // save us the buffer-then-reject round-trip.
+      const contentLengthHeader = request.headers.get('content-length')
+      if (contentLengthHeader !== null) {
+        const contentLength = Number.parseInt(contentLengthHeader, 10)
+        if (
+          Number.isFinite(contentLength) &&
+          contentLength > MPP_DETECT_MAX_BODY_BYTES
+        ) {
+          return null
+        }
+      }
+
       const clone = request.clone()
       const text = await clone.text()
       if (text.length === 0) return null
+
+      // Defense-in-depth for a spoofed or missing Content-Length: even
+      // if we buffered a multi-megabyte string, we stop here before
+      // paying for JSON.parse (which allocates additional memory
+      // proportional to the parsed structure).
+      if (text.length > MPP_DETECT_MAX_BODY_BYTES) return null
+
       const parsed: unknown = JSON.parse(text)
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
         return null
@@ -653,6 +754,23 @@ export class MPPAdapter implements ProtocolAdapter {
           invocation.costCents,
         )}.`,
       )
+    }
+    // Hostile fix H6 — reject malformed currency BEFORE mutating the
+    // idempotency cache. Without this guard, an empty string or a
+    // non-ISO-4217 value propagates into the emitted event and the
+    // ledger entry, silently producing a record that no downstream
+    // accounting system can reconcile.
+    if (invocation.currency !== undefined) {
+      if (
+        typeof invocation.currency !== 'string' ||
+        !/^[a-z]{3}$/i.test(invocation.currency)
+      ) {
+        throw new Error(
+          `settle: \`invocation.currency\` must be a 3-letter ISO-4217 code; got ${JSON.stringify(
+            invocation.currency,
+          )}.`,
+        )
+      }
     }
     const store = deps?.idempotencyStore ?? this.settleCache
     const cached = store.get(invocation.invocationId)
