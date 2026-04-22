@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-22T00:51:24.308Z
+**Run timestamp:** 2026-04-22T13:36:38.390Z
 **Mode:** default
 **Verdict:** 7 PASS / 14 DEFER / 6 FAIL (of 27)
 **Exit code:** 1
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | DEFER | main=0-tracked-dirty,10-untracked; agents=0-tracked-dirty,0-untracked — 10 untracked file(s) (pre-existing docs/ artifacts from prior sessions per handoff convention; non-blocking) |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=1-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 1 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -116,14 +116,14 @@
 - **Verdict:** FAIL
 - **Method:** drain.ts either (a) imports @noble/hashes keccak and a test asserts vector parity, or (b) drain.ts removed + no kernel/marketing references remain
 - **Evidence:** drain.ts present; noble-keccak import=false; explicit-stand-in-comment=true; vector-test-in-suite=false
-- **Detail:** drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.PROT1
+- **Detail:** drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.K5
 
 ### C16 — Stripe account-type router + eligibility pre-check + waitlist shipped
 
 - **Verdict:** FAIL
 - **Method:** packages/rails/src/router.ts exports routeDeveloper + selectStripeAccountType; stripe-connect-countries.json exists; /api/eligibility exists; waitlist_signups migration + API present; ≥14 routing tests pass
 - **Evidence:** router=false, countries=false, eligibility=false, waitlist-table=true, waitlist-route=true
-- **Detail:** partial: missing packages/rails/src/router.ts, stripe-connect-countries.json, /api/eligibility — see P3.K6/P3.RAIL2
+- **Detail:** partial: missing packages/rails/src/router.ts, stripe-connect-countries.json, /api/eligibility — see P3.RAIL1
 
 ### C17 — Stripe Connect reconciliation + drift detection
 
@@ -182,13 +182,13 @@
 
 - **Verdict:** DEFER
 - **Method:** check scripts/directory-submissions/packets/cursor.directory/ directory with four packet artifacts + logged submission status
-- **Evidence:** cursor.directory packet missing — P3.PROT1/P3.MKT directory-expansion prompt not yet shipped
+- **Evidence:** cursor.directory packet missing — P3.13 prompt not yet shipped
 
 ### C26 — Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests)
 
 - **Verdict:** DEFER
 - **Method:** packages/mcp/src/authorize.ts exports authorizeInvocation + AuthorizationPlugin; kernel.ts dispatch chain calls authorizeInvocation; ledger entry includes authorization signals
-- **Evidence:** packages/mcp/src/authorize.ts missing — P3.K5 prompt not yet shipped
+- **Evidence:** packages/mcp/src/authorize.ts missing — P3.K6 prompt not yet shipped
 
 ### C27 — All settlement-layer expansion audit chains PASS
 
@@ -203,7 +203,7 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 
 | # | Item | Status | Remediation |
 |---|------|--------|-------------|
-| PREQ2 | No uncommitted changes in either repo | DEFER | Commit or stash all tracked-dirty files in both repos. Untracked docs/ artifacts are known handoff state; commit or gitignore per founder preference. |
+| PREQ2 | No uncommitted changes in either repo | FAIL | Commit or stash all tracked-dirty files in both repos. Untracked docs/ artifacts are known handoff state; commit or gitignore per founder preference. |
 | C1 | ≥75 new templates in open-source-servers/ | FAIL | Re-run P3.2/P3.3 to add more templates. |
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
@@ -211,8 +211,8 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C12 | L402 adapter wired with Voltage backend (≥1 integration test) | FAIL | Add Voltage/LND integration test in adapter-l402.test.ts (P3.K2). |
 | C13 | Consumer SDK shipped (packages/client/ builds, ≥18 unit tests) | DEFER | Run P3.K3 (Consumer SDK). |
 | C14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | Run P3.K4 (per-rail pricing + ledger + tool-secret + verifyWebhook). |
-| C15 | DRAIN keccak-256 fix OR removal | FAIL | Run P3.PROT1 (DRAIN keccak-256 fix or removal). |
-| C16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | Run P3.K6/P3.RAIL1 (Stripe account-type router + eligibility + waitlist). |
+| C15 | DRAIN keccak-256 fix OR removal | FAIL | Run P3.K5 (DRAIN keccak-256 fix or removal). |
+| C16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | Run P3.RAIL1 (Stripe account-type router + eligibility pre-check + waitlist UI). |
 | C17 | Stripe Connect reconciliation + drift detection | DEFER | Run P3.RAIL2 (Stripe reconciliation + drift detection). |
 | C18 | Payout schedule config + chargeback velocity monitoring | DEFER | Run P3.RAIL3 (payouts UI + chargeback velocity). |
 | C19 | Python SDK core (packages/sdk-python/ builds + pip install -e .) | DEFER | Run P3.PYTHON1 (Python SDK core). |
@@ -221,6 +221,6 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C22 | settlegrid-llamaindex + crewai + pydantic-ai Python adapters | DEFER | Run P3.PYTHON4 (llamaindex + crewai + pydantic-ai Python adapters). |
 | C23 | settlegrid-dspy + smolagents Python adapters | DEFER | Run P3.PYTHON5 (dspy + smolagents Python adapters). |
 | C24 | Mastercard VI detection stub (adapter + landing page) | DEFER | Run P3.PROT1 (Mastercard VI landing page). |
-| C25 | cursor.directory submission packet | DEFER | Run P3.PROT1 (or add cursor.directory packet via directory-submissions scaffold). |
-| C26 | Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests) | DEFER | Run P3.K5 (authorize.ts pre-execution gate). |
+| C25 | cursor.directory submission packet | DEFER | Run P3.13 (cursor.directory submission packet). |
+| C26 | Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests) | DEFER | Run P3.K6 (authorize.ts pre-execution gate). |
 | C27 | All settlement-layer expansion audit chains PASS | DEFER | Run the 15 expansion prompts whose audit-chain commits are absent. |
