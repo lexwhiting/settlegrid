@@ -134,7 +134,7 @@ function readJsonOrNull<T = unknown>(path: string): T | null {
   }
 }
 
-function pass(
+export function pass(
   id: number,
   label: string,
   method: string,
@@ -143,7 +143,7 @@ function pass(
 ): CheckResult {
   return { id, status: 'PASS', label, method, evidence, detail: detail ?? evidence }
 }
-function defer(
+export function defer(
   id: number,
   label: string,
   method: string,
@@ -152,7 +152,7 @@ function defer(
 ): CheckResult {
   return { id, status: 'DEFER', label, method, evidence, detail: detail ?? evidence }
 }
-function fail(
+export function fail(
   id: number,
   label: string,
   method: string,
@@ -162,7 +162,7 @@ function fail(
   return { id, status: 'FAIL', label, method, evidence, detail: detail ?? evidence }
 }
 
-async function safeCheck(
+export async function safeCheck(
   fn: () => Promise<CheckResult>,
   id: number,
   name: string,
@@ -1612,7 +1612,7 @@ export function aggregateResults(
   }
 }
 
-function escapeMdCell(s: string): string {
+export function escapeMdCell(s: string): string {
   return s.replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ')
 }
 
@@ -1658,7 +1658,7 @@ function appendAuditLog(block: string): void {
 
 // ── Human-readable Phase 3 audit log ─────────────────────────────────
 
-function remediationHint(r: CheckResult): string {
+export function remediationHint(r: CheckResult): string {
   const m: Record<number, string> = {
     1: 'Re-run P3.2/P3.3 to add more templates.',
     2: 'Re-run cost summary; confirm untracked spend bound.',
@@ -1775,7 +1775,7 @@ export function formatPhase3Log(
   return lines.join('\n')
 }
 
-function prereqRemediationHint(p: Prerequisite): string {
+export function prereqRemediationHint(p: Prerequisite): string {
   switch (p.id) {
     case 'PREQ1':
       return 'Complete/repair any P3.1–P3.11 audit chain whose stages are missing (see C10).'
