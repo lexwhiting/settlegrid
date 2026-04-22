@@ -197,8 +197,23 @@ describe('remediationHint', () => {
     expect(remediationHint(makeResult(4, 'DEFER'))).toMatch(/founder/i)
     expect(remediationHint(makeResult(5, 'FAIL'))).toMatch(/founder/i)
   })
-  it('C26 hint references P3.K5', () => {
-    expect(remediationHint(makeResult(26, 'DEFER'))).toMatch(/P3\.K5/)
+  it('C15 hint references P3.K5 (DRAIN adapter keccak card)', () => {
+    expect(remediationHint(makeResult(15, 'FAIL'))).toMatch(/P3\.K5/)
+  })
+  it('C16 hint references P3.RAIL1 (Stripe router card) and NOT P3.K6', () => {
+    const hint = remediationHint(makeResult(16, 'FAIL'))
+    expect(hint).toMatch(/P3\.RAIL1/)
+    expect(hint).not.toMatch(/P3\.K6/)
+  })
+  it('C25 hint references P3.13 (cursor.directory card), not P3.PROT1', () => {
+    const hint = remediationHint(makeResult(25, 'DEFER'))
+    expect(hint).toMatch(/P3\.13/)
+    expect(hint).not.toMatch(/P3\.PROT1/)
+  })
+  it('C26 hint references P3.K6 (authorize.ts card), not P3.K5', () => {
+    const hint = remediationHint(makeResult(26, 'DEFER'))
+    expect(hint).toMatch(/P3\.K6/)
+    expect(hint).not.toMatch(/P3\.K5/)
   })
   it('C27 hint names the "15 expansion prompts" count', () => {
     expect(remediationHint(makeResult(27, 'DEFER'))).toMatch(/15 expansion prompts/)
