@@ -17,13 +17,20 @@
  * @see https://docs.lightning.engineering/the-lightning-network/l402
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { randomUUID } from 'crypto'
 import type {
   AcceptEntry,
   BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
+import type { SettleGridInternalEvent } from '../rails/types'
+import {
+  createLndClient,
+  LND_NOT_WIRED_MESSAGE,
+} from './lightning/lnd'
+import type { VoltageClient, VoltageInvoice } from './lightning/voltage'
+import { createVoltageClient } from './lightning/voltage'
 import type {
   AdapterLogger,
   PaymentContext,
@@ -46,6 +53,47 @@ const L402_HEADERS = {
 
 /** Default macaroon expiry in seconds (1 hour) */
 const DEFAULT_MACAROON_EXPIRY_SECONDS = 3600
+
+/**
+ * P3.K2 — maximum request body size inspected by `detect()` when
+ * probing for L402 signatures. Same 64 KiB cap as the P3.K1 MPP
+ * adapter; identical rationale (body-DoS amplification guard).
+ */
+const L402_DETECT_MAX_BODY_BYTES = 64 * 1024
+
+/**
+ * Millisatoshi per BTC = 100,000,000 sats × 1000 msat/sat. Used by
+ * the settle() fiat-conversion path. Extracted as a constant so the
+ * msat → fiat math is reviewable in one place.
+ */
+const MSAT_PER_BTC = 100_000_000_000
+
+/**
+ * TTL for the in-memory BTC/USD rate cache, in milliseconds.
+ * 60 seconds is a reasonable balance: short enough that a rapid
+ * price move is reflected within a minute, long enough that a burst
+ * of invocations doesn't hammer the upstream rate API. Exported
+ * primarily so tests can override via the fetcher constructor.
+ */
+const RATE_CACHE_TTL_MS = 60_000
+
+/**
+ * Default BTC/USD rate source. CoinGecko's public API requires no
+ * key and serves JSON in the shape `{ bitcoin: { usd: 100000 } }`.
+ * Per hostile-audit rule (b), the adapter MUST NOT hardcode the
+ * rate — this URL is a *fetcher source*, not a constant rate. When
+ * the source is unreachable the CoinGeckoRateFetcher below throws
+ * and `settle()` surfaces the failure to the caller rather than
+ * silently substituting a stale cached value.
+ */
+const DEFAULT_BTC_USD_RATE_SOURCE_URL =
+  'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+
+/** Timeout in ms for rate-source HTTP calls. */
+const RATE_FETCH_TIMEOUT_MS = 5_000
+
+/** Cap on bytes read from the rate source (tiny JSON; 1 KiB is plenty). */
+const RATE_FETCH_MAX_BODY_BYTES = 1024
 
 /**
  * Dev fallback signing key — production callers MUST supply a real one via
@@ -172,12 +220,23 @@ function timingSafeHexEqual(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Mint a macaroon. The `paymentHash` parameter is a P3.K2 addition:
+ * when supplied, it's embedded as a caveat so the server can later
+ * verify a client-supplied preimage by hashing the preimage and
+ * comparing against the bound `payment_hash` — the spec-required
+ * actual-hash check (hostile audit rule a), instead of a length-only
+ * check. Legacy call sites that omit `paymentHash` continue to mint
+ * preimage-agnostic macaroons; `validateL402Payment` preserves the
+ * length-only fallback for those (documented at the validator).
+ */
 function mintMacaroon(
   toolSlug: string,
   costCents: number,
   amountSats: number,
   location: string,
   signingKey: string,
+  paymentHash?: string,
 ): Macaroon {
   const id = randomBytes(16).toString('hex')
   const now = Math.floor(Date.now() / 1000)
@@ -190,6 +249,9 @@ function mintMacaroon(
     { key: 'expires_at', value: String(expiresAt) },
     { key: 'created_at', value: String(now) },
   ]
+  if (typeof paymentHash === 'string' && paymentHash.length > 0) {
+    caveats.push({ key: 'payment_hash', value: paymentHash.toLowerCase() })
+  }
 
   let signature = hmacSign(signingKey, id)
   for (const caveat of caveats) {
@@ -349,6 +411,171 @@ async function generateLightningInvoice(
   }
 }
 
+// ─── P3.K2 — BTC/USD rate fetcher ─────────────────────────────────────────
+//
+// Hostile audit (b) requires `settle()` to convert msat → fiat via a
+// LIVE rate source, not a hardcoded constant. The fetcher interface
+// is injectable so tests can supply deterministic rates (no network),
+// and the default implementation pulls from CoinGecko's public API
+// with a 60s in-memory cache + a hard body-size cap on the response.
+
+export interface BtcUsdRateFetcher {
+  /**
+   * Resolve the current BTC/USD spot rate in whole USD per BTC
+   * (e.g., `100000` when 1 BTC = $100,000). May return a cached
+   * value when a recent fetch is still within TTL.
+   */
+  fetchBtcUsdRate(): Promise<number>
+}
+
+export interface CoinGeckoRateFetcherOptions {
+  /** Injectable for tests. Defaults to global `fetch`. */
+  fetchImpl?: typeof fetch
+  /** Override the source URL (e.g., point at a mock in tests). */
+  sourceUrl?: string
+  /** Override the cache TTL (ms). Defaults to `RATE_CACHE_TTL_MS`. */
+  cacheTtlMs?: number
+  /** Override the per-request timeout (ms). Defaults to `RATE_FETCH_TIMEOUT_MS`. */
+  timeoutMs?: number
+  /** Injectable clock for deterministic cache-expiry tests. */
+  now?: () => number
+}
+
+/**
+ * Default BTC/USD rate fetcher backed by CoinGecko's public
+ * `simple/price` endpoint. No API key required; rate-limited at ~30
+ * requests/minute per IP — well above the cache-aware throughput
+ * this adapter will generate.
+ *
+ * The class is explicitly exported so production callers can
+ * construct ONE instance and share it across multiple L402
+ * adapter invocations — the cache is per-instance, and multiple
+ * instances would defeat the cache.
+ */
+export class CoinGeckoRateFetcher implements BtcUsdRateFetcher {
+  private cache: { rate: number; expiresAt: number } | null = null
+  private readonly fetchImpl: typeof fetch
+  private readonly sourceUrl: string
+  private readonly cacheTtlMs: number
+  private readonly timeoutMs: number
+  private readonly now: () => number
+
+  constructor(options: CoinGeckoRateFetcherOptions = {}) {
+    this.fetchImpl = options.fetchImpl ?? fetch
+    this.sourceUrl = options.sourceUrl ?? DEFAULT_BTC_USD_RATE_SOURCE_URL
+    this.cacheTtlMs = options.cacheTtlMs ?? RATE_CACHE_TTL_MS
+    this.timeoutMs = options.timeoutMs ?? RATE_FETCH_TIMEOUT_MS
+    this.now = options.now ?? Date.now
+  }
+
+  async fetchBtcUsdRate(): Promise<number> {
+    const now = this.now()
+    if (this.cache !== null && this.cache.expiresAt > now) {
+      return this.cache.rate
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs)
+    try {
+      const response = await this.fetchImpl(this.sourceUrl, {
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        throw new Error(`Rate source ${this.sourceUrl} returned HTTP ${response.status}.`)
+      }
+      // Enforce a tiny body cap — rate responses are ~60 bytes. A
+      // large response is almost certainly a misconfigured proxy or
+      // an injection attempt.
+      const contentLengthHeader = response.headers.get('content-length')
+      if (contentLengthHeader !== null) {
+        const parsed = Number.parseInt(contentLengthHeader, 10)
+        if (Number.isFinite(parsed) && parsed > RATE_FETCH_MAX_BODY_BYTES) {
+          throw new Error(
+            `Rate source body (${parsed} bytes) exceeds ${RATE_FETCH_MAX_BODY_BYTES}-byte cap.`,
+          )
+        }
+      }
+      const text = await response.text()
+      if (text.length > RATE_FETCH_MAX_BODY_BYTES) {
+        throw new Error(
+          `Rate source body (${text.length} chars) exceeds ${RATE_FETCH_MAX_BODY_BYTES}-byte cap after materialization.`,
+        )
+      }
+      const parsed = JSON.parse(text) as unknown
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Rate source returned a non-object JSON body.')
+      }
+      const root = parsed as Record<string, unknown>
+      const bitcoinEntry = root.bitcoin
+      if (
+        bitcoinEntry === null ||
+        typeof bitcoinEntry !== 'object' ||
+        Array.isArray(bitcoinEntry)
+      ) {
+        throw new Error('Rate source missing `bitcoin` object.')
+      }
+      const rate = (bitcoinEntry as Record<string, unknown>).usd
+      if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
+        throw new Error(
+          `Rate source returned invalid USD rate: ${JSON.stringify(rate)}.`,
+        )
+      }
+      this.cache = { rate, expiresAt: now + this.cacheTtlMs }
+      return rate
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
+
+// ─── P3.K2 — Backend dispatch ──────────────────────────────────────────────
+
+/**
+ * Resolve the `L402_BACKEND` env value into the backend literal.
+ * `undefined` defaults to `'voltage'` per the spec's "Voltage hosted
+ * node by default; LND-direct as fallback." Any other value throws
+ * — a misspelled env var should surface immediately, not silently
+ * fall back to the default and mask the misconfiguration.
+ */
+export function resolveLightningBackend(envValue?: string | null): 'voltage' | 'lnd' {
+  if (envValue === undefined || envValue === null || envValue === '') {
+    return 'voltage'
+  }
+  const normalized = envValue.toLowerCase()
+  if (normalized === 'voltage') return 'voltage'
+  if (normalized === 'lnd') return 'lnd'
+  throw new Error(
+    `L402_BACKEND must be 'voltage' or 'lnd'; got ${JSON.stringify(envValue)}.`,
+  )
+}
+
+/**
+ * Construct a Lightning client for the configured backend. The
+ * `lnd` branch delegates to `createLndClient()` which throws the
+ * spec-named message — that surfaces to the caller with
+ * {@link LND_NOT_WIRED_MESSAGE} so the operator sees exactly which
+ * backend they need to implement before flipping the env var.
+ */
+export interface LightningClientOptions {
+  backend?: 'voltage' | 'lnd' | string
+  nodeUrl: string
+  macaroon: string
+  fetchImpl?: typeof fetch
+  timeoutMs?: number
+}
+
+export function createLightningClient(options: LightningClientOptions): VoltageClient {
+  const backend = resolveLightningBackend(options.backend)
+  if (backend === 'lnd') {
+    return createLndClient()
+  }
+  return createVoltageClient({
+    nodeUrl: options.nodeUrl,
+    macaroon: options.macaroon,
+    ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}),
+    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+  })
+}
+
 // ─── Credential extraction ─────────────────────────────────────────────────
 
 function extractL402Credentials(
@@ -383,6 +610,24 @@ function extractL402Credentials(
 export class L402Adapter implements ProtocolAdapter {
   readonly name = 'l402' as const
   readonly displayName = 'L402 (Bitcoin Lightning)'
+
+  /**
+   * P3.K2 — adapter-local idempotency cache used by `settle()` when
+   * the caller does not inject its own store. Maps `invocationId` →
+   * cached `L402SettleResult` so repeat calls with the same ID
+   * short-circuit without re-emitting the settlement event.
+   *
+   * Same growth + race caveats as the P3.K1 MPPAdapter settle cache:
+   * production callers MUST inject an external `idempotencyStore`
+   * backed by durable storage; the in-adapter Map is explicitly
+   * scoped to tests + short-lived dev invocations. Two parallel
+   * settles that both pass the cache check before either's
+   * `recordInvocation` completes can produce a stale
+   * `'already-settled'` return if the first settle's ledger write
+   * fails — callers that need strict consistency MUST serialize
+   * per-invocationId upstream.
+   */
+  private readonly settleCache = new Map<string, L402SettleResult>()
 
   /**
    * Detect if this request is an L402 payment.
@@ -484,15 +729,177 @@ export class L402Adapter implements ProtocolAdapter {
     )
   }
 
+  /** P2.K2 — spec-aligned verify() method. */
+  async verify(request: Request, options: L402ValidateOptions): Promise<L402PaymentResult> {
+    return validateL402Payment(request, options)
+  }
+
+  /** P2.K2 — generate a full L402 402 Payment Required response (async: mints Lightning invoice). */
+  async build402Response(options: L402_402Options): Promise<Response> {
+    return generateL402_402Response(options)
+  }
+
+  // ─── P3.K2 — Spec-aligned "standard adapter interface" methods ────────────
+  //
+  // Matches the pattern established by P3.K1 on the MPP adapter:
+  // four spec-named methods (`detect`, `buildChallenge`,
+  // `verifyPayment`, `settle`) layered on top of the existing
+  // ProtocolAdapter surface. Legacy exports (`L402Adapter.verify`,
+  // `validateL402Payment`, `generateL402_402Response`) are
+  // deliberately preserved unchanged so the `apps/web/src/lib/l402-proxy.ts`
+  // shim and the P2.K2 test file (`__tests__/adapter-l402.test.ts`)
+  // keep working.
+
   /**
-   * Build the `accepts[]` challenge entry for the L402 (Lightning) rail.
-   * Mirrors the canonical response body: protocol + amount_cents +
-   * currency 'btc-lightning' + accepted_payments ['lightning-invoice'].
+   * P3.K2 — detection with CONFIDENCE SCORE in [0, 1]. Examines
+   * headers AND request body (per spec: "detect looks for L402
+   * challenge headers — WWW-Authenticate: L402 or the macaroon-
+   * and-preimage envelope").
+   *
+   * HEADER signatures:
+   *   1.00 — `Authorization: L402 <macaroon>:<preimage>`
+   *   1.00 — `Authorization: LSAT <macaroon>:<preimage>` (legacy)
+   *   0.90 — `WWW-Authenticate: L402 ...` (client echoing server challenge)
+   *   0.70 — `x-settlegrid-protocol: l402` opt-in hint
+   *
+   * BODY signatures (body capped at L402_DETECT_MAX_BODY_BYTES per
+   * hostile-audit body-DoS rule):
+   *   0.50 — JSON body with `protocol: 'l402'` or `scheme: 'l402'`
+   *   0.40 — JSON body carrying both `macaroon` and `preimage`
+   *          fields (the macaroon-and-preimage envelope form)
+   *
+   * Returns { confidence, reasons }. `canHandle()` remains sync +
+   * headers-only (see its JSDoc for the registry-contract rationale
+   * and the body-only routing invariant).
    */
-  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
-    const method = options.method ?? 'default'
-    const rawCost = resolveOperationCost(options.pricing, method)
-    const costCents = Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
+  async detect(request: Request): Promise<L402DetectionResult> {
+    const reasons: string[] = []
+    let confidence = 0
+
+    const auth = request.headers.get('authorization')
+    if (auth) {
+      const trimmed = auth.trim()
+      if (trimmed.startsWith('L402 ')) {
+        reasons.push('authorization: L402 *')
+        confidence = Math.max(confidence, 1.0)
+      } else if (trimmed.startsWith('LSAT ')) {
+        reasons.push('authorization: LSAT *')
+        confidence = Math.max(confidence, 1.0)
+      }
+    }
+
+    const wwwAuth = request.headers.get('www-authenticate')
+    if (wwwAuth && /\bL402\b/i.test(wwwAuth)) {
+      reasons.push('www-authenticate: L402 *')
+      confidence = Math.max(confidence, 0.9)
+    }
+
+    if (request.headers.get(L402_HEADERS.PROTOCOL) === 'l402') {
+      reasons.push('x-settlegrid-protocol: l402')
+      confidence = Math.max(confidence, 0.7)
+    }
+
+    const bodyShape = await this.sniffBodyShape(request)
+    if (bodyShape === 'l402-envelope') {
+      reasons.push('body: L402 envelope shape')
+      confidence = Math.max(confidence, 0.5)
+    } else if (bodyShape === 'macaroon-and-preimage') {
+      reasons.push('body: macaroon+preimage envelope')
+      confidence = Math.max(confidence, 0.4)
+    }
+
+    return { confidence, reasons }
+  }
+
+  /**
+   * Inspect the request body for L402-specific shapes. Same
+   * resilience contract as the P3.K1 MPP adapter: never throws,
+   * returns null on any parse / size / shape failure, guarded
+   * against bodyUsed / oversize inputs.
+   */
+  private async sniffBodyShape(
+    request: Request,
+  ): Promise<'l402-envelope' | 'macaroon-and-preimage' | null> {
+    try {
+      if (request.bodyUsed) return null
+      const contentLengthHeader = request.headers.get('content-length')
+      if (contentLengthHeader !== null) {
+        const parsed = Number.parseInt(contentLengthHeader, 10)
+        if (Number.isFinite(parsed) && parsed > L402_DETECT_MAX_BODY_BYTES) {
+          return null
+        }
+      }
+      const clone = request.clone()
+      const text = await clone.text()
+      if (text.length === 0) return null
+      if (text.length > L402_DETECT_MAX_BODY_BYTES) return null
+      const parsed: unknown = JSON.parse(text)
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return null
+      }
+      const body = parsed as Record<string, unknown>
+      if (body.protocol === 'l402' || body.scheme === 'l402') {
+        return 'l402-envelope'
+      }
+      if (typeof body.macaroon === 'string' && typeof body.preimage === 'string') {
+        return 'macaroon-and-preimage'
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * P3.K2 — spec-aligned `buildChallenge` overload. Two call shapes:
+   *
+   *   1. `buildChallenge(BuildChallengeOptions): AcceptEntry`
+   *      (inherited from ProtocolAdapter; emits the narrow entry
+   *      the multi-protocol 402 manifest expects)
+   *
+   *   2. `buildChallenge(L402ChallengeOptions): Promise<L402ChallengeEnvelope>`
+   *      (spec-aligned: calls the Voltage client to mint a real
+   *      invoice, derives the msat→sats amount, mints a macaroon
+   *      bound to the invoice's `payment_hash`, and returns the
+   *      full envelope the consumer needs to pay)
+   *
+   * Dispatch discriminates on the presence of `lightningClient` —
+   * `BuildChallengeOptions` never carries that field, and
+   * `L402ChallengeOptions` always does.
+   */
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry
+  buildChallenge(options: L402ChallengeOptions): Promise<L402ChallengeEnvelope>
+  buildChallenge(
+    options: BuildChallengeOptions | L402ChallengeOptions,
+  ): AcceptEntry | Promise<L402ChallengeEnvelope> {
+    if (
+      options === null ||
+      options === undefined ||
+      typeof options !== 'object' ||
+      Array.isArray(options)
+    ) {
+      throw new TypeError(
+        `buildChallenge: \`options\` must be a non-null object; received ${
+          options === null
+            ? 'null'
+            : Array.isArray(options)
+              ? 'array'
+              : typeof options
+        }.`,
+      )
+    }
+    if (
+      'lightningClient' in options &&
+      options.lightningClient !== null &&
+      typeof options.lightningClient === 'object'
+    ) {
+      return this.buildL402Challenge(options as L402ChallengeOptions)
+    }
+    const narrowOptions = options as BuildChallengeOptions
+    const method = narrowOptions.method ?? 'default'
+    const rawCost = resolveOperationCost(narrowOptions.pricing, method)
+    const costCents =
+      Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
     return {
       scheme: 'l402',
       provider: 'lightning',
@@ -502,14 +909,312 @@ export class L402Adapter implements ProtocolAdapter {
     }
   }
 
-  /** P2.K2 — spec-aligned verify() method. */
-  async verify(request: Request, options: L402ValidateOptions): Promise<L402PaymentResult> {
-    return validateL402Payment(request, options)
+  /**
+   * Mint a real L402 challenge: Voltage invoice + macaroon bound to
+   * the invoice's payment_hash. Returns an envelope the caller can
+   * serialize into a 402 body.
+   */
+  private async buildL402Challenge(
+    options: L402ChallengeOptions,
+  ): Promise<L402ChallengeEnvelope> {
+    if (
+      typeof options.toolSlug !== 'string' ||
+      options.toolSlug.length === 0
+    ) {
+      throw new Error(
+        'buildChallenge: `toolSlug` is required and must be a non-empty string.',
+      )
+    }
+    if (
+      typeof options.amountMsat !== 'number' ||
+      !Number.isFinite(options.amountMsat) ||
+      !Number.isInteger(options.amountMsat) ||
+      options.amountMsat < 1
+    ) {
+      throw new RangeError(
+        `buildChallenge: \`amountMsat\` must be a positive integer (msat); got ${JSON.stringify(
+          options.amountMsat,
+        )}.`,
+      )
+    }
+    if (
+      typeof options.signingKey !== 'string' ||
+      options.signingKey.length === 0
+    ) {
+      throw new Error(
+        'buildChallenge: `signingKey` is required; wire from LND_MACAROON_HEX or L402_SIGNING_KEY.',
+      )
+    }
+    const memo = options.memo ?? `SettleGrid: ${options.toolSlug}`
+    const invoiceParams: Parameters<VoltageClient['createInvoice']>[0] = {
+      amountMsat: options.amountMsat,
+      memo,
+    }
+    if (options.expirySeconds !== undefined) {
+      invoiceParams.expirySeconds = options.expirySeconds
+    }
+    const invoice = await options.lightningClient.createInvoice(invoiceParams)
+    const amountSats = Math.ceil(options.amountMsat / 1000)
+    const costCents = options.costCents ?? 0
+    const macaroonLocation = options.macaroonLocation ?? `settlegrid:${options.toolSlug}`
+
+    const macaroon = mintMacaroon(
+      options.toolSlug,
+      costCents,
+      amountSats,
+      macaroonLocation,
+      options.signingKey,
+      invoice.paymentHash,
+    )
+    const macaroonEncoded = serializeMacaroon(macaroon)
+
+    return {
+      scheme: 'l402',
+      provider: 'lightning',
+      version: L402_PROTOCOL_VERSION,
+      amount_msat: options.amountMsat,
+      amount_sats: amountSats,
+      currency: 'btc-lightning',
+      invoice: invoice.paymentRequest,
+      payment_hash: invoice.paymentHash,
+      macaroon: macaroonEncoded,
+      macaroon_id: macaroon.id,
+      expires_in_seconds: invoice.expirySeconds,
+      accepted_payments: ['lightning-invoice'],
+      instructions: `To pay, complete the Lightning invoice and re-send the request with Authorization: L402 ${macaroonEncoded}:<preimage> where <preimage> is the 32-byte hex preimage revealed by the paid invoice.`,
+    }
   }
 
-  /** P2.K2 — generate a full L402 402 Payment Required response (async: mints Lightning invoice). */
-  async build402Response(options: L402_402Options): Promise<Response> {
-    return generateL402_402Response(options)
+  /**
+   * P3.K2 — spec-aligned `verifyPayment`. Delegates the macaroon +
+   * preimage-format checks to `validateL402Payment`, then applies
+   * the REAL cryptographic check hostile-audit rule (a) requires:
+   * SHA-256 the presented preimage, extract the `payment_hash`
+   * caveat from the macaroon, and compare hash ↔ caveat with a
+   * timing-safe equality.
+   *
+   * The `payment_hash` caveat is a P3.K2 addition to `mintMacaroon`.
+   * Macaroons minted before this card lack the caveat; in that
+   * case, verifyPayment falls back to the validateL402Payment
+   * result (length-check only) so legacy tokens continue to
+   * authenticate — and logs a warning naming the missing caveat
+   * so ops can grep for affected flows.
+   */
+  async verifyPayment(
+    request: Request,
+    options: L402VerifyPaymentOptions,
+  ): Promise<L402PaymentResult> {
+    const baseResult = await validateL402Payment(request, options)
+    if (!baseResult.valid) return baseResult
+
+    const credentials = extractL402Credentials(request)
+    if (!credentials) {
+      return {
+        valid: false,
+        macaroonId: baseResult.macaroonId,
+        error: {
+          code: 'L402_PREIMAGE_MISSING',
+          message:
+            'verifyPayment: Authorization header did not round-trip. Pass Authorization: L402 <macaroon>:<preimage>.',
+        },
+      }
+    }
+    const macaroon = deserializeMacaroon(credentials.macaroonEncoded)
+    if (!macaroon) {
+      return {
+        valid: false,
+        macaroonId: baseResult.macaroonId,
+        error: {
+          code: 'L402_MACAROON_INVALID',
+          message: 'verifyPayment: macaroon failed to deserialize on re-read.',
+        },
+      }
+    }
+    const paymentHashCaveat = macaroon.caveats.find((c) => c.key === 'payment_hash')
+    if (!paymentHashCaveat) {
+      const logger = options.logger ?? NOOP_LOGGER
+      logger.warn('l402.macaroon_missing_payment_hash_caveat', {
+        macaroonId: macaroon.id,
+        note: 'Falling back to length-check. Mint new macaroons via generateL402_402Response or buildChallenge(L402ChallengeOptions) to bind payment_hash.',
+      })
+      return baseResult
+    }
+    const expectedHash = paymentHashCaveat.value.toLowerCase()
+    // Hash the preimage and compare to the invoice-bound payment_hash.
+    // This is the real spec check — NOT a length-only check.
+    let actualHash: string
+    try {
+      actualHash = createHash('sha256')
+        .update(Buffer.from(credentials.preimage, 'hex'))
+        .digest('hex')
+    } catch {
+      return {
+        valid: false,
+        macaroonId: macaroon.id,
+        error: {
+          code: 'L402_PREIMAGE_INVALID',
+          message: 'verifyPayment: preimage is not valid hex.',
+        },
+      }
+    }
+    if (!timingSafeHexCompare(actualHash, expectedHash)) {
+      return {
+        valid: false,
+        macaroonId: macaroon.id,
+        error: {
+          code: 'L402_PREIMAGE_INVALID',
+          message: `verifyPayment: SHA-256(preimage) does not match macaroon payment_hash caveat.`,
+        },
+      }
+    }
+    return baseResult
+  }
+
+  /**
+   * P3.K2 — spec-aligned `settle`. Records the invocation and emits
+   * a settlement event carrying BOTH the msat amount and the
+   * converted fiat cents. Per hostile-audit rule (b), the fiat
+   * conversion goes through an injected `BtcUsdRateFetcher`; the
+   * default {@link CoinGeckoRateFetcher} pulls a live rate and
+   * caches it for 60 s. If rate resolution fails, settle throws
+   * rather than silently falling back to a stale / hardcoded rate.
+   *
+   * Idempotent on `invocation.invocationId` — same cache + rollback
+   * semantics as the P3.K1 MPP settle.
+   */
+  async settle(
+    invocation: L402Settlement,
+    deps?: L402SettleDependencies,
+  ): Promise<L402SettleResult> {
+    if (
+      invocation === null ||
+      typeof invocation !== 'object' ||
+      Array.isArray(invocation)
+    ) {
+      throw new TypeError('settle: `invocation` must be a non-null object.')
+    }
+    if (
+      typeof invocation.invocationId !== 'string' ||
+      invocation.invocationId.length === 0
+    ) {
+      throw new Error(
+        'settle: `invocation.invocationId` is required and must be a non-empty string.',
+      )
+    }
+    if (
+      typeof invocation.toolSlug !== 'string' ||
+      invocation.toolSlug.length === 0
+    ) {
+      throw new Error('settle: `invocation.toolSlug` is required and must be non-empty.')
+    }
+    if (
+      typeof invocation.amountMsat !== 'number' ||
+      !Number.isFinite(invocation.amountMsat) ||
+      !Number.isInteger(invocation.amountMsat) ||
+      invocation.amountMsat < 0
+    ) {
+      throw new RangeError(
+        `settle: \`invocation.amountMsat\` must be a non-negative integer; got ${JSON.stringify(
+          invocation.amountMsat,
+        )}.`,
+      )
+    }
+    const store = deps?.idempotencyStore ?? this.settleCache
+    const cached = store.get(invocation.invocationId)
+    if (cached) {
+      return { status: 'already-settled', event: cached.event }
+    }
+
+    const rateFetcher = deps?.rateFetcher ?? new CoinGeckoRateFetcher()
+    const btcUsdRate = await rateFetcher.fetchBtcUsdRate()
+    if (!Number.isFinite(btcUsdRate) || btcUsdRate <= 0) {
+      throw new Error(
+        `settle: rate fetcher returned invalid BTC/USD rate: ${JSON.stringify(btcUsdRate)}.`,
+      )
+    }
+    const fiatCents = Math.ceil(
+      (invocation.amountMsat * btcUsdRate) / (MSAT_PER_BTC / 100),
+    )
+    const now = deps?.now ?? Date.now
+    const settledAt = now()
+
+    const data: L402SettlementData = {
+      subKind: 'invocation.settled',
+      protocol: 'l402',
+      invocationId: invocation.invocationId,
+      toolSlug: invocation.toolSlug,
+      amountMsat: invocation.amountMsat,
+      fiatCents,
+      fiatCurrency: 'usd',
+      btcUsdRate,
+      settledAt,
+      ...(invocation.paymentHash !== undefined
+        ? { paymentHash: invocation.paymentHash }
+        : {}),
+      ...(invocation.preimage !== undefined
+        ? { preimageFingerprint: invocation.preimage.slice(0, 8) }
+        : {}),
+      ...(invocation.macaroonId !== undefined
+        ? { macaroonId: invocation.macaroonId }
+        : {}),
+      ...(invocation.sessionId !== undefined ? { sessionId: invocation.sessionId } : {}),
+    }
+    const event: L402SettlementEvent = {
+      kind: 'unknown',
+      railId: 'stripe-connect',
+      externalEventId: invocation.invocationId,
+      ...(invocation.macaroonId !== undefined
+        ? { externalAccountId: invocation.macaroonId }
+        : {}),
+      data,
+    }
+    const result: L402SettleResult = { status: 'settled', event }
+    store.set(invocation.invocationId, result)
+
+    if (deps?.recordInvocation) {
+      try {
+        await Promise.resolve(
+          deps.recordInvocation({
+            invocationId: invocation.invocationId,
+            toolSlug: invocation.toolSlug,
+            amountMsat: invocation.amountMsat,
+            fiatCents,
+            fiatCurrency: 'usd',
+            btcUsdRate,
+            settledAt,
+            ...(invocation.paymentHash !== undefined
+              ? { paymentHash: invocation.paymentHash }
+              : {}),
+            ...(invocation.macaroonId !== undefined
+              ? { macaroonId: invocation.macaroonId }
+              : {}),
+            ...(invocation.sessionId !== undefined ? { sessionId: invocation.sessionId } : {}),
+          }),
+        )
+      } catch (err) {
+        store.delete(invocation.invocationId)
+        throw err
+      }
+    }
+    if (deps?.onSettled) {
+      deps.onSettled(event)
+    }
+    return result
+  }
+}
+
+/**
+ * Timing-safe hex equality. Local private copy (the voltage client
+ * exports one too) — keeping a second copy avoids adding voltage
+ * to l402.ts's already-long import list AND avoids cross-file
+ * coupling for what is a 5-line helper.
+ */
+function timingSafeHexCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'))
+  } catch {
+    return false
   }
 }
 
@@ -644,9 +1349,12 @@ export async function generateL402_402Response(
   const description = `${toolName ?? toolSlug} via SettleGrid`
   const amountSats = centsToSats(costCents, options.btcUsdRate)
 
-  const macaroon = mintMacaroon(toolSlug, costCents, amountSats, appUrl, signingKey)
-  const macaroonEncoded = serializeMacaroon(macaroon)
-
+  // P3.K2 hostile fix (a) — mint the invoice BEFORE the macaroon so
+  // the macaroon can bind the invoice's payment_hash. Legacy callers
+  // that hit this with no LND/Voltage backend get a mock invoice
+  // with a random r_hash (unchanged behavior) — the payment_hash
+  // caveat then carries that mock hash, which is sufficient for
+  // length-check fallback but not cryptographically meaningful.
   const invoice = await generateLightningInvoice(
     amountSats,
     `SettleGrid: ${description} (${costCents}c)`,
@@ -657,6 +1365,16 @@ export async function generateL402_402Response(
 
   const paymentRequest = invoice?.paymentRequest ?? ''
   const rHash = invoice?.rHash ?? ''
+
+  const macaroon = mintMacaroon(
+    toolSlug,
+    costCents,
+    amountSats,
+    appUrl,
+    signingKey,
+    rHash || undefined,
+  )
+  const macaroonEncoded = serializeMacaroon(macaroon)
 
   const body = {
     error: 'payment_required',
@@ -688,4 +1406,169 @@ export async function generateL402_402Response(
   })
 
   return new Response(JSON.stringify(body), { status: 402, headers })
+}
+
+// ─── P3.K2 — Spec-aligned method types ────────────────────────────────────
+
+export interface L402DetectionResult {
+  confidence: number
+  reasons: string[]
+}
+
+/**
+ * Rich-challenge input shape for {@link L402Adapter.buildChallenge}
+ * overload #2. When these fields are present, buildChallenge calls
+ * the Voltage client to mint a real invoice; otherwise it falls
+ * through to the sync AcceptEntry path used by the 402 manifest.
+ */
+export interface L402ChallengeOptions {
+  /** Tool slug (for the macaroon `service` caveat + memo default). */
+  toolSlug: string
+  /** Invoice amount, in millisatoshis. Must be a positive integer. */
+  amountMsat: number
+  /** HMAC signing key for the minted macaroon — required (no dev fallback). */
+  signingKey: string
+  /** Lightning client (Voltage or LND) to mint the invoice with. */
+  lightningClient: VoltageClient
+  /** Tool cost in fiat cents (for the macaroon `amount_cents` caveat + logging). */
+  costCents?: number
+  /** Memo shown to the payer on the Lightning invoice. */
+  memo?: string
+  /**
+   * Macaroon `location` field — defaults to `settlegrid:{toolSlug}`.
+   * Setting this to an app URL is appropriate for production flows.
+   */
+  macaroonLocation?: string
+  /** Invoice expiry in seconds. Defaults to LND's 24h if omitted. */
+  expirySeconds?: number
+}
+
+/**
+ * Output of the rich-challenge path. Snake_case fields per the L402
+ * wire convention — mirrors `generateL402_402Response`'s body shape
+ * (`amount_sats`, `r_hash`-style fields, `accepted_payments`).
+ */
+export interface L402ChallengeEnvelope {
+  readonly scheme: 'l402'
+  readonly provider: 'lightning'
+  version: string
+  amount_msat: number
+  amount_sats: number
+  currency: 'btc-lightning'
+  invoice: string
+  payment_hash: string
+  macaroon: string
+  macaroon_id: string
+  expires_in_seconds: number
+  accepted_payments: readonly string[]
+  instructions: string
+}
+
+/**
+ * Options for {@link L402Adapter.verifyPayment}. Extends the existing
+ * {@link L402ValidateOptions} — same fields as the P2.K2 validator
+ * plus the implicit requirement that macaroons carry a `payment_hash`
+ * caveat (otherwise verifyPayment falls back to length-only checks
+ * and logs a warning).
+ */
+export interface L402VerifyPaymentOptions extends L402ValidateOptions {}
+
+/**
+ * Input to {@link L402Adapter.settle}. `invocationId` is the
+ * idempotency key — parallel calls with the same ID collapse to
+ * one settlement + one emitted event.
+ */
+export interface L402Settlement {
+  invocationId: string
+  toolSlug: string
+  amountMsat: number
+  paymentHash?: string
+  /** Raw preimage (32-byte hex). Only the first 8 chars are included in the event as a fingerprint. */
+  preimage?: string
+  macaroonId?: string
+  sessionId?: string
+}
+
+/**
+ * Ledger record persisted by
+ * {@link L402SettleDependencies.recordInvocation}. Carries both the
+ * native Lightning amount (`amountMsat`) AND the converted fiat
+ * amount (`fiatCents`) + the rate used at settle time, so downstream
+ * accounting systems can reconstruct the conversion deterministically
+ * without re-hitting the rate source.
+ */
+export interface L402LedgerEntry {
+  invocationId: string
+  toolSlug: string
+  amountMsat: number
+  fiatCents: number
+  fiatCurrency: 'usd'
+  btcUsdRate: number
+  settledAt: number
+  paymentHash?: string
+  macaroonId?: string
+  sessionId?: string
+}
+
+export interface L402SettlementData extends Record<string, unknown> {
+  readonly subKind: 'invocation.settled'
+  readonly protocol: 'l402'
+  invocationId: string
+  toolSlug: string
+  amountMsat: number
+  fiatCents: number
+  fiatCurrency: 'usd'
+  btcUsdRate: number
+  settledAt: number
+  paymentHash?: string
+  /** First 8 chars of the preimage. Full preimage is secret; fingerprint only. */
+  preimageFingerprint?: string
+  macaroonId?: string
+  sessionId?: string
+}
+
+/**
+ * Settlement event emitted by {@link L402Adapter.settle}. Same
+ * structural-SettleGridInternalEvent pattern as P3.K1's
+ * MppSettlementEvent.
+ *
+ * D2 (pre-declared) — `railId` is pinned to `'stripe-connect'` as a
+ * placeholder because the `RailId` union in `rails/types.ts` does
+ * not include a Lightning-native rail literal. Adding one would
+ * touch a file outside this card's allowed list. The rich
+ * discriminator lives in `data.protocol` + `data.subKind`; consumers
+ * should prefer those for routing decisions.
+ */
+export interface L402SettlementEvent extends SettleGridInternalEvent {
+  kind: 'unknown'
+  railId: 'stripe-connect'
+  externalEventId: string
+  externalAccountId?: string
+  data: L402SettlementData
+}
+
+export interface L402SettleDependencies {
+  idempotencyStore?: Map<string, L402SettleResult>
+  /**
+   * Persistent ledger writer. Errors thrown from this callback
+   * roll back the idempotency cache entry so the caller can retry
+   * without losing the slot.
+   */
+  recordInvocation?: (entry: L402LedgerEntry) => Promise<void> | void
+  /**
+   * Settlement event emitter. Called only on the FIRST settle for
+   * a given invocationId. Errors propagate (cache is NOT rolled
+   * back because the ledger write already succeeded). Emitters
+   * should be resilient — log-and-drop, no throws in steady state.
+   */
+  onSettled?: (event: L402SettlementEvent) => void
+  /** Injectable BTC/USD rate source. Defaults to CoinGeckoRateFetcher. */
+  rateFetcher?: BtcUsdRateFetcher
+  /** Injectable clock for deterministic tests. */
+  now?: () => number
+}
+
+export interface L402SettleResult {
+  status: 'settled' | 'already-settled'
+  event: L402SettlementEvent
 }
