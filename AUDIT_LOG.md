@@ -1402,3 +1402,75 @@ Append-only log of phase gate verdicts. Each gate run appends one section.
 | 25 | cursor.directory submission packet | DEFER | cursor.directory packet missing — P3.PROT1/P3.MKT directory-expansion prompt not yet shipped |
 | 26 | Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests) | DEFER | packages/mcp/src/authorize.ts missing — P3.K5 prompt not yet shipped |
 | 27 | All settlement-layer expansion audit chains PASS | DEFER | 15/15 expansion prompts have no audit-chain commits — Phase 4 blocked |
+
+## Phase 3 Gate — 2026-04-22T00:35:02.104Z
+
+**Verdict:** 7 PASS / 14 DEFER / 6 FAIL (of 27)
+**Mode:** default
+**Exit code:** 1
+
+| # | Check | Status | Detail |
+|---|-------|--------|--------|
+| 1 | ≥75 new templates in open-source-servers/ | FAIL | only 72 new templates (<75) |
+| 2 | Templater total cost ≤$300 | PASS | well under $300 cap (70 upper bound) |
+| 3 | Templater global reject rate <30% | PASS | 18.1% < 30% |
+| 4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | replies.md not present at /Users/lex/settlegrid-agents/data/wg-outreach/replies.md — founder has not yet logged replies; P3.5 briefs shipped but outreach emails are founder-sent (not agent-sent) |
+| 5 | ≥5 directory submissions sent | FAIL | only 0 submissions logged as sent/accepted (<5). Founder-manual verification: confirm whether submissions were sent but status column not updated |
+| 6 | Academy lessons 1-5 published at /learn/academy | PASS | registry slugs=[pricing-your-mcp-server, per-call-vs-subscription, stripe-vs-settlegrid-vs-x402, economics-of-tool-calling, calculate-margin-on-ai-api], body files=5, routes=[all present] |
+| 7 | Template CI pipeline running weekly | DEFER | workflow configured locally but not yet on the default branch — push origin/main to unblock first weekly run |
+| 8 | Workspace typecheck passes across both repos (tsc --noEmit) | PASS | main:apps/web=PASS, main:packages/mcp=PASS, agents=PASS |
+| 9 | Tests pass across both repos | PASS | main:PASS (10 successful); agents:Tests=863 passed (863) |
+| 10 | All P3.1–P3.11 audit chains PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
+| 11 | MPP adapter wired (≥12 unit tests, Stripe test mode) | PASS | MPPAdapter exported; measured MPP-referencing test blocks = 45 across 7 test files; 4 of 7 test files reference Stripe test-mode context |
+| 12 | L402 adapter wired with Voltage backend (≥1 integration test) | FAIL | all adapter-l402 tests are contract-level (no LND/voltage env, no fetch mock); integration coverage missing |
+| 13 | Consumer SDK shipped (packages/client/ builds, ≥18 unit tests) | DEFER | packages/client/ missing — P3.K3 prompt not yet shipped |
+| 14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | missing: verifyWebhook in SDK, ledger_entries migration SQL, adapter-dispatch → ledger wiring |
+| 15 | DRAIN keccak-256 fix OR removal | FAIL | drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.PROT1 |
+| 16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | partial: missing packages/rails/src/router.ts, stripe-connect-countries.json, /api/eligibility — see P3.K6/P3.RAIL2 |
+| 17 | Stripe Connect reconciliation + drift detection | DEFER | missing: reconcile-stripe.ts, daily cron workflow, dry-run report |
+| 18 | Payout schedule config + chargeback velocity monitoring | DEFER | missing: /dashboard/payouts page, chargeback-velocity.ts, /dashboard/admin/chargeback-watch, chargeback_alerts table |
+| 19 | Python SDK core (packages/sdk-python/ builds + pip install -e .) | DEFER | packages/sdk-python/ missing — P3.PYTHON1 prompt not yet shipped |
+| 20 | Python SDK test parity ≥90% of TS SDK + CI matrix 3.10/3.11/3.12 | DEFER | packages/sdk-python/ missing; cascades from C19 |
+| 21 | settlegrid-langchain Python adapter (≥8 tests) | DEFER | no Python settlegrid-langchain package — P3.PYTHON3 prompt not yet shipped |
+| 22 | settlegrid-llamaindex + crewai + pydantic-ai Python adapters | DEFER | missing packages — P3.PYTHON4 prompt not yet shipped |
+| 23 | settlegrid-dspy + smolagents Python adapters | DEFER | missing packages — P3.PYTHON5 prompt not yet shipped |
+| 24 | Mastercard VI detection stub (adapter + landing page) | DEFER | /protocols/mastercard-vi page not built yet — P3.PROT1 prompt not yet shipped |
+| 25 | cursor.directory submission packet | DEFER | cursor.directory packet missing — P3.PROT1/P3.MKT directory-expansion prompt not yet shipped |
+| 26 | Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests) | DEFER | packages/mcp/src/authorize.ts missing — P3.K5 prompt not yet shipped |
+| 27 | All settlement-layer expansion audit chains PASS | DEFER | 15/15 expansion prompts have no audit-chain commits — Phase 4 blocked |
+
+## Phase 3 Gate — 2026-04-22T00:36:47.925Z
+
+**Verdict:** 7 PASS / 14 DEFER / 6 FAIL (of 27)
+**Mode:** default
+**Exit code:** 1
+
+| # | Check | Status | Detail |
+|---|-------|--------|--------|
+| 1 | ≥75 new templates in open-source-servers/ | FAIL | only 72 new templates (<75) |
+| 2 | Templater total cost ≤$300 | PASS | well under $300 cap (70 upper bound) |
+| 3 | Templater global reject rate <30% | PASS | 18.1% < 30% |
+| 4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | replies.md not present at /Users/lex/settlegrid-agents/data/wg-outreach/replies.md — founder has not yet logged replies; P3.5 briefs shipped but outreach emails are founder-sent (not agent-sent) |
+| 5 | ≥5 directory submissions sent | FAIL | only 0 submissions logged as sent/accepted (<5). Founder-manual verification: confirm whether submissions were sent but status column not updated |
+| 6 | Academy lessons 1-5 published at /learn/academy | PASS | registry slugs=[pricing-your-mcp-server, per-call-vs-subscription, stripe-vs-settlegrid-vs-x402, economics-of-tool-calling, calculate-margin-on-ai-api], body files=5, routes=[all present] |
+| 7 | Template CI pipeline running weekly | DEFER | workflow configured locally but not yet on the default branch — push origin/main to unblock first weekly run |
+| 8 | Workspace typecheck passes across both repos (tsc --noEmit) | PASS | main:apps/web=PASS, main:packages/mcp=PASS, agents=PASS |
+| 9 | Tests pass across both repos | PASS | main:PASS (10 successful); agents:Tests=863 passed (863) |
+| 10 | All P3.1–P3.11 audit chains PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
+| 11 | MPP adapter wired (≥12 unit tests, Stripe test mode) | PASS | MPPAdapter exported; measured MPP-referencing test blocks = 45 across 7 test files; 4 of 7 test files reference Stripe test-mode context |
+| 12 | L402 adapter wired with Voltage backend (≥1 integration test) | FAIL | all adapter-l402 tests are contract-level (no LND/voltage env, no fetch mock); integration coverage missing |
+| 13 | Consumer SDK shipped (packages/client/ builds, ≥18 unit tests) | DEFER | packages/client/ missing — P3.K3 prompt not yet shipped |
+| 14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | missing: verifyWebhook in SDK, ledger_entries migration SQL, adapter-dispatch → ledger wiring |
+| 15 | DRAIN keccak-256 fix OR removal | FAIL | drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.PROT1 |
+| 16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | partial: missing packages/rails/src/router.ts, stripe-connect-countries.json, /api/eligibility — see P3.K6/P3.RAIL2 |
+| 17 | Stripe Connect reconciliation + drift detection | DEFER | missing: reconcile-stripe.ts, daily cron workflow, dry-run report |
+| 18 | Payout schedule config + chargeback velocity monitoring | DEFER | missing: /dashboard/payouts page, chargeback-velocity.ts, /dashboard/admin/chargeback-watch, chargeback_alerts table |
+| 19 | Python SDK core (packages/sdk-python/ builds + pip install -e .) | DEFER | packages/sdk-python/ missing — P3.PYTHON1 prompt not yet shipped |
+| 20 | Python SDK test parity ≥90% of TS SDK + CI matrix 3.10/3.11/3.12 | DEFER | packages/sdk-python/ missing; cascades from C19 |
+| 21 | settlegrid-langchain Python adapter (≥8 tests) | DEFER | no Python settlegrid-langchain package — P3.PYTHON3 prompt not yet shipped |
+| 22 | settlegrid-llamaindex + crewai + pydantic-ai Python adapters | DEFER | missing packages — P3.PYTHON4 prompt not yet shipped |
+| 23 | settlegrid-dspy + smolagents Python adapters | DEFER | missing packages — P3.PYTHON5 prompt not yet shipped |
+| 24 | Mastercard VI detection stub (adapter + landing page) | DEFER | /protocols/mastercard-vi page not built yet — P3.PROT1 prompt not yet shipped |
+| 25 | cursor.directory submission packet | DEFER | cursor.directory packet missing — P3.PROT1/P3.MKT directory-expansion prompt not yet shipped |
+| 26 | Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests) | DEFER | packages/mcp/src/authorize.ts missing — P3.K5 prompt not yet shipped |
+| 27 | All settlement-layer expansion audit chains PASS | DEFER | 15/15 expansion prompts have no audit-chain commits — Phase 4 blocked |

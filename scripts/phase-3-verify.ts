@@ -187,10 +187,42 @@ async function safeCheck(
 async function check1_newTemplates(): Promise<CheckResult> {
   const label = '≥75 new templates in open-source-servers/'
   const method =
-    'git log --diff-filter=A --name-only on the two P3 template-additions commits; count *package.json directly under open-source-servers/'
-  // P3.2 scaffold: 1af6cb66 "add 73 Templater-generated templates"
-  // P3.3 retry:    e0470c59 "add 4 P3.3-retry-salvaged templates"
-  const shas = ['1af6cb66', 'e0470c59']
+    'git log --all to discover P3.2 + P3.3 template-add commits by subject match; git show --diff-filter=A on each; count *package.json directly under open-source-servers/'
+  // Resolve SHAs by commit-subject match rather than hard-coding, so a
+  // rebase (history rewrite) doesn't make the gate opaquely FAIL.
+  // Subjects targeted:
+  //   P3.2 scaffold: "open-source-servers: add NN Templater-generated templates"
+  //   P3.3 retry:    "open-source-servers: add N P3.3-retry-salvaged templates"
+  const logRes = runSync('git', [
+    'log',
+    '--all',
+    '--format=%H|%s',
+    '--',
+    'open-source-servers',
+  ])
+  if (logRes.status !== 0) {
+    return fail(
+      1,
+      label,
+      method,
+      `git log exit ${logRes.status}: ${logRes.stderr?.slice(0, 200) ?? ''}`,
+    )
+  }
+  const lines = (logRes.stdout ?? '').split('\n').filter(Boolean)
+  const p32 = lines.find((l) =>
+    /Templater-generated templates/i.test(l),
+  )
+  const p33 = lines.find((l) => /P3\.3-retry-salvaged/i.test(l))
+  if (!p32 || !p33) {
+    return fail(
+      1,
+      label,
+      method,
+      `could not locate commits: p32=${Boolean(p32)}, p33=${Boolean(p33)}`,
+      'history has been rewritten or commits renamed — update the subject match regexes',
+    )
+  }
+  const shas = [p32.split('|')[0], p33.split('|')[0]]
   let added = 0
   const commitCounts: string[] = []
   for (const sha of shas) {
@@ -217,7 +249,7 @@ async function check1_newTemplates(): Promise<CheckResult> {
           !l.includes('/..'),
       )
     added += matches.length
-    commitCounts.push(`${sha}=${matches.length}`)
+    commitCounts.push(`${sha.slice(0, 8)}=${matches.length}`)
   }
   const evidence = `${commitCounts.join(', ')} — total new templates = ${added}`
   if (added >= 75) {
@@ -316,9 +348,36 @@ async function check3_rejectRate(): Promise<CheckResult> {
   // Global pipeline: P3.2 attempted all 94, failed 21. P3.3 retry salvaged
   // `backfilledTemplateJson` of those — the ones that now have a valid
   // template.json. Final failures = P3.2.failed − P3.3.backfilled.
-  const initialAttempts = s32.totalAttempts
-  const initialFailures = s32.failed
-  const salvaged = s33.backfilledTemplateJson
+  const initialAttempts = Number(s32.totalAttempts ?? 0)
+  const initialFailures = Number(s32.failed ?? 0)
+  const salvaged = Number(s33.backfilledTemplateJson ?? 0)
+  // Guard against corrupt / zero-attempt summaries which would produce
+  // NaN or Infinity and let a garbage verdict land in the audit log.
+  if (
+    !Number.isFinite(initialAttempts) ||
+    !Number.isFinite(initialFailures) ||
+    !Number.isFinite(salvaged) ||
+    initialAttempts <= 0
+  ) {
+    return fail(
+      3,
+      label,
+      method,
+      `unusable counts: attempts=${initialAttempts}, failed=${initialFailures}, salvaged=${salvaged}`,
+      'summary JSON has zero/NaN counts — refuse to compute a rate from garbage',
+    )
+  }
+  if (salvaged > initialFailures) {
+    // Salvaging more than originally failed is impossible; flag loudly
+    // rather than quietly reporting a negative rate.
+    return fail(
+      3,
+      label,
+      method,
+      `salvaged=${salvaged} > initial_failed=${initialFailures}`,
+      'P3.3 retry reports more salvaged than P3.2 reports failed — summaries disagree',
+    )
+  }
   const finalFailures = initialFailures - salvaged
   const globalRatePct = (finalFailures / initialAttempts) * 100
   const evidence = `initial=${initialAttempts}, initial_failed=${initialFailures}, salvaged_by_P3.3=${salvaged}, final_failed=${finalFailures}; global reject rate = ${globalRatePct.toFixed(1)}%`
@@ -376,8 +435,11 @@ async function check5_directorySubmissions(): Promise<CheckResult> {
   let total = 0
   for (const line of lines) {
     // Match tracker table rows: | NN | [dir](url) | `type` | `verif` | [packet] | status | sent | result |
+    // Case-insensitive status: founder-manual edits may write "Sent",
+    // "ACCEPTED", etc. Original regex restricted to [a-z-]+ and silently
+    // zero-counted any capitalized entries.
     const m = line.match(
-      /^\|\s*\d+\s*\|.*\|.*\|.*\|.*\|\s*([a-z-]+)\s*\|/,
+      /^\|\s*\d+\s*\|.*\|.*\|.*\|.*\|\s*([A-Za-z-]+)\s*\|/,
     )
     if (!m) continue
     total += 1
@@ -386,7 +448,7 @@ async function check5_directorySubmissions(): Promise<CheckResult> {
       sent += 1
     }
   }
-  const evidence = `${sent} sent/accepted out of ${total} tracker rows`
+  const evidence = `${sent} sent/accepted out of ${total} tracker rows (case-insensitive match)`
   if (sent >= 5) {
     return pass(5, label, method, evidence)
   }
@@ -410,7 +472,11 @@ async function check6_academy(): Promise<CheckResult> {
     return fail(6, label, method, 'academy-lessons.ts missing')
   }
   const body = readTextOrEmpty(registryPath)
-  const slugMatches = [...body.matchAll(/\bslug:\s*'([^']+)'/g)]
+  // Accept both single and double quotes — a registry-rewrite by
+  // prettier/eslint could flip styles and silently zero the count.
+  const slugMatches = [
+    ...body.matchAll(/\bslug:\s*['"]([^'"]+)['"]/g),
+  ]
   const slugs = slugMatches.map((m) => m[1])
   const bodyDir = repoFile('apps/web/src/lib/academy-bodies')
   const bodyFiles = dirExists(bodyDir)
@@ -454,6 +520,30 @@ async function check7_templateCi(): Promise<CheckResult> {
   // Confirm the workflow has actually landed on the default branch and
   // GitHub Actions has recorded at least one run (or, if not, degrade
   // to DEFER with a note about the 117-commit ahead-of-origin state).
+  const yamlEvidence = `cron='${cron}' (weekly sweep on DOW=${dow})`
+  // Pre-flight: is `gh` CLI installed? spawnSync's error field distinguishes
+  // command-not-found (ENOENT) from exit-code-from-gh. Without this, a
+  // missing gh binary looks identical to "workflow 404 on default branch"
+  // in the exit-code path.
+  const ghProbe = runSync('gh', ['--version'], { timeoutMs: 10_000 })
+  if ((ghProbe as unknown as { error?: NodeJS.ErrnoException }).error?.code === 'ENOENT') {
+    return defer(
+      7,
+      label,
+      method,
+      `${yamlEvidence}; gh CLI not installed — cannot verify run history`,
+      'install gh CLI (https://cli.github.com) + re-run to upgrade this check from DEFER',
+    )
+  }
+  if (ghProbe.status !== 0) {
+    return defer(
+      7,
+      label,
+      method,
+      `${yamlEvidence}; gh --version exit=${ghProbe.status} — CLI broken or not authenticated`,
+      'verify `gh auth status` before re-running',
+    )
+  }
   const ghRes = runSync(
     'gh',
     [
@@ -470,7 +560,6 @@ async function check7_templateCi(): Promise<CheckResult> {
   )
   const ghOut = (ghRes.stdout ?? '').trim()
   const ghErr = (ghRes.stderr ?? '').trim()
-  const yamlEvidence = `cron='${cron}' (weekly sweep on DOW=${dow})`
   if (ghRes.status !== 0) {
     // Most likely cause: workflow not on default branch yet. Confirmed by
     // earlier `gh run list` returning "workflow template-ci.yml not found
@@ -488,10 +577,20 @@ async function check7_templateCi(): Promise<CheckResult> {
     )
   }
   try {
-    const runs = JSON.parse(ghOut) as Array<{
-      status: string
-      conclusion: string
-      createdAt: string
+    const parsed: unknown = JSON.parse(ghOut)
+    if (!Array.isArray(parsed)) {
+      return fail(
+        7,
+        label,
+        method,
+        `${yamlEvidence}; gh returned non-array JSON`,
+        `unexpected shape: ${ghOut.slice(0, 120)}`,
+      )
+    }
+    const runs = parsed as Array<{
+      status?: string
+      conclusion?: string
+      createdAt?: string
     }>
     const successful = runs.filter((r) => r.conclusion === 'success')
     const evidence = `${yamlEvidence}; ${runs.length} recent run(s), ${successful.length} succeeded`
@@ -537,6 +636,12 @@ async function check8_typecheck(): Promise<CheckResult> {
       results.push(`${t.name}=SKIP(no dir)`)
       continue
     }
+    // Pre-flight: no tsconfig means tsc will crash with "Cannot find
+    // config" noise that reads like a FAIL. Skip cleanly instead.
+    if (!fileExists(join(t.cwd, 'tsconfig.json'))) {
+      results.push(`${t.name}=SKIP(no tsconfig.json)`)
+      continue
+    }
     const res = runSync('npx', ['tsc', '--noEmit'], {
       cwd: t.cwd,
       timeoutMs: 240_000,
@@ -580,16 +685,27 @@ async function check9_tests(): Promise<CheckResult> {
   let agentsVerdict = 'SKIP'
   let agentsSummary = ''
   if (dirExists(AGENTS_ROOT)) {
-    const agentsRes = runSync('npm', ['test', '--silent'], {
-      cwd: AGENTS_ROOT,
-      timeoutMs: 300_000,
-    })
-    const agentsOut = (agentsRes.stdout ?? '') + (agentsRes.stderr ?? '')
-    agentsVerdict = agentsRes.status === 0 ? 'PASS' : 'FAIL'
-    const m = agentsOut.match(/Tests\s+(\d+)\s+passed\s+\((\d+)\)/i)
-    agentsSummary = m
-      ? `agents:Tests=${m[1]} passed (${m[2]})`
-      : `agents:${agentsVerdict}`
+    // Pre-flight: no "test" script → SKIP; running `npm test` against a
+    // package without that script exits 1 and would falsely FAIL the
+    // criterion.
+    const agentsPkg = readJsonOrNull<{ scripts?: Record<string, string> }>(
+      join(AGENTS_ROOT, 'package.json'),
+    )
+    if (!agentsPkg?.scripts?.test) {
+      agentsVerdict = 'SKIP'
+      agentsSummary = 'agents:SKIP(no test script)'
+    } else {
+      const agentsRes = runSync('npm', ['test', '--silent'], {
+        cwd: AGENTS_ROOT,
+        timeoutMs: 300_000,
+      })
+      const agentsOut = (agentsRes.stdout ?? '') + (agentsRes.stderr ?? '')
+      agentsVerdict = agentsRes.status === 0 ? 'PASS' : 'FAIL'
+      const m = agentsOut.match(/Tests\s+(\d+)\s+passed\s+\((\d+)\)/i)
+      agentsSummary = m
+        ? `agents:Tests=${m[1]} passed (${m[2]})`
+        : `agents:${agentsVerdict}`
+    }
   }
   const evidence = `main:${mainVerdict}${mainSummary ? ` (${mainSummary[0]})` : ''}; ${agentsSummary}`
   if (mainVerdict === 'PASS' && (agentsVerdict === 'PASS' || agentsVerdict === 'SKIP')) {
@@ -696,35 +812,59 @@ async function check11_mpp(): Promise<CheckResult> {
     repoFile('packages/mcp/src/__tests__/kernel.test.ts'),
   ]
   let mppTestCount = 0
+  // Dedup by `${file}:${index}` so a block that is both inside a
+  // describe('MPP'...) AND has "mpp" in its own name doesn't double-count.
+  // (The old code conservatively over-counted and passed the ≥12
+  // threshold anyway, but the precision number in evidence was inflated.)
+  const countedPositions = new Set<string>()
   for (const f of testFiles) {
     const body = readTextOrEmpty(f)
     if (!body) continue
-    // Count it(...) or test(...) blocks in a describe block whose heading
-    // mentions MPP, or a standalone block whose name mentions MPP.
-    const its = [...body.matchAll(/\bit\s*\(\s*['"`]([^'"`]+)['"`]/g)]
-    const tests = [...body.matchAll(/\btest\s*\(\s*['"`]([^'"`]+)['"`]/g)]
-    const all = [...its, ...tests]
-    // Cheap filter: keep blocks inside a describe(name containing MPP) OR
-    // blocks whose name mentions MPP/mpp.
-    // To catch describe-scoped blocks, we split by describe() headings.
-    const describeBlocks = body.split(/\bdescribe\s*\(\s*['"`]/)
-    for (const blk of describeBlocks.slice(1)) {
-      const head = blk.slice(0, 120)
-      if (!/mpp|stripe\s+mpp|MPP/i.test(head)) continue
-      const blkEnd = blk.search(/\bdescribe\s*\(\s*['"`]/) // safe approx
-      const body2 = blkEnd > 0 ? blk.slice(0, blkEnd) : blk
-      mppTestCount += [
-        ...body2.matchAll(/\bit\s*\(/g),
-      ].length
-      mppTestCount += [
-        ...body2.matchAll(/\btest\s*\(/g),
-      ].length
+    // Enumerate every it/test block with its absolute offset.
+    const blocks: Array<{ offset: number; name: string }> = []
+    for (const m of body.matchAll(/\b(?:it|test)\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+      if (m.index !== undefined) {
+        blocks.push({ offset: m.index, name: m[1] })
+      }
     }
-    // Also add any it/test blocks with MPP in their own name (already
-    // possibly counted above but duplicates across describe split are
-    // rare; the conservative summary below floors the number).
-    for (const m of all) {
-      if (/mpp/i.test(m[1])) mppTestCount += 1
+    // Locate every describe(...) opener + its scope-end by brace balance.
+    type Scope = { mentionsMpp: boolean; start: number; end: number }
+    const scopes: Scope[] = []
+    for (const m of body.matchAll(/\bdescribe\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+      if (m.index === undefined) continue
+      const mentionsMpp = /mpp/i.test(m[1])
+      if (!mentionsMpp) continue
+      // Walk forward from the `(` to its matching `)` to find scope end.
+      // Naïve but good enough for the well-formed test sources this gate
+      // consumes; if malformed, the scope ends at EOF which over-includes.
+      const openIdx = body.indexOf('(', m.index)
+      let depth = 0
+      let endIdx = body.length
+      for (let i = openIdx; i < body.length; i += 1) {
+        const ch = body[i]
+        if (ch === '(') depth += 1
+        else if (ch === ')') {
+          depth -= 1
+          if (depth === 0) {
+            endIdx = i
+            break
+          }
+        }
+      }
+      scopes.push({ mentionsMpp: true, start: m.index, end: endIdx })
+    }
+    for (const b of blocks) {
+      const insideMppDescribe = scopes.some(
+        (s) => b.offset >= s.start && b.offset <= s.end,
+      )
+      const selfMentionsMpp = /mpp/i.test(b.name)
+      if (insideMppDescribe || selfMentionsMpp) {
+        const key = `${f}:${b.offset}`
+        if (!countedPositions.has(key)) {
+          countedPositions.add(key)
+          mppTestCount += 1
+        }
+      }
     }
   }
   // Dedupe-ish cap: many checks reference MPP as one of 14 adapters in a
@@ -873,7 +1013,13 @@ async function check14_railsLedgerAuth(): Promise<CheckResult> {
         if (entry.isDirectory()) scan(full)
         else if (/\.(ts|tsx)$/.test(entry.name)) {
           const body = readTextOrEmpty(full)
-          if (/from\s+['"][^'"]*settlement\/ledger['"]/.test(body))
+          // Match static `from '.../settlement/ledger'` AND dynamic
+          // `import('.../settlement/ledger')` so a rewrite to lazy
+          // loading doesn't silently zero this check.
+          if (
+            /from\s+['"][^'"]*settlement\/ledger['"]/.test(body) ||
+            /import\s*\(\s*['"][^'"]*settlement\/ledger['"]\s*\)/.test(body)
+          )
             ledgerImportsInApi += 1
         }
       }
@@ -1520,7 +1666,7 @@ function remediationHint(r: CheckResult): string {
     4: 'Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4.',
     5: 'Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted".',
     6: 'Re-run P3.8 + P3.9 + P3.10 as needed to republish academy.',
-    7: 'Restore weekly cron in .github/workflows/template-ci.yml (P3.11).',
+    7: 'Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally.',
     8: 'Fix TS errors surfaced by turbo typecheck and rerun.',
     9: 'Fix failing workspace tests and rerun turbo test.',
     10: 'Re-run any P3.x prompt whose audit chain is missing a stage.',
@@ -1595,15 +1741,23 @@ export function formatPhase3Log(
     lines.push('')
   }
   const blockers = results.filter((r) => r.status === 'FAIL' || r.status === 'DEFER')
-  if (blockers.length > 0) {
+  const prereqBlockers = prereqs.filter((p) => p.status !== 'PASS')
+  if (blockers.length > 0 || prereqBlockers.length > 0) {
     lines.push(`## Remediation`)
     lines.push('')
     lines.push(
-      `Phase 4 is blocked until every criterion PASSes. Re-run the listed prompts in order, then re-run \`npx tsx scripts/phase-3-verify.ts --strict-expansion --write-md-log\`.`,
+      `Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run the listed prompts in order, then re-run \`npx tsx scripts/phase-3-verify.ts --strict-expansion --write-md-log\`.`,
     )
     lines.push('')
-    lines.push(`| # | Criterion | Status | Remediation |`)
-    lines.push(`|---|-----------|--------|-------------|`)
+    lines.push(`| # | Item | Status | Remediation |`)
+    lines.push(`|---|------|--------|-------------|`)
+    // Prerequisite rows first — a failing prereq must be resolved before
+    // the criteria section's remediation is actionable.
+    for (const p of prereqBlockers) {
+      lines.push(
+        `| ${p.id} | ${escapeMdCell(p.text)} | ${p.status} | ${escapeMdCell(prereqRemediationHint(p))} |`,
+      )
+    }
     for (const r of blockers) {
       lines.push(
         `| C${r.id} | ${escapeMdCell(r.label)} | ${r.status} | ${escapeMdCell(remediationHint(r))} |`,
@@ -1614,11 +1768,24 @@ export function formatPhase3Log(
     lines.push(`## Phase 4 — UNBLOCKED`)
     lines.push('')
     lines.push(
-      `All 27 exit criteria verified PASS. Tag \`phase-3-complete\` may be created.`,
+      `All 27 exit criteria verified PASS and all prerequisites satisfied. Tag \`phase-3-complete\` may be created.`,
     )
     lines.push('')
   }
   return lines.join('\n')
+}
+
+function prereqRemediationHint(p: Prerequisite): string {
+  switch (p.id) {
+    case 'PREQ1':
+      return 'Complete/repair any P3.1–P3.11 audit chain whose stages are missing (see C10).'
+    case 'PREQ2':
+      return 'Commit or stash all tracked-dirty files in both repos. Untracked docs/ artifacts are known handoff state; commit or gitignore per founder preference.'
+    case 'PREQ3':
+      return 'Reconcile Templater spend ledger (see C2 real-cost upper-bound annotation).'
+    default:
+      return 'Resolve the prerequisite before re-running the gate.'
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────

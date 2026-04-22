@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-22T00:11:52.464Z
+**Run timestamp:** 2026-04-22T00:36:47.925Z
 **Mode:** default
 **Verdict:** 7 PASS / 14 DEFER / 6 FAIL (of 27)
 **Exit code:** 1
@@ -23,7 +23,7 @@
 ### C1 — ≥75 new templates in open-source-servers/
 
 - **Verdict:** FAIL
-- **Method:** git log --diff-filter=A --name-only on the two P3 template-additions commits; count *package.json directly under open-source-servers/
+- **Method:** git log --all to discover P3.2 + P3.3 template-add commits by subject match; git show --diff-filter=A on each; count *package.json directly under open-source-servers/
 - **Evidence:** 1af6cb66=68, e0470c59=4 — total new templates = 72
 - **Detail:** only 72 new templates (<75)
 
@@ -51,7 +51,7 @@
 
 - **Verdict:** FAIL
 - **Method:** parse scripts/directory-submissions/packets/README.md tracker table; count rows whose Status column is sent | accepted
-- **Evidence:** 0 sent/accepted out of 11 tracker rows
+- **Evidence:** 0 sent/accepted out of 11 tracker rows (case-insensitive match)
 - **Detail:** only 0 submissions logged as sent/accepted (<5). Founder-manual verification: confirm whether submissions were sent but status column not updated
 
 ### C6 — Academy lessons 1-5 published at /learn/academy
@@ -89,7 +89,7 @@
 
 - **Verdict:** PASS
 - **Method:** verify packages/mcp/src/adapters/mpp.ts exports MPPAdapter; count MPP-referencing it() blocks across P2K2 contract + coverage + protocol-adapters tests
-- **Evidence:** MPPAdapter exported; measured MPP-referencing test blocks = 64 across 7 test files; 4 of 7 test files reference Stripe test-mode context
+- **Evidence:** MPPAdapter exported; measured MPP-referencing test blocks = 45 across 7 test files; 4 of 7 test files reference Stripe test-mode context
 
 ### C12 — L402 adapter wired with Voltage backend (≥1 integration test)
 
@@ -199,14 +199,15 @@
 
 ## Remediation
 
-Phase 4 is blocked until every criterion PASSes. Re-run the listed prompts in order, then re-run `npx tsx scripts/phase-3-verify.ts --strict-expansion --write-md-log`.
+Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run the listed prompts in order, then re-run `npx tsx scripts/phase-3-verify.ts --strict-expansion --write-md-log`.
 
-| # | Criterion | Status | Remediation |
-|---|-----------|--------|-------------|
+| # | Item | Status | Remediation |
+|---|------|--------|-------------|
+| PREQ2 | No uncommitted changes in either repo | DEFER | Commit or stash all tracked-dirty files in both repos. Untracked docs/ artifacts are known handoff state; commit or gitignore per founder preference. |
 | C1 | ≥75 new templates in open-source-servers/ | FAIL | Re-run P3.2/P3.3 to add more templates. |
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
-| C7 | Template CI pipeline running weekly | DEFER | Restore weekly cron in .github/workflows/template-ci.yml (P3.11). |
+| C7 | Template CI pipeline running weekly | DEFER | Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally. |
 | C12 | L402 adapter wired with Voltage backend (≥1 integration test) | FAIL | Add Voltage/LND integration test in adapter-l402.test.ts (P3.K2). |
 | C13 | Consumer SDK shipped (packages/client/ builds, ≥18 unit tests) | DEFER | Run P3.K3 (Consumer SDK). |
 | C14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | Run P3.K4 (per-rail pricing + ledger + tool-secret + verifyWebhook). |
