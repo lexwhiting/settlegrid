@@ -1107,7 +1107,7 @@ async function check15_drainKeccak(): Promise<CheckResult> {
     label,
     method,
     evidence,
-    'drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.PROT1',
+    'drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.K5',
   )
 }
 
@@ -1146,7 +1146,7 @@ async function check16_stripeRouter(): Promise<CheckResult> {
       label,
       method,
       evidence,
-      `partial: missing ${missing.join(', ')} — see P3.K6/P3.RAIL2`,
+      `partial: missing ${missing.join(', ')} — see P3.RAIL1`,
     )
   }
   return defer(16, label, method, evidence, `missing: ${missing.join(', ')}`)
@@ -1412,7 +1412,7 @@ async function check25_cursorDirectory(): Promise<CheckResult> {
     25,
     label,
     method,
-    'cursor.directory packet missing — P3.PROT1/P3.MKT directory-expansion prompt not yet shipped',
+    'cursor.directory packet missing — P3.13 prompt not yet shipped',
   )
 }
 
@@ -1428,7 +1428,7 @@ async function check26_authorize(): Promise<CheckResult> {
       26,
       label,
       method,
-      'packages/mcp/src/authorize.ts missing — P3.K5 prompt not yet shipped',
+      'packages/mcp/src/authorize.ts missing — P3.K6 prompt not yet shipped',
     )
   }
   const body = readTextOrEmpty(authFile)
@@ -1674,8 +1674,8 @@ export function remediationHint(r: CheckResult): string {
     12: 'Add Voltage/LND integration test in adapter-l402.test.ts (P3.K2).',
     13: 'Run P3.K3 (Consumer SDK).',
     14: 'Run P3.K4 (per-rail pricing + ledger + tool-secret + verifyWebhook).',
-    15: 'Run P3.PROT1 (DRAIN keccak-256 fix or removal).',
-    16: 'Run P3.K6/P3.RAIL1 (Stripe account-type router + eligibility + waitlist).',
+    15: 'Run P3.K5 (DRAIN keccak-256 fix or removal).',
+    16: 'Run P3.RAIL1 (Stripe account-type router + eligibility pre-check + waitlist UI).',
     17: 'Run P3.RAIL2 (Stripe reconciliation + drift detection).',
     18: 'Run P3.RAIL3 (payouts UI + chargeback velocity).',
     19: 'Run P3.PYTHON1 (Python SDK core).',
@@ -1684,8 +1684,8 @@ export function remediationHint(r: CheckResult): string {
     22: 'Run P3.PYTHON4 (llamaindex + crewai + pydantic-ai Python adapters).',
     23: 'Run P3.PYTHON5 (dspy + smolagents Python adapters).',
     24: 'Run P3.PROT1 (Mastercard VI landing page).',
-    25: 'Run P3.PROT1 (or add cursor.directory packet via directory-submissions scaffold).',
-    26: 'Run P3.K5 (authorize.ts pre-execution gate).',
+    25: 'Run P3.13 (cursor.directory submission packet).',
+    26: 'Run P3.K6 (authorize.ts pre-execution gate).',
     27: 'Run the 15 expansion prompts whose audit-chain commits are absent.',
   }
   return m[r.id] ?? 'Re-run the associated Phase 3 prompt.'
