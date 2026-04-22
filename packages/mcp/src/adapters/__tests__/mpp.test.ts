@@ -310,6 +310,60 @@ describe('MPPAdapter.detect — body signatures', () => {
     expect(result.confidence).toBe(0)
     expect(result.reasons).toEqual([])
   })
+
+  it('skips body inspection when request.bodyUsed is already true', async () => {
+    // Regression guard: extractPaymentContext or other upstream code
+    // may have already consumed the body. detect() must not crash
+    // and must fall back to header-only confidence.
+    const adapter = newAdapter()
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: {
+        'X-Payment-Token': 'spt_abc',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ protocol: 'mpp' }),
+    })
+    // Consume the body before detect runs.
+    await req.text()
+    expect(req.bodyUsed).toBe(true)
+    const result = await adapter.detect(req)
+    // Header confidence still observed; body reason absent.
+    expect(result.confidence).toBeCloseTo(0.9, 10)
+    expect(result.reasons.some((r) => r.startsWith('body:'))).toBe(false)
+  })
+
+  it('treats a JSON-null body as no body signal', async () => {
+    // `JSON.parse('null')` returns null; `typeof null === 'object'`
+    // would trick a careless shape check into treating null as an
+    // object. The null guard must fire FIRST.
+    const adapter = newAdapter()
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'null',
+    })
+    const result = await adapter.detect(req)
+    expect(result.confidence).toBe(0)
+    expect(result.reasons).toEqual([])
+  })
+
+  it('preserves header-level 1.0 even when a body signal is also present', async () => {
+    // Ceiling check — confidence is capped at 1.0 (not 1.0 + 0.5).
+    // Without the Math.max approach this could falsely read as 1.5
+    // or similar. Regression guard.
+    const adapter = newAdapter()
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: {
+        'x-mpp-version': '1.0',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ protocol: 'mpp' }),
+    })
+    const result = await adapter.detect(req)
+    expect(result.confidence).toBe(1.0)
+  })
 })
 
 // ─── canHandle / detect consistency ──────────────────────────────────────
@@ -495,6 +549,37 @@ describe('MPPAdapter.buildMppChallenge', () => {
       adapter.buildMppChallenge(null),
     ).toThrow(TypeError)
   })
+
+  it('honors a custom acceptedTokens array', () => {
+    const adapter = newAdapter()
+    const env = adapter.buildMppChallenge({
+      amountCents: 100,
+      merchantId: 'acct_test',
+      acceptedTokens: ['spt', 'crypto'],
+    })
+    expect(env.accepted_tokens).toEqual(['spt', 'crypto'])
+  })
+
+  it('honors a custom instructions string', () => {
+    const adapter = newAdapter()
+    const env = adapter.buildMppChallenge({
+      amountCents: 100,
+      merchantId: 'acct_test',
+      instructions: 'Send payment to the merchant via the x-mpp-version=1.0 flow.',
+    })
+    expect(env.instructions).toBe(
+      'Send payment to the merchant via the x-mpp-version=1.0 flow.',
+    )
+  })
+
+  it('accepts amountCents === 0 (zero-price boundary)', () => {
+    const adapter = newAdapter()
+    const env = adapter.buildMppChallenge({
+      amountCents: 0,
+      merchantId: 'acct_test',
+    })
+    expect(env.amount).toBe(0)
+  })
 })
 
 // ─── verifyPayment ────────────────────────────────────────────────────────
@@ -649,6 +734,68 @@ describe('MPPAdapter.verifyPayment', () => {
     expect(captureForm.get('metadata[mpp_session_id]')).toBe('sess_xyz')
     expect(captureForm.get('metadata[platform]')).toBe('settlegrid')
     expect(captureForm.get('metadata[version]')).toBe('1.0')
+  })
+
+  it('returns MPP_CAPTURE_FAILED when Stripe verify succeeds but capture returns 4xx', async () => {
+    // Uncovered path: SPT verify OK (200 + sufficient max_amount)
+    // but capture rejected (e.g., card declined or SPT already
+    // consumed). Must surface as MPP_CAPTURE_FAILED, not generic
+    // MPP_STRIPE_ERROR.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ max_amount: 1000, currency: 'usd', customer: 'cus_test' }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: { message: 'Card declined.' } }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = newAdapter()
+    const result = await adapter.verifyPayment(
+      reqWithHeaders({ 'X-Payment-Token': 'spt_declined' }),
+      {
+        enabled: true,
+        toolConfig: TOOL_CONFIG,
+        stripeMppSecret: 'sk_test_xxx',
+      },
+    )
+    expect(result.valid).toBe(false)
+    expect(result.error?.code).toBe('MPP_CAPTURE_FAILED')
+    expect(result.error?.message).toMatch(/declined/i)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns MPP_TOKEN_INVALID when the Stripe verify fetch throws (network failure)', async () => {
+    // Uncovered path: transport-level failure (DNS, TCP reset,
+    // TLS handshake). verifySharedPaymentToken's own try/catch
+    // converts the throw into { valid: false, error: message },
+    // which validateMppPayment then maps to MPP_TOKEN_INVALID
+    // (not MPP_STRIPE_ERROR — that only surfaces from the outer
+    // try/catch around the post-verify amount checks).
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = newAdapter()
+    const result = await adapter.verifyPayment(
+      reqWithHeaders({ 'X-Payment-Token': 'spt_netfail' }),
+      {
+        enabled: true,
+        toolConfig: TOOL_CONFIG,
+        stripeMppSecret: 'sk_test_xxx',
+      },
+    )
+    expect(result.valid).toBe(false)
+    expect(result.error?.code).toBe('MPP_TOKEN_INVALID')
+    expect(result.error?.message).toMatch(/ECONNRESET/)
   })
 
   it('returns MPP_AMOUNT_MISMATCH when expectedCurrency does not match captured currency', async () => {
@@ -879,6 +1026,89 @@ describe('MPPAdapter.settle', () => {
         currency: 'DOLLARS',
       }),
     ).rejects.toThrow(/ISO-4217/)
+  })
+
+  it('invokes onSettled even when recordInvocation is not injected', async () => {
+    // Partial-DI path: emitter only. The event must still fire so
+    // downstream notification pipelines work for dev setups that
+    // haven't wired a ledger yet.
+    const adapter = newAdapter()
+    const events: MppSettlementEvent[] = []
+    const result = await adapter.settle(
+      { ...baseSettlement, invocationId: 'inv_emit_only' },
+      { onSettled: (e) => events.push(e) },
+    )
+    expect(result.status).toBe('settled')
+    expect(events).toHaveLength(1)
+    expect(events[0]?.data.invocationId).toBe('inv_emit_only')
+  })
+
+  it('records to the ledger even when onSettled is not injected', async () => {
+    // Inverse partial-DI path: persistent writer only, no event bus.
+    const adapter = newAdapter()
+    const ledger: MppLedgerEntry[] = []
+    const result = await adapter.settle(
+      { ...baseSettlement, invocationId: 'inv_record_only' },
+      {
+        recordInvocation: (entry) => {
+          ledger.push(entry)
+        },
+      },
+    )
+    expect(result.status).toBe('settled')
+    expect(ledger).toHaveLength(1)
+    expect(ledger[0]?.invocationId).toBe('inv_record_only')
+  })
+
+  it('accepts a synchronous recordInvocation (returns non-Promise)', async () => {
+    // The adapter uses `await Promise.resolve(recordInvocation(...))`
+    // so either sync or async callbacks work. Regression guard against
+    // future refactors that might mis-type the callback return.
+    const adapter = newAdapter()
+    let wrote = false
+    const result = await adapter.settle(
+      { ...baseSettlement, invocationId: 'inv_sync_record' },
+      {
+        recordInvocation: () => {
+          wrote = true
+        },
+      },
+    )
+    expect(result.status).toBe('settled')
+    expect(wrote).toBe(true)
+  })
+
+  it('accepts costCents === 0 (zero-charge invocation boundary)', async () => {
+    // A free tool call still needs a ledger event for audit /
+    // analytics. costCents=0 must NOT be rejected.
+    const adapter = newAdapter()
+    const result = await adapter.settle({
+      invocationId: 'inv_free',
+      toolSlug: 'my-tool',
+      costCents: 0,
+    })
+    expect(result.status).toBe('settled')
+    expect(result.event.data.costCents).toBe(0)
+  })
+
+  it('preserves all optional fields in data + externalAccountId when all supplied', async () => {
+    // The inverse of the "omits optional fields when absent" test —
+    // proves the spread-under-guard pattern inserts the keys when
+    // the corresponding input field is present.
+    const adapter = newAdapter()
+    const result = await adapter.settle({
+      invocationId: 'inv_all_fields',
+      toolSlug: 'my-tool',
+      costCents: 200,
+      currency: 'usd',
+      paymentId: 'pi_abc',
+      payerCustomerId: 'cus_xyz',
+      sessionId: 'sess_123',
+    })
+    expect(result.event.externalAccountId).toBe('cus_xyz')
+    expect(result.event.data.paymentId).toBe('pi_abc')
+    expect(result.event.data.payerCustomerId).toBe('cus_xyz')
+    expect(result.event.data.sessionId).toBe('sess_123')
   })
 
   it('omits externalAccountId + data.paymentId/sessionId when input lacks them', async () => {
