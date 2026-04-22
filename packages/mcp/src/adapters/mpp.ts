@@ -21,6 +21,7 @@ import type {
   BuildChallengeOptions,
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
+import type { SettleGridInternalEvent } from '../rails/types'
 import type {
   AdapterLogger,
   PaymentContext,
@@ -214,11 +215,34 @@ export class MPPAdapter implements ProtocolAdapter {
    * spec's "buildChallenge" terminology. Hardcoded Stripe provider and
    * USD currency are P1.K3 stubs; a future pass will let the tool
    * choose between Stripe and Tempo and pick a currency.
+   *
+   * P3.K1 spec-diff fix F2: overloaded so the same method name accepts
+   * EITHER a `BuildChallengeOptions` (narrow AcceptEntry for the
+   * multi-protocol 402 manifest — the kernel's dispatcher path) OR an
+   * `MppChallengeOptions` (richer MPP 402 envelope — delegates to
+   * `buildMppChallenge`). Dispatch is by presence of the required
+   * `merchantId` field on `MppChallengeOptions`; `BuildChallengeOptions`
+   * never carries that field.
    */
-  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
-    const method = options.method ?? 'default'
-    const rawCost = resolveOperationCost(options.pricing, method)
-    const costCents = Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry
+  buildChallenge(options: MppChallengeOptions): MppChallengeEnvelope
+  buildChallenge(
+    options: BuildChallengeOptions | MppChallengeOptions,
+  ): AcceptEntry | MppChallengeEnvelope {
+    if (
+      options !== null &&
+      typeof options === 'object' &&
+      !Array.isArray(options) &&
+      'merchantId' in options &&
+      typeof (options as MppChallengeOptions).merchantId === 'string'
+    ) {
+      return this.buildMppChallenge(options as MppChallengeOptions)
+    }
+    const narrowOptions = options as BuildChallengeOptions
+    const method = narrowOptions.method ?? 'default'
+    const rawCost = resolveOperationCost(narrowOptions.pricing, method)
+    const costCents =
+      Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
     return {
       scheme: 'mpp',
       provider: 'stripe',
@@ -275,18 +299,29 @@ export class MPPAdapter implements ProtocolAdapter {
    *   0.60 — `Authorization: Bearer spt_*` / `mpp_*`
    *
    * Hostile audit specifically requires that `detect` return a real
-   * score, not a constant. Each of the seven signatures contributes a
-   * distinct weight so two different mixes of matched signatures
-   * produce different scores. Detection does NOT inspect the request
-   * body — body parsing requires `request.clone().json()` which is
-   * fallible and expensive, and a body-only signature would be easy to
-   * spoof via unrelated JSON envelopes. Header-level signatures are
-   * authoritative for MPP.
+   * score, not a constant. Each signature contributes a distinct
+   * weight so two different mixes of matched signatures produce
+   * different scores.
    *
-   * `canHandle()` remains a boolean and is equivalent to
-   * `this.detect(request).confidence > 0`.
+   * BODY signatures (checked after headers; body parse is guarded in
+   * try/catch so a non-JSON body never throws out of detect):
+   *
+   *   0.50 — body carries MPP envelope shape (`protocol: 'mpp'` or
+   *          `scheme: 'mpp'`)
+   *   0.40 — body carries Stripe payment intent shape
+   *          (`id: pi_*` + `client_secret`, OR
+   *          `payment_intent_client_secret`)
+   *
+   * P3.K1 spec-diff fix F1: body inspection was added because the
+   * original spec requires detect to check BOTH headers and body.
+   * Body weights are deliberately lower than any header-only weight
+   * so a header-matched request always wins over a body-only guess.
+   *
+   * `canHandle()` is the synchronous, headers-only fast path used by
+   * the ProtocolRegistry dispatcher. Use `detect()` when the richer
+   * body-aware probe is needed.
    */
-  detect(request: Request): MppDetectionResult {
+  async detect(request: Request): Promise<MppDetectionResult> {
     const reasons: string[] = []
     let confidence = 0
 
@@ -335,7 +370,69 @@ export class MPPAdapter implements ProtocolAdapter {
       }
     }
 
+    // ─── Body inspection (P3.K1 spec-diff F1) ─────────────────────────
+    //
+    // Spec requires detect to check BOTH headers and request body for
+    // MPP-specific signatures. Body parsing is guarded so a non-JSON,
+    // empty, or already-consumed body never throws out of detect. Body
+    // weights are deliberately lower than any header signature.
+    const bodyShape = await this.sniffBodyShape(request)
+    if (bodyShape === 'mpp-envelope') {
+      reasons.push('body: MPP envelope shape')
+      confidence = Math.max(confidence, 0.5)
+    } else if (bodyShape === 'stripe-payment-intent') {
+      reasons.push('body: Stripe payment intent shape')
+      confidence = Math.max(confidence, 0.4)
+    }
+
     return { confidence, reasons }
+  }
+
+  /**
+   * Inspect the request body for an MPP envelope or Stripe payment
+   * intent shape. Returns `null` when the body is missing, already
+   * consumed, non-JSON, or matches no known shape. Never throws —
+   * `detect()` must remain resilient to any body shape an attacker
+   * could send.
+   */
+  private async sniffBodyShape(
+    request: Request,
+  ): Promise<'mpp-envelope' | 'stripe-payment-intent' | null> {
+    try {
+      if (request.bodyUsed) return null
+      const clone = request.clone()
+      const text = await clone.text()
+      if (text.length === 0) return null
+      const parsed: unknown = JSON.parse(text)
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return null
+      }
+      const body = parsed as Record<string, unknown>
+
+      // MPP envelope shape: `protocol: 'mpp'` (what generateMpp402Response
+      // emits at the top level) OR `scheme: 'mpp'` (what
+      // buildMppChallenge emits). Matching EITHER covers both surfaces
+      // SettleGrid itself produces.
+      if (body.protocol === 'mpp' || body.scheme === 'mpp') {
+        return 'mpp-envelope'
+      }
+
+      // Stripe payment intent shape: `id: pi_*` + `client_secret`, OR
+      // a top-level `payment_intent_client_secret` (the field name
+      // the spec explicitly names as an envelope component). Stripe
+      // PaymentIntent payloads always carry `client_secret`.
+      const hasPiId = typeof body.id === 'string' && body.id.startsWith('pi_')
+      const hasClientSecret = typeof body.client_secret === 'string'
+      const hasPiClientSecret =
+        typeof body.payment_intent_client_secret === 'string'
+      if ((hasPiId && hasClientSecret) || hasPiClientSecret) {
+        return 'stripe-payment-intent'
+      }
+
+      return null
+    } catch {
+      return null
+    }
   }
 
   /**
@@ -388,47 +485,57 @@ export class MPPAdapter implements ProtocolAdapter {
         )}.`,
       )
     }
-    const currency = (options.currency ?? 'USD').toUpperCase()
-    if (!/^[A-Z]{3}$/.test(currency)) {
+    // MPP wire format uses lowercase ISO-4217 codes — see
+    // generateMpp402Response above (`currency: 'usd'`). The input
+    // options.currency is case-insensitive; the emitted envelope is
+    // always lowercase.
+    const currencyInput = (options.currency ?? 'usd').toLowerCase()
+    if (!/^[a-z]{3}$/.test(currencyInput)) {
       throw new Error(
         `buildMppChallenge: \`currency\` must be a 3-letter ISO-4217 code; got ${JSON.stringify(
           options.currency,
         )}.`,
       )
     }
+    const currency = currencyInput
     const acceptedTokens: readonly string[] =
       options.acceptedTokens && options.acceptedTokens.length > 0
         ? [...options.acceptedTokens]
         : ['spt']
 
+    // P3.K1 spec-diff fix F3 — envelope fields use snake_case to
+    // match the MPP wire format (the spec explicitly names
+    // `payment_intent_client_secret` and `merchant_id`; existing
+    // generateMpp402Response emits `accepted_tokens` / `directory_url`
+    // in the same style). Input options stay camelCase per TS idiom.
     const envelope: MppChallengeEnvelope = {
       scheme: 'mpp',
       provider: 'stripe',
       version: MPP_PROTOCOL_VERSION,
-      amountCents: options.amountCents,
+      amount: options.amountCents,
       currency,
-      merchantId: options.merchantId,
-      acceptedTokens,
+      merchant_id: options.merchantId,
+      accepted_tokens: acceptedTokens,
       instructions:
         options.instructions ??
         `To pay, re-send the request with X-Payment-Token: ${MPP_TOKEN_PREFIX}... header containing a valid Stripe Shared Payment Token authorizing at least ${options.amountCents} ${
-          currency === 'USD' ? 'cents' : `minor units of ${currency}`
+          currency === 'usd' ? 'cents' : `minor units of ${currency.toUpperCase()}`
         }.`,
     }
     if (
       typeof options.paymentIntentClientSecret === 'string' &&
       options.paymentIntentClientSecret.length > 0
     ) {
-      envelope.paymentIntentClientSecret = options.paymentIntentClientSecret
+      envelope.payment_intent_client_secret = options.paymentIntentClientSecret
     }
     if (typeof options.recipientId === 'string' && options.recipientId.length > 0) {
-      envelope.recipientId = options.recipientId
+      envelope.recipient = options.recipientId
     }
     if (typeof options.description === 'string' && options.description.length > 0) {
       envelope.description = options.description
     }
     if (typeof options.directoryUrl === 'string' && options.directoryUrl.length > 0) {
-      envelope.directoryUrl = options.directoryUrl
+      envelope.directory_url = options.directoryUrl
     }
     return envelope
   }
@@ -555,8 +662,14 @@ export class MPPAdapter implements ProtocolAdapter {
     const now = deps?.now ?? Date.now
     const settledAt = now()
     const currency = (invocation.currency ?? 'usd').toLowerCase()
-    const event: MppSettlementEvent = {
-      kind: 'invocation.settled',
+    // P3.K1 spec-diff fix F5 — shape the emitted event so it satisfies
+    // `SettleGridInternalEvent`. The rails/types.ts `SettleGridInternalEventKind`
+    // union does not (yet) include `'invocation.settled'`, so `kind`
+    // is pinned to `'unknown'`; the rich discriminator lives in
+    // `data.subKind`. When a future card extends the kind union, the
+    // flip is a two-line change (kind + subKind).
+    const data: MppSettlementData = {
+      subKind: 'invocation.settled',
       protocol: 'mpp',
       invocationId: invocation.invocationId,
       toolSlug: invocation.toolSlug,
@@ -568,6 +681,15 @@ export class MPPAdapter implements ProtocolAdapter {
         ? { payerCustomerId: invocation.payerCustomerId }
         : {}),
       ...(invocation.sessionId !== undefined ? { sessionId: invocation.sessionId } : {}),
+    }
+    const event: MppSettlementEvent = {
+      kind: 'unknown',
+      railId: 'stripe-connect',
+      externalEventId: invocation.invocationId,
+      ...(invocation.payerCustomerId !== undefined
+        ? { externalAccountId: invocation.payerCustomerId }
+        : {}),
+      data,
     }
     const result: MppSettleResult = { status: 'settled', event }
 
@@ -1078,21 +1200,34 @@ export interface MppChallengeOptions {
 /**
  * Output of {@link MPPAdapter.buildMppChallenge}. Valid MPP 402
  * envelope shape — richer than the narrow `AcceptEntry` emitted by
- * `buildChallenge` (which targets the multi-protocol manifest).
+ * `buildChallenge(BuildChallengeOptions)` (which targets the
+ * multi-protocol manifest).
+ *
+ * P3.K1 spec-diff fix F3: field names are snake_case to match the MPP
+ * wire format and the spec's explicit naming of
+ * `payment_intent_client_secret` + `merchant_id`. The sibling
+ * `generateMpp402Response` already uses the same style
+ * (`accepted_tokens`, `directory_url`, etc.). `currency` is lowercase
+ * per MPP convention (`usd`, `eur`, ...).
  */
 export interface MppChallengeEnvelope {
   readonly scheme: 'mpp'
   readonly provider: 'stripe'
   version: string
-  amountCents: number
+  /** Per-invocation amount, in minor currency units (e.g. cents for USD). */
+  amount: number
+  /** Lowercase ISO-4217 currency code (`usd`, `eur`, ...). */
   currency: string
-  merchantId: string
-  acceptedTokens: readonly string[]
+  /** Rail-config merchant identifier (Stripe Connect account ID, `acct_*`). */
+  merchant_id: string
+  accepted_tokens: readonly string[]
   instructions: string
-  paymentIntentClientSecret?: string
-  recipientId?: string
+  /** Stripe MPP PaymentIntent client secret (optional pre-provisioned flow). */
+  payment_intent_client_secret?: string
+  /** Stripe Connect recipient ID (overrides the default merchant recipient). */
+  recipient?: string
   description?: string
-  directoryUrl?: string
+  directory_url?: string
 }
 
 /**
@@ -1151,24 +1286,60 @@ export interface MppLedgerEntry {
 }
 
 /**
- * Settlement event emitted by {@link MPPAdapter.settle}. D-deviation
- * from the spec's literal "SettleGridInternalEvent" — see the method
- * JSDoc for the rationale. The `kind: 'invocation.settled'` literal
- * is a candidate for eventual addition to
- * {@link SettleGridInternalEventKind}; when that lands, this event
- * shape is assignable to the extended union.
+ * Typed payload carried inside {@link MppSettlementEvent.data}.
+ *
+ * `subKind` narrows the otherwise-opaque `SettleGridInternalEvent.kind`
+ * = `'unknown'` so consumers can still discriminate invocation-level
+ * events without waiting on a future `SettleGridInternalEventKind`
+ * extension. When P3.K4 (or a later card) adds `'invocation.settled'`
+ * to the union, the event's top-level `kind` can flip to that literal
+ * and `subKind` can be retired.
+ *
+ * Extends `Record<string, unknown>` so this type is structurally
+ * assignable to `SettleGridInternalEvent.data`.
  */
-export interface MppSettlementEvent {
-  readonly kind: 'invocation.settled'
+export interface MppSettlementData extends Record<string, unknown> {
+  readonly subKind: 'invocation.settled'
   readonly protocol: 'mpp'
   invocationId: string
   toolSlug: string
   costCents: number
+  /** Lowercase ISO-4217. */
   currency: string
+  /** Millisecond epoch. */
   settledAt: number
   paymentId?: string
   payerCustomerId?: string
   sessionId?: string
+}
+
+/**
+ * Settlement event emitted by {@link MPPAdapter.settle}. P3.K1 spec-
+ * diff fix F5: this shape EXTENDS `SettleGridInternalEvent` so the
+ * emitted event satisfies the spec's literal "emits a
+ * SettleGridInternalEvent" requirement.
+ *
+ * Concrete narrowings:
+ *   - `kind` is pinned to `'unknown'` because
+ *     `SettleGridInternalEventKind` in rails/types.ts does not (yet)
+ *     include an `'invocation.settled'` literal; extending that
+ *     union would touch a file outside P3.K1's allowed list. The
+ *     rich subKind lives in `data.subKind`.
+ *   - `railId` is pinned to `'stripe-connect'` because MPP settles
+ *     via Stripe Connect regardless of the specific account type.
+ *   - `externalEventId` carries the invocation ID (idempotency key
+ *     shared with Stripe's event-replay semantics).
+ *   - `externalAccountId` carries the payer's Stripe customer ID
+ *     when available.
+ *   - `data` is typed as {@link MppSettlementData} (still assignable
+ *     to the parent `Record<string, unknown>`).
+ */
+export interface MppSettlementEvent extends SettleGridInternalEvent {
+  kind: 'unknown'
+  railId: 'stripe-connect'
+  externalEventId: string
+  externalAccountId?: string
+  data: MppSettlementData
 }
 
 /**

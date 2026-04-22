@@ -1,15 +1,29 @@
 /**
  * P3.K1 — unit tests for the spec-aligned MPPAdapter methods
- * (`detect` / `buildMppChallenge` / `verifyPayment` / `settle`).
+ * (`detect` / `buildChallenge` + `buildMppChallenge` / `verifyPayment`
+ * / `settle`).
  *
- * The test surface deliberately exercises the four spec-named methods
- * the P3.K1 card calls out, plus the edge cases the hostile audit
- * requirement enumerates:
+ * Exercises the four spec-named methods plus the hostile-audit
+ * requirements:
  *
  *   - "detect returns a real confidence score, not a constant"
  *   - "verifyPayment actually validates the amount and currency,
  *      not just intent existence"
  *   - "settle is idempotent on the same invocation_id"
+ *
+ * The spec-diff round (F1-F6) added:
+ *   F1 — body-inspection coverage for detect (MPP envelope shape,
+ *        Stripe payment intent shape, malformed-JSON resilience)
+ *   F2 — buildChallenge(MppChallengeOptions) overload parity with
+ *        the existing buildChallenge(BuildChallengeOptions)
+ *   F3 — snake_case envelope fields (merchant_id,
+ *        payment_intent_client_secret, accepted_tokens,
+ *        directory_url, amount, recipient) + lowercase currency
+ *   F4 — Stripe test-mode URL/headers/body assertions on the
+ *        fetch-mocked happy-path verify + capture round-trips
+ *   F5 — MppSettlementEvent shape extends SettleGridInternalEvent
+ *        (kind='unknown', railId='stripe-connect', data.subKind)
+ *   F6 — malformed envelope graceful fallback
  *
  * Stripe API round-trips are exercised through a stubbed global
  * `fetch`. The stub is installed with `vi.stubGlobal('fetch', ...)`
@@ -45,79 +59,81 @@ function reqWithHeaders(headers: Record<string, string>): Request {
   return new Request('http://localhost/api/proxy/my-tool', { headers })
 }
 
+function reqWithBody(body: unknown, headers: Record<string, string> = {}): Request {
+  return new Request('http://localhost/api/proxy/my-tool', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  })
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
-// ─── detect() ─────────────────────────────────────────────────────────────
+// ─── detect() — headers ──────────────────────────────────────────────────
 
-describe('MPPAdapter.detect', () => {
-  it('returns confidence 0 and no reasons for an unrelated request', () => {
+describe('MPPAdapter.detect — header signatures', () => {
+  it('returns confidence 0 and no reasons for an unrelated request', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({}))
+    const result = await adapter.detect(reqWithHeaders({}))
     expect(result.confidence).toBe(0)
     expect(result.reasons).toEqual([])
   })
 
-  it('returns 1.0 for an explicit X-Payment-Protocol: MPP/1.0 header', () => {
+  it('returns 1.0 for an explicit X-Payment-Protocol: MPP/1.0 header', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({ 'X-Payment-Protocol': 'MPP/1.0' }))
+    const result = await adapter.detect(reqWithHeaders({ 'X-Payment-Protocol': 'MPP/1.0' }))
     expect(result.confidence).toBe(1.0)
     expect(result.reasons).toContain('X-Payment-Protocol: MPP/1.0')
   })
 
-  it('returns 1.0 for an explicit x-mpp-version header', () => {
+  it('returns 1.0 for an explicit x-mpp-version header', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({ 'x-mpp-version': '1.0' }))
+    const result = await adapter.detect(reqWithHeaders({ 'x-mpp-version': '1.0' }))
     expect(result.confidence).toBe(1.0)
     expect(result.reasons).toContain('x-mpp-version: 1.0')
   })
 
-  it('returns 0.9 for X-Payment-Token: spt_*', () => {
+  it('returns 0.9 for X-Payment-Token: spt_*', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({ 'X-Payment-Token': 'spt_test_abc' }))
+    const result = await adapter.detect(reqWithHeaders({ 'X-Payment-Token': 'spt_test_abc' }))
     expect(result.confidence).toBeCloseTo(0.9, 10)
     expect(result.reasons[0]).toMatch(/spt_\*/)
   })
 
-  it('returns 0.8 for x-mpp-credential header', () => {
+  it('returns 0.8 for x-mpp-credential header', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({ 'x-mpp-credential': 'abc123' }))
+    const result = await adapter.detect(reqWithHeaders({ 'x-mpp-credential': 'abc123' }))
     expect(result.confidence).toBeCloseTo(0.8, 10)
     expect(result.reasons).toContain('x-mpp-credential')
   })
 
-  it('returns 0.7 for x-settlegrid-protocol: mpp hint', () => {
+  it('returns 0.7 for x-settlegrid-protocol: mpp hint', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({ 'x-settlegrid-protocol': 'mpp' }))
+    const result = await adapter.detect(reqWithHeaders({ 'x-settlegrid-protocol': 'mpp' }))
     expect(result.confidence).toBeCloseTo(0.7, 10)
     expect(result.reasons).toContain('x-settlegrid-protocol: mpp')
   })
 
-  it('returns 0.6 for Authorization: Bearer spt_*', () => {
+  it('returns 0.6 for Authorization: Bearer spt_*', async () => {
     const adapter = newAdapter()
-    const result = adapter.detect(reqWithHeaders({ Authorization: 'Bearer spt_abc' }))
+    const result = await adapter.detect(reqWithHeaders({ Authorization: 'Bearer spt_abc' }))
     expect(result.confidence).toBeCloseTo(0.6, 10)
     expect(result.reasons[0]).toMatch(/Bearer spt_\*/)
   })
 
-  it('returns 0 for a non-MPP Bearer token (x402_*)', () => {
+  it('returns 0 for a non-MPP Bearer token (x402_*)', async () => {
     const adapter = newAdapter()
-    // Sanity check that detect() is not fooled by ANY Bearer prefix.
-    const result = adapter.detect(reqWithHeaders({ Authorization: 'Bearer x402_xyz' }))
+    const result = await adapter.detect(reqWithHeaders({ Authorization: 'Bearer x402_xyz' }))
     expect(result.confidence).toBe(0)
     expect(result.reasons).toEqual([])
   })
 
-  it('reports MAX confidence across multiple matched signatures', () => {
+  it('reports MAX confidence across multiple matched signatures', async () => {
     const adapter = newAdapter()
-    // Mix a 1.0-weight signal (x-mpp-version) with a 0.6-weight signal
-    // (Bearer spt_*). The reported score must be the max (1.0), and
-    // both reasons must be listed so callers can audit what matched.
-    // Proves `confidence` is not a constant — different header mixes
-    // yield different scores.
-    const result = adapter.detect(
+    const result = await adapter.detect(
       reqWithHeaders({
         'x-mpp-version': '1.0',
         Authorization: 'Bearer spt_abc',
@@ -127,15 +143,16 @@ describe('MPPAdapter.detect', () => {
     expect(result.reasons.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('score strictly orders mid-weight vs low-weight signatures', () => {
+  it('score strictly orders mid-weight vs low-weight signatures', async () => {
+    // Hostile-audit (a): detect must return a REAL score, not a
+    // constant. Asserting strict ordering across five distinct
+    // header weights proves the score is data-dependent.
     const adapter = newAdapter()
-    // Drive down the max to 0.6 (Bearer spt_* only, nothing stronger)
-    // and confirm the ordering: 0.6 < 0.7 < 0.8 < 0.9 < 1.0.
-    const low = adapter.detect(reqWithHeaders({ Authorization: 'Bearer spt_abc' }))
-    const midHint = adapter.detect(reqWithHeaders({ 'x-settlegrid-protocol': 'mpp' }))
-    const midCred = adapter.detect(reqWithHeaders({ 'x-mpp-credential': 'x' }))
-    const highTok = adapter.detect(reqWithHeaders({ 'X-Payment-Token': 'spt_x' }))
-    const topVer = adapter.detect(reqWithHeaders({ 'x-mpp-version': '1.0' }))
+    const low = await adapter.detect(reqWithHeaders({ Authorization: 'Bearer spt_abc' }))
+    const midHint = await adapter.detect(reqWithHeaders({ 'x-settlegrid-protocol': 'mpp' }))
+    const midCred = await adapter.detect(reqWithHeaders({ 'x-mpp-credential': 'x' }))
+    const highTok = await adapter.detect(reqWithHeaders({ 'X-Payment-Token': 'spt_x' }))
+    const topVer = await adapter.detect(reqWithHeaders({ 'x-mpp-version': '1.0' }))
     expect(low.confidence).toBeLessThan(midHint.confidence)
     expect(midHint.confidence).toBeLessThan(midCred.confidence)
     expect(midCred.confidence).toBeLessThan(highTok.confidence)
@@ -143,24 +160,165 @@ describe('MPPAdapter.detect', () => {
   })
 })
 
+// ─── detect() — body (F1, F6) ────────────────────────────────────────────
+
+describe('MPPAdapter.detect — body signatures', () => {
+  it('adds 0.5 for an MPP envelope body (protocol: "mpp")', async () => {
+    const adapter = newAdapter()
+    const result = await adapter.detect(
+      reqWithBody({ protocol: 'mpp', amount: 500, currency: 'usd' }),
+    )
+    expect(result.confidence).toBeCloseTo(0.5, 10)
+    expect(result.reasons).toContain('body: MPP envelope shape')
+  })
+
+  it('adds 0.5 for an MPP envelope body (scheme: "mpp")', async () => {
+    const adapter = newAdapter()
+    const result = await adapter.detect(
+      reqWithBody({ scheme: 'mpp', provider: 'stripe', amount: 500 }),
+    )
+    expect(result.confidence).toBeCloseTo(0.5, 10)
+    expect(result.reasons).toContain('body: MPP envelope shape')
+  })
+
+  it('adds 0.4 for a Stripe payment intent body (pi_* + client_secret)', async () => {
+    const adapter = newAdapter()
+    const result = await adapter.detect(
+      reqWithBody({ id: 'pi_3AbCdEf', client_secret: 'pi_3AbCdEf_secret_xyz' }),
+    )
+    expect(result.confidence).toBeCloseTo(0.4, 10)
+    expect(result.reasons).toContain('body: Stripe payment intent shape')
+  })
+
+  it('adds 0.4 for a top-level payment_intent_client_secret field', async () => {
+    const adapter = newAdapter()
+    const result = await adapter.detect(
+      reqWithBody({ payment_intent_client_secret: 'pi_test_secret_xyz' }),
+    )
+    expect(result.confidence).toBeCloseTo(0.4, 10)
+  })
+
+  it('ignores unrelated JSON bodies (returns 0)', async () => {
+    const adapter = newAdapter()
+    const result = await adapter.detect(reqWithBody({ foo: 'bar', baz: 42 }))
+    expect(result.confidence).toBe(0)
+    expect(result.reasons).toEqual([])
+  })
+
+  it('F6: gracefully falls back to header-only confidence on malformed JSON body', async () => {
+    // Spec step 6 demands a "malformed envelope" test. A broken JSON
+    // body paired with a legit MPP header MUST still produce the
+    // header-level confidence without throwing. Regressions here
+    // would let a malformed body DoS the detection path.
+    const adapter = newAdapter()
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: {
+        'X-Payment-Token': 'spt_test_abc',
+        'Content-Type': 'application/json',
+      },
+      body: 'this is not { valid JSON',
+    })
+    const result = await adapter.detect(req)
+    expect(result.confidence).toBeCloseTo(0.9, 10)
+    expect(result.reasons.some((r) => r.startsWith('body:'))).toBe(false)
+  })
+
+  it('gracefully handles an empty body', async () => {
+    const adapter = newAdapter()
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: { 'X-Payment-Token': 'spt_abc' },
+    })
+    const result = await adapter.detect(req)
+    // No body → header signature stands alone.
+    expect(result.confidence).toBeCloseTo(0.9, 10)
+  })
+
+  it('gracefully handles a non-object JSON body (e.g., a string or array)', async () => {
+    const adapter = newAdapter()
+    const arrayReq = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(['not', 'an', 'object']),
+    })
+    const stringReq = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify('just a string'),
+    })
+    expect((await adapter.detect(arrayReq)).confidence).toBe(0)
+    expect((await adapter.detect(stringReq)).confidence).toBe(0)
+  })
+
+  it('header signal always beats body signal (MAX across sources)', async () => {
+    const adapter = newAdapter()
+    const req = new Request('http://localhost/api/proxy/my-tool', {
+      method: 'POST',
+      headers: {
+        'X-Payment-Token': 'spt_abc',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ protocol: 'mpp' }),
+    })
+    const result = await adapter.detect(req)
+    // Header = 0.9, body = 0.5. MAX = 0.9.
+    expect(result.confidence).toBeCloseTo(0.9, 10)
+    // Both reasons logged.
+    expect(result.reasons.some((r) => r.includes('X-Payment-Token'))).toBe(true)
+    expect(result.reasons.some((r) => r.startsWith('body:'))).toBe(true)
+  })
+})
+
 // ─── canHandle / detect consistency ──────────────────────────────────────
 
 describe('MPPAdapter.canHandle vs detect', () => {
-  it('canHandle is true exactly when detect().confidence > 0', () => {
+  it('canHandle (sync, headers-only) is true when detect would score > 0 on headers', async () => {
     const adapter = newAdapter()
     const positive = reqWithHeaders({ 'X-Payment-Protocol': 'MPP/1.0' })
     const negative = reqWithHeaders({ Authorization: 'Bearer sg_live_abc' })
     expect(adapter.canHandle(positive)).toBe(true)
-    expect(adapter.detect(positive).confidence).toBeGreaterThan(0)
+    expect((await adapter.detect(positive)).confidence).toBeGreaterThan(0)
     expect(adapter.canHandle(negative)).toBe(false)
-    expect(adapter.detect(negative).confidence).toBe(0)
+    expect((await adapter.detect(negative)).confidence).toBe(0)
+  })
+})
+
+// ─── buildChallenge overload + buildMppChallenge (F2) ────────────────────
+
+describe('MPPAdapter.buildChallenge — overloaded AcceptEntry + envelope paths', () => {
+  it('returns an AcceptEntry when called with BuildChallengeOptions (no merchantId)', () => {
+    const adapter = newAdapter()
+    const entry = adapter.buildChallenge({
+      resource: { url: 'https://tool.example' },
+      pricing: { defaultCostCents: 50 },
+    })
+    expect(entry.scheme).toBe('mpp')
+    // AcceptEntry path still emits the pre-existing camelCase fields
+    // because the AcceptEntry shape is shared across 14 adapters.
+    expect(entry.provider).toBe('stripe')
+    expect(entry.amountCents).toBe(50)
+    expect(entry.currency).toBe('USD')
+  })
+
+  it('returns an MppChallengeEnvelope when called with MppChallengeOptions (has merchantId)', () => {
+    const adapter = newAdapter()
+    const env = adapter.buildChallenge({
+      amountCents: 75,
+      merchantId: 'acct_test_overload',
+    })
+    // Envelope path emits snake_case.
+    expect(env.scheme).toBe('mpp')
+    expect(env.amount).toBe(75)
+    expect(env.merchant_id).toBe('acct_test_overload')
+    expect(env.currency).toBe('usd')
   })
 })
 
 // ─── buildMppChallenge ────────────────────────────────────────────────────
 
 describe('MPPAdapter.buildMppChallenge', () => {
-  it('builds a valid MPP 402 envelope with required fields', () => {
+  it('builds a valid MPP 402 envelope with snake_case fields', () => {
     const adapter = newAdapter()
     const env = adapter.buildMppChallenge({
       amountCents: 500,
@@ -169,17 +327,18 @@ describe('MPPAdapter.buildMppChallenge', () => {
     expect(env.scheme).toBe('mpp')
     expect(env.provider).toBe('stripe')
     expect(env.version).toBe('1.0')
-    expect(env.amountCents).toBe(500)
-    expect(env.currency).toBe('USD')
-    expect(env.merchantId).toBe('acct_test_123')
-    expect(env.acceptedTokens).toEqual(['spt'])
+    expect(env.amount).toBe(500)
+    expect(env.currency).toBe('usd')
+    expect(env.merchant_id).toBe('acct_test_123')
+    expect(env.accepted_tokens).toEqual(['spt'])
     expect(env.instructions).toContain('spt_')
     // Optional fields must be ABSENT (not undefined keys) when not supplied.
-    expect('paymentIntentClientSecret' in env).toBe(false)
-    expect('recipientId' in env).toBe(false)
+    expect('payment_intent_client_secret' in env).toBe(false)
+    expect('recipient' in env).toBe(false)
+    expect('directory_url' in env).toBe(false)
   })
 
-  it('passes through paymentIntentClientSecret and recipientId when supplied', () => {
+  it('passes through optional fields under snake_case names when supplied', () => {
     const adapter = newAdapter()
     const env = adapter.buildMppChallenge({
       amountCents: 100,
@@ -189,20 +348,21 @@ describe('MPPAdapter.buildMppChallenge', () => {
       description: 'unit test',
       directoryUrl: 'https://example/discover',
     })
-    expect(env.paymentIntentClientSecret).toBe('pi_test_abc_secret_xyz')
-    expect(env.recipientId).toBe('acct_recipient_456')
+    expect(env.payment_intent_client_secret).toBe('pi_test_abc_secret_xyz')
+    expect(env.recipient).toBe('acct_recipient_456')
     expect(env.description).toBe('unit test')
-    expect(env.directoryUrl).toBe('https://example/discover')
+    expect(env.directory_url).toBe('https://example/discover')
   })
 
-  it('normalizes currency to uppercase and supports non-USD', () => {
+  it('normalizes currency to lowercase and supports non-USD', () => {
     const adapter = newAdapter()
     const env = adapter.buildMppChallenge({
       amountCents: 100,
-      currency: 'eur',
+      currency: 'EUR',
       merchantId: 'acct_test_123',
     })
-    expect(env.currency).toBe('EUR')
+    // MPP wire format uses lowercase ISO-4217.
+    expect(env.currency).toBe('eur')
     expect(env.instructions).toContain('minor units of EUR')
   })
 
@@ -292,9 +452,6 @@ describe('MPPAdapter.verifyPayment', () => {
   })
 
   it('returns MPP_TOKEN_EXPIRED when Stripe reports the SPT expired', async () => {
-    // Stripe verify endpoint returns HTTP 200 with `error: { message }`
-    // is NOT the real shape — Stripe sends HTTP 4xx with a body. Match
-    // the real shape: 400 + body.error.message containing 'expired'.
     const fetchMock = vi.fn().mockResolvedValueOnce(
       new Response(
         JSON.stringify({ error: { message: 'SPT has expired.' } }),
@@ -318,7 +475,6 @@ describe('MPPAdapter.verifyPayment', () => {
   })
 
   it('returns MPP_INSUFFICIENT_AUTHORIZATION when SPT maxAmount < tool cost', async () => {
-    // Stripe verify returns 200 with max_amount below the tool's cost.
     const fetchMock = vi.fn().mockResolvedValueOnce(
       new Response(
         JSON.stringify({ max_amount: 100, currency: 'usd', customer: 'cus_test' }),
@@ -340,9 +496,11 @@ describe('MPPAdapter.verifyPayment', () => {
     expect(result.error?.code).toBe('MPP_INSUFFICIENT_AUTHORIZATION')
   })
 
-  it('succeeds when Stripe verify + capture both return 200 with matching amount', async () => {
-    // Two round-trips — verify then capture. First returns max_amount >= cost.
-    // Second returns the captured PaymentIntent with id.
+  it('succeeds end-to-end and calls Stripe with correct URL/headers/body (F4)', async () => {
+    // F4 — the Stripe test-mode verification pipeline must use the
+    // correct endpoints, auth, API version, and capture form. Asserting
+    // the mocked fetch's arguments proves the adapter is wire-compatible
+    // with Stripe MPP (verify SPT → capture payment).
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -361,24 +519,59 @@ describe('MPPAdapter.verifyPayment', () => {
 
     const adapter = newAdapter()
     const result = await adapter.verifyPayment(
-      reqWithHeaders({ 'X-Payment-Token': 'spt_ok' }),
+      reqWithHeaders({
+        'X-Payment-Token': 'spt_happypath',
+        'X-MPP-Session-Id': 'sess_xyz',
+      }),
       {
         enabled: true,
         toolConfig: TOOL_CONFIG,
-        stripeMppSecret: 'sk_test_xxx',
+        stripeMppSecret: 'sk_test_happypath',
       },
     )
     expect(result.valid).toBe(true)
     expect(result.paymentId).toBe('pi_test_abc')
     expect(result.amountCents).toBe(TOOL_CONFIG.costCents)
     expect(result.currency).toBe('usd')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.sessionId).toBe('sess_xyz')
+
+    // First call: SPT verify endpoint.
+    const [verifyUrl, verifyInit] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ]
+    expect(verifyUrl).toBe(
+      'https://api.stripe.com/v1/mpp/shared_payment_tokens/spt_happypath/verify',
+    )
+    expect(verifyInit.method).toBe('POST')
+    const verifyHeaders = verifyInit.headers as Record<string, string>
+    expect(verifyHeaders.Authorization).toBe('Bearer sk_test_happypath')
+    expect(verifyHeaders['Content-Type']).toBe('application/x-www-form-urlencoded')
+    expect(verifyHeaders['Stripe-Version']).toBe('2026-03-18')
+
+    // Second call: SPT capture endpoint + form body carrying
+    // amount/currency/description/metadata.
+    const [captureUrl, captureInit] = fetchMock.mock.calls[1] as [
+      string,
+      RequestInit,
+    ]
+    expect(captureUrl).toBe(
+      'https://api.stripe.com/v1/mpp/shared_payment_tokens/spt_happypath/capture',
+    )
+    expect(captureInit.method).toBe('POST')
+    const captureHeaders = captureInit.headers as Record<string, string>
+    expect(captureHeaders.Authorization).toBe('Bearer sk_test_happypath')
+    expect(captureHeaders['Stripe-Version']).toBe('2026-03-18')
+    const captureForm = new URLSearchParams(captureInit.body as string)
+    expect(captureForm.get('amount')).toBe(String(TOOL_CONFIG.costCents))
+    expect(captureForm.get('currency')).toBe('usd')
+    expect(captureForm.get('description')).toContain(TOOL_CONFIG.displayName)
+    expect(captureForm.get('metadata[mpp_session_id]')).toBe('sess_xyz')
+    expect(captureForm.get('metadata[platform]')).toBe('settlegrid')
+    expect(captureForm.get('metadata[version]')).toBe('1.0')
   })
 
   it('returns MPP_AMOUNT_MISMATCH when expectedCurrency does not match captured currency', async () => {
-    // Same happy-path mocks as above but the caller expects EUR.
-    // validateMppPayment hardcodes 'usd' on success, so the wrapper
-    // must detect the mismatch and downgrade the result to invalid.
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -422,7 +615,7 @@ describe('MPPAdapter.settle', () => {
     payerCustomerId: 'cus_test',
   }
 
-  it('settles on first call, emits event, and calls recordInvocation once', async () => {
+  it('settles on first call and emits a SettleGridInternalEvent-shaped event (F5)', async () => {
     const adapter = newAdapter()
     const ledger: MppLedgerEntry[] = []
     const events: MppSettlementEvent[] = []
@@ -439,11 +632,18 @@ describe('MPPAdapter.settle', () => {
     const result = await adapter.settle(baseSettlement, deps)
 
     expect(result.status).toBe('settled')
-    expect(result.event.kind).toBe('invocation.settled')
-    expect(result.event.protocol).toBe('mpp')
-    expect(result.event.invocationId).toBe('inv_abc_001')
-    expect(result.event.settledAt).toBe(1_700_000_000_000)
-    expect(result.event.currency).toBe('usd')
+    // F5 — top-level event satisfies SettleGridInternalEvent shape.
+    expect(result.event.kind).toBe('unknown')
+    expect(result.event.railId).toBe('stripe-connect')
+    expect(result.event.externalEventId).toBe('inv_abc_001')
+    expect(result.event.externalAccountId).toBe('cus_test')
+    // Rich MPP details live under data.
+    expect(result.event.data.subKind).toBe('invocation.settled')
+    expect(result.event.data.protocol).toBe('mpp')
+    expect(result.event.data.invocationId).toBe('inv_abc_001')
+    expect(result.event.data.settledAt).toBe(1_700_000_000_000)
+    expect(result.event.data.currency).toBe('usd')
+
     expect(ledger).toHaveLength(1)
     expect(ledger[0]?.invocationId).toBe('inv_abc_001')
     expect(ledger[0]?.settledAt).toBe(1_700_000_000_000)
@@ -452,12 +652,9 @@ describe('MPPAdapter.settle', () => {
   })
 
   it('is idempotent on repeat call with the same invocationId', async () => {
-    // This is the hostile-audit requirement (c): settle is idempotent
-    // on the same invocation_id. Verifies:
-    //   - second call returns status='already-settled'
-    //   - recordInvocation is NOT called a second time
-    //   - onSettled is NOT emitted a second time
-    //   - the event payload matches the first call bit-for-bit
+    // Hostile-audit (c) — settle must be idempotent on the same
+    // invocation_id. Second call returns status='already-settled',
+    // recordInvocation + onSettled each invoked exactly once.
     const adapter = newAdapter()
     const ledger: MppLedgerEntry[] = []
     const events: MppSettlementEvent[] = []
@@ -504,8 +701,6 @@ describe('MPPAdapter.settle', () => {
         onSettled: (e) => events.push(e),
       }),
     ).rejects.toThrow('ledger unavailable')
-    // Idempotency entry MUST be rolled back so a retry can succeed.
-    // Subsequent call should NOT short-circuit to 'already-settled'.
     expect(events).toHaveLength(0)
 
     const retried = await adapter.settle(baseSettlement, {
@@ -518,9 +713,6 @@ describe('MPPAdapter.settle', () => {
   })
 
   it('honors an externally-supplied idempotencyStore across adapter instances', async () => {
-    // Two separate adapter instances sharing one store must still
-    // converge on one settlement — proves settle() does not rely on
-    // the private cache when an external store is provided.
     const store = new Map<string, MppSettleResult>()
     const a = newAdapter()
     const b = newAdapter()
@@ -569,27 +761,48 @@ describe('MPPAdapter.settle', () => {
     ).rejects.toBeInstanceOf(RangeError)
   })
 
-  it('normalizes currency to lowercase in the emitted event', async () => {
+  it('normalizes currency to lowercase in the emitted event data', async () => {
     const adapter = newAdapter()
     const result = await adapter.settle({
       ...baseSettlement,
       invocationId: 'inv_currency_norm',
       currency: 'USD',
     })
-    expect(result.event.currency).toBe('usd')
+    expect(result.event.data.currency).toBe('usd')
   })
 
-  it('includes optional fields in the event only when supplied on the input', async () => {
+  it('omits externalAccountId + data.paymentId/sessionId when input lacks them', async () => {
     const adapter = newAdapter()
-    // Minimal input — no paymentId / payerCustomerId / sessionId.
     const result = await adapter.settle({
       invocationId: 'inv_minimal',
       toolSlug: 'my-tool',
       costCents: 100,
     })
-    expect('paymentId' in result.event).toBe(false)
-    expect('payerCustomerId' in result.event).toBe(false)
-    expect('sessionId' in result.event).toBe(false)
-    expect(result.event.currency).toBe('usd')
+    expect('externalAccountId' in result.event).toBe(false)
+    expect('paymentId' in result.event.data).toBe(false)
+    expect('payerCustomerId' in result.event.data).toBe(false)
+    expect('sessionId' in result.event.data).toBe(false)
+    expect(result.event.data.currency).toBe('usd')
+  })
+
+  it('emits an event structurally assignable to SettleGridInternalEvent', async () => {
+    // The spec literal — "emits a SettleGridInternalEvent" — is now
+    // satisfied by the MppSettlementEvent interface extending
+    // SettleGridInternalEvent. This compile-time assertion proves
+    // the assignment works without losing type information.
+    const adapter = newAdapter()
+    const result = await adapter.settle({
+      invocationId: 'inv_parent_compat',
+      toolSlug: 'my-tool',
+      costCents: 200,
+    })
+    // Type-level assertion — compiles only because MppSettlementEvent
+    // extends SettleGridInternalEvent.
+    const asParent: import('../../rails/types').SettleGridInternalEvent =
+      result.event
+    expect(asParent.kind).toBe('unknown')
+    expect(asParent.railId).toBe('stripe-connect')
+    expect(asParent.externalEventId).toBe('inv_parent_compat')
+    expect(asParent.data).toBeTypeOf('object')
   })
 })
