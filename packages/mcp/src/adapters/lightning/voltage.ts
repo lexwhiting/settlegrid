@@ -104,10 +104,14 @@ export interface VoltageInvoice {
   settleDate?: number
 }
 
-/** Parameters passed to {@link VoltageClient.createInvoice}. */
-export interface CreateInvoiceParams {
-  /** Invoice amount, in millisatoshis. Must be a finite integer ≥ 1. */
-  amountMsat: number
+/**
+ * Optional second-arg shape for {@link VoltageClient.createInvoice}.
+ * The primary argument is the positional `amountMsat` so the call
+ * shape matches the P3.K2 spec literally (`createInvoice(amountMsat)`).
+ * Extras go in this options bag — adding more (custom preimage,
+ * description_hash, etc.) later remains backwards-compatible.
+ */
+export interface CreateInvoiceOptions {
   /** Optional memo shown to the payer. Capped at {@link VOLTAGE_MAX_MEMO_CHARS}. */
   memo?: string
   /**
@@ -118,7 +122,12 @@ export interface CreateInvoiceParams {
 }
 
 export interface VoltageClient {
-  createInvoice(params: CreateInvoiceParams): Promise<VoltageInvoice>
+  /**
+   * Create a Lightning invoice for the supplied msat amount.
+   * Positional `amountMsat` per the P3.K2 spec card; optional
+   * `options` carries memo + expiry overrides.
+   */
+  createInvoice(amountMsat: number, options?: CreateInvoiceOptions): Promise<VoltageInvoice>
   lookupInvoice(paymentHash: string): Promise<VoltageInvoice>
   /**
    * Deterministic local operation: SHA-256 of the 32-byte preimage
@@ -244,22 +253,25 @@ export function createVoltageClient(options: VoltageClientOptions): VoltageClien
     }
   }
 
-  async function createInvoice(params: CreateInvoiceParams): Promise<VoltageInvoice> {
-    validateCreateInvoiceParams(params)
+  async function createInvoice(
+    amountMsat: number,
+    options?: CreateInvoiceOptions,
+  ): Promise<VoltageInvoice> {
+    validateCreateInvoiceArgs(amountMsat, options)
     const body: Record<string, string> = {
-      value_msat: String(params.amountMsat),
+      value_msat: String(amountMsat),
     }
-    if (typeof params.memo === 'string' && params.memo.length > 0) {
-      body.memo = params.memo
+    if (typeof options?.memo === 'string' && options.memo.length > 0) {
+      body.memo = options.memo
     }
-    if (typeof params.expirySeconds === 'number' && params.expirySeconds > 0) {
-      body.expiry = String(Math.floor(params.expirySeconds))
+    if (typeof options?.expirySeconds === 'number' && options.expirySeconds > 0) {
+      body.expiry = String(Math.floor(options.expirySeconds))
     }
     const raw = await httpFetch('/v1/invoices', {
       method: 'POST',
       body: JSON.stringify(body),
     })
-    return normalizeInvoice(raw, params.amountMsat)
+    return normalizeInvoice(raw, amountMsat)
   }
 
   async function lookupInvoice(paymentHash: string): Promise<VoltageInvoice> {
@@ -286,46 +298,47 @@ export function createVoltageClient(options: VoltageClientOptions): VoltageClien
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
-function validateCreateInvoiceParams(params: CreateInvoiceParams): void {
+function validateCreateInvoiceArgs(
+  amountMsat: number,
+  options: CreateInvoiceOptions | undefined,
+): void {
   if (
-    params === null ||
-    params === undefined ||
-    typeof params !== 'object' ||
-    Array.isArray(params)
-  ) {
-    throw new TypeError('createInvoice: `params` must be a non-null object.')
-  }
-  if (
-    typeof params.amountMsat !== 'number' ||
-    !Number.isFinite(params.amountMsat) ||
-    !Number.isInteger(params.amountMsat) ||
-    params.amountMsat < 1
+    typeof amountMsat !== 'number' ||
+    !Number.isFinite(amountMsat) ||
+    !Number.isInteger(amountMsat) ||
+    amountMsat < 1
   ) {
     throw new RangeError(
       `createInvoice: \`amountMsat\` must be a positive integer (msat); got ${JSON.stringify(
-        params.amountMsat,
+        amountMsat,
       )}.`,
     )
   }
-  if (params.memo !== undefined) {
-    if (typeof params.memo !== 'string') {
+  if (options === undefined) return
+  if (options === null || typeof options !== 'object' || Array.isArray(options)) {
+    throw new TypeError(
+      'createInvoice: `options` must be an object when supplied.',
+    )
+  }
+  if (options.memo !== undefined) {
+    if (typeof options.memo !== 'string') {
       throw new TypeError('createInvoice: `memo` must be a string when supplied.')
     }
-    if (params.memo.length > VOLTAGE_MAX_MEMO_CHARS) {
+    if (options.memo.length > VOLTAGE_MAX_MEMO_CHARS) {
       throw new RangeError(
-        `createInvoice: \`memo\` exceeds ${VOLTAGE_MAX_MEMO_CHARS}-char cap (got ${params.memo.length}).`,
+        `createInvoice: \`memo\` exceeds ${VOLTAGE_MAX_MEMO_CHARS}-char cap (got ${options.memo.length}).`,
       )
     }
   }
-  if (params.expirySeconds !== undefined) {
+  if (options.expirySeconds !== undefined) {
     if (
-      typeof params.expirySeconds !== 'number' ||
-      !Number.isFinite(params.expirySeconds) ||
-      params.expirySeconds < 1
+      typeof options.expirySeconds !== 'number' ||
+      !Number.isFinite(options.expirySeconds) ||
+      options.expirySeconds < 1
     ) {
       throw new RangeError(
         `createInvoice: \`expirySeconds\` must be a positive finite number; got ${JSON.stringify(
-          params.expirySeconds,
+          options.expirySeconds,
         )}.`,
       )
     }

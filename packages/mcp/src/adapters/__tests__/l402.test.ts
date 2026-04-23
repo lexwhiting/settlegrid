@@ -164,7 +164,7 @@ describe('createVoltageClient', () => {
       macaroon: 'deadbeef',
       fetchImpl: fetchMock,
     })
-    await client.createInvoice({ amountMsat: 1000 })
+    await client.createInvoice(1000)
     // URL used should not have double slash.
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://voltage.test/v1/invoices')
   })
@@ -185,7 +185,7 @@ describe('createVoltageClient', () => {
       macaroon: 'abc123',
       fetchImpl: fetchMock,
     })
-    await client.createInvoice({ amountMsat: 1000 })
+    await client.createInvoice(1000)
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit
     const headers = init.headers as Record<string, string>
     expect(headers['Grpc-Metadata-macaroon']).toBe('abc123')
@@ -197,10 +197,10 @@ describe('createVoltageClient', () => {
       macaroon: 'abc',
       fetchImpl: vi.fn(),
     })
-    await expect(client.createInvoice({ amountMsat: 0 })).rejects.toBeInstanceOf(RangeError)
-    await expect(client.createInvoice({ amountMsat: 1.5 })).rejects.toBeInstanceOf(RangeError)
-    await expect(client.createInvoice({ amountMsat: -1 })).rejects.toBeInstanceOf(RangeError)
-    await expect(client.createInvoice({ amountMsat: Number.NaN })).rejects.toBeInstanceOf(RangeError)
+    await expect(client.createInvoice(0)).rejects.toBeInstanceOf(RangeError)
+    await expect(client.createInvoice(1.5)).rejects.toBeInstanceOf(RangeError)
+    await expect(client.createInvoice(-1)).rejects.toBeInstanceOf(RangeError)
+    await expect(client.createInvoice(Number.NaN)).rejects.toBeInstanceOf(RangeError)
   })
 
   it('throws on memo exceeding VOLTAGE_MAX_MEMO_CHARS', async () => {
@@ -211,7 +211,7 @@ describe('createVoltageClient', () => {
     })
     const longMemo = 'x'.repeat(VOLTAGE_MAX_MEMO_CHARS + 1)
     await expect(
-      client.createInvoice({ amountMsat: 1000, memo: longMemo }),
+      client.createInvoice(1000, { memo: longMemo }),
     ).rejects.toThrow(/memo/)
   })
 
@@ -227,7 +227,7 @@ describe('createVoltageClient', () => {
       macaroon: 'abc',
       fetchImpl: fetchMock,
     })
-    await expect(client.createInvoice({ amountMsat: 1000 })).rejects.toThrow(
+    await expect(client.createInvoice(1000)).rejects.toThrow(
       /exceeds.*cap/,
     )
   })
@@ -594,7 +594,7 @@ describe('L402Adapter.verifyPayment — actually hashes preimage', () => {
     expect(result.error?.message).toMatch(/SHA-256|payment_hash/)
   })
 
-  it('propagates MPP_MACAROON_MISSING when Authorization is absent', async () => {
+  it('propagates L402_MACAROON_MISSING when Authorization is absent', async () => {
     const req = new Request('http://localhost/api/proxy/t')
     const result = await adapter.verifyPayment(req, {
       enabled: true,
@@ -605,7 +605,29 @@ describe('L402Adapter.verifyPayment — actually hashes preimage', () => {
     expect(result.error?.code).toBe('L402_MACAROON_MISSING')
   })
 
-  it('propagates L402_MACAROON_EXPIRED when the macaroon has expired', async () => {
+  it('rejects macaroons whose amount_cents caveat does not match the current tool cost (F2)', async () => {
+    // Spec step 5 "amount mismatch" — a macaroon minted when the tool
+    // cost 5 cents must NOT be accepted by the same tool after it
+    // raises to 10 cents. The macaroon's amount_cents caveat is the
+    // authoritative bound; the verifier compares against the tool's
+    // current costCents.
+    const macaroon = await mintTokenBound(REAL_PREIMAGE)
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: { authorization: `L402 ${macaroon}:${REAL_PREIMAGE}` },
+    })
+    // Mint was done with TOOL_CONFIG.costCents = 5. Now present the
+    // same token to a tool that expects 10 cents.
+    const result = await adapter.verifyPayment(req, {
+      enabled: true,
+      toolConfig: { ...TOOL_CONFIG, costCents: 10 },
+      signingKey: SIGNING_KEY,
+    })
+    expect(result.valid).toBe(false)
+    expect(result.error?.code).toBe('L402_CAVEAT_VIOLATION')
+    expect(result.error?.message).toMatch(/amount_cents caveat.*does not match/i)
+  })
+
+  it('rejects expired invoices via the macaroon expires_at caveat (L402_MACAROON_EXPIRED)', async () => {
     // Mint a macaroon with generateL402_402Response, then advance the
     // clock past its expiry. Since the caveat encodes expires_at as
     // a Unix timestamp computed at mint time, we emulate "expired"
@@ -909,8 +931,7 @@ describe('L402Adapter — Voltage integration', () => {
         nodeUrl: process.env.VOLTAGE_NODE_URL as string,
         macaroon: process.env.VOLTAGE_MACAROON as string,
       })
-      const invoice = await client.createInvoice({
-        amountMsat: 1000,
+      const invoice = await client.createInvoice(1000, {
         memo: 'SettleGrid P3.K2 integration test',
       })
       expect(invoice.paymentRequest).toMatch(/^lnbc/i)
