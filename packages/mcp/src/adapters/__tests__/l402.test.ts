@@ -16,7 +16,8 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createHash } from 'crypto'
+import { createHash, createHmac } from 'crypto'
+import type { AcceptEntry, BuildChallengeOptions } from '../../402-builder'
 import {
   CoinGeckoRateFetcher,
   L402Adapter,
@@ -79,6 +80,38 @@ function mockVoltageClient(overrides: Partial<VoltageClient> = {}): VoltageClien
 
 function fixedRateFetcher(rate = 100_000): BtcUsdRateFetcher {
   return { fetchBtcUsdRate: () => Promise.resolve(rate) }
+}
+
+/**
+ * Craft a macaroon with caller-chosen caveats, signed with the given
+ * key. Used by hostile tests that need macaroons with deliberately
+ * malformed caveat values — the HMAC signature is valid, but the
+ * value strings bypass the usual shape guarantees that
+ * `mintMacaroon` enforces at mint time.
+ */
+function craftSignedMacaroon(
+  signingKey: string,
+  payload: {
+    id: string
+    location: string
+    caveats: Array<{ key: string; value: string }>
+  },
+): string {
+  let signature = createHmac('sha256', signingKey)
+    .update(payload.id)
+    .digest('hex')
+  for (const caveat of payload.caveats) {
+    signature = createHmac('sha256', signature)
+      .update(`${caveat.key}=${caveat.value}`)
+      .digest('hex')
+  }
+  const envelope = {
+    id: payload.id,
+    location: payload.location,
+    caveats: payload.caveats,
+    signature,
+  }
+  return Buffer.from(JSON.stringify(envelope)).toString('base64')
 }
 
 afterEach(() => {
@@ -232,6 +265,38 @@ describe('createVoltageClient', () => {
     )
   })
 
+  it('H8: rejects oversize bodies even when Content-Length is absent (streaming cap)', async () => {
+    // The Content-Length fast-path catches honest upstreams. A
+    // hostile / misconfigured upstream that chunk-encodes without
+    // Content-Length would bypass that check. The streaming cap in
+    // streamTextCapped must halt the read once the running total
+    // crosses VOLTAGE_MAX_BODY_BYTES, regardless of Content-Length.
+    const encoder = new TextEncoder()
+    const oversizeStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        // Emit two chunks whose total exceeds the cap; first fits,
+        // second crosses it. After the second enqueue the reader
+        // in streamTextCapped should abort.
+        controller.enqueue(encoder.encode('A'.repeat(VOLTAGE_MAX_BODY_BYTES)))
+        controller.enqueue(encoder.encode('B'.repeat(16)))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      // No Content-Length header — Response.body stream is the only
+      // signal of size.
+      new Response(oversizeStream, { status: 200 }),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(
+      /exceeds.*cap.*during stream/,
+    )
+  })
+
   it('lookupInvoice validates paymentHash format', async () => {
     const client = createVoltageClient({
       nodeUrl: 'https://voltage.test',
@@ -277,6 +342,14 @@ describe('resolveLightningBackend', () => {
   it('throws on unknown backend', () => {
     expect(() => resolveLightningBackend('clightning')).toThrow(/voltage.*lnd/)
     expect(() => resolveLightningBackend('voltage-beta')).toThrow(/voltage.*lnd/)
+  })
+
+  it('H38: tolerates leading/trailing whitespace in the env value', () => {
+    // Env-file parsers and CI pipelines commonly introduce whitespace.
+    // A `'  voltage  '` env value must resolve to 'voltage', not throw.
+    expect(resolveLightningBackend('  voltage  ')).toBe('voltage')
+    expect(resolveLightningBackend('\tlnd\n')).toBe('lnd')
+    expect(resolveLightningBackend('   ')).toBe('voltage') // all-whitespace → default
   })
 })
 
@@ -346,6 +419,32 @@ describe('L402Adapter.detect — headers', () => {
   it('returns 0.9 for WWW-Authenticate: L402', async () => {
     const req = new Request('http://localhost/api/proxy/t', {
       headers: { 'WWW-Authenticate': 'L402 macaroon="...", invoice="..."' },
+    })
+    const r = await adapter.detect(req)
+    expect(r.confidence).toBeCloseTo(0.9, 10)
+  })
+
+  it('H16: does NOT match WWW-Authenticate where "L402" appears inside a non-L402 scheme', async () => {
+    // A Basic-auth realm containing the string "L402" must not
+    // false-positive as an L402 challenge. The tightened regex only
+    // matches `L402` as the scheme token at the start of a comma-
+    // separated challenge entry.
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: { 'WWW-Authenticate': 'Basic realm="L402 Management Console"' },
+    })
+    const r = await adapter.detect(req)
+    expect(r.confidence).toBe(0)
+    expect(r.reasons.some((x) => x.includes('L402'))).toBe(false)
+  })
+
+  it('H16: matches L402 when it appears as a non-first scheme in a multi-challenge header', async () => {
+    // RFC 7235 allows multiple comma-separated challenges.
+    // `Basic ..., L402 ...` is legitimate: L402 is offered alongside
+    // another scheme. The split-and-test approach must detect it.
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: {
+        'WWW-Authenticate': 'Basic realm="fallback", L402 macaroon="abc"',
+      },
     })
     const r = await adapter.detect(req)
     expect(r.confidence).toBeCloseTo(0.9, 10)
@@ -498,6 +597,7 @@ describe('L402Adapter.buildChallenge (overload)', () => {
         amountMsat: 1000,
         signingKey: '',
         lightningClient: client,
+        costCents: 5,
       }),
     ).rejects.toThrow(/signingKey/)
   })
@@ -510,6 +610,7 @@ describe('L402Adapter.buildChallenge (overload)', () => {
         amountMsat: 0,
         signingKey: SIGNING_KEY,
         lightningClient: client,
+        costCents: 5,
       }),
     ).rejects.toBeInstanceOf(RangeError)
     await expect(
@@ -518,8 +619,66 @@ describe('L402Adapter.buildChallenge (overload)', () => {
         amountMsat: 1.5,
         signingKey: SIGNING_KEY,
         lightningClient: client,
+        costCents: 5,
       }),
     ).rejects.toBeInstanceOf(RangeError)
+  })
+
+  it('H20: throws RangeError when costCents is omitted at runtime', async () => {
+    // The TS type is now required, but runtime callers (or consumers
+    // that cast through `any`) must still be rejected cleanly.
+    const client = mockVoltageClient()
+    const badOptions = {
+      toolSlug: 'test',
+      amountMsat: 1000,
+      signingKey: SIGNING_KEY,
+      lightningClient: client,
+      // costCents intentionally omitted
+    } as unknown as L402ChallengeOptions
+    await expect(adapter.buildChallenge(badOptions)).rejects.toBeInstanceOf(
+      RangeError,
+    )
+  })
+
+  it('H20: throws RangeError on non-integer / negative costCents', async () => {
+    const client = mockVoltageClient()
+    await expect(
+      adapter.buildChallenge({
+        toolSlug: 'test',
+        amountMsat: 1000,
+        signingKey: SIGNING_KEY,
+        lightningClient: client,
+        costCents: 1.5,
+      }),
+    ).rejects.toBeInstanceOf(RangeError)
+    await expect(
+      adapter.buildChallenge({
+        toolSlug: 'test',
+        amountMsat: 1000,
+        signingKey: SIGNING_KEY,
+        lightningClient: client,
+        costCents: -5,
+      }),
+    ).rejects.toBeInstanceOf(RangeError)
+  })
+
+  it('H19: falls through to AcceptEntry path when lightningClient lacks createInvoice', () => {
+    // Before the fix, a `{ lightningClient: {} }` that passed the
+    // "object" check would dispatch to `buildL402Challenge` and throw
+    // `TypeError: not a function` deep inside. After the fix, dispatch
+    // REQUIRES `lightningClient.createInvoice` to be a function;
+    // otherwise it falls through to the synchronous AcceptEntry path
+    // so the kernel's 402 manifest still gets a valid entry.
+    const badOptions = {
+      resource: { url: 'https://tool.example' },
+      pricing: { defaultCostCents: 5 },
+      lightningClient: { notCreateInvoice: () => undefined },
+    } as unknown as BuildChallengeOptions
+    const result = adapter.buildChallenge(badOptions) as unknown as AcceptEntry
+    // Sync return — dispatch DID NOT route to the async envelope path.
+    expect(result).not.toBeInstanceOf(Promise)
+    expect(result.scheme).toBe('l402')
+    expect(result.costCents).toBe(5)
   })
 })
 
@@ -603,6 +762,39 @@ describe('L402Adapter.verifyPayment — actually hashes preimage', () => {
     })
     expect(result.valid).toBe(false)
     expect(result.error?.code).toBe('L402_MACAROON_MISSING')
+  })
+
+  it('H22: rejects a crafted macaroon whose amount_cents caveat is unparseable', async () => {
+    // Craft a valid-HMAC macaroon with a non-integer amount_cents.
+    // The macaroon was correctly signed; the caveat value is the
+    // hostile input. Before the H22 fix, `Number.isFinite(NaN)` was
+    // false so the equality check was skipped, and the macaroon
+    // validated against the tool's costCents bypassing amount
+    // enforcement. After the fix, the caveat regex `/^\d+$/` rejects
+    // non-digit values with L402_CAVEAT_VIOLATION.
+    const craftedMacaroon = craftSignedMacaroon(SIGNING_KEY, {
+      id: 'a'.repeat(32),
+      location: 'test',
+      caveats: [
+        { key: 'service', value: `settlegrid:${TOOL_CONFIG.slug}` },
+        { key: 'amount_sats', value: '100' },
+        { key: 'amount_cents', value: 'abc' }, // NOT a digit string
+        { key: 'expires_at', value: String(Math.floor(Date.now() / 1000) + 3600) },
+        { key: 'created_at', value: String(Math.floor(Date.now() / 1000)) },
+        { key: 'payment_hash', value: REAL_PAYMENT_HASH },
+      ],
+    })
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: { authorization: `L402 ${craftedMacaroon}:${REAL_PREIMAGE}` },
+    })
+    const result = await adapter.verifyPayment(req, {
+      enabled: true,
+      toolConfig: TOOL_CONFIG,
+      signingKey: SIGNING_KEY,
+    })
+    expect(result.valid).toBe(false)
+    expect(result.error?.code).toBe('L402_CAVEAT_VIOLATION')
+    expect(result.error?.message).toMatch(/not a non-negative integer/i)
   })
 
   it('rejects macaroons whose amount_cents caveat does not match the current tool cost (F2)', async () => {
@@ -788,6 +980,25 @@ describe('L402Adapter.settle', () => {
         amountMsat: -1,
       }),
     ).rejects.toBeInstanceOf(RangeError)
+  })
+
+  it('H23: refuses to settle when amountMsat × btcUsdRate would exceed Number.MAX_SAFE_INTEGER', async () => {
+    // Extreme input: amountMsat at the top of the safe-integer range
+    // with any positive rate > 1. The intermediate product
+    // (amountMsat × btcUsdRate) would lose precision before Math.ceil
+    // even looked at it, so settle() must refuse up front rather than
+    // silently emit a wrong fiatCents.
+    const adapter = new L402Adapter()
+    await expect(
+      adapter.settle(
+        {
+          invocationId: 'inv_overflow',
+          toolSlug: 'test-tool',
+          amountMsat: Number.MAX_SAFE_INTEGER,
+        },
+        { rateFetcher: fixedRateFetcher(100_000) },
+      ),
+    ).rejects.toThrow(/MAX_SAFE_INTEGER/)
   })
 
   it('throws when the rate fetcher returns a non-positive rate', async () => {

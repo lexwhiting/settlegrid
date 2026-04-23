@@ -30,7 +30,7 @@ import {
   LND_NOT_WIRED_MESSAGE,
 } from './lightning/lnd'
 import type { VoltageClient, VoltageInvoice } from './lightning/voltage'
-import { createVoltageClient } from './lightning/voltage'
+import { createVoltageClient, streamTextCapped } from './lightning/voltage'
 import type {
   AdapterLogger,
   PaymentContext,
@@ -480,26 +480,19 @@ export class CoinGeckoRateFetcher implements BtcUsdRateFetcher {
         signal: controller.signal,
       })
       if (!response.ok) {
+        // Drain the body before throwing so the connection is not
+        // left open accumulating bytes we will never consume.
+        try {
+          await response.body?.cancel()
+        } catch {
+          // best-effort
+        }
         throw new Error(`Rate source ${this.sourceUrl} returned HTTP ${response.status}.`)
       }
-      // Enforce a tiny body cap — rate responses are ~60 bytes. A
-      // large response is almost certainly a misconfigured proxy or
-      // an injection attempt.
-      const contentLengthHeader = response.headers.get('content-length')
-      if (contentLengthHeader !== null) {
-        const parsed = Number.parseInt(contentLengthHeader, 10)
-        if (Number.isFinite(parsed) && parsed > RATE_FETCH_MAX_BODY_BYTES) {
-          throw new Error(
-            `Rate source body (${parsed} bytes) exceeds ${RATE_FETCH_MAX_BODY_BYTES}-byte cap.`,
-          )
-        }
-      }
-      const text = await response.text()
-      if (text.length > RATE_FETCH_MAX_BODY_BYTES) {
-        throw new Error(
-          `Rate source body (${text.length} chars) exceeds ${RATE_FETCH_MAX_BODY_BYTES}-byte cap after materialization.`,
-        )
-      }
+      // Hostile fix H8 — use the streaming cap helper so an unbounded
+      // chunked body from a misbehaving upstream cannot DoS the
+      // process by buffering past the 1 KiB cap.
+      const text = await streamTextCapped(response, RATE_FETCH_MAX_BODY_BYTES)
       const parsed = JSON.parse(text) as unknown
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('Rate source returned a non-object JSON body.')
@@ -537,10 +530,18 @@ export class CoinGeckoRateFetcher implements BtcUsdRateFetcher {
  * fall back to the default and mask the misconfiguration.
  */
 export function resolveLightningBackend(envValue?: string | null): 'voltage' | 'lnd' {
-  if (envValue === undefined || envValue === null || envValue === '') {
+  if (envValue === undefined || envValue === null) {
     return 'voltage'
   }
-  const normalized = envValue.toLowerCase()
+  // H38 — tolerate leading/trailing whitespace. Env-file parsers and
+  // CI pipelines commonly introduce it; trimming before compare
+  // avoids a confusing "must be 'voltage' or 'lnd'; got ' voltage '"
+  // error for a value that is clearly the right string.
+  const trimmed = envValue.trim()
+  if (trimmed === '') {
+    return 'voltage'
+  }
+  const normalized = trimmed.toLowerCase()
   if (normalized === 'voltage') return 'voltage'
   if (normalized === 'lnd') return 'lnd'
   throw new Error(
@@ -788,10 +789,18 @@ export class L402Adapter implements ProtocolAdapter {
       }
     }
 
+    // H16 — RFC 7235 allows multiple comma-separated challenges
+    // in WWW-Authenticate (e.g. `Basic realm="x", L402 macaroon=...`).
+    // Previously `/\bL402\b/` false-positived on realms like
+    // `Basic realm="L402 Room"`. Splitting on comma and matching the
+    // `L402 ...` scheme at the start of each entry eliminates that.
     const wwwAuth = request.headers.get('www-authenticate')
-    if (wwwAuth && /\bL402\b/i.test(wwwAuth)) {
-      reasons.push('www-authenticate: L402 *')
-      confidence = Math.max(confidence, 0.9)
+    if (wwwAuth) {
+      const challenges = wwwAuth.split(',').map((c) => c.trim())
+      if (challenges.some((c) => /^L402(\s|$)/i.test(c))) {
+        reasons.push('www-authenticate: L402 *')
+        confidence = Math.max(confidence, 0.9)
+      }
     }
 
     if (request.headers.get(L402_HEADERS.PROTOCOL) === 'l402') {
@@ -888,10 +897,18 @@ export class L402Adapter implements ProtocolAdapter {
         }.`,
       )
     }
+    // H19 — dispatch to the envelope path only when `lightningClient`
+    // is a real VoltageClient-shaped object. Accepting any object
+    // (e.g., `{ lightningClient: {} }`) would dispatch and then
+    // throw an opaque `TypeError: not a function` inside
+    // buildL402Challenge — a clean error at the dispatch seam is
+    // more actionable than a deep-stack TypeError.
     if (
       'lightningClient' in options &&
       options.lightningClient !== null &&
-      typeof options.lightningClient === 'object'
+      typeof options.lightningClient === 'object' &&
+      typeof (options as L402ChallengeOptions).lightningClient.createInvoice ===
+        'function'
     ) {
       return this.buildL402Challenge(options as L402ChallengeOptions)
     }
@@ -945,6 +962,19 @@ export class L402Adapter implements ProtocolAdapter {
         'buildChallenge: `signingKey` is required; wire from LND_MACAROON_HEX or L402_SIGNING_KEY.',
       )
     }
+    // H20 runtime guard for callers that bypass the compile-time type.
+    if (
+      typeof options.costCents !== 'number' ||
+      !Number.isFinite(options.costCents) ||
+      !Number.isInteger(options.costCents) ||
+      options.costCents < 0
+    ) {
+      throw new RangeError(
+        `buildChallenge: \`costCents\` must be a non-negative integer; got ${JSON.stringify(
+          options.costCents,
+        )}.`,
+      )
+    }
     const memo = options.memo ?? `SettleGrid: ${options.toolSlug}`
     const invoice = await options.lightningClient.createInvoice(
       options.amountMsat,
@@ -956,7 +986,7 @@ export class L402Adapter implements ProtocolAdapter {
       },
     )
     const amountSats = Math.ceil(options.amountMsat / 1000)
-    const costCents = options.costCents ?? 0
+    const { costCents } = options
     const macaroonLocation = options.macaroonLocation ?? `settlegrid:${options.toolSlug}`
 
     const macaroon = mintMacaroon(
@@ -1036,13 +1066,39 @@ export class L402Adapter implements ProtocolAdapter {
     // mint time; a tool that raises its price between mint and redeem
     // MUST reject stale macaroons rather than silently accepting them
     // at the old price. Covers the step-5 "amount mismatch" test case.
+    //
+    // P3.K2 hostile fix H22 — a malformed caveat value (NaN, garbage
+    // that parseInt can't resolve) MUST reject, not silently skip.
+    // The original `if (Number.isFinite(boundAmount) && ...)` let
+    // an unparseable value bypass the comparison entirely.
     const amountCentsCaveat = macaroon.caveats.find((c) => c.key === 'amount_cents')
     if (amountCentsCaveat !== undefined) {
-      const boundAmount = Number.parseInt(amountCentsCaveat.value, 10)
-      if (
-        Number.isFinite(boundAmount) &&
-        boundAmount !== options.toolConfig.costCents
-      ) {
+      const raw = amountCentsCaveat.value
+      // Require the caveat to be a canonical non-negative integer
+      // string — `parseInt` is too lenient (accepts trailing garbage,
+      // leading whitespace, negative signs in oddly-formatted values).
+      if (!/^\d+$/.test(raw)) {
+        return {
+          valid: false,
+          macaroonId: macaroon.id,
+          error: {
+            code: 'L402_CAVEAT_VIOLATION',
+            message: `Macaroon amount_cents caveat value ${JSON.stringify(raw)} is not a non-negative integer.`,
+          },
+        }
+      }
+      const boundAmount = Number.parseInt(raw, 10)
+      if (!Number.isFinite(boundAmount) || !Number.isInteger(boundAmount)) {
+        return {
+          valid: false,
+          macaroonId: macaroon.id,
+          error: {
+            code: 'L402_CAVEAT_VIOLATION',
+            message: `Macaroon amount_cents caveat value ${JSON.stringify(raw)} does not parse to a finite integer.`,
+          },
+        }
+      }
+      if (boundAmount !== options.toolConfig.costCents) {
         return {
           valid: false,
           macaroonId: macaroon.id,
@@ -1154,6 +1210,21 @@ export class L402Adapter implements ProtocolAdapter {
     if (!Number.isFinite(btcUsdRate) || btcUsdRate <= 0) {
       throw new Error(
         `settle: rate fetcher returned invalid BTC/USD rate: ${JSON.stringify(btcUsdRate)}.`,
+      )
+    }
+    // P3.K2 hostile fix H23 — `amountMsat × btcUsdRate` must stay
+    // within Number.MAX_SAFE_INTEGER or the double-precision math
+    // below loses integer precision silently. Realistic per-invocation
+    // amounts ($0.01 to $10k at BTC prices from $10k to $10M) stay
+    // comfortably inside 2^53, but pathological inputs (hostile or
+    // misconfigured) must refuse rather than emit an inaccurate
+    // fiat-cents value to the ledger.
+    if (
+      invocation.amountMsat > 0 &&
+      invocation.amountMsat > Number.MAX_SAFE_INTEGER / btcUsdRate
+    ) {
+      throw new Error(
+        `settle: amountMsat (${invocation.amountMsat}) × btcUsdRate (${btcUsdRate}) would exceed Number.MAX_SAFE_INTEGER — fiat conversion refused to avoid precision loss.`,
       )
     }
     const fiatCents = Math.ceil(
@@ -1454,8 +1525,18 @@ export interface L402ChallengeOptions {
   signingKey: string
   /** Lightning client (Voltage or LND) to mint the invoice with. */
   lightningClient: VoltageClient
-  /** Tool cost in fiat cents (for the macaroon `amount_cents` caveat + logging). */
-  costCents?: number
+  /**
+   * Tool cost in fiat cents — becomes the macaroon's `amount_cents`
+   * caveat and is enforced at verify time against the tool's
+   * current `toolConfig.costCents` (see F2 + H22).
+   *
+   * P3.K2 hostile fix H20 — required (was optional in scaffold).
+   * An omitted value would mint a macaroon with `amount_cents=0`
+   * and then every non-zero-cost verify would fail with a confusing
+   * `"caveat (0) does not match tool cost (5)"` error. Requiring
+   * the field makes the intent explicit at the call site.
+   */
+  costCents: number
   /** Memo shown to the payer on the Lightning invoice. */
   memo?: string
   /**

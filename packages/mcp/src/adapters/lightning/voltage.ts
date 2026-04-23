@@ -231,12 +231,12 @@ export function createVoltageClient(options: VoltageClientOptions): VoltageClien
         signal: controller.signal,
       })
       if (!response.ok) {
-        const errorText = await readCappedText(response)
+        const errorText = await streamTextCapped(response, VOLTAGE_MAX_BODY_BYTES)
         throw new Error(
           `Voltage ${init.method} ${path} returned HTTP ${response.status}: ${errorText.slice(0, 200)}`,
         )
       }
-      const text = await readCappedText(response)
+      const text = await streamTextCapped(response, VOLTAGE_MAX_BODY_BYTES)
       if (text.length === 0) {
         throw new Error(`Voltage ${init.method} ${path} returned an empty body.`)
       }
@@ -347,28 +347,75 @@ function validateCreateInvoiceArgs(
 
 /**
  * Read at most VOLTAGE_MAX_BODY_BYTES from a Response as a UTF-8
- * string. A response longer than the cap is truncated AND the call
- * throws — we never silently operate on partial body content because
- * that could leak malformed JSON into downstream parsers. The cap
- * is a hard refusal, not a lenient "truncate and continue."
+ * string, with a streaming per-chunk size check.
+ *
+ * Hostile fix H8: `response.text()` buffers the entire body before
+ * measuring its length. A server that omits Content-Length and
+ * streams an unbounded chunked body would be allowed to buffer
+ * arbitrary memory before the post-read length check tripped.
+ * This implementation pulls chunks via the ReadableStream reader
+ * and rejects as soon as the running total crosses the cap —
+ * the reader is cancelled so the underlying connection is not
+ * kept open consuming further bytes.
  */
-async function readCappedText(response: Response): Promise<string> {
+export async function streamTextCapped(
+  response: Response,
+  maxBytes: number,
+): Promise<string> {
+  // Fast-path: honest upstream sets Content-Length.
   const contentLengthHeader = response.headers.get('content-length')
   if (contentLengthHeader !== null) {
     const parsed = Number.parseInt(contentLengthHeader, 10)
-    if (Number.isFinite(parsed) && parsed > VOLTAGE_MAX_BODY_BYTES) {
+    if (Number.isFinite(parsed) && parsed > maxBytes) {
+      try {
+        await response.body?.cancel()
+      } catch {
+        // Cancellation is best-effort; swallow any transport errors
+        // so the cap-violation error below is the one the caller sees.
+      }
       throw new Error(
-        `Voltage response body (${parsed} bytes) exceeds ${VOLTAGE_MAX_BODY_BYTES}-byte cap.`,
+        `Response body (${parsed} bytes via Content-Length) exceeds ${maxBytes}-byte cap.`,
       )
     }
   }
-  const text = await response.text()
-  if (text.length > VOLTAGE_MAX_BODY_BYTES) {
-    throw new Error(
-      `Voltage response body (${text.length} chars) exceeds ${VOLTAGE_MAX_BODY_BYTES}-byte cap after materialization.`,
-    )
+
+  if (response.body === null) {
+    return ''
   }
-  return text
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      if (value === undefined) continue
+      received += value.byteLength
+      if (received > maxBytes) {
+        throw new Error(
+          `Response body exceeds ${maxBytes}-byte cap during stream (received ${received} bytes).`,
+        )
+      }
+      chunks.push(value)
+    }
+    return Buffer.concat(chunks).toString('utf-8')
+  } catch (err) {
+    try {
+      await reader.cancel()
+    } catch {
+      // already-cancelled / stream-errored states can re-throw here;
+      // the original error is the one the caller needs to see.
+    }
+    throw err
+  } finally {
+    try {
+      reader.releaseLock()
+    } catch {
+      // Lock release is idempotent best-effort after cancel — swallow
+      // TypeError("lock released") that some runtimes produce.
+    }
+  }
 }
 
 /**
