@@ -27,6 +27,18 @@ import { requireString, type ProtocolPayer } from './index'
 export const BASE_USDC_ADDRESS =
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
 
+/**
+ * CAIP-2 network identifier for Base mainnet. Scaffold pricing is
+ * enabled only for this network — entries advertising Ethereum
+ * mainnet (`eip155:1`) or any other network return null cost.
+ * Hostile fix H51: without this check, a client with a
+ * Base-signed `xPaymentHeader` would attempt to pay an
+ * Ethereum-mainnet tool and silently fail at the seller with
+ * "invalid signature for this chain", burning a round-trip per
+ * call.
+ */
+export const BASE_NETWORK = 'eip155:8453'
+
 /** Decimals on USDC. `1 USDC == 10^6 base units`. */
 const USDC_DECIMALS = 6
 
@@ -38,12 +50,22 @@ export const x402Payer: ProtocolPayer = {
   rail: 'exact',
 
   extractCostCents(entry: AcceptEntry): number | null {
-    const { amount, asset } = entry as { amount?: unknown; asset?: unknown }
+    const { amount, asset, network } = entry as {
+      amount?: unknown
+      asset?: unknown
+      network?: unknown
+    }
     // Scaffold only prices Base USDC — case-insensitive because EVM
     // addresses are case-insensitive in comparison but often stored
     // in checksum form with mixed case.
     if (typeof asset !== 'string') return null
     if (asset.toLowerCase() !== BASE_USDC_ADDRESS.toLowerCase()) return null
+    // Hostile fix H51: network field is lenient (absent is OK for
+    // back-compat with tools that don't populate it), but if PRESENT
+    // it must match Base. Misrouting a Base-signed x402 payment to
+    // Ethereum mainnet fails at the seller with a confusing signature
+    // error; we short-circuit here with a clean null cost.
+    if (network !== undefined && network !== BASE_NETWORK) return null
     if (typeof amount !== 'string' || amount.length === 0) return null
     // Strip leading '+' (not produced by trusted servers but cheap to
     // accept). Reject anything that is not a decimal integer string —

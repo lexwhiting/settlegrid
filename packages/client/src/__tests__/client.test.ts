@@ -790,3 +790,371 @@ describe('railForScheme', () => {
     expect(railForScheme('')).toBeNull()
   })
 })
+
+// ─── Hostile-round guards ────────────────────────────────────────────
+//
+// One test per hostile finding. The tests lock the fix — a future
+// regression that removes the guard fails a named test that points
+// directly at the finding.
+
+describe('hostile guards — body type (H1)', () => {
+  it('rejects ReadableStream body with ClientConfigurationError', async () => {
+    const client = createSettleGridClient({
+      fetch: vi.fn() as unknown as typeof fetch,
+    })
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('hello'))
+        controller.close()
+      },
+    })
+    await expect(
+      client.call(TOOL_URL, { method: 'POST', body: stream }),
+    ).rejects.toMatchObject({
+      name: 'ClientConfigurationError',
+      field: 'request.body',
+    })
+  })
+
+  it('accepts string, Blob, ArrayBuffer, TypedArray, FormData, URLSearchParams bodies', async () => {
+    // One call per body type. The body isn't transmitted anywhere
+    // interesting — we just verify the validator doesn't throw.
+    const cases: RequestInit[] = [
+      { body: 'hello' },
+      { body: new Blob(['hello']) },
+      { body: new Uint8Array([1, 2, 3]).buffer },
+      { body: new Uint8Array([1, 2, 3]) },
+      { body: new URLSearchParams({ q: 'hi' }) },
+      {}, // no body — must also pass
+      { body: null },
+      { body: undefined },
+    ]
+    for (const init of cases) {
+      const fetchImpl = scriptedFetch([() => json({ ok: true })])
+      const client = createSettleGridClient({ fetch: fetchImpl })
+      const res = await client.call(TOOL_URL, init)
+      expect(res.status).toBe(200)
+    }
+  })
+})
+
+describe('hostile guards — manifest version/error markers (H20)', () => {
+  it('rejects a 402 body with unsupported x402Version', async () => {
+    const fetchImpl = scriptedFetch([
+      () => paymentRequired([{ scheme: 'mpp', amountCents: 5 }], { x402Version: 3 as 2 }),
+    ])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      wallets: { mpp: { sharedPaymentToken: 'spt' } },
+    })
+    await expect(client.call(TOOL_URL, {})).rejects.toMatchObject({
+      name: 'MalformedManifestError',
+      reason: expect.stringMatching(/x402Version/),
+    })
+  })
+
+  it('rejects a 402 body with wrong error marker', async () => {
+    const fetchImpl = scriptedFetch([
+      () =>
+        paymentRequired([{ scheme: 'mpp', amountCents: 5 }], {
+          error: 'not_payment_required' as 'payment_required',
+        }),
+    ])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      wallets: { mpp: { sharedPaymentToken: 'spt' } },
+    })
+    await expect(client.call(TOOL_URL, {})).rejects.toMatchObject({
+      name: 'MalformedManifestError',
+      reason: expect.stringMatching(/error/),
+    })
+  })
+})
+
+describe('hostile guards — credential header injection (H26/H27/H56)', () => {
+  it('rejects CRLF in MPP sharedPaymentToken at buildPayment time', async () => {
+    // This injection attempt would otherwise smuggle an extra header
+    // into the retry request. requireString must throw.
+    await expect(
+      mppPayer.buildPayment({
+        entry: { scheme: 'mpp', amountCents: 5 },
+        wallet: { sharedPaymentToken: 'spt_abc\r\nX-Injected: evil' },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/control characters/i),
+    })
+  })
+
+  it('rejects NUL byte in L402 macaroon', async () => {
+    await expect(
+      l402Payer.buildPayment({
+        entry: { scheme: 'l402', costCents: 5 },
+        wallet: { macaroon: 'mac\x00evil', preimage: 'a'.repeat(64) },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/control characters|macaroon.*:/i),
+    })
+  })
+
+  it('rejects macaroon containing `:` in canPay (LSAT parse fracture)', () => {
+    // The seller parses `LSAT <mac>:<preimage>` by splitting on `:`.
+    // A macaroon with `:` would split at the wrong place and either
+    // route to a bogus preimage or fail seller-side with an
+    // unparseable error. canPay returns false so selection skips
+    // this wallet cleanly before any payment fires.
+    expect(
+      l402Payer.canPay({
+        macaroon: 'mac:forged',
+        preimage: 'a'.repeat(64),
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects whitespace in macaroon in canPay', () => {
+    expect(
+      l402Payer.canPay({
+        macaroon: 'mac with space',
+        preimage: 'a'.repeat(64),
+      }),
+    ).toBe(false)
+    expect(
+      l402Payer.canPay({
+        macaroon: 'mac\ttab',
+        preimage: 'a'.repeat(64),
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects CRLF in AP2 consumerId (via optionalString)', async () => {
+    await expect(
+      ap2Payer.buildPayment({
+        entry: { scheme: 'ap2', costCents: 5 },
+        wallet: {
+          vdcJwt: 'eyJ.vdc.jwt',
+          consumerId: 'user-42\r\nSet-Cookie: evil',
+        },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/control characters/i),
+    })
+  })
+})
+
+describe('hostile guards — wallet mutation isolation (H13)', () => {
+  it('shallow-clones wallets at construction so post-construction mutation does not affect selection', async () => {
+    const fetchImpl = scriptedFetch([
+      () => paymentRequired([{ scheme: 'mpp', amountCents: 5 }]),
+      (_url, init) => {
+        const headers = new Headers(init?.headers as HeadersInit | undefined)
+        // The retry MUST carry the original SPT even though the
+        // source `walletsConfig` was cleared after construction.
+        expect(headers.get('x-payment-token')).toBe('spt_original')
+        return json({ ok: true })
+      },
+    ])
+    const walletsConfig: Record<string, { sharedPaymentToken: string }> = {
+      mpp: { sharedPaymentToken: 'spt_original' },
+    }
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      wallets: walletsConfig as never,
+    })
+    // Post-construction mutation: delete the rail from the caller's
+    // source dict. A naive implementation that stored the reference
+    // directly would then see `wallets.mpp === undefined` on the
+    // next call and select no rail.
+    delete walletsConfig.mpp
+    const res = await client.call(TOOL_URL, {})
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('hostile guards — URL protocol restriction (H32)', () => {
+  it('rejects javascript: URL with ClientConfigurationError', async () => {
+    const client = createSettleGridClient({
+      fetch: vi.fn() as unknown as typeof fetch,
+    })
+    await expect(
+      client.call('javascript:alert(1)', {}),
+    ).rejects.toMatchObject({
+      name: 'ClientConfigurationError',
+      field: 'toolUrl',
+      message: expect.stringMatching(/javascript:/),
+    })
+  })
+
+  it('rejects data: URL with ClientConfigurationError', async () => {
+    const client = createSettleGridClient({
+      fetch: vi.fn() as unknown as typeof fetch,
+    })
+    await expect(
+      client.call('data:text/plain,hello', {}),
+    ).rejects.toBeInstanceOf(ClientConfigurationError)
+  })
+
+  it('accepts http: and https: URLs', async () => {
+    const fetchImpl = scriptedFetch([
+      () => json({ ok: true }),
+      () => json({ ok: true }),
+    ])
+    const client = createSettleGridClient({ fetch: fetchImpl })
+    await client.call('http://tool.test/api', {})
+    await client.call('https://tool.test/api', {})
+  })
+})
+
+describe('hostile guards — x402 network check (H51)', () => {
+  it('returns null cost when network is not Base', () => {
+    // Ethereum mainnet is a valid x402 network, but this scaffold
+    // only prices Base — selection must skip the entry rather than
+    // mis-price it.
+    expect(
+      x402Payer.extractCostCents({
+        scheme: 'exact',
+        network: 'eip155:1',
+        amount: '50000',
+        asset: BASE_USDC_ADDRESS,
+      }),
+    ).toBeNull()
+  })
+
+  it('accepts Base network explicitly', () => {
+    expect(
+      x402Payer.extractCostCents({
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '50000',
+        asset: BASE_USDC_ADDRESS,
+      }),
+    ).toBe(5)
+  })
+
+  it('tolerates absent network for back-compat', () => {
+    expect(
+      x402Payer.extractCostCents({
+        scheme: 'exact',
+        amount: '50000',
+        asset: BASE_USDC_ADDRESS,
+      }),
+    ).toBe(5)
+  })
+})
+
+describe('hostile guards — currency checks (H52/H54/H57)', () => {
+  it('MPP rejects non-USD currency', () => {
+    expect(
+      mppPayer.extractCostCents({
+        scheme: 'mpp',
+        amountCents: 5,
+        currency: 'EUR',
+      }),
+    ).toBeNull()
+  })
+
+  it('MPP accepts USD and absent currency', () => {
+    expect(mppPayer.extractCostCents({ scheme: 'mpp', amountCents: 5, currency: 'USD' })).toBe(5)
+    expect(mppPayer.extractCostCents({ scheme: 'mpp', amountCents: 5 })).toBe(5)
+  })
+
+  it('L402 rejects non-btc-lightning currency', () => {
+    expect(
+      l402Payer.extractCostCents({
+        scheme: 'l402',
+        costCents: 5,
+        currency: 'USD',
+      }),
+    ).toBeNull()
+  })
+
+  it('L402 accepts btc-lightning and absent currency', () => {
+    expect(
+      l402Payer.extractCostCents({
+        scheme: 'l402',
+        costCents: 5,
+        currency: 'btc-lightning',
+      }),
+    ).toBe(5)
+    expect(l402Payer.extractCostCents({ scheme: 'l402', costCents: 5 })).toBe(5)
+  })
+
+  it('AP2 rejects non-USD currency', () => {
+    expect(
+      ap2Payer.extractCostCents({
+        scheme: 'ap2',
+        costCents: 5,
+        currency: 'EUR',
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('hostile guards — scheme filter (H2)', () => {
+  it('drops manifest entries whose scheme contains CRLF', async () => {
+    const fetchImpl = scriptedFetch([
+      () =>
+        paymentRequired([
+          { scheme: 'mpp\r\nX-Injected: evil', amountCents: 1 }, // dropped
+          { scheme: 'mpp', amountCents: 5 }, // survives
+        ]),
+      () => json({ ok: true }),
+    ])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      wallets: { mpp: { sharedPaymentToken: 'spt' } },
+    })
+    const res = await client.call(TOOL_URL, {})
+    expect(res.status).toBe(200)
+  })
+
+  it('drops manifest entries with an empty scheme', async () => {
+    const fetchImpl = scriptedFetch([
+      () =>
+        paymentRequired([
+          { scheme: '', amountCents: 1 } as AcceptEntry, // dropped
+          { scheme: 'mpp', amountCents: 5 }, // survives
+        ]),
+      () => json({ ok: true }),
+    ])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      wallets: { mpp: { sharedPaymentToken: 'spt' } },
+    })
+    const res = await client.call(TOOL_URL, {})
+    expect(res.status).toBe(200)
+  })
+
+  it('throws MalformedManifestError when every entry has an invalid scheme', async () => {
+    const fetchImpl = scriptedFetch([
+      () =>
+        paymentRequired([
+          { scheme: '', amountCents: 1 } as AcceptEntry,
+          { scheme: 'bad scheme with spaces', amountCents: 2 },
+        ]),
+    ])
+    const client = createSettleGridClient({ fetch: fetchImpl })
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
+      MalformedManifestError,
+    )
+  })
+})
+
+describe('hostile guards — preferredRails unknown value (H3)', () => {
+  it('rejects an unknown rail in preferredRails with a helpful message', async () => {
+    const fetchImpl = scriptedFetch([])
+    const client = createSettleGridClient({ fetch: fetchImpl })
+    await expect(
+      // Bypass the TS literal check to simulate a JS caller.
+      client.call(TOOL_URL, {}, { preferredRails: ['sg-balance' as never] }),
+    ).rejects.toMatchObject({
+      name: 'ClientConfigurationError',
+      field: 'preferredRails',
+      message: expect.stringMatching(/sg-balance/),
+    })
+  })
+})

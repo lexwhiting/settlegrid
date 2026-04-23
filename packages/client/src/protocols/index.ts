@@ -16,6 +16,22 @@ import { ap2Payer } from './ap2'
 /** Bytes-max cap for any credential string the caller passes in. */
 export const MAX_CREDENTIAL_CHARS = 16 * 1024
 
+/**
+ * Hostile fix H26 — HTTP-header-forbidden control characters. Any
+ * credential string attached to a request header MUST NOT carry
+ * CR (0x0D), LF (0x0A), or NUL (0x00). Fetch's Headers constructor
+ * would reject such values later with an opaque TypeError; guarding
+ * at the wallet boundary surfaces a specific, actionable error
+ * naming the bad field instead of a generic "invalid header value".
+ *
+ * We intentionally DON'T enforce a full RFC 7230 token set on
+ * credentials — real L402 macaroons are base64, x402 X-Payment
+ * blobs are base64, VDC JWTs are base64url + '.' — all of which
+ * are ASCII-printable. A caller who wires a weird non-ASCII
+ * credential (Unicode emoji, etc.) is on their own; fetch decides.
+ */
+const HEADER_FORBIDDEN_CHARS = /[\x00\r\n]/
+
 /** Output of `buildPayment` — headers to attach to the retry request. */
 export interface PaymentAttachment {
   /** Request headers to merge into the retry. Override caller headers. */
@@ -75,11 +91,36 @@ export function getPayer(scheme: string): ProtocolPayer | undefined {
 }
 
 /**
+ * Shared validation used by {@link requireString} and
+ * {@link optionalString} — caps length + rejects header-forbidden
+ * control characters. Throws with a rail/field-specific message.
+ */
+function validateCredentialString(
+  value: string,
+  field: string,
+  rail: RailName,
+): void {
+  if (value.length > MAX_CREDENTIAL_CHARS) {
+    throw new TypeError(
+      `${rail} wallet field \`${field}\` exceeds ${MAX_CREDENTIAL_CHARS}-char cap ` +
+        `(received ${value.length} chars) — refusing to attach to a payment header.`,
+    )
+  }
+  if (HEADER_FORBIDDEN_CHARS.test(value)) {
+    throw new TypeError(
+      `${rail} wallet field \`${field}\` contains forbidden control characters ` +
+        `(CR, LF, or NUL). HTTP header values cannot carry these, and the ` +
+        `presence of CR/LF would otherwise enable header injection.`,
+    )
+  }
+}
+
+/**
  * Validate that a wallet field is a non-empty string no longer than
- * {@link MAX_CREDENTIAL_CHARS}. Throws TypeError with a specific
- * message when the field is wrong — the payer's `canPay` has
- * already returned true, so this is a programmer error rather than
- * a missing-config case.
+ * {@link MAX_CREDENTIAL_CHARS} and free of CR/LF/NUL. Throws
+ * TypeError with a specific message when the field is wrong — the
+ * payer's `canPay` has already returned true, so this is a
+ * programmer error rather than a missing-config case.
  */
 export function requireString(
   wallet: WalletRef,
@@ -92,11 +133,31 @@ export function requireString(
       `${rail} wallet is missing required string field \`${field}\`.`,
     )
   }
-  if (value.length > MAX_CREDENTIAL_CHARS) {
+  validateCredentialString(value, field, rail)
+  return value
+}
+
+/**
+ * Validate that a wallet field is either absent or a non-empty
+ * string passing {@link validateCredentialString}. Empty strings
+ * are treated as absent so callers can clear a field by setting it
+ * to `''` rather than deleting it. Returns the validated string or
+ * `undefined`.
+ */
+export function optionalString(
+  wallet: WalletRef,
+  field: string,
+  rail: RailName,
+): string | undefined {
+  const value = wallet[field]
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') {
     throw new TypeError(
-      `${rail} wallet field \`${field}\` exceeds ${MAX_CREDENTIAL_CHARS}-char cap ` +
-        `(received ${value.length} chars) — refusing to attach to a payment header.`,
+      `${rail} wallet field \`${field}\`, when present, must be a string ` +
+        `(got ${typeof value}).`,
     )
   }
+  if (value.length === 0) return undefined
+  validateCredentialString(value, field, rail)
   return value
 }
