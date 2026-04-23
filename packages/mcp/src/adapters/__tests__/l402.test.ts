@@ -119,6 +119,35 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+// ─── streamTextCapped ─────────────────────────────────────────────────────
+
+describe('streamTextCapped', () => {
+  it('returns empty string on null body', async () => {
+    const { streamTextCapped } = await import('../lightning/voltage')
+    const response = new Response(null, { status: 200 })
+    const text = await streamTextCapped(response, 1024)
+    expect(text).toBe('')
+  })
+
+  it('reads a normal-sized body through to completion', async () => {
+    const { streamTextCapped } = await import('../lightning/voltage')
+    const response = new Response('{"hello":"world"}', { status: 200 })
+    const text = await streamTextCapped(response, 1024)
+    expect(text).toBe('{"hello":"world"}')
+  })
+
+  it('rejects up front when Content-Length > cap (fast-path)', async () => {
+    const { streamTextCapped } = await import('../lightning/voltage')
+    const response = new Response('short-body', {
+      status: 200,
+      headers: { 'content-length': '99999' },
+    })
+    await expect(streamTextCapped(response, 1024)).rejects.toThrow(
+      /Content-Length.*exceeds 1024-byte cap/,
+    )
+  })
+})
+
 // ─── voltage.ts primitives ────────────────────────────────────────────────
 
 describe('Voltage client — primitives', () => {
@@ -314,6 +343,248 @@ describe('createVoltageClient', () => {
       fetchImpl: vi.fn(),
     })
     expect(client.decodePreimage(REAL_PREIMAGE)).toBe(REAL_PAYMENT_HASH)
+  })
+
+  it('normalizeInvoice: accepts `r_hash_str` form (LND ≥ 0.15 hex)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc1000n1ptest',
+          r_hash_str: REAL_PAYMENT_HASH,
+          value_msat: '1000',
+          expiry: '3600',
+          creation_date: '1700000000',
+          settled: false,
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    const invoice = await client.createInvoice(1000)
+    expect(invoice.paymentHash).toBe(REAL_PAYMENT_HASH)
+    expect(invoice.paymentRequest).toBe('lnbc1000n1ptest')
+    expect(invoice.amountMsat).toBe(1000)
+    expect(invoice.expirySeconds).toBe(3600)
+    expect(invoice.creationDate).toBe(1_700_000_000)
+    expect(invoice.settled).toBe(false)
+  })
+
+  it('normalizeInvoice: accepts `r_hash` base64 form (LND POST response)', async () => {
+    // LND's POST /v1/invoices returns r_hash as base64 (not hex).
+    // The client must decode base64 → 32 bytes → hex.
+    const hashBase64 = Buffer.from(REAL_PAYMENT_HASH, 'hex').toString('base64')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc1000n1ptest',
+          r_hash: hashBase64,
+          value_msat: '1000',
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    const invoice = await client.createInvoice(1000)
+    expect(invoice.paymentHash).toBe(REAL_PAYMENT_HASH)
+  })
+
+  it('normalizeInvoice: accepts `r_hash` hex form (LND GET response)', async () => {
+    // LND's GET /v1/invoice/{hash} returns r_hash already as hex.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc1000n1ptest',
+          r_hash: REAL_PAYMENT_HASH,
+          value_msat: '1000',
+          settled: true,
+          settle_date: '1700000100',
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    const invoice = await client.lookupInvoice(REAL_PAYMENT_HASH)
+    expect(invoice.paymentHash).toBe(REAL_PAYMENT_HASH)
+    expect(invoice.settled).toBe(true)
+    expect(invoice.settleDate).toBe(1_700_000_100)
+  })
+
+  it('normalizeInvoice: falls back from value_msat to `value` (sats-only nodes)', async () => {
+    // Older LND or minimally-configured nodes emit `value` (sats)
+    // instead of `value_msat`. Adapter must multiply by 1000.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc...',
+          r_hash_str: REAL_PAYMENT_HASH,
+          value: '5', // 5 sats = 5000 msat
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    const invoice = await client.lookupInvoice(REAL_PAYMENT_HASH)
+    expect(invoice.amountMsat).toBe(5000)
+  })
+
+  it('normalizeInvoice: throws on missing payment_request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          r_hash_str: REAL_PAYMENT_HASH,
+          value_msat: '1000',
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(/payment_request/)
+  })
+
+  it('normalizeInvoice: throws on missing r_hash', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc...',
+          value_msat: '1000',
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(/r_hash/)
+  })
+
+  it('normalizeInvoice: throws on missing amount fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc...',
+          r_hash_str: REAL_PAYMENT_HASH,
+          // neither value_msat nor value supplied
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    // lookupInvoice doesn't pass expectedAmountMsat, so it throws on
+    // the amount-extraction failure itself rather than on a mismatch.
+    await expect(client.lookupInvoice(REAL_PAYMENT_HASH)).rejects.toThrow(/value_msat/)
+  })
+
+  it('normalizeInvoice: throws when server returns a different amount than requested', async () => {
+    // createInvoice passes expectedAmountMsat; if the server returns
+    // a different value, refuse silently drift.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc...',
+          r_hash_str: REAL_PAYMENT_HASH,
+          value_msat: '2000', // requested 1000
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(/amountMsat=2000.*expected 1000/)
+  })
+
+  it('createInvoice: sends value_msat + memo + expiry in the POST body', async () => {
+    // Regression guard for the body-shape on the Voltage POST.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          payment_request: 'lnbc...',
+          r_hash_str: REAL_PAYMENT_HASH,
+          value_msat: '2500',
+        }),
+        { status: 200 },
+      ),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await client.createInvoice(2500, { memo: 'test-memo', expirySeconds: 600 })
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(init.body as string) as Record<string, string>
+    expect(body.value_msat).toBe('2500')
+    expect(body.memo).toBe('test-memo')
+    expect(body.expiry).toBe('600')
+  })
+
+  it('httpFetch: surfaces HTTP error status + body text on non-ok response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{"error":"invalid macaroon"}', {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'bad',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(
+      /HTTP 401.*invalid macaroon/,
+    )
+  })
+
+  it('httpFetch: throws on empty response body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, { status: 200 }),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(/empty body/)
+  })
+
+  it('httpFetch: throws on non-JSON response body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('this is not json', { status: 200 }),
+    )
+    const client = createVoltageClient({
+      nodeUrl: 'https://voltage.test',
+      macaroon: 'abc',
+      fetchImpl: fetchMock,
+    })
+    await expect(client.createInvoice(1000)).rejects.toThrow(/non-JSON body/)
   })
 })
 
@@ -819,6 +1090,46 @@ describe('L402Adapter.verifyPayment — actually hashes preimage', () => {
     expect(result.error?.message).toMatch(/amount_cents caveat.*does not match/i)
   })
 
+  it('falls back to length-check when the macaroon has no payment_hash caveat (legacy)', async () => {
+    // Macaroons minted by pre-P3.K2 code (or by external tooling)
+    // lack the `payment_hash` caveat. verifyPayment must NOT reject
+    // them — it falls back to the existing length-check on the
+    // preimage format (`validateL402Payment`) and logs a warning so
+    // ops can grep for affected flows.
+    //
+    // Craft a macaroon without a payment_hash caveat (HMAC-signed),
+    // present with any correctly-formatted preimage, and assert
+    // valid=true.
+    const now = Math.floor(Date.now() / 1000)
+    const legacyMacaroon = craftSignedMacaroon(SIGNING_KEY, {
+      id: 'c'.repeat(32),
+      location: 'test',
+      caveats: [
+        { key: 'service', value: `settlegrid:${TOOL_CONFIG.slug}` },
+        { key: 'amount_sats', value: '100' },
+        { key: 'amount_cents', value: String(TOOL_CONFIG.costCents) },
+        { key: 'expires_at', value: String(now + 3600) },
+        { key: 'created_at', value: String(now) },
+        // payment_hash caveat intentionally omitted
+      ],
+    })
+    const warnSpy = vi.fn()
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: { authorization: `L402 ${legacyMacaroon}:${REAL_PREIMAGE}` },
+    })
+    const result = await adapter.verifyPayment(req, {
+      enabled: true,
+      toolConfig: TOOL_CONFIG,
+      signingKey: SIGNING_KEY,
+      logger: { info: vi.fn(), warn: warnSpy, error: vi.fn() },
+    })
+    expect(result.valid).toBe(true)
+    expect(warnSpy).toHaveBeenCalledWith(
+      'l402.macaroon_missing_payment_hash_caveat',
+      expect.objectContaining({ macaroonId: 'c'.repeat(32) }),
+    )
+  })
+
   it('rejects expired invoices via the macaroon expires_at caveat (L402_MACAROON_EXPIRED)', async () => {
     // Mint a macaroon with generateL402_402Response, then advance the
     // clock past its expiry. Since the caveat encodes expires_at as
@@ -1119,6 +1430,41 @@ describe('CoinGeckoRateFetcher — default live-rate source', () => {
       const fetcher = new CoinGeckoRateFetcher({ fetchImpl: fetchMock })
       await expect(fetcher.fetchBtcUsdRate()).rejects.toThrow(/invalid USD rate/)
     }
+  })
+
+  it('throws on missing `bitcoin` key in response body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ethereum: { usd: 2000 } }), { status: 200 }),
+    )
+    const fetcher = new CoinGeckoRateFetcher({ fetchImpl: fetchMock })
+    await expect(fetcher.fetchBtcUsdRate()).rejects.toThrow(/missing.*bitcoin/i)
+  })
+
+  it('throws on non-object JSON response (array, string, null)', async () => {
+    for (const bad of ['[1,2,3]', '"oops"', 'null']) {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(bad, { status: 200 }),
+      )
+      const fetcher = new CoinGeckoRateFetcher({ fetchImpl: fetchMock })
+      await expect(fetcher.fetchBtcUsdRate()).rejects.toThrow(/non-object/i)
+    }
+  })
+
+  it('rejects an oversize response body via the streaming cap', async () => {
+    // Even if Content-Length is absent, the streaming cap in
+    // streamTextCapped must halt before memory amplifies past 1 KiB.
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('A'.repeat(2048)))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(stream, { status: 200 }),
+    )
+    const fetcher = new CoinGeckoRateFetcher({ fetchImpl: fetchMock })
+    await expect(fetcher.fetchBtcUsdRate()).rejects.toThrow(/exceeds 1024-byte cap/)
   })
 })
 
