@@ -86,7 +86,7 @@ describe('createSettleGridClient.call — core flow', () => {
   it('passes through a non-402 response unchanged (200)', async () => {
     const fetchImpl = scriptedFetch([() => json({ ok: true })])
     const client = createSettleGridClient({ fetch: fetchImpl })
-    const res = await client.call(TOOL_URL)
+    const res = await client.call(TOOL_URL, {})
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ ok: true })
@@ -95,7 +95,7 @@ describe('createSettleGridClient.call — core flow', () => {
   it('passes through a non-402 non-success response (500) unchanged', async () => {
     const fetchImpl = scriptedFetch([() => json({ error: 'oops' }, 500)])
     const client = createSettleGridClient({ fetch: fetchImpl })
-    const res = await client.call(TOOL_URL)
+    const res = await client.call(TOOL_URL, {})
     expect(res.status).toBe(500)
   })
 
@@ -121,7 +121,7 @@ describe('createSettleGridClient.call — core flow', () => {
       fetch: fetchImpl,
       wallets: { mpp: { sharedPaymentToken: 'spt_abc123' } },
     })
-    const res = await client.call(TOOL_URL)
+    const res = await client.call(TOOL_URL, {})
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ result: 42 })
@@ -154,7 +154,7 @@ describe('createSettleGridClient.call — core flow', () => {
         l402: { macaroon: 'm', preimage: 'a'.repeat(64) },
       },
     })
-    const res = await client.call(TOOL_URL)
+    const res = await client.call(TOOL_URL, {})
     expect(res.status).toBe(200)
   })
 
@@ -167,10 +167,43 @@ describe('createSettleGridClient.call — core flow', () => {
         ]),
     ])
     const client = createSettleGridClient({ fetch: fetchImpl })
-    await expect(client.call(TOOL_URL)).rejects.toMatchObject({
+    await expect(client.call(TOOL_URL, {})).rejects.toMatchObject({
       name: 'NoSupportedProtocolError',
       advertisedSchemes: ['sg-balance', 'ucp'],
     })
+  })
+
+  it('falls through unsupported schemes and pays the supported rail in a mixed manifest', async () => {
+    // 'ucp' is the cheapest by cost (1) but has no payer registered in
+    // this client; 'sg-balance' is cheaper than 'mpp' (3) but also
+    // unsupported. 'mpp' must win despite not being the numerically
+    // lowest entry — the selection set is the intersection of
+    // (advertised ∩ client-supported ∩ wallet-configured), and only
+    // 'mpp' survives all three filters.
+    const fetchImpl = scriptedFetch([
+      () =>
+        paymentRequired([
+          { scheme: 'ucp', amountCents: 1 }, // unsupported, would-be cheapest
+          { scheme: 'sg-balance', costCents: 2 }, // unsupported
+          { scheme: 'mpp', amountCents: 3, currency: 'USD' }, // supported
+          { scheme: 'ap2', costCents: 5, currency: 'USD' }, // supported, dearer
+        ]),
+      (_url, init) => {
+        const headers = new Headers(init?.headers as HeadersInit | undefined)
+        // Confirm MPP headers — the ap2 branch (also supported + cheaper
+        // than nothing) MUST be skipped because no ap2 wallet was set.
+        expect(headers.get('x-payment-token')).toBe('spt_mpp_wallet')
+        expect(headers.get('x-ap2-credential')).toBeNull()
+        expect(headers.get('authorization')).toBeNull()
+        return json({ ok: true })
+      },
+    ])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      wallets: { mpp: { sharedPaymentToken: 'spt_mpp_wallet' } },
+    })
+    const res = await client.call(TOOL_URL, {})
+    expect(res.status).toBe(200)
   })
 
   it('throws NoSupportedProtocolError when a rail is supported but no wallet is configured', async () => {
@@ -179,7 +212,7 @@ describe('createSettleGridClient.call — core flow', () => {
     ])
     const client = createSettleGridClient({ fetch: fetchImpl })
     // No wallets configured — client cannot pay even the supported rail.
-    await expect(client.call(TOOL_URL)).rejects.toBeInstanceOf(
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
       NoSupportedProtocolError,
     )
   })
@@ -194,7 +227,7 @@ describe('createSettleGridClient.call — core flow', () => {
         mpp: { readOnly: true, sharedPaymentToken: 'spt_abc' },
       },
     })
-    await expect(client.call(TOOL_URL)).rejects.toBeInstanceOf(
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
       NoSupportedProtocolError,
     )
   })
@@ -248,13 +281,13 @@ describe('createSettleGridClient.call — budget enforcement', () => {
 
   it('pays any cost when maxCostCents is undefined (no cap)', async () => {
     const { client } = makeClient()
-    const res = await client.call(TOOL_URL)
+    const res = await client.call(TOOL_URL, {})
     expect(res.status).toBe(200)
   })
 
   it('applies defaultMaxCostCents when options.maxCostCents is omitted', async () => {
     const { client } = makeClient(4)
-    await expect(client.call(TOOL_URL)).rejects.toBeInstanceOf(BudgetExceededError)
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(BudgetExceededError)
   })
 
   it('options.maxCostCents overrides defaultMaxCostCents', async () => {
@@ -599,12 +632,12 @@ describe('createSettleGridClient.wallet', () => {
 describe('createSettleGridClient — input validation', () => {
   it('rejects empty toolUrl', async () => {
     const client = createSettleGridClient({ fetch: vi.fn() as unknown as typeof fetch })
-    await expect(client.call('')).rejects.toBeInstanceOf(ClientConfigurationError)
+    await expect(client.call('', {})).rejects.toBeInstanceOf(ClientConfigurationError)
   })
 
   it('rejects non-URL toolUrl', async () => {
     const client = createSettleGridClient({ fetch: vi.fn() as unknown as typeof fetch })
-    await expect(client.call('not a url')).rejects.toBeInstanceOf(
+    await expect(client.call('not a url', {})).rejects.toBeInstanceOf(
       ClientConfigurationError,
     )
   })
@@ -635,7 +668,7 @@ describe('createSettleGridClient.call — malformed manifest', () => {
         }),
     ])
     const client = createSettleGridClient({ fetch: fetchImpl })
-    await expect(client.call(TOOL_URL)).rejects.toBeInstanceOf(
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
       MalformedManifestError,
     )
   })
@@ -643,7 +676,7 @@ describe('createSettleGridClient.call — malformed manifest', () => {
   it('throws MalformedManifestError on empty accepts array', async () => {
     const fetchImpl = scriptedFetch([() => paymentRequired([])])
     const client = createSettleGridClient({ fetch: fetchImpl })
-    await expect(client.call(TOOL_URL)).rejects.toBeInstanceOf(
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
       MalformedManifestError,
     )
   })
@@ -663,7 +696,7 @@ describe('createSettleGridClient.call — malformed manifest', () => {
       fetch: fetchImpl,
       wallets: { mpp: { sharedPaymentToken: 'spt_abc' } },
     })
-    const res = await client.call(TOOL_URL)
+    const res = await client.call(TOOL_URL, {})
     expect(res.status).toBe(200)
   })
 
@@ -685,7 +718,7 @@ describe('createSettleGridClient.call — malformed manifest', () => {
       fetch: fetchImpl,
       manifestMaxBytes: 1024,
     })
-    await expect(client.call(TOOL_URL)).rejects.toBeInstanceOf(
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
       MalformedManifestError,
     )
   })

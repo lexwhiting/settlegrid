@@ -107,47 +107,43 @@ cheapest-rail selection. If every advertised rail is unsupported,
 
 ## Examples
 
-### 1. Node — basic call with a budget cap
+The three usage modes called out by the P3.K3 spec card — call from
+Node, call from browser, call with a budget cap — each get one
+worked example below.
+
+### 1. Call from Node
 
 ```ts
-import { createSettleGridClient, BudgetExceededError } from '@settlegrid/client'
+import { createSettleGridClient } from '@settlegrid/client'
 
 const client = createSettleGridClient({
   wallets: {
     mpp: { sharedPaymentToken: process.env.SETTLEGRID_MPP_SPT! },
   },
-  defaultMaxCostCents: 10,
 })
 
-try {
-  const response = await client.call(
-    'https://weather-bot.example/forecast',
-    { method: 'POST', body: JSON.stringify({ city: 'Sacramento' }) },
-    { maxCostCents: 5 },
-  )
-  if (response.ok) {
-    console.log(await response.json())
-  } else {
-    console.error(`tool returned ${response.status}`)
-  }
-} catch (err) {
-  if (err instanceof BudgetExceededError) {
-    console.error(
-      `Budget blocked: ${err.rail} wants ${err.costCents} cents, ` +
-        `cap is ${err.maxCostCents}.`,
-    )
-  } else {
-    throw err
-  }
-}
+const response = await client.call(
+  'https://weather-bot.example/forecast',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ city: 'Sacramento' }),
+  },
+)
+const forecast = await response.json()
+console.log(forecast)
 ```
 
-### 2. Browser — read-only wallet discovery
+The initial request triggers a 402; the client parses the manifest,
+picks MPP, attaches `X-Payment-Protocol` and `X-Payment-Token`, and
+retries. If the tool accepts the SPT, the response comes back 200
+and `forecast` holds the parsed body.
 
-The browser never holds private keys. Your server issues a Shared
-Payment Token after the user authenticates and hands it to the
-browser. The browser wallet is marked `readOnly: false` because the
-SPT itself IS the payment credential — no signing required.
+### 2. Call from browser
+
+Browsers never hold private keys. Your server issues a Shared
+Payment Token (SPT) after the user authenticates; the browser
+receives the SPT as opaque material and uses it as its MPP wallet.
 
 ```ts
 import { createSettleGridClient } from '@settlegrid/client'
@@ -160,12 +156,13 @@ async function fetchSpt(toolSlug: string): Promise<string> {
 
 const toolUrl = 'https://search-bot.example/api/v1/search'
 
-// Discover what rails the tool accepts before issuing an SPT.
+// Discovery runs without a wallet — the server advertises supported
+// rails so the browser knows WHICH credential to request from its
+// server.
 const bootClient = createSettleGridClient()
 const accepts = await bootClient.discoverProtocols(toolUrl)
 console.log('advertised rails:', accepts.map((a) => a.scheme))
 
-// Issue SPT, then call.
 const spt = await fetchSpt('search-bot')
 const client = createSettleGridClient({
   wallets: { mpp: { sharedPaymentToken: spt } },
@@ -175,12 +172,19 @@ const response = await client.call(toolUrl, {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ q: 'acme widgets' }),
 })
+const results = await response.json()
 ```
 
-### 3. Node — multi-rail wallet with preferred rail + AbortSignal
+The isomorphic module graph is what makes this work — the same
+`@settlegrid/client` import that runs in Node also builds for the
+browser with zero Node-only shims.
+
+### 3. Call with a budget cap
+
+`maxCostCents` short-circuits BEFORE any payment is constructed:
 
 ```ts
-import { createSettleGridClient } from '@settlegrid/client'
+import { createSettleGridClient, BudgetExceededError } from '@settlegrid/client'
 
 const client = createSettleGridClient({
   wallets: {
@@ -189,27 +193,33 @@ const client = createSettleGridClient({
       macaroon: process.env.SETTLEGRID_L402_MACAROON!,
       preimage: process.env.SETTLEGRID_L402_PREIMAGE!,
     },
-    ap2: {
-      vdcJwt: process.env.SETTLEGRID_AP2_VDC!,
-      consumerId: 'agent-42',
-    },
   },
+  defaultMaxCostCents: 50, // fallback cap applied to every call
 })
 
-const ac = new AbortController()
-setTimeout(() => ac.abort(), 5_000)
-
-// Prefer L402 even when MPP is cheaper (experimental integration).
-const response = await client.call(
-  'https://research-bot.example/api/summarize',
-  { method: 'POST', body: JSON.stringify({ url: 'https://…' }) },
-  {
-    maxCostCents: 25,
-    preferredRails: ['l402'],
-    signal: ac.signal,
-  },
-)
+try {
+  const response = await client.call(
+    'https://research-bot.example/api/summarize',
+    { method: 'POST', body: JSON.stringify({ url: 'https://…' }) },
+    { maxCostCents: 5 }, // tighter per-call cap
+  )
+  console.log(await response.json())
+} catch (err) {
+  if (err instanceof BudgetExceededError) {
+    console.error(
+      `Budget blocked: cheapest rail '${err.rail}' wants ${err.costCents} ` +
+        `cents but cap is ${err.maxCostCents}. No payment was constructed.`,
+    )
+  } else {
+    throw err
+  }
+}
 ```
+
+When a `BudgetExceededError` is thrown, the SDK guarantees no wallet
+material was read, no payment header was built, and no retry fetch
+was issued — the throw happens immediately after cheapest-rail
+selection, before `payer.buildPayment` is called.
 
 ## Hostile-lens invariants
 

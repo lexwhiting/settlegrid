@@ -76,7 +76,7 @@ export function createSettleGridClient(
 
   async function call(
     toolUrl: string,
-    request: RequestInit = {},
+    request: RequestInit,
     options: CallOptions = {},
   ): Promise<Response> {
     validateToolUrl(toolUrl)
