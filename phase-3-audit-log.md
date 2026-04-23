@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-23T18:33:45.677Z
+**Run timestamp:** 2026-04-23T18:54:56.965Z
 **Mode:** default
 **Verdict:** 9 PASS / 13 DEFER / 5 FAIL (of 27)
 **Exit code:** 1
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=1-tracked-dirty,10-untracked; agents=0-tracked-dirty,0-untracked — 1 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=6-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 6 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -101,7 +101,7 @@
 
 - **Verdict:** PASS
 - **Method:** check packages/client/ directory + createSettleGridClient export; count it() blocks across legacy packages/client/__tests__/ AND new packages/client/src/__tests__/ (whichever exist)
-- **Evidence:** package=@settlegrid/client, createSettleGridClient exported=true, test files=1, it() blocks=51
+- **Evidence:** package=@settlegrid/client, createSettleGridClient exported=true, test files=1, it() blocks=52
 
 ### C14 — Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK
 
@@ -193,8 +193,8 @@
 
 - **Verdict:** DEFER
 - **Method:** grep git log in both repos for scaffold/spec-diff/hostile commits for P3.K1-K6, P3.RAIL1-3, P3.PYTHON1-5, P3.PROT1 (15 prompts)
-- **Evidence:** present=[P3.K1, P3.K2]; absent=[P3.K3, P3.K4, P3.K5, P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
-- **Detail:** 13/15 expansion prompts have no audit-chain commits — Phase 4 blocked
+- **Evidence:** present=[P3.K1, P3.K2, P3.K3]; absent=[P3.K4, P3.K5, P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
+- **Detail:** 12/15 expansion prompts have no audit-chain commits — Phase 4 blocked
 
 ## Remediation
 

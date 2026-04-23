@@ -1,39 +1,23 @@
 /**
  * Public types for @settlegrid/client.
  *
- * The 402-manifest types mirror the shape produced by
- * `buildMultiProtocol402` in packages/mcp/src/402-builder.ts. They are
- * intentionally duplicated here rather than imported so this package
- * has ZERO runtime dependency on @settlegrid/mcp — which would
- * transitively pull Node-only modules (`crypto`, `node:buffer`) into
- * browser bundles. Any shape drift will be caught by the
- * interop-contract tests in this package's test suite.
+ * The 402-manifest types are re-exported directly from @settlegrid/mcp
+ * via `import type` — erased at runtime, so this package's browser
+ * bundle carries ZERO @settlegrid/mcp code at runtime. The type-level
+ * re-use eliminates the duplication drift that the scaffold round
+ * shipped as D3: there is now ONE source of truth for AcceptEntry,
+ * PaymentRequiredBody, and ResourceDescriptor.
  */
 
-// ─── 402 manifest shape (mirrors @settlegrid/mcp) ────────────────────
+// ─── 402 manifest shape (type-only re-export from @settlegrid/mcp) ──
 
-/** One entry in the 402 manifest's `accepts` array. */
-export interface AcceptEntry {
-  /** Payment scheme identifier (e.g., 'exact', 'mpp', 'l402', 'ap2'). */
-  scheme: string
-  /** Additional protocol-specific fields (provider, amount, network, etc.). */
-  [key: string]: unknown
-}
+import type {
+  AcceptEntry,
+  PaymentRequiredBody,
+  ResourceDescriptor,
+} from '@settlegrid/mcp'
 
-/** Resource descriptor from the 402 manifest. */
-export interface ResourceDescriptor {
-  url: string
-  description?: string
-  mimeType?: string
-}
-
-/** Full 402 Payment Required body. */
-export interface PaymentRequiredBody {
-  x402Version: 2
-  error: 'payment_required'
-  resource: ResourceDescriptor
-  accepts: AcceptEntry[]
-}
+export type { AcceptEntry, PaymentRequiredBody, ResourceDescriptor }
 
 // ─── Rail naming ─────────────────────────────────────────────────────
 
@@ -182,7 +166,7 @@ export interface SettleGridClient {
    */
   call(
     toolUrl: string,
-    request?: RequestInit,
+    request: RequestInit,
     options?: CallOptions,
   ): Promise<Response>
 
