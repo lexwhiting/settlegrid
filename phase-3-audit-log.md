@@ -1,8 +1,8 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-23T18:14:25.933Z
+**Run timestamp:** 2026-04-23T18:33:45.677Z
 **Mode:** default
-**Verdict:** 8 PASS / 14 DEFER / 5 FAIL (of 27)
+**Verdict:** 9 PASS / 13 DEFER / 5 FAIL (of 27)
 **Exit code:** 1
 
 ## Deviations from prompt card
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=1-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 1 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=1-tracked-dirty,10-untracked; agents=0-tracked-dirty,0-untracked — 1 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -77,7 +77,7 @@
 
 - **Verdict:** PASS
 - **Method:** npx turbo test (main repo workspace) + npm test (settlegrid-agents root). Spec: "across all repos".
-- **Evidence:** main:PASS (10 successful); agents:Tests=863 passed (863)
+- **Evidence:** main:PASS (11 successful); agents:Tests=863 passed (863)
 
 ### C10 — All P3.1–P3.11 audit chains PASS
 
@@ -99,9 +99,9 @@
 
 ### C13 — Consumer SDK shipped (packages/client/ builds, ≥18 unit tests)
 
-- **Verdict:** DEFER
+- **Verdict:** PASS
 - **Method:** check packages/client/ directory + createSettleGridClient export; count it() blocks across legacy packages/client/__tests__/ AND new packages/client/src/__tests__/ (whichever exist)
-- **Evidence:** packages/client/ missing — P3.K3 prompt not yet shipped
+- **Evidence:** package=@settlegrid/client, createSettleGridClient exported=true, test files=1, it() blocks=51
 
 ### C14 — Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK
 
@@ -207,7 +207,6 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
 | C7 | Template CI pipeline running weekly | DEFER | Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally. |
-| C13 | Consumer SDK shipped (packages/client/ builds, ≥18 unit tests) | DEFER | Run P3.K3 (Consumer SDK). |
 | C14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | Run P3.K4 (per-rail pricing + ledger + tool-secret + verifyWebhook). |
 | C15 | DRAIN keccak-256 fix OR removal | FAIL | Run P3.K5 (DRAIN keccak-256 fix or removal). |
 | C16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | Run P3.RAIL1 (Stripe account-type router + eligibility pre-check + waitlist UI). |
