@@ -105,6 +105,47 @@ function dirExists(path: string): boolean {
     return false
   }
 }
+
+// ── Test-file discovery (dual-location aware) ───────────────────────
+//
+// The P2.K2 convention puts adapter tests in
+// `packages/mcp/src/__tests__/adapter-<slug>.test.ts`. The P3.K1+
+// convention dropped the prefix and moved the file into a nested
+// subdirectory: `packages/mcp/src/adapters/__tests__/<slug>.test.ts`.
+// Gate check functions can't hard-code one location without
+// progressively diverging from reality as new K-track cards land.
+//
+// These helpers return the union of existing paths across both
+// conventions so a check can count `it()` blocks or grep markers
+// across the full coverage for an adapter, regardless of where the
+// test files happen to live.
+
+export function discoverAdapterTestFiles(
+  adapterSlug: string,
+  opts?: { repoRoot?: string },
+): string[] {
+  const root = opts?.repoRoot ?? REPO_ROOT
+  const candidates = [
+    join(root, 'packages/mcp/src/__tests__', `adapter-${adapterSlug}.test.ts`),
+    join(root, 'packages/mcp/src/adapters/__tests__', `${adapterSlug}.test.ts`),
+  ]
+  return candidates.filter(fileExists)
+}
+
+export function discoverPackageTestFiles(pkgRoot: string): string[] {
+  const candidateDirs = [
+    join(pkgRoot, '__tests__'),
+    join(pkgRoot, 'src', '__tests__'),
+  ]
+  const out: string[] = []
+  for (const dir of candidateDirs) {
+    if (!dirExists(dir)) continue
+    for (const f of readdirSync(dir).sort()) {
+      if (/\.test\.tsx?$/.test(f)) out.push(join(dir, f))
+    }
+  }
+  return out
+}
 function runSync(
   cmd: string,
   args: string[],
@@ -797,12 +838,12 @@ async function check10_auditChains(): Promise<CheckResult> {
 async function check11_mpp(): Promise<CheckResult> {
   const label = 'MPP adapter wired (≥12 unit tests, Stripe test mode)'
   const method =
-    'verify packages/mcp/src/adapters/mpp.ts exports MPPAdapter; count MPP-referencing it() blocks across P2K2 contract + coverage + protocol-adapters tests'
+    'verify packages/mcp/src/adapters/mpp.ts exports MPPAdapter; count MPP-referencing it() blocks across P2K2 contract + coverage + protocol-adapters tests, plus the MPP adapter-specific test file (legacy __tests__/adapter-mpp.test.ts OR new adapters/__tests__/mpp.test.ts, whichever exist)'
   const mppFile = repoFile('packages/mcp/src/adapters/mpp.ts')
   if (!fileExists(mppFile)) {
     return defer(11, label, method, 'packages/mcp/src/adapters/mpp.ts missing')
   }
-  const testFiles = [
+  const baseTestFiles = [
     repoFile('packages/mcp/src/__tests__/adapter-p2k2-methods.test.ts'),
     repoFile('packages/mcp/src/__tests__/adapter-p2k2-coverage.test.ts'),
     repoFile('packages/mcp/src/__tests__/adapter-p2k2-hostile.test.ts'),
@@ -811,6 +852,11 @@ async function check11_mpp(): Promise<CheckResult> {
     repoFile('packages/mcp/src/__tests__/402-builder.test.ts'),
     repoFile('packages/mcp/src/__tests__/kernel.test.ts'),
   ]
+  // Dedup in case a future rename puts the MPP adapter-specific file in
+  // the legacy location too (both would match `discoverAdapterTestFiles`).
+  const testFiles = Array.from(
+    new Set([...baseTestFiles, ...discoverAdapterTestFiles('mpp')]),
+  )
   let mppTestCount = 0
   // Dedup by `${file}:${index}` so a block that is both inside a
   // describe('MPP'...) AND has "mpp" in its own name doesn't double-count.
@@ -890,17 +936,15 @@ async function check11_mpp(): Promise<CheckResult> {
 async function check12_l402(): Promise<CheckResult> {
   const label = 'L402 adapter wired with Voltage backend (≥1 integration test)'
   const method =
-    'verify packages/mcp/src/adapters/l402.ts exists + LND/macaroon wiring; count it() blocks in adapter-l402.test.ts; look for integration-test markers (LND mock / voltage fetch mock / L402_ENABLED env in tests)'
+    'verify packages/mcp/src/adapters/l402.ts exists + LND/macaroon wiring; count it() blocks across legacy __tests__/adapter-l402.test.ts AND new adapters/__tests__/l402.test.ts; look for integration-test markers (LND mock / voltage fetch mock / L402_ENABLED env in tests)'
   const l402File = repoFile('packages/mcp/src/adapters/l402.ts')
   if (!fileExists(l402File)) {
     return defer(12, label, method, 'packages/mcp/src/adapters/l402.ts missing')
   }
   const body = readTextOrEmpty(l402File)
   const hasLnd = /LND_MACAROON_HEX|LND_REST_URL|L402_ENABLED/.test(body)
-  const testFile = repoFile(
-    'packages/mcp/src/__tests__/adapter-l402.test.ts',
-  )
-  const testBody = readTextOrEmpty(testFile)
+  const testFiles = discoverAdapterTestFiles('l402')
+  const testBody = testFiles.map((f) => readTextOrEmpty(f)).join('\n')
   const itCount = [...testBody.matchAll(/\bit\s*\(/g)].length
   // Integration test markers: anything that indicates a test is
   // exercising the Voltage/LND surface rather than pure contract.
@@ -915,9 +959,18 @@ async function check12_l402(): Promise<CheckResult> {
     /vi\.fn\(\)\.mockResolvedValue/i,
   ]
   const hitMarkers = integrationMarkers.filter((re) => re.test(testBody))
-  const evidence = `l402.ts present; LND wiring=${hasLnd}; adapter-l402.test.ts has ${itCount} it() blocks; integration-test markers matched: ${hitMarkers.length} of ${integrationMarkers.length}`
+  const evidence = `l402.ts present; LND wiring=${hasLnd}; L402 test files found=${testFiles.length}; total it() blocks=${itCount}; integration-test markers matched: ${hitMarkers.length} of ${integrationMarkers.length}`
   if (!hasLnd) {
     return fail(12, label, method, evidence, 'no Voltage/LND wiring in adapter')
+  }
+  if (testFiles.length === 0) {
+    return fail(
+      12,
+      label,
+      method,
+      evidence,
+      'no L402 test file found in either legacy or new location',
+    )
   }
   if (hitMarkers.length === 0) {
     // Adapter wired; tests exist; but none are integration-shaped.
@@ -928,7 +981,7 @@ async function check12_l402(): Promise<CheckResult> {
       label,
       method,
       evidence,
-      'all adapter-l402 tests are contract-level (no LND/voltage env, no fetch mock); integration coverage missing',
+      'all L402 tests are contract-level (no LND/voltage env, no fetch mock); integration coverage missing',
     )
   }
   return pass(12, label, method, evidence)
@@ -939,7 +992,7 @@ async function check12_l402(): Promise<CheckResult> {
 async function check13_consumerSdk(): Promise<CheckResult> {
   const label = 'Consumer SDK shipped (packages/client/ builds, ≥18 unit tests)'
   const method =
-    'check packages/client/ directory + createSettleGridClient export; count tests'
+    'check packages/client/ directory + createSettleGridClient export; count it() blocks across legacy packages/client/__tests__/ AND new packages/client/src/__tests__/ (whichever exist)'
   const pkgDir = repoFile('packages/client')
   if (!dirExists(pkgDir)) {
     return defer(
@@ -954,11 +1007,20 @@ async function check13_consumerSdk(): Promise<CheckResult> {
   )
   const indexFile = repoFile('packages/client/src/index.ts')
   const hasExport = /createSettleGridClient/.test(readTextOrEmpty(indexFile))
-  const evidence = `package=${pkgJson?.name ?? 'unknown'}, createSettleGridClient exported=${hasExport}`
-  if (pkgJson && hasExport) {
+  const testFiles = discoverPackageTestFiles(pkgDir)
+  let itCount = 0
+  for (const f of testFiles) {
+    itCount += [...readTextOrEmpty(f).matchAll(/\b(?:it|test)\s*\(/g)].length
+  }
+  const evidence = `package=${pkgJson?.name ?? 'unknown'}, createSettleGridClient exported=${hasExport}, test files=${testFiles.length}, it() blocks=${itCount}`
+  const missing: string[] = []
+  if (!pkgJson) missing.push('package.json')
+  if (!hasExport) missing.push('createSettleGridClient export')
+  if (itCount < 18) missing.push(`≥18 it() blocks (have ${itCount})`)
+  if (missing.length === 0) {
     return pass(13, label, method, evidence)
   }
-  return fail(13, label, method, evidence)
+  return fail(13, label, method, evidence, `missing: ${missing.join(', ')}`)
 }
 
 // ── Check 14: Per-rail pricing + unified ledger + tool-secret auth ───
