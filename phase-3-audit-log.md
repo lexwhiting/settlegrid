@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-23T18:54:56.965Z
+**Run timestamp:** 2026-04-23T19:10:04.195Z
 **Mode:** default
 **Verdict:** 9 PASS / 13 DEFER / 5 FAIL (of 27)
 **Exit code:** 1
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=6-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 6 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=8-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 8 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -101,7 +101,7 @@
 
 - **Verdict:** PASS
 - **Method:** check packages/client/ directory + createSettleGridClient export; count it() blocks across legacy packages/client/__tests__/ AND new packages/client/src/__tests__/ (whichever exist)
-- **Evidence:** package=@settlegrid/client, createSettleGridClient exported=true, test files=1, it() blocks=52
+- **Evidence:** package=@settlegrid/client, createSettleGridClient exported=true, test files=1, it() blocks=77
 
 ### C14 — Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK
 

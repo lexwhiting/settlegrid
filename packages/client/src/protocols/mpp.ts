@@ -32,6 +32,14 @@ export const mppPayer: ProtocolPayer = {
     ) {
       return null
     }
+    // Hostile fix H52: currency check. MPP's scaffold contract is
+    // USD-only. A lenient check — absent or explicitly 'USD' passes,
+    // anything else (EUR, BTC, etc.) returns null so the entry is
+    // skipped during selection. Without this, the client would
+    // mis-price a non-USD rail as USD cents and potentially pay an
+    // amount inconsistent with the wallet's SPT denomination.
+    const currency = (entry as { currency?: unknown }).currency
+    if (currency !== undefined && currency !== 'USD') return null
     return raw
   },
 

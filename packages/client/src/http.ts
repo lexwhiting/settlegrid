@@ -35,6 +35,17 @@ export async function streamTextCapped(
   response: Response,
   maxBytes: number,
 ): Promise<string> {
+  // Hostile fix H44 — defensive check on `maxBytes`. Callers inside
+  // this package pre-validate via `validateManifestCap`, but the
+  // function is exported module-internally and could gain additional
+  // call sites; accepting `maxBytes = 0 | -1 | NaN | 1.5` would
+  // either degrade to a silent no-cap (NaN comparisons are false) or
+  // immediately reject every read. Fail loud instead.
+  if (!Number.isInteger(maxBytes) || maxBytes < 1) {
+    throw new TypeError(
+      `streamTextCapped: \`maxBytes\` must be a positive integer; got ${JSON.stringify(maxBytes)}.`,
+    )
+  }
   // Fast-path: honest upstream sets Content-Length.
   const contentLengthHeader = response.headers.get('content-length')
   if (contentLengthHeader !== null) {
@@ -119,6 +130,24 @@ export function parsePaymentRequiredBody(raw: string): unknown {
     throw new Error('402 body is not a JSON object')
   }
   const asRecord = parsed as Record<string, unknown>
+  // Hostile fix H20 — strict protocol-version + error-marker checks.
+  // The x402 v2 body shape uses these two fields as a self-describing
+  // tag. Accepting a body without the tags (or with the wrong values)
+  // risks misinterpreting a future x402 v3 body — or a non-x402
+  // response that happens to have an `accepts` array — as if it were
+  // a v2 manifest and silently paying against incompatible semantics.
+  if (asRecord.x402Version !== 2) {
+    throw new Error(
+      `402 body has unsupported \`x402Version\` ` +
+        `(expected 2, got ${JSON.stringify(asRecord.x402Version)}).`,
+    )
+  }
+  if (asRecord.error !== 'payment_required') {
+    throw new Error(
+      `402 body has wrong \`error\` marker ` +
+        `(expected 'payment_required', got ${JSON.stringify(asRecord.error)}).`,
+    )
+  }
   if (!Array.isArray(asRecord.accepts)) {
     throw new Error('402 body is missing an `accepts` array')
   }

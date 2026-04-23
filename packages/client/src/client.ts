@@ -47,6 +47,32 @@ import type {
 const DEFAULT_MANIFEST_MAX_BYTES = 64 * 1024
 
 /**
+ * Hostile fix H3 — canonical set of rails this client knows how to
+ * pay. `preferredRails` values are validated against this set at
+ * call() time so a caller who passes `['sg-balance']` (or a typo'd
+ * 'mppp') gets a ClientConfigurationError with the list of valid
+ * rails, rather than a confusing NoSupportedProtocolError several
+ * fetch round-trips later.
+ */
+const KNOWN_RAILS: ReadonlySet<RailName> = new Set<RailName>([
+  'exact',
+  'mpp',
+  'l402',
+  'ap2',
+])
+
+/**
+ * Hostile fix H2 — same validation the seller-side
+ * `buildMultiProtocol402` applies to its outgoing `accepts[]`
+ * entries. A manifest entry whose `scheme` contains whitespace,
+ * quotes, backslashes, or CRLF could later feed into an error
+ * message, log line, or — via a third-party payer plugin — a header
+ * value. Dropping entries whose scheme doesn't match this pattern
+ * keeps the selection loop immune to adversarial scheme strings.
+ */
+const SAFE_SCHEME_PATTERN = /^[A-Za-z0-9._-]+$/
+
+/**
  * Result of {@link selectCheapestRail} — the winning rail bundle plus
  * the full sorted list (kept for future observability hooks).
  */
@@ -62,7 +88,16 @@ export function createSettleGridClient(
 ): SettleGridClient {
   // ─── Config validation ─────────────────────────────────────────────
   const fetchImpl = resolveFetch(config.fetch)
-  const wallets = config.wallets ?? {}
+  // Hostile fix H13 — shallow-clone the wallets dictionary so a
+  // caller who mutates `config.wallets` AFTER construction doesn't
+  // silently change this client's behavior. Wallet objects
+  // themselves are shared by reference — deep-cloning would be
+  // over-defensive (callers that mutate wallet *fields* to rotate
+  // credentials should be able to), but the top-level registry
+  // is now immune to "assign-over" mutations.
+  const wallets: Partial<Record<RailName, WalletRef>> = {
+    ...(config.wallets ?? {}),
+  }
   const defaultMaxCostCents = validateOptionalBudget(
     config.defaultMaxCostCents,
     'defaultMaxCostCents',
@@ -80,19 +115,34 @@ export function createSettleGridClient(
     options: CallOptions = {},
   ): Promise<Response> {
     validateToolUrl(toolUrl)
+    validateRetryableBody(request.body)
     const maxCostCents = validateOptionalBudget(
       options.maxCostCents ?? defaultMaxCostCents,
       'maxCostCents',
     )
     const preferredRails = options.preferredRails
-    if (
-      preferredRails !== undefined &&
-      (!Array.isArray(preferredRails) || preferredRails.length === 0)
-    ) {
-      throw new ClientConfigurationError({
-        field: 'preferredRails',
-        reason: 'must be a non-empty array or omitted entirely',
-      })
+    if (preferredRails !== undefined) {
+      if (!Array.isArray(preferredRails) || preferredRails.length === 0) {
+        throw new ClientConfigurationError({
+          field: 'preferredRails',
+          reason: 'must be a non-empty array or omitted entirely',
+        })
+      }
+      // Hostile fix H3 — every value must be a known rail. TypeScript
+      // enforces this at compile time; runtime callers (JS users,
+      // `as any` casts) could slip in an unknown value that would
+      // otherwise intersect to the empty set and surface as a
+      // confusing NoSupportedProtocolError two round-trips later.
+      for (const rail of preferredRails) {
+        if (!KNOWN_RAILS.has(rail)) {
+          throw new ClientConfigurationError({
+            field: 'preferredRails',
+            reason:
+              `unknown rail ${JSON.stringify(rail)} — must be one of ` +
+              `[${[...KNOWN_RAILS].join(', ')}]`,
+          })
+        }
+      }
     }
 
     const initialHeaders = mergeHeaders(request.headers, options.headers)
@@ -228,15 +278,67 @@ function validateToolUrl(toolUrl: unknown): asserts toolUrl is string {
   }
   // Parse as URL early so a malformed URL fails with a clear error
   // rather than a fetch "Invalid URL" buried several frames deep.
+  let parsed: URL
   try {
-    // eslint-disable-next-line no-new
-    new URL(toolUrl)
+    parsed = new URL(toolUrl)
   } catch {
     throw new ClientConfigurationError({
       field: 'toolUrl',
       reason: `invalid URL: ${toolUrl}`,
     })
   }
+  // Hostile fix H32 — restrict to http: / https:. The URL spec
+  // treats `javascript:`, `data:`, `vbscript:` as valid URLs, so
+  // without this check a caller (or a library that composes URLs
+  // from user input) could pass `javascript:alert(1)` and we'd
+  // happily forward it to fetch. Real fetches reject non-http(s)
+  // schemes, but the SDK's own boundary is the better place to
+  // fail — we surface the exact rejected scheme rather than a
+  // generic fetch error.
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new ClientConfigurationError({
+      field: 'toolUrl',
+      reason: `only http: and https: URLs are supported (got ${parsed.protocol})`,
+    })
+  }
+}
+
+/**
+ * Hostile fix H1 — reject request bodies whose internal
+ * representation is a one-shot stream. `call()` re-uses the
+ * `RequestInit.body` value on the retry fetch; if that body was a
+ * ReadableStream, the initial fetch consumed it and the retry either
+ * sends an empty body (silent data loss) or throws `TypeError: body
+ * stream is disturbed` (undici). Neither is acceptable — we throw
+ * a clean ClientConfigurationError at the boundary so the caller
+ * knows to buffer the stream before calling this SDK.
+ *
+ * Accepts the standard re-readable bodies fetch supports: `null`,
+ * `undefined`, `string`, `Blob`, `ArrayBuffer`, `TypedArray` /
+ * `DataView` (BufferSource), `FormData`, `URLSearchParams`.
+ */
+function validateRetryableBody(body: unknown): void {
+  if (body === null || body === undefined) return
+  if (typeof body === 'string') return
+  if (typeof Blob !== 'undefined' && body instanceof Blob) return
+  if (body instanceof ArrayBuffer) return
+  if (ArrayBuffer.isView(body)) return // TypedArray + DataView
+  if (typeof FormData !== 'undefined' && body instanceof FormData) return
+  if (
+    typeof URLSearchParams !== 'undefined' &&
+    body instanceof URLSearchParams
+  ) {
+    return
+  }
+  throw new ClientConfigurationError({
+    field: 'request.body',
+    reason:
+      'must be a re-readable type (string, Blob, ArrayBuffer, TypedArray, ' +
+      'DataView, FormData, URLSearchParams, null, or undefined). ' +
+      'ReadableStream bodies cannot be retried after a 402 because the ' +
+      'stream is consumed by the initial fetch — buffer the stream into ' +
+      'a Blob before calling client.call().',
+  })
 }
 
 function validateOptionalBudget(
@@ -303,10 +405,17 @@ async function readManifest(
     })
   }
   // Additional shape validation: every accepts entry must be a
-  // non-null object with a string `scheme`. Entries that fail this
-  // shape are DROPPED rather than rejecting the whole manifest —
-  // a single malformed entry should not take down a manifest that
-  // advertises three valid rails alongside one broken one.
+  // non-null object with a `scheme` string that matches
+  // {@link SAFE_SCHEME_PATTERN}. Entries that fail this shape are
+  // DROPPED rather than rejecting the whole manifest — a single
+  // malformed entry should not take down a manifest that advertises
+  // three valid rails alongside one broken one.
+  //
+  // Hostile fix H2: the pattern rejects empty schemes, schemes
+  // containing whitespace/quotes/CRLF/backslash, and arbitrary
+  // Unicode. Same regex the seller-side `buildMultiProtocol402`
+  // applies to its outgoing entries, so the client's filter mirrors
+  // the server's contract exactly.
   const body = parsed as PaymentRequiredBody
   const cleanAccepts: AcceptEntry[] = []
   for (const entry of body.accepts) {
@@ -314,7 +423,8 @@ async function readManifest(
       entry !== null &&
       typeof entry === 'object' &&
       !Array.isArray(entry) &&
-      typeof (entry as AcceptEntry).scheme === 'string'
+      typeof (entry as AcceptEntry).scheme === 'string' &&
+      SAFE_SCHEME_PATTERN.test((entry as AcceptEntry).scheme)
     ) {
       cleanAccepts.push(entry as AcceptEntry)
     }
