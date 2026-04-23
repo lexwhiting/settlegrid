@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-23T18:10:54.370Z
+**Run timestamp:** 2026-04-23T18:14:25.933Z
 **Mode:** default
 **Verdict:** 8 PASS / 14 DEFER / 5 FAIL (of 27)
 **Exit code:** 1
