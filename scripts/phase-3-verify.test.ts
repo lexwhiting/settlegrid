@@ -560,4 +560,111 @@ describe('discoverPackageTestFiles', () => {
     expect(r).toHaveLength(1)
     expect(r[0]).toMatch(/\/real\.test\.ts$/)
   })
+
+  it('includes .test.tsx files (React test convention)', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, 'src/__tests__/component.test.tsx')
+    stageFile(pkg, 'src/__tests__/logic.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(2)
+    expect(r.some((p) => p.endsWith('component.test.tsx'))).toBe(true)
+    expect(r.some((p) => p.endsWith('logic.test.ts'))).toBe(true)
+  })
+
+  it('orders files deterministically within a directory', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, 'src/__tests__/zebra.test.ts')
+    stageFile(pkg, 'src/__tests__/alpha.test.ts')
+    stageFile(pkg, 'src/__tests__/middle.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    const names = r.map((p) => p.split('/').pop())
+    expect(names).toEqual(['alpha.test.ts', 'middle.test.ts', 'zebra.test.ts'])
+  })
+
+  it('lists legacy __tests__/ files before src/__tests__/ files', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, 'src/__tests__/b.test.ts')
+    stageFile(pkg, '__tests__/a.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(2)
+    // Legacy location is checked first and its files come first in the
+    // result — guards against a caller accidentally relying on the new
+    // location being listed first.
+    expect(r[0]).toMatch(/\/__tests__\/a\.test\.ts$/)
+    expect(r[0]).not.toMatch(/\/src\/__tests__\//)
+    expect(r[1]).toMatch(/\/src\/__tests__\/b\.test\.ts$/)
+  })
+
+  it('returns empty array for an empty __tests__ directory', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    mkdirSync(join(pkg, 'src/__tests__'), { recursive: true })
+    // Empty dir: stageFile intentionally omitted.
+    expect(discoverPackageTestFiles(pkg)).toEqual([])
+  })
+
+  it('does not descend into nested subdirectories under __tests__', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, 'src/__tests__/top.test.ts')
+    // A nested test file should NOT be picked up — readdirSync is flat.
+    stageFile(pkg, 'src/__tests__/fixtures/nested.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/\/top\.test\.ts$/)
+  })
+
+  it('tolerates a __tests__ that is a regular file, not a directory', () => {
+    // Contrived: a package ships a `__tests__` file (not a directory).
+    // dirExists returns false → the helper silently skips; no crash.
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, '__tests__', 'not a dir')
+    stageFile(pkg, 'src/__tests__/ok.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/\/src\/__tests__\/ok\.test\.ts$/)
+  })
+})
+
+// ── discoverAdapterTestFiles — additional edges ─────────────────────
+
+describe('discoverAdapterTestFiles (extended)', () => {
+  it('defaults to REPO_ROOT when opts are omitted (no crash on unknown slug)', () => {
+    // Not passing opts exercises the default-repo-root branch.
+    // Returning [] is acceptable; crashing is not.
+    expect(() => discoverAdapterTestFiles('definitely-not-a-real-adapter-xyz')).not.toThrow()
+    const r = discoverAdapterTestFiles('definitely-not-a-real-adapter-xyz')
+    expect(Array.isArray(r)).toBe(true)
+  })
+
+  it('handles slugs with hyphens', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/foo-bar.test.ts')
+    const r = discoverAdapterTestFiles('foo-bar', { repoRoot: root })
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/\/foo-bar\.test\.ts$/)
+  })
+
+  it('does not match prefix-collision slugs', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/mppx.test.ts')
+    // Looking for 'mpp' must not match the sibling 'mppx.test.ts'.
+    const r = discoverAdapterTestFiles('mpp', { repoRoot: root })
+    expect(r).toEqual([])
+  })
+
+  it('legacy path matches the "adapter-<slug>" prefix exactly', () => {
+    const root = stageRepo()
+    // Decoy without the "adapter-" prefix — must NOT match the legacy
+    // location, which requires the explicit prefix convention.
+    stageFile(root, 'packages/mcp/src/__tests__/l402.test.ts')
+    stageFile(root, 'packages/mcp/src/__tests__/adapter-l402.test.ts')
+    const r = discoverAdapterTestFiles('l402', { repoRoot: root })
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/\/__tests__\/adapter-l402\.test\.ts$/)
+  })
 })
