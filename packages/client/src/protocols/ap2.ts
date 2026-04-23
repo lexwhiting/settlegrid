@@ -17,7 +17,7 @@
  */
 
 import type { AcceptEntry, WalletRef } from '../types'
-import { requireString, type ProtocolPayer } from './index'
+import { optionalString, requireString, type ProtocolPayer } from './index'
 
 export const ap2Payer: ProtocolPayer = {
   scheme: 'ap2',
@@ -33,6 +33,10 @@ export const ap2Payer: ProtocolPayer = {
     ) {
       return null
     }
+    // Hostile fix H57: currency check. AP2 scaffold is USD-only.
+    // Absent currency tolerated; non-USD returns null.
+    const currency = (entry as { currency?: unknown }).currency
+    if (currency !== undefined && currency !== 'USD') return null
     return raw
   },
 
@@ -46,15 +50,14 @@ export const ap2Payer: ProtocolPayer = {
     const headers: Record<string, string> = {
       'x-ap2-credential': vdcJwt,
     }
-    if (typeof wallet.consumerId === 'string' && wallet.consumerId.length > 0) {
-      // Re-validate length — consumerId was not passed through
-      // requireString because it's optional; the cap still applies.
-      if (wallet.consumerId.length > 16 * 1024) {
-        throw new TypeError(
-          'ap2 wallet field `consumerId` exceeds 16384-char cap.',
-        )
-      }
-      headers['x-ap2-consumer-id'] = wallet.consumerId
+    // Hostile fix H27 — route consumerId through `optionalString`
+    // so it is length-capped AND CRLF/NUL-guarded consistently with
+    // the required vdcJwt. The previous inline check enforced the
+    // length cap but NOT the control-character ban, leaving a
+    // header-injection path via a caller-controlled consumerId.
+    const consumerId = optionalString(wallet, 'consumerId', 'ap2')
+    if (consumerId !== undefined) {
+      headers['x-ap2-consumer-id'] = consumerId
     }
     return { headers }
   },
