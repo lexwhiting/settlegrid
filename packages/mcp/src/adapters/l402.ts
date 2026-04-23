@@ -946,14 +946,15 @@ export class L402Adapter implements ProtocolAdapter {
       )
     }
     const memo = options.memo ?? `SettleGrid: ${options.toolSlug}`
-    const invoiceParams: Parameters<VoltageClient['createInvoice']>[0] = {
-      amountMsat: options.amountMsat,
-      memo,
-    }
-    if (options.expirySeconds !== undefined) {
-      invoiceParams.expirySeconds = options.expirySeconds
-    }
-    const invoice = await options.lightningClient.createInvoice(invoiceParams)
+    const invoice = await options.lightningClient.createInvoice(
+      options.amountMsat,
+      {
+        memo,
+        ...(options.expirySeconds !== undefined
+          ? { expirySeconds: options.expirySeconds }
+          : {}),
+      },
+    )
     const amountSats = Math.ceil(options.amountMsat / 1000)
     const costCents = options.costCents ?? 0
     const macaroonLocation = options.macaroonLocation ?? `settlegrid:${options.toolSlug}`
@@ -1030,6 +1031,29 @@ export class L402Adapter implements ProtocolAdapter {
         },
       }
     }
+    // P3.K2 spec-diff fix F2 — enforce the macaroon's `amount_cents`
+    // caveat against the tool's current price. The amount is bound at
+    // mint time; a tool that raises its price between mint and redeem
+    // MUST reject stale macaroons rather than silently accepting them
+    // at the old price. Covers the step-5 "amount mismatch" test case.
+    const amountCentsCaveat = macaroon.caveats.find((c) => c.key === 'amount_cents')
+    if (amountCentsCaveat !== undefined) {
+      const boundAmount = Number.parseInt(amountCentsCaveat.value, 10)
+      if (
+        Number.isFinite(boundAmount) &&
+        boundAmount !== options.toolConfig.costCents
+      ) {
+        return {
+          valid: false,
+          macaroonId: macaroon.id,
+          error: {
+            code: 'L402_CAVEAT_VIOLATION',
+            message: `Macaroon amount_cents caveat (${boundAmount}) does not match tool cost (${options.toolConfig.costCents}). The tool's price changed since this macaroon was minted; retry with a fresh 402.`,
+          },
+        }
+      }
+    }
+
     const paymentHashCaveat = macaroon.caveats.find((c) => c.key === 'payment_hash')
     if (!paymentHashCaveat) {
       const logger = options.logger ?? NOOP_LOGGER
