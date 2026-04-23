@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-22T17:33:22.677Z
+**Run timestamp:** 2026-04-23T17:41:25.043Z
 **Mode:** default
 **Verdict:** 7 PASS / 14 DEFER / 6 FAIL (of 27)
 **Exit code:** 1
@@ -194,8 +194,8 @@
 
 - **Verdict:** DEFER
 - **Method:** grep git log in both repos for scaffold/spec-diff/hostile commits for P3.K1-K6, P3.RAIL1-3, P3.PYTHON1-5, P3.PROT1 (15 prompts)
-- **Evidence:** present=[P3.K1]; absent=[P3.K2, P3.K3, P3.K4, P3.K5, P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
-- **Detail:** 14/15 expansion prompts have no audit-chain commits — Phase 4 blocked
+- **Evidence:** present=[P3.K1, P3.K2]; absent=[P3.K3, P3.K4, P3.K5, P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
+- **Detail:** 13/15 expansion prompts have no audit-chain commits — Phase 4 blocked
 
 ## Remediation
 
