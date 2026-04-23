@@ -13,9 +13,19 @@
  *   npx vitest run scripts/phase-3-verify.test.ts
  */
 
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect } from 'vitest'
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, dirname } from 'node:path'
 import {
   aggregateResults,
+  discoverAdapterTestFiles,
+  discoverPackageTestFiles,
   escapeMdCell,
   fail,
   defer,
@@ -406,5 +416,148 @@ describe('formatPhase3Log', () => {
     expect(out).toMatch(/## Remediation/)
     expect(out).toMatch(/\| PREQ2 \|/)
     expect(out).not.toMatch(/## Phase 4 — UNBLOCKED/)
+  })
+})
+
+// ── Temp-dir fixture for test-file discovery helpers ────────────────
+//
+// `discoverAdapterTestFiles` and `discoverPackageTestFiles` operate on
+// real paths via `fs.stat` / `fs.readdir`, so we exercise them by
+// staging a throwaway repo root under `os.tmpdir()` per test and
+// tearing it down in afterEach. `discoverAdapterTestFiles` accepts an
+// `opts.repoRoot` override so the staged tree is fully isolated from
+// the real settlegrid checkout.
+
+let stagedDirs: string[] = []
+
+afterEach(() => {
+  for (const d of stagedDirs) {
+    try {
+      rmSync(d, { recursive: true, force: true })
+    } catch {
+      // Best-effort — next run's mkdtemp will land on a fresh prefix
+      // anyway, so a stranded dir doesn't leak into subsequent tests.
+    }
+  }
+  stagedDirs = []
+})
+
+function stageRepo(): string {
+  const t = mkdtempSync(join(tmpdir(), 'phase3-verify-'))
+  stagedDirs.push(t)
+  return t
+}
+
+function stageFile(root: string, rel: string, body = '// placeholder\n'): string {
+  const full = join(root, rel)
+  mkdirSync(dirname(full), { recursive: true })
+  writeFileSync(full, body, 'utf-8')
+  return full
+}
+
+// ── discoverAdapterTestFiles ────────────────────────────────────────
+
+describe('discoverAdapterTestFiles', () => {
+  it('returns both paths when both legacy and new locations exist', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/__tests__/adapter-foo.test.ts')
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/foo.test.ts')
+    const r = discoverAdapterTestFiles('foo', { repoRoot: root })
+    expect(r).toHaveLength(2)
+    expect(r[0]).toMatch(/packages\/mcp\/src\/__tests__\/adapter-foo\.test\.ts$/)
+    expect(r[1]).toMatch(/packages\/mcp\/src\/adapters\/__tests__\/foo\.test\.ts$/)
+  })
+
+  it('returns only the legacy path when only legacy exists', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/__tests__/adapter-foo.test.ts')
+    const r = discoverAdapterTestFiles('foo', { repoRoot: root })
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/__tests__\/adapter-foo\.test\.ts$/)
+  })
+
+  it('returns only the new path when only new exists', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/foo.test.ts')
+    const r = discoverAdapterTestFiles('foo', { repoRoot: root })
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/adapters\/__tests__\/foo\.test\.ts$/)
+  })
+
+  it('returns empty array when neither location exists', () => {
+    const root = stageRepo()
+    expect(discoverAdapterTestFiles('nope', { repoRoot: root })).toEqual([])
+  })
+
+  it('is adapter-slug specific — does not match sibling adapters', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/foo.test.ts')
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/bar.test.ts')
+    const foo = discoverAdapterTestFiles('foo', { repoRoot: root })
+    expect(foo).toHaveLength(1)
+    expect(foo[0]).toMatch(/\/foo\.test\.ts$/)
+  })
+
+  it('returns absolute paths rooted under the override', () => {
+    const root = stageRepo()
+    stageFile(root, 'packages/mcp/src/adapters/__tests__/foo.test.ts')
+    const [p] = discoverAdapterTestFiles('foo', { repoRoot: root })
+    expect(p.startsWith(root)).toBe(true)
+  })
+})
+
+// ── discoverPackageTestFiles ────────────────────────────────────────
+
+describe('discoverPackageTestFiles', () => {
+  it('returns files from both legacy __tests__/ and new src/__tests__/ when both exist', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, '__tests__/legacy-one.test.ts')
+    stageFile(pkg, 'src/__tests__/new-one.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(2)
+    expect(r.some((p) => /\/__tests__\/legacy-one\.test\.ts$/.test(p))).toBe(true)
+    expect(r.some((p) => /\/src\/__tests__\/new-one\.test\.ts$/.test(p))).toBe(true)
+  })
+
+  it('returns files from src/__tests__/ only when only the new location exists', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, 'src/__tests__/a.test.ts')
+    stageFile(pkg, 'src/__tests__/b.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(2)
+    for (const p of r) {
+      expect(p).toMatch(/\/src\/__tests__\//)
+    }
+  })
+
+  it('returns files from __tests__/ only when only the legacy location exists', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, '__tests__/a.test.ts')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/\/__tests__\/a\.test\.ts$/)
+    expect(r[0]).not.toMatch(/\/src\/__tests__\//)
+  })
+
+  it('returns empty array when neither location exists', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    // No __tests__ created, no src/__tests__ created.
+    expect(discoverPackageTestFiles(pkg)).toEqual([])
+  })
+
+  it('filters out non-test files', () => {
+    const root = stageRepo()
+    const pkg = join(root, 'packages/client')
+    stageFile(pkg, 'src/__tests__/real.test.ts')
+    stageFile(pkg, 'src/__tests__/README.md')
+    stageFile(pkg, 'src/__tests__/helpers.ts')
+    stageFile(pkg, 'src/__tests__/fixture.json')
+    const r = discoverPackageTestFiles(pkg)
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatch(/\/real\.test\.ts$/)
   })
 })

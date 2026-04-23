@@ -1,8 +1,8 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-23T17:41:25.043Z
+**Run timestamp:** 2026-04-23T18:10:54.370Z
 **Mode:** default
-**Verdict:** 7 PASS / 14 DEFER / 6 FAIL (of 27)
+**Verdict:** 8 PASS / 14 DEFER / 5 FAIL (of 27)
 **Exit code:** 1
 
 ## Deviations from prompt card
@@ -88,20 +88,19 @@
 ### C11 — MPP adapter wired (≥12 unit tests, Stripe test mode)
 
 - **Verdict:** PASS
-- **Method:** verify packages/mcp/src/adapters/mpp.ts exports MPPAdapter; count MPP-referencing it() blocks across P2K2 contract + coverage + protocol-adapters tests
-- **Evidence:** MPPAdapter exported; measured MPP-referencing test blocks = 45 across 7 test files; 4 of 7 test files reference Stripe test-mode context
+- **Method:** verify packages/mcp/src/adapters/mpp.ts exports MPPAdapter; count MPP-referencing it() blocks across P2K2 contract + coverage + protocol-adapters tests, plus the MPP adapter-specific test file (legacy __tests__/adapter-mpp.test.ts OR new adapters/__tests__/mpp.test.ts, whichever exist)
+- **Evidence:** MPPAdapter exported; measured MPP-referencing test blocks = 113 across 8 test files; 5 of 8 test files reference Stripe test-mode context
 
 ### C12 — L402 adapter wired with Voltage backend (≥1 integration test)
 
-- **Verdict:** FAIL
-- **Method:** verify packages/mcp/src/adapters/l402.ts exists + LND/macaroon wiring; count it() blocks in adapter-l402.test.ts; look for integration-test markers (LND mock / voltage fetch mock / L402_ENABLED env in tests)
-- **Evidence:** l402.ts present; LND wiring=true; adapter-l402.test.ts has 18 it() blocks; integration-test markers matched: 0 of 8
-- **Detail:** all adapter-l402 tests are contract-level (no LND/voltage env, no fetch mock); integration coverage missing
+- **Verdict:** PASS
+- **Method:** verify packages/mcp/src/adapters/l402.ts exists + LND/macaroon wiring; count it() blocks across legacy __tests__/adapter-l402.test.ts AND new adapters/__tests__/l402.test.ts; look for integration-test markers (LND mock / voltage fetch mock / L402_ENABLED env in tests)
+- **Evidence:** l402.ts present; LND wiring=true; L402 test files found=2; total it() blocks=104; integration-test markers matched: 2 of 8
 
 ### C13 — Consumer SDK shipped (packages/client/ builds, ≥18 unit tests)
 
 - **Verdict:** DEFER
-- **Method:** check packages/client/ directory + createSettleGridClient export; count tests
+- **Method:** check packages/client/ directory + createSettleGridClient export; count it() blocks across legacy packages/client/__tests__/ AND new packages/client/src/__tests__/ (whichever exist)
 - **Evidence:** packages/client/ missing — P3.K3 prompt not yet shipped
 
 ### C14 — Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK
@@ -208,7 +207,6 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
 | C7 | Template CI pipeline running weekly | DEFER | Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally. |
-| C12 | L402 adapter wired with Voltage backend (≥1 integration test) | FAIL | Add Voltage/LND integration test in adapter-l402.test.ts (P3.K2). |
 | C13 | Consumer SDK shipped (packages/client/ builds, ≥18 unit tests) | DEFER | Run P3.K3 (Consumer SDK). |
 | C14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | Run P3.K4 (per-rail pricing + ledger + tool-secret + verifyWebhook). |
 | C15 | DRAIN keccak-256 fix OR removal | FAIL | Run P3.K5 (DRAIN keccak-256 fix or removal). |
