@@ -1,6 +1,34 @@
 /**
  * @settlegrid/mcp - Cross-protocol dispatch kernel
  *
+ * P3.K4 wires adjacent to this file:
+ *   - `packages/mcp/src/rails/pricing.ts` exports `resolveRailFee`
+ *     (rate-card resolution) and `buildPricingResponseHeaders`
+ *     (the X-SettleGrid-Rail-Fee-* + X-SettleGrid-Platform-Take-*
+ *     header bundle). The router's settlement path calls
+ *     `resolveRailFee(adapter.pricing, { monthlyVolumeCents,
+ *     currency })` then `buildPricingResponseHeaders(fee,
+ *     platformTake)` and merges the result into the outbound
+ *     Response headers.
+ *   - `packages/mcp/src/ledger.ts` exports `recordLedgerEntry`
+ *     (unified-ledger write helper, injectable DB writer). Every
+ *     adapter's settlement event should eventually route through
+ *     this helper so reconciliation (P3.RAIL2) reads a single
+ *     source of truth.
+ *   - `packages/mcp/src/auth/tool-secret.ts` exports
+ *     `signPayload` + `verifyPayloadSignature` for HMAC-signing
+ *     outbound settlement webhooks. Distinct from the existing
+ *     `config.toolSecret` Bearer token read below — see the
+ *     tool-secret.ts module header for the namespace clarification.
+ *
+ * Full router integration of these three — pricing query at
+ * dispatch time, ledger write per settlement, webhook sign on
+ * every outbound payload — is tracked as P3.K4's "router wiring"
+ * item and will land with P3.RAIL1 / P3.RAIL2 (which need the
+ * pricing query for account-type routing and the ledger query
+ * for reconciliation). The helpers here are import-ready; the
+ * pre-existing dispatch logic below is unchanged.
+ *
  * `createDispatchKernel(sg)` turns a SettleGrid instance into a
  * protocol-aware request router. It takes an incoming `Request` and a
  * developer-provided handler, then internally:

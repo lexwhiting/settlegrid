@@ -1,6 +1,34 @@
 /**
  * P3.K4 — Tool-secret rotation + HMAC webhook signing.
  *
+ * ## Naming disambiguation (spec-diff F5)
+ *
+ * The P3.K4 spec card refers to a `tool_secret` that the kernel
+ * uses to HMAC-sign settlement webhooks. This is DISTINCT from the
+ * existing `config.toolSecret` field on the kernel config
+ * (packages/mcp/src/config.ts + kernel.ts line ~413), which is an
+ * outbound Bearer token sent to the facilitator over HTTPS.
+ *
+ *   - `config.toolSecret`     — outbound Bearer auth credential;
+ *                              used as `Authorization: Bearer <secret>`
+ *                              when the kernel POSTs to the
+ *                              facilitator's verify/settle endpoints.
+ *   - This module's secret    — HMAC signing key for OUTBOUND
+ *                              settlement webhooks the kernel sends
+ *                              to the developer's settlement endpoint.
+ *                              NEVER sent in plaintext (spec
+ *                              requirement: "the kernel never sends
+ *                              the secret in plaintext after
+ *                              creation").
+ *
+ * The two could in principle share a value but carry different
+ * lifetimes + usage surface; a future consolidation would rename
+ * `config.toolSecret` → `config.facilitatorBearer` to remove the
+ * collision. That rename is out of scope for P3.K4 (would require
+ * migrating every existing caller that reads `config.toolSecret`).
+ *
+ * ## Summary
+ *
  * Every developer's tool receives a long-lived `tool_secret` at
  * provisioning. SettleGrid HMAC-signs every outbound settlement
  * webhook with this secret; the developer's server verifies the

@@ -35,7 +35,9 @@ import {
   type LedgerEntry,
   // Pricing
   resolveRailFee,
+  buildPricingResponseHeaders,
   type RailPricingRateCard,
+  type ResolvedRailFee,
 } from '../index'
 
 // ─── Tool secret: generate + shape + sign + verify ──────────────────
@@ -345,6 +347,138 @@ describe('verifyWebhook', () => {
     await expect(verifyWebhook(req, SECRET, { maxBytes: 0 })).rejects.toThrow(
       TypeError,
     )
+  })
+
+  it('returns reason=body_read_failed when the body stream throws', async () => {
+    // Construct a ReadableStream that errors on first read. The
+    // verifyWebhook helper must catch, return a clean result rather
+    // than bubbling the transport error.
+    const broken = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error('transport reset'))
+      },
+    })
+    const { header } = signPayload('{}', SECRET, { timestamp: 1_700_000_000 })
+    const req = new Request('https://dev-app.example/webhook', {
+      method: 'POST',
+      body: broken,
+      headers: { [SETTLEGRID_SIGNATURE_HEADER]: header },
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' })
+    const result = await verifyWebhook(req, SECRET, {
+      clock: () => 1_700_000_000,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('body_read_failed')
+    expect(result.payload).toBeNull()
+  })
+
+  it('accepts a signature exactly at the tolerance boundary', async () => {
+    const { header } = signPayload('{}', SECRET, { timestamp: 1_700_000_000 })
+    const req = new Request('https://dev-app.example/webhook', {
+      method: 'POST',
+      body: '{}',
+      headers: { [SETTLEGRID_SIGNATURE_HEADER]: header },
+    })
+    // Exactly 60 seconds later with a 60-second tolerance — inside
+    // the inclusive window.
+    const result = await verifyWebhook(req, SECRET, {
+      toleranceSec: 60,
+      clock: () => 1_700_000_000 + 60,
+    })
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects one second past the tolerance boundary', async () => {
+    const { header } = signPayload('{}', SECRET, { timestamp: 1_700_000_000 })
+    const req = new Request('https://dev-app.example/webhook', {
+      method: 'POST',
+      body: '{}',
+      headers: { [SETTLEGRID_SIGNATURE_HEADER]: header },
+    })
+    const result = await verifyWebhook(req, SECRET, {
+      toleranceSec: 60,
+      clock: () => 1_700_000_000 + 61,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('signature_mismatch')
+  })
+})
+
+// ─── buildPricingResponseHeaders (F2) ───────────────────────────────
+
+describe('buildPricingResponseHeaders', () => {
+  const baseFee: ResolvedRailFee = {
+    percentBps: 290,
+    flatCents: 30,
+    sourceTier: 'base',
+  }
+
+  it('emits rail-fee headers only when platformTake is omitted', () => {
+    const h = buildPricingResponseHeaders(baseFee)
+    expect(h['x-settlegrid-rail-fee-bps']).toBe('290')
+    expect(h['x-settlegrid-rail-fee-cents']).toBe('30')
+    expect(h['x-settlegrid-rail-fee-tier']).toBe('base')
+    expect('x-settlegrid-platform-take-bps' in h).toBe(false)
+    expect('x-settlegrid-platform-take-cents' in h).toBe(false)
+  })
+
+  it('emits platform-take headers when provided', () => {
+    const h = buildPricingResponseHeaders(baseFee, {
+      percentBps: 100,
+      flatCents: 5,
+    })
+    expect(h['x-settlegrid-platform-take-bps']).toBe('100')
+    expect(h['x-settlegrid-platform-take-cents']).toBe('5')
+  })
+
+  it('platform-take flatCents defaults to 0 when omitted', () => {
+    const h = buildPricingResponseHeaders(baseFee, { percentBps: 100 })
+    expect(h['x-settlegrid-platform-take-cents']).toBe('0')
+  })
+
+  it('surfaces volume-tier tier label', () => {
+    const h = buildPricingResponseHeaders({
+      percentBps: 250,
+      flatCents: 30,
+      sourceTier: 'volume-tier',
+    })
+    expect(h['x-settlegrid-rail-fee-tier']).toBe('volume-tier')
+  })
+
+  it('throws TypeError on a malformed fee object', () => {
+    expect(() =>
+      buildPricingResponseHeaders(
+        null as unknown as ResolvedRailFee,
+      ),
+    ).toThrow(TypeError)
+    expect(() =>
+      buildPricingResponseHeaders({ ...baseFee, percentBps: -1 }),
+    ).toThrow(TypeError)
+    expect(() =>
+      buildPricingResponseHeaders({ ...baseFee, flatCents: -5 }),
+    ).toThrow(TypeError)
+  })
+
+  it('throws TypeError on malformed platformTake', () => {
+    expect(() =>
+      buildPricingResponseHeaders(baseFee, {
+        percentBps: 20000, // > 10000
+      }),
+    ).toThrow(TypeError)
+    expect(() =>
+      buildPricingResponseHeaders(baseFee, {
+        percentBps: 100,
+        flatCents: -1,
+      }),
+    ).toThrow(TypeError)
+  })
+
+  it('round-trips via fetch Headers (canonical lowercased keys)', () => {
+    const h = buildPricingResponseHeaders(baseFee, { percentBps: 100 })
+    const headers = new Headers(h)
+    expect(headers.get('X-SettleGrid-Rail-Fee-Bps')).toBe('290')
+    expect(headers.get('x-settlegrid-platform-take-bps')).toBe('100')
   })
 })
 

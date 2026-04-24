@@ -923,6 +923,7 @@ export type {
 
 export {
   resolveRailFee,
+  buildPricingResponseHeaders,
 } from './rails/pricing'
 export type {
   RailPricingRateCard,
@@ -932,6 +933,7 @@ export type {
 export type {
   RailFeeContext,
   ResolvedRailFee,
+  PlatformTake,
 } from './rails/pricing'
 
 export {
