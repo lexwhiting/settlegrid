@@ -166,8 +166,22 @@ export type LedgerWriter = (entry: LedgerEntry) => Promise<void>
  */
 export const LEDGER_ENTRY_METADATA_MAX_BYTES = 16 * 1024
 
+/**
+ * Maximum `amountCents` value accepted. One trillion cents = $10
+ * billion — well above any legitimate single-invocation transaction.
+ * Hostile fix H5: caps the `amountCents * takeBps` product so the
+ * computation can't escape Number.MAX_SAFE_INTEGER (2^53-1 ≈ 9e15),
+ * which would produce garbage values from Math.floor. Callers
+ * dealing with genuinely larger sums should split across multiple
+ * entries.
+ */
+export const LEDGER_ENTRY_MAX_AMOUNT_CENTS = 1_000_000_000_000
+
 /** Basis-point unit. `10000 = 100%`. */
 const BPS_DENOMINATOR = 10_000
+
+/** Max future skew (seconds) tolerated on `settledAt`. See H9. */
+const SETTLED_AT_FUTURE_SKEW_SEC = 5 * 60
 
 /**
  * Construct and persist a settlement ledger entry. Validates input at
@@ -209,17 +223,50 @@ export async function recordLedgerEntry(
   const protocol = requireNonEmpty(input.protocol, 'protocol')
   const currencyRaw = requireNonEmpty(input.currency, 'currency')
   const currency = currencyRaw.toLowerCase()
+  // Hostile fix H1/H3 — every string field that could end up in a
+  // downstream description / log / header line is sanitized against
+  // CR/LF/NUL. The existing ledger_entries.description column has no
+  // format constraint, so without this guard a poisoned invocationId
+  // would silently land in logs unescaped.
+  requireSafeHeaderValue(invocationId, 'invocationId')
   requireSafeHeaderValue(rail, 'rail')
   requireSafeHeaderValue(protocol, 'protocol')
   requireSafeHeaderValue(currency, 'currency')
 
   const amountCents = requireCents(input.amountCents, 'amountCents')
+  // Hostile fix H6 — align SDK with the DB's `amount_positive`
+  // check constraint. A 0-amount write would pass the SDK and then
+  // hit a constraint-violation SQLSTATE at insert; surfacing the
+  // violation here gives the caller a much more actionable error.
+  if (amountCents === 0) {
+    throw new RangeError(
+      'recordLedgerEntry: `amountCents` must be positive (DB check ' +
+        'constraint `ledger_entries_amount_positive` rejects rows with ' +
+        'amount=0; for a free-tool invocation, record it as a spend ' +
+        'entry with metadata rather than a 0-amount ledger row).',
+    )
+  }
+  // Hostile fix H5 — cap the amount so the downstream BigInt
+  // computation can always return a safely-representable Number.
+  if (amountCents > LEDGER_ENTRY_MAX_AMOUNT_CENTS) {
+    throw new RangeError(
+      `recordLedgerEntry: \`amountCents\` (${amountCents}) exceeds the ` +
+        `${LEDGER_ENTRY_MAX_AMOUNT_CENTS}-cent cap — settlements above ` +
+        `this threshold must be split into multiple entries.`,
+    )
+  }
   const takeBps = requireBps(input.takeBps, 'takeBps')
 
+  // Hostile fix H5 — use BigInt for the product to avoid Number
+  // MAX_SAFE_INTEGER overflow on large amounts. Because takeBps ≤
+  // BPS_DENOMINATOR, the result is bounded by amountCents (which is
+  // already capped above), so Number() conversion is safe.
   const takeCents =
     input.takeCents !== undefined
       ? requireCents(input.takeCents, 'takeCents')
-      : Math.floor((amountCents * takeBps) / BPS_DENOMINATOR)
+      : Number(
+          (BigInt(amountCents) * BigInt(takeBps)) / BigInt(BPS_DENOMINATOR),
+        )
   if (takeCents > amountCents) {
     throw new RangeError(
       `recordLedgerEntry: \`takeCents\` (${takeCents}) cannot exceed ` +
@@ -256,8 +303,16 @@ export async function recordLedgerEntry(
   }
 
   const sessionId = input.sessionId ?? null
-  if (sessionId !== null && typeof sessionId !== 'string') {
-    throw new TypeError('recordLedgerEntry: `sessionId` must be a string or null.')
+  if (sessionId !== null) {
+    if (typeof sessionId !== 'string') {
+      throw new TypeError(
+        'recordLedgerEntry: `sessionId` must be a string or null.',
+      )
+    }
+    // Hostile fix H1 — sessionId passes through to logs and the
+    // ledger_entries.session_id column; same control-char guard as
+    // every other string field.
+    requireSafeHeaderValue(sessionId, 'sessionId')
   }
 
   const externalRef = input.externalRef ?? null
@@ -295,6 +350,26 @@ export async function recordLedgerEntry(
     }
   }
 
+  // Hostile fix H10 — validate caller-supplied `id` is a UUID. The
+  // ledger_entries.id column is `uuid`; a non-UUID would be rejected
+  // by Postgres with a cryptic SQLSTATE, so we reject here with a
+  // clearer message.
+  if (input.id !== undefined) {
+    if (typeof input.id !== 'string' || !UUID_PATTERN.test(input.id)) {
+      throw new TypeError(
+        `recordLedgerEntry: \`id\`, when provided, must be a UUID; got ${JSON.stringify(
+          input.id,
+        )}.`,
+      )
+    }
+  }
+  // Hostile fix H12 — validate caller-supplied `createdAt` is an
+  // ISO-8601 timestamp. Same reasoning as settledAt: Postgres would
+  // reject a malformed value at insert time with a cryptic error.
+  if (input.createdAt !== undefined) {
+    requireIsoTimestamp(input.createdAt, 'createdAt')
+  }
+
   const entry: LedgerEntry = {
     id: input.id ?? randomUUID(),
     invocationId,
@@ -323,21 +398,27 @@ export async function recordLedgerEntry(
  * that define the settlement — id/createdAt/metadata are NOT
  * included because they vary per-write-retry but don't change the
  * settled fact.
+ *
+ * Hostile fix H11 — serializes via JSON.stringify with a fixed key
+ * order instead of a `|`-joined string. A field value containing
+ * `|` would otherwise collide with a different field arrangement
+ * (`rail='a|b',protocol='c'` vs `rail='a',protocol='b|c'`). JSON
+ * escaping makes every value unambiguously bounded.
  */
 export function fingerprintLedgerEntry(entry: LedgerEntry): string {
-  const canonical = [
-    entry.invocationId,
-    entry.sessionId ?? '',
-    entry.rail,
-    entry.protocol,
-    String(entry.amountCents),
-    entry.currency,
-    String(entry.takeBps),
-    String(entry.takeCents),
-    entry.status,
-    entry.settledAt ?? '',
-    entry.externalRef ?? '',
-  ].join('|')
+  const canonical = JSON.stringify({
+    invocationId: entry.invocationId,
+    sessionId: entry.sessionId,
+    rail: entry.rail,
+    protocol: entry.protocol,
+    amountCents: entry.amountCents,
+    currency: entry.currency,
+    takeBps: entry.takeBps,
+    takeCents: entry.takeCents,
+    status: entry.status,
+    settledAt: entry.settledAt,
+    externalRef: entry.externalRef,
+  })
   return createHash('sha256').update(canonical).digest('hex')
 }
 
@@ -346,6 +427,9 @@ export function fingerprintLedgerEntry(entry: LedgerEntry): string {
 const HEADER_FORBIDDEN_CHARS = /[\x00\r\n]/
 const ISO_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/
+/** RFC 4122 UUID format (case-insensitive). */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const VALID_STATUSES: ReadonlySet<LedgerEntryStatus> = new Set<LedgerEntryStatus>([
   'pending',

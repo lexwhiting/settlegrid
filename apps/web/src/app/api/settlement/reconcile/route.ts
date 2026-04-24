@@ -19,6 +19,7 @@
  */
 
 import { NextRequest } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import {
   successResponse,
   errorResponse,
@@ -27,6 +28,15 @@ import {
 import { verifyLedgerIntegrity } from '@/lib/settlement/ledger'
 
 export const maxDuration = 30
+
+/**
+ * Minimum admin-key length. Short keys are brute-forceable; 32
+ * chars (256 bits at base64) is the conventional minimum for a
+ * sensitive-operator credential. Hostile fix H45: without this
+ * guard, an operator who set `SETTLEGRID_ADMIN_KEY=foo` would
+ * effectively have a guessable endpoint.
+ */
+const MIN_ADMIN_KEY_LENGTH = 32
 
 export async function GET(request: NextRequest): Promise<Response> {
   try {
@@ -41,8 +51,34 @@ export async function GET(request: NextRequest): Promise<Response> {
         'NOT_ENABLED',
       )
     }
+    if (adminKey.length < MIN_ADMIN_KEY_LENGTH) {
+      // Hostile fix H45 — a short admin key is brute-forceable.
+      // We intentionally DO NOT leak the min-length in the public
+      // error body; operators discover it via application logs.
+      return errorResponse(
+        'reconciliation endpoint not enabled',
+        503,
+        'NOT_ENABLED',
+      )
+    }
     const providedKey = request.headers.get('x-admin-key')
-    if (providedKey !== adminKey) {
+    if (typeof providedKey !== 'string' || providedKey.length === 0) {
+      return errorResponse('unauthenticated', 401, 'UNAUTHENTICATED')
+    }
+    // Hostile fix H42 — timing-safe equality. A plain `!==` check
+    // leaks the admin-key byte-by-byte through response-time
+    // analysis; an attacker observing microsecond differences can
+    // guess the key one character at a time. timingSafeEqual
+    // requires equal-length Buffers; we short-circuit the
+    // length-mismatch case to a stable false (the length-check
+    // short-circuit IS itself timing-safe: an attacker learns only
+    // the key's length, which is no secret).
+    const providedBuf = Buffer.from(providedKey)
+    const adminBuf = Buffer.from(adminKey)
+    const keysMatch =
+      providedBuf.length === adminBuf.length &&
+      timingSafeEqual(providedBuf, adminBuf)
+    if (!keysMatch) {
       return errorResponse('unauthenticated', 401, 'UNAUTHENTICATED')
     }
 
