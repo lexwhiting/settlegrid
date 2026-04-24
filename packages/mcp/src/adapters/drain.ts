@@ -6,15 +6,27 @@
  *   - Subsequent payments are off-chain signed vouchers
  *   - Micropayments as low as $0.0001
  *
- * P2.K2 migrates the lib/drain-proxy.ts logic into this adapter file.
- * Signature verification is structural (sha256 stand-in for keccak256)
- * pending integration of a real keccak+ecrecover implementation
- * (ethers.js or equivalent) — this matches the lib behavior.
+ * P3.K5 — EIP-712 hashing uses real Keccak-256 via `@noble/hashes/sha3`
+ * (NOT FIPS SHA-3; Ethereum / DRAIN use Keccak-256, which is the
+ * pre-FIPS Keccak round that Node's `createHash('sha3-256')` does
+ * NOT produce). The prior scaffold used SHA-256 as a structural
+ * stand-in; the P1.MKT1 audit flagged this as cryptographically
+ * broken because a voucher hash computed under SHA-256 never
+ * matches the on-chain Ethereum verifier's expectation. This file
+ * now matches the DRAIN spec's EIP-712 digest exactly.
+ *
+ * Signature RECOVERY (ecrecover) remains stubbed at this phase —
+ * `verifyVoucherSignature` checks shape (65-byte hex) but does not
+ * derive the signer's address from the signature + voucher hash.
+ * Full ecrecover integration is tracked separately (would pull
+ * `@noble/curves/secp256k1`); the hash side being correct is the
+ * precondition for that work.
  *
  * @see https://docs.bittensor.com/
  */
 
-import { createHash } from 'crypto'
+import { keccak_256 } from '@noble/hashes/sha3'
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils'
 import { randomUUID } from 'crypto'
 import type {
   AcceptEntry,
@@ -175,14 +187,22 @@ function extractVoucher(obj: Record<string, unknown>): DrainVoucher | null {
   }
 }
 
-// ─── EIP-712 hash (structural — sha256 stand-in for keccak256) ──────────
+// ─── EIP-712 hash (genuine Keccak-256, P3.K5) ───────────────────────────
+//
+// Both helpers emit lowercase hex. `keccak256` hashes a UTF-8-encoded
+// string; `keccak256Hex` hashes the raw bytes decoded from a hex string
+// (used for the EIP-712 concat-and-hash chain where inputs are already
+// hex-encoded). The `@noble/hashes/sha3` package exports `keccak_256`
+// — the pre-FIPS Keccak round, distinct from SHA-3's `sha3_256` which
+// uses a different padding rule. Ethereum / EIP-712 require
+// `keccak_256`.
 
 function keccak256(input: string): string {
-  return createHash('sha256').update(input).digest('hex')
+  return bytesToHex(keccak_256(new TextEncoder().encode(input)))
 }
 
 function keccak256Hex(hexInput: string): string {
-  return createHash('sha256').update(Buffer.from(hexInput, 'hex')).digest('hex')
+  return bytesToHex(keccak_256(hexToBytes(hexInput)))
 }
 
 function padAddress(address: string): string {
