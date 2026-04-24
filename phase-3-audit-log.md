@@ -1,8 +1,8 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-24T00:24:12.234Z
+**Run timestamp:** 2026-04-24T00:48:42.475Z
 **Mode:** default
-**Verdict:** 9 PASS / 13 DEFER / 5 FAIL (of 27)
+**Verdict:** 10 PASS / 13 DEFER / 4 FAIL (of 27)
 **Exit code:** 1
 
 ## Deviations from prompt card
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=1-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 1 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=9-tracked-dirty,16-untracked; agents=0-tracked-dirty,0-untracked — 9 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -105,10 +105,9 @@
 
 ### C14 — Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK
 
-- **Verdict:** FAIL
+- **Verdict:** PASS
 - **Method:** schema.ts has ledgerEntries with protocol column; kernel.ts references toolSecret; packages/mcp exports verifyWebhook
-- **Evidence:** ledger-table=true, protocol-on-sessions=true, rail-on-ledger=true, toolSecret-in-kernel=true, verifyWebhook-in-SDK=false, ledger-migration=false, settlement-ledger-module=true, ledger-imports-in-api=0
-- **Detail:** missing: verifyWebhook in SDK, ledger_entries migration SQL, adapter-dispatch → ledger wiring
+- **Evidence:** ledger-table=true, protocol-on-sessions=true, rail-on-ledger=true, toolSecret-in-kernel=true, verifyWebhook-in-SDK=true, ledger-migration=true, settlement-ledger-module=true, ledger-imports-in-api=1
 
 ### C15 — DRAIN keccak-256 fix OR removal
 
@@ -207,7 +206,6 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
 | C7 | Template CI pipeline running weekly | DEFER | Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally. |
-| C14 | Per-rail pricing + unified ledger + tool-secret auth + verifyWebhook in SDK | FAIL | Run P3.K4 (per-rail pricing + ledger + tool-secret + verifyWebhook). |
 | C15 | DRAIN keccak-256 fix OR removal | FAIL | Run P3.K5 (DRAIN keccak-256 fix or removal). |
 | C16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | Run P3.RAIL1 (Stripe account-type router + eligibility pre-check + waitlist UI). |
 | C17 | Stripe Connect reconciliation + drift detection | DEFER | Run P3.RAIL2 (Stripe reconciliation + drift detection). |
