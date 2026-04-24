@@ -918,3 +918,60 @@ export type {
   BuildRegistryOptions,
   RailRegistry,
 } from './rails'
+
+// ─── P3.K4 — Per-rail pricing + unified ledger + tool-secret auth ───
+
+export {
+  resolveRailFee,
+} from './rails/pricing'
+export type {
+  RailPricingRateCard,
+  RailPricingVolumeTier,
+  RailPricingCurrencySurcharge,
+} from './rails/types'
+export type {
+  RailFeeContext,
+  ResolvedRailFee,
+} from './rails/pricing'
+
+export {
+  recordLedgerEntry,
+  fingerprintLedgerEntry,
+  LEDGER_ENTRY_METADATA_MAX_BYTES,
+} from './ledger'
+export type {
+  LedgerEntry,
+  LedgerEntryStatus,
+  RecordLedgerEntryInput,
+  LedgerWriter,
+} from './ledger'
+
+export {
+  generateToolSecret,
+  isValidToolSecretShape,
+  signPayload,
+  verifyPayloadSignature,
+  rotateToolSecret,
+  verifyWithRotation,
+  TOOL_SECRET_BYTES,
+  TOOL_SECRET_HEX_LENGTH,
+  SIGNATURE_VERSION,
+  DEFAULT_TIMESTAMP_TOLERANCE_SEC,
+  ROTATION_GRACE_SEC,
+} from './auth/tool-secret'
+export type {
+  ToolSecretState,
+  SignedPayload,
+  SignOptions,
+  VerifyOptions,
+} from './auth/tool-secret'
+
+export {
+  verifyWebhook,
+  SETTLEGRID_SIGNATURE_HEADER,
+  DEFAULT_WEBHOOK_MAX_BYTES,
+} from './verifyWebhook'
+export type {
+  VerifyWebhookOptions,
+  VerifyWebhookResult,
+} from './verifyWebhook'

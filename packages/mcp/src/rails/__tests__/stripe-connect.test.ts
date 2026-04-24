@@ -116,7 +116,13 @@ describe('StripeRailAdapter — exports', () => {
     expect(STRIPE_CONNECT_CAPABILITIES.individualCountries).toContain('US')
     expect(STRIPE_CONNECT_CAPABILITIES.payoutCurrencies).toContain('USD')
     expect(STRIPE_CONNECT_COMPLIANCE.chargebacks).toBe('settlegrid')
-    expect(STRIPE_CONNECT_PRICING.percentBps).toBe(30)
+    // P3.K4 updated the placeholder pricing to match real Stripe rates
+    // (2.9% + 30¢ for US card processing) so the rate-card shape is a
+    // plausible reference. Legacy `percentBps` alias tracks the base
+    // tier so older dashboards still read the right top-line rate.
+    expect(STRIPE_CONNECT_PRICING.basePercentBps).toBe(290)
+    expect(STRIPE_CONNECT_PRICING.baseFlatCents).toBe(30)
+    expect(STRIPE_CONNECT_PRICING.percentBps).toBe(290)
     expect(STRIPE_CONNECT_DISPLAY_NAME).toBe('Stripe Connect')
   })
 })

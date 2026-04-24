@@ -814,6 +814,21 @@ export const ledgerEntries = pgTable(
     // ISO-3166 alpha-2 country code for non-US; 'US-<state>' (e.g.,
     // 'US-CA') for US. NULL when no tax was collected.
     taxJurisdiction: varchar('tax_jurisdiction', { length: 8 }),
+    // ─── P3.K4 unified settlement columns ─────────────────────────
+    // All rail adapters write to this single table via
+    // packages/mcp/src/ledger.ts's recordLedgerEntry() helper — see
+    // apps/web/src/lib/settlement/ledger.ts for the Postgres writer.
+    // Columns are nullable so existing double-entry balance rows
+    // (which don't carry a rail/protocol/take) continue to work
+    // without backfilling.
+    sessionId: uuid('session_id'),
+    rail: text('rail'),
+    protocol: text('protocol'),
+    takeBps: integer('take_bps'),
+    takeCents: integer('take_cents'),
+    settlementStatus: text('settlement_status'),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    externalRef: text('external_ref'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -821,6 +836,13 @@ export const ledgerEntries = pgTable(
     index('ledger_entries_category_idx').on(table.category),
     index('ledger_entries_operation_id_idx').on(table.operationId),
     index('ledger_entries_created_at_idx').on(table.createdAt),
+    // P3.K4 — reconciliation queries filter by rail + status so
+    // both get an index. session_id gets one too so multi-hop
+    // workflow queries stay O(log n).
+    index('ledger_entries_rail_idx').on(table.rail),
+    index('ledger_entries_settlement_status_idx').on(table.settlementStatus),
+    index('ledger_entries_session_id_idx').on(table.sessionId),
+    index('ledger_entries_external_ref_idx').on(table.externalRef),
     check('ledger_entries_amount_positive', sql`${table.amountCents} > 0`),
     check('ledger_entries_entry_type_check', sql`${table.entryType} IN ('debit', 'credit')`),
     // P2.TAX1 — tax-cents and jurisdiction are tied: non-zero tax
@@ -832,6 +854,40 @@ export const ledgerEntries = pgTable(
       sql`(${table.taxCents} = 0 AND ${table.taxJurisdiction} IS NULL)
           OR (${table.taxCents} > 0 AND ${table.taxJurisdiction} IS NOT NULL)
           OR (${table.taxCents} = 0 AND ${table.taxJurisdiction} IS NOT NULL)`,
+    ),
+    // P3.K4 — settlement_status is a closed enum; check constraint
+    // enforces the valid values at the DB level so an adapter that
+    // forgets to convert its native status can't silently write
+    // garbage.
+    check(
+      'ledger_entries_settlement_status_check',
+      sql`${table.settlementStatus} IS NULL OR ${table.settlementStatus} IN (
+          'pending', 'settled', 'voided', 'failed', 'reversed'
+        )`,
+    ),
+    // P3.K4 — settlement rows carry a take (platform fee in bps +
+    // cents). Enforce the trivial constraints at the DB so a
+    // reconciliation SUM cannot return negative / out-of-range
+    // values from a single bad row.
+    check(
+      'ledger_entries_take_bps_range',
+      sql`${table.takeBps} IS NULL
+          OR (${table.takeBps} >= 0 AND ${table.takeBps} <= 10000)`,
+    ),
+    check(
+      'ledger_entries_take_cents_nonneg',
+      sql`${table.takeCents} IS NULL OR ${table.takeCents} >= 0`,
+    ),
+    // A settled row MUST carry a settledAt timestamp; a non-settled
+    // row MUST NOT (matches the shape check in
+    // packages/mcp/src/ledger.ts). NULL status is allowed (the
+    // legacy double-entry balance rows pre-date P3.K4 and don't
+    // populate status at all).
+    check(
+      'ledger_entries_settled_at_shape',
+      sql`(${table.settlementStatus} IS NULL AND ${table.settledAt} IS NULL)
+          OR (${table.settlementStatus} = 'settled' AND ${table.settledAt} IS NOT NULL)
+          OR (${table.settlementStatus} IS NOT NULL AND ${table.settlementStatus} <> 'settled' AND ${table.settledAt} IS NULL)`,
     ),
   ]
 )

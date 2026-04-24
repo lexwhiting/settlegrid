@@ -462,8 +462,35 @@ export const STRIPE_CONNECT_COMPLIANCE = {
  */
 export const STRIPE_CONNECT_DISPLAY_NAME = 'Stripe Connect' as const
 
+/**
+ * P3.K4 — Stripe Connect rate card. Values are illustrative for the
+ * scaffold:
+ *   - Base: 2.9% + 30 cents (Stripe's stated US card processing)
+ *   - Volume tier at $50k / month: 2.7% (negotiated tier, placeholder)
+ *   - Volume tier at $250k / month: 2.5% (enterprise, placeholder)
+ *   - GBP / EUR surcharge: +100 bps (Stripe cross-border + FX markup)
+ *
+ * The precise numbers are operator-configurable and should come from
+ * the developer's signed Stripe contract — the shape here is what the
+ * router consumes. `percentBps` / `flatCents` are aliased to the base
+ * so legacy readers keep working during the migration.
+ */
 export const STRIPE_CONNECT_PRICING = {
-  percentBps: 30, // 0.30% - actual cost varies by country / card type
+  basePercentBps: 290,
+  baseFlatCents: 30,
+  volumeTiers: [
+    { minMonthlyCents: 5_000_000, percentBps: 270, flatCents: 30 },
+    { minMonthlyCents: 25_000_000, percentBps: 250, flatCents: 30 },
+  ],
+  currencySurcharges: {
+    GBP: { percentBps: 100 },
+    EUR: { percentBps: 100 },
+  },
+  // Legacy aliases — read by code paths that haven't migrated to the
+  // rate-card reader. Populated from the base tier so existing
+  // `adapter.pricing.percentBps` references continue to return the
+  // "starter" rate (which is what they assumed pre-P3.K4).
+  percentBps: 290,
   flatCents: 30,
   notes:
     'Reference only — actual Stripe fees depend on country, card type, and currency. See https://stripe.com/pricing',

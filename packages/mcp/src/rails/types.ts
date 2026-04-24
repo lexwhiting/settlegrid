@@ -177,12 +177,20 @@ export interface RailAdapter {
   readonly capabilities: RailCapabilities
   /** Compliance obligation split. */
   readonly compliance: ComplianceResponsibility
-  /** Rail pricing — basis points + flat cents per transaction. */
-  readonly pricing: {
-    percentBps: number
-    flatCents: number
-    notes?: string
-  }
+  /**
+   * Rail pricing rate card (P3.K4). Extended from the P2.RAIL1
+   * flat-fee shape to support volume-based tiering and
+   * currency-specific surcharges — the abstractions the router uses
+   * to expose fee differences transparently and what the Stripe rail
+   * hardening work (P3.RAIL1-3) depends on.
+   *
+   * For a base rail with no tiers, populate only `basePercentBps` +
+   * `baseFlatCents`. The legacy `percentBps` + `flatCents` fields
+   * remain as readable aliases (populated to match `basePercentBps`
+   * / `baseFlatCents`) so callers that haven't migrated to the rate
+   * card yet continue to work.
+   */
+  readonly pricing: RailPricingRateCard
 
   /**
    * Begin onboarding for a developer. Returns a URL the developer
@@ -214,4 +222,80 @@ export interface RailAdapter {
    * not relevant to SettleGrid's internal state.
    */
   handleWebhook(event: unknown): Promise<SettleGridInternalEvent | null>
+}
+
+/**
+ * P3.K4 rail-pricing rate card. All fields are caller-facing via the
+ * RailAdapter.pricing surface so the router can:
+ *
+ *   1. Read `basePercentBps` + `baseFlatCents` to quote the
+ *      "starter" fee a new developer sees.
+ *   2. Walk `volumeTiers` (sorted ascending by minMonthlyCents, the
+ *      first tier whose threshold is below or equal to the
+ *      developer's current monthly volume is the active tier) to
+ *      discount fees for higher-volume developers.
+ *   3. Apply `currencySurcharges[currency]` on top of the base /
+ *      tier rate when settling in a non-native currency.
+ *
+ * The resolver for these fields lives in `rails/pricing.ts` as
+ * `resolveRailFee(pricing, context)`. Adapters never resolve their
+ * own rate — they simply publish the card and the router picks the
+ * applicable fee for the in-flight invocation.
+ */
+export interface RailPricingRateCard {
+  /** Base fee percentage in basis points (0-10000). */
+  basePercentBps: number
+  /** Base flat fee in cents per transaction. Non-negative integer. */
+  baseFlatCents: number
+  /**
+   * Volume-tier overrides. When the developer's current monthly
+   * volume (in cents) is ≥ `minMonthlyCents` for a given tier, that
+   * tier's `percentBps` / `flatCents` override the base. Tiers with
+   * a lower threshold AND matching criteria win over the base, and
+   * among candidates the resolver picks the HIGHEST threshold that
+   * still qualifies (so "$100k+ tier" beats "$10k+ tier" for a
+   * $150k developer). Empty or omitted → base always applies.
+   */
+  volumeTiers?: readonly RailPricingVolumeTier[]
+  /**
+   * Per-currency surcharge layered on top of the base / tier rate.
+   * The surcharge's `percentBps` is ADDED to the resolved
+   * percentage — e.g., a base of `basePercentBps: 290` with a GBP
+   * surcharge of `percentBps: 100` yields 390 bps when settling in
+   * GBP. Keyed by ISO-4217 alpha-3 (case-insensitive at resolve
+   * time). Currencies not in the map carry no surcharge.
+   */
+  currencySurcharges?: Readonly<Record<string, RailPricingCurrencySurcharge>>
+  /**
+   * Legacy flat-rate alias for `basePercentBps`. Populated to match
+   * `basePercentBps` in any adapter upgraded to the rate-card shape,
+   * so code paths that read the flat rate continue working without
+   * reshaping their reader. New adapter code SHOULD read the rate
+   * card directly — `percentBps` will be removed in a future phase.
+   */
+  percentBps: number
+  /** Legacy flat-rate alias for `baseFlatCents`. See `percentBps`. */
+  flatCents: number
+  /** Free-form rate-card notes for operator dashboards. */
+  notes?: string
+}
+
+/** One volume-tier override on a {@link RailPricingRateCard}. */
+export interface RailPricingVolumeTier {
+  /** Monthly volume threshold in cents; tier activates at ≥ this. */
+  minMonthlyCents: number
+  /** Basis-point fee when this tier is active. */
+  percentBps: number
+  /** Flat cents fee when this tier is active. */
+  flatCents: number
+  /** Free-form operator notes (e.g., "Enterprise negotiated rate"). */
+  notes?: string
+}
+
+/** Per-currency fee surcharge added to the resolved base/tier rate. */
+export interface RailPricingCurrencySurcharge {
+  /** Additional basis points added to the resolved percentage. */
+  percentBps: number
+  /** Additional flat cents added to the resolved flat fee. */
+  flatCents?: number
 }
