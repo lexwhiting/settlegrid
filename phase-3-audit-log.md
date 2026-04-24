@@ -1,8 +1,8 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-24T01:22:02.054Z
+**Run timestamp:** 2026-04-24T03:02:30.684Z
 **Mode:** default
-**Verdict:** 10 PASS / 13 DEFER / 4 FAIL (of 27)
+**Verdict:** 11 PASS / 13 DEFER / 3 FAIL (of 27)
 **Exit code:** 1
 
 ## Deviations from prompt card
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=2-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 2 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=4-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 4 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -111,10 +111,9 @@
 
 ### C15 — DRAIN keccak-256 fix OR removal
 
-- **Verdict:** FAIL
+- **Verdict:** PASS
 - **Method:** drain.ts either (a) imports @noble/hashes keccak and a test asserts vector parity, or (b) drain.ts removed + no kernel/marketing references remain
-- **Evidence:** drain.ts present; noble-keccak import=false; explicit-stand-in-comment=true; vector-test-in-suite=false
-- **Detail:** drain.ts still uses sha256 stand-in or lacks keccak vector test — see P3.K5
+- **Evidence:** drain.ts present; noble-keccak import=true; explicit-stand-in-comment=false; vector-test-in-suite=true
 
 ### C16 — Stripe account-type router + eligibility pre-check + waitlist shipped
 
@@ -206,7 +205,6 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
 | C7 | Template CI pipeline running weekly | DEFER | Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally. |
-| C15 | DRAIN keccak-256 fix OR removal | FAIL | Run P3.K5 (DRAIN keccak-256 fix or removal). |
 | C16 | Stripe account-type router + eligibility pre-check + waitlist shipped | FAIL | Run P3.RAIL1 (Stripe account-type router + eligibility pre-check + waitlist UI). |
 | C17 | Stripe Connect reconciliation + drift detection | DEFER | Run P3.RAIL2 (Stripe reconciliation + drift detection). |
 | C18 | Payout schedule config + chargeback velocity monitoring | DEFER | Run P3.RAIL3 (payouts UI + chargeback velocity). |
