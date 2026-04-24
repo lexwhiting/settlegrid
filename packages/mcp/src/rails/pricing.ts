@@ -206,3 +206,78 @@ function assertFlatCents(value: unknown, field: string): void {
     )
   }
 }
+
+// ─── Response-header helper (P3.K4 spec-diff F2) ────────────────────
+//
+// The P3.K4 card requires that the router "exposes both the rail's
+// fee and SettleGrid's progressive take in the response headers."
+// `resolveRailFee` handles the rail side; the SettleGrid platform
+// take is caller-supplied (tracked per-LedgerEntry via
+// takeBps/takeCents, not on the rate card itself).
+//
+// `buildPricingResponseHeaders` is the pure function the router
+// calls with both numbers to produce a standard, grep-able header
+// set. Downstream dashboards + SDK-consumer code read the same
+// headers regardless of which rail served the invocation.
+
+/**
+ * Optional platform-take override. When omitted, the response
+ * emits the rail side only — useful in environments where the
+ * take is computed later (after the ledger row has settled).
+ */
+export interface PlatformTake {
+  /** Platform markup in basis points (0-10000). */
+  percentBps: number
+  /** Platform flat fee in cents (default 0). */
+  flatCents?: number
+}
+
+/**
+ * Build the `X-SettleGrid-*` response header bundle the router
+ * attaches to the invocation response. Keys stay lowercase so
+ * fetch / Node's `Headers` surface consumers see canonical names
+ * regardless of caller capitalization.
+ *
+ * Example output:
+ *
+ *   {
+ *     'x-settlegrid-rail-fee-bps':    '290',
+ *     'x-settlegrid-rail-fee-cents':  '30',
+ *     'x-settlegrid-rail-fee-tier':   'base',
+ *     'x-settlegrid-platform-take-bps':   '100',
+ *     'x-settlegrid-platform-take-cents': '0',
+ *   }
+ */
+export function buildPricingResponseHeaders(
+  fee: ResolvedRailFee,
+  platformTake?: PlatformTake,
+): Record<string, string> {
+  if (fee === null || typeof fee !== 'object') {
+    throw new TypeError(
+      'buildPricingResponseHeaders: `fee` must be a ResolvedRailFee object.',
+    )
+  }
+  assertBps(fee.percentBps, 'fee.percentBps')
+  assertFlatCents(fee.flatCents, 'fee.flatCents')
+
+  const headers: Record<string, string> = {
+    'x-settlegrid-rail-fee-bps': String(fee.percentBps),
+    'x-settlegrid-rail-fee-cents': String(fee.flatCents),
+    'x-settlegrid-rail-fee-tier': fee.sourceTier,
+  }
+
+  if (platformTake !== undefined) {
+    if (platformTake === null || typeof platformTake !== 'object') {
+      throw new TypeError(
+        'buildPricingResponseHeaders: `platformTake`, when provided, must be an object.',
+      )
+    }
+    assertBps(platformTake.percentBps, 'platformTake.percentBps')
+    const takeFlatCents = platformTake.flatCents ?? 0
+    assertFlatCents(takeFlatCents, 'platformTake.flatCents')
+    headers['x-settlegrid-platform-take-bps'] = String(platformTake.percentBps)
+    headers['x-settlegrid-platform-take-cents'] = String(takeFlatCents)
+  }
+
+  return headers
+}
