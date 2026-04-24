@@ -1,8 +1,8 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-24T13:52:01.664Z
+**Run timestamp:** 2026-04-24T14:06:57.976Z
 **Mode:** default
-**Verdict:** 11 PASS / 13 DEFER / 3 FAIL (of 27)
+**Verdict:** 12 PASS / 12 DEFER / 3 FAIL (of 27)
 **Exit code:** 1
 
 ## Deviations from prompt card
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=2-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 2 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=5-tracked-dirty,12-untracked; agents=0-tracked-dirty,0-untracked — 5 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -183,9 +183,9 @@
 
 ### C26 — Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests)
 
-- **Verdict:** DEFER
+- **Verdict:** PASS
 - **Method:** packages/mcp/src/authorize.ts exports authorizeInvocation + AuthorizationPlugin; kernel.ts dispatch chain calls authorizeInvocation; ledger entry includes authorization signals
-- **Evidence:** packages/mcp/src/authorize.ts missing — P3.K6 prompt not yet shipped
+- **Evidence:** authorize.ts present; authorizeInvocation=true; AuthorizationPlugin=true; kernel-calls=true
 
 ### C27 — All settlement-layer expansion audit chains PASS
 
@@ -215,5 +215,4 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C23 | settlegrid-dspy + smolagents Python adapters | DEFER | Run P3.PYTHON5 (dspy + smolagents Python adapters). |
 | C24 | Mastercard VI detection stub (adapter + landing page) | DEFER | Run P3.PROT1 (Mastercard VI landing page). |
 | C25 | cursor.directory submission packet | DEFER | Run P3.13 (cursor.directory submission packet). |
-| C26 | Pre-execution authorization gate (authorize.ts + kernel wiring + ≥20 tests) | DEFER | Run P3.K6 (authorize.ts pre-execution gate). |
 | C27 | All settlement-layer expansion audit chains PASS | DEFER | Run the 15 expansion prompts whose audit-chain commits are absent. |

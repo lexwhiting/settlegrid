@@ -337,6 +337,19 @@ export interface RailSettlementRow {
   externalRef?: string | null
   metadata?: Record<string, unknown> | null
   /**
+   * P3.K6 — per-check audit trail from authorizeInvocation(). When
+   * provided, written to the jsonb `authorization_signals` column
+   * for compliance queries (OFAC strict-liability evidence
+   * especially). Never exposed on the 403 HTTP body.
+   */
+  authorizationSignals?: ReadonlyArray<{
+    check: string
+    passed: boolean
+    detail?: string
+  }> | null
+  /** P3.K6 — optional plugin-returned cryptographic authorization artifact. */
+  authorizationArtifact?: string | null
+  /**
    * Account the settlement belongs to (usually the developer's
    * provider account). Populates the legacy `account_id` NOT NULL
    * column so the insert satisfies the existing schema constraints.
@@ -391,6 +404,8 @@ export async function recordSettlementEntry(
       settledAt: input.settledAt,
       externalRef: input.externalRef,
       metadata: input.metadata,
+      authorizationSignals: input.authorizationSignals,
+      authorizationArtifact: input.authorizationArtifact,
     },
     async (entry) => {
       await db.insert(ledgerEntries).values({
@@ -417,6 +432,9 @@ export async function recordSettlementEntry(
         settlementStatus: entry.status,
         settledAt: entry.settledAt !== null ? new Date(entry.settledAt) : null,
         externalRef: entry.externalRef,
+        // P3.K6 authorization gate columns.
+        authorizationSignals: entry.authorizationSignals,
+        authorizationArtifact: entry.authorizationArtifact,
         createdAt: new Date(entry.createdAt),
       })
     },
