@@ -10,11 +10,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   authorizeInvocation,
+  buildAuthDeniedResponse,
   DEFAULT_FRAUD_DENY_THRESHOLD,
   DEFAULT_PLUGIN_TIMEOUT_MS,
   type AuthorizationContext,
   type AuthorizationConfig,
   type AuthorizationPlugin,
+  type AuthorizationResult,
 } from './authorize'
 
 const BASE_CTX: AuthorizationContext = {
@@ -493,5 +495,121 @@ describe('authorizeInvocation — deterministic clock', () => {
     // First call returned cur=1_000_000; second call returned 1_000_042.
     // durationMs = 1_000_042 - 1_000_000 = 42.
     expect(result.durationMs).toBe(42)
+  })
+})
+
+// ─── Spec-diff F1: plugins-array overload ───────────────────────────
+
+describe('authorizeInvocation — spec-literal plugins-array form (F1)', () => {
+  it('accepts a bare plugins array as the second argument', async () => {
+    // This is the card's spec shape: `authorizeInvocation(ctx, plugins?)`.
+    const pluginSpy = vi.fn(async () => ({ allowed: true }))
+    const plugins: readonly AuthorizationPlugin[] = [
+      { name: 'compat', authorize: pluginSpy },
+    ]
+    const result = await authorizeInvocation(BASE_CTX, plugins)
+    expect(result.allowed).toBe(true)
+    expect(pluginSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('array-form deny path still runs the plugin', async () => {
+    const plugins: readonly AuthorizationPlugin[] = [
+      {
+        name: 'strict',
+        authorize: async () => ({
+          allowed: false,
+          reason: 'enterprise_policy_fail',
+        }),
+      },
+    ]
+    const result = await authorizeInvocation(BASE_CTX, plugins)
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toBe('enterprise_policy_fail')
+  })
+
+  it('empty array is a no-op plugin chain (not a deny)', async () => {
+    const result = await authorizeInvocation(BASE_CTX, [])
+    expect(result.allowed).toBe(true)
+  })
+
+  it('object-form (config) still works for DI callers', async () => {
+    const rateSpy = vi.fn(async () => ({ allowed: true }))
+    const config: AuthorizationConfig = { rateLimiter: rateSpy }
+    await authorizeInvocation(BASE_CTX, config)
+    expect(rateSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ─── Spec-diff F12: buildAuthDeniedResponse shape ──────────────────
+
+describe('buildAuthDeniedResponse — 403 shape (F12 / hostile req e)', () => {
+  it('returns status 403 + X-SettleGrid-Authorization: denied', async () => {
+    const result: AuthorizationResult = {
+      allowed: false,
+      reason: 'rate_limited',
+      signals: [
+        { check: 'ofac', passed: true },
+        { check: 'rate_limit', passed: false, detail: 'burst_60s_exceeded' },
+      ],
+      durationMs: 3,
+    }
+    const res = buildAuthDeniedResponse(result)
+    expect(res.status).toBe(403)
+    expect(res.headers.get('X-SettleGrid-Authorization')).toBe('denied')
+    expect(res.headers.get('Content-Type')).toBe('application/json')
+  })
+
+  it('body contains the top-level reason', async () => {
+    const result: AuthorizationResult = {
+      allowed: false,
+      reason: 'policy_violation',
+      signals: [],
+      durationMs: 0,
+    }
+    const res = buildAuthDeniedResponse(result)
+    const body = (await res.json()) as {
+      error: { code: string; reason: string }
+    }
+    expect(body.error.code).toBe('AUTHORIZATION_DENIED')
+    expect(body.error.reason).toBe('policy_violation')
+  })
+
+  it('does NOT leak the signals array to the caller (hostile req e)', async () => {
+    const result: AuthorizationResult = {
+      allowed: false,
+      reason: 'fraud_threshold_exceeded',
+      signals: [
+        { check: 'ofac', passed: true, detail: 'screener_ran' },
+        {
+          check: 'fraud',
+          passed: false,
+          detail: 'fraud_score=95;reasons=rate_spike,ip_velocity,unusual_amount',
+        },
+      ],
+      durationMs: 7,
+    }
+    const res = buildAuthDeniedResponse(result)
+    const bodyText = await res.text()
+    // Strongest anti-oracle check: the body must NOT include
+    // "signals", nor any check names, nor the fraud-score detail
+    // which could be reverse-engineered into a model-weight probe.
+    expect(bodyText).not.toContain('signals')
+    expect(bodyText).not.toContain('ofac')
+    expect(bodyText).not.toContain('fraud_score')
+    expect(bodyText).not.toContain('rate_spike')
+    expect(bodyText).not.toContain('ip_velocity')
+    // Reason is fine — that's the caller-visible category.
+    expect(bodyText).toContain('fraud_threshold_exceeded')
+  })
+
+  it('falls back to a generic reason when result.reason is missing', async () => {
+    const result: AuthorizationResult = {
+      allowed: false,
+      signals: [],
+      durationMs: 0,
+    }
+    const res = buildAuthDeniedResponse(result)
+    const body = (await res.json()) as { error: { reason: string } }
+    expect(body.error.reason).toBe('authorization_denied')
   })
 })

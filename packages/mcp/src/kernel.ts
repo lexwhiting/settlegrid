@@ -106,6 +106,7 @@ import type { createMiddleware } from './middleware'
 // re-exports createDispatchKernel from this file).
 import {
   authorizeInvocation,
+  buildAuthDeniedResponse,
   type AuthorizationConfig,
   type AuthorizationContext,
   type AuthorizationResult,
@@ -222,6 +223,21 @@ export interface CreateDispatchKernelOptions {
    * their no-op defaults.
    */
   authorize?: AuthorizationConfig
+  /**
+   * F10 spec-diff — fires AFTER every `authorizeInvocation` call
+   * (both allow and deny outcomes). Callers use this to persist
+   * the signals + artifact to the unified ledger's
+   * `authorization_signals` / `authorization_artifact` columns
+   * via `apps/web/src/lib/settlement/ledger.ts::recordSettlementEntry`.
+   *
+   * Non-throwing contract: hook errors are captured + logged, they
+   * do NOT affect dispatch. A broken hook cannot break tool
+   * execution or allow a denied invocation through.
+   */
+  onAuthorize?: (
+    result: AuthorizationResult,
+    ctx: AuthorizationContext,
+  ) => void | Promise<void>
 }
 
 export function createDispatchKernel(
@@ -231,6 +247,7 @@ export function createDispatchKernel(
   const internals = extractKernelInternals(sg)
   const { middleware, config, pricing } = internals
   const authConfig = options.authorize ?? {}
+  const onAuthorize = options.onAuthorize
 
   /**
    * Build the kernel's default 402 manifest. Hoisted out of `handle()`
@@ -290,6 +307,7 @@ export function createDispatchKernel(
               middleware,
               config,
               authConfig,
+              onAuthorize,
             )
           }
           if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
@@ -300,6 +318,7 @@ export function createDispatchKernel(
               runHandler,
               config,
               authConfig,
+              onAuthorize,
             )
           }
           // Protocol is recognized by the registry but not wired into
@@ -354,31 +373,33 @@ function buildKernelFault500(err: unknown, config: NormalizedConfig): Response {
   )
 }
 
-// ─── P3.K6 — authorization-denied 403 response helper ─────────────────────
+// ─── P3.K6 — onAuthorize hook invoker (F10 spec-diff) ────────────────────
 //
-// Constructs the 403 Forbidden response returned when the
-// authorization gate denies an invocation. Hostile-review
-// requirement (e): the response MUST expose only the top-level
-// `reason` — the per-check `signals` array stays internal for
-// ledger-audit only. A caller who inspects the response sees
-// their denial category; they do not see which internal signal
-// tripped (a fraud-scoring model detail, an OFAC match, etc.)
-// that could be used to probe the gate's behavior.
+// Non-throwing contract: the kernel dispatch MUST NOT be affected by
+// a broken onAuthorize hook. A caller who wires a flaky ledger
+// writer into this hook can't accidentally fail-open an authorized
+// invocation (the deny-response has already been built when this
+// fires) or swallow a successful handler run. Errors are silently
+// consumed here — the observability dance is the caller's
+// responsibility (they hooked it).
 
-function buildAuthDeniedResponse(result: AuthorizationResult): Response {
-  const body = {
-    error: {
-      code: 'AUTHORIZATION_DENIED',
-      reason: result.reason ?? 'authorization_denied',
-    },
+async function fireOnAuthorize(
+  hook:
+    | ((
+        result: AuthorizationResult,
+        ctx: AuthorizationContext,
+      ) => void | Promise<void>)
+    | undefined,
+  result: AuthorizationResult,
+  ctx: AuthorizationContext,
+): Promise<void> {
+  if (hook === undefined) return
+  try {
+    await hook(result, ctx)
+  } catch {
+    // Hook errors don't propagate — by contract. The caller is
+    // responsible for their own observability.
   }
-  return new Response(JSON.stringify(body), {
-    status: 403,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-SettleGrid-Authorization': 'denied',
-    },
-  })
 }
 
 // ─── sg-balance (MCP) pipeline ─────────────────────────────────────────────
@@ -391,6 +412,9 @@ async function handleSgBalance(
   middleware: ReturnType<typeof createMiddleware>,
   config: NormalizedConfig,
   authConfig: AuthorizationConfig,
+  onAuthorize:
+    | ((result: AuthorizationResult, ctx: AuthorizationContext) => void | Promise<void>)
+    | undefined,
 ): Promise<Response> {
   const startTime = Date.now()
   const apiKey = ctx.identity.value
@@ -427,6 +451,7 @@ async function handleSgBalance(
     keyId: validation.keyId,
   }
   const authResult = await authorizeInvocation(authCtx, authConfig)
+  await fireOnAuthorize(onAuthorize, authResult, authCtx)
   if (!authResult.allowed) {
     return buildAuthDeniedResponse(authResult)
   }
@@ -483,6 +508,9 @@ async function handleFacilitatorProtocol(
   runHandler: DispatchHandler,
   config: NormalizedConfig,
   authConfig: AuthorizationConfig,
+  onAuthorize:
+    | ((result: AuthorizationResult, ctx: AuthorizationContext) => void | Promise<void>)
+    | undefined,
 ): Promise<Response> {
   const startTime = Date.now()
   const protocol = ctx.protocol
@@ -503,6 +531,7 @@ async function handleFacilitatorProtocol(
     method: ctx.operation.method,
   }
   const authResult = await authorizeInvocation(authCtx, authConfig)
+  await fireOnAuthorize(onAuthorize, authResult, authCtx)
   if (!authResult.allowed) {
     return buildAuthDeniedResponse(authResult)
   }

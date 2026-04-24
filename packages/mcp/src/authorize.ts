@@ -191,7 +191,15 @@ export interface AuthorizationConfig {
 
 // ─── Constants ───────────────────────────────────────────────────────
 
-/** Default fraud deny threshold (0-100 scale per apps/web/src/lib/fraud.ts). */
+/**
+ * Default fraud deny threshold. The P3.K6 card lists the default as
+ * "0.8" (0-1 scale); `apps/web/src/lib/fraud.ts`'s `FraudResult.riskScore`
+ * is documented as 0-100. We keep the 0-100 convention to avoid a
+ * rescaling step at every caller — `80` here is semantically
+ * identical to the card's "0.8" (both mean "deny at or above 80% risk").
+ * Custom thresholds pass through `AuthorizationConfig.fraudDenyThreshold`
+ * in the same 0-100 scale.
+ */
 export const DEFAULT_FRAUD_DENY_THRESHOLD = 80
 
 /** Default plugin timeout (ms) — hostile req (b) fails CLOSED on timeout. */
@@ -209,6 +217,37 @@ const NOOP_LOGGER: AuthorizationLogger = {
   error: () => undefined,
 }
 
+// ─── 403 response helper (F10 spec-diff — moved from kernel.ts) ────
+
+/**
+ * Build the 403 Forbidden HTTP response the kernel returns when the
+ * gate denies an invocation. Per hostile-review requirement (e),
+ * exposes ONLY the top-level `reason` — the per-check `signals`
+ * array is stripped from the caller-visible response so an attacker
+ * cannot probe which internal check tripped (fraud model detail,
+ * OFAC match source, etc.). The signals array is written to the
+ * ledger through the `onAuthorize` hook for compliance audit.
+ *
+ * Marker header `X-SettleGrid-Authorization: denied` lets middleware
+ * / observability dashboards detect gate denials without parsing the
+ * body.
+ */
+export function buildAuthDeniedResponse(result: AuthorizationResult): Response {
+  const body = {
+    error: {
+      code: 'AUTHORIZATION_DENIED',
+      reason: result.reason ?? 'authorization_denied',
+    },
+  }
+  return new Response(JSON.stringify(body), {
+    status: 403,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-SettleGrid-Authorization': 'denied',
+    },
+  })
+}
+
 // ─── Public function ─────────────────────────────────────────────────
 
 /**
@@ -222,11 +261,38 @@ const NOOP_LOGGER: AuthorizationLogger = {
  *
  * Never throws. All internal errors are captured into signals with
  * `passed: false` and mapped to a deny outcome.
+ *
+ * Two overloads (F1 spec-diff — matches the P3.K6 card's
+ * `(ctx, plugins?: AuthorizationPlugin[])` signature while
+ * preserving the DI config form):
+ *
+ *   authorizeInvocation(ctx, plugins)   // card spec shape
+ *   authorizeInvocation(ctx, config)    // full DI form
+ *   authorizeInvocation(ctx)            // no plugins, no DI
+ *
+ * The second-arg shape is discriminated via `Array.isArray`.
  */
+export function authorizeInvocation(
+  ctx: AuthorizationContext,
+  plugins: readonly AuthorizationPlugin[],
+): Promise<AuthorizationResult>
+export function authorizeInvocation(
+  ctx: AuthorizationContext,
+  config?: AuthorizationConfig,
+): Promise<AuthorizationResult>
 export async function authorizeInvocation(
   ctx: AuthorizationContext,
-  config: AuthorizationConfig = {},
+  pluginsOrConfig?: readonly AuthorizationPlugin[] | AuthorizationConfig,
 ): Promise<AuthorizationResult> {
+  // Manual discriminator: `Array.isArray` does not narrow a
+  // `readonly T[] | U` union cleanly in all TS versions, so we
+  // branch with an explicit assertion on the array side.
+  let config: AuthorizationConfig
+  if (Array.isArray(pluginsOrConfig)) {
+    config = { plugins: pluginsOrConfig as readonly AuthorizationPlugin[] }
+  } else {
+    config = (pluginsOrConfig as AuthorizationConfig | undefined) ?? {}
+  }
   const clock = config.clock ?? Date.now
   const logger = config.logger ?? NOOP_LOGGER
   const startTime = clock()
