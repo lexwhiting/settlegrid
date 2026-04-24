@@ -318,6 +318,22 @@ function centsToUsdcBaseUnits(cents: number): string {
   return String(cents * USDC_BASE_UNITS_PER_CENT)
 }
 
+/**
+ * Test-only hook exposing the Keccak-256 hash chain helpers so unit
+ * tests can verify `computeVoucherHash` produces a canonical 66-hex
+ * EIP-712 digest and lock the deterministic behavior of the
+ * underlying helpers (padAddress / padUint256 / keccak256 /
+ * keccak256Hex). NOT re-exported from the package barrel — only
+ * adjacent test files should touch this surface.
+ */
+export const __internal__ = {
+  computeVoucherHash,
+  parseVoucher,
+  padAddress,
+  padUint256,
+  centsToUsdcBaseUnits,
+}
+
 // ─── Adapter class ─────────────────────────────────────────────────────────
 
 export class DrainAdapter implements ProtocolAdapter {
