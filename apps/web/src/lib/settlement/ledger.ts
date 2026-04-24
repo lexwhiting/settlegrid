@@ -3,12 +3,26 @@
  *
  * All balance changes MUST go through postLedgerEntry().
  * Entries are immutable — corrections via compensating entries only.
+ *
+ * P3.K4 adds recordSettlementEntry(), a writer for the per-invocation
+ * settlement records that every rail adapter produces. Settlement
+ * rows carry the new rail/protocol/takeBps/takeCents/settlement_status
+ * columns added by migrations/0005_unified_ledger.sql — the existing
+ * double-entry balance rows leave those NULL so reconciliation tools
+ * (P3.RAIL2) can join BOTH record kinds from a single table without
+ * ambiguity. See packages/mcp/src/ledger.ts for the canonical
+ * LedgerEntry type + validator.
  */
 
 import { db } from '@/lib/db'
 import { accounts, ledgerEntries } from '@/lib/db/schema'
 import { eq, and, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
+import {
+  recordLedgerEntry as canonicalRecordLedgerEntry,
+  type LedgerEntry,
+  type RecordLedgerEntryInput,
+} from '@settlegrid/mcp'
 import type { LedgerCategory } from './types'
 
 export interface PostEntryParams {
@@ -290,4 +304,141 @@ export async function verifyLedgerIntegrity(): Promise<LedgerIntegrityResult> {
     discrepancy,
     entryCount,
   }
+}
+
+// ─── P3.K4 — Unified settlement ledger writer ───────────────────────
+//
+// Every rail adapter's settlement event lands in `ledger_entries` via
+// this writer. The shape is defined in packages/mcp/src/ledger.ts —
+// we adapt it here to the Drizzle row shape and fill in the
+// double-entry legacy columns with inert placeholders (the settlement
+// record leaves accountId / counterpartyAccountId / entryType at
+// "settlement sentinel" values; reconciliation queries filter on
+// `settlement_status IS NOT NULL` to isolate settlement rows from
+// balance rows).
+//
+// The writer is idempotent by `entry.id` — a retry with the same id
+// updates in place (leaving any already-settled columns untouched
+// IF the new row would overwrite with a regression, e.g., going
+// from `settled` back to `pending`). Adapters that produce a stable
+// invocation-rooted id do not need to implement their own dedup.
+
+export interface RailSettlementRow {
+  invocationId: string
+  sessionId?: string | null
+  rail: string
+  protocol: string
+  amountCents: number
+  currency: string
+  takeBps: number
+  takeCents?: number
+  status?: 'pending' | 'settled' | 'voided' | 'failed' | 'reversed'
+  settledAt?: string | null
+  externalRef?: string | null
+  metadata?: Record<string, unknown> | null
+  /**
+   * Account the settlement belongs to (usually the developer's
+   * provider account). Populates the legacy `account_id` NOT NULL
+   * column so the insert satisfies the existing schema constraints.
+   */
+  accountId: string
+  /**
+   * Currency code override — defaults to `currency.toUpperCase()`
+   * because the legacy `currency_code` column is `varchar(3)` and
+   * historically holds ISO-4217 uppercase alpha-3. L402's
+   * 'btc-lightning' doesn't fit the 3-char legacy column, so
+   * settlement rows for btc-lightning pass `currencyCode: 'BTC'`
+   * for the legacy column while keeping the richer value in the
+   * unified `currency` column.
+   */
+  currencyCode?: string
+  /**
+   * Human-readable description — populates the legacy `description`
+   * NOT NULL column.
+   */
+  description?: string
+}
+
+/**
+ * Insert a unified-ledger settlement row. Delegates field
+ * validation to the canonical recordLedgerEntry helper from
+ * @settlegrid/mcp, then writes the resulting entry to Postgres
+ * alongside the legacy double-entry columns required by the
+ * existing ledger_entries NOT NULL constraints.
+ *
+ * Returns the inserted {@link LedgerEntry}.
+ */
+export async function recordSettlementEntry(
+  input: RailSettlementRow,
+): Promise<LedgerEntry> {
+  const description =
+    input.description ??
+    `${input.rail}/${input.protocol} settlement for invocation ${input.invocationId}`
+  const legacyCurrencyCode =
+    input.currencyCode ?? input.currency.slice(0, 3).toUpperCase()
+
+  return canonicalRecordLedgerEntry(
+    {
+      invocationId: input.invocationId,
+      sessionId: input.sessionId ?? null,
+      rail: input.rail,
+      protocol: input.protocol,
+      amountCents: input.amountCents,
+      currency: input.currency,
+      takeBps: input.takeBps,
+      takeCents: input.takeCents,
+      status: input.status,
+      settledAt: input.settledAt,
+      externalRef: input.externalRef,
+      metadata: input.metadata,
+    },
+    async (entry) => {
+      await db.insert(ledgerEntries).values({
+        id: entry.id,
+        // Legacy double-entry columns — inert for settlement rows.
+        accountId: input.accountId,
+        entryType: 'credit', // settlement credits the provider's account
+        amountCents: entry.amountCents,
+        currencyCode: legacyCurrencyCode,
+        category: 'metering',
+        operationId: entry.invocationId,
+        batchId: null,
+        counterpartyAccountId: null,
+        description,
+        metadata: entry.metadata ?? null,
+        taxCents: 0,
+        taxJurisdiction: null,
+        // P3.K4 settlement columns.
+        sessionId: entry.sessionId,
+        rail: entry.rail,
+        protocol: entry.protocol,
+        takeBps: entry.takeBps,
+        takeCents: entry.takeCents,
+        settlementStatus: entry.status,
+        settledAt: entry.settledAt !== null ? new Date(entry.settledAt) : null,
+        externalRef: entry.externalRef,
+        createdAt: new Date(entry.createdAt),
+      })
+    },
+  )
+}
+
+/**
+ * Fire-and-forget variant. Logs on failure without bubbling the
+ * error so a ledger-write hiccup doesn't break a successful hop
+ * record. Callers that need write confirmation should use
+ * {@link recordSettlementEntry} directly.
+ */
+export function recordSettlementEntryAsync(input: RailSettlementRow): void {
+  recordSettlementEntry(input).catch((err) => {
+    logger.error(
+      'settlement.ledger_write_failed',
+      {
+        invocationId: input.invocationId,
+        rail: input.rail,
+        protocol: input.protocol,
+      },
+      err,
+    )
+  })
 }

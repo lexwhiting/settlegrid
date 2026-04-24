@@ -136,7 +136,14 @@ describe('buildRailDisplayMetadata — pure iteration (defensive branches)', () 
         supportsApplicationFees: true,
       },
       compliance: {} as never,
-      pricing: { percentBps: 30, flatCents: 30 },
+      pricing: {
+        basePercentBps: 30,
+        baseFlatCents: 30,
+        // P3.K4 — legacy aliases are still populated for back-compat
+        // with dashboards that read .percentBps directly.
+        percentBps: 30,
+        flatCents: 30,
+      },
       startOnboarding: vi.fn(),
       syncOnboardingStatus: vi.fn(),
       createTopupSession: vi.fn(),
