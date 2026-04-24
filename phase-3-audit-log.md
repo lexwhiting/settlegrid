@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-24T01:12:40.622Z
+**Run timestamp:** 2026-04-24T01:22:02.054Z
 **Mode:** default
 **Verdict:** 10 PASS / 13 DEFER / 4 FAIL (of 27)
 **Exit code:** 1
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=7-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 7 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=2-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 2 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
