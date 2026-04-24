@@ -396,9 +396,25 @@ async function fireOnAuthorize(
   if (hook === undefined) return
   try {
     await hook(result, ctx)
-  } catch {
-    // Hook errors don't propagate — by contract. The caller is
-    // responsible for their own observability.
+  } catch (err) {
+    // Hook errors don't propagate — by contract — but they ARE
+    // logged. Hostile fix H4: a flaky operator-registered ledger
+    // writer (DB blip, ORM bug, etc.) would otherwise silently
+    // drop compliance audit rows. console.error gives the
+    // operator a visible trail without taking down dispatch. The
+    // log line is intentionally generic (no PII from `ctx` /
+    // `result` is included) so a misconfigured log sink doesn't
+    // leak sensitive context.
+    try {
+      // eslint-disable-next-line no-console
+      console.error(
+        '[settlegrid] onAuthorize hook threw (silent by contract):',
+        err instanceof Error ? err.message : String(err),
+      )
+    } catch {
+      // Silent — even console.error can fail under exotic
+      // sandboxing. The kernel must not break here.
+    }
   }
 }
 

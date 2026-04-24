@@ -17,6 +17,7 @@ import {
   type AuthorizationConfig,
   type AuthorizationPlugin,
   type AuthorizationResult,
+  type AuthorizationSignal,
 } from './authorize'
 
 const BASE_CTX: AuthorizationContext = {
@@ -611,5 +612,183 @@ describe('buildAuthDeniedResponse — 403 shape (F12 / hostile req e)', () => {
     const res = buildAuthDeniedResponse(result)
     const body = (await res.json()) as { error: { reason: string } }
     expect(body.error.reason).toBe('authorization_denied')
+  })
+})
+
+// ─── Hostile-round guards ───────────────────────────────────────────
+
+describe('hostile H1 — safeClock handles broken user clock', () => {
+  it('returns durationMs=0 (not NaN) when user clock returns non-number', async () => {
+    const config: AuthorizationConfig = {
+      clock: () => 'not-a-number' as unknown as number,
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(true)
+    expect(Number.isFinite(result.durationMs)).toBe(true)
+    expect(result.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('returns durationMs=0 when user clock throws', async () => {
+    const config: AuthorizationConfig = {
+      clock: () => {
+        throw new Error('clock broken')
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    // The throw should NOT propagate — gate's "never throws"
+    // contract is enforced by the safeClock wrapper.
+    expect(result.allowed).toBe(true)
+    expect(Number.isFinite(result.durationMs)).toBe(true)
+  })
+
+  it('caps a backwards-stepping clock at durationMs=0', async () => {
+    let firstCall = true
+    const config: AuthorizationConfig = {
+      clock: () => {
+        if (firstCall) {
+          firstCall = false
+          return 1_000_000
+        }
+        return 999_000 // backwards (negative delta)
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.durationMs).toBe(0) // not negative
+  })
+})
+
+describe('hostile H2 — OFAC log-level differentiation', () => {
+  it('logs OFAC match at warn (not info)', async () => {
+    const infoSpy = vi.fn()
+    const warnSpy = vi.fn()
+    const config: AuthorizationConfig = {
+      ofacScreener: async () => ({ listed: true, matchedParty: 'consumer-1' }),
+      logger: {
+        info: infoSpy,
+        warn: warnSpy,
+        error: () => undefined,
+      },
+    }
+    await authorizeInvocation(BASE_CTX, config)
+    expect(warnSpy).toHaveBeenCalledWith(
+      'authorize.ofac_match',
+      expect.objectContaining({ matchedParty: 'consumer-1' }),
+    )
+    // The match should NOT be logged at info level too — that
+    // would defeat the dashboard differentiation.
+    expect(infoSpy).not.toHaveBeenCalledWith(
+      'authorize.ofac_screened',
+      expect.any(Object),
+    )
+  })
+
+  it('logs clean OFAC screen at info (not warn)', async () => {
+    const infoSpy = vi.fn()
+    const warnSpy = vi.fn()
+    const config: AuthorizationConfig = {
+      ofacScreener: async () => ({ listed: false }),
+      logger: {
+        info: infoSpy,
+        warn: warnSpy,
+        error: () => undefined,
+      },
+    }
+    await authorizeInvocation(BASE_CTX, config)
+    expect(infoSpy).toHaveBeenCalledWith(
+      'authorize.ofac_screened',
+      expect.objectContaining({ listed: false }),
+    )
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      'authorize.ofac_match',
+      expect.any(Object),
+    )
+  })
+})
+
+describe('hostile H3 — signals array is frozen', () => {
+  it('result.signals is Object.frozen', async () => {
+    const result = await authorizeInvocation(BASE_CTX)
+    expect(Object.isFrozen(result.signals)).toBe(true)
+  })
+
+  it('attempting to push to result.signals throws in strict mode', async () => {
+    const result = await authorizeInvocation(BASE_CTX)
+    // ECMAScript strict mode (Vitest tests run in strict) throws
+    // TypeError on mutations to frozen arrays.
+    expect(() => {
+      ;(result.signals as AuthorizationSignal[]).push({
+        check: 'evil',
+        passed: true,
+      })
+    }).toThrow(TypeError)
+  })
+
+  it('mutating an existing signal entry does not affect future calls', async () => {
+    // The frozen array prevents external code from corrupting the
+    // audit row's structure. Individual signal objects are not
+    // deeply frozen (intentional: keeps internal mutation cheap),
+    // but the array shape is locked.
+    const result1 = await authorizeInvocation(BASE_CTX)
+    const result2 = await authorizeInvocation(BASE_CTX)
+    expect(result1.signals).not.toBe(result2.signals) // distinct arrays
+    expect(Object.isFrozen(result1.signals)).toBe(true)
+    expect(Object.isFrozen(result2.signals)).toBe(true)
+  })
+
+  it('a deny result also has a frozen signals array', async () => {
+    const config: AuthorizationConfig = {
+      rateLimiter: async () => ({ allowed: false, reason: 'too_many' }),
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(false)
+    expect(Object.isFrozen(result.signals)).toBe(true)
+  })
+})
+
+describe('hostile H5 — outer try/catch + never-throws contract', () => {
+  it('returns deny result when the logger throws on every call', async () => {
+    // A maliciously-broken logger throws inside the gate's
+    // checks. The outer try/catch captures this and returns a
+    // generic deny outcome rather than rejecting the promise.
+    const broken = () => {
+      throw new Error('logger broken')
+    }
+    const config: AuthorizationConfig = {
+      ofacScreener: async () => ({ listed: false }),
+      logger: {
+        info: broken,
+        warn: broken,
+        error: broken,
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toBe('authorization_internal_error')
+    // Even on the internal-error path, signals is frozen.
+    expect(Object.isFrozen(result.signals)).toBe(true)
+  })
+
+  it('does not leak internal error details in the reason', async () => {
+    // ALL three logger methods broken so the inner-catch-then-
+    // logger.error retry path can't recover. Forces the outer
+    // try/catch to handle the propagated throw.
+    const sneakyError = () => {
+      throw new Error('SECRET_INTERNAL: db conn pool exhausted')
+    }
+    const config: AuthorizationConfig = {
+      ofacScreener: async () => ({ listed: false }),
+      logger: {
+        info: sneakyError,
+        warn: sneakyError,
+        error: sneakyError,
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    // Caller sees only a generic code; the secret stays in the
+    // operator's logger.error sink (which threw, but the kernel's
+    // outer try/catch converted to a generic deny).
+    expect(result.reason).toBe('authorization_internal_error')
+    expect(result.reason).not.toContain('SECRET_INTERNAL')
+    expect(result.reason).not.toContain('db conn')
   })
 })

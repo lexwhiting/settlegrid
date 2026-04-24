@@ -77,8 +77,13 @@ export interface AuthorizationResult {
   allowed: boolean
   /** Top-level reason when `allowed === false`. Safe to return to caller. */
   reason?: string
-  /** Per-check verdicts. Internal — do NOT expose on the HTTP response. */
-  signals: AuthorizationSignal[]
+  /**
+   * Per-check verdicts. Internal — do NOT expose on the HTTP response
+   * (hostile req e). The array is `readonly` and runtime-frozen via
+   * Object.freeze in `authorizeInvocation` so a caller cannot mutate
+   * the audit trail after the gate returns (hostile fix H3).
+   */
+  signals: readonly AuthorizationSignal[]
   /** Optional cryptographic artifact returned by a plugin. */
   artifact?: string
   /** Full gate duration in milliseconds (for latency monitoring). */
@@ -293,114 +298,131 @@ export async function authorizeInvocation(
   } else {
     config = (pluginsOrConfig as AuthorizationConfig | undefined) ?? {}
   }
-  const clock = config.clock ?? Date.now
+  const userClock = config.clock ?? Date.now
   const logger = config.logger ?? NOOP_LOGGER
-  const startTime = clock()
+  // Hostile fix H1 — wrap clock so a throwing user-supplied clock or a
+  // clock that returns a non-number doesn't propagate / produce NaN
+  // durations. Falls back to Date.now() on either error path so the
+  // gate's "never throws" contract is preserved.
+  const safeClock = (): number => {
+    try {
+      const v = userClock()
+      return typeof v === 'number' && Number.isFinite(v) ? v : Date.now()
+    } catch {
+      return Date.now()
+    }
+  }
+  const startTime = safeClock()
   const signals: AuthorizationSignal[] = []
 
-  // Validate basic input.
-  if (ctx === null || typeof ctx !== 'object') {
+  // Hostile fix H3 — centralize result construction so every return
+  // path produces a frozen `signals` array. Type is already
+  // `readonly AuthorizationSignal[]`; the freeze is the runtime
+  // guarantee a caller cannot mutate the audit trail post-return.
+  const sealed = (
+    allowed: boolean,
+    reason: string | undefined,
+    artifact?: string,
+  ): AuthorizationResult => {
+    const elapsed = safeClock() - startTime
     return {
-      allowed: false,
-      reason: 'authorization_context_required',
-      signals: [],
-      durationMs: 0,
+      allowed,
+      ...(reason !== undefined ? { reason } : {}),
+      signals: Object.freeze([...signals]) as readonly AuthorizationSignal[],
+      ...(artifact !== undefined ? { artifact } : {}),
+      // `Math.max(0, x)` defends against a backwards-stepping clock
+      // (NTP correction, leap-second adjustment, monotonicity broken
+      // by a wonky test clock).
+      durationMs:
+        Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0,
     }
   }
 
-  // ── Step 1: OFAC (runs first per hostile req (a) — strict liability) ──
-  const ofacSignal = await runOfac(ctx, config, logger)
-  signals.push(ofacSignal)
-  if (!ofacSignal.passed) {
-    return {
-      allowed: false,
-      reason: ofacSignal.detail ?? 'ofac_denied',
-      signals,
-      durationMs: clock() - startTime,
+  // Hostile fix H5 — outer try/catch. The function declares to never
+  // throw; a synchronous bug or a downstream surprise (broken proxy
+  // trap, malformed logger) would otherwise reject the promise and
+  // leak detail to the caller. Convert any unexpected throw into a
+  // deny outcome with a generic reason.
+  try {
+    // Validate basic input.
+    if (ctx === null || typeof ctx !== 'object') {
+      return sealed(false, 'authorization_context_required')
     }
-  }
 
-  // ── Step 2: Rate limit ──
-  const rateSignal = await runRateLimit(ctx, config, logger)
-  signals.push(rateSignal)
-  if (!rateSignal.passed) {
-    return {
-      allowed: false,
-      reason: rateSignal.detail ?? 'rate_limited',
-      signals,
-      durationMs: clock() - startTime,
+    // ── Step 1: OFAC (runs first per hostile req (a) — strict liability) ──
+    const ofacSignal = await runOfac(ctx, config, logger)
+    signals.push(ofacSignal)
+    if (!ofacSignal.passed) {
+      return sealed(false, ofacSignal.detail ?? 'ofac_denied')
     }
-  }
 
-  // ── Step 3: Budget ──
-  const budgetSignal = await runBudget(ctx, config, logger)
-  signals.push(budgetSignal)
-  if (!budgetSignal.passed) {
-    return {
-      allowed: false,
-      reason: budgetSignal.detail ?? 'budget_exceeded',
-      signals,
-      durationMs: clock() - startTime,
+    // ── Step 2: Rate limit ──
+    const rateSignal = await runRateLimit(ctx, config, logger)
+    signals.push(rateSignal)
+    if (!rateSignal.passed) {
+      return sealed(false, rateSignal.detail ?? 'rate_limited')
     }
-  }
 
-  // ── Step 4: Fraud score ──
-  const fraudSignal = await runFraud(ctx, config, logger)
-  signals.push(fraudSignal)
-  if (!fraudSignal.passed) {
-    return {
-      allowed: false,
-      reason: fraudSignal.detail ?? 'fraud_threshold_exceeded',
-      signals,
-      durationMs: clock() - startTime,
+    // ── Step 3: Budget ──
+    const budgetSignal = await runBudget(ctx, config, logger)
+    signals.push(budgetSignal)
+    if (!budgetSignal.passed) {
+      return sealed(false, budgetSignal.detail ?? 'budget_exceeded')
     }
-  }
 
-  // ── Step 5: AUP ──
-  const aupSignal = await runAup(ctx, config, logger)
-  signals.push(aupSignal)
-  if (!aupSignal.passed) {
-    return {
-      allowed: false,
-      reason: aupSignal.detail ?? 'aup_violation',
-      signals,
-      durationMs: clock() - startTime,
+    // ── Step 4: Fraud score ──
+    const fraudSignal = await runFraud(ctx, config, logger)
+    signals.push(fraudSignal)
+    if (!fraudSignal.passed) {
+      return sealed(false, fraudSignal.detail ?? 'fraud_threshold_exceeded')
     }
-  }
 
-  // ── Step 6: Plugins (only after all built-ins pass) ──
-  const plugins = config.plugins ?? []
-  const pluginTimeoutMs = Math.max(
-    MIN_PLUGIN_TIMEOUT_MS,
-    config.pluginTimeoutMs ?? DEFAULT_PLUGIN_TIMEOUT_MS,
-  )
-  let artifact: string | undefined
-  for (const plugin of plugins) {
-    const pluginSignal = await runPluginWithTimeout(
-      plugin,
-      ctx,
-      pluginTimeoutMs,
-      logger,
+    // ── Step 5: AUP ──
+    const aupSignal = await runAup(ctx, config, logger)
+    signals.push(aupSignal)
+    if (!aupSignal.passed) {
+      return sealed(false, aupSignal.detail ?? 'aup_violation')
+    }
+
+    // ── Step 6: Plugins (only after all built-ins pass) ──
+    const plugins = config.plugins ?? []
+    const pluginTimeoutMs = Math.max(
+      MIN_PLUGIN_TIMEOUT_MS,
+      config.pluginTimeoutMs ?? DEFAULT_PLUGIN_TIMEOUT_MS,
     )
-    signals.push(pluginSignal.signal)
-    if (!pluginSignal.signal.passed) {
-      return {
-        allowed: false,
-        reason: pluginSignal.signal.detail ?? `plugin_denied:${plugin.name}`,
-        signals,
-        durationMs: clock() - startTime,
+    let artifact: string | undefined
+    for (const plugin of plugins) {
+      const pluginSignal = await runPluginWithTimeout(
+        plugin,
+        ctx,
+        pluginTimeoutMs,
+        logger,
+      )
+      signals.push(pluginSignal.signal)
+      if (!pluginSignal.signal.passed) {
+        return sealed(
+          false,
+          pluginSignal.signal.detail ?? `plugin_denied:${plugin.name}`,
+        )
+      }
+      if (pluginSignal.artifact !== undefined) {
+        artifact = pluginSignal.artifact
       }
     }
-    if (pluginSignal.artifact !== undefined) {
-      artifact = pluginSignal.artifact
-    }
-  }
 
-  return {
-    allowed: true,
-    signals,
-    ...(artifact !== undefined ? { artifact } : {}),
-    durationMs: clock() - startTime,
+    return sealed(true, undefined, artifact)
+  } catch (err) {
+    // Hostile fix H5 — any unexpected throw is captured here. Log
+    // the cause for operator triage; return a deny outcome with a
+    // generic reason that doesn't leak internal stack details to
+    // the caller.
+    try {
+      logger.error('authorize.internal_error', {}, err)
+    } catch {
+      // Silent — even a broken logger can't interfere with the
+      // sealed deny return below.
+    }
+    return sealed(false, 'authorization_internal_error')
   }
 }
 
@@ -425,20 +447,25 @@ async function runOfac(
   }
   try {
     const outcome = await screener(ctx)
-    // Per strict-liability requirement: log EVERY OFAC check's
-    // outcome, whether listed or not. A populated screening log is
-    // evidence the program ran.
-    logger.info('authorize.ofac_screened', {
-      listed: outcome.listed,
-      matchedParty: outcome.matchedParty ?? null,
-    })
     if (outcome.listed) {
+      // Hostile fix H2 — SDN match is a high-severity compliance
+      // event. Distinct log event at WARN level (vs the clean
+      // screen's INFO) so dashboards + paging rules can
+      // differentiate the two. Strict-liability evidence still
+      // populated by the surrounding signal write to the ledger.
+      logger.warn('authorize.ofac_match', {
+        matchedParty: outcome.matchedParty ?? null,
+      })
       return {
         check: 'ofac',
         passed: false,
         detail: `ofac_listed:${outcome.matchedParty ?? 'party_matched'}`,
       }
     }
+    // Clean-screen evidence — strict-liability requires a log row
+    // demonstrating the screening program ran on every invocation.
+    // INFO level so dashboards can SUM(*) without alert fatigue.
+    logger.info('authorize.ofac_screened', { listed: false })
     return { check: 'ofac', passed: true, detail: outcome.detail }
   } catch (err) {
     logger.error('authorize.ofac_failed', {}, err)
