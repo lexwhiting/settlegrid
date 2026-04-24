@@ -96,6 +96,40 @@ CREATE INDEX IF NOT EXISTS "ledger_entries_external_ref_idx"
   ON "ledger_entries" ("external_ref");
 
 -- ─── 4. Check constraints (one-shot, idempotent via exception) ────
+--
+-- Hostile fix H32: on a fresh DB the `CREATE TABLE IF NOT EXISTS`
+-- above doesn't carry the P2.TAX1 check constraints
+-- (`amount_positive`, `entry_type_check`,
+-- `tax_jurisdiction_required`). Re-add them here with the same
+-- DO-block pattern so a fresh-DB run gets them AND an existing-DB
+-- run is a no-op. Without this, a fresh DB would accept
+-- amount_cents=0 rows that the apps/web code assumes the DB
+-- rejects.
+
+DO $$ BEGIN
+  ALTER TABLE "ledger_entries"
+    ADD CONSTRAINT "ledger_entries_amount_positive"
+    CHECK ("amount_cents" > 0);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "ledger_entries"
+    ADD CONSTRAINT "ledger_entries_entry_type_check"
+    CHECK ("entry_type" IN ('debit', 'credit'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "ledger_entries"
+    ADD CONSTRAINT "ledger_entries_tax_jurisdiction_required"
+    CHECK (
+      ("tax_cents" = 0 AND "tax_jurisdiction" IS NULL)
+      OR ("tax_cents" > 0 AND "tax_jurisdiction" IS NOT NULL)
+      OR ("tax_cents" = 0 AND "tax_jurisdiction" IS NOT NULL)
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 DO $$ BEGIN
   ALTER TABLE "ledger_entries"

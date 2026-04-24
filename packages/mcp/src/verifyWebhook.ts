@@ -101,6 +101,22 @@ export async function verifyWebhook(
   toolSecret: string,
   opts: VerifyWebhookOptions = {},
 ): Promise<VerifyWebhookResult> {
+  // Hostile fix H25 — reject empty `signatureHeader` up front.
+  // `request.headers.get('')` throws TypeError ("name is not a
+  // name" per WHATWG); without this guard the throw would bubble
+  // past the caller's verifyWebhook try/catch in unpredictable
+  // ways. Non-string values are similarly rejected so a caller
+  // who passed `null` as the override hits a clean boundary error.
+  if (
+    opts.signatureHeader !== undefined &&
+    (typeof opts.signatureHeader !== 'string' ||
+      opts.signatureHeader.length === 0)
+  ) {
+    throw new TypeError(
+      `verifyWebhook: \`signatureHeader\`, when provided, must be a ` +
+        `non-empty string; got ${JSON.stringify(opts.signatureHeader)}.`,
+    )
+  }
   const headerName = opts.signatureHeader ?? SETTLEGRID_SIGNATURE_HEADER
   const maxBytes = opts.maxBytes ?? DEFAULT_WEBHOOK_MAX_BYTES
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {

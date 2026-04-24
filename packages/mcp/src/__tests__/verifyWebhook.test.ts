@@ -480,6 +480,246 @@ describe('buildPricingResponseHeaders', () => {
     expect(headers.get('X-SettleGrid-Rail-Fee-Bps')).toBe('290')
     expect(headers.get('x-settlegrid-platform-take-bps')).toBe('100')
   })
+
+  it('throws on unknown sourceTier (hostile H26 — header-injection guard)', () => {
+    expect(() =>
+      buildPricingResponseHeaders({
+        percentBps: 290,
+        flatCents: 30,
+        sourceTier: 'admin\r\nX-Injected: evil' as unknown as 'base',
+      }),
+    ).toThrow(TypeError)
+  })
+})
+
+// ─── Hostile-round guards (new in the hostile commit) ──────────────
+
+describe('hostile H5 — amountCents overflow cap', () => {
+  const writer = async () => undefined
+  it('rejects amountCents above the cap', async () => {
+    const BEYOND_CAP = 2_000_000_000_000 // $20B — above the 10B cap
+    await expect(
+      recordLedgerEntry(
+        {
+          invocationId: 'inv-1',
+          rail: 'stripe-connect',
+          protocol: 'mpp',
+          amountCents: BEYOND_CAP,
+          currency: 'USD',
+          takeBps: 500,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/exceeds.*cap/)
+  })
+
+  it('computes takeCents correctly for an amount near the cap (no overflow)', async () => {
+    // 999_999_999_999 cents × 500 bps / 10000 = 49_999_999_999 cents
+    // (well under Number.MAX_SAFE_INTEGER = ~9e15).
+    const captured: LedgerEntry[] = []
+    const entry = await recordLedgerEntry(
+      {
+        invocationId: 'inv-1',
+        rail: 'stripe-connect',
+        protocol: 'mpp',
+        amountCents: 999_999_999_999,
+        currency: 'USD',
+        takeBps: 500,
+      },
+      async (e) => {
+        captured.push(e)
+      },
+    )
+    expect(entry.takeCents).toBe(49_999_999_999)
+  })
+})
+
+describe('hostile H6 — amountCents must be positive', () => {
+  const writer = async () => undefined
+  it('rejects amountCents = 0 (aligns with DB ledger_entries_amount_positive constraint)', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          invocationId: 'inv-1',
+          rail: 'stripe-connect',
+          protocol: 'mpp',
+          amountCents: 0,
+          currency: 'USD',
+          takeBps: 500,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/must be positive/)
+  })
+})
+
+describe('hostile H1/H3 — CRLF/NUL in invocationId / sessionId', () => {
+  const writer = async () => undefined
+  it('rejects CRLF in invocationId', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          invocationId: 'inv\r\nevil',
+          rail: 'stripe-connect',
+          protocol: 'mpp',
+          amountCents: 500,
+          currency: 'USD',
+          takeBps: 500,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/control characters/)
+  })
+
+  it('rejects NUL in sessionId', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          invocationId: 'inv-1',
+          sessionId: 'sess\x00evil',
+          rail: 'stripe-connect',
+          protocol: 'mpp',
+          amountCents: 500,
+          currency: 'USD',
+          takeBps: 500,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/control characters/)
+  })
+})
+
+describe('hostile H10/H12 — id + createdAt overrides validated', () => {
+  const writer = async () => undefined
+  const base = {
+    invocationId: 'inv-1',
+    rail: 'stripe-connect',
+    protocol: 'mpp',
+    amountCents: 500,
+    currency: 'USD',
+    takeBps: 500,
+  } as const
+
+  it('rejects non-UUID id override', async () => {
+    await expect(
+      recordLedgerEntry({ ...base, id: 'not-a-uuid' }, writer),
+    ).rejects.toThrow(/must be a UUID/)
+  })
+
+  it('accepts a valid UUID id override', async () => {
+    const captured: LedgerEntry[] = []
+    await recordLedgerEntry(
+      { ...base, id: '00000000-0000-4000-8000-000000000000' },
+      async (e) => {
+        captured.push(e)
+      },
+    )
+    expect(captured[0].id).toBe('00000000-0000-4000-8000-000000000000')
+  })
+
+  it('rejects malformed createdAt override', async () => {
+    await expect(
+      recordLedgerEntry({ ...base, createdAt: '2026-04-23' }, writer),
+    ).rejects.toThrow(/ISO-8601 timestamp/)
+  })
+})
+
+describe('hostile H11 — fingerprint doesn\'t collide on pipe-containing fields', () => {
+  const mk = (overrides: Partial<LedgerEntry>): LedgerEntry => ({
+    id: 'x',
+    invocationId: 'inv-1',
+    sessionId: null,
+    rail: 'r',
+    protocol: 'p',
+    amountCents: 500,
+    currency: 'usd',
+    takeBps: 0,
+    takeCents: 0,
+    status: 'pending',
+    createdAt: '2026-04-23T00:00:00.000Z',
+    settledAt: null,
+    externalRef: null,
+    metadata: null,
+    ...overrides,
+  })
+
+  it('different rail+protocol combinations with "|" chars produce different fingerprints', () => {
+    // Under the OLD `|`-joined fingerprint, these two entries would
+    // collide (both produce "inv-1||a|b|c|..."). The JSON-based
+    // fingerprint disambiguates.
+    const a = fingerprintLedgerEntry(mk({ rail: 'a|b', protocol: 'c' }))
+    const b = fingerprintLedgerEntry(mk({ rail: 'a', protocol: 'b|c' }))
+    expect(a).not.toBe(b)
+  })
+})
+
+describe('hostile H15 — rotateToolSecret rejects malformed prior', () => {
+  it('clears previous when the caller passes a bad-shape current secret', () => {
+    const malformed = { current: 'too-short' }
+    const out = rotateToolSecret(malformed, () => 1_700_000_000)
+    // previous is NOT set — the malformed secret was refused.
+    expect(out.previous).toBeUndefined()
+    expect(out.rotatedAt).toBe(1_700_000_000)
+    expect(out.current).toMatch(/^[0-9a-f]{64}$/)
+  })
+})
+
+describe('hostile H16 — verifyWithRotation rejects future rotatedAt', () => {
+  const oldSecret = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+  it('rejects previous secret when rotatedAt is AFTER now', () => {
+    const { header } = signPayload('p', oldSecret, { timestamp: 1_000_000_000 })
+    // State claims rotation happened in the "future" relative to
+    // the verify clock. An attacker controlling rotatedAt would
+    // otherwise keep previous valid indefinitely.
+    const state = {
+      current: 'b'.repeat(TOOL_SECRET_HEX_LENGTH),
+      previous: oldSecret,
+      rotatedAt: 2_000_000_000, // after now
+    }
+    expect(
+      verifyWithRotation(state, 'p', header, {
+        clock: () => 1_000_000_100,
+        toleranceSec: 600,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('hostile H18 — future timestamp beyond skew rejected', () => {
+  const SECRET = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+  it('rejects a signature whose timestamp is 10 seconds in the future (> 5s skew)', () => {
+    const { header } = signPayload('p', SECRET, { timestamp: 1_700_000_010 })
+    expect(
+      verifyPayloadSignature('p', header, SECRET, {
+        clock: () => 1_700_000_000,
+        toleranceSec: 300,
+      }),
+    ).toBe(false)
+  })
+
+  it('accepts a signature within the 5-second future skew', () => {
+    const { header } = signPayload('p', SECRET, { timestamp: 1_700_000_005 })
+    expect(
+      verifyPayloadSignature('p', header, SECRET, {
+        clock: () => 1_700_000_000,
+        toleranceSec: 300,
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('hostile H25 — verifyWebhook rejects empty signatureHeader override', () => {
+  it('throws TypeError on signatureHeader=""', async () => {
+    const req = new Request('https://dev-app.example/webhook', {
+      method: 'POST',
+      body: '{}',
+    })
+    await expect(
+      verifyWebhook(req, 'a'.repeat(TOOL_SECRET_HEX_LENGTH), {
+        signatureHeader: '',
+      }),
+    ).rejects.toThrow(TypeError)
+  })
 })
 
 // ─── recordLedgerEntry + fingerprint ────────────────────────────────
