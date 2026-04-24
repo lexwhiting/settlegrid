@@ -722,6 +722,518 @@ describe('hostile H25 — verifyWebhook rejects empty signatureHeader override',
   })
 })
 
+// ─── Coverage-round boundary tests ──────────────────────────────────
+//
+// Scaffold-discipline: these are boundary/negative/regression
+// assertions, NOT new functional behavior. They close the gaps
+// identified by v8 coverage on the P3.K4 source files.
+
+describe('coverage — tool-secret signPayload invalid-secret path', () => {
+  it('throws TypeError when secret is not a valid shape', () => {
+    // signPayload goes through requireSecret → isValidToolSecretShape.
+    // The error-path return covers lines ~336-340.
+    expect(() => signPayload('payload', 'bad-secret', { timestamp: 1 })).toThrow(
+      TypeError,
+    )
+    expect(() =>
+      signPayload(
+        'payload',
+        'G'.repeat(TOOL_SECRET_HEX_LENGTH),
+        { timestamp: 1 },
+      ),
+    ).toThrow(TypeError)
+  })
+
+  it('signPayload throws on non-string payload', () => {
+    const SECRET = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+    expect(() =>
+      signPayload(123 as unknown as string, SECRET, { timestamp: 1 }),
+    ).toThrow(/payload/)
+  })
+
+  it('signPayload throws on negative timestamp', () => {
+    const SECRET = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+    expect(() => signPayload('payload', SECRET, { timestamp: -1 })).toThrow(
+      RangeError,
+    )
+  })
+})
+
+describe('coverage — verifyWithRotation shape rejections', () => {
+  const CURRENT = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+  const OLD = 'b'.repeat(TOOL_SECRET_HEX_LENGTH)
+
+  it('returns false when state.previous is missing (current-only state)', () => {
+    // Valid state with no previous. verifyWithRotation should try
+    // current; if that fails, there's no previous to fall back to.
+    const wrongSecret = 'c'.repeat(TOOL_SECRET_HEX_LENGTH)
+    const { header, timestamp } = signPayload('p', wrongSecret)
+    const state = { current: CURRENT, rotatedAt: timestamp }
+    expect(
+      verifyWithRotation(state, 'p', header, { clock: () => timestamp }),
+    ).toBe(false)
+  })
+
+  it('returns false when state.previous is not a string', () => {
+    const { header, timestamp } = signPayload('p', OLD)
+    const state = {
+      current: CURRENT,
+      previous: 12345 as unknown as string,
+      rotatedAt: timestamp,
+    }
+    expect(
+      verifyWithRotation(state, 'p', header, { clock: () => timestamp }),
+    ).toBe(false)
+  })
+
+  it('returns false when state.rotatedAt is not a number', () => {
+    const { header, timestamp } = signPayload('p', OLD)
+    const state = {
+      current: CURRENT,
+      previous: OLD,
+      rotatedAt: 'not-a-number' as unknown as number,
+    }
+    expect(
+      verifyWithRotation(state, 'p', header, { clock: () => timestamp }),
+    ).toBe(false)
+  })
+})
+
+describe('coverage — verifyPayloadSignature edge cases', () => {
+  const SECRET = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+
+  it('returns false when payload is not a string', () => {
+    expect(
+      verifyPayloadSignature(
+        123 as unknown as string,
+        't=1,v1=abc',
+        SECRET,
+      ),
+    ).toBe(false)
+  })
+
+  it('returns false when toleranceSec is negative', () => {
+    const { header, timestamp } = signPayload('p', SECRET)
+    expect(
+      verifyPayloadSignature('p', header, SECRET, {
+        clock: () => timestamp,
+        toleranceSec: -1,
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false when toleranceSec is a non-integer', () => {
+    const { header, timestamp } = signPayload('p', SECRET)
+    expect(
+      verifyPayloadSignature('p', header, SECRET, {
+        clock: () => timestamp,
+        toleranceSec: 0.5,
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false when the hex-signature length differs from expected', () => {
+    // Produces a header with a too-short (but syntactically valid)
+    // signature. The timingSafeHexEqual helper short-circuits false
+    // on length mismatch.
+    const { timestamp } = signPayload('p', SECRET)
+    expect(
+      verifyPayloadSignature(
+        'p',
+        `t=${timestamp},v1=${'a'.repeat(62)}`, // 62 != 64 hex chars
+        SECRET,
+        { clock: () => timestamp },
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('coverage — verifyWebhook body-stream cap + finalizer', () => {
+  const SECRET = 'a'.repeat(TOOL_SECRET_HEX_LENGTH)
+
+  it('returns body_too_large when a streamed body exceeds maxBytes', async () => {
+    // Custom ReadableStream: two 600-byte chunks, no Content-Length
+    // so the fast-path check is skipped. The cap is enforced inside
+    // the read loop → BodyTooLargeError → mapped to body_too_large.
+    const { header, timestamp } = signPayload('p', SECRET, {
+      timestamp: 1_700_000_000,
+    })
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder()
+        controller.enqueue(enc.encode('x'.repeat(600)))
+        controller.enqueue(enc.encode('x'.repeat(600)))
+        controller.close()
+      },
+    })
+    const req = new Request('https://dev-app.example/webhook', {
+      method: 'POST',
+      body: stream,
+      headers: { [SETTLEGRID_SIGNATURE_HEADER]: header },
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' })
+    const result = await verifyWebhook(req, SECRET, {
+      maxBytes: 1024,
+      clock: () => timestamp,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('body_too_large')
+  })
+})
+
+describe('coverage — resolveRailFee surcharge + card edge cases', () => {
+  it('throws on a non-object currencySurcharges value', () => {
+    expect(() =>
+      resolveRailFee(
+        {
+          basePercentBps: 290,
+          baseFlatCents: 30,
+          percentBps: 290,
+          flatCents: 30,
+          currencySurcharges: {
+            GBP: null as unknown as { percentBps: number },
+          },
+        },
+        { currency: 'GBP' },
+      ),
+    ).toThrow(TypeError)
+  })
+
+  it('throws on a non-object volume tier', () => {
+    expect(() =>
+      resolveRailFee(
+        {
+          basePercentBps: 290,
+          baseFlatCents: 30,
+          percentBps: 290,
+          flatCents: 30,
+          volumeTiers: [
+            null as unknown as {
+              minMonthlyCents: number
+              percentBps: number
+              flatCents: number
+            },
+          ],
+        },
+        { monthlyVolumeCents: 1_000_000 },
+      ),
+    ).toThrow(TypeError)
+  })
+
+  it('treats non-string currency as absent (no surcharge)', () => {
+    const r = resolveRailFee(
+      {
+        basePercentBps: 290,
+        baseFlatCents: 30,
+        percentBps: 290,
+        flatCents: 30,
+        currencySurcharges: { GBP: { percentBps: 100 } },
+      },
+      { currency: 123 as unknown as string },
+    )
+    expect(r.percentBps).toBe(290)
+    expect(r.currencySurcharge).toBeUndefined()
+  })
+
+  it('treats empty-string currency as absent', () => {
+    const r = resolveRailFee(
+      {
+        basePercentBps: 290,
+        baseFlatCents: 30,
+        percentBps: 290,
+        flatCents: 30,
+        currencySurcharges: { GBP: { percentBps: 100 } },
+      },
+      { currency: '' },
+    )
+    expect(r.percentBps).toBe(290)
+  })
+
+  it('treats non-number monthlyVolumeCents as zero (falls back to base)', () => {
+    const r = resolveRailFee(
+      {
+        basePercentBps: 290,
+        baseFlatCents: 30,
+        percentBps: 290,
+        flatCents: 30,
+        volumeTiers: [
+          { minMonthlyCents: 1_000_000, percentBps: 270, flatCents: 30 },
+        ],
+      },
+      { monthlyVolumeCents: 'huge' as unknown as number },
+    )
+    expect(r.sourceTier).toBe('base')
+  })
+})
+
+describe('coverage — buildPricingResponseHeaders edge cases', () => {
+  const baseFee: ResolvedRailFee = {
+    percentBps: 290,
+    flatCents: 30,
+    sourceTier: 'base',
+  }
+
+  it('throws on non-object platformTake', () => {
+    expect(() =>
+      buildPricingResponseHeaders(
+        baseFee,
+        'not-an-object' as unknown as { percentBps: number },
+      ),
+    ).toThrow(TypeError)
+    expect(() =>
+      buildPricingResponseHeaders(
+        baseFee,
+        null as unknown as { percentBps: number },
+      ),
+    ).toThrow(TypeError)
+  })
+})
+
+describe('coverage — recordLedgerEntry input-validation edges', () => {
+  const writer = async () => undefined
+  const base = {
+    invocationId: 'inv-1',
+    rail: 'stripe-connect',
+    protocol: 'mpp',
+    amountCents: 500,
+    currency: 'USD',
+    takeBps: 500,
+  } as const
+
+  it('throws TypeError when input is null', async () => {
+    await expect(
+      recordLedgerEntry(
+        null as unknown as Parameters<typeof recordLedgerEntry>[0],
+        writer,
+      ),
+    ).rejects.toThrow(/non-null object/)
+  })
+
+  it('throws TypeError when writer is not a function', async () => {
+    await expect(
+      recordLedgerEntry(
+        base,
+        'not-a-function' as unknown as Parameters<typeof recordLedgerEntry>[1],
+      ),
+    ).rejects.toThrow(/must be a function/)
+  })
+
+  it('rejects non-string rail/protocol/currency', async () => {
+    await expect(
+      recordLedgerEntry(
+        { ...base, rail: 123 as unknown as string },
+        writer,
+      ),
+    ).rejects.toThrow(/must be a non-empty string/)
+  })
+
+  it('rejects non-integer amountCents (float)', async () => {
+    await expect(
+      recordLedgerEntry({ ...base, amountCents: 1.5 }, writer),
+    ).rejects.toThrow(/non-negative integer/)
+  })
+
+  it('rejects takeBps out of [0, 10000]', async () => {
+    await expect(
+      recordLedgerEntry({ ...base, takeBps: 15000 }, writer),
+    ).rejects.toThrow(/basis points/)
+  })
+
+  it('rejects non-string sessionId type', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          ...base,
+          sessionId: 42 as unknown as string,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/sessionId/)
+  })
+
+  it('rejects non-string externalRef', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          ...base,
+          externalRef: 42 as unknown as string,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/externalRef/)
+  })
+
+  it('rejects metadata that is an array (must be a plain object)', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          ...base,
+          metadata: ['a', 'b'] as unknown as Record<string, unknown>,
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/non-null non-array object/)
+  })
+
+  it('accepts explicit takeCents (does not recompute from takeBps)', async () => {
+    const captured: LedgerEntry[] = []
+    await recordLedgerEntry(
+      { ...base, takeBps: 0, takeCents: 3 },
+      async (e) => {
+        captured.push(e)
+      },
+    )
+    // Explicit takeCents wins even though takeBps=0 would compute 0.
+    expect(captured[0].takeCents).toBe(3)
+  })
+
+  it('preserves metadata when it is a valid small object', async () => {
+    const captured: LedgerEntry[] = []
+    await recordLedgerEntry(
+      { ...base, metadata: { origin: 'test', nested: { n: 1 } } },
+      async (e) => {
+        captured.push(e)
+      },
+    )
+    expect(captured[0].metadata).toEqual({ origin: 'test', nested: { n: 1 } })
+  })
+
+  it('leaves metadata null when omitted', async () => {
+    const captured: LedgerEntry[] = []
+    await recordLedgerEntry(base, async (e) => {
+      captured.push(e)
+    })
+    expect(captured[0].metadata).toBeNull()
+  })
+
+  it('lowercases currency consistently (case-insensitive adapter outputs)', async () => {
+    const captured: LedgerEntry[] = []
+    await recordLedgerEntry(
+      { ...base, currency: 'EUR' },
+      async (e) => {
+        captured.push(e)
+      },
+    )
+    expect(captured[0].currency).toBe('eur')
+  })
+})
+
+describe('coverage — recordLedgerEntry status=settled + settledAt combinations', () => {
+  const writer = async () => undefined
+  const base = {
+    invocationId: 'inv-1',
+    rail: 'stripe-connect',
+    protocol: 'mpp',
+    amountCents: 500,
+    currency: 'USD',
+    takeBps: 500,
+  } as const
+
+  it('accepts settled status with a valid settledAt timestamp', async () => {
+    const captured: LedgerEntry[] = []
+    await recordLedgerEntry(
+      {
+        ...base,
+        status: 'settled',
+        settledAt: '2026-04-23T12:00:00.000Z',
+      },
+      async (e) => {
+        captured.push(e)
+      },
+    )
+    expect(captured[0].status).toBe('settled')
+    expect(captured[0].settledAt).toBe('2026-04-23T12:00:00.000Z')
+  })
+
+  it('rejects settledAt that fails ISO regex', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          ...base,
+          status: 'settled',
+          // Missing 'T' separator → fails regex.
+          settledAt: '2026-04-23 12:00:00Z',
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/ISO-8601 timestamp/)
+  })
+
+  it('rejects CRLF in externalRef (header-injection guard)', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          ...base,
+          externalRef: 'pi_abc\r\nX-Injected: evil',
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/control characters/)
+  })
+
+  it('rejects status value outside the closed enum', async () => {
+    await expect(
+      recordLedgerEntry(
+        {
+          ...base,
+          status: 'in-limbo' as unknown as 'pending',
+        },
+        writer,
+      ),
+    ).rejects.toThrow(/pending\/settled\/voided\/failed\/reversed/)
+  })
+})
+
+describe('coverage — resolveRailFee null + malformed-tier paths', () => {
+  it('throws on null card', () => {
+    expect(() =>
+      resolveRailFee(null as unknown as RailPricingRateCard),
+    ).toThrow(/non-null object/)
+  })
+
+  it('throws on tier with non-integer minMonthlyCents', () => {
+    expect(() =>
+      resolveRailFee(
+        {
+          basePercentBps: 290,
+          baseFlatCents: 30,
+          percentBps: 290,
+          flatCents: 30,
+          volumeTiers: [
+            {
+              minMonthlyCents: 1.5,
+              percentBps: 250,
+              flatCents: 30,
+            },
+          ],
+        },
+        { monthlyVolumeCents: 1000 },
+      ),
+    ).toThrow(/non-negative integer/)
+  })
+
+  it('throws on tier with negative minMonthlyCents', () => {
+    expect(() =>
+      resolveRailFee(
+        {
+          basePercentBps: 290,
+          baseFlatCents: 30,
+          percentBps: 290,
+          flatCents: 30,
+          volumeTiers: [
+            {
+              minMonthlyCents: -1,
+              percentBps: 250,
+              flatCents: 30,
+            },
+          ],
+        },
+        { monthlyVolumeCents: 1000 },
+      ),
+    ).toThrow(/non-negative integer/)
+  })
+})
+
 // ─── recordLedgerEntry + fingerprint ────────────────────────────────
 
 describe('recordLedgerEntry', () => {

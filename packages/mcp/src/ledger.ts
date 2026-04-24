@@ -180,9 +180,6 @@ export const LEDGER_ENTRY_MAX_AMOUNT_CENTS = 1_000_000_000_000
 /** Basis-point unit. `10000 = 100%`. */
 const BPS_DENOMINATOR = 10_000
 
-/** Max future skew (seconds) tolerated on `settledAt`. See H9. */
-const SETTLED_AT_FUTURE_SKEW_SEC = 5 * 60
-
 /**
  * Construct and persist a settlement ledger entry. Validates input at
  * the SDK boundary (every field the writer would otherwise accept
