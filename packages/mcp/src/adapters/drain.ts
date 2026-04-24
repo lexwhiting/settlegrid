@@ -22,7 +22,20 @@
  * `@noble/curves/secp256k1`); the hash side being correct is the
  * precondition for that work.
  *
- * @see https://docs.bittensor.com/
+ * Spec references (per P3.K5 card requirement to cite sources):
+ *   - EIP-712 typed structured data hashing
+ *     https://eips.ethereum.org/EIPS/eip-712
+ *   - Keccak (pre-FIPS) reference implementation + vectors
+ *     https://keccak.team/keccak.html
+ *     https://github.com/paulmillr/noble-hashes
+ *   - DRAIN off-chain voucher protocol (Bittensor subnet docs)
+ *     https://docs.bittensor.com/
+ *   - The voucher shape (channelAddress / payer / amount / nonce /
+ *     expiry / signature) + chain-ID 137 Polygon defaults are the
+ *     repo-internal contract described at
+ *     `apps/web/src/app/learn/protocols/[slug]/page.tsx` (slug
+ *     `drain`); cross-referenced against on-chain channel contract
+ *     ABI when the ecrecover integration lands.
  */
 
 import { keccak_256 } from '@noble/hashes/sha3'

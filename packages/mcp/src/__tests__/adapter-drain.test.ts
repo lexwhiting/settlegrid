@@ -202,74 +202,7 @@ describe('DrainAdapter registry registration', () => {
   })
 })
 
-// ─── P3.K5 — Keccak-256 vector tests ────────────────────────────────
-//
-// Locks the `@noble/hashes/sha3` switchover against regression. The
-// previous scaffold used `createHash('sha256')` as a structural
-// stand-in; a regression that restores the stand-in would fail
-// every test below because SHA-256 and Keccak-256 produce
-// completely different digests.
-//
-// Vectors: canonical Keccak-256 known-answer values. Sourced from
-// the Keccak team's reference and the `@noble/hashes` test suite.
-// (Keccak-256 is the PRE-FIPS Keccak round Ethereum adopted; Node's
-// built-in `createHash('sha3-256')` uses a different padding rule
-// and would NOT produce these digests.)
-
-import { keccak_256 } from '@noble/hashes/sha3'
-import { bytesToHex } from '@noble/hashes/utils'
-
-describe('DRAIN — Keccak-256 test vectors (P3.K5)', () => {
-  const hashString = (s: string) =>
-    bytesToHex(keccak_256(new TextEncoder().encode(s)))
-
-  it('matches the empty-string canonical digest', () => {
-    expect(hashString('')).toBe(
-      'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470',
-    )
-  })
-
-  it('matches the "abc" canonical digest', () => {
-    expect(hashString('abc')).toBe(
-      '4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45',
-    )
-  })
-
-  it('matches the "testing" canonical digest', () => {
-    expect(hashString('testing')).toBe(
-      '5f16f4c7f149ac4f9510d9cf8cf384038ad348b3bcdc01915f95de12df9d1b02',
-    )
-  })
-
-  it('matches the EIP-712 domain type-hash for DRAIN', () => {
-    // EIP-712 `keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")`
-    // is a well-known constant. Locking it here catches any accidental
-    // change to the hash function's input encoding (UTF-8 bytes).
-    expect(
-      hashString(
-        'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)',
-      ),
-    ).toBe('8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f')
-  })
-
-  it('differs from FIPS SHA3-256 (proves genuine Keccak, not stand-in)', () => {
-    // Under FIPS SHA3-256 padding, `keccak256("")` would be
-    // 'a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a'.
-    // Under genuine Keccak-256, it's the `c5d2…` value above. A
-    // regression that swapped back to `createHash('sha3-256')` would
-    // emit the FIPS value and fail this test.
-    const FIPS_SHA3_256_EMPTY =
-      'a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a'
-    expect(hashString('')).not.toBe(FIPS_SHA3_256_EMPTY)
-  })
-
-  it('differs from SHA-256 (proves genuine Keccak, not the old SHA-256 stand-in)', () => {
-    // Old stand-in: `createHash('sha256').update('').digest('hex')` =
-    // 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'.
-    // The gate's C15 check explicitly flags the stand-in; a regression
-    // restoring it would emit this value.
-    const SHA256_EMPTY =
-      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-    expect(hashString('')).not.toBe(SHA256_EMPTY)
-  })
-})
+// P3.K5 keccak-256 vector tests moved to
+// `packages/mcp/src/adapters/__tests__/drain.test.ts` per the card's
+// "Files you may touch" list (new-location convention matching the
+// P3.K1 MPP + P3.K2 L402 adapter-specific test layout).
