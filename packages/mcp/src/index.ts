@@ -982,6 +982,7 @@ export type {
 
 export {
   authorizeInvocation,
+  buildAuthDeniedResponse,
   DEFAULT_FRAUD_DENY_THRESHOLD,
   DEFAULT_PLUGIN_TIMEOUT_MS,
 } from './authorize'

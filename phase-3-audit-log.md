@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-24T14:06:57.976Z
+**Run timestamp:** 2026-04-24T14:19:08.384Z
 **Mode:** default
 **Verdict:** 12 PASS / 12 DEFER / 3 FAIL (of 27)
 **Exit code:** 1
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=5-tracked-dirty,12-untracked; agents=0-tracked-dirty,0-untracked — 5 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=4-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 4 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -191,8 +191,8 @@
 
 - **Verdict:** DEFER
 - **Method:** grep git log in both repos for scaffold/spec-diff/hostile commits for P3.K1-K6, P3.RAIL1-3, P3.PYTHON1-5, P3.PROT1 (15 prompts)
-- **Evidence:** present=[P3.K1, P3.K2, P3.K3, P3.K4, P3.K5]; absent=[P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
-- **Detail:** 10/15 expansion prompts have no audit-chain commits — Phase 4 blocked
+- **Evidence:** present=[P3.K1, P3.K2, P3.K3, P3.K4, P3.K5, P3.K6]; absent=[P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
+- **Detail:** 9/15 expansion prompts have no audit-chain commits — Phase 4 blocked
 
 ## Remediation
 
