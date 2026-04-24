@@ -24,9 +24,13 @@ import {
   ClientConfigurationError,
   MalformedManifestError,
   NoSupportedProtocolError,
+  UnexpectedStatusError,
   createSettleGridClient,
   railForScheme,
 } from '../index'
+import { __internal__ } from '../client'
+import { streamTextCapped } from '../http'
+import { MAX_CREDENTIAL_CHARS } from '../protocols'
 import type {
   AcceptEntry,
   PaymentRequiredBody,
@@ -1156,5 +1160,379 @@ describe('hostile guards — preferredRails unknown value (H3)', () => {
       field: 'preferredRails',
       message: expect.stringMatching(/sg-balance/),
     })
+  })
+})
+
+// ─── Coverage-round tests ────────────────────────────────────────────
+//
+// Targeted tests for branches the scaffold + hostile rounds missed
+// per v8 coverage. Boundary / negative / regression-guards only —
+// no new functional behavior.
+
+describe('UnexpectedStatusError — constructor fields', () => {
+  // Scaffold exported UnexpectedStatusError but no code path throws
+  // it today (a future caller who wraps `call()` might). Ensure the
+  // constructor populates all fields correctly and the message
+  // snippet is truncated to ≤200 chars.
+  it('populates all fields and truncates bodySnippet to 200 chars in the message', () => {
+    const longBody = 'x'.repeat(500)
+    const err = new UnexpectedStatusError({
+      status: 503,
+      toolUrl: 'https://tool.test',
+      bodySnippet: longBody,
+    })
+    expect(err).toBeInstanceOf(UnexpectedStatusError)
+    expect(err).toBeInstanceOf(Error)
+    expect(err.name).toBe('UnexpectedStatusError')
+    expect(err.code).toBe('unexpected_status')
+    expect(err.status).toBe(503)
+    expect(err.toolUrl).toBe('https://tool.test')
+    expect(err.bodySnippet).toBe(longBody)
+    // Message slices the snippet to 200 chars (not the full 500).
+    expect(err.message).toContain('x'.repeat(200))
+    expect(err.message).not.toContain('x'.repeat(201))
+  })
+})
+
+describe('mergeHeaders — internal', () => {
+  const { mergeHeaders } = __internal__
+
+  it('merges a Headers instance (forEach branch)', () => {
+    const h = new Headers({ 'X-Alpha': 'one', 'X-Beta': 'two' })
+    const merged = mergeHeaders(h)
+    expect(merged['x-alpha']).toBe('one')
+    expect(merged['x-beta']).toBe('two')
+  })
+
+  it('merges an array-of-tuples (HeadersInit array form)', () => {
+    const merged = mergeHeaders([
+      ['X-Alpha', 'one'],
+      ['X-Beta', 'two'],
+    ])
+    expect(merged['x-alpha']).toBe('one')
+    expect(merged['x-beta']).toBe('two')
+  })
+
+  it('silently skips non-tuple entries inside an array source', () => {
+    const merged = mergeHeaders([
+      ['X-Alpha', 'one'],
+      // Not a length-2 tuple → skipped without throwing.
+      ['X-Broken'] as unknown as [string, string],
+      ['X-Beta', 'two'],
+    ])
+    expect(merged['x-alpha']).toBe('one')
+    expect(merged['x-beta']).toBe('two')
+    expect(merged['x-broken']).toBeUndefined()
+  })
+
+  it('drops undefined/null values from a record source', () => {
+    const merged = mergeHeaders({
+      'X-Alpha': 'one',
+      'X-Null': null as unknown as string,
+      'X-Undef': undefined as unknown as string,
+    })
+    expect(merged['x-alpha']).toBe('one')
+    expect('x-null' in merged).toBe(false)
+    expect('x-undef' in merged).toBe(false)
+  })
+
+  it('later sources override earlier on key collision', () => {
+    const merged = mergeHeaders(
+      { 'X-Key': 'first' },
+      { 'X-Key': 'second' },
+      { 'X-Key': 'third' },
+    )
+    expect(merged['x-key']).toBe('third')
+  })
+
+  it('returns an empty object when all sources are undefined', () => {
+    expect(mergeHeaders(undefined, undefined)).toEqual({})
+  })
+})
+
+describe('parsePaymentRequiredBody — shape-failure paths (via client.call)', () => {
+  it('rejects a 402 body that is a JSON array (not an object)', async () => {
+    const fetchImpl = scriptedFetch([
+      () =>
+        new Response(JSON.stringify([1, 2, 3]), {
+          status: 402,
+          headers: { 'content-type': 'application/json' },
+        }),
+    ])
+    const client = createSettleGridClient({ fetch: fetchImpl })
+    await expect(client.call(TOOL_URL, {})).rejects.toMatchObject({
+      name: 'MalformedManifestError',
+      reason: expect.stringMatching(/not a JSON object/),
+    })
+  })
+
+  it('rejects a 402 body whose accepts is not an array', async () => {
+    const fetchImpl = scriptedFetch([
+      () =>
+        new Response(
+          JSON.stringify({
+            x402Version: 2,
+            error: 'payment_required',
+            accepts: 'not-an-array',
+          }),
+          {
+            status: 402,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+    ])
+    const client = createSettleGridClient({ fetch: fetchImpl })
+    await expect(client.call(TOOL_URL, {})).rejects.toMatchObject({
+      name: 'MalformedManifestError',
+      reason: expect.stringMatching(/accepts.*array/i),
+    })
+  })
+})
+
+describe('requireString / optionalString — protocol credential validation', () => {
+  it('requireString throws when the field is missing', async () => {
+    // The MPP payer requires `sharedPaymentToken`. Calling buildPayment
+    // with a wallet that lacks it exercises the missing-field branch.
+    await expect(
+      mppPayer.buildPayment({
+        entry: { scheme: 'mpp', amountCents: 5 },
+        wallet: {},
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/missing required string field/),
+    })
+  })
+
+  it('requireString throws when the field exceeds MAX_CREDENTIAL_CHARS', async () => {
+    const oversize = 'x'.repeat(MAX_CREDENTIAL_CHARS + 1)
+    await expect(
+      mppPayer.buildPayment({
+        entry: { scheme: 'mpp', amountCents: 5 },
+        wallet: { sharedPaymentToken: oversize },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/exceeds.*char cap/),
+    })
+  })
+
+  it('optionalString throws when a present value is not a string', async () => {
+    // AP2 consumerId is optional; when PRESENT it must be a string.
+    // Passing a number trips the type-mismatch branch that the
+    // undefined-or-absent path otherwise skips.
+    await expect(
+      ap2Payer.buildPayment({
+        entry: { scheme: 'ap2', costCents: 5 },
+        wallet: { vdcJwt: 'eyJ.jwt', consumerId: 12345 as unknown as string },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/must be a string/),
+    })
+  })
+
+  it('optionalString treats empty string as absent (no header emitted)', async () => {
+    const { headers } = await ap2Payer.buildPayment({
+      entry: { scheme: 'ap2', costCents: 5 },
+      wallet: { vdcJwt: 'eyJ.jwt', consumerId: '' },
+      toolUrl: TOOL_URL,
+    })
+    expect(headers).toEqual({ 'x-ap2-credential': 'eyJ.jwt' })
+    expect('x-ap2-consumer-id' in headers).toBe(false)
+  })
+})
+
+describe('l402 canPay + buildPayment — defensive branches', () => {
+  const VALID_PREIMAGE = 'a'.repeat(64)
+
+  it('canPay returns false when the wallet is undefined or readOnly', () => {
+    expect(l402Payer.canPay(undefined)).toBe(false)
+    expect(
+      l402Payer.canPay({
+        readOnly: true,
+        macaroon: 'mac',
+        preimage: VALID_PREIMAGE,
+      }),
+    ).toBe(false)
+  })
+
+  it('canPay returns false when the wallet has no macaroon', () => {
+    expect(
+      l402Payer.canPay({ preimage: VALID_PREIMAGE } as never),
+    ).toBe(false)
+  })
+
+  it('canPay returns false when the wallet has no preimage', () => {
+    expect(l402Payer.canPay({ macaroon: 'mac' } as never)).toBe(false)
+  })
+
+  it('buildPayment defensive re-check: preimage fails after requireString (bypass canPay)', async () => {
+    // Direct call to buildPayment with a wallet whose preimage passes
+    // requireString's string check but fails the HEX_32_BYTES regex.
+    // In the normal flow, canPay would have rejected first — this
+    // exercise is for the defense-in-depth re-check.
+    await expect(
+      l402Payer.buildPayment({
+        entry: { scheme: 'l402', costCents: 5 },
+        wallet: { macaroon: 'mac', preimage: 'not-64-hex-chars-at-all' },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/preimage.*64 hex/),
+    })
+  })
+
+  it('buildPayment defensive re-check: macaroon fails after requireString (bypass canPay)', async () => {
+    await expect(
+      l402Payer.buildPayment({
+        entry: { scheme: 'l402', costCents: 5 },
+        wallet: { macaroon: 'mac:with:colons', preimage: VALID_PREIMAGE },
+        toolUrl: TOOL_URL,
+      }),
+    ).rejects.toMatchObject({
+      name: 'TypeError',
+      message: expect.stringMatching(/macaroon.*:.*whitespace/i),
+    })
+  })
+})
+
+describe('ap2 extractCostCents — rejects malformed costs', () => {
+  it('returns null on non-integer costCents (1.5)', () => {
+    expect(
+      ap2Payer.extractCostCents({ scheme: 'ap2', costCents: 1.5 }),
+    ).toBeNull()
+  })
+
+  it('returns null on negative costCents', () => {
+    expect(
+      ap2Payer.extractCostCents({ scheme: 'ap2', costCents: -1 }),
+    ).toBeNull()
+  })
+
+  it('returns null when costCents is missing entirely', () => {
+    expect(ap2Payer.extractCostCents({ scheme: 'ap2' })).toBeNull()
+  })
+})
+
+describe('l402 extractCostCents — rejects malformed costs', () => {
+  it('returns null on non-integer costCents', () => {
+    expect(
+      l402Payer.extractCostCents({ scheme: 'l402', costCents: 1.5 }),
+    ).toBeNull()
+  })
+
+  it('returns null on negative costCents', () => {
+    expect(
+      l402Payer.extractCostCents({ scheme: 'l402', costCents: -1 }),
+    ).toBeNull()
+  })
+
+  it('returns null when costCents is a non-number', () => {
+    expect(
+      l402Payer.extractCostCents({
+        scheme: 'l402',
+        costCents: 'five' as unknown as number,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('streamTextCapped — mid-stream cap exceed (hits finally catch)', () => {
+  it('throws MalformedManifestError when a streamed body exceeds maxBytes during read', async () => {
+    // Custom ReadableStream: two 600-byte chunks totaling 1200 bytes.
+    // The server omits Content-Length so the fast-path check is
+    // skipped; the cap is enforced inside the read loop.
+    const fetchImpl = scriptedFetch([
+      () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            const enc = new TextEncoder()
+            controller.enqueue(enc.encode('x'.repeat(600)))
+            controller.enqueue(enc.encode('x'.repeat(600)))
+            controller.close()
+          },
+        })
+        const res = new Response(stream, {
+          status: 402,
+          headers: { 'content-type': 'application/json' },
+        })
+        return res
+      },
+    ])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      manifestMaxBytes: 1024,
+    })
+    await expect(client.call(TOOL_URL, {})).rejects.toMatchObject({
+      name: 'MalformedManifestError',
+      reason: expect.stringMatching(/exceeds.*cap during stream/i),
+    })
+  })
+
+  it('returns empty string when response.body is null', async () => {
+    // Node/undici Response with status 204 has body === null. The
+    // readManifest wrapper treats this as malformed (empty body),
+    // but the streamTextCapped helper itself returns '' cleanly.
+    const fetchImpl = scriptedFetch([
+      () => new Response(null, { status: 402 }),
+    ])
+    const client = createSettleGridClient({ fetch: fetchImpl })
+    await expect(client.call(TOOL_URL, {})).rejects.toBeInstanceOf(
+      MalformedManifestError,
+    )
+  })
+
+  it('rejects invalid maxBytes (H44) — direct call', async () => {
+    const res = new Response('hello', { status: 200 })
+    await expect(streamTextCapped(res, 0)).rejects.toThrow(TypeError)
+    await expect(streamTextCapped(res, -1)).rejects.toThrow(TypeError)
+    await expect(streamTextCapped(res, 1.5)).rejects.toThrow(TypeError)
+    await expect(streamTextCapped(res, Number.NaN)).rejects.toThrow(TypeError)
+  })
+})
+
+describe('validateManifestCap — boundary', () => {
+  it('rejects manifestMaxBytes below 1024 at construction', () => {
+    expect(() =>
+      createSettleGridClient({ manifestMaxBytes: 500 }),
+    ).toThrow(ClientConfigurationError)
+  })
+
+  it('rejects non-integer manifestMaxBytes', () => {
+    expect(() =>
+      createSettleGridClient({ manifestMaxBytes: 2048.5 }),
+    ).toThrow(ClientConfigurationError)
+  })
+
+  it('rejects NaN manifestMaxBytes', () => {
+    expect(() =>
+      createSettleGridClient({ manifestMaxBytes: Number.NaN }),
+    ).toThrow(ClientConfigurationError)
+  })
+
+  it('accepts exactly 1024', async () => {
+    // Boundary — 1024 is the documented minimum.
+    const fetchImpl = scriptedFetch([() => json({ ok: true })])
+    const client = createSettleGridClient({
+      fetch: fetchImpl,
+      manifestMaxBytes: 1024,
+    })
+    const res = await client.call(TOOL_URL, {})
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('NoSupportedProtocolError — empty-advertisement fallback', () => {
+  it('message reads "Server accepts: [none]" when advertisedSchemes is empty', () => {
+    const err = new NoSupportedProtocolError({
+      advertisedSchemes: [],
+      toolUrl: 'https://tool.test',
+    })
+    expect(err.message).toContain('Server accepts: [none]')
   })
 })
