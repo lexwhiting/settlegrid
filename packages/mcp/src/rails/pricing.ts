@@ -259,6 +259,17 @@ export function buildPricingResponseHeaders(
   }
   assertBps(fee.percentBps, 'fee.percentBps')
   assertFlatCents(fee.flatCents, 'fee.flatCents')
+  // Hostile fix H26 — sourceTier ships verbatim in a response
+  // header. An adversary who can mint a ResolvedRailFee (e.g., via
+  // a future plugin API) could otherwise inject arbitrary bytes —
+  // including CRLF — into the header value via a poisoned
+  // sourceTier string. Close the union explicitly.
+  if (fee.sourceTier !== 'base' && fee.sourceTier !== 'volume-tier') {
+    throw new TypeError(
+      `buildPricingResponseHeaders: \`fee.sourceTier\` must be 'base' or ` +
+        `'volume-tier'; got ${JSON.stringify(fee.sourceTier)}.`,
+    )
+  }
 
   const headers: Record<string, string> = {
     'x-settlegrid-rail-fee-bps': String(fee.percentBps),

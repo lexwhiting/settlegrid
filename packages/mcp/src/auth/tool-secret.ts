@@ -81,6 +81,18 @@ export const SIGNATURE_VERSION = 'v1' as const
  * webhook handling have a familiar knob. */
 export const DEFAULT_TIMESTAMP_TOLERANCE_SEC = 5 * 60
 
+/**
+ * Maximum FUTURE skew accepted at verify time — hard-coded at 5
+ * seconds regardless of `toleranceSec`. Hostile fix H18: without
+ * this, a caller who signed with a future timestamp (override)
+ * could extend the valid-verification window by the full
+ * `toleranceSec` ahead of `now`. Real clock skew between a
+ * caller and verifier is typically milliseconds; 5 seconds is
+ * generous headroom for NTP-desynced servers while still bounding
+ * the forgery window.
+ */
+export const MAX_FUTURE_SKEW_SEC = 5
+
 /** Rotation grace period — ≤60 seconds per the P3.K4 hostile-review
  * requirement (c). An old secret remains valid for AT MOST this long
  * after a rotation so the blast radius of a leaked old secret is
@@ -220,7 +232,16 @@ export function verifyPayloadSignature(
     opts.toleranceSec ?? DEFAULT_TIMESTAMP_TOLERANCE_SEC
   if (!Number.isInteger(tolerance) || tolerance < 0) return false
   const now = opts.clock ? opts.clock() : nowUnixSec()
-  if (Math.abs(now - parsed.timestamp) > tolerance) return false
+  // Hostile fix H18 — check past + future skew asymmetrically. The
+  // old `Math.abs(...)` allowed a signer with a future-timestamp
+  // override to extend the valid-verify window by `tolerance`
+  // seconds ahead of `now`. The conventional semantics is:
+  //   past: up to `tolerance` seconds (the freshness window)
+  //   future: up to MAX_FUTURE_SKEW_SEC (tight clock-skew
+  //           allowance; anything more indicates tampering)
+  const delta = now - parsed.timestamp
+  if (delta > tolerance) return false // stale
+  if (-delta > MAX_FUTURE_SKEW_SEC) return false // too far in the future
 
   const expected = hmacHex(secret, `${parsed.timestamp}.${payload}`)
   return timingSafeHexEqual(expected, parsed.signature)
@@ -244,7 +265,11 @@ export function rotateToolSecret(
 ): ToolSecretState {
   const nextCurrent = generateToolSecret()
   const rotatedAt = (clock ?? nowUnixSec)()
-  if (!current || typeof current.current !== 'string') {
+  // Hostile fix H15 — reject storing a malformed prior secret as
+  // `previous`. If the caller hands us junk, we rotate to a clean
+  // state WITHOUT a previous so a future verifyWithRotation can't
+  // accept signatures forged against the bad previous.
+  if (!current || !isValidToolSecretShape(current.current)) {
     return { current: nextCurrent, rotatedAt }
   }
   return {
@@ -285,6 +310,15 @@ export function verifyWithRotation(
     return false
   }
   const now = opts.clock ? opts.clock() : nowUnixSec()
+  // Hostile fix H16 — reject `rotatedAt` in the future. Without
+  // this, a state with `rotatedAt > now` produces a negative
+  // `now - rotatedAt`, which passes the `<= ROTATION_GRACE_SEC`
+  // check and keeps the old secret valid for far longer than the
+  // intended 60-second window. A legitimate state never has a
+  // future rotatedAt (rotateToolSecret always writes `nowUnixSec()`).
+  if (state.rotatedAt > now) {
+    return false
+  }
   if (now - state.rotatedAt > ROTATION_GRACE_SEC) {
     return false
   }
