@@ -829,6 +829,18 @@ export const ledgerEntries = pgTable(
     settlementStatus: text('settlement_status'),
     settledAt: timestamp('settled_at', { withTimezone: true }),
     externalRef: text('external_ref'),
+    // ─── P3.K6 authorization gate columns ─────────────────────────
+    // `authorizationSignals` is the per-check audit trail produced
+    // by `authorizeInvocation()`. Reconciliation + compliance
+    // queries read this to demonstrate the gate executed (OFAC
+    // strict-liability evidence). The 403 HTTP response body must
+    // NOT expose this array (hostile req e); only the top-level
+    // denial reason is caller-visible. `authorizationArtifact`
+    // is an optional cryptographic approval token returned by
+    // external authorization plugins (enterprise policy engines,
+    // regulated-industry policy layers).
+    authorizationSignals: jsonb('authorization_signals'),
+    authorizationArtifact: text('authorization_artifact'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -104,6 +104,12 @@ import type { createMiddleware } from './middleware'
 // types.ts. Importing it as a type-only import avoids the runtime
 // circular dependency that a value import would create (index.ts
 // re-exports createDispatchKernel from this file).
+import {
+  authorizeInvocation,
+  type AuthorizationConfig,
+  type AuthorizationContext,
+  type AuthorizationResult,
+} from './authorize'
 import type { SettleGridInstance } from './index'
 import type {
   DispatchHandler,
@@ -192,9 +198,39 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
  */
 const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp']
 
-export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
+/**
+ * P3.K6 — options accepted by {@link createDispatchKernel}. Currently
+ * carries only the authorization-gate config; future kernel-level
+ * knobs (rail overrides, tracing, etc.) land here too.
+ *
+ * Pre-P3.K6 callers (`createDispatchKernel(sg)` with no second arg)
+ * continue to work unchanged — the gate runs with no-op defaults
+ * (all checks pass, OFAC wired-warn logged once per call).
+ */
+export interface CreateDispatchKernelOptions {
+  /**
+   * Pre-execution authorization gate configuration. Injected
+   * check primitives (rateLimiter, budgetChecker, fraudScorer,
+   * ofacScreener, aupEnforcer) + optional plugins. See
+   * `packages/mcp/src/authorize.ts` for the full contract.
+   *
+   * Hostile-review requirement (c): the gate cannot be bypassed
+   * by any code path in the kernel — every dispatch path calls
+   * `authorizeInvocation` between payment verification and tool
+   * execution. Leaving this option undefined does NOT disable
+   * the gate; it only means the built-in checks fall back to
+   * their no-op defaults.
+   */
+  authorize?: AuthorizationConfig
+}
+
+export function createDispatchKernel(
+  sg: SettleGridInstance,
+  options: CreateDispatchKernelOptions = {},
+): DispatchKernel {
   const internals = extractKernelInternals(sg)
   const { middleware, config, pricing } = internals
+  const authConfig = options.authorize ?? {}
 
   /**
    * Build the kernel's default 402 manifest. Hoisted out of `handle()`
@@ -246,7 +282,15 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
 
           // 3. Protocol-specific pipeline
           if (ctx.protocol === 'mcp') {
-            return await handleSgBalance(ctx, adapter, request, runHandler, middleware)
+            return await handleSgBalance(
+              ctx,
+              adapter,
+              request,
+              runHandler,
+              middleware,
+              config,
+              authConfig,
+            )
           }
           if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
             return await handleFacilitatorProtocol(
@@ -255,6 +299,7 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
               request,
               runHandler,
               config,
+              authConfig,
             )
           }
           // Protocol is recognized by the registry but not wired into
@@ -309,6 +354,33 @@ function buildKernelFault500(err: unknown, config: NormalizedConfig): Response {
   )
 }
 
+// ─── P3.K6 — authorization-denied 403 response helper ─────────────────────
+//
+// Constructs the 403 Forbidden response returned when the
+// authorization gate denies an invocation. Hostile-review
+// requirement (e): the response MUST expose only the top-level
+// `reason` — the per-check `signals` array stays internal for
+// ledger-audit only. A caller who inspects the response sees
+// their denial category; they do not see which internal signal
+// tripped (a fraud-scoring model detail, an OFAC match, etc.)
+// that could be used to probe the gate's behavior.
+
+function buildAuthDeniedResponse(result: AuthorizationResult): Response {
+  const body = {
+    error: {
+      code: 'AUTHORIZATION_DENIED',
+      reason: result.reason ?? 'authorization_denied',
+    },
+  }
+  return new Response(JSON.stringify(body), {
+    status: 403,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-SettleGrid-Authorization': 'denied',
+    },
+  })
+}
+
 // ─── sg-balance (MCP) pipeline ─────────────────────────────────────────────
 
 async function handleSgBalance(
@@ -317,6 +389,8 @@ async function handleSgBalance(
   request: Request,
   runHandler: DispatchHandler,
   middleware: ReturnType<typeof createMiddleware>,
+  config: NormalizedConfig,
+  authConfig: AuthorizationConfig,
 ): Promise<Response> {
   const startTime = Date.now()
   const apiKey = ctx.identity.value
@@ -335,6 +409,26 @@ async function handleSgBalance(
   )
   if (!sufficient) {
     throw new InsufficientCreditsError(costCents, validation.balanceCents)
+  }
+
+  // 2b. P3.K6 — pre-execution authorization gate. Runs OFAC (first,
+  // per strict-liability hostile req a) + rate/budget/fraud/AUP +
+  // any registered plugins. Denial short-circuits before the
+  // developer's handler runs — hostile req (c): the gate cannot be
+  // bypassed by any code path. Signals array is recorded for audit
+  // (written to ledger when wired by the caller); the 403 response
+  // exposes only the top-level `reason` per hostile req (e).
+  const authCtx: AuthorizationContext = {
+    apiKey: ctx.identity.value,
+    toolSlug: config.toolSlug,
+    method,
+    consumerId: validation.consumerId,
+    costCents,
+    keyId: validation.keyId,
+  }
+  const authResult = await authorizeInvocation(authCtx, authConfig)
+  if (!authResult.allowed) {
+    return buildAuthDeniedResponse(authResult)
   }
 
   // 3. Run the developer's handler. The return value is intentionally
@@ -388,6 +482,7 @@ async function handleFacilitatorProtocol(
   request: Request,
   runHandler: DispatchHandler,
   config: NormalizedConfig,
+  authConfig: AuthorizationConfig,
 ): Promise<Response> {
   const startTime = Date.now()
   const protocol = ctx.protocol
@@ -395,6 +490,22 @@ async function handleFacilitatorProtocol(
 
   // 1. Verify payment via facilitator — throws on failure
   await facilitatorVerify(config, protocol, ctx, authHeader)
+
+  // 1b. P3.K6 — pre-execution authorization gate (mirrors the
+  // sg-balance path). Runs AFTER verify (we know the payment is
+  // valid) and BEFORE handler. Hostile req (c): there is no
+  // dispatch path without this gate. The 403 response leaks only
+  // `reason` per hostile req (e); the signals array stays
+  // internal.
+  const authCtx: AuthorizationContext = {
+    apiKey: ctx.identity.value,
+    toolSlug: config.toolSlug,
+    method: ctx.operation.method,
+  }
+  const authResult = await authorizeInvocation(authCtx, authConfig)
+  if (!authResult.allowed) {
+    return buildAuthDeniedResponse(authResult)
+  }
 
   // 2. Run the developer's handler; its return value is forwarded to
   // settle so the server can compute the final cost (e.g., token count

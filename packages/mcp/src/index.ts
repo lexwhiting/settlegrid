@@ -977,3 +977,29 @@ export type {
   VerifyWebhookOptions,
   VerifyWebhookResult,
 } from './verifyWebhook'
+
+// ─── P3.K6 — Pre-execution authorization gate ────────────────────────
+
+export {
+  authorizeInvocation,
+  DEFAULT_FRAUD_DENY_THRESHOLD,
+  DEFAULT_PLUGIN_TIMEOUT_MS,
+} from './authorize'
+export type {
+  AuthorizationResult,
+  AuthorizationSignal,
+  AuthorizationPlugin,
+  AuthorizationContext,
+  AuthorizationConfig,
+  AuthorizationLogger,
+  RateLimitCheck,
+  RateLimitOutcome,
+  BudgetCheck,
+  BudgetOutcome,
+  FraudCheck,
+  FraudOutcome,
+  OfacCheck,
+  OfacOutcome,
+  AupCheck,
+  AupOutcome,
+} from './authorize'

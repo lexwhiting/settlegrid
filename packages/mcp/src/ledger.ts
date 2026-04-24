@@ -121,6 +121,36 @@ export interface LedgerEntry {
    * but does not inspect semantics.
    */
   metadata: Record<string, unknown> | null
+  /**
+   * P3.K6 — Authorization signals captured at dispatch time. Each
+   * entry records which built-in check (ofac / rate_limit / budget /
+   * fraud / aup) or plugin ran and its verdict. Reconciliation +
+   * compliance audits read this array for evidence that the gate
+   * executed. Hostile-review requirement (e) says the 403 HTTP
+   * response must NOT expose this array to callers — only the
+   * top-level denial reason. Callers consume `signals` via ledger
+   * reads, not response bodies.
+   *
+   * Optional on the type so pre-P3.K6 callers (constructing
+   * LedgerEntry directly in tests) continue to compile. The
+   * canonical `recordLedgerEntry` helper always populates it
+   * (defaults to null).
+   */
+  authorizationSignals?: ReadonlyArray<{
+    check: string
+    passed: boolean
+    detail?: string
+  }> | null
+  /**
+   * P3.K6 — Optional cryptographic artifact returned by an
+   * authorization plugin (e.g., a signed approval token from an
+   * enterprise policy engine). Opaque string; preserved for audit.
+   *
+   * Optional on the type for the same reason as
+   * `authorizationSignals` — keeps existing test fixtures
+   * compiling while new callers get the full field set.
+   */
+  authorizationArtifact?: string | null
 }
 
 /**
@@ -144,6 +174,14 @@ export interface RecordLedgerEntryInput {
   id?: string
   /** Override the server-assigned createdAt. Rarely needed. */
   createdAt?: string
+  /** P3.K6 — Authorization signals captured at dispatch time. */
+  authorizationSignals?: ReadonlyArray<{
+    check: string
+    passed: boolean
+    detail?: string
+  }> | null
+  /** P3.K6 — Optional plugin-returned cryptographic artifact. */
+  authorizationArtifact?: string | null
 }
 
 /**
@@ -322,6 +360,61 @@ export async function recordLedgerEntry(
     requireSafeHeaderValue(externalRef, 'externalRef')
   }
 
+  // P3.K6 — validate authorization fields. Signals array is
+  // bounded to prevent a caller from stuffing an unbounded audit
+  // trail into a single ledger row. Artifact is length-capped via
+  // the metadata cap to keep downstream row sizes predictable.
+  const authorizationSignals = input.authorizationSignals ?? null
+  if (authorizationSignals !== null) {
+    if (!Array.isArray(authorizationSignals)) {
+      throw new TypeError(
+        'recordLedgerEntry: `authorizationSignals`, when present, must be an array.',
+      )
+    }
+    if (authorizationSignals.length > 64) {
+      throw new RangeError(
+        `recordLedgerEntry: \`authorizationSignals\` array has ${authorizationSignals.length} entries; cap is 64.`,
+      )
+    }
+    for (const entry of authorizationSignals) {
+      if (entry === null || typeof entry !== 'object') {
+        throw new TypeError(
+          'recordLedgerEntry: each `authorizationSignals` entry must be an object.',
+        )
+      }
+      if (typeof entry.check !== 'string' || entry.check.length === 0) {
+        throw new TypeError(
+          'recordLedgerEntry: each `authorizationSignals` entry must have a non-empty `check` string.',
+        )
+      }
+      requireSafeHeaderValue(entry.check, 'authorizationSignals[].check')
+      if (typeof entry.passed !== 'boolean') {
+        throw new TypeError(
+          'recordLedgerEntry: each `authorizationSignals` entry must have a boolean `passed`.',
+        )
+      }
+      if (entry.detail !== undefined && typeof entry.detail !== 'string') {
+        throw new TypeError(
+          'recordLedgerEntry: `authorizationSignals[].detail`, when present, must be a string.',
+        )
+      }
+    }
+  }
+  const authorizationArtifact = input.authorizationArtifact ?? null
+  if (authorizationArtifact !== null) {
+    if (typeof authorizationArtifact !== 'string' || authorizationArtifact.length === 0) {
+      throw new TypeError(
+        'recordLedgerEntry: `authorizationArtifact`, when present, must be a non-empty string.',
+      )
+    }
+    if (authorizationArtifact.length > LEDGER_ENTRY_METADATA_MAX_BYTES) {
+      throw new RangeError(
+        `recordLedgerEntry: \`authorizationArtifact\` length ${authorizationArtifact.length} exceeds ${LEDGER_ENTRY_METADATA_MAX_BYTES}-char cap.`,
+      )
+    }
+    requireSafeHeaderValue(authorizationArtifact, 'authorizationArtifact')
+  }
+
   const metadata = input.metadata ?? null
   if (metadata !== null) {
     if (typeof metadata !== 'object' || Array.isArray(metadata)) {
@@ -382,6 +475,8 @@ export async function recordLedgerEntry(
     settledAt,
     externalRef,
     metadata,
+    authorizationSignals,
+    authorizationArtifact,
   }
 
   await writer(entry)
