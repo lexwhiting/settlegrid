@@ -162,6 +162,19 @@ function parseVoucher(raw: string): DrainVoucher | null {
  */
 const DECIMAL_INT_RE = /^\d+$/
 
+/**
+ * EVM address format: `0x` prefix + 40 hex chars (20 bytes). P3.K5
+ * hostile fix H1 — `channelAddress` + `payer` flow into `padAddress`
+ * which strips `0x`, lowercases, and pads to 64 chars. Before this
+ * check a malformed address (non-hex chars) would survive padAddress
+ * and then throw inside `@noble/hashes/utils.hexToBytes` when the
+ * EIP-712 hash chain concatenated it. The throw would surface as a
+ * 500 at the seller endpoint instead of a clean voucher-rejection.
+ * Rejecting at the parse boundary keeps the error in the
+ * `DRAIN_VOUCHER_INVALID` 401 response path.
+ */
+const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
+
 function extractVoucher(obj: Record<string, unknown>): DrainVoucher | null {
   const channelAddress =
     typeof obj.channelAddress === 'string'
@@ -189,13 +202,23 @@ function extractVoucher(obj: Record<string, unknown>): DrainVoucher | null {
   // format spec (DRAIN EIP-712 types) declares amount as uint256 — only
   // non-negative decimal integers are valid on the wire.
   if (!DECIMAL_INT_RE.test(amount)) return null
+  // P3.K5 hostile fix H1 — `channelAddress` + `payer` feed `padAddress`
+  // which feeds `hexToBytes` via the EIP-712 concat chain. Non-EVM-
+  // shaped values would throw there; reject at the parse boundary.
+  if (!EVM_ADDRESS_RE.test(channelAddress)) return null
+  if (!EVM_ADDRESS_RE.test(payer)) return null
+  // P3.K5 hostile fix H2 — `nonce` has an explicit `< 0` check above;
+  // `expiry` didn't. A negative expiry would survive parse and then
+  // throw inside `padUint256(BigInt(-x)).toString(16)` (emits '-x'
+  // which is not valid hex). Match the nonce semantic exactly.
+  if (!Number.isFinite(expiry) || expiry < 0) return null
 
   return {
     channelAddress,
     payer,
     amount,
     nonce,
-    expiry: Number.isFinite(expiry) ? expiry : 0,
+    expiry,
     signature,
   }
 }
@@ -276,8 +299,17 @@ function verifyVoucherSignature(voucher: DrainVoucher): {
     return { valid: false, error: 'Invalid signature format: not valid hex.' }
   }
 
-  // Compute hash for future ecrecover integration (currently unused).
-  void computeVoucherHash(voucher)
+  // P3.K5 hostile fix H3 — the prior implementation called
+  // `void computeVoucherHash(voucher)` here as a placeholder for the
+  // future ecrecover integration. With the SHA-256 stand-in that was
+  // harmless dead compute; with the real Keccak-256 via
+  // `@noble/hashes/utils.hexToBytes`, it becomes a live throw vector
+  // for any voucher that slipped a malformed address past the parser.
+  // H1 closes the upstream gap (parser rejects malformed addresses)
+  // but there's no reason to keep the dead call itself. When
+  // ecrecover lands (uses `@noble/curves/secp256k1` over the computed
+  // digest) it will call `computeVoucherHash` at that site with the
+  // result actually consumed.
 
   return { valid: true, recoveredAddress: voucher.payer }
 }

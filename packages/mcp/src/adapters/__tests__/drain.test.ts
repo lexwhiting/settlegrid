@@ -17,6 +17,7 @@
 import { describe, expect, it } from 'vitest'
 import { keccak_256 } from '@noble/hashes/sha3'
 import { bytesToHex } from '@noble/hashes/utils'
+import { DrainAdapter } from '../drain'
 
 const hashString = (s: string) =>
   bytesToHex(keccak_256(new TextEncoder().encode(s)))
@@ -73,5 +74,116 @@ describe('DRAIN — Keccak-256 test vectors (P3.K5)', () => {
     const SHA256_EMPTY =
       'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
     expect(hashString('')).not.toBe(SHA256_EMPTY)
+  })
+})
+
+// ─── Hostile-round guards (P3.K5) ───────────────────────────────────
+//
+// Lock the parser-boundary fixes. Before P3.K5 the hash helper
+// used `Buffer.from(hex, 'hex')` which silently dropped invalid
+// chars (producing wrong digests but no crash). Switching to
+// `@noble/hashes/utils.hexToBytes` made the helpers strict —
+// malformed addresses / negative expiries now throw. The parser
+// was updated to reject these at the voucher-extraction boundary
+// so the throw can't reach the settlement flow as a 500.
+//
+// Tests exercise the adapter's public `extractPaymentContext`
+// surface (parseVoucher is internal). When the parser rejects a
+// voucher, identity.value falls back to 'unknown' — the
+// observable signal that the malformed voucher was discarded.
+
+const VALID_CHANNEL = '0x1234567890abcdef1234567890abcdef12345678'
+const VALID_PAYER = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+const VALID_SIG = '0x' + 'a'.repeat(130)
+
+function makeVoucher(overrides: Record<string, unknown> = {}): string {
+  const base: Record<string, unknown> = {
+    channelAddress: VALID_CHANNEL,
+    payer: VALID_PAYER,
+    amount: '100000',
+    nonce: 1,
+    expiry: 0,
+    signature: VALID_SIG,
+  }
+  return JSON.stringify({ ...base, ...overrides })
+}
+
+describe('DRAIN parser hostile guards (P3.K5)', () => {
+  const adapter = new DrainAdapter()
+
+  it('rejects a voucher with a non-EVM-shaped channelAddress (H1)', async () => {
+    // Before H1: `padAddress('not-hex-zz...')` left `zz` in the output;
+    // `hexToBytes` then threw; `verifyVoucherSignature` crashed the
+    // request with a 500. After H1: parseVoucher returns null; the
+    // adapter falls back to 'unknown' payer.
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: {
+        'x-drain-voucher': makeVoucher({ channelAddress: 'not-an-address' }),
+      },
+    })
+    const ctx = await adapter.extractPaymentContext(req)
+    expect(ctx.identity.value).toBe('unknown')
+    expect(ctx.identity.metadata?.channelAddress).toBeUndefined()
+  })
+
+  it('rejects a voucher with a non-EVM-shaped payer (H1)', async () => {
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: {
+        'x-drain-voucher': makeVoucher({ payer: 'zzzz' }),
+      },
+    })
+    const ctx = await adapter.extractPaymentContext(req)
+    expect(ctx.identity.value).toBe('unknown')
+  })
+
+  it('rejects a voucher with a 39-hex-char address (off by one; H1)', async () => {
+    // Length boundary — EVM address is exactly 40 hex chars after 0x.
+    const shortAddress = '0x' + '1'.repeat(39)
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: {
+        'x-drain-voucher': makeVoucher({ channelAddress: shortAddress }),
+      },
+    })
+    const ctx = await adapter.extractPaymentContext(req)
+    expect(ctx.identity.value).toBe('unknown')
+  })
+
+  it('rejects a voucher with a negative expiry (H2)', async () => {
+    // Before H2: nonce had `< 0` rejection but expiry didn't. A
+    // negative expiry flowed into `padUint256(BigInt(-5))` which
+    // emits '-5' → not hex → `hexToBytes` throw. After H2: parser
+    // rejects the voucher; fallback 'unknown' payer.
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: {
+        'x-drain-voucher': makeVoucher({ expiry: -100 }),
+      },
+    })
+    const ctx = await adapter.extractPaymentContext(req)
+    expect(ctx.identity.value).toBe('unknown')
+  })
+
+  it('still accepts a well-formed voucher after the tighter validation', async () => {
+    // Regression guard: the stricter parser must not reject the
+    // canonical voucher shape the existing test suite uses.
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: { 'x-drain-voucher': makeVoucher() },
+    })
+    const ctx = await adapter.extractPaymentContext(req)
+    expect(ctx.identity.value).toBe(VALID_PAYER)
+    expect(ctx.identity.metadata?.channelAddress).toBe(VALID_CHANNEL)
+  })
+
+  it('accepts uppercase-hex EVM addresses (case-insensitive; H1)', async () => {
+    // EIP-55 checksum addresses use mixed-case hex. The parser
+    // regex is case-insensitive so checksummed input passes.
+    const req = new Request('http://localhost/api/proxy/t', {
+      headers: {
+        'x-drain-voucher': makeVoucher({
+          payer: '0xABCDefABCDefABCDefABCDefABCDefABCDefABCD',
+        }),
+      },
+    })
+    const ctx = await adapter.extractPaymentContext(req)
+    expect(ctx.identity.value).toBe('0xABCDefABCDefABCDefABCDefABCDefABCDefABCD')
   })
 })
