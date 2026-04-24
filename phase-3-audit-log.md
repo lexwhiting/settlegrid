@@ -1,6 +1,6 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-24T03:02:30.684Z
+**Run timestamp:** 2026-04-24T03:15:05.536Z
 **Mode:** default
 **Verdict:** 11 PASS / 13 DEFER / 3 FAIL (of 27)
 **Exit code:** 1
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=4-tracked-dirty,9-untracked; agents=0-tracked-dirty,0-untracked — 4 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=2-tracked-dirty,10-untracked; agents=0-tracked-dirty,0-untracked — 2 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -112,7 +112,7 @@
 ### C15 — DRAIN keccak-256 fix OR removal
 
 - **Verdict:** PASS
-- **Method:** drain.ts either (a) imports @noble/hashes keccak and a test asserts vector parity, or (b) drain.ts removed + no kernel/marketing references remain
+- **Method:** drain.ts either (a) imports @noble/hashes keccak and a test asserts vector parity across legacy __tests__/adapter-drain.test.ts AND new adapters/__tests__/drain.test.ts, or (b) drain.ts removed + no kernel/marketing references remain
 - **Evidence:** drain.ts present; noble-keccak import=true; explicit-stand-in-comment=false; vector-test-in-suite=true
 
 ### C16 — Stripe account-type router + eligibility pre-check + waitlist shipped
@@ -191,8 +191,8 @@
 
 - **Verdict:** DEFER
 - **Method:** grep git log in both repos for scaffold/spec-diff/hostile commits for P3.K1-K6, P3.RAIL1-3, P3.PYTHON1-5, P3.PROT1 (15 prompts)
-- **Evidence:** present=[P3.K1, P3.K2, P3.K3, P3.K4]; absent=[P3.K5, P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
-- **Detail:** 11/15 expansion prompts have no audit-chain commits — Phase 4 blocked
+- **Evidence:** present=[P3.K1, P3.K2, P3.K3, P3.K4, P3.K5]; absent=[P3.K6, P3.RAIL1, P3.RAIL2, P3.RAIL3, P3.PYTHON1, P3.PYTHON2, P3.PYTHON3, P3.PYTHON4, P3.PYTHON5, P3.PROT1]
+- **Detail:** 10/15 expansion prompts have no audit-chain commits — Phase 4 blocked
 
 ## Remediation
 

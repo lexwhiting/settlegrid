@@ -1109,11 +1109,14 @@ async function check14_railsLedgerAuth(): Promise<CheckResult> {
 async function check15_drainKeccak(): Promise<CheckResult> {
   const label = 'DRAIN keccak-256 fix OR removal'
   const method =
-    'drain.ts either (a) imports @noble/hashes keccak and a test asserts vector parity, or (b) drain.ts removed + no kernel/marketing references remain'
+    'drain.ts either (a) imports @noble/hashes keccak and a test asserts vector parity across legacy __tests__/adapter-drain.test.ts AND new adapters/__tests__/drain.test.ts, or (b) drain.ts removed + no kernel/marketing references remain'
   const drainFile = repoFile('packages/mcp/src/adapters/drain.ts')
-  const drainTests = repoFile(
-    'packages/mcp/src/__tests__/adapter-drain.test.ts',
-  )
+  // Discover both legacy + new test locations. Matches the C11/C12/C13
+  // pattern introduced by the P3.12 follow-up (`discoverAdapterTestFiles`)
+  // so a P3.K5-era test at `adapters/__tests__/drain.test.ts` satisfies
+  // the vector-test grep even when the legacy file at
+  // `__tests__/adapter-drain.test.ts` does not carry the vectors.
+  const drainTests = discoverAdapterTestFiles('drain')
   if (!fileExists(drainFile)) {
     // Removal path: confirm no lingering references in kernel, registry,
     // exports, or marketing pages.
@@ -1153,7 +1156,7 @@ async function check15_drainKeccak(): Promise<CheckResult> {
   }
   // Fix path: assert noble/hashes keccak import + test vector coverage.
   const drainBody = readTextOrEmpty(drainFile)
-  const testBody = readTextOrEmpty(drainTests)
+  const testBody = drainTests.map((p) => readTextOrEmpty(p)).join('\n')
   const usesNobleKeccak =
     /@noble\/hashes\/sha3/.test(drainBody) ||
     /@noble\/hashes\/keccak/.test(drainBody)
