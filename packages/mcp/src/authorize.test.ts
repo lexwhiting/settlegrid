@@ -792,3 +792,163 @@ describe('hostile H5 — outer try/catch + never-throws contract', () => {
     expect(result.reason).not.toContain('db conn')
   })
 })
+
+// ─── Coverage-round tests ───────────────────────────────────────────
+
+describe('coverage — fraud scorer + aup enforcer throw paths', () => {
+  it('fraud_error when fraud scorer throws (inner catch)', async () => {
+    const config: AuthorizationConfig = {
+      // OFAC must pass first so we reach the fraud check.
+      ofacScreener: async () => ({ listed: false }),
+      fraudScorer: async () => {
+        throw new Error('redis pool depleted')
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(false)
+    // The reason is the signal's detail string; for inner-catch
+    // throws we return a stable code, not the error message.
+    expect(result.reason).toBe('fraud_error')
+    const fraudSignal = result.signals.find((s) => s.check === 'fraud')
+    expect(fraudSignal).toMatchObject({ passed: false, detail: 'fraud_error' })
+  })
+
+  it('aup_error when aup enforcer throws (inner catch)', async () => {
+    const config: AuthorizationConfig = {
+      aupEnforcer: () => {
+        throw new Error('aup-rules-file-missing')
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toBe('aup_error')
+    const aupSignal = result.signals.find((s) => s.check === 'aup')
+    expect(aupSignal).toMatchObject({ passed: false, detail: 'aup_error' })
+  })
+
+  it('budget_error when budget checker throws', async () => {
+    const config: AuthorizationConfig = {
+      budgetChecker: async () => {
+        throw new Error('balance-fetch failed')
+      },
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toBe('budget_error')
+  })
+})
+
+describe('coverage — plugin name fallback', () => {
+  it('falls back to "unnamed" when plugin has empty-string name', async () => {
+    const config: AuthorizationConfig = {
+      plugins: [
+        {
+          name: '',
+          authorize: async () => ({ allowed: true }),
+        },
+      ],
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(true)
+    const pluginSignal = result.signals.find((s) =>
+      s.check.startsWith('plugin:'),
+    )
+    expect(pluginSignal?.check).toBe('plugin:unnamed')
+  })
+
+  it('falls back to "unnamed" when plugin has non-string name', async () => {
+    const config: AuthorizationConfig = {
+      plugins: [
+        {
+          name: 42 as unknown as string,
+          authorize: async () => ({ allowed: true }),
+        },
+      ],
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(true)
+    const pluginSignal = result.signals.find((s) =>
+      s.check.startsWith('plugin:'),
+    )
+    expect(pluginSignal?.check).toBe('plugin:unnamed')
+  })
+})
+
+describe('coverage — plugin timeout clamp + non-string artifact', () => {
+  it('clamps pluginTimeoutMs below MIN_PLUGIN_TIMEOUT_MS up to the floor', async () => {
+    // The MIN_PLUGIN_TIMEOUT_MS clamp prevents a 0-ms or negative
+    // timeout from making every plugin instantly look timed-out.
+    // Configure timeout=1 (below the 10ms floor) and a fast plugin
+    // — the plugin should still complete within the clamped window.
+    const config: AuthorizationConfig = {
+      pluginTimeoutMs: 1, // clamps up to 10ms minimum
+      plugins: [
+        {
+          name: 'fast',
+          authorize: async () => ({ allowed: true }),
+        },
+      ],
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('discards plugin artifact when not a non-empty string', async () => {
+    const config: AuthorizationConfig = {
+      plugins: [
+        {
+          name: 'p',
+          authorize: async () => ({
+            allowed: true,
+            artifact: '' as unknown as string, // empty string
+          }),
+        },
+      ],
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    expect(result.allowed).toBe(true)
+    expect(result.artifact).toBeUndefined()
+  })
+
+  it('uses LAST plugin artifact when multiple plugins return one', async () => {
+    const config: AuthorizationConfig = {
+      plugins: [
+        {
+          name: 'a',
+          authorize: async () => ({
+            allowed: true,
+            artifact: 'token-from-a',
+          }),
+        },
+        {
+          name: 'b',
+          authorize: async () => ({
+            allowed: true,
+            artifact: 'token-from-b',
+          }),
+        },
+      ],
+    }
+    const result = await authorizeInvocation(BASE_CTX, config)
+    // Last artifact wins — documented in the function header.
+    expect(result.artifact).toBe('token-from-b')
+  })
+})
+
+describe('coverage — buildAuthDeniedResponse with allowed=true', () => {
+  it('still returns 403 even when allowed=true (defensive — caller misuse)', async () => {
+    // The helper is documented for the deny path, but a caller who
+    // misuses it with an allow result still gets a 403 (fail safe).
+    // The body's reason falls back to the generic since
+    // result.reason is undefined on allow outcomes.
+    const result: AuthorizationResult = {
+      allowed: true,
+      signals: [],
+      durationMs: 0,
+    }
+    const res = buildAuthDeniedResponse(result)
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { reason: string } }
+    expect(body.error.reason).toBe('authorization_denied')
+  })
+})
