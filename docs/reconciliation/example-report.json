@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "dateUtc": "2026-04-23",
+  "generatedAtIso": "2026-04-24T08:00:00.000Z",
+  "thresholdBps": 100,
+  "charges": {
+    "dateUtc": "2026-04-23",
+    "leg": "charges",
+    "ledgerRowCount": 4,
+    "stripeRowCount": 4,
+    "matchedCount": 3,
+    "missingInStripe": [],
+    "missingInSettlegrid": [],
+    "amountMismatch": [
+      {
+        "ledgerId": "0a45f7c2-9c8a-4b71-9d6e-1f2c4a3b5d6e",
+        "externalRef": "ch_3PAB7C2eZvKYlo2C0KzPq8nA",
+        "ledgerCents": 4900,
+        "stripeCents": 4850,
+        "deltaCents": 50
+      }
+    ],
+    "totalLedgerCents": 19800,
+    "totalStripeCents": 19750,
+    "driftCents": 50,
+    "driftBps": 25
+  },
+  "transfers": {
+    "dateUtc": "2026-04-23",
+    "leg": "transfers",
+    "ledgerRowCount": 2,
+    "stripeRowCount": 2,
+    "matchedCount": 2,
+    "missingInStripe": [],
+    "missingInSettlegrid": [],
+    "amountMismatch": [],
+    "totalLedgerCents": 12350,
+    "totalStripeCents": 12350,
+    "driftCents": 0,
+    "driftBps": 0
+  }
+}
