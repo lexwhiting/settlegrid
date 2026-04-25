@@ -52,11 +52,27 @@ export const developers = pgTable('developers', {
   // Founding Member program — first 100 developers get lifetime free tier
   isFoundingMember: boolean('is_founding_member').notNull().default(false),
   foundingMemberAt: timestamp('founding_member_at', { withTimezone: true }),
+  // P3.RAIL3 — chargeback velocity auto-pause. Set TRUE by the
+  // chargeback-velocity job when a developer crosses the red tier
+  // (>0.5% chargeback rate). Reversible via the founder admin
+  // unpause action; existing tools keep running, only NEW onboarding
+  // is blocked.
+  onboardingPaused: boolean('onboarding_paused').notNull().default(false),
+  onboardingPausedAt: timestamp('onboarding_paused_at', { withTimezone: true }),
+  onboardingPausedReason: text('onboarding_paused_reason'),
+  // P3.RAIL3 — payout-schedule TTL cache. The /dashboard/payouts page
+  // reads from the local cache when this timestamp is < 1h old; on
+  // staler cache it refreshes from Stripe.
+  payoutScheduleSyncedAt: timestamp('payout_schedule_synced_at', { withTimezone: true }),
+  payoutScheduleWeekday: text('payout_schedule_weekday'),
+  payoutScheduleMonthDay: integer('payout_schedule_month_day'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('developers_slug_idx').on(table.slug),
   uniqueIndex('developers_invite_code_idx').on(table.inviteCode),
+  // P3.RAIL3 — chargeback-watch admin page filters by paused flag.
+  index('developers_onboarding_paused_idx').on(table.onboardingPaused),
 ])
 
 export const developersRelations = relations(developers, ({ many }) => ({
@@ -1249,3 +1265,78 @@ export const processedWebhookEvents = pgTable(
     index('processed_webhook_events_processed_at_idx').on(desc(table.processedAt)),
   ],
 )
+
+// ─── P3.RAIL3 — Chargeback velocity alerts ────────────────────────────────────
+//
+// Each row represents an emitted alert (yellow or red tier) for one
+// developer at one point in time. The chargeback-velocity job
+// consults this table BEFORE sending a fresh email so a persistently-
+// problematic account doesn't receive a notification every cron run
+// (hostile (d) — yellow rate-limited 7d, red rate-limited 24h). Rows
+// are append-only — a tier escalation from yellow→red is a NEW row,
+// not an update; the founder admin page reads the latest row per
+// developer.
+//
+// `details` jsonb captures the velocity computation inputs (charges,
+// chargebacks, rate, threshold) so a future audit query can replay
+// "what did we know on the day we paused this developer".
+//
+// `resolvedAt` flips when the founder un-pauses or when the developer
+// drops back into green naturally. Audit-trail rather than a soft-
+// delete: the row stays.
+export const chargebackAlerts = pgTable(
+  'chargeback_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    /** 'yellow' | 'red' — green never produces a row. */
+    tier: text('tier').notNull(),
+    /** chargebacks_count / charges_count, in the rolling 30-day window. */
+    rateByCount: text('rate_by_count').notNull(), // stored as decimal string for portability
+    /** chargebacks_volume_cents / charges_volume_cents, same window. */
+    rateByVolume: text('rate_by_volume').notNull(),
+    /** Sample size at the time of the alert. */
+    chargesCount: integer('charges_count').notNull(),
+    chargebacksCount: integer('chargebacks_count').notNull(),
+    chargesVolumeCents: integer('charges_volume_cents').notNull(),
+    chargebacksVolumeCents: integer('chargebacks_volume_cents').notNull(),
+    /** Was the developer onboarding-paused as part of this alert? Red only. */
+    pausedOnboarding: boolean('paused_onboarding').notNull().default(false),
+    /** Replay payload — frozen velocity inputs + thresholds. */
+    details: jsonb('details'),
+    /** Email send status. 'sent' | 'rate_limited' | 'skipped' | 'failed'. */
+    emailStatus: text('email_status').notNull().default('skipped'),
+    /** Set when the founder un-pauses or the account returns to green. */
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedReason: text('resolved_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('chargeback_alerts_developer_id_idx').on(table.developerId),
+    index('chargeback_alerts_tier_idx').on(table.tier),
+    index('chargeback_alerts_created_at_idx').on(desc(table.createdAt)),
+    check(
+      'chargeback_alerts_tier_check',
+      sql`${table.tier} IN ('yellow', 'red')`,
+    ),
+    check(
+      'chargeback_alerts_email_status_check',
+      sql`${table.emailStatus} IN ('sent', 'rate_limited', 'skipped', 'failed')`,
+    ),
+    check(
+      'chargeback_alerts_counts_nonneg',
+      sql`${table.chargesCount} >= 0 AND ${table.chargebacksCount} >= 0
+          AND ${table.chargesVolumeCents} >= 0
+          AND ${table.chargebacksVolumeCents} >= 0`,
+    ),
+  ],
+)
+
+export const chargebackAlertsRelations = relations(chargebackAlerts, ({ one }) => ({
+  developer: one(developers, {
+    fields: [chargebackAlerts.developerId],
+    references: [developers.id],
+  }),
+}))
