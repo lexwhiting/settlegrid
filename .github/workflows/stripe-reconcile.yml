@@ -1,0 +1,144 @@
+name: Stripe reconciliation (daily)
+
+# P3.RAIL2 — Reconciles the SettleGrid unified ledger against Stripe
+# Balance Transactions + Connect Transfers for the previous UTC
+# calendar day. Reports drift to data/reconciliation/stripe/{date}.json,
+# posts a one-line summary to Slack/Discord, and opens a rate-limited
+# GitHub issue when drift breaches the configured threshold (1% / 100
+# bps by default). The orchestrator caps GitHub issues at one per
+# 24h via .reconcile-state.json, so a 24h Stripe outage that produces
+# 24 daily drift reports opens AT MOST one issue.
+#
+# Hostile-lens posture:
+#   (a) Schedule is FIXED at 08:00 UTC — well after Stripe's UTC-day
+#       window closes, so the run sees a complete day.
+#   (b) Workflow runs on the default branch only and uses the
+#       repository's default GITHUB_TOKEN scopes. No third-party
+#       actions handle secrets.
+#   (c) workflow_dispatch input is allowed for ad-hoc backfills,
+#       but the script validates --date through the same
+#       utcDayBounds() guard the cron path uses.
+#   (d) The job commits its outputs (data/reconciliation/stripe/*
+#       and data/reconciliation/.reconcile-state.json) so the
+#       audit trail lives in git, not action artifacts.
+
+on:
+  schedule:
+    # Daily 08:00 UTC. Verifier check 17 expects this exact cron string.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'UTC calendar day to reconcile (YYYY-MM-DD). Empty → yesterday UTC.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Skip DB / Stripe / disk / webhook calls.'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  # `contents: write` is reserved for the opt-in auto-push step
+  # (gated by vars.RECONCILE_AUTO_PUSH). When the variable is unset,
+  # the step is skipped and the token is unused.
+  contents: write
+  issues: write
+
+concurrency:
+  # One reconciliation at a time. A 2nd manual run while a cron run is
+  # in flight queues rather than racing the state file.
+  group: stripe-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.RECONCILE_DATABASE_URL }}
+      # Per spec: use a Stripe restricted key with
+      # rak_balance_transaction_read + rak_transfer_read scopes only.
+      # Repo secret name = STRIPE_RECONCILE_KEY (rotate independently
+      # of the platform STRIPE_SECRET_KEY).
+      STRIPE_RECONCILE_KEY: ${{ secrets.STRIPE_RECONCILE_KEY }}
+      SLACK_RECONCILE_WEBHOOK: ${{ secrets.SLACK_RECONCILE_WEBHOOK }}
+      DISCORD_RECONCILE_WEBHOOK: ${{ secrets.DISCORD_RECONCILE_WEBHOOK }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RECONCILE_REPO_SLUG: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Auto-push is opt-in (see step below). Default checkout is
+          # shallow; deepen only if we actually intend to push.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build @settlegrid/rails
+        run: npm --workspace @settlegrid/rails run build
+
+      - name: Run reconciliation
+        # Bind workflow_dispatch inputs to env vars instead of pasting
+        # them via `${{ ... }}` template substitution. The `${{ }}`
+        # form is expanded by GitHub BEFORE the shell sees it, so a
+        # malicious `date: 2026-04-23 && rm -rf /` would inject. The
+        # env-var form passes the value through `process.env` and the
+        # shell's quoting; safe.
+        env:
+          INPUT_DATE: ${{ github.event.inputs.date }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ -n "${INPUT_DATE:-}" ]]; then
+            # Reject anything but YYYY-MM-DD up-front so we never feed
+            # an unvalidated string to the script even on a misconfigured
+            # input. The script also re-validates via utcDayBounds.
+            if ! [[ "${INPUT_DATE}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "Invalid date input: ${INPUT_DATE}" >&2
+              exit 2
+            fi
+            ARGS+=(--date "${INPUT_DATE}")
+          fi
+          if [[ "${INPUT_DRY_RUN:-false}" == "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+          npx tsx scripts/reconcile-stripe.ts "${ARGS[@]}"
+
+      - name: Upload reconciliation report
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stripe-reconciliation-${{ github.run_id }}
+          path: data/reconciliation/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Commit reconciliation report and state (opt-in)
+        # Auto-push is OPT-IN via the `RECONCILE_AUTO_PUSH` repo
+        # variable. Default-off because pushing data files to the
+        # default branch triggers Vercel rebuilds on every nightly
+        # run, which burns the deploy budget. Operators who need an
+        # in-git audit trail can set
+        # `vars.RECONCILE_AUTO_PUSH=true` in the repo's "Variables"
+        # tab; the commit-and-push path will then run.
+        if: ${{ github.event.inputs.dry_run != 'true' && vars.RECONCILE_AUTO_PUSH == 'true' }}
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain data/reconciliation/)" ]]; then
+            echo "No reconciliation changes to commit."
+            exit 0
+          fi
+          git config user.name 'settlegrid-bot'
+          git config user.email 'bot@settlegrid.dev'
+          git add data/reconciliation/
+          git commit -m "chore(reconcile): nightly Stripe reconciliation $(date -u +%Y-%m-%d)"
+          git push origin "HEAD:${REF_NAME}"

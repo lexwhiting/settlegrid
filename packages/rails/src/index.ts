@@ -1,15 +1,19 @@
 /**
- * P3.RAIL1 — `@settlegrid/rails` barrel.
+ * `@settlegrid/rails` barrel.
  *
- * The package's single entry point. Re-exports the routing functions,
- * the matrix loader, and the typed errors so consumers can:
+ * Single entry point for both card families:
+ *   - **P3.RAIL1** — account-type router + eligibility pre-check
+ *     (`./router`)
+ *   - **P3.RAIL2** — Stripe reconciliation pure helpers
+ *     (`./stripe-reconcile`)
+ *
+ * Consumers can:
  *
  *   import {
  *     routeDeveloper,
- *     selectStripeAccountType,
- *     UnsupportedCountryError,
- *     loadCountryMatrix,
- *     type RoutingDecision,
+ *     reconcileLeg,
+ *     fetchBalanceTransactionsForUtcDay,
+ *     type DriftReport,
  *   } from '@settlegrid/rails'
  */
 
@@ -34,3 +38,28 @@ export {
   type RouteDeveloperInput,
   type RoutingDecision,
 } from './router'
+
+export {
+  // Functions
+  utcDayBounds,
+  fetchBalanceTransactionsForUtcDay,
+  fetchTransfersForUtcDay,
+  groupTransfersByDestinationAccount,
+  reconcileLeg,
+  computeDriftBps,
+  shouldOpenIssue,
+  formatReconcileSummary,
+  resolveTransfersLedgerDestination,
+  // Constants
+  DEFAULT_DRIFT_THRESHOLD_BPS,
+  DEFAULT_ISSUE_RATE_LIMIT_HOURS,
+  // Types
+  type StripeBalanceTransaction,
+  type StripeTransfer,
+  type StripeReconcileClient,
+  type LedgerEntryForReconcile,
+  type ReconcileLeg,
+  type DriftReport,
+  type ShouldOpenIssueOptions,
+  type ShouldOpenIssueResult,
+} from './stripe-reconcile'
