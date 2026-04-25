@@ -1,0 +1,88 @@
+name: Chargeback velocity (daily)
+
+# P3.RAIL3 — runs scripts/chargeback-velocity.ts daily at 08:30 UTC
+# (just after the reconciliation cron clears at 08:00 UTC). Tiers
+# every connected account green/yellow/red and:
+#   - inserts a chargeback_alerts row for non-green tiers
+#   - sends a developer-facing email (rate-limited yellow 7d / red 24h)
+#   - flips developers.onboarding_paused = true on red tier
+#
+# Hostile posture (per audit):
+#   (a) idempotent payout-schedule update (handled in
+#       packages/rails/src/stripe.ts — see updatePayoutSchedule)
+#   (b) low-sample-size guard via --min-charges (default 10)
+#   (c) auto-pause is reversible via the founder admin UI
+#   (d) email rate-limit per (developer, tier)
+#
+# Auto-push of any outputs is OFF (nothing to push — DB-only side
+# effects). Workflow_dispatch is allowed for ad-hoc runs.
+
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+    inputs:
+      developer_id:
+        description: 'Run for a single developer (UUID). Empty → all developers.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Skip Stripe / DB / email side effects.'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chargeback-velocity
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.RECONCILE_DATABASE_URL }}
+      STRIPE_RECONCILE_KEY: ${{ secrets.STRIPE_RECONCILE_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build @settlegrid/rails
+        run: npm --workspace @settlegrid/rails run build
+
+      - name: Run chargeback velocity
+        # workflow_dispatch inputs are bound via env vars (not ${{ }}
+        # template substitution) so a malicious dispatcher can't
+        # inject shell metacharacters via the developer_id field.
+        env:
+          INPUT_DEVELOPER_ID: ${{ github.event.inputs.developer_id }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ -n "${INPUT_DEVELOPER_ID:-}" ]]; then
+            # Hostile-review fix: the loose regex `^[0-9a-f-]{36}$`
+            # accepts e.g. 36 dashes. Require the canonical UUID
+            # 8-4-4-4-12 layout instead.
+            if ! [[ "${INPUT_DEVELOPER_ID}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+              echo "Invalid developer_id: ${INPUT_DEVELOPER_ID}" >&2
+              exit 2
+            fi
+            ARGS+=(--developer-id "${INPUT_DEVELOPER_ID}")
+          fi
+          if [[ "${INPUT_DRY_RUN:-false}" == "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+          npx tsx scripts/chargeback-velocity.ts "${ARGS[@]}"

@@ -1,8 +1,8 @@
 # Phase 3 Audit Gate (P3.12)
 
-**Run timestamp:** 2026-04-25T13:16:48.038Z
+**Run timestamp:** 2026-04-25T20:20:52.244Z
 **Mode:** default
-**Verdict:** 14 PASS / 11 DEFER / 2 FAIL (of 27)
+**Verdict:** 15 PASS / 10 DEFER / 2 FAIL (of 27)
 **Exit code:** 1
 
 ## Deviations from prompt card
@@ -15,7 +15,7 @@
 | ID | Prerequisite | Status | Evidence |
 |----|--------------|--------|----------|
 | PREQ1 | All P3.1–P3.11 audit logs PASS | PASS | checked 11 audit chains across main + agents repos; missing stages: none |
-| PREQ2 | No uncommitted changes in either repo | FAIL | main=1-tracked-dirty,17-untracked; agents=0-tracked-dirty,0-untracked — 1 tracked file(s) dirty |
+| PREQ2 | No uncommitted changes in either repo | FAIL | main=8-tracked-dirty,21-untracked; agents=0-tracked-dirty,0-untracked — 8 tracked file(s) dirty |
 | PREQ3 | Templater spend accounted for across P3.2 + P3.3 | PASS | tracked=$0.00 (Haiku only via BudgetTracker); real upper-bound estimate ≤$70 per costTrackingNote in both summary JSONs |
 
 ## Criteria
@@ -129,10 +129,9 @@
 
 ### C18 — Payout schedule config + chargeback velocity monitoring
 
-- **Verdict:** DEFER
+- **Verdict:** PASS
 - **Method:** /dashboard/payouts editor + scripts/chargeback-velocity.ts + chargeback_alerts table + /dashboard/admin/chargeback-watch + ≥12 velocity-tier tests
-- **Evidence:** payouts-page=false, velocity-script=false, watch-page=false, alerts-table=false
-- **Detail:** missing: /dashboard/payouts page, chargeback-velocity.ts, /dashboard/admin/chargeback-watch, chargeback_alerts table
+- **Evidence:** payouts-page=true, velocity-script=true, watch-page=true, alerts-table=true
 
 ### C19 — Python SDK core (packages/sdk-python/ builds + pip install -e .)
 
@@ -203,7 +202,6 @@ Phase 4 is blocked until every criterion (and every prerequisite) PASSes. Re-run
 | C4 | ≥2 WG outreach replies logged (founder-manual verify) | DEFER | Founder: log verified replies to settlegrid-agents/data/wg-outreach/replies.md (2+ rows) before Phase 4. |
 | C5 | ≥5 directory submissions sent | FAIL | Founder: send at least 5 packets from scripts/directory-submissions/packets/ and update README Status column to "sent"/"accepted". |
 | C7 | Template CI pipeline running weekly | DEFER | Push origin/main so .github/workflows/template-ci.yml lands on the default branch; first weekly run (or a manual workflow_dispatch) will then populate run history. Cron is already configured locally. |
-| C18 | Payout schedule config + chargeback velocity monitoring | DEFER | Run P3.RAIL3 (payouts UI + chargeback velocity). |
 | C19 | Python SDK core (packages/sdk-python/ builds + pip install -e .) | DEFER | Run P3.PYTHON1 (Python SDK core). |
 | C20 | Python SDK test parity ≥90% of TS SDK + CI matrix 3.10/3.11/3.12 | DEFER | Run P3.PYTHON2 (Python SDK test parity + CI matrix). |
 | C21 | settlegrid-langchain Python adapter (≥8 tests) | DEFER | Run P3.PYTHON3 (Python langchain adapter). |
