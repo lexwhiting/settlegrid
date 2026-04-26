@@ -91,6 +91,34 @@ class TestDecorationValidation:
             deco(wrapped)
         sg.close()
 
+    def test_invalid_sg_type_raises(self) -> None:
+        """Missing-parens form `@metered_tool` lands the user's function as
+        the first arg — surface a clear error."""
+        with pytest.raises(TypeError, match="SettleGrid instance"):
+            metered_tool(42, meter="m", price_cents=10)  # type: ignore[arg-type]
+
+    def test_configure_rejects_non_settlegrid(self) -> None:
+        """Coverage for configure()'s type guard."""
+        from settlegrid_crewai import configure
+
+        with pytest.raises(TypeError, match="SettleGrid instance"):
+            configure(42)  # type: ignore[arg-type]
+
+    def test_get_default_client_returns_none_initially(self) -> None:
+        """Coverage for get_default_client when no default is set."""
+        from settlegrid_crewai import get_default_client
+
+        assert get_default_client() is None
+
+    def test_target_must_be_callable_or_basetool(self) -> None:
+        """Non-callable, non-BaseTool target → TypeError."""
+        sg = _sdk()
+        with pytest.raises(TypeError, match="callable or a"):
+            metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(
+                42  # type: ignore[arg-type]
+            )
+        sg.close()
+
 
 # ─── plain callable ─────────────────────────────────────────────────────
 
@@ -221,6 +249,97 @@ class TestCustomBaseTool:
         assert "custom: hi" in str(result)
         assert meter_route.call_count == 1
         sg.close()
+
+
+    def test_basetool_with_no_func_or_run_raises(self) -> None:
+        """If a BaseTool has no callable `func` AND no callable `_run`
+        method, _wrap_crewai_tool should raise TypeError."""
+        sg = _sdk()
+
+        class SearchInput(BaseModel):
+            query: str = Field(...)
+
+        class BrokenTool(BaseTool):
+            name: str = "broken"
+            description: str = "Broken."
+            args_schema: type[BaseModel] = SearchInput
+
+            def _run(self, query: str) -> str:
+                return query
+
+        bt = BrokenTool()
+        # Strip _run via raw setattr; clear func too if present.
+        object.__setattr__(bt, "_run", None)
+        if hasattr(bt, "func"):
+            object.__setattr__(bt, "func", None)
+
+        with pytest.raises(TypeError, match="neither a callable `func`"):
+            metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(bt)
+        sg.close()
+
+    def test_basetool_with_already_metered_run_raises(self) -> None:
+        """If a user pre-patches `_run` on a BaseTool subclass with a
+        metered callable (bypassing metered_tool), the second wrap
+        attempt should refuse rather than double-meter."""
+        sg = _sdk()
+
+        class SearchInput(BaseModel):
+            query: str = Field(...)
+
+        class CustomTool(BaseTool):
+            name: str = "custom"
+            description: str = "Custom."
+            args_schema: type[BaseModel] = SearchInput
+
+            def _run(self, query: str) -> str:
+                return query
+
+        bt = CustomTool()
+        # Simulate a user manually patching _run with a metered callable
+        # without going through metered_tool() (so the Tool-level marker
+        # isn't set, only the underlying callable's marker).
+        deco = metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)
+        metered_run = deco(lambda self, query: query)  # type: ignore[arg-type]
+        object.__setattr__(bt, "_run", metered_run)
+
+        with pytest.raises(RuntimeError, match="already metered"):
+            metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(bt)
+        sg.close()
+
+    @respx.mock(base_url=API_URL)
+    async def test_wraps_async_basetool_run(self, respx_mock) -> None:
+        """Custom BaseTool subclass with an `async def _run`. The
+        metered_tool decorator must produce an async closure that awaits
+        the metered call."""
+        sg = _sdk()
+        respx_mock.post("/api/sdk/keys/validate").mock(
+            return_value=_validate_response()
+        )
+        meter_route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=_meter_response()
+        )
+
+        class SearchInput(BaseModel):
+            query: str = Field(...)
+
+        class AsyncSearchTool(BaseTool):
+            name: str = "async_search"
+            description: str = "Async search."
+            args_schema: type[BaseModel] = SearchInput
+
+            async def _run(self, query: str) -> str:
+                return f"async:{query}"
+
+        st = AsyncSearchTool()
+        wrapped = metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(st)
+        assert wrapped is st
+
+        # Invoke the patched _run directly via its instance attr — the
+        # metered closure awaits the underlying coroutine and meters once.
+        result = await st._run(query="hi")
+        assert "async:hi" in str(result)
+        assert meter_route.call_count == 1
+        await sg.aclose()
 
 
 # ─── stubbed agent loop ─────────────────────────────────────────────────

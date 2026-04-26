@@ -82,6 +82,28 @@ class TestDecorationValidation:
         with pytest.raises(TypeError, match="SettleGrid instance"):
             metered_tool(42, meter="m", price_cents=10)  # type: ignore[arg-type]
 
+    def test_configure_rejects_non_settlegrid(self) -> None:
+        """Coverage for configure()'s type guard."""
+        from settlegrid_pydantic_ai import configure
+
+        with pytest.raises(TypeError, match="SettleGrid instance"):
+            configure(42)  # type: ignore[arg-type]
+
+    def test_get_default_client_returns_none_initially(self) -> None:
+        """Coverage for get_default_client when no default is set."""
+        from settlegrid_pydantic_ai import get_default_client
+
+        assert get_default_client() is None
+
+    def test_target_must_be_callable_or_tool(self) -> None:
+        """Non-callable, non-Tool target → TypeError."""
+        sg = _sdk()
+        with pytest.raises(TypeError, match="callable or a"):
+            metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(
+                42  # type: ignore[arg-type]
+            )
+        sg.close()
+
 
 # ─── plain callable ─────────────────────────────────────────────────────
 
