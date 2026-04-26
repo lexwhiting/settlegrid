@@ -1461,33 +1461,83 @@ async function check21_langchainPy(): Promise<CheckResult> {
 // ── Check 22: llamaindex + crewai + pydantic-ai ──────────────────────
 
 async function check22_pyAdaptersCohort2(): Promise<CheckResult> {
-  const label = 'settlegrid-llamaindex + crewai + pydantic-ai Python adapters'
+  const label =
+    'settlegrid-llamaindex + crewai + pydantic-ai Python adapters (≥5 tests, metered_tool exported)'
   const method =
-    'check packages/{settlegrid-llamaindex,settlegrid-crewai,settlegrid-pydantic-ai}-py or equivalents'
-  const candidates = [
-    ['llamaindex', 'settlegrid-llamaindex-py', 'settlegrid-llamaindex'],
-    ['crewai', 'settlegrid-crewai-py', 'settlegrid-crewai'],
-    ['pydantic-ai', 'settlegrid-pydantic-ai-py', 'settlegrid-pydantic-ai'],
+    'check packages/sdk-python-{llamaindex,crewai,pydantic-ai} (or legacy candidates) for pyproject.toml + ≥5 tests + metered_tool exported'
+  // Each entry: [framework, python module name, pkg dir candidates...]
+  const candidates: [string, string, string[]][] = [
+    [
+      'llamaindex',
+      'settlegrid_llamaindex',
+      ['sdk-python-llamaindex', 'settlegrid-llamaindex-py', 'settlegrid-llamaindex'],
+    ],
+    [
+      'crewai',
+      'settlegrid_crewai',
+      ['sdk-python-crewai', 'settlegrid-crewai-py', 'settlegrid-crewai'],
+    ],
+    [
+      'pydantic-ai',
+      'settlegrid_pydantic_ai',
+      ['sdk-python-pydantic-ai', 'settlegrid-pydantic-ai-py', 'settlegrid-pydantic-ai'],
+    ],
   ]
-  const found: string[] = []
-  const missing: string[] = []
-  for (const [name, a, b] of candidates) {
-    const aPy = fileExists(repoFile('packages', a, 'pyproject.toml'))
-    const bPy = fileExists(repoFile('packages', b, 'pyproject.toml'))
-    if (aPy || bPy) found.push(name)
-    else missing.push(name)
+  const ok: string[] = []
+  const issues: string[] = []
+  for (const [name, mod, dirCandidates] of candidates) {
+    let pkgDir: string | null = null
+    for (const c of dirCandidates) {
+      if (fileExists(repoFile('packages', c, 'pyproject.toml'))) {
+        pkgDir = repoFile('packages', c)
+        break
+      }
+    }
+    if (!pkgDir) {
+      issues.push(`${name}: package dir not found`)
+      continue
+    }
+    // Count tests across both common layouts (`tests/` outside the
+    // package, or `<module>/__tests__/` inside — same fallback as C21).
+    const testDirCandidates = [
+      join(pkgDir, mod, '__tests__'),
+      join(pkgDir, 'tests'),
+    ]
+    let testsDir: string | null = null
+    for (const candidate of testDirCandidates) {
+      if (dirExists(candidate)) {
+        testsDir = candidate
+        break
+      }
+    }
+    let testCount = 0
+    if (testsDir !== null) {
+      for (const f of readdirSync(testsDir)) {
+        if (!f.startsWith('test_') || !f.endsWith('.py')) continue
+        const content = readFileSync(join(testsDir, f), 'utf-8')
+        testCount += (content.match(/^[ \t]*(?:async\s+)?def\s+test_/gm) ?? []).length
+      }
+    }
+    // Verify metered_tool exported.
+    const initFile = join(pkgDir, mod, '__init__.py')
+    const exportsMetered =
+      fileExists(initFile) && /metered_tool/.test(readFileSync(initFile, 'utf-8'))
+
+    if (!exportsMetered) {
+      issues.push(`${name}: metered_tool not exported`)
+      continue
+    }
+    if (testCount < 5) {
+      issues.push(`${name}: only ${testCount} tests (need ≥5)`)
+      continue
+    }
+    ok.push(`${name}(tests=${testCount})`)
   }
-  const evidence = `found=[${found.join(', ') || 'none'}]; missing=[${missing.join(', ') || 'none'}]`
-  if (missing.length === 0) {
+  const evidence = `ok=[${ok.join(', ') || 'none'}]${issues.length ? `; issues=[${issues.join(', ')}]` : ''}`
+  if (issues.length === 0) {
     return pass(22, label, method, evidence)
   }
-  return defer(
-    22,
-    label,
-    method,
-    evidence,
-    `missing packages — P3.PYTHON4 prompt not yet shipped`,
-  )
+  return defer(22, label, method, evidence, `${issues.length} adapter issues`)
 }
 
 // ── Check 23: dspy + smolagents ──────────────────────────────────────
