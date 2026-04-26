@@ -325,7 +325,7 @@ class TestMeterSync:
         sg.close()
 
     @respx.mock(base_url=API_URL)
-    def test_wire_body_contains_consumerId_toolId_keyId(self, respx_mock):
+    def test_wire_body_contains_consumer_tool_key_ids(self, respx_mock):
         # Phase-3 integration audit pin: the meter endpoint's Zod
         # schema (apps/web/src/app/api/sdk/meter/route.ts) marks
         # ``consumerId`` / ``toolId`` / ``keyId`` as required UUIDs.
