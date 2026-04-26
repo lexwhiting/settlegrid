@@ -327,11 +327,17 @@ export class MastercardVIAdapter implements ProtocolAdapter {
 // ─── 503 detection-stub response builder ───────────────────────────────────
 
 /**
- * Module-level builder for the spec-literal 503 envelope. Kept separate
- * from the class method so the kernel's error mapper can use it without
- * needing an adapter instance.
+ * Module-internal builder for the spec-literal 503 envelope. Kept
+ * separate from the class method so callers within this module (e.g.
+ * :meth:`MastercardVIAdapter.formatError`,
+ * :meth:`MastercardVIAdapter.buildChallenge`,
+ * :meth:`MastercardVIAdapter.buildDetectionStubResponse`) can share one
+ * source of truth for the body shape and headers. External consumers
+ * call :meth:`MastercardVIAdapter.buildDetectionStubResponse` on an
+ * adapter instance — the underscore prefix keeps that the only public
+ * surface and prevents drift from arising via direct module imports.
  */
-export function _buildDetectionStubResponse(): Response {
+function _buildDetectionStubResponse(): Response {
   const body = {
     status: 'protocol_detected' as const,
     protocol: 'mastercard-vi' as const,
@@ -471,6 +477,14 @@ export function isMastercardVIEnvelope(token: string | null | undefined): boolea
  * spec-literal "MVI envelope vs other SD-JWTs" check the hostile
  * review demands, see :func:`isMastercardVIEnvelope` (parses payload,
  * checks Mastercard issuer + AP2 claim).
+ *
+ * Note: the verify layer (:func:`validateMastercardPayment`) does NOT
+ * apply the narrow envelope check — for the P3.PROT1 detection-stub
+ * flow, every header-detected request resolves to the same 503 response
+ * regardless of envelope validity, so an extra parse step at verify
+ * would be wasted work. ``isMastercardVIEnvelope`` remains exposed for
+ * tests and for the post-2026-Q3 GA wiring, when validation will be
+ * tightened to call it.
  */
 export function isMastercardRequest(request: Request): boolean {
   // Explicit protocol declaration — buyer self-identifies as MVI.
@@ -483,8 +497,8 @@ export function isMastercardRequest(request: Request): boolean {
     if (bearer.startsWith('mcvi_')) return true
   }
 
-  // MVI-specific header. Presence-only; envelope-content tightening is
-  // applied by :func:`isMastercardVIEnvelope` at the verify layer.
+  // MVI-specific header. Presence-only — see the docstring above for why
+  // envelope-content tightening is intentionally deferred.
   if (request.headers.get(MC_HTTP_HEADERS.VERIFIABLE_INTENT)) return true
 
   return false
