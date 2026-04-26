@@ -167,6 +167,51 @@ class TestFunctionTool:
         sg.close()
 
     @respx.mock(base_url=API_URL)
+    def test_wrap_preserves_callback_and_partial_params(self, respx_mock) -> None:
+        """HH-LI-2 regression — `_wrap_function_tool` rebuilds the
+        FunctionTool via ``from_defaults``. The earlier version forwarded
+        only name/description/fn_schema/return_direct, silently dropping
+        the user's ``callback`` and ``partial_params``. The fix forwards
+        every kwarg the original tool was constructed with."""
+        sg = _sdk()
+        respx_mock.post("/api/sdk/keys/validate").mock(
+            return_value=_validate_response()
+        )
+        meter_route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=_meter_response()
+        )
+
+        cb_calls: list = []
+
+        def cb(result: object, **_k: object) -> None:
+            cb_calls.append(result)
+
+        def search(query: str = "default") -> str:
+            """Search."""
+            return f"r:{query}"
+
+        ft = FunctionTool.from_defaults(
+            fn=search,
+            name="x",
+            callback=cb,
+            partial_params={"query": "preset"},
+        )
+
+        wrapped = metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(ft)
+
+        # partial_params and callback survive the rebuild.
+        assert wrapped.partial_params == {"query": "preset"}
+        assert getattr(wrapped, "_callback", None) is not None
+
+        # Calling without args uses partial_params; callback fires with the
+        # result; metering still fires once.
+        result = wrapped.call()
+        assert "r:preset" in str(result)
+        assert cb_calls == ["r:preset"]
+        assert meter_route.call_count == 1
+        sg.close()
+
+    @respx.mock(base_url=API_URL)
     async def test_wraps_async_function_tool(self, respx_mock) -> None:
         sg = _sdk()
         respx_mock.post("/api/sdk/keys/validate").mock(
