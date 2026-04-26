@@ -57,9 +57,56 @@ F = TypeVar("F", bound=Callable[..., Any])
 # tool twice (which would double-meter every invocation).
 _METERED_MARKER = "__settlegrid_metered__"
 
+# Module-level default SettleGrid client. Set via :func:`configure`.
+# Allows the spec's literal ``metered_tool(meter, price_cents)`` form
+# to work without threading the client through every call site.
+_default_client: SettleGrid | None = None
+
+
+def configure(sg: SettleGrid) -> None:
+    """Set the module-level default :class:`SettleGrid` client.
+
+    Once configured, :func:`metered_tool` may be called without an
+    explicit ``sg`` argument — it falls back to the default client.
+
+    Example::
+
+        from settlegrid import SettleGrid
+        from settlegrid_langchain import configure, metered_tool
+
+        configure(SettleGrid(api_key="sg_live_seller", tool_slug="my-tool"))
+
+        @metered_tool(meter="search", price_cents=10)
+        def search(query: str) -> str:
+            '''Search the web.'''
+            return f"results for {query}"
+
+    Re-calling ``configure`` with a different client replaces the
+    default; existing decorated functions keep their original client
+    (the binding happens at decoration time).
+    """
+    global _default_client
+    if not hasattr(sg, "wrap") or not callable(sg.wrap):
+        raise TypeError(
+            "configure: argument must be a SettleGrid instance (got "
+            f"{type(sg).__name__})."
+        )
+    _default_client = sg
+
+
+def get_default_client() -> SettleGrid | None:
+    """Return the current module-level default client, or ``None``."""
+    return _default_client
+
+
+def reset_default_client() -> None:
+    """Clear the module-level default client. Primarily for tests."""
+    global _default_client
+    _default_client = None
+
 
 def metered_tool(
-    sg: SettleGrid,
+    sg: SettleGrid | None = None,
     *,
     meter: str,
     price_cents: int,
@@ -68,9 +115,9 @@ def metered_tool(
     """Return a decorator that meters every invocation through SettleGrid.
 
     Args:
-        sg: An initialized :class:`settlegrid.SettleGrid` instance. The
-            adapter does not construct one for you — pass the same
-            client your application already uses.
+        sg: A :class:`settlegrid.SettleGrid` instance. Optional if
+            :func:`configure` has set a module-level default — passing
+            no ``sg`` and no default raises :class:`RuntimeError`.
         meter: Method / tool slug recorded in SettleGrid for billing.
             Must be a non-empty string.
         price_cents: Per-invocation cost in cents. Must be a non-negative
@@ -97,7 +144,22 @@ def metered_tool(
             the decorator target is neither callable nor a ``BaseTool``.
         ValueError: If ``meter`` is empty / whitespace, ``price_cents``
             is negative, or ``api_key`` is empty / whitespace.
+        RuntimeError: If neither ``sg`` is provided nor a default has
+            been configured.
     """
+    # D1 spec-diff fix — accept the literal spec signature
+    # `metered_tool(meter, price_cents)` by falling back to a
+    # module-level default client.
+    if sg is None:
+        sg = _default_client
+        if sg is None:
+            raise RuntimeError(
+                "metered_tool: no SettleGrid client. Either pass `sg` "
+                "explicitly (`metered_tool(sg, meter=..., price_cents=...)`) "
+                "or configure a default first "
+                "(`configure(SettleGrid(api_key=...))`)."
+            )
+
     # H10/H11 hostile fix — validate `sg` has the expected interface.
     # Catches `@metered_tool` (missing parens) where sg accidentally
     # becomes the user's function, and any other shape mismatch.
@@ -227,4 +289,4 @@ def _try_import_basetool() -> type | None:
         return None
 
 
-__all__ = ["metered_tool"]
+__all__ = ["configure", "get_default_client", "metered_tool", "reset_default_client"]
