@@ -37,6 +37,13 @@ export default function MastercardVILandingPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 text-zinc-100">
       <nav aria-label="Breadcrumb" className="mb-6 text-sm text-zinc-500">
+        {/*
+          Hostile-review fix: "Protocols" was previously rendered as a link
+          to ``/protocols``, but no index page exists at that path — only
+          ``/protocols/mastercard-vi``. The link 404'd. Render it as
+          plain (non-link) text until an index page lands, so the
+          breadcrumb is informative without dangling.
+        */}
         <ol className="flex flex-wrap gap-2">
           <li>
             <a href="/" className="hover:text-zinc-300">
@@ -44,11 +51,7 @@ export default function MastercardVILandingPage() {
             </a>
           </li>
           <li aria-hidden>/</li>
-          <li>
-            <a href="/protocols" className="hover:text-zinc-300">
-              Protocols
-            </a>
-          </li>
+          <li>Protocols</li>
           <li aria-hidden>/</li>
           <li className="text-zinc-300">Mastercard Verifiable Intent</li>
         </ol>

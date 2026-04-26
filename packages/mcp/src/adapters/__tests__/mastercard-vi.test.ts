@@ -248,6 +248,7 @@ describe('MastercardVIAdapter.buildChallenge / buildDetectionStubResponse', () =
   it('buildChallenge with options returns AcceptEntry (preserves multi-protocol manifest contract)', () => {
     const adapter = new MastercardVIAdapter()
     const entry = adapter.buildChallenge({
+      resource: { url: 'http://localhost/t' },
       pricing: { defaultCostCents: 7 },
       method: 'default',
     })
@@ -280,6 +281,63 @@ describe('MastercardVIAdapter.buildChallenge / buildDetectionStubResponse', () =
     expect(body.status).toBe('protocol_detected')
     expect(body.protocol).toBe('mastercard-vi')
     expect(body.expected_at).toBe(MASTERCARD_VI_EXPECTED_AT)
+  })
+
+  it('regression (formatError ordering): ProtocolNotYetSupportedError must be checked BEFORE string-match on "intent"', async () => {
+    // Hostile-review pin: the message the MVI adapter actually surfaces
+    // for the detection-stub error — produced by
+    // ``MastercardVIAdapter._detectionStubError()`` and thrown from
+    // ``verify()`` / ``verifyPayment()`` — contains the substring
+    // "Verifiable Intent". The ``formatError`` method's generic-error
+    // classifier looks for ``error.message.includes('intent')`` to
+    // route to a 401 ``MC_VI_INVALID_INTENT``. Today the
+    // ``instanceof ProtocolNotYetSupportedError`` check runs FIRST and
+    // short-circuits to the 503 envelope; if a future refactor swaps
+    // those checks, a real MVI detection-stub error would be
+    // misclassified as a 401. This test pins the contract by feeding
+    // the EXACT error a real verify() throws and asserting 503.
+    const adapter = new MastercardVIAdapter()
+    let realErr: Error | undefined
+    try {
+      await adapter.verifyPayment(new Request('http://localhost/t'))
+    } catch (e) {
+      realErr = e as Error
+    }
+    expect(realErr).toBeInstanceOf(ProtocolNotYetSupportedError)
+    // Sanity: the live error message DOES contain the trap substring
+    // — i.e. the regression risk this test pins is real.
+    expect(realErr!.message.toLowerCase()).toContain('intent')
+    const res = adapter.formatError(realErr!, new Request('http://localhost/t'))
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.status).toBe('protocol_detected')
+    // And NOT the 401 invalid-intent error shape:
+    expect(body.error).toBeUndefined()
+    expect(body.code).toBeUndefined()
+  })
+
+  it('regression (toJSON round-trip): error.toJSON() matches the 503 response body shape', async () => {
+    // Hostile-review pin: ProtocolNotYetSupportedError.toJSON() and the
+    // 503 body emitted by buildChallenge() must round-trip identically.
+    // Drift between the two would mean a caller that serializes the
+    // error directly (for logging or re-throw) sees a different envelope
+    // than the one a buyer's client sees on the wire.
+    const adapter = new MastercardVIAdapter()
+    const err = new ProtocolNotYetSupportedError({
+      protocol: 'mastercard-vi',
+      expectedAt: MASTERCARD_VI_EXPECTED_AT,
+      landingUrl: MASTERCARD_VI_LANDING_URL,
+      message:
+        `Mastercard Verifiable Intent detected. ` +
+        `Full validation lands in ${MASTERCARD_VI_EXPECTED_AT}. ` +
+        `See ${MASTERCARD_VI_LANDING_URL}.`,
+    })
+    const wireBody = await adapter.buildChallenge().json()
+    expect(err.toJSON()).toEqual(wireBody)
+    // And the toJSON shape is exactly the spec literal four fields:
+    expect(Object.keys(err.toJSON()).sort()).toEqual(
+      ['expected_at', 'message', 'protocol', 'status'].sort(),
+    )
   })
 
   it('Retry-After header is set (clients can back off until rollout)', () => {
