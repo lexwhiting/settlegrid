@@ -51,10 +51,22 @@ class ValidateKeyRequest(_Base):
 
 
 class MeterRequest(_Base):
-    """Body of ``POST /api/sdk/meter``."""
+    """Body of ``POST /api/sdk/meter``.
 
-    api_key: str = Field(min_length=1, alias="apiKey")
+    Mirrors the Zod schema in
+    ``apps/web/src/app/api/sdk/meter/route.ts``. ``consumer_id`` /
+    ``tool_id`` / ``key_id`` are required UUIDs sourced from the prior
+    :class:`KeyValidationResult` — the server endpoint returns 400
+    without them. ``api_key`` was previously sent on the wire but the
+    meter endpoint's Zod schema doesn't accept it (Zod silently strips
+    it); removed so the Python client matches the TS client's wire
+    shape.
+    """
+
     tool_slug: str = Field(min_length=1, alias="toolSlug")
+    consumer_id: str = Field(min_length=1, alias="consumerId")
+    tool_id: str = Field(min_length=1, alias="toolId")
+    key_id: str = Field(min_length=1, alias="keyId")
     method: str = Field(min_length=1)
     cost_cents: Annotated[int, Field(ge=0)] = Field(alias="costCents")
     units: Annotated[int, Field(ge=1)] | None = Field(default=None)

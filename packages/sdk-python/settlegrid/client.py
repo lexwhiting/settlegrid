@@ -183,20 +183,35 @@ class SettleGrid:
         *,
         method: str,
         cost_cents: int,
+        consumer_id: str,
+        tool_id: str,
+        key_id: str,
     ) -> MeterResult:
         """Synchronously meter (charge) an invocation.
 
         The flow mirrors the TS SDK: validate the key (cached), then
-        POST to ``/api/sdk/meter`` with the cost. The server enforces
-        balance + budget caps and returns the typed errors the SDK maps
-        to :class:`InsufficientCreditsError` / :class:`BudgetExceededError`.
+        POST to ``/api/sdk/meter`` with the cost + the consumer / tool /
+        key UUIDs returned by the prior ``validate_key`` call. The server
+        enforces balance + budget caps and returns the typed errors the
+        SDK maps to :class:`InsufficientCreditsError` /
+        :class:`BudgetExceededError`.
+
+        ``consumer_id`` / ``tool_id`` / ``key_id`` are the three UUIDs
+        from :class:`KeyValidationResult` — the meter endpoint's Zod
+        schema marks all three as required (see
+        ``apps/web/src/app/api/sdk/meter/route.ts``). Earlier versions
+        of this client omitted them and every meter call failed 400 in
+        production; the wrapper now threads them through from the
+        validation step.
         """
         self._guard_meter_args(api_key, method, cost_cents, op="meter")
         body = self._http.request_sync(
             "/meter",
             {
-                "apiKey": api_key,
                 "toolSlug": self.tool_slug,
+                "consumerId": consumer_id,
+                "toolId": tool_id,
+                "keyId": key_id,
                 "method": method,
                 "costCents": cost_cents,
             },
@@ -209,14 +224,19 @@ class SettleGrid:
         *,
         method: str,
         cost_cents: int,
+        consumer_id: str,
+        tool_id: str,
+        key_id: str,
     ) -> MeterResult:
         """Async twin of :meth:`meter`."""
         self._guard_meter_args(api_key, method, cost_cents, op="meter_async")
         body = await self._http.request(
             "/meter",
             {
-                "apiKey": api_key,
                 "toolSlug": self.tool_slug,
+                "consumerId": consumer_id,
+                "toolId": tool_id,
+                "keyId": key_id,
                 "method": method,
                 "costCents": cost_cents,
             },
