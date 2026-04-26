@@ -145,11 +145,20 @@ def metered_tool(
 
 
 def _wrap_pydantic_ai_tool(tool: Any, wrapper: Any) -> Any:  # noqa: ANN401 — generic dispatch
-    """Re-bind a Pydantic AI ``Tool``'s ``function`` field in place.
+    """Re-bind a Pydantic AI ``Tool``'s execution callable in place.
 
-    Pydantic AI's ``Tool`` is a Pydantic v2 model — field assignment is
-    supported via ``object.__setattr__`` (bypasses validator-on-assignment
-    if a future framework version adds one).
+    Pydantic AI's ``Tool`` stores the callable in TWO places:
+
+    1. ``tool.function`` — the public-facing reference (what user code reads).
+    2. ``tool.function_schema.function`` — captured at ``Tool.__init__`` time
+       inside the ``FunctionSchema`` dataclass. **This is the dispatch path
+       the framework actually uses**: ``FunctionToolsetTool.call_func`` is
+       bound to ``tool.function_schema.call``, which reads ``self.function``
+       inside ``FunctionSchema``. If we only update ``tool.function``, the
+       agent's dispatcher still hits the unwrapped callable and metering
+       never fires (HH-PA-2 hostile finding).
+
+    Both references must be rebound for metering to work end-to-end.
     """
     fn = getattr(tool, "function", None)
     if fn is None or not callable(fn):
@@ -166,7 +175,17 @@ def _wrap_pydantic_ai_tool(tool: Any, wrapper: Any) -> Any:  # noqa: ANN401 — 
             "metered. Re-wrapping would double-charge every invocation. "
             "Apply metered_tool exactly once per tool."
         )
-    object.__setattr__(tool, "function", wrapper(fn))
+    metered_fn = wrapper(fn)
+    object.__setattr__(tool, "function", metered_fn)
+    # HH-PA-2: rebind the FunctionSchema's captured function reference too
+    # (this is the path the agent dispatcher actually uses; see docstring).
+    schema = getattr(tool, "function_schema", None)
+    if schema is not None and getattr(schema, "function", None) is fn:
+        # FunctionSchema is a dataclass — direct attribute assignment works.
+        # We guard with the identity check to avoid touching schemas that
+        # were custom-constructed and don't share the original fn (in which
+        # case we don't know what we'd break).
+        object.__setattr__(schema, "function", metered_fn)
     return tool
 
 

@@ -157,6 +157,45 @@ class TestToolInstance:
         assert meter_route.call_count == 1
         sg.close()
 
+    @respx.mock(base_url=API_URL)
+    async def test_wrap_rebinds_function_schema_dispatch_path(self, respx_mock) -> None:
+        """HH-PA-2 regression — Pydantic AI's agent loop dispatches via
+        ``tool.function_schema.call(args, ctx)`` (see
+        ``pydantic_ai.toolsets.function.FunctionToolsetTool.call_func``),
+        which reads ``self.function`` *inside* the ``FunctionSchema``
+        dataclass. ``Tool.__init__`` captures the function in TWO places:
+        ``tool.function`` and ``tool.function_schema.function``. The
+        earlier wrapper only updated ``tool.function`` — the dispatcher
+        kept hitting the unwrapped callable and metering never fired
+        on real agent runs. The fix rebinds both."""
+        from unittest.mock import MagicMock
+
+        sg = _sdk()
+        respx_mock.post("/api/sdk/keys/validate").mock(
+            return_value=_validate_response()
+        )
+        meter_route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=_meter_response()
+        )
+
+        def search_fn(query: str) -> str:
+            """Search."""
+            return f"r:{query}"
+
+        t = Tool(search_fn, name="search")
+        metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(t)
+
+        # Both references point to the same metered callable.
+        assert t.function is t.function_schema.function
+        assert t.function is not search_fn
+
+        # Hit the framework's actual dispatch surface (NOT t.function(...)).
+        ctx = MagicMock()
+        result = await t.function_schema.call({"query": "hi"}, ctx)
+        assert result == "r:hi"
+        assert meter_route.call_count == 1
+        sg.close()
+
     def test_tool_with_metered_function_raises(self) -> None:
         """H-PA-1 regression — if a user wraps a callable, then constructs
         a ``Tool`` around it, then re-wraps the Tool, we'd double-meter
