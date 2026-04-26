@@ -270,7 +270,14 @@ class TestMeterSync:
                 },
             )
         )
-        result = sg.meter(BUYER_KEY, method="search", cost_cents=10)
+        result = sg.meter(
+            BUYER_KEY,
+            method="search",
+            cost_cents=10,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         assert isinstance(result, MeterResult)
         assert result.success is True
         assert result.cost_cents == 10
@@ -281,19 +288,87 @@ class TestMeterSync:
     def test_rejects_empty_buyer_key(self):
         sg = _make_sdk()
         with pytest.raises(InvalidKeyError):
-            sg.meter("", method="search", cost_cents=10)
+            sg.meter(
+                "",
+                method="search",
+                cost_cents=10,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_rejects_negative_cost(self):
         sg = _make_sdk()
         with pytest.raises(ValueError, match=">= 0"):
-            sg.meter(BUYER_KEY, method="search", cost_cents=-1)
+            sg.meter(
+                BUYER_KEY,
+                method="search",
+                cost_cents=-1,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_rejects_bool_cost(self):
         sg = _make_sdk()
         with pytest.raises(TypeError):
-            sg.meter(BUYER_KEY, method="search", cost_cents=True)  # type: ignore[arg-type]
+            sg.meter(
+                BUYER_KEY,
+                method="search",
+                cost_cents=True,  # type: ignore[arg-type]
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
+        sg.close()
+
+    @respx.mock(base_url=API_URL)
+    def test_wire_body_contains_consumerId_toolId_keyId(self, respx_mock):
+        # Phase-3 integration audit pin: the meter endpoint's Zod
+        # schema (apps/web/src/app/api/sdk/meter/route.ts) marks
+        # ``consumerId`` / ``toolId`` / ``keyId`` as required UUIDs.
+        # Earlier versions of this client omitted them — every meter
+        # call in production fails 400. This test captures the actual
+        # POST body and asserts the IDs are forwarded with the
+        # camelCase keys the TS endpoint validates against.
+        import json
+
+        sg = _make_sdk()
+        route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=Response(
+                200,
+                json={
+                    "success": True,
+                    "remainingBalanceCents": 0,
+                    "costCents": 1,
+                    "invocationId": "inv_wire",
+                },
+            )
+        )
+        sg.meter(
+            BUYER_KEY,
+            method="search",
+            cost_cents=1,
+            consumer_id="11111111-1111-1111-1111-111111111111",
+            tool_id="22222222-2222-2222-2222-222222222222",
+            key_id="33333333-3333-3333-3333-333333333333",
+        )
+        # Capture and inspect the actual request body the TS endpoint
+        # would have received.
+        captured = json.loads(route.calls.last.request.content)
+        assert captured["toolSlug"] == "test-tool"
+        assert captured["consumerId"] == "11111111-1111-1111-1111-111111111111"
+        assert captured["toolId"] == "22222222-2222-2222-2222-222222222222"
+        assert captured["keyId"] == "33333333-3333-3333-3333-333333333333"
+        assert captured["method"] == "search"
+        assert captured["costCents"] == 1
+        # ``apiKey`` was previously sent on the wire; the meter endpoint
+        # never accepted it. Pin it OUT of the wire shape so a future
+        # regression to the old payload (which would still mock-pass on
+        # the success-path test above) gets caught here.
+        assert "apiKey" not in captured
         sg.close()
 
 
@@ -315,7 +390,14 @@ class TestMeterAsync:
                 },
             )
         )
-        result = await sg.meter_async(BUYER_KEY, method="search", cost_cents=25)
+        result = await sg.meter_async(
+            BUYER_KEY,
+            method="search",
+            cost_cents=25,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         assert result.success is True
         assert result.cost_cents == 25
         assert result.remaining_balance_cents == 4975
@@ -324,7 +406,14 @@ class TestMeterAsync:
     async def test_rejects_empty_method(self):
         sg = _make_sdk()
         with pytest.raises(ValueError, match="non-empty method"):
-            await sg.meter_async(BUYER_KEY, method="", cost_cents=10)
+            await sg.meter_async(
+                BUYER_KEY,
+                method="",
+                cost_cents=10,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         await sg.aclose()
 
 

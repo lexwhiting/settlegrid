@@ -139,25 +139,53 @@ class TestWrapperInit:
 
 class TestInvocation:
     def test_void_idempotent(self):
-        inv = Invocation(meter="m", price_cents=10, api_key=BUYER_KEY)
+        inv = Invocation(
+            meter="m",
+            price_cents=10,
+            api_key=BUYER_KEY,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         inv.void()
         inv.void()
         assert inv.voided is True
         assert inv.charged is False
 
     def test_void_after_charged_raises(self):
-        inv = Invocation(meter="m", price_cents=10, api_key=BUYER_KEY)
+        inv = Invocation(
+            meter="m",
+            price_cents=10,
+            api_key=BUYER_KEY,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         inv._mark_charged()
         with pytest.raises(RuntimeError, match="already been charged"):
             inv.void()
 
     def test_initial_state(self):
-        inv = Invocation(meter="m", price_cents=10, api_key=BUYER_KEY)
+        inv = Invocation(
+            meter="m",
+            price_cents=10,
+            api_key=BUYER_KEY,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         assert inv.voided is False
         assert inv.charged is False
 
     def test_mark_charged(self):
-        inv = Invocation(meter="m", price_cents=10, api_key=BUYER_KEY)
+        inv = Invocation(
+            meter="m",
+            price_cents=10,
+            api_key=BUYER_KEY,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         inv._mark_charged()
         assert inv.charged is True
 
