@@ -11,6 +11,7 @@ import MCP_BILLING_COMPARISON_BODY from './blog-bodies/mcp-billing-comparison-20
 import AI_AGENT_PROTOCOLS_BODY from './blog-bodies/ai-agent-payment-protocols.md'
 import MCP_PAYMENT_RETRY_BODY from './blog-bodies/mcp-server-payment-retry-logic.md'
 import ERC_8004_IDENTITY_BODY from './blog-bodies/erc-8004-trustless-agent-identity.md'
+import SETTLEGRID_TEMPLATES_LAUNCH_BODY from './blog-bodies/settlegrid-templates-launch.md'
 
 export interface BlogPostAuthor {
   name: string
@@ -58,8 +59,35 @@ export interface BlogPost {
    */
   body?: string
   relatedSlugs: string[]
+  /**
+   * P4.2 — gate flag for unpublished drafts. When `false`, the post is
+   * filtered out of `BLOG_SLUGS` (so `generateStaticParams` won't build
+   * the route) and `getBlogPostBySlug` returns `undefined` (so the
+   * route returns 404). Default behavior when omitted is "published"
+   * — pre-existing posts continue to render unchanged.
+   *
+   * The founder flips this to `true` after rewriting the FOUNDER
+   * REWRITE block at the top of the body file.
+   */
+  published?: boolean
 }
 
+/**
+ * The full registry of blog posts, including drafts gated by
+ * `published: false` (P4.2). DO NOT iterate or `.find()` this array
+ * directly from public-facing code — unpublished drafts will leak
+ * into related-post lists and other callers that bypass the
+ * published-filter helpers.
+ *
+ * Use the safer accessors:
+ *   - `BLOG_SLUGS` for route generation (drafts excluded)
+ *   - `getBlogPostBySlug(slug)` for individual lookups (drafts return undefined)
+ *
+ * Callers that need the related-post lookup pattern should compose
+ * `relatedSlugs.map(getBlogPostBySlug).filter(Boolean)` rather than
+ * `relatedSlugs.map((s) => BLOG_POSTS.find(...))` — the former
+ * inherits the published filter, the latter does not.
+ */
 export const BLOG_POSTS: BlogPost[] = [
   /* ── 1. How to Monetize an MCP Server ──────────────────────────────────── */
   {
@@ -585,16 +613,74 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     body: ERC_8004_IDENTITY_BODY,
   },
+
+  /* ── P4.2. SettleGrid Templates launch (DRAFT — published:false) ───────── */
+  /* Structural draft per P4.2 spec. Founder rewrites the 5 marked gaps in
+     the body's <!-- FOUNDER REWRITE REQUIRED --> block, then flips
+     `published: true` to ship. While `published: false`, the post is
+     filtered out of BLOG_SLUGS / getBlogPostBySlug so the /learn/blog/[slug]
+     route returns 404 — see helpers below.                                  */
+  {
+    slug: 'settlegrid-templates-launch',
+    title: 'Why I built SettleGrid Templates',
+    description:
+      'A founder narrative on the four holes in MCP monetization — pricing friction, no shared templates, no agent-side discovery, no revenue split — and what SettleGrid Templates ships to close them.',
+    datePublished: '2026-04-26',
+    dateModified: '2026-04-26',
+    keywords: [
+      'SettleGrid Templates',
+      'MCP monetization',
+      'why I built',
+      'launch post',
+      'MCP billing',
+      'AI tool revenue',
+    ],
+    readingTime: '6 min read',
+    wordCount: 1280,
+    author: {
+      name: 'Lex Whiting',
+      url: 'https://x.com/lexwhiting',
+      bio: 'Founder, SettleGrid. Bootstrapping a settlement layer for the AI economy. Previously: shipped MCP servers, hand-rolled too much Stripe Connect.',
+    },
+    relatedSlugs: [
+      'how-to-monetize-mcp-server',
+      'mcp-billing-comparison-2026',
+      'ai-agent-payment-protocols',
+    ],
+    body: SETTLEGRID_TEMPLATES_LAUNCH_BODY,
+    published: false,
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export const BLOG_SLUGS = BLOG_POSTS.map((p) => p.slug)
+/**
+ * P4.2 — published-flag predicate. A post is considered published when
+ * `published` is missing (legacy posts) or explicitly `true`. Only
+ * `published: false` filters the post out of public surfaces.
+ */
+function isPublished(post: BlogPost): boolean {
+  return post.published !== false
+}
 
+/**
+ * Slugs of every PUBLISHED post. `generateStaticParams` consumes this in
+ * apps/web/src/app/learn/blog/[slug]/page.tsx, so unpublished drafts
+ * never get a built route.
+ */
+export const BLOG_SLUGS = BLOG_POSTS.filter(isPublished).map((p) => p.slug)
+
+/**
+ * Look up a post by slug. Returns `undefined` for unpublished drafts so
+ * the route handler's `notFound()` fires the same 404 it would for a
+ * truly missing slug — no leak that an unpublished draft exists.
+ */
 export function getBlogPostBySlug(slug: string): BlogPost | undefined {
-  return BLOG_POSTS.find((p) => p.slug === slug)
+  const post = BLOG_POSTS.find((p) => p.slug === slug)
+  if (!post || !isPublished(post)) return undefined
+  return post
 }
 
 /**

@@ -495,8 +495,29 @@ describe('getBlogPostBySlug (full blog-posts coverage)', () => {
     expect(getBlogPostBySlug('no-such-post-anywhere')).toBeUndefined()
   })
 
-  it('BLOG_SLUGS mirrors the BLOG_POSTS array', () => {
-    expect(BLOG_SLUGS).toEqual(BLOG_POSTS.map((p) => p.slug))
+  it('BLOG_SLUGS mirrors the published subset of BLOG_POSTS', () => {
+    // P4.2 — `published: false` posts are filtered out of BLOG_SLUGS so
+    // generateStaticParams in apps/web/src/app/learn/blog/[slug]/page.tsx
+    // never builds a route for them. Posts without `published` (legacy /
+    // already-shipped) default to published.
+    const expectedSlugs = BLOG_POSTS.filter((p) => p.published !== false).map(
+      (p) => p.slug,
+    )
+    expect(BLOG_SLUGS).toEqual(expectedSlugs)
+  })
+
+  it('getBlogPostBySlug returns undefined for an unpublished draft', () => {
+    // P4.2 — register a draft → look it up by slug → expect 404 behavior
+    // (undefined). Otherwise an unpublished draft would render even when
+    // its route generation is skipped by some other consumer.
+    const draft = BLOG_POSTS.find((p) => p.published === false)
+    if (draft) {
+      expect(getBlogPostBySlug(draft.slug)).toBeUndefined()
+    } else {
+      // No draft currently in the registry — assertion would be vacuous.
+      // The negative case is covered by the "unknown slug" test above.
+      expect(true).toBe(true)
+    }
   })
 })
 
