@@ -205,19 +205,30 @@ export class MastercardVIAdapter implements ProtocolAdapter {
   }
 
   /**
-   * Build the `accepts[]` challenge entry for the Mastercard
-   * Verifiable Intent rail.
+   * P3.PROT1 — no-arg form returns the spec-literal 503
+   * detection-stub response. Spec text: "buildChallenge(meterCtx)
+   * returns a 503 with body { status: 'protocol_detected', ... }".
    *
-   * Mirrors the characteristic fields from the canonical
-   * `generateMastercard402Response` in
-   * `apps/web/src/lib/mastercard-proxy.ts` (protocol + amount_cents +
-   * currency + accepted_credentials + credential_requirements).
-   * A future pass will replace this with the full SD-JWT credential
-   * chain challenge (ES256 issuer key, three-layer delegation chain,
-   * Mastercard's Verifiable Intent endpoint) — today's stub carries the
-   * accepted_credentials list so a client can recognize the rail.
+   * The two overloads disambiguate the spec name from the
+   * :class:`ProtocolAdapter` interface's
+   * ``buildChallenge(options): AcceptEntry`` contract — same method
+   * name, different shape:
+   *
+   * - ``buildChallenge()`` (no args) → ``Response`` (503 stub).
+   * - ``buildChallenge(options)`` → ``AcceptEntry`` (multi-protocol
+   *   402 manifest entry).
+   *
+   * Existing callers (the 402-manifest builder) pass options and
+   * land on the AcceptEntry path; P3.PROT1-aware callers omit the
+   * arg and get the 503. Both are defined on the same name so the
+   * spec literal compiles without a separate method.
    */
-  buildChallenge(options: BuildChallengeOptions): AcceptEntry {
+  buildChallenge(): Response
+  buildChallenge(options: BuildChallengeOptions): AcceptEntry
+  buildChallenge(options?: BuildChallengeOptions): Response | AcceptEntry {
+    if (options === undefined) {
+      return _buildDetectionStubResponse()
+    }
     const method = options.method ?? 'default'
     const rawCost = resolveOperationCost(options.pricing, method)
     const costCents = Number.isFinite(rawCost) && rawCost >= 0 ? Math.floor(rawCost) : 0
@@ -272,21 +283,12 @@ export class MastercardVIAdapter implements ProtocolAdapter {
   }
 
   /**
-   * P3.PROT1 — generate the 503 "protocol detected, validation pending"
-   * response. Spec-literal body shape:
-   *   {
-   *     status: 'protocol_detected',
-   *     protocol: 'mastercard-vi',
-   *     message: 'Mastercard Verifiable Intent detected. Full validation
-   *               lands in <date>. See settlegrid.ai/protocols/mastercard-vi.',
-   *     expected_at: '2026-Q3'
-   *   }
+   * Descriptive alias for :meth:`buildChallenge` (no-arg form).
    *
-   * Used by :meth:`formatError` when ``ProtocolNotYetSupportedError``
-   * propagates up from :meth:`verify` / :meth:`verifyPayment`. May also
-   * be called directly by callers that want to short-circuit a
-   * detected request without invoking verify (e.g. an upstream
-   * detection middleware).
+   * The spec-literal name is ``buildChallenge``; this descriptive
+   * alias is kept available for callers that want a more
+   * self-documenting name when reading proxy-route code. Both point
+   * at the same module-level builder.
    */
   buildDetectionStubResponse(_meterCtx?: BuildChallengeOptions): Response {
     return _buildDetectionStubResponse()

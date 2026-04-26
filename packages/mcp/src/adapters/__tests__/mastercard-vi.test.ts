@@ -222,10 +222,16 @@ describe('MastercardVIAdapter.verifyPayment / verify — fail-fast contract', ()
 
 // ─── 3. 503 stub response shape + landing-page link ────────────────────────
 
-describe('MastercardVIAdapter.buildDetectionStubResponse', () => {
-  it('returns 503 with the spec-literal envelope shape', async () => {
+describe('MastercardVIAdapter.buildChallenge / buildDetectionStubResponse', () => {
+  it('returns 503 with the spec-literal envelope shape (buildChallenge no-arg form)', async () => {
+    // P3.PROT1 spec literal: ``buildChallenge(meterCtx) — returns a
+    // 503 with body { status: 'protocol_detected', ... }``. The no-arg
+    // overload IS the spec-literal P3.PROT1 form (the with-options
+    // overload returns AcceptEntry for the multi-protocol manifest
+    // builder; tested separately below).
     const adapter = new MastercardVIAdapter()
-    const res = adapter.buildDetectionStubResponse()
+    const res = adapter.buildChallenge()
+    expect(res).toBeInstanceOf(Response)
     expect(res.status).toBe(503)
     expect(res.headers.get('Content-Type')).toBe('application/json')
     expect(res.headers.get('X-SettleGrid-Protocol')).toBe('mastercard-vi')
@@ -237,6 +243,28 @@ describe('MastercardVIAdapter.buildDetectionStubResponse', () => {
       expected_at: '2026-Q3',
     })
     expect(body.message).toContain(MASTERCARD_VI_EXPECTED_AT)
+  })
+
+  it('buildChallenge with options returns AcceptEntry (preserves multi-protocol manifest contract)', () => {
+    const adapter = new MastercardVIAdapter()
+    const entry = adapter.buildChallenge({
+      pricing: { defaultCostCents: 7 },
+      method: 'default',
+    })
+    // Not a Response — the overload returns AcceptEntry data.
+    expect(entry).not.toBeInstanceOf(Response)
+    expect(entry.scheme).toBe('mastercard-vi')
+    expect(entry.provider).toBe('mastercard')
+    expect(entry.costCents).toBe(7)
+    expect(entry.currency).toBe('USD')
+    expect(entry.acceptedCredentials).toContain('sd-jwt-verifiable-intent')
+  })
+
+  it('buildDetectionStubResponse alias agrees with buildChallenge() no-arg form', async () => {
+    const adapter = new MastercardVIAdapter()
+    const a = await adapter.buildChallenge().json()
+    const b = await adapter.buildDetectionStubResponse().json()
+    expect(a).toEqual(b)
   })
 
   it('formatError routes ProtocolNotYetSupportedError through the 503 envelope', async () => {
