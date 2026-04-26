@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { getAllShadowEntries, getShadowEntry } from '@/lib/shadow-index'
 import { getRegistry } from '@/lib/registry'
 import { SHADOW_BUILD_LIMIT } from '@/env'
+import { ShadowDirectoryViewedEmitter } from '@/components/telemetry/ShadowDirectoryViewedEmitter'
 
 export const dynamic = 'force-static'
 export const dynamicParams = false
@@ -127,6 +128,11 @@ export default async function ShadowDetailPage({
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <ShadowDirectoryViewedEmitter
+        owner={owner}
+        repo={repo}
+        hasClaim={Boolean(entry.settlegridAvailable)}
+      />
       {/* Escape < as \u003c to prevent </script> injection in JSON-LD */}
       <script
         type="application/ld+json"
