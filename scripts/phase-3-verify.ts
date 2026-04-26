@@ -1323,7 +1323,10 @@ async function check20_pythonParity(): Promise<CheckResult> {
   let pyTests = 0
   for (const f of pyTestFiles) {
     const content = readFileSync(join(testsDir, f), 'utf-8')
-    pyTests += (content.match(/^[ \t]+(?:async )?def test_/gm) ?? []).length
+    // H20 hostile fix — match BOTH module-level (`def test_…`) and
+    // class-method (`    def test_…`) test functions. Previous regex
+    // required leading whitespace, silently missing module-level tests.
+    pyTests += (content.match(/^[ \t]*(?:async\s+)?def\s+test_/gm) ?? []).length
   }
 
   // ── Count SDK-relevant TS tests ──
@@ -1349,6 +1352,9 @@ async function check20_pythonParity(): Promise<CheckResult> {
     const path = join(tsTestsDir, f)
     if (fileExists(path)) {
       const content = readFileSync(path, 'utf-8')
+      // H21 hostile fix — exclude `it.skip`, `it.only`, `it.todo`,
+      // `it.each` (parametrized — counted as one in Python via
+      // @pytest.mark.parametrize). Match only literal `it(` open paren.
       tsTests += (content.match(/^\s*it\(/gm) ?? []).length
     }
   }
@@ -1360,10 +1366,15 @@ async function check20_pythonParity(): Promise<CheckResult> {
   let ciHasMatrix = false
   if (ciExists) {
     const ciContent = readFileSync(ciPath, 'utf-8')
+    // H23 hostile fix — match the version regardless of quote style
+    // ('3.10', "3.10", or unquoted 3.10) by checking the bare version
+    // anchored to a non-version-character on either side.
+    const hasVersion = (v: string): boolean =>
+      new RegExp(`(?<![\\d.])${v.replace('.', '\\.')}(?![\\d.])`).test(ciContent)
     ciHasMatrix =
-      ciContent.includes("'3.10'") &&
-      ciContent.includes("'3.11'") &&
-      ciContent.includes("'3.12'") &&
+      hasVersion('3.10') &&
+      hasVersion('3.11') &&
+      hasVersion('3.12') &&
       ciContent.includes('ubuntu-latest') &&
       ciContent.includes('macos-latest')
   }

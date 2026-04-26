@@ -138,34 +138,49 @@ class TestWrapValidation:
             w(42)  # type: ignore[arg-type]
         sg.close()
 
-    @respx.mock(base_url=API_URL, assert_all_called=False)
+    @respx.mock(base_url=API_URL)
     def test_succeeds_with_valid_sync_handler(self, respx_mock) -> None:
+        # H17 hostile fix — assert BOTH mocks were called exactly once.
+        # Without `route.called` checks, the test would pass even if
+        # metering silently broke (handler returned "ok" without charge).
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
             return_value=_validate_response()
         )
-        respx_mock.post("/api/sdk/meter").mock(return_value=_meter_response())
+        meter_route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=_meter_response()
+        )
 
         @sg.wrap(meter="m", price_cents=10, api_key=BUYER_KEY)
         def handler() -> str:
             return "ok"
 
         assert handler() == "ok"
+        assert validate_route.call_count == 1, (
+            "wrap decorator must validate the buyer key once"
+        )
+        assert meter_route.call_count == 1, (
+            "wrap decorator must meter exactly once on success"
+        )
         sg.close()
 
-    @respx.mock(base_url=API_URL, assert_all_called=False)
+    @respx.mock(base_url=API_URL)
     async def test_succeeds_with_valid_async_handler(self, respx_mock) -> None:
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
             return_value=_validate_response()
         )
-        respx_mock.post("/api/sdk/meter").mock(return_value=_meter_response())
+        meter_route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=_meter_response()
+        )
 
         @sg.wrap(meter="m", price_cents=10, api_key=BUYER_KEY)
         async def handler() -> str:
             return "ok"
 
         assert await handler() == "ok"
+        assert validate_route.call_count == 1
+        assert meter_route.call_count == 1
         await sg.aclose()
 
 
