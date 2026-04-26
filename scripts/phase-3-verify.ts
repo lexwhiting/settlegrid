@@ -1398,12 +1398,19 @@ async function check20_pythonParity(): Promise<CheckResult> {
 async function check21_langchainPy(): Promise<CheckResult> {
   const label = 'settlegrid-langchain Python adapter (≥8 tests)'
   const method =
-    'check packages/settlegrid-langchain-py/ OR top-level settlegrid-langchain Python package'
-  const primary = repoFile('packages/settlegrid-langchain-py')
-  const alt = repoFile('packages/settlegrid-langchain')
-  const primaryPy = fileExists(join(primary, 'pyproject.toml'))
-  const altPy = fileExists(join(alt, 'pyproject.toml'))
-  if (!primaryPy && !altPy) {
+    'check packages/sdk-python-langchain/ for pyproject.toml + tests; count pytest test fns'
+  const candidates = [
+    'packages/sdk-python-langchain',
+    'packages/settlegrid-langchain-py',
+  ]
+  let pkgDir: string | null = null
+  for (const c of candidates) {
+    if (fileExists(join(repoFile(c), 'pyproject.toml'))) {
+      pkgDir = repoFile(c)
+      break
+    }
+  }
+  if (!pkgDir) {
     return defer(
       21,
       label,
@@ -1411,7 +1418,30 @@ async function check21_langchainPy(): Promise<CheckResult> {
       'no Python settlegrid-langchain package — P3.PYTHON3 prompt not yet shipped',
     )
   }
-  return pass(21, label, method, 'Python langchain adapter package present')
+  // Count tests.
+  const testsDir = join(pkgDir, 'tests')
+  let testCount = 0
+  if (dirExists(testsDir)) {
+    for (const f of readdirSync(testsDir)) {
+      if (!f.startsWith('test_') || !f.endsWith('.py')) continue
+      const content = readFileSync(join(testsDir, f), 'utf-8')
+      testCount += (content.match(/^[ \t]*(?:async\s+)?def\s+test_/gm) ?? []).length
+    }
+  }
+  // Verify metered_tool exported.
+  const initFile = join(pkgDir, 'settlegrid_langchain', '__init__.py')
+  const exportsMetered =
+    fileExists(initFile) &&
+    /metered_tool/.test(readFileSync(initFile, 'utf-8'))
+
+  const evidence = `package=${pkgDir.replace(repoFile(''), '')}, tests=${testCount}, metered_tool exported=${exportsMetered}`
+  if (!exportsMetered) {
+    return fail(21, label, method, `${evidence} — metered_tool not exported`)
+  }
+  if (testCount < 8) {
+    return fail(21, label, method, `${evidence} — needs ≥8 tests`)
+  }
+  return pass(21, label, method, evidence)
 }
 
 // ── Check 22: llamaindex + crewai + pydantic-ai ──────────────────────
