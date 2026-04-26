@@ -26,11 +26,23 @@ import respx
 from langchain_core.tools import BaseTool, StructuredTool, tool
 from settlegrid import SettleGrid
 
-from settlegrid_langchain import metered_tool
+from settlegrid_langchain import metered_tool, reset_default_client
 
 API_URL = "https://api.test"
 SELLER_KEY = "sg_live_seller"
 BUYER_KEY = "sg_live_buyer"
+
+
+@pytest.fixture(autouse=True)
+def _reset_module_state():
+    """H3 hostile fix — every test starts with a clean module-level
+    default client. Prevents one test's `configure(...)` from leaking
+    state into other tests. Runs before AND after each test (via yield)
+    so accidental leakage is contained even if a test errors mid-way.
+    """
+    reset_default_client()
+    yield
+    reset_default_client()
 
 
 def _sdk() -> SettleGrid:
@@ -420,10 +432,10 @@ class TestHostileReviewRegressions:
         default" (D1 spec-diff fix), so it triggers RuntimeError
         ("no default") rather than TypeError. Other non-SettleGrid
         types still raise TypeError via the hasattr probe.
-        """
-        from settlegrid_langchain import reset_default_client
 
-        reset_default_client()
+        Default-client isolation: provided by the autouse
+        ``_reset_module_state`` fixture; no manual reset needed.
+        """
         with pytest.raises(RuntimeError, match="no SettleGrid client"):
             metered_tool(None, meter="m", price_cents=10)
         with pytest.raises(TypeError, match="SettleGrid instance"):
@@ -463,17 +475,10 @@ class TestConfigureDefaultClient:
     """D1 spec-diff fix — supports the literal spec signature
     ``metered_tool(meter, price_cents)`` by falling back to a default
     client set via ``configure``.
+
+    Per-test isolation is provided by the module-level autouse
+    ``_reset_module_state`` fixture above; no class-level setup needed.
     """
-
-    def setup_method(self) -> None:
-        from settlegrid_langchain import reset_default_client
-
-        reset_default_client()
-
-    def teardown_method(self) -> None:
-        from settlegrid_langchain import reset_default_client
-
-        reset_default_client()
 
     def test_no_default_no_sg_raises(self) -> None:
         from settlegrid_langchain import metered_tool as mt
@@ -481,21 +486,40 @@ class TestConfigureDefaultClient:
         with pytest.raises(RuntimeError, match="no SettleGrid client"):
             mt(meter="m", price_cents=10)
 
-    def test_configure_then_bare_signature_works(self) -> None:
+    @respx.mock(base_url=API_URL)
+    def test_configure_then_bare_signature_works(self, respx_mock) -> None:
+        """H2 hostile fix — actually INVOKE the wrapped function and
+        verify the configured default's HTTP layer was hit. Previously
+        the test only asserted decoration succeeded — passing even if
+        metering silently no-op'd."""
         from settlegrid_langchain import configure
         from settlegrid_langchain import metered_tool as mt
 
         sg = _sdk()
         configure(sg)
 
+        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+            return_value=_validate_response()
+        )
+        meter_route = respx_mock.post("/api/sdk/meter").mock(
+            return_value=_meter_response()
+        )
+
         # Spec's literal signature: no `sg` arg.
-        @mt(meter="m", price_cents=10, api_key=BUYER_KEY)
+        @mt(meter="search", price_cents=10, api_key=BUYER_KEY)
         def search(q: str) -> str:
             """Search."""
             return q
 
+        # Introspection preserved.
         assert search.__name__ == "search"
         assert search.__doc__ == "Search."
+
+        # Invocation routes through the configured default's HTTP layer.
+        result = search("hello")
+        assert result == "hello"
+        assert validate_route.call_count == 1
+        assert meter_route.call_count == 1
         sg.close()
 
     def test_configure_rejects_non_settlegrid(self) -> None:
@@ -513,26 +537,59 @@ class TestConfigureDefaultClient:
         sg.close()
 
     def test_explicit_sg_overrides_default(self) -> None:
-        """The explicit `sg` arg always wins over the configured default."""
+        """H1 hostile fix — actually verify the explicit arg wins by
+        pointing the two clients at distinct base URLs and asserting
+        the EXPLICIT URL is the one hit. The previous test only checked
+        ``callable(search)``, which passed regardless of which client
+        was used.
+        """
+        from settlegrid import SettleGrid
+
         from settlegrid_langchain import configure
         from settlegrid_langchain import metered_tool as mt
 
-        default_sg = _sdk()
+        default_url = "https://default.test"
+        explicit_url = "https://explicit.test"
+
+        default_sg = SettleGrid(
+            api_key=SELLER_KEY, tool_slug="t", api_url=default_url
+        )
+        explicit_sg = SettleGrid(
+            api_key=SELLER_KEY, tool_slug="t", api_url=explicit_url
+        )
         configure(default_sg)
 
-        explicit_sg = _sdk()
+        with respx.mock(base_url=explicit_url) as explicit_router, \
+                respx.mock(base_url=default_url, assert_all_called=False) as default_router:
+            explicit_validate = explicit_router.post("/api/sdk/keys/validate").mock(
+                return_value=_validate_response()
+            )
+            explicit_meter = explicit_router.post("/api/sdk/meter").mock(
+                return_value=_meter_response()
+            )
+            # The default-router routes are configured as a tripwire — if
+            # the SDK accidentally used the configured default, these
+            # would be hit. assert_all_called=False so respx doesn't fail
+            # the test merely because we set up unused tripwires.
+            default_validate = default_router.post("/api/sdk/keys/validate").mock(
+                return_value=_validate_response()
+            )
+            default_meter = default_router.post("/api/sdk/meter").mock(
+                return_value=_meter_response()
+            )
 
-        @mt(explicit_sg, meter="m", price_cents=10, api_key=BUYER_KEY)
-        def search(q: str) -> str:
-            return q
+            @mt(explicit_sg, meter="m", price_cents=10, api_key=BUYER_KEY)
+            def search(q: str) -> str:
+                return q
 
-        # The decorator's bound Wrapper should reference explicit_sg,
-        # not the configured default. We verify by introspecting the
-        # closure cell. (Equivalent in spirit: a unit test that confirms
-        # the explicit arg wins.)
-        # Simpler smoke check: decoration succeeds without error and
-        # the explicit_sg is what gets the wrap call.
-        assert callable(search)
+            search("hi")
+
+            # Explicit was hit, default was NOT.
+            assert explicit_validate.call_count == 1
+            assert explicit_meter.call_count == 1
+            assert default_validate.call_count == 0
+            assert default_meter.call_count == 0
+
         default_sg.close()
         explicit_sg.close()
 
