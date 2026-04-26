@@ -1543,32 +1543,92 @@ async function check22_pyAdaptersCohort2(): Promise<CheckResult> {
 // ── Check 23: dspy + smolagents ──────────────────────────────────────
 
 async function check23_pyAdaptersCohort3(): Promise<CheckResult> {
-  const label = 'settlegrid-dspy + smolagents Python adapters'
+  const label =
+    'settlegrid-dspy + smolagents Python adapters (≥5 tests, metered_tool exported, framework version pinned)'
   const method =
-    'check packages/{settlegrid-dspy,settlegrid-smolagents}-py or equivalents; framework versions pinned'
-  const candidates = [
-    ['dspy', 'settlegrid-dspy-py', 'settlegrid-dspy'],
-    ['smolagents', 'settlegrid-smolagents-py', 'settlegrid-smolagents'],
+    'check packages/sdk-python-{dspy,smolagents} (or legacy candidates) for pyproject.toml + ≥5 tests + metered_tool exported + version pin in dependencies'
+  // Each entry: [framework, python module name, framework dep prefix, pkg dir candidates...]
+  const candidates: [string, string, string, string[]][] = [
+    [
+      'dspy',
+      'settlegrid_dspy',
+      'dspy-ai',
+      ['sdk-python-dspy', 'settlegrid-dspy-py', 'settlegrid-dspy'],
+    ],
+    [
+      'smolagents',
+      'settlegrid_smolagents',
+      'smolagents',
+      ['sdk-python-smolagents', 'settlegrid-smolagents-py', 'settlegrid-smolagents'],
+    ],
   ]
-  const found: string[] = []
-  const missing: string[] = []
-  for (const [name, a, b] of candidates) {
-    const aPy = fileExists(repoFile('packages', a, 'pyproject.toml'))
-    const bPy = fileExists(repoFile('packages', b, 'pyproject.toml'))
-    if (aPy || bPy) found.push(name)
-    else missing.push(name)
+  const ok: string[] = []
+  const issues: string[] = []
+  for (const [name, mod, depPrefix, dirCandidates] of candidates) {
+    let pkgDir: string | null = null
+    for (const c of dirCandidates) {
+      if (fileExists(repoFile('packages', c, 'pyproject.toml'))) {
+        pkgDir = repoFile('packages', c)
+        break
+      }
+    }
+    if (!pkgDir) {
+      issues.push(`${name}: package dir not found`)
+      continue
+    }
+    // Spec literal — "framework version pinned in pyproject.toml so
+    // future API breaks don't silently break the adapter". Look for
+    // the framework dep with a version constraint operator.
+    const pyprojectContent = readFileSync(join(pkgDir, 'pyproject.toml'), 'utf-8')
+    // Match e.g. `dspy-ai~=3.2.0` or `dspy-ai>=3.2,<4` or `dspy-ai==3.2.0`.
+    const pinPattern = new RegExp(
+      `["']${depPrefix.replace(/-/g, '[-_]')}\\s*[~=<>!]+\\s*[\\d.]+`,
+    )
+    const versionPinned = pinPattern.test(pyprojectContent)
+
+    // Test count (same fallback structure as C21/C22).
+    const testDirCandidates = [
+      join(pkgDir, mod, '__tests__'),
+      join(pkgDir, 'tests'),
+    ]
+    let testsDir: string | null = null
+    for (const candidate of testDirCandidates) {
+      if (dirExists(candidate)) {
+        testsDir = candidate
+        break
+      }
+    }
+    let testCount = 0
+    if (testsDir !== null) {
+      for (const f of readdirSync(testsDir)) {
+        if (!f.startsWith('test_') || !f.endsWith('.py')) continue
+        const content = readFileSync(join(testsDir, f), 'utf-8')
+        testCount += (content.match(/^[ \t]*(?:async\s+)?def\s+test_/gm) ?? []).length
+      }
+    }
+    const initFile = join(pkgDir, mod, '__init__.py')
+    const exportsMetered =
+      fileExists(initFile) && /metered_tool/.test(readFileSync(initFile, 'utf-8'))
+
+    if (!exportsMetered) {
+      issues.push(`${name}: metered_tool not exported`)
+      continue
+    }
+    if (testCount < 5) {
+      issues.push(`${name}: only ${testCount} tests (need ≥5)`)
+      continue
+    }
+    if (!versionPinned) {
+      issues.push(`${name}: ${depPrefix} version pin missing in pyproject.toml`)
+      continue
+    }
+    ok.push(`${name}(tests=${testCount},pinned)`)
   }
-  const evidence = `found=[${found.join(', ') || 'none'}]; missing=[${missing.join(', ') || 'none'}]`
-  if (missing.length === 0) {
+  const evidence = `ok=[${ok.join(', ') || 'none'}]${issues.length ? `; issues=[${issues.join(', ')}]` : ''}`
+  if (issues.length === 0) {
     return pass(23, label, method, evidence)
   }
-  return defer(
-    23,
-    label,
-    method,
-    evidence,
-    `missing packages — P3.PYTHON5 prompt not yet shipped`,
-  )
+  return defer(23, label, method, evidence, `${issues.length} adapter issues`)
 }
 
 // ── Check 24: Mastercard VI detection stub ───────────────────────────
