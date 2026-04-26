@@ -14,5 +14,6 @@ export default defineConfig({
     // default 5s timeout. Suite is small enough that the serialization cost
     // is negligible (~5s end-to-end).
     fileParallelism: false,
+    setupFiles: ['./vitest.setup.ts'],
   },
 })

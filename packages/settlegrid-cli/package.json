@@ -59,6 +59,7 @@
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
+    "postinstall": "node ./dist/postinstall.js || true",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

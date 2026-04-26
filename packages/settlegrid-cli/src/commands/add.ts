@@ -16,6 +16,12 @@ import {
   parseGithubRepo,
   readGitOrigin,
 } from '../pr/github.js'
+import {
+  captureScaffoldSuccess,
+  captureScaffoldFailed,
+  normalizeScaffoldSlug,
+  type ScaffoldErrorCode,
+} from '../telemetry.js'
 
 interface AddOptions {
   github?: string
@@ -90,6 +96,11 @@ export function addCommand(program: Command): void {
     .action(async (source: string | undefined, options: AddOptions) => {
       const jsonMode = options.json === true
 
+      // P4.1 — track total scaffold duration for the success/failure
+      // telemetry events. `Date.now()` is fine for ms-precision —
+      // performance.now() would buy us nothing here.
+      const scaffoldStart = Date.now()
+
       // Build up the JsonResult record as we go. The fields land on
       // stdout as a single JSON line just before the action handler
       // returns, when jsonMode is on.
@@ -107,6 +118,28 @@ export function addCommand(program: Command): void {
         if (jsonMode) {
           process.stdout.write(JSON.stringify(json) + '\n')
         }
+      }
+
+      // P4.1 — telemetry helpers. Slug is privacy-normalised by
+      // `normalizeScaffoldSlug` (hostile-review H3): github URLs
+      // become public `github:owner/repo` coordinates; local paths
+      // become `(local)` so the user's filesystem layout never
+      // leaks to PostHog.
+      const telemetrySlug = (): string => normalizeScaffoldSlug(source)
+      const fireSuccess = (): void => {
+        // Fire-and-forget. The 2s timeout lives inside the telemetry
+        // module — we don't await here so the CLI exits as soon as
+        // the user-visible work is done.
+        void captureScaffoldSuccess({
+          template_slug: telemetrySlug(),
+          duration_ms: Date.now() - scaffoldStart,
+        })
+      }
+      const fireFailed = (code: ScaffoldErrorCode): void => {
+        void captureScaffoldFailed({
+          template_slug: telemetrySlug(),
+          error_code: code,
+        })
       }
 
       if (!jsonMode) {
@@ -173,6 +206,7 @@ export function addCommand(program: Command): void {
           json.error =
             'unknown repo type — pass --force to proceed or report the shape'
           process.exitCode = 1
+          fireFailed('unknown_repo_type')
           emitJson()
           return
         }
@@ -260,6 +294,11 @@ export function addCommand(program: Command): void {
           }
           json.status = 'no-changes'
           process.exitCode = 0
+          // No-changes is not a meaningful "success" in the funnel
+          // sense — the user's repo was untouched (already wrapped,
+          // or codemod matched nothing). Skip telemetry so the
+          // funnel ratio of "scaffold attempts → real wraps" stays
+          // honest.
           emitJson()
           return
         }
@@ -274,6 +313,7 @@ export function addCommand(program: Command): void {
           }
           json.status = 'skipped-pr'
           process.exitCode = 0
+          fireSuccess()
           emitJson()
           return
         }
@@ -302,6 +342,7 @@ export function addCommand(program: Command): void {
           json.status = 'patch-file-written'
           json.patchFile = patchPath
           process.exitCode = 0
+          fireSuccess()
           emitJson()
           return
         }
@@ -327,6 +368,7 @@ export function addCommand(program: Command): void {
           json.status = 'pr-opened'
           json.pr = pr
           process.exitCode = 0
+          fireSuccess()
           emitJson()
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
@@ -336,6 +378,7 @@ export function addCommand(program: Command): void {
           json.status = 'pr-failed'
           json.error = message
           process.exitCode = 1
+          fireFailed('pr_failed')
           emitJson()
         }
       } catch (err) {
@@ -346,6 +389,7 @@ export function addCommand(program: Command): void {
         json.status = 'error'
         json.error = message
         process.exitCode = 1
+        fireFailed('unknown')
         emitJson()
       } finally {
         if (resolved) {

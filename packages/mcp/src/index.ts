@@ -31,6 +31,7 @@ import {
   heartbeat as _heartbeat,
 } from './lifecycle'
 import type { BeginInvocationOptions, SettleInvocationOptions } from './lifecycle'
+import { emitSdkFirstInit } from './telemetry'
 import type {
   GeneralizedPricingConfig,
   Invocation,
@@ -407,6 +408,16 @@ export const settlegrid = {
     const config = normalizeConfig(options)
     const pricing = validatePricingConfig(options.pricing)
     const middleware = createMiddleware(config, pricing)
+
+    // P4.1 — fire `sdk_first_init` once per process per toolSlug.
+    // Fire-and-forget; the helper handles the dedupe set, opt-out
+    // check, and 2s timeout internally. Errors are swallowed so a
+    // failed telemetry POST cannot block init() returning.
+    void emitSdkFirstInit({
+      toolSlug: config.toolSlug,
+      apiUrl: config.apiUrl,
+      sdkVersion: SDK_VERSION,
+    })
 
     const instance: SettleGridInstance = {
       wrap<TArgs, TResult>(

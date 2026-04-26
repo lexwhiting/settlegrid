@@ -5,6 +5,7 @@ import { Footer } from '@/components/marketing/footer'
 import { GALLERY_ENABLED } from '@/env'
 import { getRegistry, listCategories } from '@/lib/registry'
 import { TemplateGallery } from '@/components/templates/TemplateGallery'
+import { GalleryViewedEmitter } from '@/components/telemetry/GalleryViewedEmitter'
 
 export const dynamic = 'force-static'
 
@@ -58,6 +59,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <GalleryViewedEmitter />
       <Navbar />
 
       <main className="flex-1 px-6 py-16 pt-24">
