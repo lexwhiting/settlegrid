@@ -220,44 +220,93 @@ class TestMeterValidation:
     def test_throws_when_key_empty(self) -> None:
         sg = _sdk()
         with pytest.raises(InvalidKeyError):
-            sg.meter("", method="m", cost_cents=10)
+            sg.meter(
+                "",
+                method="m",
+                cost_cents=10,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_throws_when_key_whitespace(self) -> None:
         sg = _sdk()
         with pytest.raises(InvalidKeyError):
-            sg.meter("   ", method="m", cost_cents=10)
+            sg.meter(
+                "   ",
+                method="m",
+                cost_cents=10,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_throws_when_method_empty(self) -> None:
         sg = _sdk()
         with pytest.raises(ValueError, match="non-empty method"):
-            sg.meter(BUYER_KEY, method="", cost_cents=10)
+            sg.meter(
+                BUYER_KEY,
+                method="",
+                cost_cents=10,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_throws_when_method_whitespace(self) -> None:
         sg = _sdk()
         with pytest.raises(ValueError, match="non-empty method"):
-            sg.meter(BUYER_KEY, method="   ", cost_cents=10)
+            sg.meter(
+                BUYER_KEY,
+                method="   ",
+                cost_cents=10,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_throws_when_cost_negative(self) -> None:
         sg = _sdk()
         with pytest.raises(ValueError, match=">= 0"):
-            sg.meter(BUYER_KEY, method="m", cost_cents=-1)
+            sg.meter(
+                BUYER_KEY,
+                method="m",
+                cost_cents=-1,
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_throws_when_cost_is_float(self) -> None:
         sg = _sdk()
         with pytest.raises(TypeError):
-            sg.meter(BUYER_KEY, method="m", cost_cents=1.5)  # type: ignore[arg-type]
+            sg.meter(
+                BUYER_KEY,
+                method="m",
+                cost_cents=1.5,  # type: ignore[arg-type]
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
     def test_throws_when_cost_is_bool(self) -> None:
         """``bool`` is an int subclass — guard rejects it."""
         sg = _sdk()
         with pytest.raises(TypeError):
-            sg.meter(BUYER_KEY, method="m", cost_cents=True)  # type: ignore[arg-type]
+            sg.meter(
+                BUYER_KEY,
+                method="m",
+                cost_cents=True,  # type: ignore[arg-type]
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+            )
         sg.close()
 
 
@@ -272,20 +321,29 @@ class TestRequestBodyShapes:
 
     def test_meter_request_round_trip_minimal(self) -> None:
         body = MeterRequest(
-            api_key=BUYER_KEY, tool_slug="my-tool", method="search", cost_cents=10
+            tool_slug="my-tool",
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+            method="search",
+            cost_cents=10,
         )
         emitted = body.model_dump(by_alias=True, exclude_none=True)
         assert emitted == {
-            "apiKey": BUYER_KEY,
             "toolSlug": "my-tool",
+            "consumerId": "c1",
+            "toolId": "t1",
+            "keyId": "k1",
             "method": "search",
             "costCents": 10,
         }
 
     def test_meter_request_includes_units_when_set(self) -> None:
         body = MeterRequest(
-            api_key=BUYER_KEY,
             tool_slug="my-tool",
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
             method="search",
             cost_cents=10,
             units=5,
@@ -295,10 +353,34 @@ class TestRequestBodyShapes:
 
     def test_meter_request_omits_units_when_unset(self) -> None:
         body = MeterRequest(
-            api_key=BUYER_KEY, tool_slug="my-tool", method="search", cost_cents=10
+            tool_slug="my-tool",
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+            method="search",
+            cost_cents=10,
         )
         emitted = body.model_dump(by_alias=True, exclude_none=True)
         assert "units" not in emitted
+
+    def test_meter_request_rejects_apikey_field(self) -> None:
+        # apiKey is NOT part of the meter endpoint's wire schema. The
+        # Python model uses ``extra="forbid"``, so passing apiKey would
+        # raise a ValidationError. This pins that the field stays out
+        # of the wire shape — preventing a regression to the old pre-
+        # Phase-3-audit shape that included it.
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            MeterRequest(
+                api_key=BUYER_KEY,  # type: ignore[call-arg]
+                tool_slug="my-tool",
+                consumer_id="c1",
+                tool_id="t1",
+                key_id="k1",
+                method="search",
+                cost_cents=10,
+            )
 
 
 # ─── response body shape — wire format round-trip ────────────────────────

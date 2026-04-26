@@ -54,21 +54,36 @@ class Invocation:
     Created by :class:`Wrapper.__enter__` / :class:`Wrapper.__aenter__`.
     Tracks whether the caller voided the invocation so the exit handler
     knows to skip the meter call.
+
+    The three UUIDs (``consumer_id`` / ``tool_id`` / ``key_id``) come
+    from the :class:`KeyValidationResult` produced when the context
+    manager opens; they are required by the meter endpoint and are
+    captured here so the exit handler can forward them without re-
+    validating.
     """
 
     meter: str
     price_cents: int
     api_key: str | None
+    consumer_id: str
+    tool_id: str
+    key_id: str
 
     def __init__(
         self,
         meter: str,
         price_cents: int,
         api_key: str | None,
+        consumer_id: str,
+        tool_id: str,
+        key_id: str,
     ) -> None:
         self.meter = meter
         self.price_cents = price_cents
         self.api_key = api_key
+        self.consumer_id = consumer_id
+        self.tool_id = tool_id
+        self.key_id = key_id
         self._voided = False
         self._charged = False
         self._lock = threading.Lock()
@@ -188,15 +203,24 @@ class Wrapper:
                 or default_api_key
                 or sg.api_key
             )
-            # 1. Auth check (cached).
+            # 1. Auth check (cached). The validation result carries the
+            #    consumer / tool / key UUIDs the meter endpoint requires;
+            #    capture them so step 3 can forward them.
             validation = sg.validate_key(api_key)
             if not validation.valid:
                 raise InvalidKeyError()
             # 2. Handler. If it raises, meter is skipped — no charge for
             #    failed invocations (matches TS execute() semantics).
             result = func(*args, **kwargs)
-            # 3. Meter on success.
-            sg.meter(api_key, method=meter_name, cost_cents=price_cents)
+            # 3. Meter on success — thread the validation UUIDs through.
+            sg.meter(
+                api_key,
+                method=meter_name,
+                cost_cents=price_cents,
+                consumer_id=validation.consumer_id,
+                tool_id=validation.tool_id,
+                key_id=validation.key_id,
+            )
             return result
 
         return sync_inner
@@ -219,12 +243,19 @@ class Wrapper:
                 or sg.api_key
             )
             # H1 hostile fix — see _wrap_sync for ordering rationale.
+            # Capture validation UUIDs so the meter call can forward them
+            # (the meter endpoint requires consumerId / toolId / keyId).
             validation = await sg.validate_key_async(api_key)
             if not validation.valid:
                 raise InvalidKeyError()
             result = await func(*args, **kwargs)
             await sg.meter_async(
-                api_key, method=meter_name, cost_cents=price_cents
+                api_key,
+                method=meter_name,
+                cost_cents=price_cents,
+                consumer_id=validation.consumer_id,
+                tool_id=validation.tool_id,
+                key_id=validation.key_id,
             )
             return result
 
@@ -248,6 +279,9 @@ class Wrapper:
             meter=self.meter,
             price_cents=self.price_cents,
             api_key=api_key,
+            consumer_id=validation.consumer_id,
+            tool_id=validation.tool_id,
+            key_id=validation.key_id,
         )
         return self._invocation
 
@@ -281,6 +315,9 @@ class Wrapper:
             meter=self.meter,
             price_cents=self.price_cents,
             api_key=api_key,
+            consumer_id=validation.consumer_id,
+            tool_id=validation.tool_id,
+            key_id=validation.key_id,
         )
         return self._invocation
 
@@ -318,7 +355,14 @@ class Wrapper:
             return
         if inv.api_key is None:
             return  # Defensive — caught at construction time, but explicit.
-        self._sg.meter(inv.api_key, method=inv.meter, cost_cents=inv.price_cents)
+        self._sg.meter(
+            inv.api_key,
+            method=inv.meter,
+            cost_cents=inv.price_cents,
+            consumer_id=inv.consumer_id,
+            tool_id=inv.tool_id,
+            key_id=inv.key_id,
+        )
         inv._mark_charged()
 
     async def _meter_or_void_async(self, raised: bool) -> None:
@@ -330,7 +374,12 @@ class Wrapper:
         if inv.api_key is None:
             return
         await self._sg.meter_async(
-            inv.api_key, method=inv.meter, cost_cents=inv.price_cents
+            inv.api_key,
+            method=inv.meter,
+            cost_cents=inv.price_cents,
+            consumer_id=inv.consumer_id,
+            tool_id=inv.tool_id,
+            key_id=inv.key_id,
         )
         inv._mark_charged()
 

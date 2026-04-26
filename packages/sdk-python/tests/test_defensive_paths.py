@@ -76,7 +76,14 @@ class TestWrapDefensiveEarlyReturns:
         # validates non-None at the Wrapper level, but Invocation itself
         # tolerates None — the guard exists for that direct path.)
         wrapper._active = True
-        wrapper._invocation = Invocation(meter="m", price_cents=10, api_key=None)
+        wrapper._invocation = Invocation(
+            meter="m",
+            price_cents=10,
+            api_key=None,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         # No metering call should land — verified by absence of HTTP mock,
         # which would crash if a real request fired.
         wrapper._meter_or_void_sync(raised=False)
@@ -89,7 +96,14 @@ class TestWrapDefensiveEarlyReturns:
         sg = _sdk()
         wrapper = sg.wrap(meter="m", price_cents=10, api_key="sg_live_buyer")
         wrapper._active = True
-        wrapper._invocation = Invocation(meter="m", price_cents=10, api_key=None)
+        wrapper._invocation = Invocation(
+            meter="m",
+            price_cents=10,
+            api_key=None,
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         await wrapper._meter_or_void_async(raised=False)
         assert wrapper._invocation.charged is False
         await sg.aclose()

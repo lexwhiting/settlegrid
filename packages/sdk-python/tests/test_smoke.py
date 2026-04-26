@@ -365,13 +365,27 @@ class TestWrapSurface:
             wrapper(42)  # type: ignore[arg-type]
 
     def test_invocation_void_is_idempotent(self) -> None:
-        inv = Invocation(meter="m", price_cents=1, api_key="k")
+        inv = Invocation(
+            meter="m",
+            price_cents=1,
+            api_key="k",
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         inv.void()
         inv.void()  # double-void is fine
         assert inv.voided is True
 
     def test_invocation_void_after_charge_raises(self) -> None:
-        inv = Invocation(meter="m", price_cents=1, api_key="k")
+        inv = Invocation(
+            meter="m",
+            price_cents=1,
+            api_key="k",
+            consumer_id="c1",
+            tool_id="t1",
+            key_id="k1",
+        )
         inv._mark_charged()
         with pytest.raises(RuntimeError):
             inv.void()
