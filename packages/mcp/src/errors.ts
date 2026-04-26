@@ -59,9 +59,20 @@ export class SettleGridError extends Error {
   /**
    * Serialize the error to a JSON-safe object suitable for API responses.
    *
-   * @returns An object with `error`, `code`, and `statusCode` fields.
+   * Default shape is ``{ error, code, statusCode }``; subclasses may
+   * override with a wholly different envelope when the protocol's spec
+   * literal demands a different body — see e.g.
+   * :class:`ProtocolNotYetSupportedError`. The return type is
+   * ``Record<string, unknown>`` rather than a strict object literal so
+   * that subclass overrides remain TypeScript-assignable; callers
+   * downstream (``rest.ts`` etc.) ``JSON.stringify`` the output and
+   * don't inspect fields directly.
+   *
+   * @returns A JSON-safe object — default shape has `error`, `code`,
+   *   and `statusCode` fields, but subclasses may surface a different
+   *   envelope.
    */
-  toJSON() {
+  toJSON(): Record<string, unknown> {
     return {
       error: this.message,
       code: this.code,
@@ -382,13 +393,35 @@ export class ProtocolNotYetSupportedError extends SettleGridError {
     this.landingUrl = options.landingUrl
   }
 
+  /**
+   * Serializes to the spec-literal "protocol detected, validation
+   * pending" envelope shape:
+   *
+   * ```json
+   * {
+   *   "status":      "protocol_detected",
+   *   "protocol":    "<name>",
+   *   "message":     "<human message including landing URL>",
+   *   "expected_at": "<timeline>"
+   * }
+   * ```
+   *
+   * This deliberately overrides (does NOT extend) ``super.toJSON()``:
+   * the protocol-detected envelope is a different contract from the
+   * generic ``{ error, code, statusCode }`` shape used by other
+   * SettleGrid errors, and the response body emitted by adapter
+   * builders (e.g. ``mastercard-vi``'s 503 builder) must round-trip
+   * byte-for-byte through ``error.toJSON()`` — buyers and tooling
+   * authoring against the spec literal expect exactly these four
+   * fields. ``code`` / ``statusCode`` are still available as instance
+   * properties for in-process error handling.
+   */
   override toJSON() {
     return {
-      ...super.toJSON(),
       status: 'protocol_detected' as const,
       protocol: this.protocol,
+      message: this.message,
       expected_at: this.expectedAt,
-      ...(this.landingUrl ? { landing_url: this.landingUrl } : {}),
     }
   }
 }
