@@ -24,7 +24,7 @@ import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
 import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
-import { isMastercardRequest, isMastercardEnabled, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
+import { isMastercardRequest, isMastercardEnabled, mastercardAdapter, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
 import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoPayment, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
 import { isL402Request, isL402Enabled, validateL402Payment, generateL402_402Response } from '@/lib/l402-proxy'
 import { isAlipayRequest, isAlipayEnabled, validateAlipayPayment, generateAlipay402Response } from '@/lib/alipay-proxy'
@@ -1942,6 +1942,22 @@ async function handleProtocolProxy(
     paymentId = result.authorizationRef ?? result.intentId
     payerIdentifier = result.intentId
     if (!valid) {
+      // P3.PROT1 — Mastercard VI is a detection stub: full validation lands
+      // when Mastercard's Verifiable Intent API GAs (target 2026-Q3). When
+      // the validator returns ``MC_NOT_YET_SUPPORTED`` we surface the
+      // spec-literal 503 detection-stub envelope (``status: 'protocol_detected'``,
+      // ``expected_at: '2026-Q3'``, etc.) so the buyer's client sees a
+      // structured "coming soon" signal rather than a 402 "please pay
+      // properly" challenge for a rail we can't yet validate.
+      // Other failure codes (`MC_NOT_CONFIGURED`, `MC_INTENT_MISSING`)
+      // continue to fall through to the legacy 402 challenge path.
+      if (result.error?.code === 'MC_NOT_YET_SUPPORTED') {
+        const stub = mastercardAdapter.buildDetectionStubResponse()
+        const body = await stub.text()
+        const headers = new Headers(stub.headers)
+        if (requestId) headers.set('x-request-id', requestId)
+        return new NextResponse(body, { status: stub.status, headers })
+      }
       const resp402 = generateMastercard402Response(toolRow.slug, costCents, toolRow.name)
       const body = await resp402.text()
       const headers = new Headers(resp402.headers)

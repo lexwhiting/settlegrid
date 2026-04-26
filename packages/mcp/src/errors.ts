@@ -338,3 +338,57 @@ export class TimeoutError extends SettleGridError {
     this.name = 'TimeoutError'
   }
 }
+
+/**
+ * Thrown by an adapter when it has detected its protocol on a request
+ * but cannot yet validate it end-to-end — e.g. a detection stub that
+ * recognizes the envelope shape but has not yet been wired to the
+ * upstream issuer's verification API.
+ *
+ * The kernel maps this to a 503 with a structured "protocol detected,
+ * full validation pending" response so a buyer's client sees a clear
+ * "coming soon" signal rather than a silent 200 (looks like the tool
+ * accepted free / unverified payment) or a generic 500 (looks like a
+ * bug in our code).
+ *
+ * The `expectedAt` field carries a coarse timeline string (e.g.
+ * ``"2026-Q3"``) that the response surfaces back to the caller, and
+ * `protocol` carries the protocol name for logging / triage. Adapter
+ * implementations may attach a `landingUrl` so the response can link
+ * to a notify-me page.
+ */
+export class ProtocolNotYetSupportedError extends SettleGridError {
+  public readonly protocol: string
+  public readonly expectedAt: string
+  public readonly landingUrl?: string
+
+  constructor(options: {
+    protocol: string
+    /** Coarse timeline ("2026-Q3", "2026-12", "soon") shown to callers. */
+    expectedAt: string
+    /** Optional URL to the protocol's landing / notify-me page. */
+    landingUrl?: string
+    /** Optional override for the human message (defaults are reasonable). */
+    message?: string
+  }) {
+    const message =
+      options.message ??
+      `${options.protocol} detected. Full validation lands in ${options.expectedAt}.` +
+        (options.landingUrl ? ` See ${options.landingUrl}.` : '')
+    super(message, 'PROTOCOL_NOT_YET_SUPPORTED', 503)
+    this.name = 'ProtocolNotYetSupportedError'
+    this.protocol = options.protocol
+    this.expectedAt = options.expectedAt
+    this.landingUrl = options.landingUrl
+  }
+
+  override toJSON() {
+    return {
+      ...super.toJSON(),
+      status: 'protocol_detected' as const,
+      protocol: this.protocol,
+      expected_at: this.expectedAt,
+      ...(this.landingUrl ? { landing_url: this.landingUrl } : {}),
+    }
+  }
+}

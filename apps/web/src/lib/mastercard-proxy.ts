@@ -17,7 +17,12 @@ import type {
 import { getAppUrl } from './env'
 import { logger } from './logger'
 
-const mastercardAdapter = new MastercardVIAdapter()
+/**
+ * P3.PROT1 — exported so the proxy route can build the 503 detection-stub
+ * response for `MC_NOT_YET_SUPPORTED` outcomes via
+ * ``mastercardAdapter.buildDetectionStubResponse()``.
+ */
+export const mastercardAdapter = new MastercardVIAdapter()
 
 const appLogger: AdapterLogger = {
   info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
@@ -61,5 +66,4 @@ export function generateMastercard402Response(
   })
 }
 
-export { mastercardAdapter }
 export type { MastercardPaymentResult, MastercardToolConfig, MastercardErrorCode }
