@@ -153,6 +153,7 @@ export type SettleGridErrorCode =
   | 'SERVER_ERROR'
   | 'NETWORK_ERROR'
   | 'TIMEOUT'
+  | 'PROTOCOL_NOT_YET_SUPPORTED'
 
 /**
  * Middleware context passed through the invocation pipeline.

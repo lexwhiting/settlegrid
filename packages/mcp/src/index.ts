@@ -67,6 +67,7 @@ export {
   SettleGridUnavailableError,
   NetworkError,
   TimeoutError,
+  ProtocolNotYetSupportedError,
 } from './errors'
 
 // ─── Type re-exports ─────────────────────────────────────────────────────────
