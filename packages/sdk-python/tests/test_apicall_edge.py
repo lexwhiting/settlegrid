@@ -35,18 +35,10 @@ def _client(**overrides) -> SettleGridHTTPClient:
     )
 
 
-@pytest.fixture(autouse=True)
-def _disable_sleep(monkeypatch):
-    """Skip the 1s/2s/4s exponential backoff during retry tests."""
-    import asyncio
-    import time
-
-    monkeypatch.setattr(asyncio, "sleep", lambda *_a, **_k: _async_noop())
-    monkeypatch.setattr(time, "sleep", lambda *_a, **_k: None)
-
-
-async def _async_noop() -> None:
-    return None
+# H1 hostile fix — removed dead `_disable_sleep` autouse fixture. Every
+# test in this file uses `_client(max_retries=0)` so the SDK never enters
+# the retry loop and `asyncio.sleep` is never called. The fixture was
+# masking nothing and added cognitive load.
 
 
 # ─── literal null bodies ─────────────────────────────────────────────────
