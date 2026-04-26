@@ -89,6 +89,47 @@ class TestDecorationValidation:
         with pytest.raises(TypeError, match="SettleGrid instance"):
             metered_tool(42, meter="m", price_cents=10)  # type: ignore[arg-type]
 
+    def test_configure_rejects_non_settlegrid(self) -> None:
+        """Coverage for configure()'s type guard."""
+        from settlegrid_llamaindex import configure
+
+        with pytest.raises(TypeError, match="SettleGrid instance"):
+            configure(42)  # type: ignore[arg-type]
+
+    def test_get_default_client_returns_none_initially(self) -> None:
+        """Coverage for get_default_client when no default is set."""
+        from settlegrid_llamaindex import get_default_client
+
+        assert get_default_client() is None
+
+    def test_target_must_be_callable_or_function_tool(self) -> None:
+        """Non-callable, non-FunctionTool target → TypeError."""
+        sg = _sdk()
+        with pytest.raises(TypeError, match="callable or a"):
+            metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(
+                42  # type: ignore[arg-type]
+            )
+        sg.close()
+
+    def test_function_tool_with_no_callable_raises(self) -> None:
+        """If a FunctionTool has neither fn nor async_fn, _wrap_function_tool
+        should raise TypeError. Synthetic edge case — strip both via raw
+        setattr to bypass FunctionTool's invariants."""
+        sg = _sdk()
+
+        def f(q: str) -> str:
+            """f."""
+            return q
+
+        ft = FunctionTool.from_defaults(fn=f, name="x")
+        # Strip both fn and async_fn (the underlying private attrs).
+        object.__setattr__(ft, "_fn", None)
+        object.__setattr__(ft, "_async_fn", None)
+
+        with pytest.raises(TypeError, match="neither `fn` nor `async_fn`"):
+            metered_tool(sg, meter="m", price_cents=10, api_key=BUYER_KEY)(ft)
+        sg.close()
+
 
 # ─── plain callable ─────────────────────────────────────────────────────
 
