@@ -11,9 +11,9 @@ artifact (the rule body) is itself a file the founder updates over time
 
 | File | Purpose |
 |------|---------|
-| `submission.md` | Submission-form values + step-by-step instructions for the founder. |
-| `mdc-rule.md`   | The actual MDC rule body submitted to cursor.directory. Pasted into the form's "Rule" field verbatim, frontmatter included. |
-| `screenshot.png` | One Cursor-session screenshot showing the rule firing on an MCP server file. **Founder captures manually** — see `submission.md` § "Screenshot capture". The committed file is currently a 1×1 placeholder. |
+| `submission.md` | Step-by-step submission instructions + Open Plugins manifest format + plugin-repo layout the founder needs before submitting. |
+| `mdc-rule.md`   | The actual rule body. The founder copies its full contents (frontmatter + body) into a sibling plugin repo at `rules/settlegrid-mcp-monetization.mdc` (extension changes from `.md` to `.mdc`); cursor.directory's auto-detector reads it from there. |
+| `screenshot.png` | One Cursor-session screenshot showing the rule firing on an MCP server file. **Founder captures manually** — see `submission.md` § "Screenshot capture". cursor.directory's auto-detector does not currently consume a screenshot; capture is for launch announcements. The committed file is a 1×1 placeholder. |
 | `README.md`     | This file. Submission tracker + hostile-review checklist + cross-links. |
 
 ## Submission tracker
@@ -21,13 +21,15 @@ artifact (the rule body) is itself a file the founder updates over time
 | Field | Value |
 |-------|-------|
 | Directory          | [cursor.directory](https://cursor.directory) |
-| Submission type    | `form` (preferred) or `pr` (fallback — see `submission.md` § Path B) |
-| Verification       | `partial` (form path verified live; PR path requires CONTRIBUTING re-check at submission time) |
+| Submission entry   | https://cursor.directory/plugins/new |
+| Submission type    | `form` (web only — paste GitHub repo URL; auto-detect via Open Plugins spec) |
+| Verification       | `verified` (against `pontusab/cursor.directory` repo, 2026-04-26) |
 | Status             | `not-sent` |
 | Sent date          | — |
 | Reviewer           | — |
 | Result URL         | — |
-| Listing slug       | `settlegrid-mcp-monetization` |
+| Plugin slug        | `settlegrid-mcp-monetization` |
+| Plugin-repo path   | _to be created — see `submission.md` § "Two ways to ship that"_ |
 | Last packet update | 2026-04-26 |
 
 ### Status values
@@ -126,3 +128,22 @@ _(Add per-attempt notes here as submissions move through the lifecycle.)_
   was moved into `submission.md` (paste-ready values), and the rule
   frontmatter trimmed to the canonical three keys plus an HTML
   comment explaining the relocation.
+- **2026-04-26 (P3.13 deeper spec-diff)**: `submission.md` originally
+  described a "paste-each-field" form at `cursor.directory/generate`
+  with a "Path B — GitHub PR fallback" against `pontusab/cursor.directory`.
+  Both were inaccurate. Verification via WebFetch on
+  https://github.com/pontusab/cursor.directory and
+  https://open-plugins.com/plugin-builders/specification (2026-04-26)
+  confirmed: (1) the canonical submission entry is
+  `cursor.directory/plugins/new`, (2) submission is by GitHub repo URL
+  paste, not per-field form, (3) cursor.directory follows the Open
+  Plugins spec — repos must contain `plugin.json` at root with
+  `rules/*.mdc` files for auto-detection, (4) the README explicitly
+  states "no pull requests needed for data" — Path B does not exist.
+  `submission.md` was rewritten end-to-end to reflect the real flow:
+  Open Plugins manifest format, plugin-repo layout, two shipping
+  options (separate plugin repo vs. monorepo addition), and
+  step-by-step submission. The `mdc-rule.md` content is unchanged but
+  is now correctly described as becoming
+  `rules/settlegrid-mcp-monetization.mdc` (extension `.mdc`, not `.md`)
+  in the founder's plugin repo.
