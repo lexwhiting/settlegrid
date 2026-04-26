@@ -1547,24 +1547,29 @@ async function check23_pyAdaptersCohort3(): Promise<CheckResult> {
     'settlegrid-dspy + smolagents Python adapters (≥5 tests, metered_tool exported, framework version pinned)'
   const method =
     'check packages/sdk-python-{dspy,smolagents} (or legacy candidates) for pyproject.toml + ≥5 tests + metered_tool exported + version pin in dependencies'
-  // Each entry: [framework, python module name, framework dep prefix, pkg dir candidates...]
-  const candidates: [string, string, string, string[]][] = [
+  // Each entry: [framework, python module name, framework dep regex (string,
+  // matched against the dep line), pkg dir candidates...]. The dep regex
+  // accepts EITHER the canonical PyPI name OR the legacy alias for DSPy
+  // (both ``dspy`` and ``dspy-ai`` resolve to the same upstream code, and
+  // either pin satisfies the spec's "pin the framework version"
+  // requirement).
+  const candidates: [string, string, RegExp, string[]][] = [
     [
       'dspy',
       'settlegrid_dspy',
-      'dspy-ai',
+      /["'](?:dspy|dspy-ai)\s*[~=<>!]+\s*[\d.]+/,
       ['sdk-python-dspy', 'settlegrid-dspy-py', 'settlegrid-dspy'],
     ],
     [
       'smolagents',
       'settlegrid_smolagents',
-      'smolagents',
+      /["']smolagents\s*[~=<>!]+\s*[\d.]+/,
       ['sdk-python-smolagents', 'settlegrid-smolagents-py', 'settlegrid-smolagents'],
     ],
   ]
   const ok: string[] = []
   const issues: string[] = []
-  for (const [name, mod, depPrefix, dirCandidates] of candidates) {
+  for (const [name, mod, depPattern, dirCandidates] of candidates) {
     let pkgDir: string | null = null
     for (const c of dirCandidates) {
       if (fileExists(repoFile('packages', c, 'pyproject.toml'))) {
@@ -1578,13 +1583,10 @@ async function check23_pyAdaptersCohort3(): Promise<CheckResult> {
     }
     // Spec literal — "framework version pinned in pyproject.toml so
     // future API breaks don't silently break the adapter". Look for
-    // the framework dep with a version constraint operator.
+    // the framework dep with a version constraint operator. e.g.
+    // `dspy~=3.2.0` / `dspy>=3.2,<4` / `dspy==3.2.0` / `dspy-ai~=3.2.0`.
     const pyprojectContent = readFileSync(join(pkgDir, 'pyproject.toml'), 'utf-8')
-    // Match e.g. `dspy-ai~=3.2.0` or `dspy-ai>=3.2,<4` or `dspy-ai==3.2.0`.
-    const pinPattern = new RegExp(
-      `["']${depPrefix.replace(/-/g, '[-_]')}\\s*[~=<>!]+\\s*[\\d.]+`,
-    )
-    const versionPinned = pinPattern.test(pyprojectContent)
+    const versionPinned = depPattern.test(pyprojectContent)
 
     // Test count (same fallback structure as C21/C22).
     const testDirCandidates = [

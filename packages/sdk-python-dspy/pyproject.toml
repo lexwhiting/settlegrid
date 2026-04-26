@@ -30,7 +30,12 @@ dependencies = [
   # ``~=3.2.0`` allows patch updates (>=3.2.0, <3.3) but refuses minor
   # bumps that may rename / restructure ``dspy.Tool``. Bump deliberately
   # in this pyproject + re-run the audit chain when DSPy 3.3 ships.
-  "dspy-ai~=3.2.0",
+  #
+  # Canonical PyPI name is ``dspy`` (the spec literal says
+  # ``pip show dspy``). The legacy alias ``dspy-ai`` is also published
+  # at the same version, but the canonical name is the one the upstream
+  # team is most likely to keep maintained going forward.
+  "dspy~=3.2.0",
 ]
 
 [project.optional-dependencies]

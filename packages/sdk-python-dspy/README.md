@@ -9,9 +9,9 @@ tool with pay-per-call metering.
 pip install settlegrid-dspy
 ```
 
-The DSPy version is **pinned** (`dspy-ai~=3.2.0`) because DSPy's tool
-API is less stable than the mainstream frameworks. Bump deliberately
-when DSPy 3.3 ships and re-test.
+The DSPy version is **pinned** (`dspy~=3.2.0`) because DSPy's tool API
+is less stable than the mainstream frameworks. Bump deliberately when
+DSPy 3.3 ships and re-test.
 
 ## Quickstart
 
