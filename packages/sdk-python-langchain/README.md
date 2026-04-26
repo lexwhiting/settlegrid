@@ -11,6 +11,10 @@ pip install settlegrid-langchain
 
 ## Quickstart
 
+Two equivalent forms:
+
+**Explicit (recommended for libraries):**
+
 ```python
 from langchain_core.tools import tool
 from settlegrid import SettleGrid
@@ -23,17 +27,35 @@ sg = SettleGrid(api_key="sg_live_seller_key", tool_slug="my-search")
 def search(query: str) -> str:
     """Search the web."""
     return f"results for {query}"
+```
 
+**Configured default (matches the spec's bare signature):**
 
-# At invoke time, pass the buyer's API key via the standard SettleGrid
-# kwarg — same shape as `sg.wrap`-decorated functions:
+```python
+from settlegrid_langchain import configure, metered_tool
+
+configure(SettleGrid(api_key="sg_live_seller_key", tool_slug="my-search"))
+
+@tool
+@metered_tool(meter="search", price_cents=10)
+def search(query: str) -> str:
+    """Search the web."""
+    return f"results for {query}"
+```
+
+At invoke time, pass the buyer's API key via the standard SettleGrid
+kwarg — same shape as `sg.wrap`-decorated functions:
+
+```python
 search.invoke({"query": "hello", "_settlegrid_api_key": "sg_live_buyer_key"})
 ```
 
 ## API
 
-`metered_tool(sg, *, meter, price_cents, api_key=None)` — decorator that
-wraps either a callable or a LangChain `BaseTool`. The wrapped target:
+`metered_tool(sg=None, *, meter, price_cents, api_key=None)` — decorator
+that wraps either a callable or a LangChain `BaseTool`. If `sg` is
+omitted, the module-level default client (set via `configure(sg)`) is
+used. The wrapped target:
 
 1. Validates the buyer's API key (cached).
 2. Runs the original callable.
