@@ -56,9 +56,17 @@ Issues = "https://github.com/lexwhiting/settlegrid/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["settlegrid_langchain"]
+exclude = [
+  # D2 spec-diff fix — tests live INSIDE the package per the spec's
+  # ``settlegrid_langchain/__tests__/test_tool.py`` path. They MUST
+  # NOT ship in the wheel (which is the runtime install) — that would
+  # bloat installs and pollute the public namespace. Tests are still
+  # included in the sdist so source consumers can run them.
+  "settlegrid_langchain/__tests__/**",
+]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["settlegrid_langchain/__tests__"]
 asyncio_mode = "auto"
 filterwarnings = [
   "error",
@@ -70,6 +78,11 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["settlegrid_langchain"]
 branch = false
+omit = [
+  # Tests live inside the package per spec; exclude from coverage
+  # reporting so the metric reflects only production code.
+  "settlegrid_langchain/__tests__/*",
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -91,7 +104,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ANN", "PT011"]
+"settlegrid_langchain/__tests__/**/*.py" = ["ANN", "PT011"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -102,3 +115,6 @@ warn_unused_ignores = true
 warn_return_any = true
 no_implicit_optional = true
 plugins = ["pydantic.mypy"]
+# Exclude tests — they live inside the package per spec but are not
+# subject to the strict-typing requirements that apply to production code.
+exclude = ["settlegrid_langchain/__tests__/"]

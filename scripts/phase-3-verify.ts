@@ -1418,10 +1418,24 @@ async function check21_langchainPy(): Promise<CheckResult> {
       'no Python settlegrid-langchain package — P3.PYTHON3 prompt not yet shipped',
     )
   }
-  // Count tests.
-  const testsDir = join(pkgDir, 'tests')
+  // Count tests. The spec literally specifies
+  // `settlegrid_langchain/__tests__/test_tool.py` (TS-style path inside
+  // the package); fall back to the Python-idiomatic `tests/` location
+  // for compatibility with implementations that prefer the package-root
+  // layout.
+  const testDirCandidates = [
+    join(pkgDir, 'settlegrid_langchain', '__tests__'),
+    join(pkgDir, 'tests'),
+  ]
   let testCount = 0
-  if (dirExists(testsDir)) {
+  let testsDir: string | null = null
+  for (const candidate of testDirCandidates) {
+    if (dirExists(candidate)) {
+      testsDir = candidate
+      break
+    }
+  }
+  if (testsDir !== null) {
     for (const f of readdirSync(testsDir)) {
       if (!f.startsWith('test_') || !f.endsWith('.py')) continue
       const content = readFileSync(join(testsDir, f), 'utf-8')
