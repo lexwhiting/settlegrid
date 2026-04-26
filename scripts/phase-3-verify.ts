@@ -1303,7 +1303,7 @@ async function check19_pythonSdkCore(): Promise<CheckResult> {
 async function check20_pythonParity(): Promise<CheckResult> {
   const label = 'Python SDK test parity ≥90% of TS SDK + CI matrix 3.10/3.11/3.12'
   const method =
-    'count pytest it() analogues vs TS SDK vitest; check .github/workflows for Python matrix'
+    'count pytest test fns vs TS SDK-relevant it() blocks; check .github/workflows for Python matrix'
   const pkgDir = repoFile('packages/sdk-python')
   if (!dirExists(pkgDir)) {
     return defer(
@@ -1313,13 +1313,73 @@ async function check20_pythonParity(): Promise<CheckResult> {
       'packages/sdk-python/ missing; cascades from C19',
     )
   }
-  // Will implement in P3.PYTHON2
-  return defer(
-    20,
-    label,
-    method,
-    'cascades until P3.PYTHON2 lands: cannot measure parity without SDK',
-  )
+
+  // ── Count Python tests ──
+  const testsDir = join(pkgDir, 'tests')
+  if (!dirExists(testsDir)) {
+    return fail(20, label, method, 'packages/sdk-python/tests/ missing')
+  }
+  const pyTestFiles = readdirSync(testsDir).filter((f) => f.startsWith('test_') && f.endsWith('.py'))
+  let pyTests = 0
+  for (const f of pyTestFiles) {
+    const content = readFileSync(join(testsDir, f), 'utf-8')
+    pyTests += (content.match(/^[ \t]+(?:async )?def test_/gm) ?? []).length
+  }
+
+  // ── Count SDK-relevant TS tests ──
+  // The Python SDK ports `validateKey`, `meter`, `wrap`, `clearCache`, `LRUCache`,
+  // and the 9 error classes — TS adapters/protocols/payment-capabilities are
+  // not in scope. Count it() blocks in the corresponding TS test files only.
+  const tsTestsDir = repoFile('packages/mcp/src/__tests__')
+  const sdkRelevantTsFiles = [
+    'cache.test.ts',
+    'cache.extended.test.ts',
+    'errors.test.ts',
+    'middleware.test.ts',
+    'middleware.extended.test.ts',
+    'index.test.ts',
+    'sdk-validation.test.ts',
+    'apiCall.test.ts',
+    'exports.test.ts',
+    'rest.test.ts',
+    'rest-edge-cases.test.ts',
+  ]
+  let tsTests = 0
+  for (const f of sdkRelevantTsFiles) {
+    const path = join(tsTestsDir, f)
+    if (fileExists(path)) {
+      const content = readFileSync(path, 'utf-8')
+      tsTests += (content.match(/^\s*it\(/gm) ?? []).length
+    }
+  }
+  const parity = tsTests > 0 ? pyTests / tsTests : 0
+
+  // ── CI workflow ──
+  const ciPath = repoFile('.github/workflows/python-sdk-ci.yml')
+  const ciExists = fileExists(ciPath)
+  let ciHasMatrix = false
+  if (ciExists) {
+    const ciContent = readFileSync(ciPath, 'utf-8')
+    ciHasMatrix =
+      ciContent.includes("'3.10'") &&
+      ciContent.includes("'3.11'") &&
+      ciContent.includes("'3.12'") &&
+      ciContent.includes('ubuntu-latest') &&
+      ciContent.includes('macos-latest')
+  }
+
+  // ── Verdict ──
+  const evidence = `pyTests=${pyTests}, tsTests(SDK-relevant)=${tsTests}, parity=${(parity * 100).toFixed(0)}%, CI=${ciExists ? 'present' : 'missing'}, matrix=${ciHasMatrix ? '3.10+3.11+3.12 × ubuntu+macos' : 'incomplete'}`
+  if (parity < 0.9) {
+    return fail(20, label, method, `${evidence} — parity below 90% threshold`)
+  }
+  if (!ciExists) {
+    return fail(20, label, method, `${evidence} — CI workflow missing`)
+  }
+  if (!ciHasMatrix) {
+    return fail(20, label, method, `${evidence} — CI matrix missing required versions/OSes`)
+  }
+  return pass(20, label, method, evidence)
 }
 
 // ── Check 21: settlegrid-langchain Python ────────────────────────────
