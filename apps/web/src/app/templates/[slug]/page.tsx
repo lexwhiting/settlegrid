@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { GALLERY_ENABLED } from '@/env'
 import { getRegistry, getTemplateBySlug } from '@/lib/registry'
 import { DeployButton } from '@/components/templates/DeployButton'
+import { TemplateDetailViewedEmitter } from '@/components/telemetry/TemplateDetailViewedEmitter'
 
 export const dynamic = 'force-static'
 
@@ -68,6 +69,7 @@ export default async function TemplateDetailPage({
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <TemplateDetailViewedEmitter slug={slug} category={template.category} />
       <Navbar />
 
       <main className="flex-1 px-6 py-16 pt-24">
