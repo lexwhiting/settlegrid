@@ -184,6 +184,16 @@ def _wrap_function_tool(tool: Any, wrapper: Any) -> Any:  # noqa: ANN401 — gen
     metered_sync = wrapper(sync_fn) if sync_fn is not None else None
     metered_async = wrapper(async_fn) if async_fn is not None else None
 
+    # HH-LI-2 hostile fix — preserve every ``from_defaults`` kwarg that
+    # the original tool was constructed with. The previous version only
+    # forwarded name / description / fn_schema / return_direct, silently
+    # dropping ``callback`` / ``async_callback`` / ``partial_params``
+    # (and any future additions). Read the underscore-prefixed private
+    # attrs LlamaIndex stores them under, defaulting to None so we don't
+    # crash on older versions that pre-date a given field.
+    callback = getattr(tool, "_callback", None)
+    async_callback = getattr(tool, "_async_callback", None)
+    partial_params = getattr(tool, "partial_params", None) or None
     return FunctionTool.from_defaults(
         fn=metered_sync,
         async_fn=metered_async,
@@ -191,6 +201,9 @@ def _wrap_function_tool(tool: Any, wrapper: Any) -> Any:  # noqa: ANN401 — gen
         description=metadata.description,
         return_direct=metadata.return_direct,
         fn_schema=metadata.fn_schema,
+        callback=callback,
+        async_callback=async_callback,
+        partial_params=partial_params,
     )
 
 
