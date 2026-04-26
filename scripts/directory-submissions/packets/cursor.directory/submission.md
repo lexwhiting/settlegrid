@@ -129,9 +129,12 @@ but the contents are byte-identical.
 Optional for cursor.directory's listing but useful for launch
 announcements:
 
-1. Clone an example MCP server (e.g.
-   `https://github.com/lexwhiting/settlegrid` → `examples/mcp-quickstart`
-   or any quickstart that imports `@modelcontextprotocol/sdk`).
+1. Clone or open any **MCP server** that imports
+   `@modelcontextprotocol/sdk` or `fastmcp` — e.g. one of the official
+   quickstarts at https://github.com/modelcontextprotocol/servers,
+   or any of the user's own MCP server projects. The SettleGrid repo's
+   `examples/kernel-demo` is a Hono REST server (not MCP) so the rule
+   won't fire on it; pick a real MCP server.
 2. Open the MCP server entry file in Cursor.
 3. Trigger the rule (type "monetize this" in the chat panel, or open the
    rule from the rules palette).

@@ -54,12 +54,18 @@ non-applicable files.
       component, a Next.js API route that isn't an MCP server) in
       Cursor with the rule installed and confirm it does NOT fire /
       suggest billing.
-- [ ] **Positive test**: Open a real MCP server file (e.g.
-      [`examples/`](https://github.com/lexwhiting/settlegrid/tree/main/examples)
-      or any quickstart) and confirm the rule fires and the suggested
-      edits actually apply (`@settlegrid/mcp` imports compile, `sg.wrap`
-      typechecks, the test command in step 10 of the playbook returns
-      a billed call).
+- [ ] **Positive test**: Open a real MCP server file in Cursor with
+      this rule installed — e.g. one of the quickstarts at
+      [`modelcontextprotocol/servers`](https://github.com/modelcontextprotocol/servers)
+      or any user-owned MCP server that imports `@modelcontextprotocol/sdk`
+      or `fastmcp`. (The SettleGrid repo's `examples/kernel-demo` is a
+      Hono REST kernel demo — NOT an MCP server — so the rule won't
+      fire on it; don't use it as the positive-test fixture.) Confirm
+      the rule fires and the suggested edits actually apply:
+      `@settlegrid/mcp` imports compile, `sg.wrap` typechecks, and the
+      verification commands in the canonical playbook
+      (`packages/settlegrid-skill/cursor/.cursorrules` § "Step-by-step
+      Playbook" steps 10-11) return a billed call.
 - [ ] **Anti-pattern coverage**: Rule explicitly says "do NOT hardcode
       the API key", "do NOT wrap non-MCP files", "do NOT set
       `defaultCostCents: 0`". These are the failure modes most likely
@@ -96,8 +102,11 @@ document plus a screenshot. Keeping both in a directory:
 
 - Lets the founder iterate on `mdc-rule.md` without rewriting the
   submission instructions.
-- Makes the screenshot a tracked asset (cursor.directory's listing
-  card requires one).
+- Makes the screenshot a tracked asset for launch announcements
+  (cursor.directory's auto-detector does NOT currently consume a
+  screenshot — see `submission.md` § "Screenshot capture" — but
+  founder will want one regardless when posting the listing to
+  Twitter / Show HN / Reddit).
 - Matches the phase-3-verify check (`Check 25`) which expects
   `packets/cursor.directory/` (a directory) with ≥ 4 artifacts.
 
@@ -147,3 +156,50 @@ _(Add per-attempt notes here as submissions move through the lifecycle.)_
   is now correctly described as becoming
   `rules/settlegrid-mcp-monetization.mdc` (extension `.mdc`, not `.md`)
   in the founder's plugin repo.
+- **2026-04-26 (P3.13 second hostile review)**: five additional
+  findings, all fixed.
+    - **HF1 broken example refs.** `submission.md` § "Screenshot
+      capture" and `README.md` Hostile-review checklist both
+      pointed at `examples/mcp-quickstart` for the positive-test
+      fixture; that path doesn't exist (verified via `ls`). The only
+      `examples/` subdirectory is `examples/kernel-demo`, which is a
+      Hono REST kernel demo — NOT an MCP server importing
+      `@modelcontextprotocol/sdk`, so the rule wouldn't fire on it.
+      Both references were updated to point at
+      `modelcontextprotocol/servers` quickstarts instead, with an
+      explicit note that `kernel-demo` is the wrong fixture.
+    - **HF2 internal screenshot contradiction.** README § "Why
+      standalone" claimed "cursor.directory's listing card requires
+      one" — but README § "Files" + `submission.md` correctly note
+      cursor.directory's auto-detector does NOT consume a
+      screenshot. Aligned the "Why standalone" wording with the
+      authoritative claim (auto-detector ignores it; we keep it for
+      launch announcements).
+    - **HF4 broken playbook step reference.** README hostile-review
+      checklist's positive-test bullet referenced "step 10 of the
+      playbook" — but `mdc-rule.md`'s playbook only has 7 steps
+      (the canonical `.cursorrules` is the one with 12 steps,
+      including step 10 "Test"). Reference re-pointed at
+      `packages/settlegrid-skill/cursor/.cursorrules` § "Step-by-step
+      Playbook" steps 10-11 (the verification commands) so the
+      cross-link actually resolves.
+    - **HF6 glob negation patterns.** `mdc-rule.md` frontmatter
+      previously listed `!**/node_modules/**`, `!**/dist/**`,
+      `!**/build/**`. Cursor's documented MDC parser doesn't specify
+      negation support, so these may be silently ignored — at which
+      point the rule would attempt to fire on every TS/JS file in
+      `node_modules`. Cursor's built-in ignored-paths list already
+      excludes those directories, so the negation patterns were
+      redundant in the best case and silently broken in the worst.
+      Trimmed to a single positive glob.
+    - **HF7 fabricated trigger heuristic.** `mdc-rule.md` § "Trigger
+      heuristics" listed "exports an object literal with a `tools`
+      field whose values are functions (plain MCP-style
+      registration)" — this isn't a documented MCP-server pattern
+      and isn't in the canonical `.cursorrules` (verified via
+      `grep`). It would have caused false positives on any TS file
+      exporting `{ tools: { ... } }`. Removed; the remaining three
+      heuristics (imports `@modelcontextprotocol/sdk`, imports
+      `fastmcp`, calls `server.tool` / `addTool` / `mcpServer.tool`
+      / `setRequestHandler`) are concrete and grounded in real
+      MCP-server code.
