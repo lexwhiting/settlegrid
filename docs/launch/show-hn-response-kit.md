@@ -88,13 +88,17 @@ tone. The argument is locked; the voice is yours.
 
 ### 1. "This is just Stripe with extra steps"
 
-[Stripe](https://stripe.com) handles cards. SettleGrid handles
-per-call metering, the API-key validation cache (LRU with
-5-minute TTL), credit-balance enforcement at the wrap
-boundary, and the `settlegrid-max-cost-cents` budget cap so
-a runaway agent stops itself before the next charge. You
-could rebuild this on Stripe — I did, the first time, and it
-took six days.
+SettleGrid is built on Stripe Connect, not against it.
+[Stripe](https://stripe.com) handles cards, KYC, 1099-K, and
+disputes. SettleGrid extends it with per-call metering, the
+API-key validation cache (LRU with 5-minute TTL), credit-
+balance enforcement at the wrap boundary, the multi-protocol
+detection chain across nine adapters (MCP, x402, AP2, MPP,
+ACP, UCP, Visa TAP, Mastercard VI, Circle Nano), and atomic
+multi-hop settlement sessions. You could rebuild the metering
+layer on Stripe — I did, the first time, and it took six days.
+You'd still have to build the protocol detection chain and the
+session primitives separately.
 
 ### 2. "Why not use Gumroad/Lemon Squeezy/Paddle?"
 
@@ -175,13 +179,21 @@ ship in a week, and ship it.
 
 ### 9. "How is this different from [competitor X]?"
 
-[Nevermined](https://nevermined.io) is decentralized payments
-using crypto rails (different audience: Web3-native agents,
-not the fiat MCP majority). [MCPize](https://www.mcpize.com)
-is a lightweight per-call wrapper without discovery,
-dashboards, fraud detection, or multi-protocol support. Full
-feature comparison across every billing approach I'm aware of
-is at
+The closest direct competitor is
+[Nevermined](https://nevermined.io); the side-by-side
+breakdown is at
+[settlegrid.ai/compare/nevermined](https://settlegrid.ai/compare/nevermined),
+including the pieces where Nevermined is genuinely stronger
+(Python SDK on PyPI today, named reference customer in Valory,
+public x402 facilitator). The short version: Nevermined runs
+crypto-first (USDC on Base by default) with Stripe Connect as
+an alternative; SettleGrid runs Stripe-first with nine
+protocol adapters layered in front, and prices 0% under
+$1,000/month vs Nevermined's flat 2%.
+[MCPize](https://www.mcpize.com) is a lightweight per-call
+wrapper without discovery, dashboards, fraud detection, or
+multi-protocol support. Broader feature comparison across
+every billing approach I'm aware of is at
 [settlegrid.ai/learn/blog/mcp-billing-comparison-2026](https://settlegrid.ai/learn/blog/mcp-billing-comparison-2026).
 
 ### 10. "Can I self-host?"

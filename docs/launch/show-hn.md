@@ -37,6 +37,23 @@
      - https://settlegrid.ai/pricing
      - https://x.com/lexwhiting (or your X handle)
      - https://github.com/lexwhiting/settlegrid
+     - All 9 adapter URLs in the body (one per protocol —
+       MCP/x402/AP2/MPP/ACP/UCP/Visa TAP/Mastercard VI/Circle Nano)
+     - https://settlegrid.ai/compare/nevermined
+
+  4a. FLATTEN MARKDOWN LINKS BEFORE PASTING INTO HN
+     HN's submission form does NOT render markdown link syntax —
+     `[MCP](https://...)` displays literally to readers. Only bare
+     URLs auto-link. Two options before you submit:
+       (a) Recommended: rewrite the body so the 9 protocols are
+           bare names ("MCP, x402, AP2, MPP, ACP, UCP, Visa TAP,
+           Mastercard VI, Circle Nano") and add ONE bare URL on
+           a separate line pointing at the adapters directory:
+           https://github.com/lexwhiting/settlegrid/tree/main/apps/web/src/lib/settlement/adapters
+       (b) Keep this draft's per-protocol links and accept that
+           readers see `[MCP](https://...)` text. Worse UX.
+     Same rule applies to the FIRST COMMENT and to live replies
+     in the response kit — bare URLs only.
 
   5. VERIFY EVERY NUMERIC CLAIM ON LAUNCH DAY
      The body cites "12,770+ MCP servers on PulseMCP" and
@@ -87,22 +104,31 @@ gets flagged.)
 
 ## Body (3-5 sentences)
 
-I built SettleGrid because adding per-call billing to an MCP
-server takes a week of Stripe Connect glue, and I didn't want
-to spend that week again on every tool I shipped. Right now
-there are 12,770+ MCP servers on PulseMCP and fewer than 5%
-generate any revenue
-([source](https://settlegrid.ai/learn/blog/mcp-billing-comparison-2026)).
-SettleGrid wraps any MCP handler with `sg.wrap()`, meters
-each call in Redis, settles via Stripe Connect Express, and
-ships a gallery of pre-wired templates plus a shadow directory
-of public MCP repos with the codemod pre-filled at
-`/mcp/owner/repo`. Revenue-split across composed tool calls
-isn't built yet, the consumer-facing budget alert UI is
-sketched, not built, and the Cursor extension is a question
-mark while I lean on the Anthropic Skill instead. Free tier
-is 50,000 ops/month with a 0% take rate on your first $1,000
-of revenue; try `npx settlegrid add github:owner/repo
+SettleGrid is the rail-neutral, protocol-neutral settlement
+layer for the long tail of AI tools. Nine protocol adapters
+ship today ([MCP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/mcp.ts),
+[x402](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/x402.ts),
+[AP2](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/ap2.ts),
+[MPP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/mpp.ts),
+[ACP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/acp.ts),
+[UCP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/ucp.ts),
+[Visa TAP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/tap.ts),
+[Mastercard VI](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/mastercard-vi.ts),
+[Circle Nano](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/circle-nano.ts)) —
+built on Stripe Connect Express, extended with per-call
+metering in Redis and a protocol detection chain that routes
+each incoming agent request to the right adapter. The unique
+primitive is settlement sessions: Agent A paying Agent B
+paying Agent C commits or rolls back as one atomic unit
+([sessions.ts](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts)).
+Pricing is 0% under $1,000/month and capped at 5% at scale —
+designed for the long-tail wedge, not flat-rate
+([Nevermined comparison](https://settlegrid.ai/compare/nevermined)).
+Not yet shipped: revenue-split across composed calls, the
+consumer-facing budget UI, the Cursor extension; coming next
+is a Python SDK, a public x402 facilitator, and country
+coverage expanding via a second rail once waitlist volume
+justifies it. Try `npx settlegrid add github:owner/repo
 --dry-run` and tell me which part of the codemod broke.
 
 ## First comment (post within 60 seconds of submission)
@@ -125,19 +151,41 @@ balance reconciles to it on a 60-second cron. Eventual
 consistency is fine because Redis is the source of truth for
 the live balance and Postgres is the audit log.
 
-**Why Stripe Connect Express, not Standard or Custom.** The
-publisher signup flow has to be 5 minutes for the funnel to
-work, which rules out Standard (the publisher manages their
-own Stripe account, which is a 30-minute setup). Custom would
-let me brand the onboarding entirely, but it puts KYC,
-disputes, and tax-form responsibility directly on me, which
-is not where I want a solo founder to be. Express splits the
-difference: Stripe owns KYC + 1099-K + dispute UX, I own the
-publisher dashboard, and the publisher signs up with their
-existing Stripe account or creates one in the Express flow.
-Country coverage is the gap. Express supports a smaller
-country set than Standard, and there's a waitlist for the
-unsupported ones.
+**Stripe Connect is the partner, not the competitor.** SettleGrid
+is built on Stripe Connect Express and extends it. Stripe owns
+KYC, 1099-K, and the dispute UX; I own the per-call metering,
+the protocol detection chain, the publisher dashboard, and the
+multi-hop settlement sessions. The publisher signs up with their
+existing Stripe account or creates one in the Express flow —
+five minutes, not thirty. Express vs Standard vs Custom: I picked
+Express because Standard puts the 30-minute publisher-managed
+setup in the funnel, and Custom would put KYC + tax-form
+responsibility directly on me, which is not where I want a solo
+founder to be. Country coverage is the gap — Express supports a
+smaller country set than Standard, and there's a waitlist for the
+unsupported corridors. The plan is to add a second rail (Paddle
+or Lemon Squeezy as MoR) once waitlist volume in a specific
+corridor justifies the integration cost; that's demand-gated, not
+on a date.
+
+**How multi-hop atomic settlement works.** A research agent calls
+a search tool that calls a translation tool that calls an
+embeddings tool. Each is a paid MCP. SettleGrid records each hop
+([`recordHop`](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts))
+inside one session, then on finalize creates a single settlement
+batch
+([`finalizeSession`](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts)).
+That batch processes atomically: it either credits every developer
+in the chain
+([`processSettlementBatch`](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts))
+or, if anything goes wrong at settlement time, the whole batch
+rolls back as one unit
+([`rollbackSettlementBatch`](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts))
+and no charges fire. Per-hop error handling above the settlement
+layer is the caller's contract; the atomicity guarantee is at the
+batch boundary. Revenue *apportionment* across the chain is the
+part not yet built — today the outer tool eats the inner cost,
+and I'm working on the split primitive next.
 
 **Why a shadow directory.** Discovery is the load-bearing
 problem for paid MCPs. An agent calls a tool that returns 402
