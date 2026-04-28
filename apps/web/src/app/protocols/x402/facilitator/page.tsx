@@ -33,6 +33,75 @@ export const metadata: Metadata = {
 
 const FACILITATOR_BASE = 'https://facilitator.settlegrid.ai'
 
+const INCIDENTS_URL =
+  'https://github.com/lexwhiting/settlegrid/issues?q=is%3Aopen+label%3Afacilitator'
+
+/**
+ * Status badge — server-rendered, env-gated. When
+ * `UPTIMEROBOT_STATUS_URL` is set in the deployment env, render a
+ * "Live status" link to the public UptimeRobot status page (founder
+ * sets this up per Step 6 of docs/launch/x402-facilitator-dns-runbook.md).
+ * When unset, fall back to the incidents-only placeholder so a fresh
+ * deployment doesn't claim a status it can't verify.
+ *
+ * Why a link, not a fetched-and-rendered status JSON: UptimeRobot's
+ * public status pages don't have a stable documented JSON API.
+ * Fetching server-side adds latency + a fallback-render branch for
+ * upstream errors; linking out is honest ("click for current status")
+ * and uses UptimeRobot's own page as the source of truth.
+ */
+function FacilitatorStatusBadge() {
+  const uptimeStatusUrl = process.env.UPTIMEROBOT_STATUS_URL?.trim()
+
+  if (uptimeStatusUrl && /^https:\/\//.test(uptimeStatusUrl)) {
+    return (
+      <div
+        className="mt-4 inline-flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300"
+        role="status"
+        aria-label="Facilitator status"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <a
+          href={uptimeStatusUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-emerald-200"
+        >
+          Live status
+        </a>
+        <span className="text-emerald-500/60">·</span>
+        <a
+          href={INCIDENTS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-emerald-200"
+        >
+          Incidents
+        </a>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="mt-4 inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1 text-xs text-zinc-300"
+      role="status"
+      aria-label="Facilitator incident tracker"
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
+      <a
+        href={INCIDENTS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline hover:text-zinc-100"
+      >
+        Open incidents
+      </a>
+      <span className="text-zinc-600">· uptime widget pending</span>
+    </div>
+  )
+}
+
 const NETWORKS = [
   {
     id: 'eip155:8453',
@@ -118,30 +187,7 @@ export default function X402FacilitatorPage() {
           Public x402 verify + settle endpoints, free to use, rate-limited per
           IP, no API key required.
         </p>
-        {/*
-          Hostile-review fix HC12: the previous "Status: live" green
-          badge rendered unconditionally and would still claim "live"
-          while the routes were 500-ing. External uptime monitoring
-          ships in a follow-on commit (P4.MKT2 founder-prep / Option B)
-          — until then, surface the incident-tracker link without a
-          liveness claim we can't verify from the page itself.
-        */}
-        <div
-          className="mt-4 inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1 text-xs text-zinc-300"
-          role="status"
-          aria-label="Facilitator incident tracker"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-          <a
-            href="https://github.com/lexwhiting/settlegrid/issues?q=is%3Aopen+label%3Afacilitator"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-zinc-100"
-          >
-            Open incidents
-          </a>
-          <span className="text-zinc-600">· uptime widget pending</span>
-        </div>
+        <FacilitatorStatusBadge />
       </header>
 
       <section className="mb-10">
