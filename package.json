@@ -22,7 +22,8 @@
     "shadow:crawl": "tsx scripts/shadow-crawler/index.ts",
     "codemod": "node scripts/codemods/runner.mjs",
     "codemod:sdk-bump": "node scripts/codemods/runner.mjs sdk-version-bump",
-    "gate:phase-2": "tsx scripts/phase-gates/phase-2.ts"
+    "gate:phase-2": "tsx scripts/phase-gates/phase-2.ts",
+    "launch:smoke": "bash scripts/launch-day-smoke.sh"
   },
   "devDependencies": {
     "jscodeshift": "^17.3.0",
