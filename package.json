@@ -30,6 +30,7 @@
     "turbo": "^2.3.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "pg": "^8.20.0"
   }
 }
