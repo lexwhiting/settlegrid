@@ -23,7 +23,8 @@
     "codemod": "node scripts/codemods/runner.mjs",
     "codemod:sdk-bump": "node scripts/codemods/runner.mjs sdk-version-bump",
     "gate:phase-2": "tsx scripts/phase-gates/phase-2.ts",
-    "launch:smoke": "bash scripts/launch-day-smoke.sh"
+    "launch:smoke": "bash scripts/launch-day-smoke.sh",
+    "launch:smoke:x402": "bash scripts/x402-facilitator-smoke.sh"
   },
   "devDependencies": {
     "jscodeshift": "^17.3.0",
