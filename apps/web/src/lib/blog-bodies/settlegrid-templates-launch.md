@@ -71,6 +71,35 @@ assumption you held for too long. Something a stranger reading
 the post would respect you more for admitting.}} That's when I
 started writing the thing that became SettleGrid.
 
+## What SettleGrid actually is
+
+SettleGrid is the rail-neutral, protocol-neutral settlement
+layer for the long tail of AI tools. Nine protocol adapters
+ship today, each running its own detection on the incoming
+request:
+[MCP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/mcp.ts),
+[x402](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/x402.ts),
+[AP2](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/ap2.ts),
+[MPP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/mpp.ts),
+[ACP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/acp.ts),
+[UCP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/ucp.ts),
+[Visa TAP](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/tap.ts),
+[Mastercard VI](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/mastercard-vi.ts),
+and [Circle Nano](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/adapters/circle-nano.ts).
+Whatever protocol an incoming agent request arrives with, the
+runtime routes it. Stripe Connect powers the underlying fiat
+settlement; SettleGrid is built on top of it, not against it,
+and adds the per-call metering, the multi-protocol detection
+chain, and what I'm calling settlement sessions: an Agent A
+paying Agent B paying Agent C call chain commits or rolls back
+as one atomic unit, so a publisher gets paid only when the
+whole hop succeeded
+([sessions.ts](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts)).
+Pricing is 0% under $1,000/month of revenue and capped at 5%
+at scale, which makes the long-tail (the 12,770+ unmonetized
+MCP servers I'll get to next) the part of the market this is
+built for.
+
 ## What's broken about MCP monetization right now
 
 MCP is enormous and almost entirely free. The
@@ -108,15 +137,17 @@ are four specific holes I keep hitting.
   on its own. {{COMPETITOR: this bullet asserts the discovery
   gap. If a competitor solves it, name them and explain why
   theirs doesn't fit your case. Otherwise the bullet stands.}}
-- **No revenue split primitive.** When a research agent calls
-  a search tool that calls a translation tool that calls an
-  embeddings tool, there's no native way to split the fee
-  across the chain. The outer tool either eats the inner cost
-  (loss leader) or hides the inner call from the invoice
-  (consumer can't audit, inner author never gets credited).
-  Agent runtimes will compose tools the same way the web
-  composed APIs. MCP doesn't have this primitive yet. Neither
-  does SettleGrid, but it's on the roadmap.
+- **Composed-call billing was half-built.** When a research
+  agent calls a search tool that calls a translation tool
+  that calls an embeddings tool, the outer tool used to either
+  eat the inner cost (loss leader) or hide the inner call
+  from the invoice (consumer can't audit, inner author never
+  gets credited). The atomic-session half of this is shipped
+  in SettleGrid — every hop commits or rolls back as a single
+  settlement session, so a publisher gets paid only when the
+  whole hop succeeded. The revenue-*apportionment* half (who
+  gets what cut of the outer fee) is the next piece I'm
+  working on.
 
 ## What SettleGrid Templates is
 
@@ -186,24 +217,39 @@ of revenue, climbing to 5% above $50,000/mo
 
 ## What's still missing
 
-A few things I won't pretend are solved. The revenue-split
-primitive in the section above isn't built; tools that compose
-other tools eat the inner cost today, and the workaround is
-to bake the inner price into your outer price and hope nobody
-runs the math. The agent-side spend cap
-(`settlegrid-max-cost-cents`) is wired through the SDK but the
-consumer-facing UI for budget alerts is still on a Figma
-canvas, not in production. The shadow directory has indexed
-coverage but not every tool is claim-able yet — the claim flow
-needs an email match against the GitHub commit history and I
-haven't built the dispute path for false claims. The Cursor
-extension exists as a question mark on a roadmap. I might ship
-it, I might decide the Anthropic Skill covers Cursor well
-enough through MCP and spend the time on something else. The
-decision is gated on Phase 5 telemetry, not on a hunch.
+A few things I won't pretend are solved. The revenue-*split*
+primitive (who gets what cut of an outer fee when a tool calls
+another tool) isn't built; today the outer tool eats the
+inner cost, and the workaround is to bake the inner price into
+your outer price and hope nobody runs the math. The agent-side
+spend cap (`settlegrid-max-cost-cents`) is wired through the
+SDK but the consumer-facing UI for budget alerts is still on a
+Figma canvas, not in production. The shadow directory has
+indexed coverage but not every tool is claim-able yet — the
+claim flow needs an email match against the GitHub commit
+history and I haven't built the dispute path for false claims.
+The Cursor extension exists as a question mark on a roadmap; I
+might ship it, I might decide the Anthropic Skill covers
+Cursor well enough through MCP and spend the time on something
+else. The decision is gated on Phase 5 telemetry, not on a
+hunch.
 {{METRICS: if you have hard PostHog numbers for Skill
 invocations in Cursor, cite them here; otherwise leave the
 sentence as-is so the roadmap honesty stands.}}
+
+What's coming next, in order: a Python SDK on PyPI, a public
+x402 facilitator under a settlegrid.ai subdomain, and country
+coverage expansion via a second MoR rail (Paddle or Lemon
+Squeezy) — the second-rail integration is demand-gated, not
+date-gated. It ships when waitlist volume in a specific
+corridor (LATAM, India, Southeast Asia) justifies the
+integration cost, not before. There was an earlier plan to use
+Polar as that second rail; Polar declined SettleGrid's
+merchant application as a marketplace use case in April, so
+the architecture is now a single Stripe Connect rail with an
+extensible adapter for the second one when it comes. If you've
+got a corridor blocker that should jump the queue, tell me.
+
 
 ## Try it. Break it. Tell me what sucks.
 
@@ -221,3 +267,14 @@ on X at [@lexwhiting](https://x.com/lexwhiting), or open an
 issue on [github.com/lexwhiting/settlegrid](https://github.com/lexwhiting/settlegrid).
 The fastest way to make this thing better is to tell me where
 it broke for you.
+
+---
+
+If you're evaluating SettleGrid against
+[Nevermined](https://nevermined.io) — the closest direct
+competitor on the agent-payments side — there's a side-by-side
+honest comparison at
+[settlegrid.ai/compare/nevermined](https://settlegrid.ai/compare/nevermined),
+including the pieces where Nevermined is genuinely stronger
+(named reference customer, Python SDK on PyPI today, public
+x402 facilitator).
