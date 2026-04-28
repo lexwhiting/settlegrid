@@ -53,3 +53,9 @@ docs/master-plan/*.docx
 scripts/gridbot/state.json
 scripts/gridbot/schedule-state.json
 scripts/gridbot/logs/*.jsonl
+
+# P4.6 outreach generator — local cache for GitHub + Claude API responses.
+# Per-recipient personalization (PII-adjacent) lives here; never check in.
+scripts/.cache/
+# P4.6 generated output — 100 emails with real names + addresses. DO NOT COMMIT.
+scripts/.outreach/
