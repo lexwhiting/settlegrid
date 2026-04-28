@@ -12,6 +12,7 @@ import AI_AGENT_PROTOCOLS_BODY from './blog-bodies/ai-agent-payment-protocols.md
 import MCP_PAYMENT_RETRY_BODY from './blog-bodies/mcp-server-payment-retry-logic.md'
 import ERC_8004_IDENTITY_BODY from './blog-bodies/erc-8004-trustless-agent-identity.md'
 import SETTLEGRID_TEMPLATES_LAUNCH_BODY from './blog-bodies/settlegrid-templates-launch.md'
+import X402_FACILITATOR_LAUNCH_BODY from './blog-bodies/x402-facilitator-launch.md'
 
 export interface BlogPostAuthor {
   name: string
@@ -648,6 +649,45 @@ export const BLOG_POSTS: BlogPost[] = [
       'ai-agent-payment-protocols',
     ],
     body: SETTLEGRID_TEMPLATES_LAUNCH_BODY,
+    published: false,
+  },
+
+  /* ── P4.MKT2. Public x402 facilitator announcement (DRAFT — published:false) ── */
+  /* Anchor for the launch announcement at facilitator.settlegrid.ai. Stays
+     published:false until the founder has provisioned DNS for
+     `facilitator.settlegrid.ai`, smoke-tested the three /v1 endpoints from
+     outside the SettleGrid network, and posted to the x402 community
+     Discord. See `apps/web/src/app/protocols/x402/facilitator/page.tsx`
+     for the docs landing page that supports this post.                    */
+  {
+    slug: 'x402-facilitator-launch',
+    title: 'SettleGrid is running a public x402 facilitator',
+    description:
+      'Public verify and settle endpoints for x402 payments at facilitator.settlegrid.ai, on Base mainnet and Base Sepolia. Source-available, rate-limited per IP, no API key. Adds a third independent facilitator to the x402 network.',
+    datePublished: '2026-04-28',
+    dateModified: '2026-04-28',
+    keywords: [
+      'x402 facilitator',
+      'x402 protocol',
+      'EIP-3009',
+      'Base mainnet',
+      'Base Sepolia',
+      'agent payments',
+      'SettleGrid',
+    ],
+    readingTime: '5 min read',
+    wordCount: 870,
+    author: {
+      name: 'Lex Whiting',
+      url: 'https://x.com/lexwhiting',
+      bio: 'Founder, SettleGrid. Bootstrapping a settlement layer for the AI economy. Previously: shipped MCP servers, hand-rolled too much Stripe Connect.',
+    },
+    relatedSlugs: [
+      'ai-agent-payment-protocols',
+      'mcp-billing-comparison-2026',
+      'settlegrid-templates-launch',
+    ],
+    body: X402_FACILITATOR_LAUNCH_BODY,
     published: false,
   },
 ]
