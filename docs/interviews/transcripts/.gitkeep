@@ -1,0 +1,13 @@
+# Interview transcripts land here.
+#
+# File name format: YYYY-MM-DD-<github_username>.md
+# (e.g., 2026-04-29-jane-dev.md)
+#
+# Source the file's content from `docs/interviews/template.md` —
+# copy that on the morning of the call, fill the metadata block,
+# take notes inline during the interview, and clean up against the
+# Otter.ai recording within the hour.
+#
+# These transcripts may contain PII (names, employer hints, candid
+# product feedback). Treat them as private — do not paste into a
+# slide deck or share without explicit consent.
