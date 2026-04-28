@@ -24,9 +24,31 @@ The package is a content-only artifact — no runtime code, no dependencies. It 
 
 Claude will read the skill instructions and walk you through wrapping your server with the SettleGrid SDK.
 
+## Using with Cursor
+
+The same playbook ships as a [`.cursorrules`](https://github.com/lexwhiting/settlegrid/tree/main/packages/settlegrid-skill/cursor) file for Cursor IDE — you don't need a separate extension. Per [ADR-004](https://github.com/lexwhiting/settlegrid/blob/main/docs/decisions/ADR-004-cursor-extension.md), the Skill + Cursor rule combination is the supported integration for every AI-coding surface (Claude Desktop, Claude Code, Cursor, Windsurf via MCP).
+
+```bash
+# From the root of your project:
+npm install @settlegrid/skill
+
+# If you DO NOT already have a .cursorrules file:
+cp node_modules/@settlegrid/skill/cursor/.cursorrules .
+
+# If you DO already have a .cursorrules file, append rather than overwrite:
+cat node_modules/@settlegrid/skill/cursor/.cursorrules >> .cursorrules
+
+# Then in Cursor, open your MCP server file and ask:
+#   @settlegrid monetize this
+```
+
+Cursor reads `.cursorrules` automatically — no marketplace install, no IDE restart required (a window reload picks it up). The 12-step playbook is byte-for-byte identical to the one the Anthropic Skill runs.
+
+If you find a discrepancy between `SKILL.md` and `cursor/.cursorrules`, the SKILL.md is canonical — file an issue and the next release will sync the two.
+
 ## What it does
 
-When activated, this skill instructs the agent to:
+When activated, this skill (or the Cursor rule) instructs the agent to:
 
 1. Detect the user's MCP server entry file
 2. Install `@settlegrid/mcp` as a dependency
