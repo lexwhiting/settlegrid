@@ -1,0 +1,52 @@
+{
+  "slug": "fivetran",
+  "name": "Fivetran",
+  "description": "MCP server for Fivetran with SettleGrid billing. Manage Fivetran data pipeline connections, trigger syncs, and inspect schema metadata via the Fivetran REST API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "data-pipelines",
+    "fivetran",
+    "etl",
+    "data-pipeline",
+    "integration",
+    "sync",
+    "connections",
+    "schema",
+    "data-engineering",
+    "elt"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fivetran"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "delete_connection",
+    "get_connection",
+    "get_connection_schemas",
+    "get_schema_details",
+    "get_table_details",
+    "list_connections",
+    "trigger_resync",
+    "trigger_sync"
+  ],
+  "featured": false
+}

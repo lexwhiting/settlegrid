@@ -1,0 +1,42 @@
+{
+  "slug": "virustotal",
+  "name": "VirusTotal",
+  "description": "Scan URLs, files, and IPs for malware and threats",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "virustotal",
+    "malware",
+    "security",
+    "threat"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-virustotal"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "scan-url",
+    "get-url-report",
+    "get-ip-report",
+    "get-domain-report"
+  ],
+  "featured": false
+}

@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "generatedAt": "2026-04-16",
+  "source": "CANONICAL_50.json",
+  "selectionCriteria": "Category diversity (>=2 per used manifest category), all TypeScript (language mix deferred — CANONICAL_50 has no Python/JS templates), monetization potential, repo health (all score >=92)",
+  "entries": [
+    {
+      "slug": "github-api",
+      "name": "GitHub API",
+      "score": 94,
+      "sourceCategory": "developer",
+      "manifestCategory": "devtools",
+      "selectionRationale": "Developer platform with massive audience; natural devtools fit; high call volume from CI/CD and agent workflows"
+    },
+    {
+      "slug": "gitlab-api",
+      "name": "GitLab API",
+      "score": 94,
+      "sourceCategory": "developer",
+      "manifestCategory": "devtools",
+      "selectionRationale": "CI/CD integration complement to GitHub; enterprise demand; pipelines and MR data are high-value"
+    },
+    {
+      "slug": "cve-search",
+      "name": "CVE Search",
+      "score": 93,
+      "sourceCategory": "security",
+      "manifestCategory": "devtools",
+      "selectionRationale": "Vulnerability scanning is core devtools use case; NVD data is enterprise-grade; security teams pay for speed"
+    },
+    {
+      "slug": "virustotal",
+      "name": "VirusTotal",
+      "score": 93,
+      "sourceCategory": "security",
+      "manifestCategory": "devtools",
+      "selectionRationale": "Premium malware analysis data; high value per call; SOC/IR teams are natural buyers"
+    },
+    {
+      "slug": "urlscan",
+      "name": "URLScan",
+      "score": 93,
+      "sourceCategory": "security",
+      "manifestCategory": "devtools",
+      "selectionRationale": "URL threat scanning; complements CVE/VirusTotal for full security devtools coverage"
+    },
+    {
+      "slug": "spotify-metadata",
+      "name": "Spotify Metadata",
+      "score": 94,
+      "sourceCategory": "entertainment",
+      "manifestCategory": "media",
+      "selectionRationale": "Massive consumer brand; music search has broad audience; high call volume from recommendation agents"
+    },
+    {
+      "slug": "tmdb",
+      "name": "TMDB",
+      "score": 94,
+      "sourceCategory": "entertainment",
+      "manifestCategory": "media",
+      "selectionRationale": "Movie/TV data with huge audience; entertainment agents are a growing segment"
+    },
+    {
+      "slug": "guardian",
+      "name": "The Guardian",
+      "score": 94,
+      "sourceCategory": "news",
+      "manifestCategory": "media",
+      "selectionRationale": "Quality news source; article search is high-volume; natural fit for research/summarization agents"
+    },
+    {
+      "slug": "podcast-index",
+      "name": "Podcast Index",
+      "score": 94,
+      "sourceCategory": "entertainment",
+      "manifestCategory": "media",
+      "selectionRationale": "Growing podcast market; discovery and search are natural agent workflows"
+    },
+    {
+      "slug": "nasa-data",
+      "name": "NASA Open Data",
+      "score": 94,
+      "sourceCategory": "science",
+      "manifestCategory": "research",
+      "selectionRationale": "Iconic brand; free upstream API; APOD and NEO data have broad education + research appeal"
+    },
+    {
+      "slug": "open-alex",
+      "name": "OpenAlex",
+      "score": 94,
+      "sourceCategory": "science",
+      "manifestCategory": "research",
+      "selectionRationale": "Academic research database; growing replacement for Microsoft Academic; high value for research agents"
+    },
+    {
+      "slug": "gutenberg",
+      "name": "Project Gutenberg",
+      "score": 94,
+      "sourceCategory": "education",
+      "manifestCategory": "research",
+      "selectionRationale": "Free ebook library; unique content source; NLP and education agents benefit"
+    },
+    {
+      "slug": "etymology",
+      "name": "Etymology & Definitions",
+      "score": 92,
+      "sourceCategory": "language",
+      "manifestCategory": "research",
+      "selectionRationale": "Word origins and definitions; language tools have steady demand; unique niche in research category"
+    },
+    {
+      "slug": "flight-prices",
+      "name": "Flight Prices",
+      "score": 94,
+      "sourceCategory": "travel",
+      "manifestCategory": "data",
+      "selectionRationale": "High-value travel pricing data; obvious monetization — agents planning trips need real-time prices"
+    },
+    {
+      "slug": "opensky",
+      "name": "OpenSky Network",
+      "score": 94,
+      "sourceCategory": "travel",
+      "manifestCategory": "data",
+      "selectionRationale": "Real-time flight tracking; ADS-B data is unique and high-demand; aviation analytics"
+    },
+    {
+      "slug": "spoonacular",
+      "name": "Spoonacular",
+      "score": 94,
+      "sourceCategory": "food",
+      "manifestCategory": "data",
+      "selectionRationale": "Comprehensive recipe + nutrition API; high call volume from meal planning agents"
+    },
+    {
+      "slug": "api-football",
+      "name": "API Football",
+      "score": 94,
+      "sourceCategory": "sports",
+      "manifestCategory": "data",
+      "selectionRationale": "Global football/soccer data; massive market; fixtures and standings drive high call volume"
+    },
+    {
+      "slug": "clinicaltrials",
+      "name": "ClinicalTrials.gov",
+      "score": 93,
+      "sourceCategory": "health",
+      "manifestCategory": "data",
+      "selectionRationale": "Pharma/health data; high value per call; regulatory and research demand"
+    },
+    {
+      "slug": "openaq",
+      "name": "OpenAQ",
+      "score": 93,
+      "sourceCategory": "environment",
+      "manifestCategory": "data",
+      "selectionRationale": "Air quality data; ESG compliance and environmental monitoring are growing markets"
+    },
+    {
+      "slug": "holidays-worldwide",
+      "name": "Holidays Worldwide",
+      "score": 92,
+      "sourceCategory": "education",
+      "manifestCategory": "data",
+      "selectionRationale": "Reference data for calendar integration; travel and scheduling agents need holiday awareness"
+    }
+  ]
+}

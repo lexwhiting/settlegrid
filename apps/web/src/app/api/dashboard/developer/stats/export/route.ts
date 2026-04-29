@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql, gte, and, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations } from '@/lib/db/schema'
+import { tools, invocations, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { csvEscape } from '@/lib/csv'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -22,6 +23,27 @@ export async function GET(request: NextRequest) {
     let auth
     try { auth = await requireDeveloper(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED', requestId)
+    }
+
+    // ── Tier gate: data_export requires Scale+ ──────────────────────────
+    const [developer] = await db
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+      .from(developers)
+      .where(eq(developers.id, auth.id))
+      .limit(1)
+
+    if (!developer) {
+      return errorResponse('Developer account not found.', 404, 'NOT_FOUND', requestId)
+    }
+
+    if (!hasFeature(developer.tier, 'data_export', developer.isFoundingMember)) {
+      return errorResponse(
+        'This feature requires the Scale plan.',
+        403,
+        'TIER_REQUIRED',
+        requestId,
+        { requiredTier: 'scale', currentTier: developer.tier, upgradeUrl: '/pricing' }
+      )
     }
 
     // Parse days param (default 30, max 365 for enterprise, 90 for standard)

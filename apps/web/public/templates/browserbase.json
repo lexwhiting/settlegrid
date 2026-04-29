@@ -1,0 +1,50 @@
+{
+  "slug": "browserbase",
+  "name": "Browserbase",
+  "description": "MCP server for Browserbase with SettleGrid billing. Create and manage cloud browser sessions for AI-driven web automation and scraping via the Browserbase API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "browser-automation",
+    "browser",
+    "automation",
+    "scraping",
+    "headless",
+    "playwright",
+    "puppeteer",
+    "session",
+    "cloud",
+    "ai-agent"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-browserbase"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_session",
+    "get_session",
+    "get_session_logs",
+    "get_session_recording",
+    "list_sessions",
+    "stop_session"
+  ],
+  "featured": false
+}

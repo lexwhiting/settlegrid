@@ -1,0 +1,51 @@
+{
+  "slug": "helicone",
+  "name": "Helicone",
+  "description": "MCP server for Helicone with SettleGrid billing. Query and manage LLM observability data including requests, datasets, alerts, sessions, and analytics via the Helicone API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "llm-gateways",
+    "llm",
+    "observability",
+    "analytics",
+    "monitoring",
+    "logging",
+    "datasets",
+    "prompts",
+    "sessions",
+    "alerts"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-helicone"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_alerts",
+    "get_datasets",
+    "get_request_by_id",
+    "get_requests",
+    "get_sessions",
+    "get_user_metrics",
+    "query_hql",
+    "submit_request_feedback"
+  ],
+  "featured": false
+}

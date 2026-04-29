@@ -1,0 +1,46 @@
+{
+  "slug": "weglot",
+  "name": "Weglot",
+  "description": "MCP server for Weglot with SettleGrid billing. Translate, retrieve, and update website content across multiple languages using the Weglot translation API.",
+  "version": "1.0.0",
+  "category": "productivity",
+  "tags": [
+    "translation",
+    "localization",
+    "i18n",
+    "language",
+    "weglot",
+    "multilingual",
+    "website",
+    "content"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-weglot"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_api_status",
+    "get_translations",
+    "translate_content",
+    "update_translations"
+  ],
+  "featured": false
+}

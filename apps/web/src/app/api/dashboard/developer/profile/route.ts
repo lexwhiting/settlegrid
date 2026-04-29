@@ -73,6 +73,15 @@ export async function PATCH(request: NextRequest) {
       updates.slug = normalizedSlug
     }
     if (body.publicProfile !== undefined) {
+      // Require a slug before enabling public profile
+      if (body.publicProfile === true) {
+        const hasSlug = body.slug !== undefined || (
+          await db.select({ slug: developers.slug }).from(developers).where(eq(developers.id, auth.id)).limit(1)
+        )[0]?.slug
+        if (!hasSlug) {
+          return errorResponse('Set a profile URL before enabling your public profile.', 422, 'SLUG_REQUIRED')
+        }
+      }
       updates.publicProfile = body.publicProfile
     }
     if (body.publicBio !== undefined) {

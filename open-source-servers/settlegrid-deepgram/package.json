@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-deepgram",
   "version": "1.0.0",
-  "description": "MCP server for Deepgram with SettleGrid billing. AI-powered speech recognition and language understanding",
+  "description": "MCP server for Deepgram with SettleGrid billing. Transcribe audio to text, convert text to speech, and analyze audio/text intelligence using the Deepgram API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,9 +20,15 @@
     "mcp",
     "ai",
     "speech-to-text",
+    "transcription",
+    "text-to-speech",
+    "audio",
+    "deepgram",
     "asr",
+    "voice",
+    "nlp",
     "ai",
-    "voice"
+    "audio-intelligence"
   ],
   "license": "MIT",
   "repository": {

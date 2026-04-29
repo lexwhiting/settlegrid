@@ -1,0 +1,47 @@
+{
+  "slug": "oxylabs",
+  "name": "Oxylabs",
+  "description": "MCP server for Oxylabs Web Scraper with SettleGrid billing. Scrape any URL in realtime using Oxylabs' proxy infrastructure with optional JavaScript rendering, geo-targeting, and structured parsing.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "scraping",
+    "proxy",
+    "web-scraper",
+    "data-extraction",
+    "oxylabs",
+    "realtime",
+    "javascript-rendering",
+    "geo-targeting",
+    "amazon",
+    "google"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-oxylabs"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "scrape_amazon_product",
+    "scrape_google_search",
+    "scrape_url",
+    "scrape_with_js"
+  ],
+  "featured": false
+}

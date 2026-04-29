@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "settlegrid-pydantic-ai"
+version = "0.1.0"
+description = "Pydantic AI adapter for SettleGrid — wrap Pydantic AI tools with pay-per-call metering."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Alerterra, LLC", email = "support@settlegrid.ai" },
+]
+keywords = ["settlegrid", "pydantic-ai", "ai-agent-payments", "pay-per-call"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
+dependencies = [
+  "settlegrid>=0.1.0",
+  "pydantic-ai>=0.1,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=4.1",
+  "respx>=0.20",
+  "ruff>=0.4",
+  "mypy>=1.8",
+  "build>=1.0",
+  "twine>=4.0",
+]
+
+[project.urls]
+Homepage = "https://settlegrid.ai"
+Repository = "https://github.com/lexwhiting/settlegrid"
+Issues = "https://github.com/lexwhiting/settlegrid/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["settlegrid_pydantic_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:httpx.*",
+  "ignore::DeprecationWarning:pydantic_ai.*",
+  "ignore::DeprecationWarning:pydantic.*",
+  "ignore::PendingDeprecationWarning",
+  "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+source = ["settlegrid_pydantic_ai"]
+branch = false
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@overload",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "PT", "SIM"]
+ignore = ["ANN101", "ANN102"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ANN", "PT011"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+exclude = ["tests/"]

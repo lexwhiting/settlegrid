@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { developers } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { createOrganization, addMember } from '@/lib/settlement/organizations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 10
 
@@ -33,6 +37,27 @@ export async function POST(request: NextRequest) {
     const rl = await checkRateLimit(apiLimiter, `orgs:create:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
+    // ── Tier gate: team_access requires Scale+ ─────────────────────────
+    const [dev] = await db
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+      .from(developers)
+      .where(eq(developers.id, developer.id))
+      .limit(1)
+
+    if (!dev) {
+      return errorResponse('Developer account not found.', 404, 'NOT_FOUND', requestId)
+    }
+
+    if (!hasFeature(dev.tier, 'team_access', dev.isFoundingMember)) {
+      return errorResponse(
+        'This feature requires the Scale plan.',
+        403,
+        'TIER_REQUIRED',
+        requestId,
+        { requiredTier: 'scale', currentTier: dev.tier, upgradeUrl: '/pricing' }
+      )
     }
 
     const body = await parseBody(request, createOrgSchema)

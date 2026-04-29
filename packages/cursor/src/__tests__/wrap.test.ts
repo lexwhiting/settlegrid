@@ -1,0 +1,407 @@
+/**
+ * P2.FMT3 — wrapCursorTool unit tests.
+ *
+ * Mocks @settlegrid/mcp so the adapter is tested in isolation.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const { mockWrap, mockInit, MockInvalidKeyError, MockInsufficientCreditsError } =
+  vi.hoisted(() => {
+    class _MockInvalidKeyError extends Error {
+      readonly code = 'INVALID_KEY'
+      readonly statusCode = 401
+      constructor(message: string) {
+        super(message)
+        this.name = 'InvalidKeyError'
+      }
+    }
+    class _MockInsufficientCreditsError extends Error {
+      readonly code = 'INSUFFICIENT_CREDITS'
+      readonly statusCode = 402
+      constructor(message: string) {
+        super(message)
+        this.name = 'InsufficientCreditsError'
+      }
+    }
+    return {
+      mockWrap: vi.fn(),
+      mockInit: vi.fn(),
+      MockInvalidKeyError: _MockInvalidKeyError,
+      MockInsufficientCreditsError: _MockInsufficientCreditsError,
+    }
+  })
+
+vi.mock('@settlegrid/mcp', () => ({
+  settlegrid: {
+    version: '0.2.0',
+    init: (opts: unknown) => mockInit(opts),
+    extractApiKey: vi.fn(),
+  },
+  InvalidKeyError: MockInvalidKeyError,
+  InsufficientCreditsError: MockInsufficientCreditsError,
+}))
+
+import { wrapCursorTool } from '../wrap'
+
+beforeEach(() => {
+  mockWrap.mockReset()
+  mockInit.mockReset()
+  mockInit.mockImplementation(() => ({
+    wrap: (execute: (input: unknown) => unknown) =>
+      async (input: unknown, ctx: { headers?: Record<string, string> }) => {
+        mockWrap(input, ctx)
+        if (!ctx?.headers?.['x-api-key']) {
+          throw new MockInvalidKeyError('no key')
+        }
+        return execute(input)
+      },
+  }))
+})
+
+describe('wrapCursorTool — happy path', () => {
+  it('returns the execute result with a valid key in _meta', async () => {
+    const wrapped = wrapCursorTool(
+      async (input: { q: string }) => ({ content: [{ type: 'text', text: input.q }] }),
+      { toolSlug: 'my-tool', pricing: { defaultCostCents: 1 } },
+    )
+    const result = await wrapped(
+      { q: 'hi' },
+      { _meta: { 'settlegrid-api-key': 'sg_live_abc' } },
+    )
+    expect(result).toEqual({ content: [{ type: 'text', text: 'hi' }] })
+  })
+})
+
+describe('wrapCursorTool — missing key (401)', () => {
+  it('throws InvalidKeyError when extra is undefined', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(wrapped({})).rejects.toMatchObject({
+      code: 'INVALID_KEY',
+      statusCode: 401,
+    })
+  })
+
+  it('throws InvalidKeyError when _meta is missing', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(wrapped({}, {})).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('throws InvalidKeyError when settlegrid-api-key missing from _meta', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { _meta: { 'settlegrid-method': 'search' } }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('rejects control-char keys (header-injection defense)', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { _meta: { 'settlegrid-api-key': 'sg_live\r\nEvil: x' } }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('trims whitespace before forwarding', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await wrapped(
+      {},
+      { _meta: { 'settlegrid-api-key': '  sg_live_abc  ' } },
+    )
+    expect(mockWrap).toHaveBeenCalledWith({}, {
+      headers: { 'x-api-key': 'sg_live_abc' },
+    })
+  })
+})
+
+describe('wrapCursorTool — insufficient credits (402)', () => {
+  it('propagates InsufficientCreditsError from sg.wrap', async () => {
+    mockInit.mockImplementationOnce(() => ({
+      wrap: () => async () => {
+        throw new MockInsufficientCreditsError('balance 0c, required 5c')
+      },
+    }))
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 5 },
+    })
+    await expect(
+      wrapped({}, { _meta: { 'settlegrid-api-key': 'sg_live_abc' } }),
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_CREDITS', statusCode: 402 })
+  })
+})
+
+describe('wrapCursorTool — wrap-time validation', () => {
+  it('throws TypeError when options is missing', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', undefined as unknown as {
+        toolSlug: string
+        pricing: { defaultCostCents: number }
+      }),
+    ).toThrowError(/options/)
+  })
+
+  it('throws TypeError for empty toolSlug', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: '',
+        pricing: { defaultCostCents: 1 },
+      }),
+    ).toThrowError(/toolSlug/)
+  })
+
+  it('throws TypeError for array pricing', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: 't',
+        // @ts-expect-error — arrays shouldn't match PricingConfig
+        pricing: [],
+      }),
+    ).toThrowError(/pricing/)
+  })
+
+  it('throws TypeError for empty method', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: 't',
+        pricing: { defaultCostCents: 1 },
+        method: '',
+      }),
+    ).toThrowError(/method/)
+  })
+
+  it('throws TypeError for non-string method (number)', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: 't',
+        pricing: { defaultCostCents: 1 },
+        // @ts-expect-error — method must be a string
+        method: 42,
+      }),
+    ).toThrowError(/method/)
+  })
+
+  it('throws TypeError for whitespace-only method', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: 't',
+        pricing: { defaultCostCents: 1 },
+        method: '   ',
+      }),
+    ).toThrowError(/method/)
+  })
+
+  it('throws TypeError for whitespace-only toolSlug', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: '   ',
+        pricing: { defaultCostCents: 1 },
+      }),
+    ).toThrowError(/toolSlug/)
+  })
+
+  it('throws TypeError for missing pricing', () => {
+    expect(() =>
+      wrapCursorTool(async () => 'ok', {
+        toolSlug: 't',
+      } as unknown as {
+        toolSlug: string
+        pricing: { defaultCostCents: number }
+      }),
+    ).toThrowError(/pricing/)
+  })
+})
+
+describe('wrapCursorTool — fail-fast: no side effects before key validation', () => {
+  it('does not invoke execute or call billed when key is missing', async () => {
+    const execute = vi.fn(async (input: { q: string }) => ({
+      content: [{ type: 'text', text: input.q }],
+    }))
+    const wrapped = wrapCursorTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(wrapped({ q: 'x' })).rejects.toMatchObject({
+      code: 'INVALID_KEY',
+    })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockWrap).not.toHaveBeenCalled()
+  })
+
+  it('does not invoke execute when key fails injection check', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const wrapped = wrapCursorTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { _meta: { 'settlegrid-api-key': 'sg_live\r\nEvil: x' } }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockWrap).not.toHaveBeenCalled()
+  })
+})
+
+describe('wrapCursorTool — settlegrid.init wiring', () => {
+  it('forwards toolSlug and pricing to settlegrid.init', () => {
+    wrapCursorTool(async () => ({ content: [] }), {
+      toolSlug: 'my-cursor-tool',
+      pricing: { defaultCostCents: 2 },
+    })
+    expect(mockInit).toHaveBeenCalledWith({
+      toolSlug: 'my-cursor-tool',
+      pricing: { defaultCostCents: 2 },
+    })
+  })
+})
+
+describe('wrapCursorTool — execute is called with the original input', () => {
+  it('forwards the un-transformed input to execute on happy path', async () => {
+    const execute = vi.fn(async (input: { q: string; flag: boolean }) => ({
+      got: input,
+    }))
+    const wrapped = wrapCursorTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const input = { q: 'hello', flag: true }
+    await wrapped(input, { _meta: { 'settlegrid-api-key': 'sg_live_abc' } })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith(input)
+  })
+
+  it('supports synchronous execute functions', async () => {
+    const execute = vi.fn((input: { n: number }) => ({ doubled: input.n * 2 }))
+    const wrapped = wrapCursorTool(execute, {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    const result = await wrapped(
+      { n: 21 },
+      { _meta: { 'settlegrid-api-key': 'sg_live_abc' } },
+    )
+    expect(result).toEqual({ doubled: 42 })
+  })
+})
+
+describe('wrapCursorTool — header-injection / non-ASCII defense', () => {
+  const injectionPayloads = [
+    ['CRLF', 'sg_live_valid\r\nEvil: x'],
+    ['LF', 'sg_live_valid\nEvil: x'],
+    ['CR', 'sg_live_valid\rEvil: x'],
+    ['NUL byte', 'sg_live_valid\x00xxx'],
+    ['vertical tab', 'sg_live_valid\x0Bxxx'],
+    ['form feed', 'sg_live_valid\x0Cxxx'],
+    ['DEL', 'sg_live_valid\x7F'],
+    ['latin-1 extended', 'sg_live_café'],
+    ['unicode mathematical', '𝐬𝐠_𝐥𝐢𝐯𝐞_xyz'],
+    ['emoji', 'sg_live_🔑xyz'],
+  ] as const
+
+  it.each(injectionPayloads)(
+    'rejects %s injection-style key as INVALID_KEY',
+    async (_label, badKey) => {
+      const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+        toolSlug: 'my-tool',
+        pricing: { defaultCostCents: 1 },
+      })
+      await expect(
+        wrapped({}, { _meta: { 'settlegrid-api-key': badKey } }),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY', statusCode: 401 })
+    },
+  )
+
+  it('rejects array-shaped _meta', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { _meta: [] }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('rejects non-string settlegrid-api-key', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    for (const bad of [42, true, { nested: 'x' }, null]) {
+      await expect(
+        wrapped({}, { _meta: { 'settlegrid-api-key': bad } }),
+      ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+    }
+  })
+})
+
+describe('wrapCursorTool — method forwarding', () => {
+  it('forwards a valid method to sg.wrap WrapOptions', () => {
+    const instance = { wrap: vi.fn(() => async () => ({ content: [] })) }
+    mockInit.mockImplementationOnce(() => instance)
+    wrapCursorTool(async () => ({ content: [] }), {
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+      method: 'search',
+    })
+    expect(instance.wrap).toHaveBeenCalledWith(expect.any(Function), {
+      method: 'search',
+    })
+  })
+
+  it('omits method from WrapOptions when not provided', () => {
+    const instance = { wrap: vi.fn(() => async () => ({ content: [] })) }
+    mockInit.mockImplementationOnce(() => instance)
+    wrapCursorTool(async () => ({ content: [] }), {
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+    })
+    expect(instance.wrap).toHaveBeenCalledWith(expect.any(Function), {})
+  })
+})
+
+describe('wrapCursorTool — key edge cases', () => {
+  it('rejects whitespace-only settlegrid-api-key', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { _meta: { 'settlegrid-api-key': '   ' } }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+
+  it('rejects empty-string settlegrid-api-key', async () => {
+    const wrapped = wrapCursorTool(async () => ({ ok: true }), {
+      toolSlug: 'my-tool',
+      pricing: { defaultCostCents: 1 },
+    })
+    await expect(
+      wrapped({}, { _meta: { 'settlegrid-api-key': '' } }),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY' })
+  })
+})
+
+describe('wrapCursorTool — public API', () => {
+  it('returns a function with arity 2 (input, extra)', () => {
+    const wrapped = wrapCursorTool(async () => 'ok', {
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+    })
+    expect(typeof wrapped).toBe('function')
+    expect(wrapped.length).toBe(2)
+  })
+})

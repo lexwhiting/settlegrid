@@ -10,6 +10,10 @@ const { mockDb, mockRequireDeveloper } = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([]),
+    // insert/values are required by the fire-and-forget writeAuditLog calls
+    // in profile/payout-settings routes (resolves silently to keep stderr clean)
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockResolvedValue(undefined),
   }
   return {
     mockDb,
@@ -38,6 +42,18 @@ vi.mock('@/lib/db/schema', () => ({
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     supabaseUserId: 'supabase_user_id',
+  },
+  // Required for fire-and-forget writeAuditLog calls in profile/payout-settings routes
+  auditLogs: {
+    id: 'id',
+    developerId: 'developer_id',
+    action: 'action',
+    resourceType: 'resource_type',
+    resourceId: 'resource_id',
+    details: 'details',
+    ipAddress: 'ip_address',
+    userAgent: 'user_agent',
+    createdAt: 'created_at',
   },
 }))
 
@@ -69,14 +85,30 @@ function makeRequest(url: string, method: string = 'GET', body?: unknown): NextR
   return new NextRequest(`http://localhost:3005${url}`, init)
 }
 
+// Fully reset mockDb state including any leftover mockResolvedValueOnce queues.
+// vi.clearAllMocks() only clears call history, NOT queued return values, which
+// causes cross-test pollution when prior tests' queued returns leak into later tests.
+function resetMockDb() {
+  for (const key of Object.keys(mockDb)) {
+    vi.mocked((mockDb as Record<string, ReturnType<typeof vi.fn>>)[key]).mockReset()
+  }
+  mockDb.select.mockReturnThis()
+  mockDb.from.mockReturnThis()
+  mockDb.where.mockReturnThis()
+  mockDb.update.mockReturnThis()
+  mockDb.set.mockReturnThis()
+  mockDb.insert.mockReturnThis()
+  mockDb.limit.mockResolvedValue([])
+  mockDb.returning.mockResolvedValue([])
+  mockDb.values.mockResolvedValue(undefined)
+}
+
 // ─── GET /api/auth/developer/me ─────────────────────────────────────────────
 
 describe('GET /api/auth/developer/me — extended fields', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDb.select.mockReturnThis()
-    mockDb.from.mockReturnThis()
-    mockDb.where.mockReturnThis()
+    resetMockDb()
   })
 
   it('returns profile with tier, revenueSharePct, publicProfile, publicBio', async () => {
@@ -126,12 +158,13 @@ describe('GET /api/auth/developer/me — extended fields', () => {
 describe('PATCH /api/dashboard/developer/profile — with name field', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDb.update.mockReturnThis()
-    mockDb.set.mockReturnThis()
-    mockDb.where.mockReturnThis()
+    resetMockDb()
   })
 
   it('updates name, publicBio, and publicProfile', async () => {
+    // Route queries dev slug when enabling publicProfile=true without slug in body
+    mockDb.limit.mockResolvedValueOnce([{ slug: 'existing-dev-slug' }])
+
     mockDb.returning.mockResolvedValueOnce([{
       name: 'New Name',
       publicProfile: true,
@@ -209,9 +242,7 @@ describe('PATCH /api/dashboard/developer/profile — with name field', () => {
 describe('PATCH /api/dashboard/developer/payout-settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDb.update.mockReturnThis()
-    mockDb.set.mockReturnThis()
-    mockDb.where.mockReturnThis()
+    resetMockDb()
   })
 
   it('updates payout schedule and minimum', async () => {
@@ -320,9 +351,7 @@ describe('PATCH /api/dashboard/developer/payout-settings', () => {
   it('accepts all valid schedule values', async () => {
     for (const schedule of ['daily', 'weekly', 'monthly']) {
       vi.clearAllMocks()
-      mockDb.update.mockReturnThis()
-      mockDb.set.mockReturnThis()
-      mockDb.where.mockReturnThis()
+      resetMockDb()
       mockDb.returning.mockResolvedValueOnce([{
         payoutSchedule: schedule,
         payoutMinimumCents: 100,
@@ -340,9 +369,7 @@ describe('PATCH /api/dashboard/developer/payout-settings', () => {
   it('accepts boundary values for minimum (1000 and 50000 cents)', async () => {
     for (const amount of [1000, 50000]) {
       vi.clearAllMocks()
-      mockDb.update.mockReturnThis()
-      mockDb.set.mockReturnThis()
-      mockDb.where.mockReturnThis()
+      resetMockDb()
       mockDb.returning.mockResolvedValueOnce([{
         payoutSchedule: 'monthly',
         payoutMinimumCents: amount,

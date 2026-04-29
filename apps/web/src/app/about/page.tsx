@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -43,7 +44,7 @@ const jsonLdOrganization = {
   url: 'https://settlegrid.ai',
   logo: 'https://settlegrid.ai/brand/icon-color.svg',
   description:
-    'SettleGrid is the universal settlement layer for the AI economy. Per-call billing, usage metering, and automated payouts for any AI service across 15 payment protocols.',
+    'SettleGrid is settlement infrastructure for AI tools. Per-call billing, usage metering, and automated payouts across multiple agent payment protocols.',
   foundingDate: '2026',
   sameAs: [
     'https://github.com/lexwhiting/settlegrid',
@@ -78,7 +79,7 @@ const values = [
   {
     title: 'Protocol-Agnostic',
     description:
-      '15 payment protocols through one SDK. MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402, Alipay Trust, KYAPay, EMVCo, and DRAIN. We believe the settlement layer should work with every protocol, not lock you into one.',
+      'Our hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, and Circle Nanopayments), has detection adapters for 2 more (L402 and Skyfire\'s KYAPay), and tracks 3 emerging rails (Alipay\'s ACTP, EMVCo agent payments, and the Bittensor DRAIN project). We believe the settlement layer should work with every protocol, not lock you into one.',
   },
   {
     title: 'Ship Fast, Iterate Publicly',
@@ -88,7 +89,7 @@ const values = [
 ] as const
 
 const stats = [
-  { value: '15', label: 'Payment Protocols' },
+  { value: '14', label: 'Agent Payment Protocols' },
   { value: '6', label: 'Pricing Models' },
   { value: '8', label: 'Service Categories' },
   { value: '50K', label: 'Free Ops/Month' },
@@ -104,28 +105,10 @@ export default function AboutPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOrganization) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
 
-      {/* ---- Header ---- */}
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
-        <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={32} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors"
-            >
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
       {/* ---- Main ---- */}
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-4xl mx-auto">
           {/* ---- Mission ---- */}
           <section className="mb-20">
@@ -171,15 +154,15 @@ export default function AboutPage() {
               <p>
                 Neither option is acceptable. The settlement layer for AI services should be invisible
                 infrastructure &mdash; like Stripe is for payments or Cloudflare is for CDN. It should
-                take two lines of code, support every payment protocol, and let developers keep the
-                vast majority of their revenue.
+                take two lines of code, support the major agent payment protocols, and let developers
+                keep the vast majority of their revenue.
               </p>
               <p>
-                That&apos;s what SettleGrid is: a universal settlement layer that wraps any AI service
+                That&apos;s what SettleGrid is: settlement infrastructure that wraps any AI tool
                 with per-call billing, real-time metering, budget enforcement, and automated Stripe
-                payouts &mdash; across 15 payment protocols. With a progressive take rate that starts
-                at 0% because the platform should earn its share by delivering value, not by extracting
-                it upfront.
+                payouts &mdash; across multiple agent payment protocols. With a progressive take rate
+                that starts at 0% because the platform should earn its share by delivering value, not
+                by extracting it upfront.
               </p>
               <p>
                 SettleGrid is built by developers, for developers. We use our own platform. We publish
@@ -246,21 +229,7 @@ export default function AboutPage() {
         </div>
       </main>
 
-      {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2A2D3E] px-6 py-8 mt-16">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <SettleGridLogo variant="compact" size={32} />
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <Link href="/tools" className="hover:text-gray-100 transition-colors">Showcase</Link>
-            <Link href="/docs" className="hover:text-gray-100 transition-colors">Documentation</Link>
-            <Link href="/privacy" className="hover:text-gray-100 transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-gray-100 transition-colors">Terms</Link>
-          </div>
-          <p className="text-sm text-gray-400">
-            &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

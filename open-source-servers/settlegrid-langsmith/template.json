@@ -1,0 +1,50 @@
+{
+  "slug": "langsmith",
+  "name": "Langsmith",
+  "description": "MCP server for LangSmith with SettleGrid billing. Manage and query LangSmith tracing sessions, filter views, and deployment info via the LangSmith API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "agent-frameworks",
+    "langsmith",
+    "langchain",
+    "tracing",
+    "llm",
+    "observability",
+    "sessions",
+    "monitoring",
+    "evaluation"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-langsmith"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_session",
+    "delete_session",
+    "get_server_info",
+    "get_session",
+    "get_session_metadata",
+    "get_session_view",
+    "list_session_views",
+    "list_sessions"
+  ],
+  "featured": false
+}

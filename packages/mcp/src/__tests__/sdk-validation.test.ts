@@ -7,7 +7,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock middleware so we can test validation without network calls
 const { mockMiddleware } = vi.hoisted(() => {
   const mockMiddleware = {
-    execute: vi.fn().mockImplementation((_key: string, _method: string, handler: () => unknown) => handler()),
+    execute: vi.fn().mockImplementation(
+      (_key: string, _method: string, handler: () => unknown, _units?: number) => handler(),
+    ),
     validateKey: vi.fn().mockResolvedValue({
       valid: true,
       consumerId: 'con-123',
@@ -49,7 +51,7 @@ import type { SettleGridInstance } from '../index'
 
 describe('settlegrid.version', () => {
   it('exposes the SDK version string', () => {
-    expect(settlegrid.version).toBe('0.1.1')
+    expect(settlegrid.version).toBe('0.2.0')
   })
 
   it('matches SDK_VERSION constant', () => {
@@ -74,8 +76,8 @@ describe('SDK_VERSION export', () => {
     expect(typeof SDK_VERSION).toBe('string')
   })
 
-  it('is 0.1.0', () => {
-    expect(SDK_VERSION).toBe('0.1.1')
+  it('matches the published package version (0.2.0)', () => {
+    expect(SDK_VERSION).toBe('0.2.0')
   })
 })
 
@@ -286,5 +288,211 @@ describe('wrapped handler error messages', () => {
   it('error mentions MCP metadata option', async () => {
     const wrapped = sg.wrap(async () => ({ ok: true }))
     await expect(wrapped({}, {})).rejects.toThrow('metadata')
+  })
+})
+
+// ─── settlegrid.init() accepts generalized pricing configs ──────────────────
+//
+// Before P1.SDK1, pricingConfigSchema only accepted the legacy
+// `{ defaultCostCents, methods? }` shape. Zod would strip any extra
+// fields, silently losing the `model` discriminator and falling back to
+// per-invocation. These tests verify the schema now preserves the
+// `model` field and the other generalized fields end-to-end through
+// `settlegrid.init()` without throwing.
+
+describe('settlegrid.init() accepts generalized pricing', () => {
+  it('accepts per-token config without Zod errors', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'lm-proxy',
+        pricing: {
+          model: 'per-token',
+          defaultCostCents: 1,
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  it('accepts per-byte config without Zod errors', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'bandwidth-proxy',
+        pricing: {
+          model: 'per-byte',
+          defaultCostCents: 2,
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  it('accepts per-second config without Zod errors', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'compute-proxy',
+        pricing: {
+          model: 'per-second',
+          defaultCostCents: 3,
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  it('accepts tiered config with tiers array', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'tiered-svc',
+        pricing: {
+          model: 'tiered',
+          defaultCostCents: 1,
+          tiers: [
+            { upTo: 100, costCents: 2 },
+            { upTo: 1000, costCents: 1 },
+          ],
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  it('accepts outcome config with outcomeConfig', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'classifier',
+        pricing: {
+          model: 'outcome',
+          defaultCostCents: 0,
+          outcomeConfig: {
+            successCostCents: 50,
+            failureCostCents: 0,
+            successCondition: 'result.confident === true',
+          },
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  it('accepts optional currencyCode', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'eur-tool',
+        pricing: {
+          model: 'per-invocation',
+          defaultCostCents: 5,
+          currencyCode: 'EUR',
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  it('rejects invalid model enum', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'bad-model',
+        pricing: {
+          model: 'per-gigabyte' as 'per-byte',
+          defaultCostCents: 1,
+        },
+      }),
+    ).toThrow()
+  })
+
+  it('still accepts legacy PricingConfig without `model`', () => {
+    // Regression guard — backward compat.
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'legacy-tool',
+        pricing: { defaultCostCents: 1, methods: { search: { costCents: 5 } } },
+      }),
+    ).not.toThrow()
+  })
+
+  it('rejects orphan generalized fields without model discriminator', () => {
+    // `tiers` is a generalized-only field. Without a `model` discriminator
+    // this shape matches neither branch of the union: generalized rejects
+    // because `model` is required, and strict legacy rejects because
+    // `tiers` is an unknown key. Before the .strict() fix on legacy, this
+    // would silently parse as legacy and lose the `tiers` array.
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'orphan-tiers',
+        pricing: {
+          defaultCostCents: 1,
+          tiers: [{ upTo: 100, costCents: 2 }],
+        } as unknown as { defaultCostCents: number },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects orphan outcomeConfig without model discriminator', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'orphan-outcome',
+        pricing: {
+          defaultCostCents: 1,
+          outcomeConfig: {
+            successCostCents: 50,
+            failureCostCents: 0,
+            successCondition: 'foo',
+          },
+        } as unknown as { defaultCostCents: number },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects orphan currencyCode without model discriminator', () => {
+    expect(() =>
+      settlegrid.init({
+        toolSlug: 'orphan-currency',
+        pricing: {
+          defaultCostCents: 1,
+          currencyCode: 'EUR',
+        } as unknown as { defaultCostCents: number },
+      }),
+    ).toThrow()
+  })
+})
+
+// ─── sg.wrap() threads units from WrapOptions into middleware.execute ───────
+
+describe('sg.wrap() threads units through the pipeline', () => {
+  let sg: SettleGridInstance
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sg = settlegrid.init({
+      toolSlug: 'test-tool',
+      pricing: { model: 'per-token', defaultCostCents: 1 },
+    })
+  })
+
+  it('passes units from WrapOptions as the 4th arg to middleware.execute', async () => {
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    const wrapped = sg.wrap(handler, { method: 'generate', units: 42 })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } })
+
+    // mockMiddleware.execute is (apiKey, method, handler, units)
+    expect(mockMiddleware.execute).toHaveBeenCalledTimes(1)
+    const call = mockMiddleware.execute.mock.calls[0]
+    expect(call[0]).toBe('sg_live_test')
+    expect(call[1]).toBe('generate')
+    expect(typeof call[2]).toBe('function')
+    expect(call[3]).toBe(42)
+  })
+
+  it('passes undefined units when WrapOptions.units is omitted', async () => {
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    const wrapped = sg.wrap(handler, { method: 'default' })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } })
+
+    const call = mockMiddleware.execute.mock.calls[0]
+    expect(call[3]).toBeUndefined()
+  })
+
+  it('passes undefined units when WrapOptions is omitted entirely', async () => {
+    const handler = vi.fn().mockResolvedValue({ ok: true })
+    const wrapped = sg.wrap(handler)
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_test' } })
+
+    const call = mockMiddleware.execute.mock.calls[0]
+    expect(call[3]).toBeUndefined()
   })
 })

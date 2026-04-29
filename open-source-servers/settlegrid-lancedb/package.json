@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-lancedb",
+  "version": "1.0.0",
+  "description": "MCP server for LanceDB with SettleGrid billing. Manage tables, insert records, and perform vector similarity search on LanceDB cloud databases.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "lancedb",
+    "vector-database",
+    "vector-search",
+    "embeddings",
+    "similarity-search",
+    "ai",
+    "machine-learning",
+    "database",
+    "indexing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-lancedb"
+  }
+}

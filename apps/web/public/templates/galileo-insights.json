@@ -1,0 +1,52 @@
+{
+  "slug": "galileo-insights",
+  "name": "Galileo Insights",
+  "description": "MCP server for Galileo Insights with SettleGrid billing. Manage AI observability scorers, annotation templates, and datasets on the Galileo platform.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "ml-monitoring",
+    "galileo",
+    "ai-observability",
+    "llm-evaluation",
+    "scorers",
+    "annotations",
+    "datasets",
+    "monitoring",
+    "ai-quality",
+    "tracing"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-galileo-insights"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_annotation_template",
+    "get_dataset",
+    "get_dataset_content",
+    "get_scorer",
+    "list_annotation_templates",
+    "list_datasets",
+    "list_scorer_versions",
+    "list_scorers"
+  ],
+  "featured": false
+}

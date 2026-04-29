@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, asc, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { eq, and, desc, asc, ilike, or, sql, inArray, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews } from '@/lib/db/schema'
@@ -69,7 +69,23 @@ export async function GET(request: NextRequest) {
     const { q, category, limit, offset, sort, max_cost, min_rating, verified_only } = parsed.data
 
     // ─── Build WHERE conditions ─────────────────────────────────────────────
-    const conditions: SQL[] = [eq(tools.status, 'active')]
+    // P2.INTL2 marketplace inclusion rule (kept in sync with the marketplace
+    // UI at apps/web/src/app/marketplace/marketplace-content.tsx so the public
+    // discovery API and the marketplace UI never disagree about which tools
+    // are "discoverable"):
+    //   - 'active'   (live, callable)         — always included
+    //   - 'unclaimed' (indexed, discoverable) — always included
+    //   - 'draft'    (claimed, not yet monetized) — included only if the
+    //     developer opted in via tools.listedInMarketplace=true. Set true
+    //     by the claim flow; pre-P2.INTL2 drafts default to false via the
+    //     0001_listed_in_marketplace migration backfill.
+    // Canonical pure-function mirror: lib/marketplace-visibility.ts
+    const conditions: SQL[] = [
+      or(
+        inArray(tools.status, ['active', 'unclaimed']),
+        and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+      )!,
+    ]
 
     if (category) {
       conditions.push(eq(tools.category, category))
@@ -134,6 +150,7 @@ export async function GET(request: NextRequest) {
         description: tools.description,
         category: tools.category,
         tags: tools.tags,
+        status: tools.status,
         version: tools.currentVersion,
         pricing: tools.pricingConfig,
         invocations: tools.totalInvocations,
@@ -167,9 +184,10 @@ export async function GET(request: NextRequest) {
         description: t.description,
         category: t.category,
         tags: t.tags,
+        status: t.status,
         version: t.version,
-        pricing: t.pricing,
-        costCents,
+        pricing: t.status === 'active' ? t.pricing : null,
+        costCents: t.status === 'active' ? costCents : null,
         invocations: t.invocations,
         verified: t.verified,
         averageRating: Number(t.averageRating),

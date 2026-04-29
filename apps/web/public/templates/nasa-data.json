@@ -1,0 +1,41 @@
+{
+  "slug": "nasa-data",
+  "name": "NASA Open Data",
+  "description": "Astronomy photos, near-Earth objects, and image search.",
+  "version": "1.0.0",
+  "category": "research",
+  "tags": [
+    "nasa",
+    "space",
+    "astronomy",
+    "science"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nasa-data"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get-apod",
+    "get-neo",
+    "search-images"
+  ],
+  "featured": false
+}

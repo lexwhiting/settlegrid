@@ -1,0 +1,42 @@
+{
+  "slug": "portkey-prompts",
+  "name": "Portkey Prompts",
+  "description": "MCP server for Portkey Prompts with SettleGrid billing. Run and manage Portkey prompt templates directly from your application using the Portkey Prompt API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "prompt-engineering",
+    "portkey",
+    "prompts",
+    "llm",
+    "templates",
+    "generative-ai",
+    "openai",
+    "inference"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-portkey-prompts"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "run_prompt"
+  ],
+  "featured": false
+}

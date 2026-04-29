@@ -59,9 +59,20 @@ export class SettleGridError extends Error {
   /**
    * Serialize the error to a JSON-safe object suitable for API responses.
    *
-   * @returns An object with `error`, `code`, and `statusCode` fields.
+   * Default shape is ``{ error, code, statusCode }``; subclasses may
+   * override with a wholly different envelope when the protocol's spec
+   * literal demands a different body — see e.g.
+   * :class:`ProtocolNotYetSupportedError`. The return type is
+   * ``Record<string, unknown>`` rather than a strict object literal so
+   * that subclass overrides remain TypeScript-assignable; callers
+   * downstream (``rest.ts`` etc.) ``JSON.stringify`` the output and
+   * don't inspect fields directly.
+   *
+   * @returns A JSON-safe object — default shape has `error`, `code`,
+   *   and `statusCode` fields, but subclasses may surface a different
+   *   envelope.
    */
-  toJSON() {
+  toJSON(): Record<string, unknown> {
     return {
       error: this.message,
       code: this.code,
@@ -111,16 +122,71 @@ export class InvalidKeyError extends SettleGridError {
 export class InsufficientCreditsError extends SettleGridError {
   public readonly requiredCents: number
   public readonly availableCents: number
+  /**
+   * URL the consumer should visit to top up their credits. Defaults to
+   * the SettleGrid-hosted top-up page, but the API may override this
+   * per-tool (e.g. to link directly to the tool-specific funnel).
+   */
+  public readonly topUpUrl: string
 
-  constructor(requiredCents: number, availableCents: number) {
+  constructor(
+    requiredCents: number,
+    availableCents: number,
+    topUpUrl?: string | null
+  ) {
+    // Coalesce null / undefined / empty string to the default top-up URL.
+    // JS default-parameter syntax (`= 'default'`) only fires on `undefined`
+    // — explicit `null` would leak into the message as the literal string
+    // "null". Empty string is similarly a broken URL. `||` handles all
+    // three falsy cases correctly.
+    const resolvedTopUpUrl =
+      (typeof topUpUrl === 'string' && topUpUrl.length > 0
+        ? topUpUrl
+        : 'https://settlegrid.ai/top-up')
     super(
-      `Insufficient credits: need ${requiredCents} cents, have ${availableCents} cents. Top up at https://settlegrid.ai/top-up`,
+      `Insufficient credits: need ${requiredCents} cents, have ${availableCents} cents. Top up at ${resolvedTopUpUrl}`,
       'INSUFFICIENT_CREDITS',
       402
     )
     this.name = 'InsufficientCreditsError'
     this.requiredCents = requiredCents
     this.availableCents = availableCents
+    this.topUpUrl = resolvedTopUpUrl
+  }
+}
+
+/**
+ * Thrown when a consumer sets a `settlegrid-max-cost-cents` budget cap
+ * in tool-call metadata and the resolved cost of the invocation exceeds
+ * that cap. The call is rejected BEFORE the handler runs so the consumer
+ * is never charged for a tool they refused to pay for.
+ *
+ * **How to fix:** Either increase `settlegrid-max-cost-cents` (or omit it
+ * entirely to use the default cap) or use a cheaper invocation method.
+ * The `maxCents` and `requiredCents` properties tell you the exact delta.
+ *
+ * @example
+ * ```typescript
+ * catch (err) {
+ *   if (err instanceof BudgetExceededError) {
+ *     console.log(`Call would cost ${err.requiredCents}c but budget cap is ${err.maxCents}c`)
+ *   }
+ * }
+ * ```
+ */
+export class BudgetExceededError extends SettleGridError {
+  public readonly maxCents: number
+  public readonly requiredCents: number
+
+  constructor(maxCents: number, requiredCents: number) {
+    super(
+      `Budget exceeded: settlegrid-max-cost-cents is ${maxCents} but this call would cost ${requiredCents} cents. Increase the cap or omit the header.`,
+      'BUDGET_EXCEEDED',
+      402
+    )
+    this.name = 'BudgetExceededError'
+    this.maxCents = maxCents
+    this.requiredCents = requiredCents
   }
 }
 
@@ -185,6 +251,50 @@ export class RateLimitedError extends SettleGridError {
     this.name = 'RateLimitedError'
     this.retryAfterMs = retryAfterMs
   }
+
+  /**
+   * Retry delay in seconds, derived from `retryAfterMs`. Matches the
+   * `Retry-After: <seconds>` HTTP header format so callers can
+   * `Retry-After: ${err.retryAfterSeconds}` without doing the math
+   * themselves.
+   */
+  get retryAfterSeconds(): number {
+    return Math.floor(this.retryAfterMs / 1000)
+  }
+
+  /**
+   * Construct a RateLimitedError from a retry-delay value in seconds
+   * (matches the `Retry-After: <seconds>` HTTP header format and the
+   * P1.SDK3 spec wording "pass to RateLimitedError(retryAfterSeconds)").
+   *
+   * Input is validated: non-finite or negative values throw TypeError.
+   * Fractional inputs are floored to match HTTP's integer-seconds
+   * convention, which means the round-trip through the `retryAfterSeconds`
+   * getter is lossless (i.e. `fromSeconds(n).retryAfterSeconds === Math.floor(n)`).
+   *
+   * @throws {TypeError} if `retryAfterSeconds` is not a finite non-negative number
+   *
+   * @example
+   * ```typescript
+   * const seconds = parseInt(response.headers.get('retry-after'), 10)
+   * throw RateLimitedError.fromSeconds(seconds)
+   * ```
+   */
+  static fromSeconds(retryAfterSeconds: number): RateLimitedError {
+    if (
+      typeof retryAfterSeconds !== 'number' ||
+      !Number.isFinite(retryAfterSeconds) ||
+      retryAfterSeconds < 0
+    ) {
+      throw new TypeError(
+        `RateLimitedError.fromSeconds requires a finite non-negative number, got ${String(retryAfterSeconds)}`,
+      )
+    }
+    // Floor to integer seconds (RFC 7231 Retry-After is delta-seconds as
+    // an integer) before converting to ms. This makes the round-trip
+    // through the `retryAfterSeconds` getter lossless.
+    return new RateLimitedError(Math.floor(retryAfterSeconds) * 1000)
+  }
 }
 
 /**
@@ -237,5 +347,81 @@ export class TimeoutError extends SettleGridError {
       504
     )
     this.name = 'TimeoutError'
+  }
+}
+
+/**
+ * Thrown by an adapter when it has detected its protocol on a request
+ * but cannot yet validate it end-to-end — e.g. a detection stub that
+ * recognizes the envelope shape but has not yet been wired to the
+ * upstream issuer's verification API.
+ *
+ * The kernel maps this to a 503 with a structured "protocol detected,
+ * full validation pending" response so a buyer's client sees a clear
+ * "coming soon" signal rather than a silent 200 (looks like the tool
+ * accepted free / unverified payment) or a generic 500 (looks like a
+ * bug in our code).
+ *
+ * The `expectedAt` field carries a coarse timeline string (e.g.
+ * ``"2026-Q3"``) that the response surfaces back to the caller, and
+ * `protocol` carries the protocol name for logging / triage. Adapter
+ * implementations may attach a `landingUrl` so the response can link
+ * to a notify-me page.
+ */
+export class ProtocolNotYetSupportedError extends SettleGridError {
+  public readonly protocol: string
+  public readonly expectedAt: string
+  public readonly landingUrl?: string
+
+  constructor(options: {
+    protocol: string
+    /** Coarse timeline ("2026-Q3", "2026-12", "soon") shown to callers. */
+    expectedAt: string
+    /** Optional URL to the protocol's landing / notify-me page. */
+    landingUrl?: string
+    /** Optional override for the human message (defaults are reasonable). */
+    message?: string
+  }) {
+    const message =
+      options.message ??
+      `${options.protocol} detected. Full validation lands in ${options.expectedAt}.` +
+        (options.landingUrl ? ` See ${options.landingUrl}.` : '')
+    super(message, 'PROTOCOL_NOT_YET_SUPPORTED', 503)
+    this.name = 'ProtocolNotYetSupportedError'
+    this.protocol = options.protocol
+    this.expectedAt = options.expectedAt
+    this.landingUrl = options.landingUrl
+  }
+
+  /**
+   * Serializes to the spec-literal "protocol detected, validation
+   * pending" envelope shape:
+   *
+   * ```json
+   * {
+   *   "status":      "protocol_detected",
+   *   "protocol":    "<name>",
+   *   "message":     "<human message including landing URL>",
+   *   "expected_at": "<timeline>"
+   * }
+   * ```
+   *
+   * This deliberately overrides (does NOT extend) ``super.toJSON()``:
+   * the protocol-detected envelope is a different contract from the
+   * generic ``{ error, code, statusCode }`` shape used by other
+   * SettleGrid errors, and the response body emitted by adapter
+   * builders (e.g. ``mastercard-vi``'s 503 builder) must round-trip
+   * byte-for-byte through ``error.toJSON()`` — buyers and tooling
+   * authoring against the spec literal expect exactly these four
+   * fields. ``code`` / ``statusCode`` are still available as instance
+   * properties for in-process error handling.
+   */
+  override toJSON() {
+    return {
+      status: 'protocol_detected' as const,
+      protocol: this.protocol,
+      message: this.message,
+      expected_at: this.expectedAt,
+    }
   }
 }

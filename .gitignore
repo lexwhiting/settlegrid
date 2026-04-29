@@ -39,7 +39,23 @@ internal/
 *-private/
 .mcpregistry_*
 
+# Founder reference drafts — outreach replies, 1:1 templates, private
+# user notes. These contain real names and should never be committed.
+data/cold-outreach/
+data/users/
+
+# Word doc exports of master-plan content. These are regeneratable from
+# the .md sources and the proprietary versions live in private/master-plan/
+# rather than docs/master-plan/. Belt-and-suspenders preventive.
+docs/master-plan/*.docx
+
 # GridBot runtime state & logs
 scripts/gridbot/state.json
 scripts/gridbot/schedule-state.json
 scripts/gridbot/logs/*.jsonl
+
+# P4.6 outreach generator — local cache for GitHub + Claude API responses.
+# Per-recipient personalization (PII-adjacent) lives here; never check in.
+scripts/.cache/
+# P4.6 generated output — 100 emails with real names + addresses. DO NOT COMMIT.
+scripts/.outreach/

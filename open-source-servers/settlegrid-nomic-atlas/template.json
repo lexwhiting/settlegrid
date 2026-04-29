@@ -1,0 +1,47 @@
+{
+  "slug": "nomic-atlas",
+  "name": "Nomic Atlas",
+  "description": "MCP server for Nomic Atlas with SettleGrid billing. Generate text and image embeddings and parse or extract content from files using the Nomic Atlas API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "embeddings",
+    "text-embeddings",
+    "image-embeddings",
+    "nomic",
+    "atlas",
+    "nlp",
+    "machine-learning",
+    "vectors",
+    "semantic-search",
+    "file-parsing"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-nomic-atlas"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 3
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "embed_image",
+    "embed_text",
+    "extract_file",
+    "parse_file"
+  ],
+  "featured": false
+}

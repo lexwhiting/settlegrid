@@ -1,0 +1,51 @@
+{
+  "slug": "galileo",
+  "name": "Galileo",
+  "description": "MCP server for Galileo with SettleGrid billing. Interact with Galileo AI's project annotation, scorer management, and dataset operations via its REST API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "eval-tools",
+    "galileo",
+    "annotation",
+    "scorer",
+    "dataset",
+    "llm",
+    "evaluation",
+    "observability",
+    "ml",
+    "monitoring"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-galileo"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_annotation_rating",
+    "get_annotation_template",
+    "get_dataset",
+    "get_scorer",
+    "list_annotation_templates",
+    "list_datasets",
+    "list_scorer_versions",
+    "list_scorers"
+  ],
+  "featured": false
+}

@@ -70,7 +70,7 @@ export async function POST(
         currentRevenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
       })
       .from(invocations)
-      .where(sql`${invocations.toolId} = ${id} AND ${invocations.createdAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${invocations.toolId} = ${id} AND ${invocations.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .groupBy(invocations.method)
       .orderBy(sql`count(*) desc`)
       .limit(200)
@@ -80,6 +80,16 @@ export async function POST(
     for (const p of body.prices) {
       priceMap.set(p.method, p.cents)
     }
+
+    // Producer-audit #12 — detect method names in the proposal that don't
+    // exist in historical invocation data. Previously the route silently
+    // ignored them, which let developers receive confident-looking impact
+    // projections for methods that had never been called. Surface them so
+    // the dashboard can warn on typos and renamed endpoints.
+    const historicalMethods = new Set(methodStats.map((s) => s.method))
+    const unknownMethods = body.prices
+      .map((p) => p.method)
+      .filter((m) => !historicalMethods.has(m))
 
     // Calculate projected revenue
     let currentRevenue30d = 0
@@ -127,6 +137,7 @@ export async function POST(
       currentRevenue30d,
       impactPct: overallImpactPct,
       topAffectedMethods: topAffectedMethods.slice(0, 20),
+      unknownMethods,
     })
   } catch (error) {
     return internalErrorResponse(error)

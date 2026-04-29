@@ -44,6 +44,12 @@ vi.mock('@/lib/db/schema', () => ({
     userAgent: 'user_agent',
     createdAt: 'created_at',
   },
+  // Route also queries developers for the audit_logs feature gate
+  developers: {
+    id: 'id',
+    tier: 'tier',
+    isFoundingMember: 'is_founding_member',
+  },
 }))
 
 vi.mock('@/lib/middleware/auth', () => ({
@@ -81,7 +87,12 @@ function makeRequest(url: string): NextRequest {
 
 function resetMockDb() {
   for (const key of Object.keys(mockDb)) {
-    vi.mocked((mockDb as Record<string, ReturnType<typeof vi.fn>>)[key]).mockClear()
+    // mockReset() clears both call history AND prior mockImplementation
+    // calls. mockClear() (which we used to use) only clears history, which
+    // caused mockImplementation from one test to leak into the next (e.g.
+    // GET tests setting mockDb.where.mockImplementation polluted Export
+    // tests that didn't expect a custom where impl).
+    vi.mocked((mockDb as Record<string, ReturnType<typeof vi.fn>>)[key]).mockReset()
     vi.mocked((mockDb as Record<string, ReturnType<typeof vi.fn>>)[key]).mockReturnValue(mockDb)
   }
 }
@@ -91,19 +102,32 @@ describe('Audit Log (GET /api/audit-log)', () => {
     vi.clearAllMocks()
     resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    // The audit-log route does a tier check via developers query before the
+    // audit_logs queries. Use mockResolvedValueOnce so only the FIRST .limit()
+    // call returns the dev tier — subsequent .limit() calls (in the entries
+    // query chain) fall through to the default mockDb chain.
+    mockDb.limit.mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }])
   })
 
   it('returns paginated audit log entries', async () => {
-    // The audit-log route does two queries:
+    // The audit-log route does THREE queries:
+    // 0. Dev tier check: db.select(...).from(developers).where().limit(1)
+    //    — chains through to .limit(), handled by mockDb.limit.mockResolvedValueOnce
+    //      in beforeEach above
     // 1. Count: const [countResult] = await db.select({total}).from().where(and(...))
     //    — ends at .where(), destructures array
     // 2. Entries: await db.select({...}).from().where().orderBy().limit().offset()
     //    — ends at .offset()
-    // We use .where() calls to distinguish: call 1 resolves as array, call 2 chains
+    // We track .where() calls; call 1 is dev tier (chain on), call 2 is count
+    // (resolve array), call 3 is entries (chain on).
     let whereCallCount = 0
     mockDb.where.mockImplementation(() => {
       whereCallCount++
       if (whereCallCount === 1) {
+        // Dev tier query — chain to .limit()
+        return mockDb
+      }
+      if (whereCallCount === 2) {
         // Count query — return a thenable array-like
         return Promise.resolve([{ total: 2 }])
       }
@@ -148,8 +172,9 @@ describe('Audit Log (GET /api/audit-log)', () => {
     let whereCallCount = 0
     mockDb.where.mockImplementation(() => {
       whereCallCount++
-      if (whereCallCount === 1) return Promise.resolve([{ total: 1 }])
-      return mockDb
+      if (whereCallCount === 1) return mockDb // dev tier query
+      if (whereCallCount === 2) return Promise.resolve([{ total: 1 }]) // count
+      return mockDb // entries query
     })
 
     mockDb.offset.mockResolvedValueOnce([
@@ -177,8 +202,9 @@ describe('Audit Log (GET /api/audit-log)', () => {
     let whereCallCount = 0
     mockDb.where.mockImplementation(() => {
       whereCallCount++
-      if (whereCallCount === 1) return Promise.resolve([{ total: 1 }])
-      return mockDb
+      if (whereCallCount === 1) return mockDb // dev tier query
+      if (whereCallCount === 2) return Promise.resolve([{ total: 1 }]) // count
+      return mockDb // entries query
     })
 
     mockDb.offset.mockResolvedValueOnce([
@@ -222,6 +248,11 @@ describe('Audit Log Export (GET /api/audit-log/export)', () => {
     vi.clearAllMocks()
     resetMockDb()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
+    // The audit-log route does a tier check via developers query before the
+    // audit_logs queries. Use mockResolvedValueOnce so only the FIRST .limit()
+    // call returns the dev tier — subsequent .limit() calls (in the entries
+    // query chain) fall through to the default mockDb chain.
+    mockDb.limit.mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }])
   })
 
   it('returns CSV with header row when no entries', async () => {

@@ -143,3 +143,238 @@ describe('settlegrid namespace has all expected members', () => {
     expect(keys).toEqual(['extractApiKey', 'init', 'version'])
   })
 })
+
+// ─── Protocol adapter exports (P1.K1 surface lock) ──────────────────────────
+//
+// P1.K1 bundled the nine protocol adapters into @settlegrid/mcp and added
+// three value exports (protocolRegistry singleton, ProtocolRegistry class,
+// DETECTION_PRIORITY constant) plus seven type exports (ProtocolAdapter,
+// ProtocolName, IdentityType, PaymentType, PaymentContext, SettlementStatus,
+// SettlementResult) to the SDK's public surface. These assertions guard
+// against accidental removal of any of those exports during a future
+// refactor — if a re-export line is deleted from src/index.ts, the
+// corresponding assertion below fails at compile-time (type imports) or
+// runtime (value imports).
+
+describe('protocol adapter value exports (P1.K1)', () => {
+  it('exports protocolRegistry singleton with all 14 adapters registered', async () => {
+    const mod = await import('../index')
+    expect(mod.protocolRegistry).toBeDefined()
+    expect(typeof mod.protocolRegistry.register).toBe('function')
+    expect(typeof mod.protocolRegistry.detect).toBe('function')
+    expect(typeof mod.protocolRegistry.get).toBe('function')
+    expect(typeof mod.protocolRegistry.list).toBe('function')
+    expect(typeof mod.protocolRegistry.has).toBe('function')
+    expect(typeof mod.protocolRegistry.clear).toBe('function')
+    // P2.K2 — 9 brokered + 5 emerging (l402, alipay, kyapay, emvco, drain) = 14
+    expect(mod.protocolRegistry.list().length).toBe(14)
+  })
+
+  it('exports ProtocolRegistry class (constructable)', async () => {
+    const mod = await import('../index')
+    expect(typeof mod.ProtocolRegistry).toBe('function') // class is a function
+    const registry = new mod.ProtocolRegistry()
+    expect(registry).toBeInstanceOf(mod.ProtocolRegistry)
+    expect(registry.list()).toHaveLength(0) // fresh instance starts empty
+  })
+
+  it('exports DETECTION_PRIORITY constant with 14 protocol names', async () => {
+    const mod = await import('../index')
+    expect(Array.isArray(mod.DETECTION_PRIORITY)).toBe(true)
+    expect(mod.DETECTION_PRIORITY).toHaveLength(14)
+    // Priority order is load-bearing: most-specific first (mpp) → fallback last (mcp)
+    expect(mod.DETECTION_PRIORITY[0]).toBe('mpp')
+    expect(mod.DETECTION_PRIORITY[mod.DETECTION_PRIORITY.length - 1]).toBe('mcp')
+    // Every entry is one of the 14 known protocol names (9 brokered + 5 emerging)
+    const known = new Set([
+      'mcp',
+      'x402',
+      'ap2',
+      'visa-tap',
+      'mpp',
+      'ucp',
+      'acp',
+      'mastercard-vi',
+      'circle-nano',
+      'l402',
+      'alipay',
+      'kyapay',
+      'emvco',
+      'drain',
+    ])
+    for (const p of mod.DETECTION_PRIORITY) {
+      expect(known.has(p)).toBe(true)
+    }
+  })
+})
+
+describe('protocol adapter type exports (P1.K1, compile-time)', () => {
+  // These tests verify that the 7 adapter types are exported from the SDK
+  // by importing them and using each in a way that would fail compilation
+  // if the type were not reachable via the public re-export.
+
+  it('ProtocolAdapter interface is usable', async () => {
+    const mod = await import('../index')
+    // Construct a minimal mock adapter whose shape matches ProtocolAdapter.
+    // This call-site has no `as` cast and no `any` — TypeScript verifies
+    // the structural shape against the re-exported interface at compile time.
+    const mock: import('../index').ProtocolAdapter = {
+      name: 'mcp',
+      displayName: 'Mock MCP',
+      canHandle: () => true,
+      extractPaymentContext: async () => ({
+        protocol: 'mcp',
+        identity: { type: 'api-key', value: 'test' },
+        operation: { service: 'svc', method: 'm' },
+        payment: { type: 'credit-balance' },
+        requestId: 'req-1',
+      }),
+      formatResponse: () => new Response('ok'),
+      formatError: () => new Response('err', { status: 500 }),
+      // P1.K4: buildChallenge is now a required method on ProtocolAdapter
+      buildChallenge: () => ({
+        scheme: 'mock',
+        costCents: 0,
+      }),
+    }
+    expect(mock.name).toBe('mcp')
+    // Register in a fresh registry to verify the type is compatible with the class
+    const registry = new mod.ProtocolRegistry()
+    registry.register(mock)
+    expect(registry.has('mcp')).toBe(true)
+  })
+
+  it('ProtocolName union covers all 14 protocol slugs', async () => {
+    // Every valid ProtocolName literal is assignable to the exported type.
+    // If ProtocolName were not exported or its union shrank, this test
+    // would fail to compile.
+    const names: Array<import('../index').ProtocolName> = [
+      'mcp',
+      'x402',
+      'ap2',
+      'visa-tap',
+      'mpp',
+      'ucp',
+      'acp',
+      'mastercard-vi',
+      'circle-nano',
+      // P2.K2 — five emerging protocols
+      'l402',
+      'alipay',
+      'kyapay',
+      'emvco',
+      'drain',
+    ]
+    expect(names).toHaveLength(14)
+  })
+
+  it('PaymentContext, PaymentType, IdentityType are usable as value types', () => {
+    // All three types appear in this one literal — if any is missing,
+    // compilation fails.
+    const ctx: import('../index').PaymentContext = {
+      protocol: 'mcp',
+      identity: {
+        type: 'api-key' satisfies import('../index').IdentityType,
+        value: 'sg_live_abc',
+      },
+      operation: { service: 'svc', method: 'm' },
+      payment: {
+        type: 'credit-balance' satisfies import('../index').PaymentType,
+      },
+      requestId: 'req-1',
+    }
+    expect(ctx.protocol).toBe('mcp')
+    expect(ctx.identity.type).toBe('api-key')
+    expect(ctx.payment.type).toBe('credit-balance')
+  })
+
+  it('SettlementResult and SettlementStatus are usable as value types', () => {
+    const status: import('../index').SettlementStatus = 'settled'
+    const result: import('../index').SettlementResult = {
+      status,
+      operationId: 'op-1',
+      costCents: 10,
+      metadata: {
+        protocol: 'mcp',
+        latencyMs: 5,
+        settlementType: 'real-time',
+      },
+    }
+    expect(result.status).toBe('settled')
+    expect(result.costCents).toBe(10)
+    expect(result.metadata.settlementType).toBe('real-time')
+  })
+})
+
+// ─── P2.K4 exports (pin against accidental removal) ───────────────────────
+
+describe('P2.K4 lifecycle + MeterContext exports', () => {
+  it('exports the 4 lifecycle stub functions', async () => {
+    const mod = await import('../index')
+    expect(typeof mod.beginInvocation).toBe('function')
+    expect(typeof mod.settleInvocation).toBe('function')
+    expect(typeof mod.voidInvocation).toBe('function')
+    expect(typeof mod.heartbeat).toBe('function')
+  })
+
+  it('exports LIFECYCLE_NOT_IMPLEMENTED_MSG + LIFECYCLE_NOT_IMPLEMENTED_CODE constants', async () => {
+    const mod = await import('../index')
+    expect(mod.LIFECYCLE_NOT_IMPLEMENTED_MSG).toBe('NOT_IMPLEMENTED — see P3.K1')
+    expect(mod.LIFECYCLE_NOT_IMPLEMENTED_CODE).toBe('NOT_IMPLEMENTED')
+  })
+
+  it('MeterContext type accepts the full 6-field shape', () => {
+    const ctx: import('../index').MeterContext = {
+      apiKey: 'sg_live_abc',
+      sessionId: 'sess-1',
+      maxCostCents: 100,
+      metadata: { tag: 'x' },
+      headers: { 'x-api-key': 'sg_live_abc' },
+      mcpMeta: { 'settlegrid-method': 'search' },
+    }
+    expect(ctx.apiKey).toBe('sg_live_abc')
+    expect(ctx.maxCostCents).toBe(100)
+  })
+
+  it('MeterContext type accepts the all-fields-optional empty shape', () => {
+    const ctx: import('../index').MeterContext = {}
+    expect(ctx).toEqual({})
+  })
+
+  it('Invocation type accepts all 5 state-machine states', () => {
+    const states: Array<import('../index').Invocation['status']> = [
+      'pending',
+      'active',
+      'settled',
+      'voided',
+      'failed',
+    ]
+    // If a state is dropped from the union, this line fails to compile.
+    expect(states).toHaveLength(5)
+  })
+
+  it('BeginInvocationOptions and SettleInvocationOptions are exported', () => {
+    const begin: import('../index').BeginInvocationOptions = {
+      method: 'search',
+      units: 3,
+    }
+    const settle: import('../index').SettleInvocationOptions = {
+      costCents: 42,
+      metadata: { receipt: 'abc' },
+    }
+    expect(begin.method).toBe('search')
+    expect(settle.costCents).toBe(42)
+  })
+
+  it('SettleGridInstance has the 4 lifecycle methods', async () => {
+    const mod = await import('../index')
+    const sg = mod.settlegrid.init({
+      toolSlug: 't',
+      pricing: { defaultCostCents: 1 },
+    })
+    expect(typeof sg.beginInvocation).toBe('function')
+    expect(typeof sg.settleInvocation).toBe('function')
+    expect(typeof sg.voidInvocation).toBe('function')
+    expect(typeof sg.heartbeat).toBe('function')
+  })
+})

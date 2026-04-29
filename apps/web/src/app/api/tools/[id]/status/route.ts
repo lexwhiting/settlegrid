@@ -74,10 +74,15 @@ export async function PATCH(
       }
     }
 
+    // Producer-audit #7 — defense-in-depth: re-verify ownership in the
+    // UPDATE WHERE clause (not just the SELECT above) so a concurrent
+    // ownership change between SELECT and UPDATE can't let a non-owner
+    // flip status. Matches the pattern in
+    // /api/tools/[id]/route.ts (DELETE) and [id]/listed-in-marketplace.
     const [tool] = await db
       .update(tools)
       .set({ status: body.status, updatedAt: new Date() })
-      .where(eq(tools.id, id))
+      .where(and(eq(tools.id, id), eq(tools.developerId, auth.id)))
       .returning({
         id: tools.id,
         name: tools.name,
@@ -85,6 +90,13 @@ export async function PATCH(
         status: tools.status,
         updatedAt: tools.updatedAt,
       })
+
+    if (!tool) {
+      // Race: ownership changed between SELECT and UPDATE. Treat as 404
+      // so the caller re-fetches and sees the new state, same as the
+      // listed-in-marketplace route's handling.
+      return errorResponse('Tool not found.', 404, 'NOT_FOUND')
+    }
 
     // Audit log: tool status changed
     writeAuditLog({

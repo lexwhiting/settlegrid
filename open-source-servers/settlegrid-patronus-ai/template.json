@@ -1,0 +1,49 @@
+{
+  "slug": "patronus-ai",
+  "name": "Patronus Ai",
+  "description": "MCP server for Patronus AI with SettleGrid billing. Run AI output evaluations, manage experiments, and access datasets using the Patronus AI evaluation platform.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "eval-tools",
+    "ai-evaluation",
+    "llm",
+    "evaluation",
+    "experiments",
+    "datasets",
+    "patronus",
+    "ai-safety",
+    "ml-ops",
+    "quality-assurance"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-patronus-ai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_dataset",
+    "create_experiment",
+    "list_datasets",
+    "list_evaluators",
+    "list_experiments",
+    "run_evaluation"
+  ],
+  "featured": false
+}

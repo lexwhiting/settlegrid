@@ -1,0 +1,49 @@
+{
+  "slug": "snyk",
+  "name": "Snyk",
+  "description": "MCP server for Snyk with SettleGrid billing. Query Snyk security data including organizations, projects, and vulnerability issues via the Snyk API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "code-analysis",
+    "snyk",
+    "security",
+    "vulnerabilities",
+    "dependencies",
+    "devsecops",
+    "sca",
+    "issues",
+    "projects",
+    "organizations"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-snyk"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_current_user",
+    "get_project_issues",
+    "list_org_issues",
+    "list_orgs",
+    "list_projects"
+  ],
+  "featured": false
+}

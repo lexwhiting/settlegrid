@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-vespa-document-v1",
+  "version": "1.0.0",
+  "description": "MCP server for Vespa Document API with SettleGrid billing. Read, write, update, delete, and visit documents in a Vespa content cluster via the /document/v1 REST API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "vespa",
+    "search",
+    "document",
+    "vector-search",
+    "indexing",
+    "content",
+    "nosql",
+    "retrieval",
+    "crud",
+    "self-hosted"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-vespa-document-v1"
+  }
+}

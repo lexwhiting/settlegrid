@@ -12,7 +12,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         api_host: host,
         person_profiles: 'identified_only',
         capture_pageview: false,
-        advanced_disable_feature_flags: true,
+        advanced_disable_feature_flags: false,
       })
     }
   }, [])

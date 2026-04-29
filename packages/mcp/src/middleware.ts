@@ -8,21 +8,30 @@
  */
 
 import { LRUCache } from './cache'
-import { getMethodCost } from './config'
+import { resolveOperationCost } from './config'
 import {
+  BudgetExceededError,
   InsufficientCreditsError,
   InvalidKeyError,
   NetworkError,
+  RateLimitedError,
+  SettleGridError,
   SettleGridUnavailableError,
   TimeoutError,
+  ToolDisabledError,
+  ToolNotFoundError,
 } from './errors'
 import type {
+  GeneralizedPricingConfig,
   InvocationContext,
   MeterResponse,
   PricingConfig,
   ValidateKeyResponse,
 } from './types'
 import type { NormalizedConfig } from './config'
+import { TokenBucketRateLimiter } from './rate-limiter'
+import { CircuitBreaker } from './circuit-breaker'
+import { emitFirstBilledCall } from './telemetry'
 
 /**
  * Extract an API key from various sources in priority order:
@@ -78,61 +87,259 @@ export function extractApiKey(
   return null
 }
 
-/** HTTP client for SettleGrid API calls */
+/**
+ * HTTP client for SettleGrid API calls.
+ *
+ * Maps every HTTP status the SettleGrid API returns to a typed
+ * SettleGridError subclass so callers can catch precisely:
+ *
+ *   200          → returns parsed JSON body (or `null` for empty body)
+ *   401          → InvalidKeyError
+ *   402          → InsufficientCreditsError (requiredCents/availableCents
+ *                  pulled from response body when present)
+ *   403          → ToolDisabledError (slug from config.toolSlug)
+ *   404          → ToolNotFoundError (slug from config.toolSlug)
+ *   429          → RateLimitedError (retryAfterMs parsed from
+ *                  Retry-After header, defaulting to 60_000)
+ *   other 4xx/5xx → SettleGridUnavailableError with the original
+ *                  status code in the message
+ *   AbortError   → TimeoutError (config.timeoutMs)
+ *   network err  → NetworkError
+ *   200 + bad JSON → SettleGridUnavailableError (success path parse fail)
+ *
+ * Not exported directly. Reachable from outside the module ONLY via the
+ * `__internal__` namespace below — that mark makes the
+ * "exposed for tests, not public API" intent explicit at every call site.
+ */
+
+/** Resilience context constructed by createMiddleware, passed to apiCall */
+interface ResilienceContext {
+  rateLimiter: TokenBucketRateLimiter
+  circuitBreaker: CircuitBreaker
+  maxRetries: number
+}
+
 async function apiCall<T>(
   config: NormalizedConfig,
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  resilience?: ResilienceContext,
 ): Promise<T> {
-  const url = `${config.apiUrl}/api/sdk${path}`
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      const errorData = data as { error?: string; code?: string }
-      if (response.status === 401) {
-        throw new InvalidKeyError(errorData.error)
-      }
-      if (response.status === 402) {
-        throw new InsufficientCreditsError(0, 0)
-      }
-      throw new SettleGridUnavailableError(
-        errorData.error ?? `API returned ${response.status}`
-      )
-    }
-
-    return (await response.json()) as T
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new TimeoutError(config.timeoutMs)
-    }
-    if (
-      error instanceof InvalidKeyError ||
-      error instanceof InsufficientCreditsError ||
-      error instanceof SettleGridUnavailableError
-    ) {
-      throw error
-    }
-    throw new NetworkError(
-      error instanceof Error ? error.message : 'Unknown network error'
-    )
-  } finally {
-    clearTimeout(timeout)
+  // Pre-flight: rate limiter
+  if (resilience && !resilience.rateLimiter.tryConsume()) {
+    throw new RateLimitedError(resilience.rateLimiter.msPerToken)
   }
+
+  // Pre-flight: circuit breaker
+  if (resilience && !resilience.circuitBreaker.canExecute()) {
+    throw new SettleGridUnavailableError(
+      'Circuit breaker is open — too many consecutive API failures. Retry after cooldown period.',
+    )
+  }
+
+  // maxRetries is validated by Zod (min 0) on the normalizeConfig path,
+  // but manually constructed configs could pass a negative value.
+  // Math.max ensures at least one attempt so the "unreachable" throw
+  // at the end of the loop stays unreachable.
+  const maxAttempts = resilience ? Math.max(1, resilience.maxRetries + 1) : 1
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const url = `${config.apiUrl}/api/sdk${path}`
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), config.timeoutMs)
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        // 5xx with retries remaining: record failure and backoff
+        if (response.status >= 500 && resilience && attempt < maxAttempts - 1) {
+          resilience.circuitBreaker.recordFailure()
+          const delayMs = 1000 * Math.pow(2, attempt) // 1s, 2s, 4s
+          await new Promise<void>(r => setTimeout(r, delayMs))
+          continue
+        }
+
+        // 5xx on final attempt: record failure then fall through to error mapping
+        if (response.status >= 500 && resilience) {
+          resilience.circuitBreaker.recordFailure()
+        }
+
+        // Parse error body if possible — swallow parse failures so a
+        // non-JSON 4xx body still produces a useful typed error.
+        //
+        // The raw parsed value from `response.json()` could be ANY JSON type
+        // (object, array, null, number, string). The cast `as { error? }`
+        // is a TypeScript fiction — at runtime we MUST normalize to a plain
+        // object before destructuring, otherwise `null.error` would throw
+        // a TypeError which would then be wrapped in NetworkError, masking
+        // the real status code from the consumer.
+        const rawData = await response.json().catch(() => ({}))
+        const data: {
+          error?: string
+          code?: string
+          requiredCents?: number
+          availableCents?: number
+          topUpUrl?: string
+          retryAfterSeconds?: number
+        } =
+          rawData !== null &&
+          typeof rawData === 'object' &&
+          !Array.isArray(rawData)
+            ? (rawData as Record<string, unknown>)
+            : {}
+
+        // Status-code primary routing, with body.code as secondary
+        // discriminator for 403/404 (a 403 without `code: 'TOOL_DISABLED'`
+        // could be a CSRF rejection, IP block, or unrelated forbidden —
+        // we only claim it's a tool-disabled error when the server
+        // explicitly tells us so).
+        switch (response.status) {
+          case 401:
+            throw new InvalidKeyError(data.error)
+          case 402: {
+            // Server-provided topUpUrl might be any JSON type — typecheck
+            // before passing so non-string values don't reach the error's
+            // template literal (which would coerce to 'null', '[object Object]',
+            // etc. and end up in the consumer-facing error message).
+            const topUpUrl =
+              typeof data.topUpUrl === 'string' ? data.topUpUrl : undefined
+            throw new InsufficientCreditsError(
+              data.requiredCents ?? 0,
+              data.availableCents ?? 0,
+              topUpUrl,
+            )
+          }
+          case 403:
+            if (data.code === 'TOOL_DISABLED') {
+              throw new ToolDisabledError(config.toolSlug)
+            }
+            // Unknown 403 reason — surface as generic unavailable rather
+            // than mis-label as ToolDisabledError.
+            throw new SettleGridUnavailableError(
+              data.error ?? `API returned 403`,
+            )
+          case 404:
+            if (data.code === 'TOOL_NOT_FOUND') {
+              throw new ToolNotFoundError(config.toolSlug)
+            }
+            throw new SettleGridUnavailableError(
+              data.error ?? `API returned 404`,
+            )
+          case 429: {
+            // Retry delay resolution precedence:
+            //   1. Retry-After header (RFC 7231 delta-seconds)
+            //   2. body.retryAfterSeconds (SDK convention)
+            //   3. 60-second default
+            const header = response.headers.get('retry-after')
+            let retryAfterSeconds = 60
+            if (header !== null) {
+              const parsed = Number.parseInt(header, 10)
+              if (Number.isFinite(parsed) && parsed >= 0) {
+                retryAfterSeconds = parsed
+              }
+            } else if (
+              typeof data.retryAfterSeconds === 'number' &&
+              Number.isFinite(data.retryAfterSeconds) &&
+              data.retryAfterSeconds >= 0
+            ) {
+              retryAfterSeconds = data.retryAfterSeconds
+            }
+            // Matches the P1.SDK3 spec wording:
+            //   "pass to RateLimitedError(retryAfterSeconds)"
+            throw RateLimitedError.fromSeconds(retryAfterSeconds)
+          }
+          default:
+            throw new SettleGridUnavailableError(
+              data.error ?? `API returned ${response.status}`,
+            )
+        }
+      }
+
+      // Success: record in circuit breaker
+      if (resilience) {
+        resilience.circuitBreaker.recordSuccess()
+      }
+
+      // Successful response: handle empty body and JSON parse failures
+      // explicitly. `response.json()` throws SyntaxError on an empty body,
+      // which would otherwise fall through to the NetworkError catch-all.
+      const text = await response.text()
+      if (text.length === 0) {
+        return null as T
+      }
+      try {
+        return JSON.parse(text) as T
+      } catch (parseErr) {
+        // Bind the parse error so its message survives — debugging is much
+        // harder when "Unexpected token x in JSON at position 5" is thrown
+        // away in favor of a generic "body was not valid JSON".
+        const detail = parseErr instanceof Error ? `: ${parseErr.message}` : ''
+        throw new SettleGridUnavailableError(
+          `API returned ${response.status} but response body was not valid JSON${detail}`,
+        )
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (resilience) resilience.circuitBreaker.recordFailure()
+        throw new TimeoutError(config.timeoutMs)
+      }
+      // Re-throw any of our typed errors as-is (don't wrap them in
+      // NetworkError just because they bubble through this catch).
+      if (error instanceof SettleGridError) {
+        throw error
+      }
+      if (resilience) resilience.circuitBreaker.recordFailure()
+      throw new NetworkError(
+        error instanceof Error ? error.message : 'Unknown network error',
+      )
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  // Unreachable when maxAttempts >= 1, but TypeScript needs a return path
+  throw new SettleGridUnavailableError('All retry attempts exhausted')
 }
 
+/**
+ * Internal exports — exposed for unit testing only, NOT part of the
+ * public SDK surface.
+ *
+ * Test files import these via:
+ *
+ *   import { __internal__ } from '../middleware'
+ *   const { apiCall } = __internal__
+ *
+ * The `@internal` JSDoc tag is preserved on the namespace so tsup's DTS
+ * pipeline strips it from the published .d.ts, keeping the consumer-
+ * facing API surface unchanged.
+ *
+ * @internal
+ */
+export const __internal__ = { apiCall }
+
 /** Create the middleware pipeline */
-export function createMiddleware(config: NormalizedConfig, pricing: PricingConfig) {
+export function createMiddleware(
+  config: NormalizedConfig,
+  pricing: PricingConfig | GeneralizedPricingConfig,
+) {
   const cache = new LRUCache(1000, config.cacheTtlMs)
+
+  // Resilience features (activated when normalizeConfig has set the fields)
+  const resilience: ResilienceContext | undefined = config.maxRetries !== undefined ? {
+    rateLimiter: new TokenBucketRateLimiter(config.rateLimit ?? 100),
+    circuitBreaker: new CircuitBreaker(
+      config.circuitBreakerThreshold ?? 10,
+      config.circuitBreakerResetMs ?? 60_000,
+    ),
+    maxRetries: config.maxRetries,
+  } : undefined
 
   /** Validate an API key against the SettleGrid API (with caching) */
   async function validateKey(apiKey: string): Promise<ValidateKeyResponse> {
@@ -152,7 +359,7 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
     const result = await apiCall<ValidateKeyResponse>(config, '/validate-key', {
       apiKey,
       toolSlug: config.toolSlug,
-    })
+    }, resilience)
 
     // Cache successful validations
     if (result.valid) {
@@ -163,17 +370,39 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
         keyId: result.keyId,
         balanceCents: result.balanceCents,
       })
+    } else {
+      // Negative cache: store invalid results with shorter TTL so repeated
+      // invalid keys don't thrash the API on every call.
+      // Defensive fallbacks: the API might return { valid: false } without
+      // the other fields — runtime types don't match TS declarations.
+      cache.set(apiKey, {
+        valid: false,
+        consumerId: result.consumerId ?? '',
+        toolId: result.toolId ?? '',
+        keyId: result.keyId ?? '',
+        balanceCents: result.balanceCents ?? 0,
+      }, config.negativeCacheTtlMs ?? 30_000)
     }
 
     return result
   }
 
-  /** Check if consumer has sufficient credits for the method */
+  /**
+   * Check if consumer has sufficient credits for the method.
+   *
+   * Delegates cost resolution to `resolveOperationCost`, which supports
+   * all six pricing models (per-invocation, per-token, per-byte,
+   * per-second, tiered, outcome). The `units` argument is forwarded
+   * to the resolver and is required for anything other than
+   * per-invocation; omitting it in a unit-based model defaults the
+   * multiplier to 1 (equivalent to a one-unit call).
+   */
   function checkCredits(
     balanceCents: number,
-    method: string
+    method: string,
+    units?: number,
   ): { sufficient: boolean; costCents: number } {
-    const costCents = getMethodCost(pricing, method)
+    const costCents = resolveOperationCost(pricing, method, units)
     return {
       sufficient: balanceCents >= costCents,
       costCents,
@@ -192,7 +421,23 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
       method: context.method,
       costCents: context.costCents,
       latencyMs,
-    })
+    }, resilience)
+
+    // P4.1 — fire `first_billed_call` once per (toolSlug, consumerId)
+    // per process. Fire-and-forget; the helper handles dedupe and
+    // opt-out, and never throws. Optional-chain on `result?.success`
+    // (hostile-review H5) so an empty-body 200 from /meter
+    // (apiCall returns null on empty body) doesn't TypeError on
+    // dereference and break the meter() return path.
+    if (result?.success) {
+      void emitFirstBilledCall({
+        toolSlug: config.toolSlug,
+        consumerId: context.consumerId,
+        apiUrl: config.apiUrl,
+        method: context.method,
+        amountCents: context.costCents,
+      })
+    }
 
     // Invalidate cache to reflect new balance
     // We don't have the raw key here, but the balance will be stale
@@ -204,9 +449,57 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
   async function execute<T>(
     apiKey: string,
     method: string,
-    handler: () => Promise<T> | T
+    handler: () => Promise<T> | T,
+    units?: number,
+    metadata?: Record<string, unknown>,
   ): Promise<T> {
     const startTime = Date.now()
+
+    // 0a. Validate units (public API input — reject nonsense before it
+    // propagates into cost calculation). A NaN, Infinity, or negative
+    // units value would produce garbage costs downstream: negative
+    // costs would silently credit consumers, NaN costs would throw
+    // InsufficientCreditsError with NaN in the payload, and Infinity
+    // would always reject regardless of balance.
+    if (units !== undefined) {
+      if (typeof units !== 'number' || !Number.isFinite(units) || units < 0) {
+        throw new Error(
+          `Invalid units: ${String(units)}. ` +
+            'WrapOptions.units must be a finite non-negative number ' +
+            '(e.g. tokens, bytes, or seconds). ' +
+            'Omit the field to use the pricing model default.',
+        )
+      }
+    }
+
+    // 0b. Read the budget cap from MCP metadata (spec literal P1.SDK4:
+    // "check whether `context.metadata['settlegrid-max-cost-cents']` is
+    // set"). Validate: must be a finite non-negative integer — fractional
+    // cents don't make sense, negative cap would never trigger,
+    // NaN/Infinity would produce confusing behavior. The thrown Error
+    // carries a `code: 'INVALID_BUDGET_HEADER'` marker so REST
+    // middleware can detect it robustly (instead of matching on the
+    // error message prefix, which would break on localization /
+    // refactors and false-positive on consumer handler errors that
+    // happen to start with the same string).
+    const rawMaxCost = metadata?.['settlegrid-max-cost-cents']
+    let maxCostCents: number | undefined = undefined
+    if (rawMaxCost !== undefined) {
+      if (
+        typeof rawMaxCost !== 'number' ||
+        !Number.isInteger(rawMaxCost) ||
+        rawMaxCost < 0
+      ) {
+        const err = new Error(
+          `Invalid settlegrid-max-cost-cents: ${String(rawMaxCost)}. ` +
+            'Must be a finite non-negative integer representing cents. ' +
+            'Omit the header to disable the budget cap.',
+        )
+        ;(err as Error & { code?: string }).code = 'INVALID_BUDGET_HEADER'
+        throw err
+      }
+      maxCostCents = rawMaxCost
+    }
 
     // 1. Validate key
     const validation = await validateKey(apiKey)
@@ -214,10 +507,23 @@ export function createMiddleware(config: NormalizedConfig, pricing: PricingConfi
       throw new InvalidKeyError()
     }
 
-    // 2. Check credits
-    const { sufficient, costCents } = checkCredits(validation.balanceCents, method)
+    // 2. Check credits (threads units through to resolveOperationCost)
+    const { sufficient, costCents } = checkCredits(
+      validation.balanceCents,
+      method,
+      units,
+    )
     if (!sufficient) {
       throw new InsufficientCreditsError(costCents, validation.balanceCents)
+    }
+
+    // 2b. Enforce consumer budget cap BEFORE running the handler so the
+    // consumer is never charged for an invocation they refused to pay
+    // for. The resolved costCents from checkCredits is the full amount
+    // the server would charge (per-invocation default + per-token/byte
+    // multiplier, etc.).
+    if (maxCostCents !== undefined && costCents > maxCostCents) {
+      throw new BudgetExceededError(maxCostCents, costCents)
     }
 
     // 3. Execute the handler

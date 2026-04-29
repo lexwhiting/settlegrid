@@ -9,7 +9,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 export const metadata: Metadata = {
   title: 'Protocol Guides | SettleGrid',
   description:
-    'Explore the 15 AI payment protocols supported by SettleGrid — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN. One SDK, every protocol.',
+    "Explore the agent payment protocols SettleGrid supports — MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402 (Bitcoin Lightning), KYAPay, and the emerging ACTP (Alipay's Agentic Commerce Trust Protocol), EMVCo agent payments, and DRAIN. One SDK, multiple protocols.",
   alternates: { canonical: 'https://settlegrid.ai/learn/protocols' },
   keywords: [
     'AI payment protocols',
@@ -110,9 +110,12 @@ const PROTOCOLS: ProtocolCard[] = [
     borderColor: 'border-teal-800/30',
   },
   {
+    // Slug preserved as 'mastercard-agent-pay' for URL compatibility with
+    // existing external links; the display name has been updated to the
+    // canonical "Mastercard Verifiable Intent" per P1.MKT1 honest framing.
     slug: 'mastercard-agent-pay',
-    name: 'Mastercard Agent Pay',
-    fullName: 'Mastercard Agent Pay',
+    name: 'Mastercard Verifiable Intent',
+    fullName: 'Mastercard Verifiable Intent',
     backer: 'Mastercard',
     status: 'Pending',
     oneLiner: 'Verified intent-based payments preventing unauthorized agent spending.',
@@ -150,12 +153,14 @@ const PROTOCOLS: ProtocolCard[] = [
     borderColor: 'border-yellow-800/30',
   },
   {
+    // Slug preserved as 'alipay-trust' for URL compatibility; canonical
+    // spec name is "Agentic Commerce Trust Protocol" / ACTP.
     slug: 'alipay-trust',
-    name: 'Alipay Trust',
-    fullName: 'Alipay Trust Protocol',
+    name: 'ACTP',
+    fullName: 'Agentic Commerce Trust Protocol (Alipay / Ant Group)',
     backer: 'Ant Group / Alipay',
     status: 'Pending',
-    oneLiner: 'Delegated authorization for agentic commerce across 1.3B Alipay users.',
+    oneLiner: "Delegated authorization for agentic commerce across Alipay's user base.",
     color: 'bg-blue-500/10 text-blue-400 hover:border-blue-500/40',
     borderColor: 'border-blue-800/30',
   },
@@ -250,12 +255,12 @@ export default function ProtocolIndexPage() {
           <div className="text-center mb-12">
             <p className="text-sm font-semibold text-amber-400 tracking-wide uppercase mb-2">Protocol Guides</p>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-4">
-              One SDK. Fifteen Protocols. Zero Vendor Lock-in.
+              One SDK. Multiple Protocols. Zero Vendor Lock-in.
             </h1>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              SettleGrid supports every major AI payment protocol out of the box. Wrap your tool once and
+              SettleGrid supports the major AI agent payment protocols out of the box. Wrap your tool once and
               accept payments from agents across Anthropic, Google, Stripe, Visa, Mastercard, Coinbase,
-              OpenAI, Circle, Shopify, Lightning Labs, Ant Group, Skyfire, EMVCo, and Bittensor ecosystems.
+              OpenAI, Circle, Shopify, Lightning Labs, Ant Group, and Skyfire ecosystems.
             </p>
           </div>
 
