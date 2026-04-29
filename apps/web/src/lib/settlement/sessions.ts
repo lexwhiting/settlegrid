@@ -14,6 +14,7 @@ import { eq, and, sql, lt } from 'drizzle-orm'
 import { getRedis, tryRedis } from '@/lib/redis'
 import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
+import { recordSettlementEntryAsync } from './ledger'
 import type { SessionCreateParams, SessionState } from './types'
 import type {
   SessionHop,
@@ -450,6 +451,36 @@ export async function recordHop(
       updatedAt: new Date(),
     })
     .where(eq(workflowSessions.id, sessionId))
+
+  // P3.K4 — when the caller provides the unified-ledger-required
+  // fields, also write a settlement row. Best-effort: failures are
+  // logged via recordSettlementEntryAsync but do NOT bubble, so a
+  // ledger-write hiccup never breaks a successful hop record. The
+  // existing JSONB-append path remains authoritative for budget
+  // accounting.
+  if (
+    typeof input.rail === 'string' &&
+    input.rail.length > 0 &&
+    typeof input.protocol === 'string' &&
+    input.protocol.length > 0 &&
+    typeof input.accountId === 'string' &&
+    input.accountId.length > 0
+  ) {
+    recordSettlementEntryAsync({
+      invocationId: hopId,
+      sessionId,
+      rail: input.rail,
+      protocol: input.protocol,
+      amountCents: input.costCents,
+      currency: input.currency ?? 'USD',
+      takeBps: input.takeBps ?? 0,
+      status: 'pending',
+      externalRef: input.externalRef ?? null,
+      metadata: input.metadata ?? null,
+      accountId: input.accountId,
+      description: `Hop ${input.serviceId}/${input.method} via ${input.rail}/${input.protocol}`,
+    })
+  }
 
   const effectiveBudget = budget ?? 0
   const effectiveSpent = spent ?? input.costCents

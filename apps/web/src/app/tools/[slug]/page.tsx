@@ -3,12 +3,14 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
+import { SocialShare } from '@/components/ui/social-share'
 import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
 import { ReviewForm } from '@/components/storefront/review-form'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getCategoryBySlug } from '@/lib/categories'
+import { canPurchaseCredits } from '@/lib/marketplace-visibility'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -36,6 +38,15 @@ interface ToolData {
   developerName: string
   developerSlug: string | null
   category: string
+  /**
+   * P2.INTL2 — included in the response so the detail page can
+   * render differently for claimed-but-not-yet-monetized tools
+   * (status='draft' + listedInMarketplace=true). Without this field
+   * the page would show a broken "Purchase Credits" section for a
+   * tool that has no pricing configured yet.
+   */
+  status?: string
+  listedInMarketplace?: boolean
   currentVersion: string
   pricingConfig: {
     model?: string
@@ -126,7 +137,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const tool = await getToolData(slug)
-  if (!tool) return { title: 'Tool Not Found | SettleGrid' }
+  if (!tool) notFound()
 
   const description = tool.description
     ? `${tool.description.slice(0, 150)} — Available on SettleGrid with per-call pricing.`
@@ -181,14 +192,41 @@ export default async function ToolStorefrontPage({
     ? (tool.pricingConfig.defaultCostCents / 100).toFixed(4)
     : '0.01'
 
-  const jsonLdProduct = {
+  // Product JSON-LD removed — SettleGrid tools are digital services, not
+  // physical products. Using Product triggered Google Merchant Listings
+  // requirements (image, shippingDetails, hasMerchantReturnPolicy) that
+  // don't apply to software. The SoftwareApplication JSON-LD below covers
+  // the same ground without triggering those requirements. aggregateRating
+  // and review data have been merged into the SoftwareApplication block.
+
+  const jsonLdBreadcrumb = {
     '@context': 'https://schema.org',
-    '@type': 'Product',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Explore', item: 'https://settlegrid.ai/explore' },
+      ...(categoryDef
+        ? [{ '@type': 'ListItem', position: 2, name: categoryDef.name, item: `https://settlegrid.ai/explore/category/${tool.category}` }]
+        : []),
+      { '@type': 'ListItem', position: categoryDef ? 3 : 2, name: tool.name, item: `https://settlegrid.ai/tools/${tool.slug}` },
+    ],
+  }
+
+  // ─── SoftwareApplication JSON-LD ─────────────────────────────────────────
+
+  const jsonLdSoftwareApp = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
     name: tool.name,
     description: tool.description,
+    applicationCategory: categoryDef?.name ?? tool.category ?? 'DeveloperApplication',
+    operatingSystem: 'Any',
     url: `https://settlegrid.ai/tools/${tool.slug}`,
-    category: categoryDef?.name ?? tool.category,
-    brand: { '@type': 'Organization', name: tool.developerName },
+    image: 'https://settlegrid.ai/brand/og-image.png',
+    softwareVersion: tool.currentVersion,
+    author: {
+      '@type': 'Organization',
+      name: tool.developerName,
+    },
     offers: {
       '@type': 'Offer',
       price: priceUsd,
@@ -221,16 +259,53 @@ export default async function ToolStorefrontPage({
     }),
   }
 
-  const jsonLdBreadcrumb = {
+  // ─── FAQ entries ─────────────────────────────────────────────────────────
+
+  const hasFreeInvocations = (tool.pricingConfig.defaultCostCents ?? 0) === 0
+  const priceDisplay = tool.pricingConfig.defaultCostCents != null && tool.pricingConfig.defaultCostCents > 0
+    ? formatCents(tool.pricingConfig.defaultCostCents)
+    : 'free'
+
+  const faqEntries: { question: string; answer: string }[] = [
+    {
+      question: `How much does ${tool.name} cost?`,
+      answer: tool.pricingConfig.defaultCostCents != null && tool.pricingConfig.defaultCostCents > 0
+        ? `${tool.name} costs ${priceDisplay} per call on SettleGrid using the ${pricingModelLabel(pricingModel).toLowerCase()} pricing model. Credits never expire and you can buy more at any time.`
+        : `${tool.name} is currently free to use on SettleGrid. Pricing may change as the developer updates their configuration.`,
+    },
+    {
+      question: `How do I call ${tool.name} from my AI agent?`,
+      answer: `Install the SettleGrid SDK with \`npm install @settlegrid/mcp\`, then wrap your handler: \`const sg = settlegrid.init({ toolSlug: '${tool.slug}', pricing: { defaultCostCents: ${tool.pricingConfig.defaultCostCents ?? 5} } })\`. Use your API key in the \`x-api-key\` header when calling the tool endpoint. Full guide at settlegrid.ai/docs.`,
+    },
+    {
+      question: `What payment methods does ${tool.name} accept?`,
+      answer: 'SettleGrid\'s Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402 from Coinbase/Linux Foundation, Stripe MPP pending GA, AP2 from Google, ACP from OpenAI, UCP from Google+Shopify, Visa TAP, Mastercard Verifiable Intent, and Circle Nanopayments) and has detection adapters for 2 more (L402 on Bitcoin Lightning and Skyfire\'s KYAPay). Additional rails are tracked as their specs mature. Consumers can fund credits via Stripe.',
+    },
+    {
+      question: `Is ${tool.name} free to try?`,
+      answer: hasFreeInvocations
+        ? `Yes, ${tool.name} is currently free to use with no per-call cost. You can start using it immediately by creating a SettleGrid account and generating an API key.`
+        : `SettleGrid offers a free tier with 50,000 operations per month. You can buy credits starting at $5.00 to try ${tool.name}, and credits never expire.`,
+    },
+    {
+      question: `Who built ${tool.name}?`,
+      answer: tool.developerSlug
+        ? `${tool.name} was built by ${tool.developerName}. View their full profile and other tools at settlegrid.ai/dev/${tool.developerSlug}.`
+        : `${tool.name} was built by ${tool.developerName} and is available on the SettleGrid marketplace.`,
+    },
+  ]
+
+  const jsonLdFaq = {
     '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Explore', item: 'https://settlegrid.ai/explore' },
-      ...(categoryDef
-        ? [{ '@type': 'ListItem', position: 2, name: categoryDef.name, item: `https://settlegrid.ai/explore/category/${tool.category}` }]
-        : []),
-      { '@type': 'ListItem', position: categoryDef ? 3 : 2, name: tool.name, item: `https://settlegrid.ai/tools/${tool.slug}` },
-    ],
+    '@type': 'FAQPage',
+    mainEntity: faqEntries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: entry.answer,
+      },
+    })),
   }
 
   const changeTypeBadge = (type: string) => {
@@ -266,8 +341,9 @@ export default async function ToolStorefrontPage({
 
       <main className="flex-1 px-6 py-12">
         <div className="max-w-4xl mx-auto">
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdProduct) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdSoftwareApp) }} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }} />
 
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm text-gray-400 mb-6" aria-label="Breadcrumb">
@@ -281,6 +357,48 @@ export default async function ToolStorefrontPage({
             )}
             <span className="text-gray-100 truncate">{tool.name}</span>
           </nav>
+
+          {/*
+            P2.INTL2 — three detail-page states:
+              status='active'    → normal purchase flow
+              status='draft'     → claimed-but-not-yet-monetized (INTL2 corridor,
+                                   Stripe Connect unavailable) — show "Claimed"
+              status='unclaimed' → shadow-directory crawler entry, no developer
+                                   has claimed the listing — show "Unclaimed"
+                                   and invite the owner to claim. Critical not
+                                   to say "claimed" here: unclaimed tools have
+                                   NO developer, so the message would be false.
+          */}
+          {tool.status === 'draft' && (
+            <div
+              role="status"
+              className="mb-6 rounded-lg border border-amber-600/40 bg-amber-500/10 p-4"
+            >
+              <p className="text-sm font-semibold text-amber-300">
+                Claimed — pricing not yet configured
+              </p>
+              <p className="mt-1 text-xs text-amber-200/80">
+                The developer has claimed this listing but hasn&apos;t finished configuring payments
+                for their region yet. Buying credits isn&apos;t available for this tool today.
+              </p>
+            </div>
+          )}
+          {tool.status === 'unclaimed' && (
+            <div
+              role="status"
+              className="mb-6 rounded-lg border border-gray-500/40 bg-gray-500/10 p-4"
+            >
+              <p className="text-sm font-semibold text-gray-200">
+                Unclaimed listing
+              </p>
+              <p className="mt-1 text-xs text-gray-300/80">
+                This entry was indexed from a public directory and hasn&apos;t been claimed by its
+                maintainer yet. If you built this tool, you can{' '}
+                <Link href="/register" className="text-brand hover:underline">claim your listing</Link>{' '}
+                to set pricing and start receiving payouts.
+              </p>
+            </div>
+          )}
 
           <div className="mb-8">
             <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -420,7 +538,15 @@ export default async function ToolStorefrontPage({
               <div className="mt-8 bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
                 <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Quick Start</h2>
                 <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                  <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
+                  {canPurchaseCredits(tool.status ?? '') && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
+                  )}
+                  {tool.status === 'draft' && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Wait for pricing</strong> — This tool has been claimed but Stripe payments aren&apos;t live in the developer&apos;s region yet. Buying credits will unlock once they finish onboarding.</p>
+                  )}
+                  {tool.status === 'unclaimed' && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Listing not yet claimed</strong> — Purchases aren&apos;t available for unclaimed listings. If you maintain this tool, <Link href="/register" className="text-brand hover:underline">claim your listing</Link> to enable monetization.</p>
+                  )}
                   <p><strong className="text-gray-900 dark:text-gray-200">2. Get your API key</strong> — After purchasing, go to your <Link href="/consumer" className="text-brand hover:underline">Consumer Dashboard</Link> to generate an API key.</p>
                   <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
                 </div>
@@ -438,26 +564,56 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
 
             {/* Purchase sidebar */}
             <div>
-              <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-brand p-6 sticky top-8">
-                <h3 className="font-semibold text-indigo dark:text-gray-100 mb-4">Buy Credits</h3>
-                <div className="space-y-2 mb-6">
-                  {[
-                    { amount: 500, label: '$5.00' },
-                    { amount: 2000, label: '$20.00' },
-                    { amount: 5000, label: '$50.00' },
-                  ].map((tier) => (
-                    <BuyCreditsButton
-                      key={tier.amount}
-                      toolId={tool.id}
-                      amountCents={tier.amount}
-                      label={tier.label}
-                    />
-                  ))}
+              {canPurchaseCredits(tool.status ?? '') ? (
+                <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-brand p-6 sticky top-8">
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-4">Buy Credits</h3>
+                  <div className="space-y-2 mb-6">
+                    {[
+                      { amount: 500, label: '$5.00' },
+                      { amount: 2000, label: '$20.00' },
+                      { amount: 5000, label: '$50.00' },
+                    ].map((tier) => (
+                      <BuyCreditsButton
+                        key={tier.amount}
+                        toolId={tool.id}
+                        amountCents={tier.amount}
+                        label={tier.label}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    Credits never expire. You can purchase more at any time.
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  Credits never expire. You can purchase more at any time.
-                </p>
-              </div>
+              ) : tool.status === 'draft' ? (
+                // P2.INTL2 — placeholder for claimed draft tools in Stripe-unsupported
+                // corridors. Do not render <BuyCreditsButton> since the tool has no
+                // price yet and the checkout session would fail.
+                <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-dashed border-gray-400 dark:border-[#3A3D4E] p-6 sticky top-8">
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-2">Pricing coming soon</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    This tool has been claimed. The developer will enable purchases once Stripe
+                    payments are available in their region.
+                  </p>
+                </div>
+              ) : (
+                // P2.INTL2 — unclaimed shadow-directory listing. No developer owns
+                // it, so no Buy Credits, no "coming soon" promise — instead invite
+                // the maintainer to claim. We explicitly don't mention "the
+                // developer" here because there isn't one.
+                <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-dashed border-gray-400 dark:border-[#3A3D4E] p-6 sticky top-8">
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-2">Unclaimed listing</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Purchases aren&apos;t available until the maintainer claims this listing.
+                  </p>
+                  <Link
+                    href="/register"
+                    className="inline-block text-sm font-medium text-brand hover:underline"
+                  >
+                    Claim this listing &rarr;
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
@@ -568,6 +724,44 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                     A generic badge that links back to SettleGrid. Works in any project README.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Share Section */}
+          <div className="mt-8">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
+              <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-2">Share This Tool</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Help others discover {tool.name} on SettleGrid.
+              </p>
+              <SocialShare type="tool" toolName={tool.name} toolSlug={tool.slug} />
+            </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="mt-8">
+            <div className="bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
+              <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-6">Frequently Asked Questions</h2>
+              <div className="divide-y divide-gray-100 dark:divide-[#252836]">
+                {faqEntries.map((entry, i) => (
+                  <details key={i} className="group py-4 first:pt-0 last:pb-0">
+                    <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-brand transition-colors list-none [&::-webkit-details-marker]:hidden">
+                      <span>{entry.question}</span>
+                      <svg
+                        className="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform shrink-0 ml-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </summary>
+                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{entry.answer}</p>
+                  </details>
+                ))}
               </div>
             </div>
           </div>

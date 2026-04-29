@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { marketplaceInclusionSql } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -21,6 +22,11 @@ export async function GET(
 
     const { slug } = await params
 
+    // P2.INTL2 — use the canonical marketplace inclusion predicate so the
+    // detail route and the marketplace queries can't drift. Hostile-review
+    // hotfix: the previous hand-rolled predicate omitted status='unclaimed',
+    // which caused every unclaimed tool card in the marketplace grid to link
+    // to a 404 page.
     const results = await db
       .select({
         id: tools.id,
@@ -28,6 +34,8 @@ export async function GET(
         slug: tools.slug,
         description: tools.description,
         category: tools.category,
+        status: tools.status,
+        listedInMarketplace: tools.listedInMarketplace,
         currentVersion: tools.currentVersion,
         pricingConfig: tools.pricingConfig,
         developerName: developers.name,
@@ -35,7 +43,7 @@ export async function GET(
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
+      .where(and(eq(tools.slug, slug), marketplaceInclusionSql()))
       .limit(1)
 
     if (results.length === 0) {
@@ -102,6 +110,11 @@ export async function GET(
         slug: tool.slug,
         description: tool.description ?? '',
         category: tool.category ?? 'other',
+        // P2.INTL2 — the detail page renders differently when a tool is
+        // visible via the draft+listedInMarketplace path (no pricing yet).
+        // Without these fields the page would still show Buy Credits.
+        status: tool.status,
+        listedInMarketplace: tool.listedInMarketplace,
         currentVersion: tool.currentVersion,
         pricingConfig: tool.pricingConfig ?? { defaultCostCents: 0 },
         developerName: tool.developerName ?? 'Anonymous',

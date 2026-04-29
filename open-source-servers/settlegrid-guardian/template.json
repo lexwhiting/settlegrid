@@ -1,0 +1,40 @@
+{
+  "slug": "guardian",
+  "name": "The Guardian",
+  "description": "Search articles from The Guardian newspaper.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "news",
+    "guardian",
+    "uk-news",
+    "articles"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-guardian"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-articles",
+    "get-article",
+    "list-sections"
+  ],
+  "featured": false
+}

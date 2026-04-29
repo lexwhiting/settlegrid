@@ -14,6 +14,9 @@ export { registerAgent, resolveAgent, listAgentsByProvider, generateAgentFactsPr
 export type { RegisterAgentParams, AgentIdentity, TrustScoreInput } from './identity'
 export { AP2Adapter } from './adapters/ap2'
 export { TAPAdapter } from './adapters/tap'
+// P3.K1 — `./adapters/mpp` is now a re-export stub forwarding to the
+// canonical `@settlegrid/mcp` MPPAdapter. The path-level import here
+// is unchanged; only the implementation behind it moved.
 export { MPPAdapter } from './adapters/mpp'
 export { CircleNanoAdapter } from './adapters/circle-nano'
 export { UCPAdapter } from './adapters/ucp'

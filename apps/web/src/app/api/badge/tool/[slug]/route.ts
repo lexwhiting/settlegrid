@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
+import { getRedis, tryRedis } from '@/lib/redis'
 
 export const maxDuration = 10
+
+const BADGE_TTL_SECONDS = 90 * 24 * 60 * 60 // 90 days
+
+/** Fire-and-forget Redis tracking for badge impressions */
+function trackBadgeImpression(slug: string): void {
+  const date = new Date().toISOString().slice(0, 10)
+  void tryRedis(async () => {
+    const redis = getRedis()
+    const key = `badge:impressions:${slug}:${date}`
+    const pipeline = redis.pipeline()
+    pipeline.incr(key)
+    pipeline.expire(key, BADGE_TTL_SECONDS)
+    await pipeline.exec()
+  })
+}
 
 function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -58,6 +74,9 @@ export async function GET(
 ) {
   try {
     const { slug } = await params
+
+    // Fire-and-forget badge impression tracking
+    trackBadgeImpression(slug)
 
     const [tool] = await db
       .select({

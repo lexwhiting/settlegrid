@@ -59,6 +59,7 @@ const gatePublicPatterns = [
   '/auth/',
   '/tools',
   '/docs',
+  '/unsubscribe',
 ]
 
 function isGatePublicPath(pathname: string): boolean {
@@ -121,9 +122,13 @@ export default async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Supabase unreachable — treat as unauthenticated and continue
+  }
 
   // Protect dashboard routes: redirect unauthenticated users to /login
   // Only dashboard and consumer routes require auth — everything else is public

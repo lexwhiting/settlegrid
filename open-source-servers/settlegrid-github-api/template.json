@@ -1,0 +1,41 @@
+{
+  "slug": "github-api",
+  "name": "GitHub API",
+  "description": "Search repos, issues, and users on GitHub.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "github",
+    "git",
+    "repos",
+    "issues",
+    "developer"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-github-api"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-repos",
+    "get-repo",
+    "search-issues"
+  ],
+  "featured": false
+}

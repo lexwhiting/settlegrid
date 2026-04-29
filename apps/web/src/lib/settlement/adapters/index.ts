@@ -1,8 +1,38 @@
+/**
+ * @deprecated
+ *
+ * This Layer A adapter directory is scheduled for removal.
+ *
+ * The nine protocol adapters have been bundled into the SDK as of P1.K1 and
+ * are now maintained at `packages/mcp/src/adapters/` (published as part of
+ * `@settlegrid/mcp`). New code should import from `@settlegrid/mcp` instead:
+ *
+ * ```ts
+ * import {
+ *   protocolRegistry,
+ *   ProtocolRegistry,
+ *   DETECTION_PRIORITY,
+ *   type ProtocolAdapter,
+ *   type PaymentContext,
+ *   type SettlementResult,
+ * } from '@settlegrid/mcp'
+ * ```
+ *
+ * These files are retained for one more release cycle so any
+ * still-unmigrated callers keep working. The marketplace proxy never
+ * imported this directory and is unaffected; the full Layer A removal
+ * is tracked as P2.K1 (marketplace proxy unification). See
+ * `docs/phase-reports/PHASE_1_SUMMARY.md` §2b for the deferred-work ledger.
+ */
 import type { ProtocolAdapter, ProtocolName } from '../types'
 import { MCPAdapter } from './mcp'
 import { X402Adapter } from './x402'
 import { AP2Adapter } from './ap2'
 import { TAPAdapter } from './tap'
+// P3.K1 — the legacy Layer A MPP implementation was replaced by a
+// re-export stub that forwards to `@settlegrid/mcp`. This import
+// transitively resolves to the SDK's MPPAdapter. See `./mpp.ts`
+// header for the rationale.
 import { MPPAdapter } from './mpp'
 import { CircleNanoAdapter } from './circle-nano'
 import { MastercardVIAdapter } from './mastercard-vi'
@@ -11,6 +41,10 @@ import { UCPAdapter } from './ucp'
 
 // ─── Adapter Metrics ──────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `@settlegrid/mcp` instead (P1.K1). This Layer A copy will
+ * be removed in P2.K1; see the file header for the full migration note.
+ */
 export interface AdapterMetrics {
   readonly invocations: number
   readonly errors: number
@@ -18,6 +52,10 @@ export interface AdapterMetrics {
   readonly lastErrorAt: string | null
 }
 
+/**
+ * @deprecated Use `@settlegrid/mcp` instead (P1.K1). This Layer A copy will
+ * be removed in P2.K1; see the file header for the full migration note.
+ */
 export interface MetricsTracker {
   recordInvocation(protocol: ProtocolName): void
   recordError(protocol: ProtocolName): void
@@ -86,6 +124,10 @@ class AdapterMetricsTracker implements MetricsTracker {
 //   9. mcp          (fallback — any x-api-key or Bearer sg_ token)
 //
 
+/**
+ * @deprecated Use `DETECTION_PRIORITY` from `@settlegrid/mcp` instead (P1.K1).
+ * This Layer A copy will be removed in P2.K1.
+ */
 const DETECTION_PRIORITY: ProtocolName[] = [
   'mpp',
   'circle-nano',
@@ -100,6 +142,12 @@ const DETECTION_PRIORITY: ProtocolName[] = [
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `ProtocolRegistry` from `@settlegrid/mcp` instead (P1.K1).
+ * This Layer A copy will be removed in P2.K1; the canonical implementation
+ * lives at `packages/mcp/src/adapters/index.ts` and is published as part of
+ * the `@settlegrid/mcp` package.
+ */
 class ProtocolRegistry {
   private adapters = new Map<ProtocolName, ProtocolAdapter>()
 
@@ -150,14 +198,31 @@ class ProtocolRegistry {
 
 // ─── Singleton instances ──────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `protocolRegistry` from `@settlegrid/mcp` instead (P1.K1).
+ * This Layer A singleton will be removed in P2.K1.
+ */
 export const protocolRegistry = new ProtocolRegistry()
+/**
+ * @deprecated No direct replacement is re-exported from `@settlegrid/mcp` yet.
+ * If you need adapter metrics, construct your own instance via the
+ * `MetricsTracker` interface in `@settlegrid/mcp` or file a request to expose
+ * a public metrics surface. This Layer A singleton will be removed in P2.K1.
+ */
 export const adapterMetrics = new AdapterMetricsTracker()
 
 // ─── Auto-registration ───────────────────────────────────────────────────────
 // All nine adapters are registered when the settlement module loads.
 // Import order follows detection priority (most specific first).
 
-protocolRegistry.register(new MPPAdapter())
+// P3.K1 — the SDK's MPPAdapter types `extractPaymentContext` against
+// the broad 14-protocol `ProtocolName` union (includes l402, alipay,
+// etc.), whereas Layer A's narrower ProtocolAdapter interface uses
+// the 9-protocol union. The MPP adapter only ever returns
+// `protocol: 'mpp'` at runtime, so the drift is type-level only; the
+// cast acknowledges that. Layer A retires in P2.K1 and this cast
+// goes with it.
+protocolRegistry.register(new MPPAdapter() as unknown as ProtocolAdapter)
 protocolRegistry.register(new CircleNanoAdapter())
 protocolRegistry.register(new X402Adapter())
 protocolRegistry.register(new MastercardVIAdapter())

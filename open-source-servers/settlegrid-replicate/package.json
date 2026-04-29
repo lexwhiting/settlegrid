@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-replicate",
   "version": "1.0.0",
-  "description": "MCP server for Replicate with SettleGrid billing. Run open-source ML models in the cloud via Replicate API",
+  "description": "MCP server for Replicate with SettleGrid billing. Run, manage, and monitor AI model predictions on Replicate's cloud infrastructure.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -20,10 +20,14 @@
     "mcp",
     "ai",
     "replicate",
-    "ml",
     "ai",
+    "machine-learning",
+    "predictions",
     "models",
-    "inference"
+    "inference",
+    "image-generation",
+    "llm",
+    "fine-tuning"
   ],
   "license": "MIT",
   "repository": {

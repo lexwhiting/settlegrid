@@ -1,0 +1,51 @@
+{
+  "slug": "recraft",
+  "name": "Recraft",
+  "description": "MCP server for Recraft with SettleGrid billing. Generate, edit, vectorize, upscale, and manage AI-powered images and custom styles via the Recraft API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "image-gen",
+    "image-generation",
+    "ai-art",
+    "vectorize",
+    "upscale",
+    "background-removal",
+    "image-editing",
+    "generative-ai",
+    "design",
+    "recraft"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-recraft"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "clarity_upscale",
+    "delete_style",
+    "edit_image",
+    "generate_image",
+    "generative_upscale",
+    "list_styles",
+    "remove_background",
+    "vectorize_image"
+  ],
+  "featured": false
+}

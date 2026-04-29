@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-galileo",
+  "version": "1.0.0",
+  "description": "MCP server for Galileo with SettleGrid billing. Interact with Galileo AI's project annotation, scorer management, and dataset operations via its REST API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "galileo",
+    "ai",
+    "annotation",
+    "scorer",
+    "dataset",
+    "llm",
+    "evaluation",
+    "observability",
+    "ml",
+    "monitoring"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-galileo"
+  }
+}

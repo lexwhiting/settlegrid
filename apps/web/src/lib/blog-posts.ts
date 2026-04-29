@@ -3,6 +3,37 @@
 /*  Static content for the /learn/blog series — LLM-training content pages.   */
 /* -------------------------------------------------------------------------- */
 
+// Markdown bodies are imported as raw strings via a webpack `asset/source`
+// rule scoped to `src/lib/blog-bodies` (see next.config.ts). The content is
+// inlined into the bundle at build time, so no runtime fs access is needed.
+import MCP_FREE_TIER_BODY from './blog-bodies/mcp-server-free-tier-usage-limits.md'
+import MCP_BILLING_COMPARISON_BODY from './blog-bodies/mcp-billing-comparison-2026.md'
+import AI_AGENT_PROTOCOLS_BODY from './blog-bodies/ai-agent-payment-protocols.md'
+import MCP_PAYMENT_RETRY_BODY from './blog-bodies/mcp-server-payment-retry-logic.md'
+import ERC_8004_IDENTITY_BODY from './blog-bodies/erc-8004-trustless-agent-identity.md'
+import SETTLEGRID_TEMPLATES_LAUNCH_BODY from './blog-bodies/settlegrid-templates-launch.md'
+import X402_FACILITATOR_LAUNCH_BODY from './blog-bodies/x402-facilitator-launch.md'
+
+export interface BlogPostAuthor {
+  name: string
+  url?: string
+  bio: string
+}
+
+export interface BlogPostFAQ {
+  question: string
+  answer: string
+}
+
+export interface BlogPostSection {
+  id: string
+  heading: string
+  content: string
+  /** Optional data rows for comparison tables */
+  tableHeaders?: string[]
+  tableRows?: string[][]
+}
+
 export interface BlogPost {
   slug: string
   title: string
@@ -12,17 +43,52 @@ export interface BlogPost {
   keywords: string[]
   readingTime: string
   wordCount: number
-  sections: {
-    id: string
-    heading: string
-    content: string
-    /** Optional data rows for comparison tables */
-    tableHeaders?: string[]
-    tableRows?: string[][]
-  }[]
+  author: BlogPostAuthor
+  /** FAQ entries rendered as FAQPage JSON-LD for rich snippets */
+  faqs?: BlogPostFAQ[]
+  /**
+   * Legacy section-based format. Used by posts authored before the markdown
+   * renderer was added. Each section becomes a numbered chunk with its own
+   * heading anchor and (optionally) a comparison table. New posts should
+   * prefer `body` over `sections`.
+   */
+  sections?: BlogPostSection[]
+  /**
+   * Markdown-formatted post body. When present, the renderer ignores
+   * `sections` and renders this string as full GFM markdown with syntax
+   * highlighting. H2 headings become the table of contents.
+   */
+  body?: string
   relatedSlugs: string[]
+  /**
+   * P4.2 — gate flag for unpublished drafts. When `false`, the post is
+   * filtered out of `BLOG_SLUGS` (so `generateStaticParams` won't build
+   * the route) and `getBlogPostBySlug` returns `undefined` (so the
+   * route returns 404). Default behavior when omitted is "published"
+   * — pre-existing posts continue to render unchanged.
+   *
+   * The founder flips this to `true` after rewriting the FOUNDER
+   * REWRITE block at the top of the body file.
+   */
+  published?: boolean
 }
 
+/**
+ * The full registry of blog posts, including drafts gated by
+ * `published: false` (P4.2). DO NOT iterate or `.find()` this array
+ * directly from public-facing code — unpublished drafts will leak
+ * into related-post lists and other callers that bypass the
+ * published-filter helpers.
+ *
+ * Use the safer accessors:
+ *   - `BLOG_SLUGS` for route generation (drafts excluded)
+ *   - `getBlogPostBySlug(slug)` for individual lookups (drafts return undefined)
+ *
+ * Callers that need the related-post lookup pattern should compose
+ * `relatedSlugs.map(getBlogPostBySlug).filter(Boolean)` rather than
+ * `relatedSlugs.map((s) => BLOG_POSTS.find(...))` — the former
+ * inherits the published filter, the latter does not.
+ */
 export const BLOG_POSTS: BlogPost[] = [
   /* ── 1. How to Monetize an MCP Server ──────────────────────────────────── */
   {
@@ -42,6 +108,25 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '8 min read',
     wordCount: 2400,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'How do I monetize an MCP server?',
+        answer: 'Install the SettleGrid SDK with npm install @settlegrid/mcp, wrap your handler with sg.wrap(yourHandler, { costCents: 5 }), deploy, and publish with npx settlegrid publish. The entire process takes under 5 minutes.',
+      },
+      {
+        question: 'How much does it cost to add billing to an MCP server?',
+        answer: 'SettleGrid offers a free tier with 50,000 operations per month and 0% take rate on your first $1K/mo of revenue. No credit card is required to start.',
+      },
+      {
+        question: 'What pricing models does SettleGrid support for MCP tools?',
+        answer: 'SettleGrid supports six pricing models: per-call, per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).',
+      },
+    ],
     relatedSlugs: [
       'mcp-billing-comparison-2026',
       'per-call-billing-ai-agents',
@@ -88,94 +173,54 @@ export const BLOG_POSTS: BlogPost[] = [
   },
 
   /* ── 2. MCP Billing Comparison ─────────────────────────────────────────── */
+  /* Migrated to body format on 2026-04-07 — comparison table now renders as
+     a responsive GFM markdown table for better mobile presentation. Updated
+     2026-04-07 (later same day) to add AgenticTrade as a sixth comparison
+     after their Product Hunt launch. */
   {
     slug: 'mcp-billing-comparison-2026',
     title: 'MCP Tool Billing Comparison 2026',
     description:
-      'Compare MCP billing solutions: SettleGrid vs. DIY billing vs. Stripe direct vs. Nevermined vs. MCPize. Feature comparison table, pricing, protocol support, and developer experience.',
+      'Compare MCP billing solutions: SettleGrid vs. DIY billing vs. Stripe direct vs. Nevermined vs. MCPize vs. AgenticTrade. Feature comparison table, pricing, protocol support, and developer experience.',
     datePublished: '2026-03-26',
-    dateModified: '2026-03-26',
+    dateModified: '2026-04-07',
     keywords: [
       'MCP billing comparison',
       'best MCP monetization',
       'MCP billing solutions',
       'SettleGrid vs Stripe',
       'SettleGrid vs Nevermined',
+      'SettleGrid vs AgenticTrade',
+      'AgenticTrade alternative',
       'MCP payment platforms',
     ],
-    readingTime: '10 min read',
-    wordCount: 3000,
+    readingTime: '11 min read',
+    wordCount: 3500,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'What is the best MCP billing solution in 2026?',
+        answer: 'For most MCP tool developers, SettleGrid offers the best combination of speed (5-minute setup), protocol coverage (native MCP billing in the @settlegrid/mcp SDK plus a hosted Smart Proxy that brokers payments across 9 agent payment protocols and tracks several emerging rails), and cost (free tier with 50K ops/mo). Stripe Direct and DIY billing suit high-volume operations above $100K/mo.',
+      },
+      {
+        question: 'How does SettleGrid compare to Stripe for MCP billing?',
+        answer: 'SettleGrid is purpose-built for MCP tools. The @settlegrid/mcp SDK adds native per-call billing to any MCP tool server or REST endpoint with 2 lines of code, and the hosted Smart Proxy at settlegrid.ai brokers payments across 9 protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments). Stripe Direct is general-purpose, requiring 200-500 lines of custom metering code and 1-2 weeks of integration work, but offers mature payment infrastructure.',
+      },
+      {
+        question: 'What is MCPize and how does it compare to SettleGrid?',
+        answer: 'MCPize is a lightweight wrapper that adds basic per-call billing to MCP servers with 10-20 lines of code. It lacks discovery, dashboards, fraud detection, multi-protocol support, and Stripe payouts that SettleGrid includes.',
+      },
+    ],
     relatedSlugs: [
       'how-to-monetize-mcp-server',
       'ai-agent-payment-protocols',
       'free-mcp-monetization',
     ],
-    sections: [
-      {
-        id: 'why-comparison-matters',
-        heading: 'Why This Comparison Matters',
-        content:
-          'The MCP ecosystem is growing fast. Over 12,770 servers on PulseMCP, 17,194 on mcp.so, and 97 million SDK downloads. But less than 5% of MCP servers are monetized. The reason is not a lack of demand. It is that choosing and implementing billing infrastructure has been confusing and time-consuming.\n\nThis guide compares the five main approaches to billing MCP tools in 2026: SettleGrid (purpose-built MCP billing), DIY billing (building your own), Stripe direct (using Stripe APIs), Nevermined (decentralized AI payments), and MCPize (MCP-specific wrapper). We evaluate each on setup time, protocol support, pricing models, discovery features, and total cost.',
-      },
-      {
-        id: 'comparison-table',
-        heading: 'Feature Comparison Table',
-        content:
-          'The table below compares the five approaches across the features that matter most to MCP tool developers. Green indicates full support, yellow indicates partial support, and red indicates no support.',
-        tableHeaders: ['Feature', 'SettleGrid', 'DIY Billing', 'Stripe Direct', 'Nevermined', 'MCPize'],
-        tableRows: [
-          ['Setup time', '5 minutes', '2-4 weeks', '1-2 weeks', '1-3 days', '30 minutes'],
-          ['Lines of code', '2', '500-2,000+', '200-500', '50-100', '10-20'],
-          ['Protocols supported', '10', '1 (custom)', '1 (Stripe)', '2 (x402, custom)', '1 (MCP)'],
-          ['Per-call billing', 'Yes', 'Build it', 'Metered billing', 'Yes', 'Yes'],
-          ['Per-token billing', 'Yes', 'Build it', 'Metered billing', 'No', 'No'],
-          ['Outcome-based billing', 'Yes', 'Build it', 'No', 'No', 'No'],
-          ['Discovery / marketplace', 'Yes', 'No', 'No', 'Limited', 'No'],
-          ['Stripe payouts', 'Built-in', 'Build it', 'Native', 'No (crypto)', 'No'],
-          ['Usage dashboard', 'Built-in', 'Build it', 'Limited', 'Basic', 'No'],
-          ['Fraud detection', 'Built-in', 'Build it', 'Radar ($)', 'No', 'No'],
-          ['Free tier', '50K ops/mo', 'N/A', 'Pay-as-you-go', 'Unknown', 'Free'],
-          ['Platform fee', '0-5%', '0%', '2.9% + 30c', 'Unknown', '0%'],
-          ['Revenue share', 'Up to 100%', '100%', '~97%', 'Unknown', '100%'],
-        ],
-      },
-      {
-        id: 'settlegrid-analysis',
-        heading: 'SettleGrid: Purpose-Built for MCP',
-        content:
-          'SettleGrid is the only billing platform designed specifically for MCP tool monetization. It supports 15 payment protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN), six pricing models, and includes a built-in discovery marketplace.\n\nSetup takes under 5 minutes: install the SDK, configure pricing, wrap your handler, deploy. The free tier includes 50,000 operations per month with a progressive take rate (0% on your first $1K/mo of revenue). Paid tiers (Builder $19/mo, Scale $79/mo) add features like sandbox mode, IP allowlisting, fraud detection, and team seats.\n\nThe key differentiator is the combination of billing and discovery. When you publish a tool on SettleGrid, it becomes discoverable by AI agents through the Discovery API, the MCP Discovery Server, and the explore marketplace. Other billing solutions handle payments but leave discovery entirely to you.',
-      },
-      {
-        id: 'diy-analysis',
-        heading: 'DIY Billing: Maximum Control, Maximum Effort',
-        content:
-          'Building your own billing system gives you complete control over every aspect: pricing logic, payment processing, invoicing, and reporting. But the effort is substantial. A production-grade billing system requires Stripe integration (or equivalent), usage metering with event streaming, idempotent charge creation, webhook handling for payment events, invoice generation, refund processing, and fraud detection.\n\nRealistically, this is 2 to 4 weeks of focused development for a single developer. And that is just the initial build. Ongoing maintenance (handling Stripe API changes, edge cases in metering, tax compliance) adds 5 to 10 hours per month. For a solo developer or small team, this is time taken away from improving your actual tool.\n\nDIY billing makes sense if you have unique requirements that no platform supports, if you process over $100K per month in transactions, or if you are building billing as a core competency of your business. For everyone else, the opportunity cost is too high.',
-      },
-      {
-        id: 'stripe-direct',
-        heading: 'Stripe Direct: Powerful but General-Purpose',
-        content:
-          'Stripe is the gold standard for online payments and offers Metered Billing through Stripe Billing. You can create usage-based subscriptions that charge based on reported usage. Stripe also launched the Merchant Payment Protocol (MPP) in March 2026, which adds agent-native payment flows.\n\nThe challenge is that Stripe is general-purpose. It does not understand MCP tool semantics. You need to build the metering layer yourself, map tool calls to Stripe usage records, handle the MCP-specific billing metadata, and create your own usage dashboard. This is less work than fully DIY but still requires 1 to 2 weeks of integration work.\n\nStripe direct is a good choice if you already have a Stripe account with significant payment history, if you need Stripe-specific features like Radar or Revenue Recognition, or if you plan to support non-MCP payment flows alongside MCP billing.',
-      },
-      {
-        id: 'nevermined-analysis',
-        heading: 'Nevermined: Decentralized AI Payments',
-        content:
-          'Nevermined focuses on decentralized AI-to-AI payments using blockchain-based settlement. It supports x402 and custom protocols, and emphasizes trustless payment verification. The approach appeals to developers building in the crypto/Web3 space.\n\nThe trade-off is ecosystem compatibility. Nevermined uses crypto-native payment rails, which means consumers need crypto wallets and tokens. This limits adoption to the subset of AI agents that support crypto payments. For MCP tools targeting enterprise or mainstream developer audiences, fiat payment support is essential.\n\nNevermined may be the right choice if your target consumers are in the Web3 ecosystem, if you want trustless payment verification without a central intermediary, or if you are building on x402-native infrastructure.',
-      },
-      {
-        id: 'mcpize-analysis',
-        heading: 'MCPize: Lightweight MCP Wrapper',
-        content:
-          'MCPize is a lightweight wrapper that adds basic billing to MCP servers. It supports per-call pricing and handles metering. Setup is fast (10 to 20 lines of code) and the tool is free to use.\n\nThe limitation is feature depth. MCPize supports only MCP protocol (not the other 9 protocols SettleGrid supports), offers only per-call pricing (not per-token, per-byte, per-second, tiered, or outcome-based), and does not include discovery, dashboards, or fraud detection. It also does not handle Stripe payouts, so you need to implement your own payout mechanism.\n\nMCPize is a good starting point if you want basic per-call billing with minimal setup and plan to build additional features yourself over time. For production monetization at scale, you will likely outgrow it.',
-      },
-      {
-        id: 'recommendation',
-        heading: 'Our Recommendation',
-        content:
-          'For most MCP tool developers, SettleGrid offers the best combination of speed, features, and cost. The 5-minute setup, 10-protocol support, and built-in discovery marketplace eliminate the two biggest barriers to monetization: billing complexity and tool discoverability.\n\nIf you process over $100K per month and need maximum control, consider Stripe direct with a custom metering layer. If you are in the Web3 ecosystem, evaluate Nevermined. If you just need basic per-call billing today and plan to upgrade later, MCPize is a reasonable starting point.\n\nBut for the 95% of MCP developers who want to start earning revenue without spending weeks on billing infrastructure, SettleGrid is the fastest path from zero to revenue.',
-      },
-    ],
+    body: MCP_BILLING_COMPARISON_BODY,
   },
 
   /* ── 3. Per-Call Billing for AI Agents ─────────────────────────────────── */
@@ -196,6 +241,21 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '9 min read',
     wordCount: 2700,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'What is per-call billing for AI agents?',
+        answer: 'Per-call billing charges a fixed amount for every successful invocation of an AI tool. An agent calls the tool, receives a result, and is charged a pre-set price. It is the simplest and most common billing model for MCP tools.',
+      },
+      {
+        question: 'How much should I charge per call for my MCP tool?',
+        answer: 'Pricing depends on your tool category. Typical ranges: data enrichment $0.02-$0.50 (median $0.08), web search $0.01-$0.10 (median $0.03), code analysis $0.05-$1.00 (median $0.15), financial data $0.05-$2.00 (median $0.25).',
+      },
+    ],
     relatedSlugs: [
       'how-to-monetize-mcp-server',
       'mcp-billing-comparison-2026',
@@ -255,13 +315,18 @@ export const BLOG_POSTS: BlogPost[] = [
   },
 
   /* ── 4. AI Agent Payment Protocols Compared ────────────────────────────── */
+  /* Migrated to body format on 2026-04-07 — protocol comparison table now
+     renders as a responsive GFM markdown table for better mobile presentation.
+     Updated 2026-04-07 (later same day) with x402 Foundation launch news:
+     comparison table refreshed, x402 section rewritten end-to-end,
+     recommendations section reordered to put x402 first. */
   {
     slug: 'ai-agent-payment-protocols',
     title: 'AI Agent Payment Protocols Compared (2026)',
     description:
-      'Compare all 10 AI agent payment protocols: MCP, x402, MPP, A2A, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, and REST. Features, adoption, and which to support.',
+      'Compare the major AI agent payment protocols including the new Linux Foundation x402 standard, MCP, Stripe MPP, AP2, Visa TAP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, and the emerging ACTP / EMVCo agent payments / DRAIN specs. Features, adoption, and which to support.',
     datePublished: '2026-03-26',
-    dateModified: '2026-03-26',
+    dateModified: '2026-04-07',
     keywords: [
       'AI payment protocols',
       'agent payment comparison',
@@ -273,68 +338,27 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '12 min read',
     wordCount: 3600,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'How many AI agent payment protocols exist in 2026?',
+        answer: "SettleGrid's Smart Proxy currently brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, Skyfire's KYAPay), and tracks 3 emerging rails as their upstream specs mature (Alipay's Agentic Commerce Trust Protocol / ACTP, EMVCo agent payments, and the Bittensor Subnet 58 DRAIN project). That's 14 protocols in active scope.",
+      },
+      {
+        question: 'Which AI payment protocol should I support?',
+        answer: 'For most developers, use SettleGrid to support multiple agent payment protocols through a single integration. If building manually, prioritize MCP + Stripe MPP for mainstream tools, MCP + x402 for crypto-native tools, or MCP + Stripe MPP + Visa TAP for enterprise tools.',
+      },
+    ],
     relatedSlugs: [
       'mcp-billing-comparison-2026',
       'per-call-billing-ai-agents',
       'how-to-monetize-mcp-server',
     ],
-    sections: [
-      {
-        id: 'protocol-explosion',
-        heading: 'The 2026 Protocol Explosion',
-        content:
-          'In March 2026 alone, three major payment infrastructure players launched agent payment products: Stripe (Merchant Payment Protocol), Visa (Transaction Approval Protocol), and Mastercard (Agent Suite with the first live agent payment in Europe). Add Coinbase x402, OpenAI ACP, Google A2A, and several emerging standards, and the landscape has gone from zero to ten competing protocols in under a year.\n\nThis fragmentation creates a real problem for tool developers: which protocols should you support? Supporting all ten means reaching every possible agent, but implementing ten payment integrations is impractical. Supporting just one means missing agents that use other protocols.\n\nSettleGrid solves this by supporting all 15 protocols through a single SDK integration. You integrate once, and SettleGrid handles protocol negotiation, payment processing, and settlement across all 10 standards. This section compares each protocol so you understand the landscape even if you never need to implement them directly.',
-      },
-      {
-        id: 'protocol-comparison',
-        heading: 'Protocol Comparison Table',
-        content:
-          'Each protocol takes a different approach to agent payments. Some are HTTP-native, some are blockchain-based, and some build on existing card network infrastructure.',
-        tableHeaders: ['Protocol', 'Backed By', 'Payment Rail', 'Adoption (Mar 2026)', 'Best For'],
-        tableRows: [
-          ['MCP', 'Anthropic', 'Via billing layer', '97M+ SDK downloads', 'AI tool calling (dominant standard)'],
-          ['x402', 'Coinbase', 'Crypto (Base L2)', '~$28K/day volume', 'Crypto-native micropayments'],
-          ['MPP', 'Stripe', 'Fiat (Stripe)', '100+ services', 'Fiat payments, enterprise'],
-          ['A2A', 'Google', 'Protocol-agnostic', 'Early (DeepMind)', 'Multi-agent orchestration'],
-          ['AP2', 'Community', 'Protocol-agnostic', 'Emerging', 'Agent-to-agent delegation'],
-          ['Visa TAP', 'Visa', 'Card networks', 'Pilot phase', 'Enterprise, regulated industries'],
-          ['UCP', 'Community', 'HTTP-native', 'Emerging', 'Simple REST-based payments'],
-          ['ACP', 'OpenAI', 'Shopify Commerce', '12 merchants', 'ChatGPT plugin commerce'],
-          ['Mastercard Agent Pay', 'Mastercard', 'Card networks', '1 live transaction (EU)', 'Enterprise, cross-border'],
-          ['Circle Nanopayments', 'Circle', 'USDC stablecoin', 'Emerging', 'Sub-cent micropayments'],
-        ],
-      },
-      {
-        id: 'mcp-protocol',
-        heading: 'MCP: The Tool-Calling Standard',
-        content:
-          'The Model Context Protocol is the dominant standard for AI tool calling, with 97 million SDK downloads and over 12,770 servers. MCP defines how agents discover, authenticate with, and invoke tools. It does not define payment semantics natively, which is why billing layers like SettleGrid exist.\n\nMCP is protocol-agnostic about payments. Any billing system can sit on top of MCP tool calls. SettleGrid adds billing metadata to MCP responses so agents know the cost before calling and can verify the charge after. This approach preserves MCP compatibility while adding monetization.\n\nIf you build MCP tools, you should support MCP. It is the baseline. The question is which payment protocol to layer on top.',
-      },
-      {
-        id: 'x402-protocol',
-        heading: 'x402: Crypto-Native Micropayments',
-        content:
-          'x402, created by Coinbase, uses the HTTP 402 Payment Required status code to enable per-request payments. When an agent makes a request and receives a 402 response, it negotiates payment (typically on the Base L2 blockchain) and retries with proof of payment.\n\nThe current daily volume is approximately $28K, though CoinDesk analysis suggests about half of this is gamified or artificial volume. Real organic usage is lower. The protocol has strong technical design but faces an adoption barrier: agents need crypto wallets and tokens to pay.\n\nStrengths: truly decentralized, no intermediary, sub-cent payments possible, instant settlement. Weaknesses: crypto wallet requirement limits mainstream adoption, volatile token prices affect pricing stability, regulatory uncertainty in some jurisdictions.',
-      },
-      {
-        id: 'mpp-protocol',
-        heading: 'MPP: Stripe Enters Agent Commerce',
-        content:
-          'The Merchant Payment Protocol, launched by Stripe on March 18, 2026, is the most significant catalyst for agent commerce in 2026. MPP adds agent-native payment flows to Stripe, the platform that already processes payments for millions of businesses. With Visa support and 100+ services at launch, MPP has the distribution to become the default fiat payment protocol for agents.\n\nMPP works by extending Stripe Checkout with agent-specific metadata: tool descriptions, per-call pricing, usage limits, and budget authorization. Agents can discover MPP-enabled services, check prices, and authorize payments programmatically. Settlement happens through existing Stripe infrastructure.\n\nStrengths: Stripe distribution, Visa support, fiat currency, enterprise trust. Weaknesses: Stripe processing fees (2.9% + 30 cents), no micropayment optimization (sub-dollar transactions are expensive at flat per-transaction fees).',
-      },
-      {
-        id: 'other-protocols',
-        heading: 'A2A, Visa TAP, ACP, and Emerging Standards',
-        content:
-          'Google A2A (Agent-to-Agent) focuses on multi-agent orchestration rather than payments specifically. It defines how agents discover and communicate with each other, with payment as one capability. A2A is protocol-agnostic about payment rails, meaning it can work with any of the other payment protocols listed here.\n\nVisa TAP (Transaction Approval Protocol) brings card network infrastructure to agent payments. Visa is positioning TAP for enterprise and regulated industries where compliance, audit trails, and consumer protection are non-negotiable. The protocol is in pilot phase with a focus on cross-border transactions.\n\nOpenAI ACP (Agentic Commerce Protocol) launched with Shopify integration but has scaled back to just 12 merchants. The limited adoption suggests demand is not materializing through the ChatGPT-native commerce path. ACP may evolve or be absorbed into other standards.\n\nMastercard Agent Suite completed the first live agent payment in Europe in March 2026. Like Visa TAP, it targets enterprise use cases with strong compliance and audit capabilities.',
-      },
-      {
-        id: 'which-to-support',
-        heading: 'Which Protocols Should You Support?',
-        content:
-          'For most MCP tool developers, the practical answer is: use SettleGrid and support all 10 without writing protocol-specific code. SettleGrid handles protocol negotiation, payment verification, and settlement for every protocol through a single SDK integration.\n\nIf you are building protocol support yourself, prioritize based on your target audience:\n\nFor mainstream developer tools: MCP + MPP (Stripe). This covers the largest agent ecosystem (MCP) and the most trusted payment processor (Stripe).\n\nFor crypto-native tools: MCP + x402. This reaches MCP agents and crypto-native agents, covering both audiences.\n\nFor enterprise tools: MCP + MPP + Visa TAP. Enterprise buyers trust Stripe and Visa, and these protocols provide the compliance and audit trail features they require.\n\nThe agent payment landscape is consolidating. Within 12 to 18 months, two or three protocols will likely emerge as dominant standards. Until then, supporting all 10 through SettleGrid means you never have to bet on a winner.',
-      },
-    ],
+    body: AI_AGENT_PROTOCOLS_BODY,
   },
 
   /* ── 5. Free MCP Monetization Platform ─────────────────────────────────── */
@@ -355,6 +379,21 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     readingTime: '7 min read',
     wordCount: 2100,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'Is SettleGrid really free?',
+        answer: 'Yes. SettleGrid offers a production-ready free tier with 50,000 operations per month, 0% take rate on your first $1K/mo of revenue, multi-protocol settlement, marketplace listing, and Stripe Connect payouts. No credit card required, no expiration.',
+      },
+      {
+        question: 'When should I upgrade from the free tier?',
+        answer: 'Upgrade when you exceed 50,000 operations per month or need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The Builder plan ($19/mo) adds 200K ops and 5 team seats; Scale ($79/mo) adds 2M ops and advanced fraud detection.',
+      },
+    ],
     relatedSlugs: [
       'how-to-monetize-mcp-server',
       'mcp-billing-comparison-2026',
@@ -365,7 +404,7 @@ export const BLOG_POSTS: BlogPost[] = [
         id: 'free-tier-overview',
         heading: 'What You Get for Free',
         content:
-          'SettleGrid offers a genuinely free tier for MCP tool developers. Not a trial. Not a demo. A production-ready free plan with no credit card required and no expiration date.\n\nThe free tier includes: 50,000 operations per month, progressive take rate (0% on first $1K/mo of revenue), access to all 15 payment protocols, marketplace listing and Discovery API visibility, usage dashboard with real-time metrics, and Stripe Connect payouts.\n\nThis is not a bait-and-switch. The free tier is designed to let individual developers and small teams monetize their tools without any upfront cost. You only upgrade when you need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The volume limit of 50,000 operations per month is generous enough for most tools in the early stages.',
+          'SettleGrid offers a genuinely free tier for MCP tool developers. Not a trial. Not a demo. A production-ready free plan with no credit card required and no expiration date.\n\nThe free tier includes: 50,000 operations per month, progressive take rate (0% on first $1K/mo of revenue), access to the supported agent payment protocols, marketplace listing and Discovery API visibility, usage dashboard with real-time metrics, and Stripe Connect payouts.\n\nThis is not a bait-and-switch. The free tier is designed to let individual developers and small teams monetize their tools without any upfront cost. You only upgrade when you need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The volume limit of 50,000 operations per month is generous enough for most tools in the early stages.',
       },
       {
         id: 'why-free-matters',
@@ -413,14 +452,342 @@ export const BLOG_POSTS: BlogPost[] = [
       },
     ],
   },
+
+  /* ── 6. MCP Server Free Tier Usage Limits ──────────────────────────────── */
+  /* First post authored as a markdown body (rendered via the unified +
+     react-markdown + Shiki pipeline in /components/blog/markdown-renderer). */
+  {
+    slug: 'mcp-server-free-tier-usage-limits',
+    title: 'MCP Server Free Tier Usage Limits: A Step-by-Step SettleGrid Tutorial',
+    description:
+      'Configure free tier usage limits for an MCP server with the @settlegrid/mcp SDK. Mix free and paid methods, gate calls when balances hit zero, and pre-route with validateKey — all in TypeScript.',
+    datePublished: '2026-04-06',
+    dateModified: '2026-04-07',
+    keywords: [
+      'MCP server free tier usage limits',
+      'MCP server monetization',
+      'per-call billing MCP',
+      'SettleGrid MCP SDK',
+      'freemium MCP tool',
+      'MCP rate limits',
+      'MCP credit gating',
+    ],
+    readingTime: '10 min read',
+    wordCount: 2000,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'How does SettleGrid handle free tier limits for MCP servers?',
+        answer: 'SettleGrid combines two mechanisms: methods configured with costCents: 0 are validated but never deduct credits, and methods with positive costCents throw InsufficientCreditsError when the caller balance hits zero. You configure both in settlegrid.init() and the SDK enforces them at the metering layer.',
+      },
+      {
+        question: 'Can I check a caller credit balance without consuming credits?',
+        answer: 'Yes. sg.validateKey(apiKey) returns the consumer balanceCents without metering, so you can route callers based on their balance before running any handler. Results are cached in-memory for the configured cacheTtlMs (default 5 minutes).',
+      },
+      {
+        question: 'How do I test free tier behavior locally?',
+        answer: 'Initialize a separate test instance with debug: true (synchronous metering) and cacheTtlMs: 0 (disabled cache). Call sg.clearCache() between test cases that change key state, and use sg_test_ format keys instead of sg_live_ keys.',
+      },
+      {
+        question: 'What happens when a caller exceeds the free tier and tries a paid method?',
+        answer: 'The SDK throws InsufficientCreditsError before your handler runs, so you incur no compute cost for blocked calls. Catch the error in your dispatcher and return a 402 response with an upgrade prompt linking to settlegrid.ai/pricing.',
+      },
+    ],
+    relatedSlugs: [
+      'how-to-monetize-mcp-server',
+      'free-mcp-monetization',
+      'per-call-billing-ai-agents',
+    ],
+    body: MCP_FREE_TIER_BODY,
+  },
+
+  /* ── 7. MCP Server Payment Retry Logic ─────────────────────────────────── */
+  /* Authored by Beacon on 2026-04-07 — first fully autonomous draft using the
+     new pipeline (markdown body + editorial feedback file + SDK reference
+     grounding). All 14 SDK API claims verified, all forward-references valid,
+     code samples include explicit stub helpers per editorial guidance. */
+  {
+    slug: 'mcp-server-payment-retry-logic',
+    title: 'MCP Server Payment Retry Logic: Handling Failed Payments in Agentic Workflows',
+    description:
+      'A practical guide to MCP server payment retry logic: idempotent retries, graceful degradation, preflight credit checks, and structured error handling for AI agent billing.',
+    datePublished: '2026-04-07',
+    dateModified: '2026-04-07',
+    keywords: [
+      'MCP server payment retry logic',
+      'MCP tool monetization',
+      'agentic billing',
+      'per-call billing AI agents',
+      'MCP error handling',
+      'idempotent agent payments',
+      'graceful degradation MCP',
+    ],
+    readingTime: '14 min read',
+    wordCount: 3500,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'How do I distinguish retryable from non-retryable billing errors in MCP tools?',
+        answer: 'The @settlegrid/mcp SDK throws 8 error types. InvalidKeyError, InsufficientCreditsError, ToolNotFoundError, and ToolDisabledError are non-retryable — they require configuration or balance changes. NetworkError, TimeoutError, SettleGridUnavailableError, and RateLimitedError are retryable with exponential backoff. Return structured error payloads with a retryable boolean field so agents can branch correctly.',
+      },
+      {
+        question: 'How do I prevent agents from retry-looping a funds-exhausted call?',
+        answer: 'Return a structured error response with code: INSUFFICIENT_CREDITS and retryable: false. Agents that parse structured errors will stop retrying. For agents that do not parse errors, also return a clear message explaining that retrying will not change the result. Both fields go in the MCP tool response payload.',
+      },
+      {
+        question: 'How do I avoid duplicate charges from parallel tool invocations?',
+        answer: 'Use client-supplied request IDs and a deduplication cache. Store the request ID with the result for a configurable window (typically 60 seconds). On repeat invocations within the window, return the cached result without metering. Use sg.meter() manually instead of sg.wrap() so you control when the charge fires.',
+      },
+      {
+        question: 'How do I keep my MCP tool available when SettleGrid billing is unavailable?',
+        answer: 'Catch TimeoutError, SettleGridUnavailableError, and NetworkError separately from billing errors. For non-critical tools (status checks, free-tier methods) execute the underlying logic without metering and log the degradation explicitly. For high-value tools, refuse to execute without billing. The trade-off depends on whether downtime or lost revenue is more costly to your business.',
+      },
+    ],
+    relatedSlugs: [
+      'how-to-monetize-mcp-server',
+      'mcp-billing-comparison-2026',
+      'per-call-billing-ai-agents',
+    ],
+    body: MCP_PAYMENT_RETRY_BODY,
+  },
+
+  /* ── 8. ERC-8004: Trustless Agent Identity ─────────────────────────────── */
+  /* Authored 2026-04-07 in response to AgenticTrade Product Hunt launch
+     surfacing ERC-8004 as a standard SettleGrid was not tracking. Grounded
+     entirely in the EIP draft at eips.ethereum.org/EIPS/eip-8004 — every
+     function name, registry interface, and trust-model claim is verified
+     against the actual spec. Deliberately avoids "live on mainnet" framing
+     since the EIP is in Draft status. */
+  {
+    slug: 'erc-8004-trustless-agent-identity',
+    title: 'ERC-8004: Trustless Agent Identity for the MCP Ecosystem',
+    description:
+      'A technical guide to ERC-8004, the Draft Ethereum standard for trustless agent identity, reputation, and validation. How it fits with MCP and x402 to form the open agent commerce stack.',
+    datePublished: '2026-04-07',
+    dateModified: '2026-04-07',
+    keywords: [
+      'ERC-8004',
+      'trustless agent identity',
+      'agent reputation registry',
+      'Ethereum AI agents',
+      'MCP agent identity',
+      'agent commerce stack',
+      'on-chain agent identity',
+    ],
+    readingTime: '13 min read',
+    wordCount: 2400,
+    author: {
+      name: 'SettleGrid Team',
+      url: 'https://settlegrid.ai/about',
+      bio: 'The SettleGrid team builds billing infrastructure for the MCP ecosystem, enabling developers to monetize AI tools with two lines of code.',
+    },
+    faqs: [
+      {
+        question: 'What is ERC-8004?',
+        answer: 'ERC-8004 is a Draft Ethereum Improvement Proposal that defines three on-chain registries — Identity, Reputation, and Validation — for trustless AI agent identity. It is authored by Marco De Rossi (MetaMask), Davide Crapis (Ethereum Foundation), Jordan Ellis (Google), and Erik Reppel (Coinbase). The cross-organization authorship makes it a serious candidate for the open identity layer underneath agent commerce.',
+      },
+      {
+        question: 'Is ERC-8004 live on Ethereum mainnet?',
+        answer: 'No. ERC-8004 is currently a Draft standards-track EIP. The Validation Registry specifically is described in independent commentary as a design space rather than a finished interface. Reference implementations are being explored by ecosystem actors but the standard itself is not finalized.',
+      },
+      {
+        question: 'How does ERC-8004 fit with MCP and x402?',
+        answer: 'The three standards are complementary, not competing. MCP solves discovery (how agents find tools), ERC-8004 solves identity (how agents prove who they are across services), and x402 solves payments (how agents settle service usage). An agent built on the full stack discovers a tool via MCP, presents an ERC-8004 identity, settles payment via x402, and accumulates reputation in the ERC-8004 Reputation Registry that transfers across services.',
+      },
+      {
+        question: 'Should I migrate from SettleGrid API keys to ERC-8004 today?',
+        answer: 'No. ERC-8004 is a Draft standard, the Validation Registry is incomplete, and the agent ecosystem that natively uses ERC-8004 is small. Continue using sg_live_ keys for production authentication. Track the standard as it matures and design your tool to treat consumer identity as opaque so you can support both models when ERC-8004 stabilizes.',
+      },
+    ],
+    relatedSlugs: [
+      'ai-agent-payment-protocols',
+      'how-to-monetize-mcp-server',
+      'mcp-billing-comparison-2026',
+    ],
+    body: ERC_8004_IDENTITY_BODY,
+  },
+
+  /* ── P4.2. SettleGrid Templates launch (DRAFT — published:false) ───────── */
+  /* Structural draft per P4.2 spec. Founder rewrites the 5 marked gaps in
+     the body's <!-- FOUNDER REWRITE REQUIRED --> block, then flips
+     `published: true` to ship. While `published: false`, the post is
+     filtered out of BLOG_SLUGS / getBlogPostBySlug so the /learn/blog/[slug]
+     route returns 404 — see helpers below.                                  */
+  {
+    slug: 'settlegrid-templates-launch',
+    title: 'Why I built SettleGrid Templates',
+    description:
+      'A founder narrative on the four holes in MCP monetization — pricing friction, no shared templates, no agent-side discovery, no revenue split — and what SettleGrid Templates ships to close them.',
+    datePublished: '2026-04-26',
+    dateModified: '2026-04-26',
+    keywords: [
+      'SettleGrid Templates',
+      'MCP monetization',
+      'why I built',
+      'launch post',
+      'MCP billing',
+      'AI tool revenue',
+    ],
+    readingTime: '6 min read',
+    wordCount: 1280,
+    author: {
+      name: 'Lex Whiting',
+      url: 'https://x.com/lexwhiting',
+      bio: 'Founder, SettleGrid. Bootstrapping a settlement layer for the AI economy. Previously: shipped MCP servers, hand-rolled too much Stripe Connect.',
+    },
+    relatedSlugs: [
+      'how-to-monetize-mcp-server',
+      'mcp-billing-comparison-2026',
+      'ai-agent-payment-protocols',
+    ],
+    body: SETTLEGRID_TEMPLATES_LAUNCH_BODY,
+    published: false,
+  },
+
+  /* ── P4.MKT2. Public x402 facilitator announcement (DRAFT — published:false) ── */
+  /* Anchor for the launch announcement at facilitator.settlegrid.ai. Stays
+     published:false until the founder has provisioned DNS for
+     `facilitator.settlegrid.ai`, smoke-tested the three /v1 endpoints from
+     outside the SettleGrid network, and posted to the x402 community
+     Discord. See `apps/web/src/app/protocols/x402/facilitator/page.tsx`
+     for the docs landing page that supports this post.                    */
+  {
+    slug: 'x402-facilitator-launch',
+    title: 'SettleGrid is running a public x402 facilitator',
+    description:
+      'Public verify and settle endpoints for x402 payments at facilitator.settlegrid.ai, on Base mainnet and Base Sepolia. Source-available, rate-limited per IP, no API key. Adds a third independent facilitator to the x402 network.',
+    datePublished: '2026-04-28',
+    dateModified: '2026-04-28',
+    keywords: [
+      'x402 facilitator',
+      'x402 protocol',
+      'EIP-3009',
+      'Base mainnet',
+      'Base Sepolia',
+      'agent payments',
+      'SettleGrid',
+    ],
+    readingTime: '5 min read',
+    wordCount: 870,
+    author: {
+      name: 'Lex Whiting',
+      url: 'https://x.com/lexwhiting',
+      bio: 'Founder, SettleGrid. Bootstrapping a settlement layer for the AI economy. Previously: shipped MCP servers, hand-rolled too much Stripe Connect.',
+    },
+    relatedSlugs: [
+      'ai-agent-payment-protocols',
+      'mcp-billing-comparison-2026',
+      'settlegrid-templates-launch',
+    ],
+    body: X402_FACILITATOR_LAUNCH_BODY,
+    published: false,
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export const BLOG_SLUGS = BLOG_POSTS.map((p) => p.slug)
+/**
+ * P4.2 — published-flag predicate. A post is considered published when
+ * `published` is missing (legacy posts) or explicitly `true`. Only
+ * `published: false` filters the post out of public surfaces.
+ */
+function isPublished(post: BlogPost): boolean {
+  return post.published !== false
+}
 
+/**
+ * Slugs of every PUBLISHED post. `generateStaticParams` consumes this in
+ * apps/web/src/app/learn/blog/[slug]/page.tsx, so unpublished drafts
+ * never get a built route.
+ */
+export const BLOG_SLUGS = BLOG_POSTS.filter(isPublished).map((p) => p.slug)
+
+/**
+ * Look up a post by slug. Returns `undefined` for unpublished drafts so
+ * the route handler's `notFound()` fires the same 404 it would for a
+ * truly missing slug — no leak that an unpublished draft exists.
+ */
 export function getBlogPostBySlug(slug: string): BlogPost | undefined {
-  return BLOG_POSTS.find((p) => p.slug === slug)
+  const post = BLOG_POSTS.find((p) => p.slug === slug)
+  if (!post || !isPublished(post)) return undefined
+  return post
+}
+
+/**
+ * Slugify a heading string into a URL-safe anchor id.
+ * Matches the slug behavior of rehype-slug so the table of contents links
+ * resolve to actual heading anchors when rendering markdown bodies.
+ */
+export function slugifyHeading(heading: string): string {
+  return heading
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+/**
+ * Extract H2 headings from a markdown body and emit them in the same shape as
+ * legacy `sections` (id + heading) so the table of contents renderer doesn't
+ * have to branch on the underlying format.
+ *
+ * Code-fenced lines that look like "## comment" are skipped: we only count
+ * H2 headings that appear outside fenced code blocks.
+ */
+export function extractTocFromMarkdown(
+  body: string,
+): { id: string; heading: string }[] {
+  const out: { id: string; heading: string }[] = []
+  const lines = body.split('\n')
+  let inFence = false
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    const match = line.match(/^##\s+(.+?)\s*$/)
+    if (match) {
+      const heading = match[1].replace(/[*_`]/g, '').trim()
+      out.push({ id: slugifyHeading(heading), heading })
+    }
+  }
+  return out
+}
+
+/**
+ * Approximate word count for a markdown body. Strips fenced code, inline
+ * code, headings, link syntax, and emphasis markers, then counts whitespace-
+ * separated tokens. Used for the JSON-LD article schema.
+ */
+export function wordCountFromMarkdown(body: string): number {
+  const cleaned = body
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`\n]+`/g, ' ')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_~]/g, '')
+  return cleaned.split(/\s+/).filter(Boolean).length
+}
+
+/**
+ * Type guard: a post is a "body post" if it has a markdown body, even if it
+ * also has legacy sections. Body takes precedence over sections.
+ */
+export function isBodyPost(
+  post: BlogPost,
+): post is BlogPost & { body: string } {
+  return typeof post.body === 'string' && post.body.length > 0
 }

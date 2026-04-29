@@ -1,0 +1,46 @@
+{
+  "slug": "portkey",
+  "name": "Portkey",
+  "description": "MCP server for Portkey with SettleGrid billing. Render and execute Portkey prompt templates against configured LLMs via the Portkey Prompt API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "llm-gateways",
+    "portkey",
+    "llm",
+    "prompt",
+    "ai-gateway",
+    "prompt-engineering",
+    "completions",
+    "templates",
+    "nlp",
+    "generative-ai"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-portkey"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "execute_prompt",
+    "render_prompt"
+  ],
+  "featured": false
+}

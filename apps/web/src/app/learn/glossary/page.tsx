@@ -121,7 +121,7 @@ const glossaryTerms = [
   {
     name: 'Protocol-Agnostic',
     definition:
-      'An architecture that works across multiple payment and communication protocols without requiring protocol-specific code. SettleGrid is protocol-agnostic, supporting 15 protocols (MCP, x402, AP2, MPP, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle, REST) through a single unified SDK.',
+      "An architecture that works across multiple payment and communication protocols without requiring protocol-specific code. SettleGrid is protocol-agnostic — the hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, Skyfire's KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN) through a single unified SDK.",
     link: '/learn/protocols',
   },
   {
@@ -134,7 +134,7 @@ const glossaryTerms = [
     name: 'Revenue Share',
     definition:
       'The split of revenue between the service provider (developer) and the platform. On SettleGrid, developers keep up to 100% of their revenue on the first $1,000/month and 95-98% above that, compared to 85% on marketplace-style competitors.',
-    link: '/learn/compare/mcp-billing-platforms-2026',
+    link: '/pricing',
   },
   {
     name: 'Outcome-Based Billing',

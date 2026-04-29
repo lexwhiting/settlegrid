@@ -1,7 +1,40 @@
-import { settlegrid } from "@settlegrid/mcp"
-const sg = settlegrid.init({ toolSlug: "mooc-search", pricing: { defaultCostCents: 2, methods: { search_moocs: { costCents: 2, displayName: "Search MOOCs" }, get_platform: { costCents: 2, displayName: "Get Platform" } } } })
-const platforms: Record<string, { courses: number; users_m: number; free: boolean; certs: boolean }> = { coursera: { courses: 7000, users_m: 136, free: true, certs: true }, edx: { courses: 4000, users_m: 78, free: true, certs: true }, udemy: { courses: 210000, users_m: 67, free: true, certs: true }, khan_academy: { courses: 10000, users_m: 120, free: true, certs: false }, mit_ocw: { courses: 2500, users_m: 300, free: true, certs: false } }
-const searchMoocs = sg.wrap(async (args: { query: string }) => { if (!args.query) throw new Error("query required"); return { query: args.query, platforms: Object.entries(platforms).map(([k, v]) => ({ name: k, ...v })) } }, { method: "search_moocs" })
-const getPlatform = sg.wrap(async (args: { name: string }) => { if (!args.name) throw new Error("name required"); const p = platforms[args.name.toLowerCase().replace(/ /g, "_")]; if (!p) throw new Error(`Unknown. Available: ${Object.keys(platforms).join(", ")}`); return { platform: args.name, ...p } }, { method: "get_platform" })
-export { searchMoocs, getPlatform }
-console.log("settlegrid-mooc-search MCP server ready | 2c/call | Powered by SettleGrid")
+/**
+ * settlegrid-mooc-search — MOOC Search MCP Server
+ *
+ * MOOC Search tools with SettleGrid billing.
+ *
+ * Pricing: 1-2c per call | Powered by SettleGrid
+ */
+
+import { settlegrid } from '@settlegrid/mcp'
+
+const PLATFORMS = [
+  { name: 'Coursera', url: 'https://coursera.org', courses: 7000, free_courses: 2100, certificates: true },
+  { name: 'edX', url: 'https://edx.org', courses: 4000, free_courses: 3000, certificates: true },
+  { name: 'Khan Academy', url: 'https://khanacademy.org', courses: 10000, free_courses: 10000, certificates: false },
+  { name: 'Udacity', url: 'https://udacity.com', courses: 200, free_courses: 50, certificates: true },
+  { name: 'MIT OCW', url: 'https://ocw.mit.edu', courses: 2500, free_courses: 2500, certificates: false },
+  { name: 'freeCodeCamp', url: 'https://freecodecamp.org', courses: 12, free_courses: 12, certificates: true },
+]
+
+const sg = settlegrid.init({
+  toolSlug: 'mooc-search',
+  pricing: { defaultCostCents: 1, methods: {
+    search: { costCents: 1, displayName: 'Search MOOCs' },
+    list_platforms: { costCents: 1, displayName: 'List Platforms' },
+  }},
+})
+
+const search = sg.wrap(async (args: { query: string; free_only?: boolean }) => {
+  if (!args.query) throw new Error('query required')
+  let platforms = [...PLATFORMS]
+  if (args.free_only) platforms = platforms.filter(p => p.free_courses > 0)
+  return { query: args.query, platforms: platforms.map(p => ({ ...p, search_url: `${p.url}/search?query=${encodeURIComponent(args.query)}` })), count: platforms.length, tip: 'Visit the search URLs for actual course listings' }
+}, { method: 'search' })
+
+const listPlatforms = sg.wrap(async (_a: Record<string, never>) => {
+  return { platforms: PLATFORMS, count: PLATFORMS.length, total_courses: PLATFORMS.reduce((s, p) => s + p.courses, 0) }
+}, { method: 'list_platforms' })
+
+export { search, listPlatforms }
+console.log('settlegrid-mooc-search MCP server ready | Powered by SettleGrid')

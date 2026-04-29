@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-firecrawl",
+  "version": "1.0.0",
+  "description": "MCP server for Firecrawl with SettleGrid billing. Scrape, crawl, map, and extract structured data from websites using the Firecrawl API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "scraping",
+    "crawling",
+    "web-scraper",
+    "extract",
+    "markdown",
+    "ai",
+    "llm",
+    "website",
+    "data-extraction",
+    "firecrawl"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-firecrawl"
+  }
+}

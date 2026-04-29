@@ -1,121 +1,186 @@
 /**
  * settlegrid-assemblyai — AssemblyAI MCP Server
- *
- * Wraps the AssemblyAI API with SettleGrid billing.
- * Requires ASSEMBLYAI_API_KEY environment variable.
- *
- * Methods:
- *   create_transcript(audio_url)             (5¢)
- *   get_transcript(id)                       (1¢)
  */
-
 import { settlegrid } from '@settlegrid/mcp'
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-interface CreateTranscriptInput {
-  audio_url: string
-  language_code?: string
-}
-
-interface GetTranscriptInput {
-  id: string
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-const API_BASE = 'https://api.assemblyai.com/v2'
-const USER_AGENT = 'settlegrid-assemblyai/1.0 (contact@settlegrid.ai)'
+const BASE = 'https://api.assemblyai.com'
+const USER_AGENT = 'settlegrid-assemblyai/1.0'
 
 function getApiKey(): string {
-  const key = process.env.ASSEMBLYAI_API_KEY
-  if (!key) throw new Error('ASSEMBLYAI_API_KEY environment variable is required')
-  return key
+  const k = process.env.ASSEMBLYAI_API_KEY
+  if (!k) throw new Error('ASSEMBLYAI_API_KEY environment variable is required')
+  return k
 }
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
-  }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    'authorization': `${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
+async function apiFetch(
+  path: string,
+  options: { method?: string; body?: unknown } = {}
+): Promise<unknown> {
+  const apiKey = getApiKey()
+  const res = await fetch(`${BASE}${path}`, {
+    method: options.method ?? 'GET',
+    headers: {
+      'Authorization': apiKey,
+      'Content-Type': 'application/json',
+      'User-Agent': USER_AGENT,
+    },
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  })
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`AssemblyAI API ${res.status}: ${body.slice(0, 200)}`)
+    const text = await res.text().catch(() => '')
+    throw new Error(`AssemblyAI API error ${res.status}: ${text.slice(0, 300)}`)
   }
-  return res.json() as Promise<T>
+  return res.json()
 }
 
-// ─── SettleGrid Init ────────────────────────────────────────────────────────
+interface SubmitTranscriptionInput {
+  audio_url: string
+  language_code?: string
+  speaker_labels?: boolean
+}
+
+interface GetTranscriptionInput {
+  transcript_id: string
+}
+
+interface ListTranscriptionsInput {
+  limit?: number
+}
+
+interface GetTranscriptSentencesInput {
+  transcript_id: string
+}
+
+interface ExportTranscriptInput {
+  transcript_id: string
+  format: string
+}
+
+interface GenerateSummaryInput {
+  transcript_ids: string
+  context?: string
+}
+
+interface AskLemurInput {
+  transcript_ids: string
+  question: string
+}
+
+interface GenerateActionItemsInput {
+  transcript_ids: string
+  context?: string
+}
 
 const sg = settlegrid.init({
   toolSlug: 'assemblyai',
   pricing: {
     defaultCostCents: 1,
     methods: {
-      create_transcript: { costCents: 5, displayName: 'Submit audio URL for transcription' },
-      get_transcript: { costCents: 1, displayName: 'Get transcription result' },
+      submit_transcription: { costCents: 5, displayName: 'Submit Transcription' },
+      get_transcription: { costCents: 1, displayName: 'Get Transcription' },
+      list_transcriptions: { costCents: 1, displayName: 'List Transcriptions' },
+      get_transcript_sentences: { costCents: 1, displayName: 'Get Transcript Sentences' },
+      export_transcript: { costCents: 2, displayName: 'Export Transcript' },
+      generate_summary: { costCents: 8, displayName: 'Generate Summary' },
+      ask_lemur: { costCents: 8, displayName: 'Ask LeMUR' },
+      generate_action_items: { costCents: 8, displayName: 'Generate Action Items' },
     },
   },
 })
 
-// ─── Handlers ───────────────────────────────────────────────────────────────
-
-const createTranscript = sg.wrap(async (args: CreateTranscriptInput) => {
-  if (!args.audio_url || typeof args.audio_url !== 'string') {
-    throw new Error('audio_url is required (url of audio file to transcribe)')
-  }
-
-  const body: Record<string, unknown> = {}
-  body['audio_url'] = args.audio_url
-  if (args.language_code !== undefined) body['language_code'] = args.language_code
-
-  const data = await apiFetch<Record<string, unknown>>('/transcript', {
-    method: 'POST',
-    body,
-  })
-
+const submitTranscription = sg.wrap(async (args: SubmitTranscriptionInput) => {
+  const url = args.audio_url?.trim()
+  if (!url) throw new Error('audio_url is required')
+  const body: Record<string, unknown> = { audio_url: url }
+  if (args.language_code) body.language_code = args.language_code.trim()
+  if (args.speaker_labels !== undefined) body.speaker_labels = args.speaker_labels
+  const data = await apiFetch('/v2/transcript', { method: 'POST', body })
   return data
-}, { method: 'create_transcript' })
+}, { method: 'submit_transcription' })
 
-const getTranscript = sg.wrap(async (args: GetTranscriptInput) => {
-  if (!args.id || typeof args.id !== 'string') {
-    throw new Error('id is required (transcript id)')
-  }
-
-  const params: Record<string, string> = {}
-  params['id'] = String(args.id)
-
-  const data = await apiFetch<Record<string, unknown>>(`/transcript/${encodeURIComponent(String(args.id))}`, {
-    params,
-  })
-
+const getTranscription = sg.wrap(async (args: GetTranscriptionInput) => {
+  const id = args.transcript_id?.trim()
+  if (!id) throw new Error('transcript_id is required')
+  const data = await apiFetch(`/v2/transcript/${encodeURIComponent(id)}`)
   return data
-}, { method: 'get_transcript' })
+}, { method: 'get_transcription' })
 
-// ─── Exports ────────────────────────────────────────────────────────────────
+const listTranscriptions = sg.wrap(async (args: ListTranscriptionsInput) => {
+  const limit = Math.min(args.limit || 10, 50)
+  const data = await apiFetch(`/v2/transcript?limit=${limit}`) as { transcripts: unknown[]; page_details: unknown }
+  return { count: Array.isArray(data.transcripts) ? data.transcripts.length : 0, transcripts: data.transcripts, page_details: data.page_details }
+}, { method: 'list_transcriptions' })
 
-export { createTranscript, getTranscript }
+const getTranscriptSentences = sg.wrap(async (args: GetTranscriptSentencesInput) => {
+  const id = args.transcript_id?.trim()
+  if (!id) throw new Error('transcript_id is required')
+  const data = await apiFetch(`/v2/transcript/${encodeURIComponent(id)}/sentences`)
+  return data
+}, { method: 'get_transcript_sentences' })
+
+const exportTranscript = sg.wrap(async (args: ExportTranscriptInput) => {
+  const id = args.transcript_id?.trim()
+  if (!id) throw new Error('transcript_id is required')
+  const fmt = args.format?.trim().toLowerCase()
+  if (!fmt || !['srt', 'vtt'].includes(fmt)) throw new Error('format must be "srt" or "vtt"')
+  const apiKey = getApiKey()
+  const res = await fetch(`${BASE}/v2/transcript/${encodeURIComponent(id)}/${fmt}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': apiKey,
+      'User-Agent': USER_AGENT,
+    },
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`AssemblyAI API error ${res.status}: ${text.slice(0, 300)}`)
+  }
+  const text = await res.text()
+  return { format: fmt, content: text }
+}, { method: 'export_transcript' })
+
+const generateSummary = sg.wrap(async (args: GenerateSummaryInput) => {
+  const ids = args.transcript_ids?.split(',').map((s: string) => s.trim()).filter(Boolean)
+  if (!ids || ids.length === 0) throw new Error('transcript_ids is required')
+  const body: Record<string, unknown> = { transcript_ids: ids }
+  if (args.context) body.context = args.context.trim()
+  const data = await apiFetch('/lemur/v3/generate/summary', { method: 'POST', body })
+  return data
+}, { method: 'generate_summary' })
+
+const askLemur = sg.wrap(async (args: AskLemurInput) => {
+  const ids = args.transcript_ids?.split(',').map((s: string) => s.trim()).filter(Boolean)
+  if (!ids || ids.length === 0) throw new Error('transcript_ids is required')
+  const question = args.question?.trim()
+  if (!question) throw new Error('question is required')
+  const body = {
+    transcript_ids: ids,
+    questions: [{ question }],
+  }
+  const data = await apiFetch('/lemur/v3/generate/question-answer', { method: 'POST', body })
+  return data
+}, { method: 'ask_lemur' })
+
+const generateActionItems = sg.wrap(async (args: GenerateActionItemsInput) => {
+  const ids = args.transcript_ids?.split(',').map((s: string) => s.trim()).filter(Boolean)
+  if (!ids || ids.length === 0) throw new Error('transcript_ids is required')
+  const body: Record<string, unknown> = { transcript_ids: ids }
+  if (args.context) body.context = args.context.trim()
+  const data = await apiFetch('/lemur/v3/generate/action-items', { method: 'POST', body })
+  return data
+}, { method: 'generate_action_items' })
+
+export {
+  submitTranscription,
+  getTranscription,
+  listTranscriptions,
+  getTranscriptSentences,
+  exportTranscript,
+  generateSummary,
+  askLemur,
+  generateActionItems,
+}
 
 console.log('settlegrid-assemblyai MCP server ready')
-console.log('Methods: create_transcript, get_transcript')
-console.log('Pricing: 1-5¢ per call | Powered by SettleGrid')
+console.log('Methods: submit_transcription, get_transcription, list_transcriptions, get_transcript_sentences, export_transcript, generate_summary, ask_lemur, generate_action_items')
+console.log('Pricing: 1-8¢ per call | Powered by SettleGrid')

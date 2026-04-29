@@ -14,20 +14,91 @@ const DEFAULT_API_URL = 'https://settlegrid.ai'
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const DEFAULT_TIMEOUT_MS = 5000
 
-/** Zod schema for method pricing */
+/** Zod schema for method pricing (legacy shape: costCents + displayName) */
 const methodPricingSchema = z.object({
   costCents: z.number().int().min(0),
   displayName: z.string().optional(),
 })
 
 /**
+ * Strict legacy pricing schema — exactly the P1 (pre-SDK1) shape.
+ * No `model`, no `currencyCode`, no `tiers`, no `outcomeConfig`.
+ *
+ * Uses `.strict()` so unknown fields are REJECTED rather than silently
+ * stripped. This is what makes the `pricingConfigSchema` union below
+ * actually strict: without `.strict()`, a config like
+ * `{ model: 'per-gigabyte', defaultCostCents: 1 }` (invalid model enum)
+ * would fail the generalized branch but silently fall through to the
+ * legacy branch — losing the `model` field entirely and billing the
+ * developer per-invocation instead of surfacing the typo.
+ */
+const legacyPricingConfigSchema = z
+  .object({
+    defaultCostCents: z.number().int().min(0),
+    methods: z.record(z.string(), methodPricingSchema).optional(),
+  })
+  .strict()
+
+/**
+ * Zod schema for the generalized pricing config (six-model superset).
+ * Defined here (earlier than its original position) so the union below
+ * can reference it without hitting a temporal-dead-zone error.
+ */
+export const generalizedPricingConfigSchema = z.object({
+  model: z.enum(['per-invocation', 'per-token', 'per-byte', 'per-second', 'tiered', 'outcome']),
+  defaultCostCents: z.number().int().min(0),
+  currencyCode: z.string().length(3).optional().default('USD'),
+  methods: z
+    .record(
+      z.string(),
+      z.object({
+        costCents: z.number().int().min(0),
+        unitType: z.string().optional(),
+        displayName: z.string().optional(),
+      }),
+    )
+    .optional(),
+  tiers: z
+    .array(
+      z.object({
+        upTo: z.number().int().min(1),
+        costCents: z.number().int().min(0),
+      }),
+    )
+    .optional(),
+  outcomeConfig: z
+    .object({
+      successCostCents: z.number().int().min(0),
+      failureCostCents: z.number().int().min(0),
+      successCondition: z.string(),
+    })
+    .optional(),
+})
+
+/**
  * Zod schema for pricing config validation.
+ *
+ * This is a `z.union` of the generalized and legacy schemas (per P1.SDK1
+ * Implementation Step 4). Zod tries branches in order:
+ *
+ *   1. `generalizedPricingConfigSchema` — requires `model` discriminator.
+ *      Matches any of the six pricing models (per-invocation, per-token,
+ *      per-byte, per-second, tiered, outcome).
+ *   2. `legacyPricingConfigSchema` — the pre-generalization shape with
+ *      just `{ defaultCostCents, methods? }`.
+ *
+ * This union is stricter than a single widened object schema: a config
+ * with `tiers: [...]` but no `model` is rejected by both branches
+ * (generalized because it lacks `model`; legacy because `tiers` is an
+ * unknown key Zod would strip — but we let the generalized branch
+ * capture it cleanly when `model` IS present).
+ *
  * Exported for advanced users who want to pre-validate pricing config.
  */
-export const pricingConfigSchema = z.object({
-  defaultCostCents: z.number().int().min(0),
-  methods: z.record(z.string(), methodPricingSchema).optional(),
-})
+export const pricingConfigSchema = z.union([
+  generalizedPricingConfigSchema,
+  legacyPricingConfigSchema,
+])
 
 /** Zod schema for SDK config */
 const sdkConfigSchema = z.object({
@@ -36,6 +107,12 @@ const sdkConfigSchema = z.object({
   debug: z.boolean().optional(),
   cacheTtlMs: z.number().int().min(0).optional(),
   timeoutMs: z.number().int().min(100).max(30000).optional(),
+  toolSecret: z.string().min(1).optional(),
+  rateLimit: z.number().int().min(1).optional(),
+  maxRetries: z.number().int().min(0).max(10).optional(),
+  circuitBreakerThreshold: z.number().int().min(1).optional(),
+  circuitBreakerResetMs: z.number().int().min(1000).optional(),
+  negativeCacheTtlMs: z.number().int().min(0).optional(),
 })
 
 /**
@@ -53,6 +130,24 @@ export interface NormalizedConfig {
   cacheTtlMs: number
   /** Request timeout in milliseconds */
   timeoutMs: number
+  /**
+   * Tool-owned facilitator secret (optional). When set, the dispatch kernel
+   * uses it as `Authorization: Bearer <toolSecret>` for HTTPS round-trips
+   * to `/api/x402/*` and `/api/mpp/*`. When unset, the kernel falls back
+   * to the consumer's API key from the request. Not used by any other
+   * SDK surface — sg.wrap / sg.validateKey / sg.meter never read it.
+   */
+  toolSecret?: string
+  /** Rate limit in calls per second */
+  rateLimit?: number
+  /** Max retry attempts on 5xx */
+  maxRetries?: number
+  /** Circuit breaker failure threshold */
+  circuitBreakerThreshold?: number
+  /** Circuit breaker reset cooldown in ms */
+  circuitBreakerResetMs?: number
+  /** Negative cache TTL in ms */
+  negativeCacheTtlMs?: number
 }
 
 /**
@@ -81,26 +176,55 @@ export function normalizeConfig(config: SettleGridConfig): NormalizedConfig {
     debug: parsed.debug ?? false,
     cacheTtlMs: parsed.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS,
     timeoutMs: parsed.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    // toolSecret is intentionally left off the spread when undefined so it
+    // does not shadow a downstream default or show up as `toolSecret: undefined`
+    // in JSON-serialized logs. Set only when the caller provided a value.
+    ...(parsed.toolSecret !== undefined ? { toolSecret: parsed.toolSecret } : {}),
+    rateLimit: parsed.rateLimit ?? 100,
+    maxRetries: parsed.maxRetries ?? 3,
+    circuitBreakerThreshold: parsed.circuitBreakerThreshold ?? 10,
+    circuitBreakerResetMs: parsed.circuitBreakerResetMs ?? 60_000,
+    negativeCacheTtlMs: parsed.negativeCacheTtlMs ?? 30_000,
   }
 }
 
 /**
  * Validate a pricing configuration object using the Zod schema.
  *
+ * Accepts both legacy `PricingConfig` and the generalized six-model
+ * shape. The `model` field, when present, is preserved so downstream
+ * callers (e.g. `resolveOperationCost`) can dispatch on it.
+ *
  * @param config - Pricing config to validate (usually from developer input)
- * @returns Validated pricing config
- * @throws {z.ZodError} If pricing is invalid (negative costs, non-integer costs, etc.)
+ * @returns Validated pricing config — legacy or generalized
+ * @throws {z.ZodError} If pricing is invalid (negative costs, non-integer costs, unknown model, etc.)
  *
  * @example
  * ```typescript
- * const pricing = validatePricingConfig({
+ * // Legacy per-invocation config
+ * const legacy = validatePricingConfig({
  *   defaultCostCents: 1,
  *   methods: { search: { costCents: 5 } },
  * })
+ *
+ * // Generalized per-token config
+ * const perToken = validatePricingConfig({
+ *   model: 'per-token',
+ *   defaultCostCents: 1,
+ * })
  * ```
  */
-export function validatePricingConfig(config: unknown): PricingConfig {
-  return pricingConfigSchema.parse(config)
+export function validatePricingConfig(
+  config: unknown,
+): PricingConfig | GeneralizedPricingConfig {
+  const parsed = pricingConfigSchema.parse(config)
+  // The union returns whichever branch matched. Narrow on the presence
+  // of `model` (required by the generalized branch, absent from the
+  // legacy branch) so callers receive the exact variant shape.
+  if ('model' in parsed) {
+    return parsed as GeneralizedPricingConfig
+  }
+  return parsed as PricingConfig
 }
 
 /**
@@ -125,27 +249,8 @@ export function getMethodCost(pricing: PricingConfig, method: string): number {
 }
 
 // ─── Generalized Pricing ─────────────────────────────────────────────────────
-
-/** Zod schema for generalized pricing config */
-export const generalizedPricingConfigSchema = z.object({
-  model: z.enum(['per-invocation', 'per-token', 'per-byte', 'per-second', 'tiered', 'outcome']),
-  defaultCostCents: z.number().int().min(0),
-  currencyCode: z.string().length(3).optional().default('USD'),
-  methods: z.record(z.string(), z.object({
-    costCents: z.number().int().min(0),
-    unitType: z.string().optional(),
-    displayName: z.string().optional(),
-  })).optional(),
-  tiers: z.array(z.object({
-    upTo: z.number().int().min(1),
-    costCents: z.number().int().min(0),
-  })).optional(),
-  outcomeConfig: z.object({
-    successCostCents: z.number().int().min(0),
-    failureCostCents: z.number().int().min(0),
-    successCondition: z.string(),
-  }).optional(),
-})
+// (Schema definition moved earlier in the file to satisfy the
+// `pricingConfigSchema` union's forward reference.)
 
 /**
  * Resolve cost for an operation using the generalized pricing model.

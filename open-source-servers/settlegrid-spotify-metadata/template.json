@@ -1,0 +1,39 @@
+{
+  "slug": "spotify-metadata",
+  "name": "Spotify Metadata",
+  "description": "Search tracks, albums, and artists via the Spotify Web API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "entertainment",
+    "music",
+    "spotify"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-spotify-metadata"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "search-tracks",
+    "search-artists",
+    "get-track"
+  ],
+  "featured": false
+}

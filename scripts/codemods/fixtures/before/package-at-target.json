@@ -1,0 +1,6 @@
+{
+  "name": "settlegrid-fixture-target",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": { "@settlegrid/mcp": "^0.2.0" }
+}

@@ -14,6 +14,8 @@ const { mockDb, mockRequireConsumer, mockStripeCheckoutSessions, mockStripeCusto
     set: vi.fn().mockReturnThis(),
     innerJoin: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    // Consumer-audit #1 — webhook idempotency uses .onConflictDoNothing()
+    onConflictDoNothing: vi.fn().mockReturnThis(),
   }
 
   const mockStripeCheckoutSessions = {
@@ -83,6 +85,12 @@ vi.mock('@/lib/db/schema', () => ({
     consumerId: 'consumer_id',
     toolId: 'tool_id',
     balanceCents: 'balance_cents',
+  },
+  processedWebhookEvents: {
+    eventId: 'event_id',
+    source: 'source',
+    eventType: 'event_type',
+    processedAt: 'processed_at',
   },
 }))
 
@@ -255,6 +263,11 @@ describe('Webhook (POST /api/billing/webhook)', () => {
     mockDb.values.mockReturnThis()
     mockDb.update.mockReturnThis()
     mockDb.set.mockReturnThis()
+    mockDb.onConflictDoNothing.mockReturnThis()
+    // Consumer-audit #1 — by default the idempotency insert "succeeds"
+    // (returns one row), meaning the event is new and processing should
+    // proceed. Duplicate-event tests override this to return [].
+    mockDb.returning.mockResolvedValue([{ eventId: 'evt_test_default' }])
   })
 
   it('handles checkout.session.completed event', async () => {
@@ -351,6 +364,101 @@ describe('Webhook (POST /api/billing/webhook)', () => {
 
     const response = await webhook(request)
     expect(response.status).toBe(400)
+  })
+
+  // Consumer-audit #1 — idempotency. A retried event (same eventId)
+  // must be a no-op. The route uses ON CONFLICT DO NOTHING + RETURNING;
+  // an empty returning array means the event was already processed.
+  it('returns 200 and skips processing when the event has already been processed (duplicate eventId)', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      id: 'evt_duplicate',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_dup',
+          payment_intent: 'pi_dup',
+          metadata: {
+            purchaseId: 'purchase-dup',
+            consumerId: 'con-dup',
+            toolId: 'tool-dup',
+            amountCents: '2000',
+          },
+        },
+      },
+    })
+    // Override default: idempotency insert hits the unique constraint
+    // (returning []) — the event was already processed on a prior delivery.
+    mockDb.returning.mockResolvedValueOnce([])
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'stripe-signature': 'sig_dup' },
+      body: JSON.stringify({ type: 'checkout.session.completed' }),
+    })
+
+    const response = await webhook(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.duplicate).toBe(true)
+    // Crucial: the balance upsert branch (SELECT for existing balance) must NOT
+    // be executed on a duplicate event. If the test sees mockDb.limit called,
+    // the dedup gate leaked.
+    expect(mockDb.limit).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when the idempotency ledger is unreachable (Stripe must retry)', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      id: 'evt_ledger_down',
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_ld', metadata: {} } },
+    })
+    mockDb.returning.mockRejectedValueOnce(new Error('ECONNREFUSED: postgres down'))
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'stripe-signature': 'sig_ld' },
+      body: JSON.stringify({ type: 'checkout.session.completed' }),
+    })
+
+    const response = await webhook(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(data.code).toBe('IDEMPOTENCY_UNAVAILABLE')
+  })
+
+  // Consumer-audit #3 — missing session metadata must not credit the
+  // consumer but should return 200 to prevent Stripe retry storms on a
+  // malformed session (would retry for 3 days and keep failing).
+  it('returns 200 and logs when session metadata is malformed (no credit issued)', async () => {
+    mockStripeWebhooks.constructEvent.mockReturnValueOnce({
+      id: 'evt_no_meta',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_no_meta',
+          payment_intent: 'pi_no_meta',
+          metadata: {
+            // purchaseId missing
+            consumerId: 'con-x',
+            toolId: 'tool-x',
+            amountCents: '2000',
+          },
+        },
+      },
+    })
+
+    const request = new NextRequest('http://localhost:3005/api/billing/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'stripe-signature': 'sig_no_meta' },
+      body: JSON.stringify({ type: 'checkout.session.completed' }),
+    })
+
+    const response = await webhook(request)
+    expect(response.status).toBe(200)
+    // No balance lookup happened (no crediting)
+    expect(mockDb.limit).not.toHaveBeenCalled()
   })
 
   it('handles payment_intent.payment_failed event', async () => {

@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { ApiEndpointRow } from '@/components/ui/api-endpoint-row'
 import { FaqAccordion } from '@/components/ui/faq-accordion'
 
 export const metadata: Metadata = {
   title: 'Documentation | SettleGrid',
-  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill any AI service — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across 15 payment protocols.',
+  description: 'Quick-start guide, SDK reference, and API documentation for SettleGrid. Bill AI services — LLM inference, browser automation, media generation, code execution, data APIs, MCP tools, agent-to-agent workflows, and communication services — across multiple agent payment protocols.',
   alternates: { canonical: 'https://settlegrid.ai/docs' },
   keywords: [
     'SettleGrid documentation',
@@ -34,7 +35,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is SettleGrid?',
-      a: 'SettleGrid is the universal settlement layer for the AI economy. It lets developers monetize any AI service — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across 15 payment protocols. Think of it as the universal billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
+      a: 'SettleGrid is settlement infrastructure for AI tools. It lets developers monetize AI services — LLM inference (OpenAI, Anthropic), browser automation (Playwright, Browserbase), media generation (DALL-E, Stable Diffusion), code execution (E2B, Modal), data APIs, MCP tools, agent-to-agent workflows, and communication services (Twilio, Resend) — with one SDK and one unified billing, metering, and payout system. Supports 6 pricing models (per-call, per-token, per-byte, per-second, tiered, outcome-based) across multiple agent payment protocols. Think of it as billing infrastructure for AI services with real-time metering, multi-protocol support, and automatic revenue splits.',
     },
     {
       q: 'How do I get started as a developer?',
@@ -50,7 +51,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What protocols does SettleGrid support?',
-      a: 'SettleGrid is protocol-agnostic. It natively supports 15 protocols: MCP (Model Context Protocol), MPP (Machine Payments Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Agent Pay (Verifiable Intent), Circle Nanopayments (USDC), and any standard REST API. One SDK covers every protocol.',
+      a: "SettleGrid is protocol-agnostic. The @settlegrid/mcp SDK adds native billing to MCP tool servers and a REST middleware for any HTTP service. The hosted Smart Proxy brokers payments across 9 protocols: MCP (Model Context Protocol), x402 (Coinbase / Linux Foundation), Stripe MPP (Machine Payments Protocol — Stripe + Tempo, pending GA), AP2 (Google Agent Payments), ACP (Agentic Commerce Protocol — OpenAI + Stripe), UCP (Universal Commerce Protocol — Google + Shopify), Visa TAP (Token Agent Payments), Mastercard Verifiable Intent, and Circle Nanopayments (USDC). Detection adapters are in place for L402 (Bitcoin Lightning) and KYAPay (Skyfire + Visa). Additional rails are tracked as upstream specs mature: ACTP (Alipay's Agentic Commerce Trust Protocol, Ant Group), EMVCo agent payments, and DRAIN (Bittensor Subnet 58).",
     },
   ],
 },
@@ -677,7 +678,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: 'Paid.ai supports MCP per-call billing only. SettleGrid is the only protocol-agnostic settlement layer — supporting 15 protocols (MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402 (Bitcoin Lightning), Alipay Trust, KYAPay, EMVCo, and DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.',
+      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
     },
   ],
 },
@@ -701,8 +702,8 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       a: 'Yes. The 13 MCP templates use sg.wrap() and include a commented-out section showing the equivalent settlegridMiddleware() approach. Additionally, there are 4 dedicated REST API templates that use settlegridMiddleware() as the primary pattern: Next.js App Router, Express.js Middleware, AI Proxy with Markup, and Dual Protocol (MCP + REST). Choose based on whether you are building an MCP server or an HTTP API.',
     },
     {
-      q: 'Do these templates work with all 15 protocols SettleGrid supports?',
-      a: 'Yes. The sg.wrap() pattern used in every template automatically supports all 15 protocols: MCP, MPP (Stripe + Tempo), x402 (Coinbase), AP2 (Google), Visa TAP, UCP (Google + Shopify), ACP (OpenAI), Mastercard Agent Pay, Circle Nanopayments, and REST. You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, every protocol.',
+      q: 'Do these templates work with all the protocols SettleGrid supports?',
+      a: "Yes. The sg.wrap() pattern used in every template automatically supports the agent payment protocols SettleGrid handles through its Smart Proxy — MCP, x402 (Coinbase), Stripe MPP (Stripe + Tempo), AP2 (Google), ACP (OpenAI + Stripe), UCP (Google + Shopify), Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, with detection adapters for L402 and KYAPay, plus tracked-as-emerging rails (Alipay's ACTP, EMVCo agent payments, DRAIN). You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, multiple protocols.",
     },
   ],
 },
@@ -741,28 +742,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
 export default function DocsPage() {
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      <header className="border-b border-gray-200 dark:border-[#2A2D3E] px-6 py-4 sticky top-0 bg-white dark:bg-[#161822] z-10">
-        <nav className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/tools" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Showcase
-            </Link>
-            <Link href="/learn" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:hover:text-gray-100 transition-colors">
-              Learn
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex pt-14">
         {/* Sidebar nav */}
-        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2A2D3E] p-6 sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+        <aside className="hidden lg:block w-56 border-r border-gray-200 dark:border-[#2A2D3E] p-6 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
           <nav className="space-y-1 text-sm">
             {[
               { href: '#not-just-mcp', label: 'Not Just MCP' },
@@ -782,6 +766,10 @@ export default function DocsPage() {
               { href: '#smart-proxy', label: 'Smart Proxy' },
               { href: '#service-templates', label: 'Service Templates' },
               { href: '#a2a-settlement', label: 'A2A Settlement' },
+              { href: '#scheduled-invocations', label: 'Scheduled Invocations' },
+              { href: '#edge-caching', label: 'Edge Caching' },
+              { href: '#meta-mcp', label: 'Meta-MCP Server' },
+              { href: '#mcp-config', label: 'MCP Config' },
               { href: '#faq', label: 'FAQ' },
             ].map((item) => (
               <a
@@ -1727,7 +1715,7 @@ npm install -g @settlegrid/discovery`} />
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Use SettleGrid tools in n8n workflows with the official community node. Discover, invoke, and manage billing for any SettleGrid tool directly from your n8n automations.
             </p>
-            <CopyableCodeBlock title="Terminal" code="npm install n8n-nodes-settlegrid" />
+            <CopyableCodeBlock title="Terminal" code="npm install @settlegrid/n8n" />
             <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
               <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Available Operations</h3>
               <div className="space-y-2 text-sm text-gray-400">
@@ -1740,7 +1728,7 @@ npm install -g @settlegrid/discovery`} />
             </div>
             <p className="text-sm text-gray-400 mt-4">
               View the package on{' '}
-              <a href="https://www.npmjs.com/package/n8n-nodes-settlegrid" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">npm</a>.
+              <a href="https://www.npmjs.com/package/@settlegrid/n8n" target="_blank" rel="noopener noreferrer" className="text-brand-text hover:text-brand-dark font-medium">npm</a>.
               n8n has 400K+ users building AI automations — your tools are instantly available to all of them.
             </p>
           </Section>
@@ -1947,17 +1935,97 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
             </p>
           </Section>
 
+          <Section title="Scheduled Invocations" id="scheduled-invocations">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Consumers can schedule automatic tool invocations using cron expressions. This enables recurring data pulls, periodic analysis, and automated workflows without building custom infrastructure.
+            </p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">How It Works</h3>
+            <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-4 list-decimal list-inside">
+              <li>Navigate to <strong>Consumer &gt; Schedules</strong> in your dashboard.</li>
+              <li>Create a schedule by specifying a tool ID, method, and cron expression (e.g., <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">0 */6 * * *</code> for every 6 hours).</li>
+              <li>Credits are deducted from your balance on each scheduled invocation.</li>
+              <li>You can pause, resume, or delete schedules at any time.</li>
+            </ol>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Free plan: up to 10 schedules. Builder plan: up to 50 schedules. Minimum interval: 5 minutes.
+            </p>
+          </Section>
+
+          <Section title="Edge Caching" id="edge-caching">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              SettleGrid&apos;s Smart Proxy includes an edge caching layer that reduces latency for frequently accessed tool responses. When a tool response is cacheable, subsequent identical requests are served from the edge, resulting in sub-10ms response times.
+            </p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Cache Behavior</h3>
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-4 list-disc list-inside">
+              <li>Caching is opt-in per tool method via the <code className="bg-[#252836] px-1 py-0.5 rounded text-xs font-mono">cache-control</code> header.</li>
+              <li>Cache keys include the tool ID, method, and input hash.</li>
+              <li>TTL is configurable from 1 second to 24 hours.</li>
+              <li>Cached responses still count as invocations for billing purposes.</li>
+            </ul>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Available on Scale plan and above. Contact support for custom cache configurations.
+            </p>
+          </Section>
+
+          <Section title="Meta-MCP Server" id="meta-mcp">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The Meta-MCP Server is a discovery endpoint that exposes all active SettleGrid tools as a single MCP server. AI agents can connect to one URL and gain access to the entire marketplace of tools.
+            </p>
+            <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Connection</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              Point your MCP client at:
+            </p>
+            <code className="block bg-[#252836] px-3 py-2 rounded text-sm font-mono text-gray-300 mb-4">
+              https://settlegrid.ai/api/mcp
+            </code>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The Meta-MCP Server dynamically lists available tools, their pricing, and capabilities. Authentication is via consumer API key passed in the request headers.
+            </p>
+          </Section>
+
+          <Section title="One-Line MCP Config" id="mcp-config">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Add this to your Claude Desktop, Cursor, or any MCP client config. One connection gives you access to every tool in the marketplace.
+            </p>
+            <CopyableCodeBlock
+              code={`{
+  "mcpServers": {
+    "settlegrid": {
+      "url": "https://settlegrid.ai/api/mcp"
+    }
+  }
+}`}
+              language="json"
+            />
+            <div className="mt-6 space-y-4">
+              <h3 className="text-lg font-semibold text-indigo dark:text-gray-100">How it works</h3>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li className="flex gap-2">
+                  <span className="text-[#E5A336] font-bold">1.</span>
+                  <span>Add the config above to your MCP client settings file.</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-[#E5A336] font-bold">2.</span>
+                  <span>The Meta-MCP Server dynamically exposes all active SettleGrid tools.</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-[#E5A336] font-bold">3.</span>
+                  <span>Your AI agent can discover and call any tool in the marketplace through this single connection.</span>
+                </li>
+              </ul>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                For authenticated access with billing, pass your API key via the <code className="bg-[#252836] px-1.5 py-0.5 rounded text-xs font-mono text-gray-300">x-api-key</code> header. Free tools work without authentication.
+              </p>
+            </div>
+          </Section>
+
           <Section title="FAQ" id="faq">
             <FaqAccordion categories={faqCategories} />
           </Section>
         </main>
       </div>
 
-      <footer className="border-t border-gray-200 dark:border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-5xl mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
-          &copy; {new Date().getFullYear()} SettleGrid. All rights reserved.
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

@@ -163,6 +163,7 @@ export async function GET(request: NextRequest) {
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,
         currentVersion: tools.currentVersion,
+        listedInMarketplace: tools.listedInMarketplace,
         createdAt: tools.createdAt,
         updatedAt: tools.updatedAt,
       })

@@ -12,6 +12,10 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit } = vi.hoisted(() => {
     set: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([]),
     offset: vi.fn().mockReturnThis(),
+    // insert/values are required by the fire-and-forget writeAuditLog call
+    // in the profile route (resolves silently to keep stderr clean)
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockResolvedValue(undefined),
   }
 
   return {
@@ -30,6 +34,7 @@ vi.mock('@/lib/db/schema', () => ({
   developers: {
     id: 'id',
     name: 'name',
+    slug: 'slug',
     publicBio: 'public_bio',
     avatarUrl: 'avatar_url',
     publicProfile: 'public_profile',
@@ -54,6 +59,18 @@ vi.mock('@/lib/db/schema', () => ({
     id: 'id',
     toolId: 'tool_id',
     latencyMs: 'latency_ms',
+  },
+  // Required for fire-and-forget writeAuditLog calls in profile route
+  auditLogs: {
+    id: 'id',
+    developerId: 'developer_id',
+    action: 'action',
+    resourceType: 'resource_type',
+    resourceId: 'resource_id',
+    details: 'details',
+    ipAddress: 'ip_address',
+    userAgent: 'user_agent',
+    createdAt: 'created_at',
   },
 }))
 
@@ -248,6 +265,9 @@ describe('Update Developer Profile (PATCH /api/dashboard/developer/profile)', ()
   })
 
   it('updates profile fields', async () => {
+    // Route queries dev slug when enabling publicProfile without providing slug in body
+    mockDb.limit.mockResolvedValueOnce([{ slug: 'existing-dev-slug' }])
+
     mockDb.returning.mockResolvedValueOnce([{
       publicProfile: true,
       publicBio: 'Updated bio here',

@@ -1,0 +1,47 @@
+{
+  "slug": "litellm",
+  "name": "Litellm",
+  "description": "MCP server for LiteLLM with SettleGrid billing. Interact with LiteLLM proxy for OpenAI-compatible chat completions, text completions, embeddings, and model discovery.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "llm-gateways",
+    "llm",
+    "chat",
+    "completions",
+    "embeddings",
+    "openai",
+    "proxy",
+    "language-model",
+    "nlp"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-litellm"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 2
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_chat_completion",
+    "create_completion",
+    "create_embeddings",
+    "get_health",
+    "list_models"
+  ],
+  "featured": false
+}

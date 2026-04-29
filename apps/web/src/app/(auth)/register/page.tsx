@@ -88,12 +88,21 @@ export default function RegisterPage() {
       .catch(() => setDeveloperCount(null))
   }, [])
 
-  // Capture referral code from URL and persist to cookie so it survives the OAuth redirect
+  // Producer-audit #9 — referral code from URL, persisted through OAuth
+  // redirect. SameSite=Strict prevents an attacker from cross-posting a
+  // victim to /register with a hidden ref param to harvest the signup
+  // bonus (CSRF-style fraud). Strict is fine here: OAuth redirects are
+  // top-level navigations within our own origin, which Strict allows.
+  // Secure is added so the cookie only travels over HTTPS.
   useEffect(() => {
     const ref = searchParams.get('ref')
     if (ref && /^inv_[0-9a-f]{24}$/.test(ref)) {
       setReferralCode(ref)
-      document.cookie = `sg_ref=${ref}; path=/; max-age=3600; SameSite=Lax`
+      const cookieFlags = ['path=/', 'max-age=3600', 'SameSite=Strict']
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        cookieFlags.push('Secure')
+      }
+      document.cookie = `sg_ref=${ref}; ${cookieFlags.join('; ')}`
     }
   }, [searchParams])
 
@@ -256,7 +265,7 @@ export default function RegisterPage() {
               <svg className="w-3.5 h-3.5 text-brand" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              15 protocols
+              Multi-protocol
             </span>
           </div>
 

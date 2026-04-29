@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-deepl-document",
+  "version": "1.0.0",
+  "description": "MCP server for DeepL Document Translation with SettleGrid billing. Upload, check status, and download translated documents using the DeepL API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "translation",
+    "deepl",
+    "document",
+    "language",
+    "nlp",
+    "localization",
+    "word",
+    "pdf",
+    "multilingual"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-deepl-document"
+  }
+}

@@ -94,9 +94,13 @@ export async function generateMetadata({
       title: `Claim ${tool.name} | SettleGrid`,
       description,
     },
+    // Claim pages are ephemeral (valid only until the tool is claimed, then
+    // become dead-ends). Indexing them wastes crawl budget and creates soft
+    // 404s after claim. GSC flagged these under "Page with redirect" because
+    // claimed tokens redirect to the dashboard.
     robots: {
-      index: true,
-      follow: true,
+      index: false,
+      follow: false,
     },
   }
 }
@@ -290,7 +294,7 @@ export default async function ClaimPage({
 
           {/* Claim action */}
           <div className="p-6">
-            <ClaimButton token={token} toolName={tool.name} />
+            <ClaimButton token={token} toolName={tool.name} toolSlug={tool.slug} />
             <p className="text-center text-xs text-gray-400 dark:text-gray-600 mt-3">
               Takes about 2 minutes. You will set pricing after claiming.
             </p>

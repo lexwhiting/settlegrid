@@ -1,0 +1,51 @@
+{
+  "slug": "inngest",
+  "name": "Inngest",
+  "description": "MCP server for Inngest with SettleGrid billing. Manage Inngest events, function runs, and functions via the Inngest REST API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "agent-frameworks",
+    "inngest",
+    "workflow",
+    "events",
+    "functions",
+    "background-jobs",
+    "queues",
+    "automation",
+    "serverless"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-inngest"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "cancel_run",
+    "get_event",
+    "get_event_runs",
+    "get_run",
+    "list_events",
+    "list_functions",
+    "list_runs",
+    "send_event"
+  ],
+  "featured": false
+}

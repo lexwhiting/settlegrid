@@ -1,0 +1,46 @@
+{
+  "slug": "langwatch",
+  "name": "Langwatch",
+  "description": "MCP server for LangWatch with SettleGrid billing. Search, retrieve, and inspect LangWatch traces capturing the full execution of LLM pipelines including spans, evaluations, and metadata.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "observability",
+    "llm",
+    "tracing",
+    "langwatch",
+    "ai-monitoring",
+    "spans",
+    "evaluations",
+    "pipelines",
+    "debugging",
+    "telemetry"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-langwatch"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_trace",
+    "search_traces"
+  ],
+  "featured": false
+}

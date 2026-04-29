@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-prefect",
+  "version": "1.0.0",
+  "description": "MCP server for Prefect with SettleGrid billing. Manage and monitor Prefect Cloud workflows, flow runs, deployments, and task runs via the Prefect REST API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "prefect",
+    "workflow",
+    "orchestration",
+    "dataflow",
+    "flow-runs",
+    "deployments",
+    "task-runs",
+    "automation",
+    "pipeline",
+    "scheduling"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-prefect"
+  }
+}

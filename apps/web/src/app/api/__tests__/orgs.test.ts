@@ -19,10 +19,13 @@ const {
   mockOrgMemberRemovedEmail,
   mockDbSelect,
 } = vi.hoisted(() => {
+  // Default chain: returns a scale-tier dev so the route's tier gate passes.
+  // Route does: db.select({tier, isFoundingMember}).from(developers).where(...).limit(1)
+  // Tests that need a different result can call mockDbSelect.mockReturnValueOnce(...)
   const selectChain = {
     from: vi.fn().mockReturnValue({
       where: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue([]),
+        limit: vi.fn().mockResolvedValue([{ tier: 'scale', isFoundingMember: false, email: 'dev@example.com' }]),
       }),
     }),
   }
@@ -85,7 +88,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@/lib/db/schema', () => ({
-  developers: { id: 'id', email: 'email', name: 'name' },
+  developers: { id: 'id', email: 'email', name: 'name', tier: 'tier', isFoundingMember: 'is_founding_member' },
 }))
 
 vi.mock('drizzle-orm', () => ({

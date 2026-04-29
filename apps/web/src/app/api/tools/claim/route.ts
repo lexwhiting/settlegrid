@@ -28,6 +28,11 @@ const claimSchema = z.object({
     .min(1, 'Token is required')
     .max(64, 'Token too long')
     .regex(CLAIM_TOKEN_RE, 'Invalid claim token format'),
+  // Producer-audit #11 — developers in Stripe-unsupported corridors may
+  // want to claim without making the listing immediately visible. Default
+  // remains true (preserves marketplace visibility through the claim
+  // transition, the P2.INTL2 contract) but the API now accepts an opt-out.
+  listedInMarketplace: z.boolean().optional(),
 })
 
 // ─── POST /api/tools/claim ──────────────────────────────────────────────────
@@ -90,7 +95,7 @@ export async function POST(request: NextRequest) {
     // Parse and validate the body
     const body = await parseBody(request, claimSchema)
 
-    // Look up tool by claim token
+    // Look up tool by claim token (include toolType + sourceEcosystem to preserve on claim)
     const [tool] = await db
       .select({
         id: tools.id,
@@ -100,6 +105,8 @@ export async function POST(request: NextRequest) {
         status: tools.status,
         developerId: tools.developerId,
         sourceRepoUrl: tools.sourceRepoUrl,
+        toolType: tools.toolType,
+        sourceEcosystem: tools.sourceEcosystem,
       })
       .from(tools)
       .where(eq(tools.claimToken, body.token))
@@ -124,13 +131,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Transfer ownership: update developerId, status, clear claim token
+    // Transfer ownership: update developerId, status, clear claim token,
+    // and preserve marketplace visibility through the transition (P2.INTL2
+    // contract). The default of `true` keeps the tool visible post-claim
+    // in Stripe-unsupported corridors; developers can opt out by passing
+    // listedInMarketplace=false in the request body (producer-audit #11)
+    // if they want to finish configuration before going live.
+    const listedInMarketplace = body.listedInMarketplace ?? true
     const [updated] = await db
       .update(tools)
       .set({
         developerId: auth.id,
         status: 'draft',
         claimToken: null,
+        listedInMarketplace,
         updatedAt: new Date(),
       })
       .where(and(eq(tools.id, tool.id), eq(tools.status, 'unclaimed')))
@@ -141,6 +155,8 @@ export async function POST(request: NextRequest) {
         description: tools.description,
         status: tools.status,
         sourceRepoUrl: tools.sourceRepoUrl,
+        toolType: tools.toolType,
+        sourceEcosystem: tools.sourceEcosystem,
       })
 
     if (!updated) {
@@ -163,6 +179,8 @@ export async function POST(request: NextRequest) {
         name: updated.name,
         slug: updated.slug,
         sourceRepoUrl: updated.sourceRepoUrl,
+        toolType: updated.toolType,
+        sourceEcosystem: updated.sourceEcosystem,
       },
       ipAddress: ip,
     }).catch(() => {})
@@ -185,6 +203,8 @@ export async function POST(request: NextRequest) {
           slug: updated.slug,
           description: updated.description,
           status: updated.status,
+          toolType: updated.toolType,
+          sourceEcosystem: updated.sourceEcosystem,
         },
         redirectUrl: settingsUrl,
       },

@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-gretel-ai",
+  "version": "1.0.0",
+  "description": "MCP server for Gretel.ai with SettleGrid billing. Manage Gretel.ai projects, models, and synthetic data generation via the Gretel REST API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "synthetic-data",
+    "privacy",
+    "anonymization",
+    "machine-learning",
+    "data-generation",
+    "gretel",
+    "ai",
+    "data-science",
+    "models",
+    "projects"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-gretel-ai"
+  }
+}

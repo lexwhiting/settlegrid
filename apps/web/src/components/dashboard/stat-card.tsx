@@ -30,7 +30,7 @@ export function StatCard({ title, value, subtitle, trend, variant, animate = fal
     : value
 
   return (
-    <Card>
+    <Card className="relative overflow-hidden shadow-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</CardTitle>
       </CardHeader>

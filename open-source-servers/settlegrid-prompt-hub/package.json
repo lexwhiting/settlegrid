@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-prompt-hub",
+  "version": "1.0.0",
+  "description": "MCP server for Prompt Hub with SettleGrid billing. Manage and retrieve AI prompts from PromptHub, including listing, fetching, creating, updating, and deleting prompts.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "prompts",
+    "ai",
+    "llm",
+    "prompt-management",
+    "generative-ai",
+    "templates",
+    "openai",
+    "prompt-engineering",
+    "automation"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-prompt-hub"
+  }
+}

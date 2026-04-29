@@ -12,7 +12,7 @@ import {
   index,
   check,
 } from 'drizzle-orm/pg-core'
-import { relations, sql } from 'drizzle-orm'
+import { relations, sql, desc } from 'drizzle-orm'
 
 // ─── Developers ────────────────────────────────────────────────────────────────
 
@@ -35,10 +35,12 @@ export const developers = pgTable('developers', {
   payoutMinimumCents: integer('payout_minimum_cents').notNull().default(100), // $1 minimum — lowest in the industry
   // Notification preferences — { eventType: boolean } pairs
   notificationPreferences: jsonb('notification_preferences').notNull().default('{}'),
-  // Data retention preferences
+  // Notification webhooks — { slack?: string, discord?: string }
+  notificationWebhooks: jsonb('notification_webhooks').notNull().default('{}'),
+  // Data retention preferences (defaults must match API-enforced minimums)
   logRetentionDays: integer('log_retention_days').notNull().default(90),
-  webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(30),
-  auditLogRetentionDays: integer('audit_log_retention_days').notNull().default(365),
+  webhookLogRetentionDays: integer('webhook_log_retention_days').notNull().default(7),
+  auditLogRetentionDays: integer('audit_log_retention_days').notNull().default(90),
   // R9: Developer Public Profiles
   publicProfile: boolean('public_profile').notNull().default(false),
   publicBio: text('public_bio'),
@@ -50,11 +52,27 @@ export const developers = pgTable('developers', {
   // Founding Member program — first 100 developers get lifetime free tier
   isFoundingMember: boolean('is_founding_member').notNull().default(false),
   foundingMemberAt: timestamp('founding_member_at', { withTimezone: true }),
+  // P3.RAIL3 — chargeback velocity auto-pause. Set TRUE by the
+  // chargeback-velocity job when a developer crosses the red tier
+  // (>0.5% chargeback rate). Reversible via the founder admin
+  // unpause action; existing tools keep running, only NEW onboarding
+  // is blocked.
+  onboardingPaused: boolean('onboarding_paused').notNull().default(false),
+  onboardingPausedAt: timestamp('onboarding_paused_at', { withTimezone: true }),
+  onboardingPausedReason: text('onboarding_paused_reason'),
+  // P3.RAIL3 — payout-schedule TTL cache. The /dashboard/payouts page
+  // reads from the local cache when this timestamp is < 1h old; on
+  // staler cache it refreshes from Stripe.
+  payoutScheduleSyncedAt: timestamp('payout_schedule_synced_at', { withTimezone: true }),
+  payoutScheduleWeekday: text('payout_schedule_weekday'),
+  payoutScheduleMonthDay: integer('payout_schedule_month_day'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('developers_slug_idx').on(table.slug),
   uniqueIndex('developers_invite_code_idx').on(table.inviteCode),
+  // P3.RAIL3 — chargeback-watch admin page filters by paused flag.
+  index('developers_onboarding_paused_idx').on(table.onboardingPaused),
 ])
 
 export const developersRelations = relations(developers, ({ many }) => ({
@@ -81,6 +99,10 @@ export const tools = pgTable(
     status: text('status').notNull().default('draft'),
     totalInvocations: integer('total_invocations').notNull().default(0),
     totalRevenueCents: integer('total_revenue_cents').notNull().default(0),
+    // Tool type: what kind of service this is
+    toolType: text('tool_type').notNull().default('mcp-server'), // 'mcp-server' | 'ai-model' | 'rest-api' | 'agent-tool' | 'automation' | 'extension' | 'dataset' | 'sdk-package'
+    // Source ecosystem: where this tool was crawled from (null if manually registered)
+    sourceEcosystem: text('source_ecosystem'), // 'mcp-registry' | 'pulsemcp' | 'smithery' | 'npm' | 'pypi' | 'huggingface' | 'replicate' | 'apify' | 'openrouter' | 'github' | null
     // R7: Tool Categories & Directory
     category: text('category'), // e.g. 'data', 'nlp', 'image', 'code', 'search', 'finance'
     tags: jsonb('tags').default('[]'), // string[]
@@ -94,10 +116,24 @@ export const tools = pgTable(
     sourceRepoUrl: text('source_repo_url'), // GitHub repo URL the tool was crawled from
     claimToken: text('claim_token'), // Unique token for claiming this tool
     claimEmailSentAt: timestamp('claim_email_sent_at', { withTimezone: true }), // When claim email was sent
+    claimFollowUpCount: integer('claim_follow_up_count').notNull().default(0), // Number of follow-up emails sent (0-3)
+    lastFollowUpAt: timestamp('last_follow_up_at', { withTimezone: true }), // When last follow-up email was sent
+    // Enrichment metadata from crawlers (popularity, stars, license, etc.)
+    crawlMetadata: jsonb('crawl_metadata'),
+    // Premium templates: gated behind one-time purchase
+    isPremium: boolean('is_premium').notNull().default(false),
+    premiumPriceCents: integer('premium_price_cents'), // one-time price for premium templates
     // Quality gate: set to true after first real (non-test) invocation
     verified: boolean('verified').notNull().default(false),
     // Manual escalation: timestamp of most recent report
     reportedAt: timestamp('reported_at', { withTimezone: true }),
+    // P2.INTL2: marketplace visibility for claimed-but-unpublished tools.
+    // Defaults true on new rows so claim transitions preserve visibility.
+    // Migration backfills existing 'draft' rows to false (don't retroactively
+    // expose existing developers' in-progress drafts). Only consulted when
+    // status='draft' — 'unclaimed' and 'active' tools are always in the
+    // marketplace regardless of this flag.
+    listedInMarketplace: boolean('listed_in_marketplace').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -105,6 +141,8 @@ export const tools = pgTable(
     index('tools_developer_id_idx').on(table.developerId),
     index('tools_status_idx').on(table.status),
     index('tools_category_idx').on(table.category),
+    index('tools_tool_type_idx').on(table.toolType),
+    index('tools_source_ecosystem_idx').on(table.sourceEcosystem),
     index('tools_claim_token_idx').on(table.claimToken),
   ]
 )
@@ -132,8 +170,21 @@ export const consumers = pgTable('consumers', {
   stripeCustomerId: text('stripe_customer_id'),
   // S5: Auto-Refill default payment method
   defaultPaymentMethodId: text('default_payment_method_id'),
+  // Consumer Referral Program
+  referralCode: text('referral_code').unique(), // format: ref_{12 hex chars}
+  referredByConsumerId: uuid('referred_by_consumer_id'), // FK intentionally omitted to avoid circular ref
+  // Global Balance (Volume Discount Credit Packs)
+  globalBalanceCents: integer('global_balance_cents').notNull().default(0),
+  // Auto-refill configuration for global balance
+  autoRefillPackId: text('auto_refill_pack_id'), // pack_20 | pack_100 | pack_500 | pack_1000
+  autoRefillTriggerCents: integer('auto_refill_trigger_cents'), // trigger when balance drops below this
+  // Newsletter subscription
+  newsletterSubscribed: boolean('newsletter_subscribed').notNull().default(true),
+  newsletterFrequency: text('newsletter_frequency').notNull().default('weekly'), // 'weekly' | 'monthly'
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('consumers_referral_code_idx').on(table.referralCode),
+])
 
 export const consumersRelations = relations(consumers, ({ many }) => ({
   consumerToolBalances: many(consumerToolBalances),
@@ -361,6 +412,8 @@ export const webhookEndpoints = pgTable(
     url: text('url').notNull(),
     secret: text('secret').notNull(),
     events: jsonb('events').notNull().default('["invocation.completed","payout.initiated","tool.status_changed"]'),
+    /** Custom headers merged into webhook deliveries. Scale+ feature. */
+    customHeaders: jsonb('custom_headers'),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -769,6 +822,41 @@ export const ledgerEntries = pgTable(
     counterpartyAccountId: uuid('counterparty_account_id'),
     description: text('description').notNull(),
     metadata: jsonb('metadata'),
+    // P2.TAX1 — tax portion of this entry (see Stripe Tax wiring in
+    // apps/web/src/lib/stripe-tax.ts). Non-tax entries (metering,
+    // payouts, internal transfers) MUST write 0 so reconciliation
+    // queries can SUM without coalescing.
+    taxCents: integer('tax_cents').notNull().default(0),
+    // ISO-3166 alpha-2 country code for non-US; 'US-<state>' (e.g.,
+    // 'US-CA') for US. NULL when no tax was collected.
+    taxJurisdiction: varchar('tax_jurisdiction', { length: 8 }),
+    // ─── P3.K4 unified settlement columns ─────────────────────────
+    // All rail adapters write to this single table via
+    // packages/mcp/src/ledger.ts's recordLedgerEntry() helper — see
+    // apps/web/src/lib/settlement/ledger.ts for the Postgres writer.
+    // Columns are nullable so existing double-entry balance rows
+    // (which don't carry a rail/protocol/take) continue to work
+    // without backfilling.
+    sessionId: uuid('session_id'),
+    rail: text('rail'),
+    protocol: text('protocol'),
+    takeBps: integer('take_bps'),
+    takeCents: integer('take_cents'),
+    settlementStatus: text('settlement_status'),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    externalRef: text('external_ref'),
+    // ─── P3.K6 authorization gate columns ─────────────────────────
+    // `authorizationSignals` is the per-check audit trail produced
+    // by `authorizeInvocation()`. Reconciliation + compliance
+    // queries read this to demonstrate the gate executed (OFAC
+    // strict-liability evidence). The 403 HTTP response body must
+    // NOT expose this array (hostile req e); only the top-level
+    // denial reason is caller-visible. `authorizationArtifact`
+    // is an optional cryptographic approval token returned by
+    // external authorization plugins (enterprise policy engines,
+    // regulated-industry policy layers).
+    authorizationSignals: jsonb('authorization_signals'),
+    authorizationArtifact: text('authorization_artifact'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -776,8 +864,59 @@ export const ledgerEntries = pgTable(
     index('ledger_entries_category_idx').on(table.category),
     index('ledger_entries_operation_id_idx').on(table.operationId),
     index('ledger_entries_created_at_idx').on(table.createdAt),
+    // P3.K4 — reconciliation queries filter by rail + status so
+    // both get an index. session_id gets one too so multi-hop
+    // workflow queries stay O(log n).
+    index('ledger_entries_rail_idx').on(table.rail),
+    index('ledger_entries_settlement_status_idx').on(table.settlementStatus),
+    index('ledger_entries_session_id_idx').on(table.sessionId),
+    index('ledger_entries_external_ref_idx').on(table.externalRef),
     check('ledger_entries_amount_positive', sql`${table.amountCents} > 0`),
     check('ledger_entries_entry_type_check', sql`${table.entryType} IN ('debit', 'credit')`),
+    // P2.TAX1 — tax-cents and jurisdiction are tied: non-zero tax
+    // MUST have a jurisdiction recorded, so an auditor can always
+    // trace a collected tax amount back to the authority it was
+    // collected for.
+    check(
+      'ledger_entries_tax_jurisdiction_required',
+      sql`(${table.taxCents} = 0 AND ${table.taxJurisdiction} IS NULL)
+          OR (${table.taxCents} > 0 AND ${table.taxJurisdiction} IS NOT NULL)
+          OR (${table.taxCents} = 0 AND ${table.taxJurisdiction} IS NOT NULL)`,
+    ),
+    // P3.K4 — settlement_status is a closed enum; check constraint
+    // enforces the valid values at the DB level so an adapter that
+    // forgets to convert its native status can't silently write
+    // garbage.
+    check(
+      'ledger_entries_settlement_status_check',
+      sql`${table.settlementStatus} IS NULL OR ${table.settlementStatus} IN (
+          'pending', 'settled', 'voided', 'failed', 'reversed'
+        )`,
+    ),
+    // P3.K4 — settlement rows carry a take (platform fee in bps +
+    // cents). Enforce the trivial constraints at the DB so a
+    // reconciliation SUM cannot return negative / out-of-range
+    // values from a single bad row.
+    check(
+      'ledger_entries_take_bps_range',
+      sql`${table.takeBps} IS NULL
+          OR (${table.takeBps} >= 0 AND ${table.takeBps} <= 10000)`,
+    ),
+    check(
+      'ledger_entries_take_cents_nonneg',
+      sql`${table.takeCents} IS NULL OR ${table.takeCents} >= 0`,
+    ),
+    // A settled row MUST carry a settledAt timestamp; a non-settled
+    // row MUST NOT (matches the shape check in
+    // packages/mcp/src/ledger.ts). NULL status is allowed (the
+    // legacy double-entry balance rows pre-date P3.K4 and don't
+    // populate status at all).
+    check(
+      'ledger_entries_settled_at_shape',
+      sql`(${table.settlementStatus} IS NULL AND ${table.settledAt} IS NULL)
+          OR (${table.settlementStatus} = 'settled' AND ${table.settledAt} IS NOT NULL)
+          OR (${table.settlementStatus} IS NOT NULL AND ${table.settlementStatus} <> 'settled' AND ${table.settledAt} IS NULL)`,
+    ),
   ]
 )
 
@@ -1025,6 +1164,179 @@ export const achievements = pgTable(
 export const achievementsRelations = relations(achievements, ({ one }) => ({
   developer: one(developers, {
     fields: [achievements.developerId],
+    references: [developers.id],
+  }),
+}))
+
+// ─── Consumer Schedules (Cron-as-a-Service) ──────────────────────────────────
+
+export const consumerSchedules = pgTable(
+  'consumer_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    consumerId: uuid('consumer_id')
+      .notNull()
+      .references(() => consumers.id, { onDelete: 'cascade' }),
+    toolId: uuid('tool_id')
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(), // tool slug for display/routing
+    method: text('method'), // tool method to invoke (null = default)
+    payload: jsonb('payload').notNull().default('{}'), // request payload
+    cronExpression: varchar('cron_expression', { length: 50 }).notNull(), // e.g., '0 * * * *' (hourly)
+    enabled: boolean('enabled').notNull().default(true),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    failCount: integer('fail_count').notNull().default(0),
+    maxFailures: integer('max_failures').notNull().default(5),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('consumer_schedules_consumer_id_idx').on(table.consumerId),
+    index('consumer_schedules_tool_id_idx').on(table.toolId),
+    index('consumer_schedules_enabled_next_run_idx').on(table.enabled, table.nextRunAt),
+  ]
+)
+
+export const consumerSchedulesRelations = relations(consumerSchedules, ({ one }) => ({
+  consumer: one(consumers, {
+    fields: [consumerSchedules.consumerId],
+    references: [consumers.id],
+  }),
+  tool: one(tools, {
+    fields: [consumerSchedules.toolId],
+    references: [tools.id],
+  }),
+}))
+
+// ─── Shadow Index (P2.11) ──────────────────────────────────────────────────────
+
+export const mcpShadowIndex = pgTable(
+  'mcp_shadow_index',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    source: text('source').notNull(), // 'pulsemcp' | 'smithery' | 'awesome-mcp' | 'github' | 'npm' | 'pypi'
+    owner: text('owner').notNull(),
+    repo: text('repo').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    category: text('category'),
+    tags: jsonb('tags').$type<string[]>(),
+    stars: integer('stars'),
+    downloads: integer('downloads'),
+    lastUpdated: timestamp('last_updated', { withTimezone: true }),
+    sourceUrl: text('source_url'),
+    settlegridAvailable: boolean('settlegrid_available').notNull().default(true),
+    indexedAt: timestamp('indexed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('mcp_shadow_source_owner_repo_idx').on(
+      table.source,
+      table.owner,
+      table.repo,
+    ),
+    index('mcp_shadow_category_idx').on(table.category),
+    index('mcp_shadow_last_updated_idx').on(desc(table.lastUpdated)),
+  ]
+)
+
+/**
+ * Consumer-audit #1: Stripe webhook idempotency ledger.
+ *
+ * Stripe retries webhooks on HTTP errors or if the acknowledgement is
+ * slow. Without dedup, a retried `checkout.session.completed` would
+ * credit the consumer twice. This table records every processed event
+ * ID and is consulted BEFORE any state change so retries become no-ops.
+ *
+ * `eventId` is the Stripe event ID (e.g., `evt_1OaZ...`), which Stripe
+ * guarantees is unique per event. The unique index on that column is
+ * load-bearing — the insert-or-conflict pattern in the webhook handler
+ * depends on it to detect duplicates atomically.
+ */
+export const processedWebhookEvents = pgTable(
+  'processed_webhook_events',
+  {
+    eventId: text('event_id').primaryKey(),
+    source: text('source').notNull().default('stripe'), // 'stripe' | future providers
+    eventType: text('event_type').notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('processed_webhook_events_processed_at_idx').on(desc(table.processedAt)),
+  ],
+)
+
+// ─── P3.RAIL3 — Chargeback velocity alerts ────────────────────────────────────
+//
+// Each row represents an emitted alert (yellow or red tier) for one
+// developer at one point in time. The chargeback-velocity job
+// consults this table BEFORE sending a fresh email so a persistently-
+// problematic account doesn't receive a notification every cron run
+// (hostile (d) — yellow rate-limited 7d, red rate-limited 24h). Rows
+// are append-only — a tier escalation from yellow→red is a NEW row,
+// not an update; the founder admin page reads the latest row per
+// developer.
+//
+// `details` jsonb captures the velocity computation inputs (charges,
+// chargebacks, rate, threshold) so a future audit query can replay
+// "what did we know on the day we paused this developer".
+//
+// `resolvedAt` flips when the founder un-pauses or when the developer
+// drops back into green naturally. Audit-trail rather than a soft-
+// delete: the row stays.
+export const chargebackAlerts = pgTable(
+  'chargeback_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    /** 'yellow' | 'red' — green never produces a row. */
+    tier: text('tier').notNull(),
+    /** chargebacks_count / charges_count, in the rolling 30-day window. */
+    rateByCount: text('rate_by_count').notNull(), // stored as decimal string for portability
+    /** chargebacks_volume_cents / charges_volume_cents, same window. */
+    rateByVolume: text('rate_by_volume').notNull(),
+    /** Sample size at the time of the alert. */
+    chargesCount: integer('charges_count').notNull(),
+    chargebacksCount: integer('chargebacks_count').notNull(),
+    chargesVolumeCents: integer('charges_volume_cents').notNull(),
+    chargebacksVolumeCents: integer('chargebacks_volume_cents').notNull(),
+    /** Was the developer onboarding-paused as part of this alert? Red only. */
+    pausedOnboarding: boolean('paused_onboarding').notNull().default(false),
+    /** Replay payload — frozen velocity inputs + thresholds. */
+    details: jsonb('details'),
+    /** Email send status. 'sent' | 'rate_limited' | 'skipped' | 'failed'. */
+    emailStatus: text('email_status').notNull().default('skipped'),
+    /** Set when the founder un-pauses or the account returns to green. */
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedReason: text('resolved_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('chargeback_alerts_developer_id_idx').on(table.developerId),
+    index('chargeback_alerts_tier_idx').on(table.tier),
+    index('chargeback_alerts_created_at_idx').on(desc(table.createdAt)),
+    check(
+      'chargeback_alerts_tier_check',
+      sql`${table.tier} IN ('yellow', 'red')`,
+    ),
+    check(
+      'chargeback_alerts_email_status_check',
+      sql`${table.emailStatus} IN ('sent', 'rate_limited', 'skipped', 'failed')`,
+    ),
+    check(
+      'chargeback_alerts_counts_nonneg',
+      sql`${table.chargesCount} >= 0 AND ${table.chargebacksCount} >= 0
+          AND ${table.chargesVolumeCents} >= 0
+          AND ${table.chargebacksVolumeCents} >= 0`,
+    ),
+  ],
+)
+
+export const chargebackAlertsRelations = relations(chargebackAlerts, ({ one }) => ({
+  developer: one(developers, {
+    fields: [chargebackAlerts.developerId],
     references: [developers.id],
   }),
 }))

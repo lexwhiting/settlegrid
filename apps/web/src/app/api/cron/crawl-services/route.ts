@@ -6,30 +6,49 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
-import type { CrawledServer } from '@/lib/registry-crawlers'
-import { crawlNpmAiPackages } from '@/lib/crawlers/npm-ai-packages'
-import { crawlHuggingFaceSpaces } from '@/lib/crawlers/huggingface-spaces'
-import { crawlReplicateModels } from '@/lib/crawlers/replicate-models'
+import {
+  crawlUniversalSource,
+  getUniversalSourceForDay,
+  getAdditionalSources,
+  type CrawledService,
+  type UniversalSource,
+} from '@/lib/universal-crawlers'
+import { submitToolSlugsToIndexNow } from '@/lib/indexnow'
+import {
+  getCrawlOffset,
+  setCrawlOffset,
+  resetCrawlOffset,
+  incrementCrawlTotal,
+  getCrawlTotal,
+  maybeMonthlyReset,
+} from '@/lib/crawl-offset'
 
 export const maxDuration = 300
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const MAX_SERVERS_PER_RUN = 100
+const MAX_SERVICES_PER_RUN = 300
 const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
 const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
 const SYSTEM_DEVELOPER_NAME = 'SettleGrid System'
 
-/** Service sources in rotation order (cycles by day-of-year) */
-const SERVICE_SOURCES = ['npm-ai', 'huggingface', 'replicate'] as const
-type ServiceSource = (typeof SERVICE_SOURCES)[number]
+/**
+ * Maps crawler source identifiers to the `source_ecosystem` column values.
+ */
+const SOURCE_TO_ECOSYSTEM: Record<string, string> = {
+  'huggingface': 'huggingface',
+  'apify': 'apify',
+  'pypi': 'pypi',
+  'replicate': 'replicate',
+  'npm': 'npm',
+  'npm-ai': 'npm',
+  'github': 'github',
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
 /**
  * Sanitizes a server name into a URL-safe slug.
- * Strips non-alphanumeric characters (except hyphens), lowercases,
- * collapses runs of hyphens, and trims leading/trailing hyphens.
  */
 function toSlug(raw: string): string {
   return raw
@@ -42,7 +61,6 @@ function toSlug(raw: string): string {
 
 /**
  * Sanitizes a free-text string from an external API.
- * Removes control characters and trims to the given max length.
  */
 function sanitizeText(raw: string, maxLength: number): string {
   // eslint-disable-next-line no-control-regex
@@ -52,7 +70,6 @@ function sanitizeText(raw: string, maxLength: number): string {
 
 /**
  * Ensures the SettleGrid system developer row exists.
- * Returns the developer ID.
  */
 async function ensureSystemDeveloper(): Promise<string> {
   const existing = await db
@@ -82,26 +99,31 @@ async function ensureSystemDeveloper(): Promise<string> {
 }
 
 /**
- * Processes a batch of crawled servers: deduplicates, sanitizes, and inserts
- * new tools into the database.
+ * Processes a batch of crawled services: deduplicates, sanitizes, and inserts
+ * new tools into the database with proper toolType and sourceEcosystem.
+ *
+ * Dedup strategy: loads existing slugs into a Set for in-memory dedup.
+ * At 10K-50K tools this is ~2-4MB which is well within Vercel's memory limits.
+ * The DB also has a unique constraint on slug as a safety net.
  */
 async function processBatch(
-  servers: CrawledServer[],
-  source: ServiceSource,
+  services: CrawledService[],
+  universalSource: UniversalSource,
   systemDeveloperId: string,
-): Promise<{ inserted: number; skipped: number }> {
-  const batch = servers.slice(0, MAX_SERVERS_PER_RUN)
+): Promise<{ inserted: number; skipped: number; insertedSlugs: string[] }> {
+  const batch = services.slice(0, MAX_SERVICES_PER_RUN)
 
   // Fetch existing slugs in one bounded query to avoid N+1
   const existingSlugs = new Set(
-    (await db.select({ slug: tools.slug }).from(tools).limit(50000)).map((row) => row.slug),
+    (await db.select({ slug: tools.slug }).from(tools).limit(100000)).map((row) => row.slug),
   )
 
   let inserted = 0
   let skipped = 0
+  const insertedSlugs: string[] = []
 
-  for (const server of batch) {
-    const rawName = server.name.trim()
+  for (const service of batch) {
+    const rawName = service.name.trim()
     if (rawName.length === 0) {
       skipped++
       continue
@@ -121,7 +143,15 @@ async function processBatch(
 
     const name = sanitizeText(rawName, 256)
     const description =
-      server.description.length > 0 ? sanitizeText(server.description, 2000) : null
+      service.description.length > 0 ? sanitizeText(service.description, 2000) : null
+
+    // Map the crawler source to the source_ecosystem column value
+    const sourceEcosystem = SOURCE_TO_ECOSYSTEM[service.source] ?? service.source
+
+    // Store enrichment metadata in crawl_metadata JSONB column
+    const crawlMetadata = service.enrichment
+      ? JSON.parse(JSON.stringify(service.enrichment))
+      : null
 
     try {
       await db.insert(tools).values({
@@ -131,69 +161,44 @@ async function processBatch(
         description,
         status: 'unclaimed',
         category: null,
-        sourceRepoUrl: server.sourceUrl || null,
+        sourceRepoUrl: service.sourceUrl || null,
+        toolType: service.toolType,
+        sourceEcosystem,
+        crawlMetadata,
       })
 
       existingSlugs.add(slug)
+      insertedSlugs.push(slug)
       inserted++
     } catch (insertError) {
       // Unique constraint violation — another run may have inserted it concurrently
       logger.warn('cron.crawl_services.insert_conflict', {
         slug,
-        source,
+        source: universalSource,
         error: insertError instanceof Error ? insertError.message : String(insertError),
       })
       skipped++
     }
   }
 
-  return { inserted, skipped }
-}
-
-/**
- * Determines which service source to crawl based on the current day.
- * Rotates through sources using modulo on the day-of-year.
- */
-function getSourceForCurrentDay(): ServiceSource {
-  const now = new Date()
-  const start = new Date(now.getUTCFullYear(), 0, 0)
-  const diff = now.getTime() - start.getTime()
-  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24))
-  const index = dayOfYear % SERVICE_SOURCES.length
-  return SERVICE_SOURCES[index]
-}
-
-/**
- * Dispatches crawl to the appropriate source adapter.
- */
-async function crawlServiceSource(
-  source: ServiceSource,
-  limit: number,
-): Promise<CrawledServer[]> {
-  switch (source) {
-    case 'npm-ai':
-      return crawlNpmAiPackages(limit)
-    case 'huggingface':
-      return crawlHuggingFaceSpaces(limit)
-    case 'replicate':
-      return crawlReplicateModels(limit)
-    default:
-      logger.warn('cron.crawl_services.unknown_source', { source })
-      return []
-  }
+  return { inserted, skipped, insertedSlugs }
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────────
 
 /**
- * Vercel Cron handler: crawls non-MCP service registries for AI tools,
- * ML models, and inference endpoints. Indexes newly discovered ones
- * as unclaimed tools in the SettleGrid catalog.
+ * Vercel Cron handler: crawls universal AI tool ecosystems for models,
+ * APIs, agents, SDK packages, and automation actors. Indexes newly
+ * discovered ones as unclaimed tools in the SettleGrid catalog.
  *
- * Rotates through 3 sources on a daily cycle:
- *   Day 1 (dayOfYear % 3 == 0): npm AI packages
- *   Day 2 (dayOfYear % 3 == 1): Hugging Face Spaces
- *   Day 3 (dayOfYear % 3 == 2): Replicate models
+ * Pagination: Each source maintains its own offset in Redis. Each run
+ * continues from where the last run left off, progressively walking
+ * through the full catalog. When the end is reached, the offset resets
+ * to 0 to catch new additions.
+ *
+ * Runs 2-3 sources per invocation:
+ *   1. The primary source (rotated daily through 7 sources)
+ *   2. 1-2 additional high-priority sources (HuggingFace models/spaces)
  *
  * Schedule: daily at noon UTC
  */
@@ -215,45 +220,149 @@ export async function GET(request: NextRequest) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
-    // Determine which source to crawl this run
-    const source = getSourceForCurrentDay()
-    logger.info('cron.crawl_services.starting', { source })
+    // Build the list of sources: primary (rotated) + high-priority extras
+    const primary = getUniversalSourceForDay()
+    const additional = getAdditionalSources(primary)
+    const sourcesToCrawl: UniversalSource[] = [primary, ...additional]
 
-    // Crawl the selected source
-    const servers = await crawlServiceSource(source, MAX_SERVERS_PER_RUN)
-
-    if (servers.length === 0) {
-      logger.info('cron.crawl_services.no_data', {
-        source,
-        msg: 'Source returned 0 servers',
-      })
-      return successResponse({
-        source,
-        discovered: 0,
-        inserted: 0,
-        skipped: 0,
-        message: `${source} returned 0 servers`,
-      })
-    }
+    logger.info('cron.crawl_services.starting', {
+      primary,
+      additional,
+      totalSources: sourcesToCrawl.length,
+    })
 
     // Ensure system developer exists (needed for FK on unclaimed tools)
     const systemDeveloperId = await ensureSystemDeveloper()
 
-    // Process and insert new tools
-    const { inserted, skipped } = await processBatch(servers, source, systemDeveloperId)
+    // Crawl each source sequentially (avoids timeout from parallel fetches)
+    const sourceResults: Array<{
+      source: UniversalSource
+      offset: number
+      nextOffset: number | null
+      discovered: number
+      inserted: number
+      skipped: number
+      totalIndexed: number
+      endOfCatalog: boolean
+    }> = []
+
+    let totalInserted = 0
+    const allInsertedSlugs: string[] = []
+
+    for (const source of sourcesToCrawl) {
+      try {
+        // Check for monthly offset reset
+        await maybeMonthlyReset(source)
+
+        // Read current offset from Redis
+        const currentOffset = await getCrawlOffset(source)
+
+        logger.info('cron.crawl_services.source_starting', {
+          source,
+          offset: currentOffset,
+        })
+
+        const { services, nextOffset, endOfCatalog } = await crawlUniversalSource(
+          source,
+          MAX_SERVICES_PER_RUN,
+          currentOffset,
+        )
+
+        // Update offset in Redis
+        if (endOfCatalog || nextOffset === null) {
+          await resetCrawlOffset(source)
+        } else {
+          await setCrawlOffset(source, nextOffset)
+        }
+
+        if (services.length === 0) {
+          logger.info('cron.crawl_services.source_no_data', {
+            source,
+            offset: currentOffset,
+            msg: 'Source returned 0 services',
+            endOfCatalog,
+          })
+          const totalIndexed = await getCrawlTotal(source)
+          sourceResults.push({
+            source,
+            offset: currentOffset,
+            nextOffset: endOfCatalog ? 0 : nextOffset,
+            discovered: 0,
+            inserted: 0,
+            skipped: 0,
+            totalIndexed,
+            endOfCatalog,
+          })
+          continue
+        }
+
+        const { inserted, skipped, insertedSlugs } = await processBatch(
+          services,
+          source,
+          systemDeveloperId,
+        )
+
+        // Update cumulative total
+        await incrementCrawlTotal(source, inserted)
+        const totalIndexed = await getCrawlTotal(source)
+
+        logger.info('cron.crawl_services.source_completed', {
+          source,
+          offset: currentOffset,
+          nextOffset: endOfCatalog ? 0 : nextOffset,
+          discovered: services.length,
+          inserted,
+          skipped,
+          totalIndexed,
+          endOfCatalog,
+        })
+
+        sourceResults.push({
+          source,
+          offset: currentOffset,
+          nextOffset: endOfCatalog ? 0 : nextOffset,
+          discovered: services.length,
+          inserted,
+          skipped,
+          totalIndexed,
+          endOfCatalog,
+        })
+        totalInserted += inserted
+        allInsertedSlugs.push(...insertedSlugs)
+      } catch (sourceError) {
+        logger.warn('cron.crawl_services.source_failed', {
+          source,
+          error: sourceError instanceof Error ? sourceError.message : String(sourceError),
+        })
+        sourceResults.push({
+          source,
+          offset: 0,
+          nextOffset: null,
+          discovered: 0,
+          inserted: 0,
+          skipped: 0,
+          totalIndexed: 0,
+          endOfCatalog: false,
+        })
+        // Continue to next source
+      }
+    }
+
+    // Submit newly inserted tool pages to IndexNow for rapid search engine indexing
+    const indexNowResult = await submitToolSlugsToIndexNow(allInsertedSlugs)
 
     logger.info('cron.crawl_services.completed', {
-      source,
-      discovered: servers.length,
-      inserted,
-      skipped,
+      sourcesRun: sourceResults.length,
+      totalInserted,
+      indexNowSubmitted: indexNowResult?.submitted ?? 0,
     })
 
     return successResponse({
-      source,
-      discovered: servers.length,
-      inserted,
-      skipped,
+      sources: sourceResults,
+      totalInserted,
+      indexNow: indexNowResult
+        ? { submitted: indexNowResult.submitted, ok: indexNowResult.ok }
+        : null,
     })
   } catch (error) {
     return internalErrorResponse(error)

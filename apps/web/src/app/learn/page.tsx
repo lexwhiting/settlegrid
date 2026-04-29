@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -47,11 +48,23 @@ const SECTIONS: SectionCard[] = [
     ),
   },
   {
+    title: 'Monetization Academy',
+    description:
+      'Long-form lessons on pricing your MCP server, per-call vs subscription, payment-rail selection (Stripe MPP vs x402 vs SettleGrid), tool-calling economics, and margin math for AI APIs. Citation-heavy, SEO-structured, built to stand alone as entry points.',
+    href: '/learn/academy',
+    badge: 'New — 5 lessons',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />
+      </svg>
+    ),
+  },
+  {
     title: 'Protocol Guides',
     description:
-      'Deep dives into all 10 AI payment protocols SettleGrid supports — MCP, MPP, x402, AP2, Visa TAP, UCP, ACP, Mastercard Agent Pay, Circle Nanopayments, REST, L402, Alipay Trust, KYAPay, EMVCo, and DRAIN. Learn how each protocol works and how SettleGrid integrates with it.',
+      "Deep dives into the agent payment protocols SettleGrid supports — MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, and the emerging ACTP (Alipay's Agentic Commerce Trust Protocol), EMVCo agent payments, and DRAIN. Learn how each protocol works and how SettleGrid integrates with it.",
     href: '/learn/protocols',
-    badge: '15 protocols',
+    badge: 'Multi-protocol',
     icon: (
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.264.26-2.47.732-3.565" />
@@ -81,11 +94,11 @@ const SECTIONS: SectionCard[] = [
     ),
   },
   {
-    title: 'Comparisons',
+    title: 'AI Payments Landscape',
     description:
-      'See how SettleGrid stacks up against building your own billing, Nevermined, and Stripe Billing. Honest, feature-by-feature comparisons.',
-    href: '/learn/compare',
-    badge: '3 comparisons',
+      'Understand the emerging ecosystem of AI billing infrastructure — protocols, platforms, and approaches for monetizing AI services.',
+    href: '/learn/protocols',
+    badge: 'Multi-protocol',
     icon: (
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
@@ -245,28 +258,10 @@ const SECTIONS: SectionCard[] = [
 export default function LearnPage() {
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      {/* ---- Header ---- */}
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
-        <nav className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link href="/tools" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Showcase
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
       {/* ---- Main content ---- */}
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-4xl mx-auto">
           {/* Hero */}
           <div className="text-center mb-16">
@@ -338,19 +333,7 @@ export default function LearnPage() {
         </div>
       </main>
 
-      {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-5xl mx-auto flex items-center justify-between text-sm text-gray-500">
-          <Link href="/" className="hover:text-gray-300 transition-colors">
-            <SettleGridLogo variant="compact" size={32} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="hover:text-gray-300 transition-colors">Docs</Link>
-            <Link href="/learn/protocols" className="hover:text-gray-300 transition-colors">Protocols</Link>
-            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

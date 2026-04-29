@@ -5,6 +5,8 @@
  * @packageDocumentation
  */
 
+import type { PaymentContext } from './adapters/types'
+
 /**
  * Pricing model for a single tool method.
  *
@@ -69,6 +71,28 @@ export interface SettleGridConfig {
   cacheTtlMs?: number
   /** Request timeout in milliseconds for API calls (defaults to 5000, range: 100-30000) */
   timeoutMs?: number
+  /**
+   * Tool-owned secret used by {@link createDispatchKernel} to authenticate
+   * facilitator round-trips (`/api/x402/verify`, `/api/x402/settle`,
+   * `/api/mpp/verify`, `/api/mpp/settle`). If unset, the kernel falls back
+   * to the consumer's API key from the incoming request — acceptable for
+   * Phase 1 but not recommended because it couples the tool's facilitator
+   * auth to whichever consumer happens to be calling at the moment.
+   *
+   * Only used when {@link createDispatchKernel} is in play; sg-balance
+   * (MCP protocol) calls never need it.
+   */
+  toolSecret?: string
+  /** Maximum API calls per second per middleware instance (default: 100) */
+  rateLimit?: number
+  /** Maximum retry attempts on 5xx responses (default: 3) */
+  maxRetries?: number
+  /** Consecutive API failures before circuit breaker opens (default: 10) */
+  circuitBreakerThreshold?: number
+  /** Circuit breaker cooldown period in milliseconds before half-open probe (default: 60000) */
+  circuitBreakerResetMs?: number
+  /** TTL in milliseconds for negative key validation cache entries (default: 30000) */
+  negativeCacheTtlMs?: number
 }
 
 /**
@@ -122,12 +146,14 @@ export interface MeterResult {
 export type SettleGridErrorCode =
   | 'INVALID_KEY'
   | 'INSUFFICIENT_CREDITS'
+  | 'BUDGET_EXCEEDED'
   | 'TOOL_NOT_FOUND'
   | 'TOOL_DISABLED'
   | 'RATE_LIMITED'
   | 'SERVER_ERROR'
   | 'NETWORK_ERROR'
   | 'TIMEOUT'
+  | 'PROTOCOL_NOT_YET_SUPPORTED'
 
 /**
  * Middleware context passed through the invocation pipeline.
@@ -164,6 +190,22 @@ export interface WrapOptions {
   method?: string
   /** Override pricing for this specific wrapped function (in cents) */
   costCents?: number
+  /**
+   * Number of units consumed by this invocation for non-per-invocation
+   * pricing models. Interpretation depends on the `model` field of your
+   * pricing config:
+   *
+   *   - `per-token`:  tokens processed (LLM proxies)
+   *   - `per-byte`:   bytes transferred (data services)
+   *   - `per-second`: compute seconds (long-running tasks)
+   *   - `tiered`:     units billed through the tier schedule
+   *   - `outcome`:    ignored (cost is resolved post-execution)
+   *
+   * Ignored when the pricing model is `per-invocation` or when no
+   * `model` field is set (legacy per-invocation pricing). Defaults to
+   * 1 when omitted in unit-based models.
+   */
+  units?: number
 }
 
 /** Internal API response for key validation */
@@ -216,5 +258,191 @@ export interface GeneralizedPricingConfig {
     successCostCents: number
     failureCostCents: number  // usually 0
     successCondition: string  // JSONPath or simple field check
+  }
+}
+
+// ─── Cross-protocol dispatch kernel (P1.K2) ────────────────────────────────
+
+/**
+ * Handler that the dispatch kernel calls after payment verification and
+ * before settlement. Receives the normalized {@link PaymentContext} that
+ * the protocol adapter extracted from the incoming request. Whatever the
+ * handler returns is forwarded to the facilitator's settle endpoint in
+ * the `handlerResult` field (for x402 / MPP) so the server can compute
+ * the final cost from tokens / bytes / outcome. For sg-balance (MCP
+ * protocol) the return value is currently ignored because per-invocation
+ * billing is resolved before the handler runs.
+ *
+ * See {@link DispatchKernel} and the full docs at
+ * `packages/mcp/src/kernel.ts` for the pipeline description.
+ */
+export type DispatchHandler = (ctx: PaymentContext) => Promise<unknown>
+
+/**
+ * Single-method dispatch API returned by `createDispatchKernel(sg)`.
+ * The kernel routes incoming `Request` objects through protocol
+ * detection, facilitator verification (for x402 / MPP), the developer's
+ * handler, and response formatting — producing a protocol-appropriate
+ * `Response`. See `packages/mcp/src/kernel.ts` for the full design.
+ */
+export interface DispatchKernel {
+  /**
+   * Route an incoming request through the full payment pipeline and
+   * produce a protocol-appropriate response.
+   *
+   * Never throws — errors are caught internally and routed through
+   * `adapter.formatError` (or the inline 402 fallback when no adapter
+   * matched the request).
+   */
+  handle(request: Request, runHandler: DispatchHandler): Promise<Response>
+}
+
+// ─── P2.K4 — typed MeterContext + Invocation lifecycle ──────────────────────
+//
+// Per settlement-layer-architecture.md, the second arg of `sg.wrap`'s
+// returned wrapper function is formalized as a typed `MeterContext`. The
+// runtime behavior is unchanged in P2.K4 — the kernel still reads the
+// same `headers` and `metadata` fields it always has — but consumers now
+// have a named, documented shape to target for future lifecycle work
+// (streaming, long-running invocations) that P3.K1 will implement.
+//
+// The interface is INTENTIONALLY all-optional so existing callers who
+// pass `{ headers, metadata }` still typecheck cleanly. Future additions
+// here (tracing identifiers, operator-supplied fraud signals, etc.)
+// should follow the same opt-in pattern.
+
+/**
+ * Typed context passed into the wrapper function returned by `sg.wrap`.
+ *
+ * All fields are optional. The runtime currently reads `headers` and
+ * `metadata`; the other fields are reserved for the P3.K1 lifecycle
+ * implementation and are allowed to be present at the type level so
+ * consumers can populate them during P2 without a type-level break
+ * when P3 ships.
+ *
+ * ## P2.K4 scope note (hostile-review M1)
+ *
+ * Per the P2.K4 spec-diff widening, the same shape is also accepted at
+ * WRAP-TIME via `sg.wrap(handler, options)` (the second arg was
+ * widened to `WrapOptions & MeterContext`). HOWEVER in Phase 2 only
+ * WrapOptions' 3 fields (`method` / `costCents` / `units`) flow
+ * through to the middleware. MeterContext fields passed at wrap-time
+ * are TYPE-LEVEL ONLY — the middleware silently drops them. Consumers
+ * who need request-time context must pass it on the per-invocation
+ * call (the wrapped function's second arg). P3.K1 will wire wrap-time
+ * MeterContext through as defaults, merged with per-call context; for
+ * now, treat wrap-time MeterContext fields as a compile-time assertion
+ * that the shape is correct, not a runtime side-effect.
+ */
+export interface MeterContext {
+  /**
+   * Explicit API key to bill. When absent, the SDK extracts it from
+   * `headers['x-api-key']`, `headers.authorization` (Bearer), or
+   * `metadata['settlegrid-api-key']` — in that order. Providing it
+   * here skips header extraction.
+   *
+   * Must be a non-empty string when provided. Format validation is
+   * deferred to the API key parser — pass what you have and let the
+   * SDK reject invalid keys with `InvalidKeyError`.
+   */
+  apiKey?: string
+
+  /**
+   * Optional session identifier for grouping related invocations
+   * (e.g., a multi-step tool call flow). Persisted on the Invocation
+   * record when P3.K1's lifecycle API lands. Opaque to the SDK;
+   * consumers own the naming scheme.
+   */
+  sessionId?: string
+
+  /**
+   * Per-invocation budget ceiling in cents. When set, the middleware
+   * rejects before handler execution if the operation's cost exceeds
+   * this value (`BudgetExceededError`). Today read from
+   * `metadata['settlegrid-max-cost-cents']`; P2.K4 promotes it to a
+   * first-class field.
+   *
+   * MUST be a non-negative integer. Non-integer / NaN / Infinity /
+   * negative values will be rejected by the middleware's validation
+   * layer (same validation that pricing costCents goes through).
+   */
+  maxCostCents?: number
+
+  /**
+   * Free-form metadata object. Currently carries
+   * `settlegrid-max-cost-cents` (see above); P3.K1 will migrate that
+   * off into the typed field and keep this available for
+   * consumer-defined tags (request IDs, tracing spans, etc.).
+   */
+  metadata?: Record<string, unknown>
+
+  /**
+   * HTTP-style headers. Currently the primary extraction surface
+   * for `x-api-key` and `Authorization: Bearer sg_*`. Passed
+   * through unchanged to the middleware.
+   */
+  headers?: Record<string, string | string[] | undefined>
+
+  /**
+   * MCP-protocol `_meta` passthrough. The SDK reads
+   * `_meta['settlegrid-api-key']` / `_meta['settlegrid-method']` /
+   * `_meta['settlegrid-service']` when available. Provided here as
+   * a typed field so MCP tool servers don't need to shoehorn MCP
+   * metadata through `metadata`.
+   */
+  mcpMeta?: Record<string, unknown>
+}
+
+/**
+ * State-machine record of a single billable invocation. Produced by
+ * `beginInvocation(ctx)` and transitioned through
+ * `heartbeat` / `settleInvocation` / `voidInvocation` for the P3.K1
+ * lifecycle API. In P2.K4 the stubs throw `NOT_IMPLEMENTED`; the shape
+ * is defined now so consumers can type against it.
+ *
+ * State transitions (P3.K1 reference):
+ *   pending  → active (beginInvocation completes + first heartbeat)
+ *   active   → settled (settleInvocation with final cost)
+ *   active   → voided  (voidInvocation cancels with no charge)
+ *   active   → failed  (handler threw; middleware records + voids)
+ *   pending  → failed  (beginInvocation itself errored)
+ */
+export interface Invocation {
+  /** UUID / ULID — unique within this SettleGrid instance. */
+  id: string
+
+  /** Current state-machine state. */
+  status: 'pending' | 'active' | 'settled' | 'voided' | 'failed'
+
+  /** The MeterContext this invocation was opened against. */
+  meterContext: MeterContext
+
+  /** Operation method name (for pricing resolution). */
+  method?: string
+
+  /** Units billed when the operation uses a non-invocation pricing model. */
+  units?: number
+
+  /** Final cost charged, in cents. Set on settleInvocation. */
+  costCents?: number
+
+  /** Millisecond epoch when beginInvocation was called. */
+  startedAt: number
+
+  /** Millisecond epoch of the most recent heartbeat (if any). */
+  heartbeatAt?: number
+
+  /** Millisecond epoch when the invocation reached a terminal state. */
+  settledAt?: number
+
+  /**
+   * Error details. Convention: present if and only if `status` is
+   * `'failed'`. Not type-enforced via discriminated union — that's
+   * overkill for a stub-only P2.K4 shape — but P3.K1 code should
+   * treat `error` as logically tied to the `'failed'` state.
+   */
+  error?: {
+    code: string
+    message: string
   }
 }

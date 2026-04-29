@@ -12,15 +12,34 @@ import {
   type CrawledServer,
   type RegistrySource,
 } from '@/lib/registry-crawlers'
+import { submitToolSlugsToIndexNow } from '@/lib/indexnow'
+import {
+  getCrawlOffset,
+  setCrawlOffset,
+  resetCrawlOffset,
+  incrementCrawlTotal,
+  getCrawlTotal,
+  maybeMonthlyReset,
+} from '@/lib/crawl-offset'
 
 export const maxDuration = 300
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const MAX_SERVERS_PER_RUN = 100
+const MAX_SERVERS_PER_RUN = 300
 const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
 const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
 const SYSTEM_DEVELOPER_NAME = 'SettleGrid System'
+
+/**
+ * Maps registry crawler source identifiers to the `source_ecosystem` column values.
+ */
+const SOURCE_TO_ECOSYSTEM: Record<string, string> = {
+  'mcp-registry': 'mcp-registry',
+  'pulsemcp': 'pulsemcp',
+  'smithery': 'smithery',
+  'npm': 'npm',
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -83,22 +102,27 @@ async function ensureSystemDeveloper(): Promise<string> {
 /**
  * Processes a batch of crawled servers: deduplicates, sanitizes, and inserts
  * new tools into the database.
+ *
+ * Dedup strategy: loads existing slugs into a Set for in-memory dedup.
+ * At 10K-50K tools this is ~2-4MB which is well within Vercel's memory limits.
+ * The DB also has a unique constraint on slug as a safety net.
  */
 async function processBatch(
   servers: CrawledServer[],
   source: RegistrySource,
   systemDeveloperId: string
-): Promise<{ inserted: number; skipped: number }> {
+): Promise<{ inserted: number; skipped: number; insertedSlugs: string[] }> {
   // Cap to MAX_SERVERS_PER_RUN
   const batch = servers.slice(0, MAX_SERVERS_PER_RUN)
 
   // Fetch existing slugs in one bounded query to avoid N+1
   const existingSlugs = new Set(
-    (await db.select({ slug: tools.slug }).from(tools).limit(50000)).map((row) => row.slug)
+    (await db.select({ slug: tools.slug }).from(tools).limit(100000)).map((row) => row.slug)
   )
 
   let inserted = 0
   let skipped = 0
+  const insertedSlugs: string[] = []
 
   for (const server of batch) {
     const rawName = server.name.trim()
@@ -125,6 +149,14 @@ async function processBatch(
         ? sanitizeText(server.description, 2000)
         : null
 
+    // Map the crawler source to the source_ecosystem column value
+    const sourceEcosystem = SOURCE_TO_ECOSYSTEM[server.source] ?? server.source
+
+    // Store enrichment metadata in crawl_metadata JSONB column
+    const crawlMetadata = server.enrichment
+      ? JSON.parse(JSON.stringify(server.enrichment))
+      : null
+
     try {
       await db.insert(tools).values({
         developerId: systemDeveloperId,
@@ -134,10 +166,14 @@ async function processBatch(
         status: 'unclaimed',
         category: null,
         sourceRepoUrl: server.sourceUrl || null,
+        toolType: 'mcp-server', // Registry crawlers discover MCP servers
+        sourceEcosystem,
+        crawlMetadata,
       })
 
       // Track the slug so later servers in the same batch don't duplicate
       existingSlugs.add(slug)
+      insertedSlugs.push(slug)
       inserted++
     } catch (insertError) {
       // Unique constraint violation — another run may have inserted it concurrently
@@ -150,7 +186,7 @@ async function processBatch(
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, skipped, insertedSlugs }
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────────
@@ -158,6 +194,10 @@ async function processBatch(
 /**
  * Vercel Cron handler: crawls MCP registries for public servers
  * and indexes newly discovered ones as unclaimed tools in the SettleGrid catalog.
+ *
+ * Pagination: Each run continues from where the last run left off,
+ * progressively walking through the full catalog. When the end is
+ * reached, the offset resets to 0 to catch new additions.
  *
  * Rotates through 4 sources on each run:
  *   Run 1 (hour % 4 == 0): Official MCP Registry
@@ -187,43 +227,93 @@ export async function GET(request: NextRequest) {
 
     // Determine which source to crawl this run
     const source = getSourceForCurrentRun()
-    logger.info('cron.crawl_registry.starting', { source })
 
-    // Crawl the selected source
-    const servers = await crawlSource(source, MAX_SERVERS_PER_RUN)
+    // Check for monthly offset reset
+    await maybeMonthlyReset(source)
 
-    if (servers.length === 0) {
+    // Read current offset from Redis
+    const currentOffset = await getCrawlOffset(source)
+
+    logger.info('cron.crawl_registry.starting', { source, offset: currentOffset })
+
+    // Crawl the selected source from the current offset
+    const { servers, nextOffset, endOfCatalog } = await crawlSource(
+      source,
+      MAX_SERVERS_PER_RUN,
+      currentOffset,
+    )
+
+    if (servers.length === 0 && !endOfCatalog) {
       logger.info('cron.crawl_registry.no_data', {
         source,
+        offset: currentOffset,
         msg: 'Source returned 0 servers',
       })
       return successResponse({
         source,
+        offset: currentOffset,
         discovered: 0,
         inserted: 0,
         skipped: 0,
-        message: `${source} returned 0 servers`,
+        endOfCatalog: false,
+        message: `${source} returned 0 servers at offset ${currentOffset}`,
       })
     }
 
-    // Ensure system developer exists (needed for FK on unclaimed tools)
-    const systemDeveloperId = await ensureSystemDeveloper()
+    // Update offset in Redis
+    if (endOfCatalog || nextOffset === null) {
+      await resetCrawlOffset(source)
+      logger.info('cron.crawl_registry.end_of_catalog', { source, offset: currentOffset })
+    } else {
+      await setCrawlOffset(source, nextOffset)
+    }
 
-    // Process and insert new tools
-    const { inserted, skipped } = await processBatch(servers, source, systemDeveloperId)
+    // Process and insert new tools (if any servers returned)
+    let inserted = 0
+    let skipped = 0
+    let insertedSlugs: string[] = []
+
+    if (servers.length > 0) {
+      const systemDeveloperId = await ensureSystemDeveloper()
+      const result = await processBatch(servers, source, systemDeveloperId)
+      inserted = result.inserted
+      skipped = result.skipped
+      insertedSlugs = result.insertedSlugs
+
+      // Update cumulative total
+      await incrementCrawlTotal(source, inserted)
+    }
+
+    // Submit newly inserted tool pages to IndexNow for rapid search engine indexing
+    const indexNowResult = await submitToolSlugsToIndexNow(insertedSlugs)
+
+    // Get cumulative total for monitoring
+    const totalIndexed = await getCrawlTotal(source)
 
     logger.info('cron.crawl_registry.completed', {
       source,
+      offset: currentOffset,
+      nextOffset: endOfCatalog ? 0 : nextOffset,
       discovered: servers.length,
       inserted,
       skipped,
+      totalIndexed,
+      endOfCatalog,
+      indexNowSubmitted: indexNowResult?.submitted ?? 0,
     })
 
     return successResponse({
       source,
+      offset: currentOffset,
+      nextOffset: endOfCatalog ? 0 : nextOffset,
       discovered: servers.length,
       inserted,
       skipped,
+      totalIndexed,
+      endOfCatalog,
+      indexNow: indexNowResult
+        ? { submitted: indexNowResult.submitted, ok: indexNowResult.ok }
+        : null,
     })
   } catch (error) {
     return internalErrorResponse(error)
