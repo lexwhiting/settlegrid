@@ -334,8 +334,41 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS })
 }
 
-export async function GET(request: NextRequest) {
-  return handleMcp(request)
+/**
+ * GET requests to a Streamable HTTP MCP transport open a Server-Sent
+ * Events stream so the server can push events to subscribed clients.
+ * Our SettleGrid MCP server is STATELESS (a fresh `McpServer` is
+ * created per request — see `createDiscoveryServer`), so there is
+ * no session state and no events to push. The GET-for-SSE pattern
+ * has no purpose here; if we honored it via the SDK transport, the
+ * stream would sit idle until Vercel's 60-second function timeout
+ * killed it with a 504 (visible in 2026-04-29 prod logs as repeated
+ * `GET 504 /api/mcp Vercel Runtime Timeout Error` entries).
+ *
+ * The MCP Streamable HTTP spec allows servers to return 405 for GET.
+ * We do that explicitly here so MCP clients fail fast and pivot to
+ * POST (the JSON-RPC request path) instead of waiting 60 seconds.
+ */
+export async function GET() {
+  return new Response(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      error: {
+        code: -32601,
+        message:
+          'Method Not Allowed. The SettleGrid MCP server is stateless; use POST for JSON-RPC requests, not GET for SSE.',
+      },
+      id: null,
+    }),
+    {
+      status: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        Allow: 'POST, DELETE, OPTIONS',
+        ...CORS_HEADERS,
+      },
+    },
+  )
 }
 
 export async function POST(request: NextRequest) {
