@@ -15,6 +15,13 @@
       "when": 1776513600000,
       "tag": "0001_listed_in_marketplace",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777737600000,
+      "tag": "0008_premium_template_columns",
+      "breakpoints": true
     }
   ]
 }
