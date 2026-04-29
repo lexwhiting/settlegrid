@@ -21,7 +21,6 @@ import { logger } from '@/lib/logger'
 import {
   recordLedgerEntry as canonicalRecordLedgerEntry,
   type LedgerEntry,
-  type RecordLedgerEntryInput,
 } from '@settlegrid/mcp'
 import type { LedgerCategory } from './types'
 
