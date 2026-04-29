@@ -51,9 +51,10 @@ vi.mock('@/lib/logger', () => ({
 // The cors mock above replaces `withCors(handler)` with `handler` so
 // the exported GET / POST functions are the bare route handlers in
 // tests, no extra casting needed.
-import { GET as SUPPORTED_GET, PUBLIC_FACILITATOR_NETWORKS } from '../x402/facilitator/v1/supported/route'
+import { GET as SUPPORTED_GET } from '../x402/facilitator/v1/supported/route'
 import { POST as VERIFY_POST } from '../x402/facilitator/v1/verify/route'
 import { POST as SETTLE_POST } from '../x402/facilitator/v1/settle/route'
+import { PUBLIC_FACILITATOR_NETWORKS } from '../x402/facilitator/v1/_shared'
 
 beforeEach(() => {
   mockCheckRateLimit.mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 })
