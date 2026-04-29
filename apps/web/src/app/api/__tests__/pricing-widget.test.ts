@@ -19,7 +19,9 @@ const { mockDb, mockCheckRateLimit } = vi.hoisted(() => {
 
 vi.mock('@/lib/db', () => ({ db: mockDb, schema: {} }))
 vi.mock('@/lib/db/schema', () => ({
-  tools: { id: 'id', name: 'name', slug: 'slug', status: 'status', pricingConfig: 'pricing_config' },
+  tools: { id: 'id', name: 'name', slug: 'slug', status: 'status', pricingConfig: 'pricing_config', developerId: 'developer_id' },
+  // Route also queries developers for white-label tier check
+  developers: { id: 'id', tier: 'tier', isFoundingMember: 'is_founding_member' },
 }))
 vi.mock('@/lib/rate-limit', () => ({ apiLimiter: {}, checkRateLimit: mockCheckRateLimit }))
 vi.mock('drizzle-orm', () => ({
@@ -47,8 +49,14 @@ function resetMockDb() {
 describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
   beforeEach(() => { vi.clearAllMocks(); resetMockDb() })
 
+  // The route does TWO sequential .limit(1) queries: first for the tool,
+  // then for the developer (white-label tier check). Each test queues two
+  // mockResolvedValueOnce values so both queries are satisfied.
+
   it('returns pricing widget for active tool', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', name: 'My Tool', slug: 'my-tool', pricingConfig: { tiers: [{ name: 'Free' }, { name: 'Pro' }] } }])
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'My Tool', slug: 'my-tool', pricingConfig: { tiers: [{ name: 'Free' }, { name: 'Pro' }] }, developerId: 'dev-1' }])
+      .mockResolvedValueOnce([]) // dev not found (whiteLabel = false)
     const res = await GET(makeRequest('/api/tools/my-tool/pricing-widget'), { params: Promise.resolve({ slug: 'my-tool' }) })
     const data = await res.json()
     expect(res.status).toBe(200)
@@ -59,13 +67,16 @@ describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
   })
 
   it('returns 404 for non-existent tool', async () => {
+    // Tool query returns empty — route short-circuits before dev query
     mockDb.limit.mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/tools/nonexistent/pricing-widget'), { params: Promise.resolve({ slug: 'nonexistent' }) })
     expect(res.status).toBe(404)
   })
 
   it('returns default tier when no pricing config', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', name: 'Basic Tool', slug: 'basic-tool', pricingConfig: null }])
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Basic Tool', slug: 'basic-tool', pricingConfig: null, developerId: 'dev-1' }])
+      .mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/tools/basic-tool/pricing-widget'), { params: Promise.resolve({ slug: 'basic-tool' }) })
     const data = await res.json()
     expect(res.status).toBe(200)
@@ -74,7 +85,9 @@ describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
   })
 
   it('returns embed code with correct slug', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test-slug', pricingConfig: null }])
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test-slug', pricingConfig: null, developerId: 'dev-1' }])
+      .mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/tools/test-slug/pricing-widget'), { params: Promise.resolve({ slug: 'test-slug' }) })
     const data = await res.json()
     expect(data.embedCode).toContain('test-slug')
@@ -87,7 +100,9 @@ describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
   })
 
   it('includes checkout URL', async () => {
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test', pricingConfig: null }])
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test', pricingConfig: null, developerId: 'dev-1' }])
+      .mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/tools/test/pricing-widget'), { params: Promise.resolve({ slug: 'test' }) })
     const data = await res.json()
     expect(data.checkoutUrl).toContain('settlegrid.ai')
@@ -96,7 +111,9 @@ describe('R15: Pricing Widget (GET /api/tools/[slug]/pricing-widget)', () => {
 
   it('limits tiers to 10', async () => {
     const manyTiers = Array.from({ length: 15 }, (_, i) => ({ name: `Tier ${i}` }))
-    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test', pricingConfig: { tiers: manyTiers } }])
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Test', slug: 'test', pricingConfig: { tiers: manyTiers }, developerId: 'dev-1' }])
+      .mockResolvedValueOnce([])
     const res = await GET(makeRequest('/api/tools/test/pricing-widget'), { params: Promise.resolve({ slug: 'test' }) })
     const data = await res.json()
     expect(data.tiers.length).toBeLessThanOrEqual(10)

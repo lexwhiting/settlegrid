@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
             and(
               eq(invocations.consumerId, alert.consumerId),
               eq(invocations.toolId, alert.toolId),
-              sql`${invocations.createdAt} >= ${oneHourAgo}`
+              sql`${invocations.createdAt} >= ${oneHourAgo.toISOString()}::timestamptz`
             )
           )
 
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
             and(
               eq(invocations.consumerId, alert.consumerId),
               eq(invocations.toolId, alert.toolId),
-              sql`${invocations.createdAt} >= ${sevenDaysAgo}`
+              sql`${invocations.createdAt} >= ${sevenDaysAgo.toISOString()}::timestamptz`
             )
           )
 

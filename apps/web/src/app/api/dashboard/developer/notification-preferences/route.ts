@@ -27,6 +27,10 @@ const VALID_EVENT_KEYS = [
   'webhook_delivery_failed',
   'webhook_endpoint_disabled',
   'marketing_updates',
+  // Phase 2: additional event types
+  'invocation_milestone',
+  'new_consumer_signup',
+  'tool.anomaly_detected',
 ] as const
 
 const notificationPreferencesSchema = z.record(

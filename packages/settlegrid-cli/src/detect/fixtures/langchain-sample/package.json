@@ -1,0 +1,10 @@
+{
+  "name": "langchain-sample",
+  "version": "0.0.0",
+  "description": "Minimal LangChain tool fixture for detectRepoType tests.",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@langchain/core": "^0.3.0"
+  }
+}

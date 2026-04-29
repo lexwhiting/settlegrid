@@ -1,0 +1,45 @@
+{
+  "slug": "scrapingbee",
+  "name": "Scrapingbee",
+  "description": "MCP server for ScrapingBee with SettleGrid billing. Scrape any webpage's HTML content with proxy rotation and optional JavaScript rendering via the ScrapingBee API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "scraping",
+    "web-scraping",
+    "proxy",
+    "headless-browser",
+    "html",
+    "javascript-rendering",
+    "data-extraction",
+    "automation",
+    "crawling"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-scrapingbee"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 3
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "scrape_url",
+    "scrape_with_extraction",
+    "scrape_with_premium_proxy"
+  ],
+  "featured": false
+}

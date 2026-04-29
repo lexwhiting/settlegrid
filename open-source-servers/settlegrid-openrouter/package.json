@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-openrouter",
   "version": "1.0.0",
-  "description": "MCP server for OpenRouter with SettleGrid billing. Unified API for 100+ AI models (GPT-4, Claude, Llama, Mistral, etc.)",
+  "description": "MCP server for OpenRouter with SettleGrid billing. Access and route requests to hundreds of AI language models via the OpenRouter unified API.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,12 +19,16 @@
     "settlegrid",
     "mcp",
     "ai",
-    "openrouter",
-    "llm",
     "ai",
-    "multi-model",
+    "llm",
+    "language-model",
+    "openrouter",
+    "chat",
+    "completions",
     "gpt",
-    "claude"
+    "claude",
+    "inference",
+    "routing"
   ],
   "license": "MIT",
   "repository": {

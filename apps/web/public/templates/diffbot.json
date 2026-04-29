@@ -1,0 +1,45 @@
+{
+  "slug": "diffbot",
+  "name": "Diffbot",
+  "description": "MCP server for Diffbot with SettleGrid billing. Automatically classify web pages and extract structured data using Diffbot's AI-powered Analyze API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "knowledge-graphs",
+    "diffbot",
+    "web-scraping",
+    "data-extraction",
+    "page-classification",
+    "article",
+    "product",
+    "nlp",
+    "structured-data",
+    "web-parsing"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-diffbot"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "analyze_url"
+  ],
+  "featured": false
+}

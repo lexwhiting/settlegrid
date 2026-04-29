@@ -1,0 +1,42 @@
+{
+  "slug": "etymology",
+  "name": "Etymology & Definitions",
+  "description": "Access word definitions, etymology, and phonetics via the Free Dictionary API. Look up definitions, origins, and pronunciations.",
+  "version": "1.0.0",
+  "category": "research",
+  "tags": [
+    "etymology",
+    "dictionary",
+    "definition",
+    "language",
+    "words",
+    "phonetics"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-etymology"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get-definition",
+    "get-etymology",
+    "get-phonetics"
+  ],
+  "featured": false
+}

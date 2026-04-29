@@ -1,0 +1,49 @@
+{
+  "slug": "langsmith-prompts",
+  "name": "Langsmith Prompts",
+  "description": "MCP server for LangSmith Prompts with SettleGrid billing. Manage and query LangSmith tracing sessions, metadata, and filter views via the LangSmith API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "prompt-engineering",
+    "langsmith",
+    "langchain",
+    "tracing",
+    "llm",
+    "observability",
+    "sessions",
+    "prompts",
+    "monitoring"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-langsmith-prompts"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_session",
+    "delete_session",
+    "get_server_info",
+    "get_session",
+    "get_session_metadata",
+    "list_session_views",
+    "list_sessions"
+  ],
+  "featured": false
+}

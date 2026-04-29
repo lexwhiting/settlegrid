@@ -1,0 +1,5 @@
+{
+  "type": "module",
+  "private": true,
+  "description": "Local package.json marker so Node treats .js files in this directory as ES modules. Required because the files use `import`/`export` syntax and the repo root package.json does not set `type: module`. Not a real package — not published, no dependencies beyond what's inherited from the repo root node_modules."
+}

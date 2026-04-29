@@ -1,0 +1,51 @@
+{
+  "slug": "sonarcloud",
+  "name": "Sonarcloud",
+  "description": "MCP server for SonarCloud with SettleGrid billing. Query SonarCloud projects, issues, metrics, and quality gates via the SonarCloud Web API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "code-analysis",
+    "sonarcloud",
+    "code-quality",
+    "static-analysis",
+    "security",
+    "code-coverage",
+    "issues",
+    "metrics",
+    "quality-gate",
+    "devops"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-sonarcloud"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_issue_changelog",
+    "get_project_analyses",
+    "get_project_metrics",
+    "get_quality_gate_status",
+    "list_projects",
+    "list_rules",
+    "search_hotspots",
+    "search_issues"
+  ],
+  "featured": false
+}

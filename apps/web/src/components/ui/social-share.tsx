@@ -29,9 +29,9 @@ const BASE_URL = 'https://settlegrid.ai'
 
 function buildShareText(props: SocialShareProps): string {
   if (props.type === 'achievement') {
-    return `Just earned the '${props.badgeName}' achievement on SettleGrid! \uD83C\uDF89 ${BASE_URL}`
+    return `Just earned the '${props.badgeName}' achievement on SettleGrid! ${BASE_URL}`
   }
-  return `Just published ${props.toolName} on SettleGrid! Try it: ${BASE_URL}/tools/${props.toolSlug}`
+  return `I just published ${props.toolName} on @settlegrid — AI agents can now discover and pay for it per call. ${BASE_URL}/tools/${props.toolSlug}`
 }
 
 function buildShareUrl(props: SocialShareProps): string {

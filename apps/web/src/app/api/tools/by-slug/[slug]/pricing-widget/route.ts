@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools } from '@/lib/db/schema'
+import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { hasFeature } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -26,6 +27,7 @@ export async function GET(
         name: tools.name,
         slug: tools.slug,
         pricingConfig: tools.pricingConfig,
+        developerId: tools.developerId,
       })
       .from(tools)
       .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
@@ -34,6 +36,17 @@ export async function GET(
     if (!tool) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
+
+    // Check developer tier for white-label eligibility
+    const [dev] = await db
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+      .from(developers)
+      .where(eq(developers.id, tool.developerId))
+      .limit(1)
+
+    const whiteLabel = dev
+      ? hasFeature(dev.tier, 'whitelabel_widget', dev.isFoundingMember)
+      : false
 
     const baseUrl = 'https://settlegrid.ai'
     const checkoutUrl = `${baseUrl}/tools/${tool.slug}#pricing`
@@ -52,6 +65,8 @@ export async function GET(
       tiers,
       checkoutUrl,
       embedCode,
+      whiteLabel,
+      branding: whiteLabel ? null : { name: 'SettleGrid', url: baseUrl },
     })
   } catch (error) {
     return internalErrorResponse(error)

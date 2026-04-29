@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-jina-embeddings",
+  "version": "1.0.0",
+  "description": "MCP server for Jina Embeddings with SettleGrid billing. Generate high-quality multimodal multilingual embeddings for text and content using Jina AI's embedding models.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "embeddings",
+    "vectors",
+    "nlp",
+    "semantic-search",
+    "rag",
+    "multimodal",
+    "multilingual",
+    "ai",
+    "machine-learning",
+    "jina"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-jina-embeddings"
+  }
+}

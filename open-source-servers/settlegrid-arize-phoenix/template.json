@@ -1,0 +1,50 @@
+{
+  "slug": "arize-phoenix",
+  "name": "Arize Phoenix",
+  "description": "MCP server for Arize Phoenix with SettleGrid billing. Manage LLM observability projects, traces, spans, datasets, and experiments via the Arize Phoenix REST API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "observability",
+    "llm",
+    "tracing",
+    "spans",
+    "datasets",
+    "experiments",
+    "monitoring",
+    "arize",
+    "phoenix"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-arize-phoenix"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_dataset",
+    "get_experiment",
+    "get_project",
+    "list_dataset_examples",
+    "list_datasets",
+    "list_experiments",
+    "list_projects",
+    "list_spans"
+  ],
+  "featured": false
+}

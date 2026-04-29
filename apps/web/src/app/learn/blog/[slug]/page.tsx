@@ -2,7 +2,15 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
-import { BLOG_POSTS, BLOG_SLUGS, getBlogPostBySlug } from '@/lib/blog-posts'
+import { MarkdownRenderer } from '@/components/blog/markdown-renderer'
+import {
+  BLOG_POSTS,
+  BLOG_SLUGS,
+  getBlogPostBySlug,
+  isBodyPost,
+  extractTocFromMarkdown,
+  wordCountFromMarkdown,
+} from '@/lib/blog-posts'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -33,11 +41,21 @@ export async function generateMetadata({
       description: post.description,
       type: 'article',
       url: `https://settlegrid.ai/learn/blog/${slug}`,
+      siteName: 'SettleGrid',
+      publishedTime: post.datePublished,
+      modifiedTime: post.dateModified,
+      authors: [post.author.name],
+      section: 'Developer Guides',
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description: post.description,
+    },
+    other: {
+      'article:published_time': post.datePublished,
+      'article:modified_time': post.dateModified,
+      'article:author': post.author.name,
     },
   }
 }
@@ -76,6 +94,18 @@ export default async function BlogPostPage({
   const post = getBlogPostBySlug(slug)
   if (!post) notFound()
 
+  // Resolve table of contents from whichever format the post uses.
+  // Body posts (markdown) extract H2 headings; legacy posts use sections.
+  const tocEntries = isBodyPost(post)
+    ? extractTocFromMarkdown(post.body)
+    : (post.sections ?? []).map((s) => ({ id: s.id, heading: s.heading }))
+
+  // For body posts, prefer the computed word count over whatever the author
+  // declared (it stays accurate as the body is edited).
+  const articleWordCount = isBodyPost(post)
+    ? wordCountFromMarkdown(post.body)
+    : post.wordCount
+
   // Related posts
   const relatedPosts = post.relatedSlugs
     .map((s) => BLOG_POSTS.find((p) => p.slug === s))
@@ -90,13 +120,14 @@ export default async function BlogPostPage({
     url: `https://settlegrid.ai/learn/blog/${slug}`,
     datePublished: post.datePublished,
     dateModified: post.dateModified,
-    wordCount: post.wordCount,
+    wordCount: articleWordCount,
     keywords: post.keywords,
     articleSection: 'Developer Guides',
     author: {
-      '@type': 'Organization',
-      name: 'SettleGrid',
-      url: 'https://settlegrid.ai',
+      '@type': 'Person',
+      name: post.author.name,
+      ...(post.author.url ? { url: post.author.url } : {}),
+      ...(post.author.bio ? { description: post.author.bio } : {}),
     },
     publisher: {
       '@type': 'Organization',
@@ -121,6 +152,22 @@ export default async function BlogPostPage({
     ],
   }
 
+  // ── JSON-LD: FAQPage (if the post has FAQ entries) ────────────────────
+  const jsonLdFaq = post.faqs && post.faqs.length > 0
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: post.faqs.map((faq) => ({
+          '@type': 'Question',
+          name: faq.question,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: faq.answer,
+          },
+        })),
+      }
+    : null
+
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
@@ -142,6 +189,9 @@ export default async function BlogPostPage({
         <div className="max-w-3xl mx-auto">
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdArticle) }} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
+          {jsonLdFaq && (
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }} />
+          )}
 
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm text-gray-400 mb-8" aria-label="Breadcrumb">
@@ -161,6 +211,16 @@ export default async function BlogPostPage({
               <span className="text-[10px] text-gray-500">
                 {new Date(post.datePublished).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
+              <span className="text-[10px] text-gray-500">
+                {'by '}
+                {post.author.url ? (
+                  <a href={post.author.url} className="text-gray-400 hover:text-gray-100 transition-colors">
+                    {post.author.name}
+                  </a>
+                ) : (
+                  post.author.name
+                )}
+              </span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-4">
               {post.title}
@@ -171,79 +231,102 @@ export default async function BlogPostPage({
           </div>
 
           {/* Table of Contents */}
-          <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6 mb-12">
-            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
-              In this article
-            </h2>
-            <ol className="space-y-1.5">
-              {post.sections.map((section, i) => (
-                <li key={section.id}>
-                  <a
-                    href={`#${section.id}`}
-                    className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
-                  >
-                    {i + 1}. {section.heading}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
+          {tocEntries.length > 0 && (
+            <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6 mb-12">
+              <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
+                In this article
+              </h2>
+              <ol className="space-y-1.5">
+                {tocEntries.map((entry, i) => (
+                  <li key={entry.id}>
+                    <a
+                      href={`#${entry.id}`}
+                      className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
+                    >
+                      {i + 1}. {entry.heading}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
-          {/* Sections */}
-          <div className="space-y-14">
-            {post.sections.map((section, i) => (
-              <section key={section.id} id={section.id}>
-                <div className="flex items-baseline gap-3 mb-4 scroll-mt-24">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold shrink-0">
-                    {i + 1}
-                  </span>
-                  <h2 className="text-xl font-bold text-gray-100">
-                    {section.heading}
-                  </h2>
-                </div>
+          {/* Body content — branch on format */}
+          {isBodyPost(post) ? (
+            // Markdown body: rendered server-side via unified + Shiki
+            <MarkdownRenderer body={post.body} />
+          ) : (
+            // Legacy sections format
+            <div className="space-y-14">
+              {(post.sections ?? []).map((section, i) => (
+                <section key={section.id} id={section.id}>
+                  <div className="flex items-baseline gap-3 mb-4 scroll-mt-24">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold shrink-0">
+                      {i + 1}
+                    </span>
+                    <h2 className="text-xl font-bold text-gray-100">
+                      {section.heading}
+                    </h2>
+                  </div>
 
-                {/* Content paragraphs */}
-                <div className="space-y-4 pl-11">
-                  {section.content.split('\n\n').map((paragraph, j) => (
-                    <p key={j} className="text-gray-300 leading-relaxed">
-                      {renderParagraph(paragraph, `s-${i}-p-${j}`)}
-                    </p>
-                  ))}
-                </div>
+                  {/* Content paragraphs */}
+                  <div className="space-y-4 pl-11">
+                    {section.content.split('\n\n').map((paragraph, j) => (
+                      <p key={j} className="text-gray-300 leading-relaxed">
+                        {renderParagraph(paragraph, `s-${i}-p-${j}`)}
+                      </p>
+                    ))}
+                  </div>
 
-                {/* Optional comparison table */}
-                {section.tableHeaders && section.tableRows && (
-                  <div className="pl-11 mt-6 overflow-x-auto">
-                    <table className="w-full text-sm border border-[#2A2D3E] rounded-lg overflow-hidden">
-                      <thead>
-                        <tr className="bg-[#161822] text-left">
-                          {section.tableHeaders.map((header) => (
-                            <th key={header} className="py-3 px-4 font-semibold text-gray-200 whitespace-nowrap">
-                              {header}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#2A2D3E]/50">
-                        {section.tableRows.map((row, ri) => (
-                          <tr key={ri}>
-                            {row.map((cell, ci) => (
-                              <td
-                                key={ci}
-                                className={`py-3 px-4 ${ci === 0 ? 'font-medium text-gray-200' : 'text-gray-400'} whitespace-nowrap`}
-                              >
-                                {cell}
-                              </td>
+                  {/* Optional comparison table */}
+                  {section.tableHeaders && section.tableRows && (
+                    <div className="pl-11 mt-6 overflow-x-auto">
+                      <table className="w-full text-sm border border-[#2A2D3E] rounded-lg overflow-hidden">
+                        <thead>
+                          <tr className="bg-[#161822] text-left">
+                            {section.tableHeaders.map((header) => (
+                              <th key={header} className="py-3 px-4 font-semibold text-gray-200 whitespace-nowrap">
+                                {header}
+                              </th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-[#2A2D3E]/50">
+                          {section.tableRows.map((row, ri) => (
+                            <tr key={ri}>
+                              {row.map((cell, ci) => (
+                                <td
+                                  key={ci}
+                                  className={`py-3 px-4 ${ci === 0 ? 'font-medium text-gray-200' : 'text-gray-400'} whitespace-nowrap`}
+                                >
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
+
+          {/* FAQ Section */}
+          {post.faqs && post.faqs.length > 0 && (
+            <div className="mt-14 mb-10">
+              <h2 className="text-xl font-bold text-gray-100 mb-6">Frequently Asked Questions</h2>
+              <div className="space-y-6">
+                {post.faqs.map((faq, i) => (
+                  <div key={i} className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6">
+                    <h3 className="text-base font-semibold text-gray-100 mb-2">{faq.question}</h3>
+                    <p className="text-gray-300 leading-relaxed">{faq.answer}</p>
                   </div>
-                )}
-              </section>
-            ))}
-          </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* CTA */}
           <div className="mt-14 mb-10 rounded-xl border border-[#2A2D3E] bg-gradient-to-br from-[#161822] to-[#0C0E14] p-8 text-center">
@@ -251,7 +334,7 @@ export default async function BlogPostPage({
               Ready to monetize your MCP tools?
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              Two lines of code. 15 payment protocols. Up to 100% revenue share. Start earning from your AI tools today.
+              Two lines of code. 14 agent payment protocols tracked. Up to 100% revenue share. Start earning from your AI tools today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link

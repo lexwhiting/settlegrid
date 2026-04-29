@@ -1,0 +1,3 @@
+email,country_iso,date_added,source_thread_id,segment,notes
+# APPEND-ONLY. Each row is a confirmed opt-in to the stripe-unsupported-corridor-waitlist segment per docs/sops/manual-wise-payouts.md §1.
+# Schema matches data/international/country-tracker.md §4. Populate the first row when the first Cohort-1 prospect converts.

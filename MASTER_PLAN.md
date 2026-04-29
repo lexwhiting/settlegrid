@@ -2,6 +2,18 @@
 ## Synthesized from Nuclear Expansion + Competitive Analysis + Visual Brand + Landscape Scan
 ## March 27, 2026
 
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite and uses retired protocol shorthand in several
+> places: "MPP" (now "Stripe MPP"), "Mastercard Agent Pay" (now "Mastercard
+> Verifiable Intent"), "Circle Nano" (now "Circle Nanopayments"),
+> "Alipay Trust" (now "ACTP" / "Agentic Commerce Trust Protocol"), "REST"
+> as a payment protocol (now treated as a middleware target, not a
+> protocol), and standalone "EMVCo" (now "EMVCo agent payments" as the
+> tracked work item). The canonical name mapping is in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
+> This doc is preserved as a snapshot of its drafting era rather than
+> rewritten in place.
+
 ---
 
 **Goal:** 10,000 users, recognizable brand, enterprise pipeline, content dominance — in 90 days.

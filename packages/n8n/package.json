@@ -1,0 +1,64 @@
+{
+  "name": "@settlegrid/n8n",
+  "version": "0.2.0",
+  "description": "n8n billing adapter for SettleGrid — wrap node operations with per-invocation billing, with a community node for discovering and invoking monetized AI tools in n8n workflows.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "settlegrid",
+    "mcp",
+    "ai-tools",
+    "ai-agent-payments",
+    "ai-monetization",
+    "billing",
+    "workflow",
+    "automation"
+  ],
+  "homepage": "https://settlegrid.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "directory": "packages/n8n"
+  },
+  "author": {
+    "name": "Alerterra, LLC",
+    "email": "support@settlegrid.ai",
+    "url": "https://settlegrid.ai"
+  },
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/SettleGridApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/SettleGrid/SettleGrid.node.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc && cp src/nodes/SettleGrid/settlegrid.svg dist/nodes/SettleGrid/settlegrid.svg",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@settlegrid/mcp": ">=0.2.0",
+    "n8n-workflow": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@settlegrid/mcp": "*",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "n8n-workflow": "^1.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.0"
+  }
+}

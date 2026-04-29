@@ -121,7 +121,7 @@ describe('Audit Logging on Tool Create', () => {
       name: 'My Tool',
       slug: 'my-tool',
       description: null,
-      pricingConfig: { model: 'per_call', perCallCents: 10 },
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 10 },
       status: 'draft',
       totalInvocations: 0,
       totalRevenueCents: 0,
@@ -133,7 +133,7 @@ describe('Audit Logging on Tool Create', () => {
     const response = await POST(makeRequest('/api/tools', 'POST', {
       name: 'My Tool',
       slug: 'my-tool',
-      pricingConfig: { model: 'per_call', perCallCents: 10 },
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 10 },
     }))
 
     expect(response.status).toBe(201)
@@ -225,10 +225,10 @@ describe('Audit Logging on Webhook Create', () => {
   it('writes audit log when a webhook is created', async () => {
     const { POST } = await import('@/app/api/developer/webhooks/route')
 
-    // Existing endpoints count
+    // Route does dev tier query FIRST, then existing endpoints query
     mockDb.limit
-      .mockResolvedValueOnce([]) // no existing
-      .mockResolvedValueOnce([{ tier: 'standard' }]) // dev tier
+      .mockResolvedValueOnce([{ tier: 'standard', isFoundingMember: false }]) // dev tier
+      .mockResolvedValueOnce([]) // no existing webhooks
 
     mockDb.returning.mockResolvedValueOnce([{
       id: 'wh-new',

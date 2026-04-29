@@ -60,8 +60,8 @@ export class LRUCache {
     return entry.value
   }
 
-  /** Cache a validation result */
-  set(key: string, value: KeyValidationResult): void {
+  /** Cache a validation result. Optionally override the TTL for this entry. */
+  set(key: string, value: KeyValidationResult, ttlMs?: number): void {
     // Delete first to update insertion order
     this.cache.delete(key)
 
@@ -75,7 +75,7 @@ export class LRUCache {
 
     this.cache.set(key, {
       value,
-      expiresAt: Date.now() + this.ttlMs,
+      expiresAt: Date.now() + (ttlMs ?? this.ttlMs),
     })
   }
 

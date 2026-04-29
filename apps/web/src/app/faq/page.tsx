@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { SettleGridLogo } from '@/components/ui/logo'
+import { Navbar } from '@/components/marketing/navbar'
+import { Footer } from '@/components/marketing/footer'
 import { FaqAccordion } from '@/components/ui/faq-accordion'
 
 /* -------------------------------------------------------------------------- */
@@ -44,7 +45,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'What protocols does SettleGrid support?',
-        a: "SettleGrid is protocol-agnostic. It natively supports 15 protocols: MCP (Model Context Protocol), MPP (Machine Payments Protocol — Stripe + Tempo), x402 (Coinbase), AP2 (Google Agent Payments), Visa TAP (Token Agent Payments), UCP (Universal Commerce Protocol — Google + Shopify), ACP (Agentic Commerce Protocol — OpenAI + Stripe), Mastercard Agent Pay (Verifiable Intent), Circle Nanopayments (USDC), REST, L402 (Bitcoin Lightning), Alipay Trust Protocol (Ant Group), KYAPay (Skyfire + Visa), EMVCo Agent Payments, and DRAIN (off-chain USDC). One SDK covers every protocol.",
+        a: "SettleGrid is protocol-agnostic. The @settlegrid/mcp SDK adds native billing to MCP tool servers and a REST middleware for any HTTP service. The hosted Smart Proxy brokers payments across 9 protocols: MCP (Model Context Protocol), x402 (Coinbase / Linux Foundation), Stripe MPP (Machine Payments Protocol — Stripe + Tempo, pending GA), AP2 (Google Agent Payments), ACP (Agentic Commerce Protocol — OpenAI + Stripe), UCP (Universal Commerce Protocol — Google + Shopify), Visa TAP (Token Agent Payments), Mastercard Verifiable Intent, and Circle Nanopayments (USDC). Detection adapters are in place for L402 (Bitcoin Lightning) and KYAPay (Skyfire + Visa). Additional rails are tracked as upstream specs mature: ACTP (Alipay's Agentic Commerce Trust Protocol, Ant Group), EMVCo agent payments, and DRAIN (Bittensor Subnet 58). One SDK covers the brokered set.",
       },
       {
         q: 'How do my tools appear in the Showcase?',
@@ -223,7 +224,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'How is SettleGrid different from Stripe or Orb?',
-        a: 'Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — 15 payment protocols (MCP, MPP, x402, AP2, Visa TAP, L402, KYAPay, EMVCo, DRAIN, etc.) vs. Stripe/Orb\'s REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.',
+        a: "Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments) with detection adapters for 2 more (L402, KYAPay) and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN), versus Stripe/Orb's REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.",
       },
     ],
   },
@@ -261,28 +262,10 @@ export default function FaqPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      {/* ---- Header ---- */}
-      <header className="border-b border-[#2A2D3E] px-6 py-4 bg-[#161822]">
-        <nav className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <SettleGridLogo variant="horizontal" size={28} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/learn" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Learn
-            </Link>
-            <Link href="/docs" className="text-sm font-medium text-gray-400 hover:text-gray-100 transition-colors">
-              Docs
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors">
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
       {/* ---- Main content ---- */}
-      <main className="flex-1 px-6 py-16">
+      <main className="flex-1 px-6 py-16 pt-14">
         <div className="max-w-3xl mx-auto">
           <nav className="mb-8 text-sm text-gray-400" aria-label="Breadcrumb">
             <Link href="/" className="hover:text-amber-400 transition-colors">Home</Link>
@@ -330,19 +313,7 @@ export default function FaqPage() {
         </div>
       </main>
 
-      {/* ---- Footer ---- */}
-      <footer className="border-t border-[#2A2D3E] px-6 py-6">
-        <div className="max-w-4xl mx-auto flex items-center justify-between text-sm text-gray-500">
-          <Link href="/" className="hover:text-gray-300 transition-colors">
-            <SettleGridLogo variant="compact" size={32} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/docs" className="hover:text-gray-300 transition-colors">Docs</Link>
-            <Link href="/learn" className="hover:text-gray-300 transition-colors">Learn</Link>
-            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

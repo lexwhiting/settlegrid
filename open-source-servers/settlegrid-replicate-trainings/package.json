@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-replicate-trainings",
+  "version": "1.0.0",
+  "description": "MCP server for Replicate Trainings with SettleGrid billing. Create, manage, and monitor model training jobs on the Replicate platform via its HTTP API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "replicate",
+    "machine-learning",
+    "training",
+    "fine-tuning",
+    "ai",
+    "models",
+    "flux",
+    "diffusion",
+    "gpu",
+    "mlops"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-replicate-trainings"
+  }
+}

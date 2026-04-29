@@ -1,6 +1,6 @@
 {
   "name": "@settlegrid/mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "The Settlement Layer for the AI Economy — monetize any MCP tool, REST API, or AI agent with per-call billing, real-time metering, and automated Stripe payouts.",
   "keywords": [
     "settlegrid",
@@ -62,15 +62,22 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./kernel": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     }
   },
   "files": [
     "dist",
+    "schemas",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
+    "postbuild": "node scripts/generate-template-schema.cjs",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -78,6 +85,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "zod": "^3.23.0"
   },
   "peerDependencies": {
@@ -92,6 +100,7 @@
     "tsup": "^8.3.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0",
+    "zod-to-json-schema": "^3.23.0",
     "@types/node": "^22.0.0"
   }
 }

@@ -2,6 +2,11 @@
 ## How to Become the npm of AI Tool Discovery
 
 **Date**: March 24, 2026
+
+> **Historical snapshot (2026-04-15).** This document predates the P1.MKT1
+> honest-framing rewrite; protocol shorthand (bare "MPP", "10 protocols"
+> framing) appears in the body. Canonical name mapping in
+> [docs/audits/15-protocol-claim.md](docs/audits/15-protocol-claim.md).
 **Objective**: Make SettleGrid the undeniable discovery powerhouse for AI tools — the place where every monetized AI tool is found, tried, and paid for.
 
 ---

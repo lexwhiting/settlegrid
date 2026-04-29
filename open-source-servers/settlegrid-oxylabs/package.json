@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-oxylabs",
+  "version": "1.0.0",
+  "description": "MCP server for Oxylabs Web Scraper with SettleGrid billing. Scrape any URL in realtime using Oxylabs' proxy infrastructure with optional JavaScript rendering, geo-targeting, and structured parsing.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "scraping",
+    "proxy",
+    "web-scraper",
+    "data-extraction",
+    "oxylabs",
+    "realtime",
+    "javascript-rendering",
+    "geo-targeting",
+    "amazon",
+    "google"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-oxylabs"
+  }
+}

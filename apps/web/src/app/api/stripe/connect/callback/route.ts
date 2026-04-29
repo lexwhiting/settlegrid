@@ -1,18 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
-import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { stripeConnectCompleteEmail, sendEmail } from '@/lib/email'
+import { createStripeRailAdapter } from '@settlegrid/mcp'
+import type { StripeClient, OnboardingStatusCode } from '@settlegrid/mcp'
+import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 60
 
+/**
+ * P2.RAIL1 — Status check goes through adapter.syncOnboardingStatus
+ * instead of inlining stripe.accounts.retrieve + the three-way
+ * active/pending/incomplete ladder. The ladder now lives in the
+ * adapter so ALL rails map to the same normalized
+ * OnboardingStatusCode enum.
+ */
 
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey(), { apiVersion: '2025-02-24.acacia' as Stripe.LatestApiVersion })
+// Keep the DB value a string to preserve the existing schema; map
+// OnboardingStatusCode → the legacy string the column historically
+// stored. Expanding this mapping when P3 adds 'restricted' / 'rejected'
+// variants is a one-line change here.
+function toLegacyStatus(code: OnboardingStatusCode): string {
+  switch (code) {
+    case 'active':
+      return 'active'
+    case 'pending':
+      return 'pending'
+    case 'incomplete':
+      return 'incomplete'
+    case 'restricted':
+    case 'rejected':
+      return 'incomplete'
+    case 'not_started':
+      return 'pending'
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -32,22 +57,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${appUrl}/dashboard/settings?stripe=error&reason=missing_account`)
     }
 
-    const stripe = getStripe()
+    const adapter = createStripeRailAdapter({
+      stripe: getStripeClient() as unknown as StripeClient,
+      appUrl,
+    })
 
-    // Verify the account status with Stripe
-    const account = await stripe.accounts.retrieve(accountId)
+    const status = await adapter.syncOnboardingStatus(accountId)
+    const connectStatus = toLegacyStatus(status.code)
 
-    // Determine connect status based on account details
-    let connectStatus: string
-    if (account.charges_enabled && account.payouts_enabled) {
-      connectStatus = 'active'
-    } else if (account.details_submitted) {
-      connectStatus = 'pending'
-    } else {
-      connectStatus = 'incomplete'
-    }
-
-    // Update developer with new status
     await db
       .update(developers)
       .set({
@@ -58,7 +75,6 @@ export async function GET(request: NextRequest) {
 
     // Send Stripe Connect completion email when account becomes active
     if (connectStatus === 'active') {
-      // Look up the developer to get their email and name
       const [developer] = await db
         .select({ email: developers.email, name: developers.name })
         .from(developers)

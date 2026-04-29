@@ -1,118 +1,143 @@
 /**
- * settlegrid-openrouter — OpenRouter MCP Server
- *
- * Wraps the OpenRouter API with SettleGrid billing.
- * Requires OPENROUTER_API_KEY environment variable.
- *
- * Methods:
- *   chat(message)                            (3¢)
- *   list_models()                            (1¢)
+ * settlegrid-openrouter — OpenRouter AI MCP Server
  */
-
 import { settlegrid } from '@settlegrid/mcp'
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+interface Message {
+  role: string
+  content: string
+}
 
-interface ChatInput {
-  message: string
-  model?: string
+interface CreateChatCompletionInput {
+  model: string
+  messages: Message[]
   max_tokens?: number
+  temperature?: number
 }
 
 interface ListModelsInput {
+  supported_parameters?: string
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+interface GetModelInput {
+  model_id: string
+}
 
-const API_BASE = 'https://openrouter.ai/api/v1'
-const USER_AGENT = 'settlegrid-openrouter/1.0 (contact@settlegrid.ai)'
+interface GetGenerationInput {
+  generation_id: string
+}
+
+type EmptyInput = Record<string, never>
+
+const BASE = 'https://openrouter.ai'
 
 function getApiKey(): string {
-  const key = process.env.OPENROUTER_API_KEY
-  if (!key) throw new Error('OPENROUTER_API_KEY environment variable is required')
-  return key
+  const k = process.env.OPENROUTER_API_KEY
+  if (!k) throw new Error('OPENROUTER_API_KEY environment variable is required')
+  return k
 }
 
-async function apiFetch<T>(path: string, options: {
-  method?: string
-  params?: Record<string, string>
-  body?: unknown
-  headers?: Record<string, string>
-} = {}): Promise<T> {
-  const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`)
-  if (options.params) {
-    for (const [k, v] of Object.entries(options.params)) {
-      url.searchParams.set(k, v)
-    }
+function authHeaders(): Record<string, string> {
+  return {
+    'Authorization': `Bearer ${getApiKey()}`,
+    'Content-Type': 'application/json',
+    'User-Agent': 'settlegrid-openrouter/1.0',
   }
-  const headers: Record<string, string> = {
-    'User-Agent': USER_AGENT,
-    Accept: 'application/json',
-    Authorization: `Bearer ${getApiKey()}`,
-    ...options.headers,
-  }
-  const fetchOpts: RequestInit = { method: options.method ?? 'GET', headers }
-  if (options.body) {
-    fetchOpts.body = JSON.stringify(options.body)
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url.toString(), fetchOpts)
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`OpenRouter API ${res.status}: ${body.slice(0, 200)}`)
-  }
-  return res.json() as Promise<T>
 }
-
-// ─── SettleGrid Init ────────────────────────────────────────────────────────
 
 const sg = settlegrid.init({
   toolSlug: 'openrouter',
   pricing: {
     defaultCostCents: 1,
     methods: {
-      chat: { costCents: 3, displayName: 'Send a chat completion to any supported model' },
-      list_models: { costCents: 1, displayName: 'List all available models and pricing' },
+      create_chat_completion: { costCents: 5, displayName: 'Create Chat Completion' },
+      list_models: { costCents: 1, displayName: 'List Models' },
+      get_model: { costCents: 1, displayName: 'Get Model' },
+      get_generation: { costCents: 1, displayName: 'Get Generation' },
+      get_credits: { costCents: 1, displayName: 'Get Credits' },
     },
   },
 })
 
-// ─── Handlers ───────────────────────────────────────────────────────────────
-
-const chat = sg.wrap(async (args: ChatInput) => {
-  if (!args.message || typeof args.message !== 'string') {
-    throw new Error('message is required (user message)')
+const createChatCompletion = sg.wrap(async (args: CreateChatCompletionInput) => {
+  const model = args.model?.trim()
+  if (!model) throw new Error('model is required')
+  const messages = args.messages
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    throw new Error('messages array is required and must not be empty')
   }
-
-  const body: Record<string, unknown> = {}
-  body['message'] = args.message
-  if (args.model !== undefined) body['model'] = args.model
-  if (args.max_tokens !== undefined) body['max_tokens'] = args.max_tokens
-
-  const data = await apiFetch<Record<string, unknown>>('/chat/completions', {
+  for (const msg of messages) {
+    if (!msg.role || !msg.content) throw new Error('Each message must have role and content')
+  }
+  const max_tokens = Math.min(args.max_tokens ?? 1024, 4096)
+  const temperature = Math.max(0, Math.min(args.temperature ?? 1.0, 2))
+  const body = JSON.stringify({ model, messages, max_tokens, temperature, stream: false })
+  const res = await fetch(`${BASE}/api/v1/chat/completions`, {
     method: 'POST',
+    headers: authHeaders(),
     body,
   })
-
-  return data
-}, { method: 'chat' })
+  if (!res.ok) {
+    const errText = (await res.text()).slice(0, 400)
+    throw new Error(`OpenRouter API ${res.status}: ${errText}`)
+  }
+  return res.json()
+}, { method: 'create_chat_completion' })
 
 const listModels = sg.wrap(async (args: ListModelsInput) => {
-
-  const params: Record<string, string> = {}
-
-  const data = await apiFetch<Record<string, unknown>>('/models', {
-    params,
+  const url = new URL(`${BASE}/api/v1/models`)
+  if (args.supported_parameters?.trim()) {
+    url.searchParams.set('supported_parameters', args.supported_parameters.trim())
+  }
+  const res = await fetch(url.toString(), {
+    headers: authHeaders(),
   })
-
-  return data
+  if (!res.ok) {
+    const errText = (await res.text()).slice(0, 400)
+    throw new Error(`OpenRouter API ${res.status}: ${errText}`)
+  }
+  const data = await res.json() as { data: unknown[] }
+  return { count: data.data?.length ?? 0, models: data.data }
 }, { method: 'list_models' })
 
-// ─── Exports ────────────────────────────────────────────────────────────────
+const getModel = sg.wrap(async (args: GetModelInput) => {
+  const model_id = args.model_id?.trim()
+  if (!model_id) throw new Error('model_id is required')
+  const res = await fetch(`${BASE}/api/v1/models/${encodeURIComponent(model_id)}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const errText = (await res.text()).slice(0, 400)
+    throw new Error(`OpenRouter API ${res.status}: ${errText}`)
+  }
+  return res.json()
+}, { method: 'get_model' })
 
-export { chat, listModels }
+const getGeneration = sg.wrap(async (args: GetGenerationInput) => {
+  const generation_id = args.generation_id?.trim()
+  if (!generation_id) throw new Error('generation_id is required')
+  const res = await fetch(`${BASE}/api/v1/generation?id=${encodeURIComponent(generation_id)}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const errText = (await res.text()).slice(0, 400)
+    throw new Error(`OpenRouter API ${res.status}: ${errText}`)
+  }
+  return res.json()
+}, { method: 'get_generation' })
 
+const getCredits = sg.wrap(async (_args: EmptyInput) => {
+  const res = await fetch(`${BASE}/api/v1/credits`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const errText = (await res.text()).slice(0, 400)
+    throw new Error(`OpenRouter API ${res.status}: ${errText}`)
+  }
+  return res.json()
+}, { method: 'get_credits' })
+
+export { createChatCompletion, listModels, getModel, getGeneration, getCredits }
 console.log('settlegrid-openrouter MCP server ready')
-console.log('Methods: chat, list_models')
-console.log('Pricing: 1-3¢ per call | Powered by SettleGrid')
+console.log('Methods: create_chat_completion, list_models, get_model, get_generation, get_credits')
+console.log('Pricing: 1-5¢ per call | Powered by SettleGrid')

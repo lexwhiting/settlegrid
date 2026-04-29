@@ -9,6 +9,7 @@ import { successResponse, errorResponse, internalErrorResponse, parseBody } from
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
+import { getTierConfig } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -80,23 +81,33 @@ export async function POST(request: NextRequest) {
       return errorResponse('Webhook URL must be a public HTTPS endpoint.', 400, 'INVALID_WEBHOOK_URL')
     }
 
-    // Limit: 5 endpoints per developer
+    // Look up developer tier for endpoint limits
+    const [dev] = await db
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
+      .from(developers)
+      .where(eq(developers.id, auth.id))
+      .limit(1)
+
+    const effectiveTier = dev?.isFoundingMember ? 'scale' : (dev?.tier ?? 'free')
+    const tierConfig = getTierConfig(effectiveTier)
+    const maxEndpoints = tierConfig.maxWebhookEndpoints
+
+    // Tier-based endpoint limit
     const existing = await db
       .select({ id: webhookEndpoints.id })
       .from(webhookEndpoints)
       .where(eq(webhookEndpoints.developerId, auth.id))
-      .limit(6)
+      .limit(maxEndpoints + 1)
 
-    if (existing.length >= 5) {
-      return errorResponse('Maximum 5 webhook endpoints allowed.', 400, 'LIMIT_EXCEEDED')
+    if (existing.length >= maxEndpoints) {
+      return errorResponse(
+        `Maximum ${maxEndpoints} webhook endpoint${maxEndpoints === 1 ? '' : 's'} allowed on the ${effectiveTier} plan. Upgrade for more.`,
+        400,
+        'LIMIT_EXCEEDED',
+        undefined,
+        { limit: maxEndpoints, currentTier: effectiveTier, upgradeUrl: '/pricing' }
+      )
     }
-
-    // Look up developer tier for max_attempts
-    const [dev] = await db
-      .select({ tier: developers.tier })
-      .from(developers)
-      .where(eq(developers.id, auth.id))
-      .limit(1)
 
     const secret = `whsec_${crypto.randomBytes(24).toString('hex')}`
 

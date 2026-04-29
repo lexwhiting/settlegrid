@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "phase": "1",
+  "generatedAt": "2026-04-12",
+  "note": "Historical commits in this workspace don't carry the canonical `Audits: spec-diff PASS, hostile PASS, tests PASS` trailer because the trailer convention was adopted retroactively at P1.11 close-out. Rather than rewrite git history (destructive + breaks signatures), this file is the source of truth for each P1.N's three-audit verdict. The gate script (scripts/phase-1-gate.mjs) reads from here for check #12. Commits from P1.12 onward carry the trailer directly in the commit message.",
+  "verdicts": [
+    {
+      "prompt": "P1.1",
+      "title": "Templater agent scaffold (beacon pattern)",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid-agents",
+      "commitRefs": ["bb42beb", "af5bf98", "ef80b1e", "b342160", "01d6ded", "6123ad7"],
+      "notes": "Scaffolded agents/templater/ matching beacon structure; hostile review fixed error-path coverage; 29-test baseline established."
+    },
+    {
+      "prompt": "P1.2",
+      "title": "In-memory generateFromSpec",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["4a2f66f", "2b6fda0"],
+      "notes": "Added generateFromSpec() so templates can be produced entirely in memory without filesystem writes. Dead-variable cleanup on review."
+    },
+    {
+      "prompt": "P1.3",
+      "title": "API-docs-to-MCP-server LangGraph pipeline",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid-agents",
+      "commitRefs": ["d19965e", "53a77ce", "2f8dd31", "cbd4693", "5c80c3f", "c06ea97", "f2ae3f6", "153226f"],
+      "notes": "Implemented fetchApiDocs → synthesize → generateFiles → qualityGates → submitForReview node graph; extractJson hardened against string-embedded braces; 100-test vitest fixtures."
+    },
+    {
+      "prompt": "P1.4",
+      "title": "Quality gates module (tsc + smoke + security)",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid-agents+settlegrid",
+      "commitRefs": ["e0a2e00", "de6b7ca", "5447f68", "0d80ca2"],
+      "notes": "In-memory CompilerHost + smoke gate via tsx subprocess + security lint + runQualityGates orchestrator. Hostile review closed path-traversal, stream buffer cap, process-group kill. 94% coverage on quality-gates.ts."
+    },
+    {
+      "prompt": "P1.5",
+      "title": "Templater agent + scheduler integration",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid-agents",
+      "commitRefs": ["00331a4", "9b69577", "736ba6a", "4a43f38"],
+      "notes": "Registered templater_generate (Tue/Thu 03:00) and templater_audit (Sat 09:00) crons; staging-dir helper for @settlegrid/mcp resolution; 18-test coverage close-out."
+    },
+    {
+      "prompt": "P1.6",
+      "title": "CANONICAL_50 rubric + seed from 1022 templates",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["c4fb88b", "30ef50e", "288d0c0", "55c8377"],
+      "notes": "100-point rubric (readme/tools/schema/gates/deps/docker/category/novelty), Claude Sonnet tiebreaker with disk cache, 57 rubric tests at 100% line coverage, sum=4676."
+    },
+    {
+      "prompt": "P1.7",
+      "title": "@settlegrid/skill package scaffold",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["6b4de3c"],
+      "notes": "Anthropic Skills v1 directory shape, package.json workspace marker, types.d.ts."
+    },
+    {
+      "prompt": "P1.8",
+      "title": "SKILL.md body + three wrapper examples",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["0c7f392", "fbac959"],
+      "notes": "monetize-this-mcp skill body; examples for fastmcp, REST, typescript-sdk; spec-diff fixes for generateServerCardBilling signature + 'placeholder' removal."
+    },
+    {
+      "prompt": "P1.9",
+      "title": "Cursor rule variant (.cursorrules)",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["40fc3da"],
+      "notes": "Stripped YAML frontmatter, inlined examples, 1788 words (< 3500)."
+    },
+    {
+      "prompt": "P1.10",
+      "title": "experimental/payment SEP draft",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["886429e"],
+      "notes": "RFC-style SEP at 3036 words with 14 JSON blocks (all parse clean); error codes -32010 through -32013; JSON Schema + TypeScript defs."
+    },
+    {
+      "prompt": "P1.11",
+      "title": "Codemod framework + sdk-version-bump",
+      "specDiff": "PASS",
+      "hostile": "PASS",
+      "tests": "PASS",
+      "repo": "settlegrid",
+      "commitRefs": ["ccc2fb5", "6713cb6"],
+      "notes": "jscodeshift-based framework; 70 tests at 98.67% overall line coverage; per-file atomicity via tmpfile + rename; binder-guard for identifier rename safety; path-traversal hardened loadCodemod."
+    }
+  ]
+}

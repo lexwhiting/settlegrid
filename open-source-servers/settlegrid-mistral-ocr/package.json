@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-mistral-ocr",
+  "version": "1.0.0",
+  "description": "MCP server for Mistral OCR with SettleGrid billing. Extract text and structured content from documents and images using Mistral AI's OCR API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "ocr",
+    "mistral",
+    "document",
+    "text-extraction",
+    "ai",
+    "image",
+    "pdf",
+    "structured-data",
+    "vision"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-mistral-ocr"
+  }
+}

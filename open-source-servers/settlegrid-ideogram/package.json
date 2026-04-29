@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-ideogram",
+  "version": "1.0.0",
+  "description": "MCP server for Ideogram with SettleGrid billing. Generate, edit, remix, and reframe images using the Ideogram 3.0 AI image generation API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "image-generation",
+    "ai",
+    "text-to-image",
+    "image-editing",
+    "image-remix",
+    "generative-ai",
+    "ideogram",
+    "stable-diffusion",
+    "creative"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-ideogram"
+  }
+}

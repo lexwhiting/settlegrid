@@ -1,0 +1,10 @@
+{
+  "name": "mcp-sample",
+  "version": "0.0.0",
+  "description": "Minimal MCP server fixture for detectRepoType tests.",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

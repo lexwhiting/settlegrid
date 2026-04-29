@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, sql } from 'drizzle-orm'
+import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-import { tools, developers, apiKeys, consumerToolBalances, invocations } from '@/lib/db/schema'
+import { tools, developers, apiKeys, consumerToolBalances, consumers, invocations } from '@/lib/db/schema'
 import { hashApiKey } from '@/lib/crypto'
+import { tryRedis, getRedis } from '@/lib/redis'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { isIpInAllowlist } from '@/lib/ip-validation'
 import { detectFraud, isIpBlocked, trackFailedAuth } from '@/lib/fraud'
+import {
+  findFallbackTool,
+  shouldAttemptFailover,
+  consumerCanAffordFailover,
+  addFailoverHeaders,
+  logFailoverEvent,
+} from '@/lib/failover'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
 import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
-import { isMastercardRequest, isMastercardEnabled, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
+import { isMastercardRequest, isMastercardEnabled, mastercardAdapter, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
 import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoPayment, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
 import { isL402Request, isL402Enabled, validateL402Payment, generateL402_402Response } from '@/lib/l402-proxy'
 import { isAlipayRequest, isAlipayEnabled, validateAlipayPayment, generateAlipay402Response } from '@/lib/alipay-proxy'
@@ -29,11 +38,41 @@ import {
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
+  useUnifiedAdapters,
 } from '@/lib/env'
+import { decideUnifiedDispatch, shouldDispatchUnified, type EnabledMap } from './_unified-dispatch'
 
 export const maxDuration = 60
 
 const UPSTREAM_TIMEOUT_MS = 30_000
+const DEFAULT_CACHE_TTL_SECONDS = 60
+
+/**
+ * Computes a SHA-256 hash of a request body for cache keying.
+ */
+function hashBody(body: string): string {
+  return createHash('sha256').update(body).digest('hex').slice(0, 24)
+}
+
+/**
+ * Extracts cacheTtlSeconds from the tool's pricing config.
+ * Returns DEFAULT_CACHE_TTL_SECONDS if not configured, or 0 to disable caching.
+ */
+function getCacheTtl(pricingConfig: unknown): number {
+  if (!pricingConfig || typeof pricingConfig !== 'object') return DEFAULT_CACHE_TTL_SECONDS
+  const config = pricingConfig as Record<string, unknown>
+  const ttl = config.cacheTtlSeconds
+  if (typeof ttl === 'number' && Number.isFinite(ttl) && ttl >= 0) {
+    return Math.floor(ttl)
+  }
+  return DEFAULT_CACHE_TTL_SECONDS
+}
+
+interface CachedProxyResponse {
+  body: string
+  status: number
+  contentType: string
+}
 
 /**
  * Validates the x-api-key header and returns the key record with tool info.
@@ -226,6 +265,146 @@ function buildUpstreamHeaders(request: NextRequest): Headers {
   return headers
 }
 
+// ── P2.K1 — Unified-adapter dispatch (feature-flagged) ─────────────────
+//
+// When USE_UNIFIED_ADAPTERS=true, payment-protocol detection is delegated
+// to protocolRegistry.detect() from @settlegrid/mcp (via the
+// `decideUnifiedDispatch` helper in _unified-dispatch.ts) instead of the
+// legacy 13-branch chain. This is a routing change only — once detected,
+// the request is dispatched to the same legacy handler the 13-branch
+// chain would have invoked, so behavior is preserved for the 9 brokered
+// protocols. The 5 emerging protocols (l402, alipay/actp, kyapay, emvco,
+// drain) don't have adapters in @settlegrid/mcp yet; the unified path
+// returns 'no-match' for those, and the caller falls through to the
+// legacy chain so emerging-protocol traffic is preserved either way.
+//
+// Default OFF until P2.K3 ships the snapshot-equivalence test and a
+// snapshot run shows byte-for-byte parity for the 9 brokered protocols.
+
+/**
+ * Bridge from a unified-dispatch decision to the corresponding legacy
+ * handler. Returns `null` when the caller should fall through (no match
+ * or mcp-fallback). When a non-mcp adapter matched, returns the same
+ * NextResponse the legacy chain would have produced.
+ */
+async function tryUnifiedAdapterDispatch(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number,
+): Promise<NextResponse | null> {
+  const decision = await decideUnifiedDispatch(request)
+
+  // Per P2.K1 DoD ("Observability logs show path used"), tag each request
+  // with one of three path values so a log search tells the full story:
+  //   - 'unified-adapter'      : flag on, unified handled the request.
+  //   - 'unified-then-legacy'  : flag on, unified fell through to legacy
+  //                              chain (no-match, mcp-fallback, or
+  //                              protocol-disabled).
+  //   - 'legacy-13-branch'     : flag off (logged in handleProxy directly).
+  //
+  // Equivalence preservation: the legacy chain checks isXEnabled() before
+  // each isXRequest(). The unified path here MUST do the same, otherwise
+  // a request with mpp headers but no STRIPE_MPP_SECRET configured would
+  // 5xx via handleMppProxy in unified mode but 401 (fall-through to API
+  // key flow) in legacy mode — exactly the kind of silent divergence
+  // P2.K3's snapshot test exists to catch. The pure shouldDispatchUnified
+  // helper encapsulates this decision; production passes the real env
+  // helpers, tests pass synthetic predicates.
+  const enabledMap: EnabledMap = {
+    mpp: isMppEnabled,
+    x402: isX402Enabled,
+    ap2: isAp2Enabled,
+    'visa-tap': isVisaTapEnabled,
+    acp: isAcpEnabled,
+    ucp: isUcpEnabled,
+    'mastercard-vi': isMastercardEnabled,
+    'circle-nano': isCircleNanoEnabled,
+    // P2.K2 — five emerging protocols now have adapter-registry entries
+    // so their enabled-check is part of the equivalence contract too.
+    l402: isL402Enabled,
+    alipay: isAlipayEnabled,
+    kyapay: isKyaPayEnabled,
+    emvco: isEmvcoEnabled,
+    drain: isDrainEnabled,
+  }
+  const verdict = shouldDispatchUnified(decision, enabledMap)
+
+  if (!verdict.dispatch) {
+    logger.info('proxy.dispatch', {
+      path: 'unified-then-legacy',
+      slug,
+      requestId,
+      reason: verdict.reason,
+      protocol: verdict.protocol,
+    })
+    return null
+  }
+
+  logger.info('proxy.dispatch', {
+    path: 'unified-adapter',
+    slug,
+    requestId,
+    protocol: verdict.protocol,
+    // Defensive optional chaining — `operation` is required by the
+    // PaymentContext type, but a future adapter returning a malformed
+    // shape would otherwise throw a TypeError on field access.
+    operation: verdict.paymentContext?.operation
+      ? `${verdict.paymentContext.operation.service}.${verdict.paymentContext.operation.method}`
+      : undefined,
+  })
+
+  // All 8 non-mcp adapters route to one of three legacy handler
+  // families. If a new adapter is added to @settlegrid/mcp, TypeScript's
+  // exhaustiveness check below will surface this switch as incomplete.
+  switch (verdict.protocol) {
+    case 'mpp':
+      return handleMppProxy(request, slug, requestId, startTime)
+    case 'x402':
+      return handleX402Proxy(request, slug, requestId, startTime)
+    case 'ap2':
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    case 'visa-tap':
+      return handleVisaTapProxy(request, slug, requestId, startTime)
+    case 'acp':
+      return handleAcpProxy(request, slug, requestId, startTime)
+    case 'ucp':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    case 'mastercard-vi':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
+    case 'circle-nano':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    // P2.K2 — five emerging protocols. L402 has its own handler (the
+    // 402 response is async because it mints a Lightning invoice); the
+    // other four route through the generic handleProtocolProxy switch.
+    case 'l402':
+      return handleL402Proxy(request, slug, requestId, startTime)
+    case 'alipay':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'alipay')
+    case 'kyapay':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'kyapay')
+    case 'emvco':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'emvco')
+    case 'drain':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'drain')
+    case 'mcp':
+      // Should not reach: decideUnifiedDispatch maps mcp → 'mcp-fallback'.
+      return null
+    default: {
+      // Exhaustiveness: after all 9 ProtocolName cases above return,
+      // `verdict` narrows to `never` here. Assigning the whole verdict
+      // (not verdict.protocol — TS quirk: property access on a
+      // never-narrowed variable resolves to `any`) preserves the
+      // compile-time check. Adding a new adapter to @settlegrid/mcp
+      // without updating this switch fails tsc on this line.
+      const _exhaustive: never = verdict
+      void _exhaustive
+      logger.warn('proxy.unified.unhandled_adapter', { slug, requestId })
+      return null
+    }
+  }
+}
+
 /**
  * Core proxy handler — shared between GET and POST.
  */
@@ -245,49 +424,74 @@ async function handleProxy(
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
+    // ── P2.K1 — Unified-adapter dispatch (feature-flagged) ───────────────────
+    // When USE_UNIFIED_ADAPTERS=true, route protocol detection through
+    // protocolRegistry.detect() from @settlegrid/mcp first. Falls through
+    // to the legacy chain below when no adapter matches (emerging
+    // protocols) or the mcp adapter matches (api-key flow).
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- not a React hook; `use*` is the feature-flag reader convention in @/lib/env
+    if (useUnifiedAdapters()) {
+      const dispatched = await tryUnifiedAdapterDispatch(request, slug, requestId, startTime)
+      if (dispatched !== null) return dispatched
+    } else {
+      // Legacy path observability — info level (low-volume) so we can
+      // verify the rollout split via log search without noise.
+      logger.info('proxy.dispatch', { path: 'legacy-13-branch', slug, requestId })
+    }
+
     // ── Payment Protocol Detection Chain ────────────────────────────────────
     // Check each payment protocol in priority order. When a protocol is
     // enabled and the request matches its headers, use that protocol's
     // payment flow instead of the standard API key flow.
+    //
+    // P2.K3: The ordering below mirrors @settlegrid/mcp's DETECTION_PRIORITY
+    // exactly — circle-nano before x402 (x402-compatible, more specific),
+    // mastercard-vi immediately after x402. This matters ONLY for requests
+    // that carry headers triggering more than one protocol (e.g. both
+    // x-circle-nano-auth AND payment-signature); otherwise disjoint
+    // triggers make order irrelevant. Matching the registry's order is
+    // what enables the P2.K3 proxy-equivalence.test.ts snapshot test to
+    // pass byte-for-byte — and therefore what makes the USE_UNIFIED_ADAPTERS
+    // default-flip to `true` a no-op from the consumer's perspective.
 
-    // 1. MPP (Stripe Machine Payments Protocol)
+    // 1. Stripe MPP (Machine Payments Protocol — Stripe + Tempo)
     if (isMppEnabled() && isMppRequest(request)) {
       return handleMppProxy(request, slug, requestId, startTime)
     }
 
-    // 2. x402 (Coinbase — USDC on Base blockchain)
+    // 2. Circle Nanopayments (x402-compatible, more specific headers win)
+    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    }
+
+    // 3. x402 (Coinbase — USDC on Base blockchain)
     if (isX402Enabled() && isX402Request(request)) {
       return handleX402Proxy(request, slug, requestId, startTime)
     }
 
-    // 3. AP2 (Google Agentic Payments Protocol)
-    if (isAp2Enabled() && isAp2Request(request)) {
-      return handleAp2Proxy(request, slug, requestId, startTime)
-    }
-
-    // 4. Visa TAP (Trusted Agent Protocol)
-    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
-      return handleVisaTapProxy(request, slug, requestId, startTime)
-    }
-
-    // 5. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
-    if (isAcpEnabled() && isAcpRequest(request)) {
-      return handleAcpProxy(request, slug, requestId, startTime)
-    }
-
-    // 6. UCP (Universal Commerce Protocol)
-    if (isUcpEnabled() && isUcpRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
-    }
-
-    // 7. Mastercard Agent Pay
+    // 4. Mastercard Verifiable Intent (SD-JWT credential chain)
     if (isMastercardEnabled() && isMastercardRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
     }
 
-    // 8. Circle Nanopayments
-    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    // 5. AP2 (Google Agentic Payments Protocol)
+    if (isAp2Enabled() && isAp2Request(request)) {
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    }
+
+    // 6. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
+    if (isAcpEnabled() && isAcpRequest(request)) {
+      return handleAcpProxy(request, slug, requestId, startTime)
+    }
+
+    // 7. UCP (Universal Commerce Protocol)
+    if (isUcpEnabled() && isUcpRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    }
+
+    // 8. Visa TAP (Trusted Agent Protocol)
+    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
+      return handleVisaTapProxy(request, slug, requestId, startTime)
     }
 
     // 9. L402 (Bitcoin Lightning)
@@ -295,7 +499,7 @@ async function handleProxy(
       return handleL402Proxy(request, slug, requestId, startTime)
     }
 
-    // 10. Alipay Trust Protocol
+    // 10. ACTP (Alipay's Agentic Commerce Trust Protocol — Ant Group)
     if (isAlipayEnabled() && isAlipayRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'alipay')
     }
@@ -395,14 +599,119 @@ async function handleProxy(
         .limit(1)
 
       if (!balance || balance.balanceCents < costCents) {
-        const currentBalance = balance?.balanceCents ?? 0
-        return errorResponse(
-          `Insufficient balance. Required: ${costCents} cents, available: ${currentBalance} cents.`,
-          402,
-          'INSUFFICIENT_BALANCE',
-          requestId,
-          { requiredCents: costCents, availableCents: currentBalance }
-        )
+        // Fallback: check global balance (from credit packs)
+        const [consumer] = await db
+          .select({ globalBalanceCents: consumers.globalBalanceCents })
+          .from(consumers)
+          .where(eq(consumers.id, auth.consumerId))
+          .limit(1)
+
+        const globalBalance = consumer?.globalBalanceCents ?? 0
+        const perToolBalance = balance?.balanceCents ?? 0
+
+        if (globalBalance < costCents && perToolBalance < costCents) {
+          return errorResponse(
+            `Insufficient balance. Required: ${costCents} cents, available: ${perToolBalance} cents (tool) + ${globalBalance} cents (global).`,
+            402,
+            'INSUFFICIENT_BALANCE',
+            requestId,
+            { requiredCents: costCents, availableCents: perToolBalance, globalAvailableCents: globalBalance }
+          )
+        }
+      }
+    }
+
+    // ── Edge Cache Check ─────────────────────────────────────────────────
+    const cacheTtl = getCacheTtl(auth.tool.pricingConfig)
+    let requestBody = ''
+    if (request.method === 'POST') {
+      try {
+        requestBody = await request.text()
+      } catch {
+        requestBody = ''
+      }
+    }
+    // Include cost in cache key so pricing changes automatically invalidate cached entries
+    const cacheKey = cacheTtl > 0
+      ? `cache:proxy:${slug}:c${costCents}:${hashBody(request.method + requestBody)}`
+      : null
+
+    if (cacheKey && cacheTtl > 0) {
+      const cached = await tryRedis(() => getRedis().get<CachedProxyResponse>(cacheKey))
+      if (cached) {
+        // Cache HIT — still meter the invocation
+        const latencyMs = Date.now() - startTime
+
+        if (!auth.isTestKey && costCents > 0) {
+          // Deduct from per-tool balance first; fallback to global
+          const [updatedBalance] = await db
+            .update(consumerToolBalances)
+            .set({
+              balanceCents: sql`${consumerToolBalances.balanceCents} - ${costCents}`,
+              currentPeriodSpendCents: sql`${consumerToolBalances.currentPeriodSpendCents} + ${costCents}`,
+            })
+            .where(
+              and(
+                eq(consumerToolBalances.consumerId, auth.consumerId),
+                eq(consumerToolBalances.toolId, auth.toolId),
+                sql`${consumerToolBalances.balanceCents} >= ${costCents}`
+              )
+            )
+            .returning({ balanceCents: consumerToolBalances.balanceCents })
+
+          if (!updatedBalance) {
+            // Try global balance fallback
+            await db
+              .update(consumers)
+              .set({ globalBalanceCents: sql`${consumers.globalBalanceCents} - ${costCents}` })
+              .where(
+                and(
+                  eq(consumers.id, auth.consumerId),
+                  sql`${consumers.globalBalanceCents} >= ${costCents}`
+                )
+              )
+          }
+
+          // Fire-and-forget: update tool stats
+          Promise.all([
+            db.update(tools).set({
+              totalInvocations: sql`${tools.totalInvocations} + 1`,
+              totalRevenueCents: sql`${tools.totalRevenueCents} + ${costCents}`,
+              updatedAt: new Date(),
+            }).where(eq(tools.id, auth.toolId)),
+            db.update(developers).set({
+              balanceCents: sql`${developers.balanceCents} + ${Math.floor(costCents * (auth.developerRevenueSharePct / 100))}`,
+              updatedAt: new Date(),
+            }).where(eq(developers.id, auth.tool.developerId)),
+          ]).catch(() => {})
+        }
+
+        // Record the (cached) invocation
+        db.insert(invocations).values({
+          toolId: auth.toolId,
+          consumerId: auth.consumerId,
+          apiKeyId: auth.keyId,
+          method: `proxy:${request.method}`,
+          costCents: auth.isTestKey ? 0 : costCents,
+          latencyMs,
+          status: 'success',
+          isTest: auth.isTestKey,
+          isFlagged: fraudResult.flagged,
+          metadata: { proxy: true, cached: true, toolSlug: slug },
+        }).then(() => {}).catch(() => {})
+
+        const cacheHeaders = new Headers()
+        cacheHeaders.set('Content-Type', cached.contentType)
+        cacheHeaders.set('X-SettleGrid-Proxy', 'true')
+        cacheHeaders.set('X-SettleGrid-Cache', 'HIT')
+        cacheHeaders.set('X-SettleGrid-Cost-Cents', String(auth.isTestKey ? 0 : costCents))
+        cacheHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
+        if (requestId) cacheHeaders.set('x-request-id', requestId)
+
+        return new NextResponse(cached.body, {
+          status: cached.status,
+          headers: cacheHeaders,
+        })
       }
     }
 
@@ -421,16 +730,22 @@ async function handleProxy(
 
       // Forward body for methods that support it
       if (request.method !== 'GET' && request.method !== 'HEAD') {
-        fetchInit.body = request.body
-        // Enable streaming of request body
-        // @ts-expect-error -- duplex is required for streaming request bodies in fetch but not in the TS types yet
-        fetchInit.duplex = 'half'
+        // If we already consumed the body for cache key, use the captured text
+        if (requestBody) {
+          fetchInit.body = requestBody
+        } else {
+          fetchInit.body = request.body
+          // Enable streaming of request body
+          // @ts-expect-error -- duplex is required for streaming request bodies in fetch but not in the TS types yet
+          fetchInit.duplex = 'half'
+        }
       }
 
       upstreamResponse = await fetch(auth.tool.proxyEndpoint, fetchInit)
     } catch (err) {
       clearTimeout(timeout)
       const latencyMs = Date.now() - startTime
+      const isAbort = err instanceof Error && err.name === 'AbortError'
 
       logger.error('proxy.upstream_error', {
         slug,
@@ -457,7 +772,42 @@ async function handleProxy(
         .then(() => {})
         .catch(() => {})
 
-      if (err instanceof Error && err.name === 'AbortError') {
+      // ── SLA Failover on upstream error ──────────────────────────────
+      if (shouldAttemptFailover(0, isAbort)) {
+        const pricingConfig = auth.tool.pricingConfig as Record<string, unknown> | null
+        const toolCategory = typeof pricingConfig?.category === 'string'
+          ? pricingConfig.category
+          : null
+
+        // Look up category from the tool itself if not in pricing config
+        const effectiveCategory = toolCategory ?? await getToolCategory(auth.toolId)
+
+        if (effectiveCategory) {
+          const canAfford = auth.isTestKey || costCents <= 0 || await consumerCanAffordFailover(auth.consumerId, costCents)
+          if (canAfford) {
+            const fallbackResult = await attemptFailover({
+              slug,
+              category: effectiveCategory,
+              consumerId: auth.consumerId,
+              costCents,
+              request,
+              requestBody,
+              startTime,
+              requestId,
+              isTestKey: auth.isTestKey,
+              keyId: auth.keyId,
+              toolId: auth.toolId,
+              developerId: auth.tool.developerId,
+              developerRevenueSharePct: auth.developerRevenueSharePct,
+              flagged: fraudResult.flagged,
+              originalStatus: null,
+            })
+            if (fallbackResult) return fallbackResult
+          }
+        }
+      }
+
+      if (isAbort) {
         return errorResponse(
           'Upstream tool timed out after 30 seconds.',
           504,
@@ -480,11 +830,50 @@ async function handleProxy(
     const upstreamStatus = upstreamResponse.status
     const upstreamOk = upstreamStatus >= 200 && upstreamStatus < 300
 
+    // ── SLA Failover on 5xx response ──────────────────────────────────
+    if (!upstreamOk && shouldAttemptFailover(upstreamStatus, false)) {
+      const effectiveCategory = await getToolCategory(auth.toolId)
+      if (effectiveCategory) {
+        const canAfford = auth.isTestKey || costCents <= 0 || await consumerCanAffordFailover(auth.consumerId, costCents)
+        if (canAfford) {
+          const fallbackResult = await attemptFailover({
+            slug,
+            category: effectiveCategory,
+            consumerId: auth.consumerId,
+            costCents,
+            request,
+            requestBody,
+            startTime,
+            requestId,
+            isTestKey: auth.isTestKey,
+            keyId: auth.keyId,
+            toolId: auth.toolId,
+            developerId: auth.tool.developerId,
+            developerRevenueSharePct: auth.developerRevenueSharePct,
+            flagged: fraudResult.flagged,
+            originalStatus: upstreamStatus,
+          })
+          if (fallbackResult) return fallbackResult
+        }
+      }
+    }
+
     // Only charge if upstream returned success
     const actualCost = upstreamOk && !auth.isTestKey ? costCents : 0
 
+    // Consumer-audit #2 — track actual collected cents separately from the
+    // intended cost. The atomic UPDATEs below may fail when two concurrent
+    // invocations drain the balance between the pre-check and the deduct.
+    // If the deduct fails we must NOT credit the developer — the upstream
+    // response already shipped (a free invocation), but paying the dev from
+    // a phantom balance would create a revenue leak and negative-sum
+    // accounting. Previously the revenue/balance updates ran unconditionally
+    // on `actualCost > 0` regardless of whether the money actually moved.
+    let collectedCents = 0
+    let collectedFrom: 'per_tool' | 'global' | 'none' = 'none'
+
     if (actualCost > 0) {
-      // Atomic balance deduction
+      // Atomic per-tool balance deduction (conditional on sufficient funds).
       const [updatedBalance] = await db
         .update(consumerToolBalances)
         .set({
@@ -500,25 +889,53 @@ async function handleProxy(
         )
         .returning({ balanceCents: consumerToolBalances.balanceCents })
 
-      if (!updatedBalance) {
-        // Race condition — balance was spent between check and deduct. Don't charge.
-        logger.warn('proxy.balance_race_condition', {
-          slug,
-          consumerId: auth.consumerId,
-          costCents: actualCost,
-          requestId,
-        })
+      if (updatedBalance) {
+        collectedCents = actualCost
+        collectedFrom = 'per_tool'
       } else {
-        // Increment tool revenue + developer balance
-        const developerShareCents = Math.floor(actualCost * (auth.developerRevenueSharePct / 100))
+        // Per-tool balance insufficient — fallback to global balance.
+        const [globalDeduct] = await db
+          .update(consumers)
+          .set({
+            globalBalanceCents: sql`${consumers.globalBalanceCents} - ${actualCost}`,
+          })
+          .where(
+            and(
+              eq(consumers.id, auth.consumerId),
+              sql`${consumers.globalBalanceCents} >= ${actualCost}`
+            )
+          )
+          .returning({ globalBalanceCents: consumers.globalBalanceCents })
 
-        // Fire-and-forget: update tool stats + developer balance
+        if (globalDeduct) {
+          collectedCents = actualCost
+          collectedFrom = 'global'
+        } else {
+          // Both conditional UPDATEs failed — the consumer's balance was
+          // drained by a concurrent invocation between our pre-check and
+          // this deduct. The upstream already ran. Log at ERROR level (not
+          // warn) so ops can reconcile, and return the response to the
+          // consumer without crediting the developer.
+          logger.error('proxy.balance_race_unpaid_invocation', {
+            slug,
+            consumerId: auth.consumerId,
+            toolId: auth.toolId,
+            costCents: actualCost,
+            requestId,
+            message: 'Concurrent invocation drained balance between pre-check and deduct. Upstream shipped; no charge collected; developer not credited.',
+          })
+        }
+      }
+      // Only credit tool revenue + developer balance if we actually collected.
+      if (collectedCents > 0) {
+        const developerShareCents = Math.floor(collectedCents * (auth.developerRevenueSharePct / 100))
+
         Promise.all([
           db
             .update(tools)
             .set({
               totalInvocations: sql`${tools.totalInvocations} + 1`,
-              totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+              totalRevenueCents: sql`${tools.totalRevenueCents} + ${collectedCents}`,
               updatedAt: new Date(),
             })
             .where(eq(tools.id, auth.toolId)),
@@ -532,6 +949,16 @@ async function handleProxy(
         ]).catch((err) => {
           logger.error('proxy.billing_update_error', { slug, requestId }, err)
         })
+      } else {
+        // Lost race: still increment invocation count so activity metrics
+        // reflect reality, but do NOT touch revenue or developer balance.
+        db.update(tools)
+          .set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(tools.id, auth.toolId))
+          .catch(() => {})
       }
     } else if (upstreamOk) {
       // Free tool or test key — still increment invocation count
@@ -545,14 +972,15 @@ async function handleProxy(
         .catch(() => {})
     }
 
-    // Record invocation (with fraud flag and test mode metadata)
+    // Record invocation (with fraud flag, test mode, and the balance-race
+    // outcome so reconciliation queries can find unpaid invocations).
     db.insert(invocations)
       .values({
         toolId: auth.toolId,
         consumerId: auth.consumerId,
         apiKeyId: auth.keyId,
         method: `proxy:${request.method}`,
-        costCents: actualCost,
+        costCents: collectedCents,
         latencyMs,
         status: upstreamOk ? 'success' : 'error',
         isTest: auth.isTestKey,
@@ -561,6 +989,10 @@ async function handleProxy(
           proxy: true,
           upstreamStatus,
           toolSlug: slug,
+          // Preserve the intended vs. collected split for reconciliation.
+          intendedCostCents: actualCost,
+          collectedCostCents: collectedCents,
+          collectedFrom,
           ...(auth.isTestKey ? { isTest: true } : {}),
           ...(fraudResult.flagged ? { fraudRiskScore: fraudResult.riskScore, fraudSignals: fraudResult.signals } : {}),
         },
@@ -599,11 +1031,32 @@ async function handleProxy(
     responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
     responseHeaders.set('X-SettleGrid-Tool', slug)
     responseHeaders.set('X-SettleGrid-Protocol', 'api-key')
+    responseHeaders.set('X-SettleGrid-Cache', 'MISS')
     if (auth.isTestKey) {
       responseHeaders.set('X-SettleGrid-Mode', 'sandbox')
     }
     if (requestId) {
       responseHeaders.set('x-request-id', requestId)
+    }
+
+    // ── Cache successful responses ────────────────────────────────────
+    if (cacheKey && cacheTtl > 0 && upstreamOk) {
+      try {
+        const respText = await upstreamResponse.text()
+        const contentType = upstreamResponse.headers.get('content-type') ?? 'application/json'
+        const toCache: CachedProxyResponse = {
+          body: respText,
+          status: upstreamStatus,
+          contentType,
+        }
+        // Store in Redis asynchronously (non-blocking)
+        tryRedis(() => getRedis().set(cacheKey, JSON.stringify(toCache), { ex: cacheTtl })).catch(() => {})
+
+        // Return the response using the text we already consumed
+        return injectAttributionAndReturnText(respText, responseHeaders, upstreamStatus, slug, actualCost, 'api-key', contentType)
+      } catch {
+        // Fall through to normal response flow
+      }
     }
 
     // Inject _settlegrid metadata into JSON responses
@@ -612,6 +1065,50 @@ async function handleProxy(
     const latencyMs = Date.now() - startTime
     logger.error('proxy.internal_error', { slug, latencyMs, requestId }, error)
     return internalErrorResponse(error, requestId)
+  }
+}
+
+/**
+ * Injects `_settlegrid` metadata into an already-consumed text body.
+ * Used when the body was consumed for caching.
+ */
+function injectAttributionAndReturnText(
+  text: string,
+  responseHeaders: Headers,
+  upstreamStatus: number,
+  toolSlug: string,
+  costCents: number,
+  protocol: string,
+  contentType: string
+): NextResponse {
+  const isJson = contentType.includes('application/json')
+
+  if (!isJson) {
+    return new NextResponse(text, {
+      status: upstreamStatus,
+      headers: responseHeaders,
+    })
+  }
+
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      parsed._settlegrid = {
+        tool: toolSlug,
+        cost: costCents < 100 ? `$0.${String(costCents).padStart(2, '0')}` : `$${(costCents / 100).toFixed(2)}`,
+        protocol,
+        poweredBy: 'settlegrid.ai',
+      }
+    }
+    return new NextResponse(JSON.stringify(parsed), {
+      status: upstreamStatus,
+      headers: responseHeaders,
+    })
+  } catch {
+    return new NextResponse(text, {
+      status: upstreamStatus,
+      headers: responseHeaders,
+    })
   }
 }
 
@@ -1402,7 +1899,7 @@ async function handleAcpProxy(
 // ─── Generic Protocol Proxy Handler (UCP, Mastercard, Circle Nano) ──────────
 
 /**
- * Handles proxy invocations for UCP, Mastercard Agent Pay, and Circle Nanopayments.
+ * Handles proxy invocations for UCP, Mastercard Verifiable Intent, and Circle Nanopayments.
  * These share the same lookup-validate-forward-bill pattern with protocol-specific
  * validation and 402 response generation.
  */
@@ -1445,6 +1942,22 @@ async function handleProtocolProxy(
     paymentId = result.authorizationRef ?? result.intentId
     payerIdentifier = result.intentId
     if (!valid) {
+      // P3.PROT1 — Mastercard VI is a detection stub: full validation lands
+      // when Mastercard's Verifiable Intent API GAs (target 2026-Q3). When
+      // the validator returns ``MC_NOT_YET_SUPPORTED`` we surface the
+      // spec-literal 503 detection-stub envelope (``status: 'protocol_detected'``,
+      // ``expected_at: '2026-Q3'``, etc.) so the buyer's client sees a
+      // structured "coming soon" signal rather than a 402 "please pay
+      // properly" challenge for a rail we can't yet validate.
+      // Other failure codes (`MC_NOT_CONFIGURED`, `MC_INTENT_MISSING`)
+      // continue to fall through to the legacy 402 challenge path.
+      if (result.error?.code === 'MC_NOT_YET_SUPPORTED') {
+        const stub = mastercardAdapter.buildDetectionStubResponse()
+        const body = await stub.text()
+        const headers = new Headers(stub.headers)
+        if (requestId) headers.set('x-request-id', requestId)
+        return new NextResponse(body, { status: stub.status, headers })
+      }
       const resp402 = generateMastercard402Response(toolRow.slug, costCents, toolRow.name)
       const body = await resp402.text()
       const headers = new Headers(resp402.headers)
@@ -1575,6 +2088,212 @@ async function handleL402Proxy(
       l402AmountSats: l402Result.amountSats ?? null,
     }
   )
+}
+
+// ── SLA Failover Helpers ───────────────────────────────────────────────────
+
+/**
+ * Look up a tool's category from the database.
+ */
+async function getToolCategory(toolId: string): Promise<string | null> {
+  try {
+    const [row] = await db
+      .select({ category: tools.category })
+      .from(tools)
+      .where(eq(tools.id, toolId))
+      .limit(1)
+    return row?.category ?? null
+  } catch {
+    return null
+  }
+}
+
+interface FailoverParams {
+  slug: string
+  category: string
+  consumerId: string
+  costCents: number
+  request: NextRequest
+  requestBody: string
+  startTime: number
+  requestId: string
+  isTestKey: boolean
+  keyId: string
+  toolId: string
+  developerId: string
+  developerRevenueSharePct: number
+  flagged: boolean
+  originalStatus: number | null
+}
+
+/**
+ * Attempts a single failover to a fallback tool in the same category.
+ * Returns a NextResponse if failover succeeds, or null if it fails.
+ * Bills at the ORIGINAL tool's rate, not the fallback's rate.
+ */
+async function attemptFailover(params: FailoverParams): Promise<NextResponse | null> {
+  const {
+    slug, category, consumerId, costCents, request, requestBody,
+    startTime, requestId, isTestKey, keyId, toolId, developerId,
+    developerRevenueSharePct, flagged, originalStatus,
+  } = params
+
+  try {
+    const fallback = await findFallbackTool(slug, category)
+    if (!fallback) return null
+
+    logger.info('proxy.failover_attempt', {
+      originalSlug: slug,
+      fallbackSlug: fallback.slug,
+      consumerId,
+      requestId,
+    })
+
+    // Call the fallback tool
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
+
+    let fallbackResponse: Response
+    try {
+      const fetchInit: RequestInit = {
+        method: request.method,
+        headers: buildUpstreamHeaders(request),
+        signal: controller.signal,
+      }
+
+      if (request.method !== 'GET' && request.method !== 'HEAD' && requestBody) {
+        fetchInit.body = requestBody
+      }
+
+      fallbackResponse = await fetch(fallback.proxyEndpoint, fetchInit)
+    } catch {
+      clearTimeout(timer)
+      return null // Fallback also failed — give up
+    } finally {
+      clearTimeout(timer)
+    }
+
+    const fallbackStatus = fallbackResponse.status
+    const fallbackOk = fallbackStatus >= 200 && fallbackStatus < 300
+
+    if (!fallbackOk) {
+      return null // Fallback returned an error — give up
+    }
+
+    const latencyMs = Date.now() - startTime
+    const actualCost = !isTestKey ? costCents : 0
+
+    // Bill at original tool's rate
+    if (actualCost > 0) {
+      const [updatedBalance] = await db
+        .update(consumerToolBalances)
+        .set({
+          balanceCents: sql`${consumerToolBalances.balanceCents} - ${actualCost}`,
+          currentPeriodSpendCents: sql`${consumerToolBalances.currentPeriodSpendCents} + ${actualCost}`,
+        })
+        .where(
+          and(
+            eq(consumerToolBalances.consumerId, consumerId),
+            eq(consumerToolBalances.toolId, toolId),
+            sql`${consumerToolBalances.balanceCents} >= ${actualCost}`
+          )
+        )
+        .returning({ balanceCents: consumerToolBalances.balanceCents })
+
+      if (!updatedBalance) {
+        await db
+          .update(consumers)
+          .set({
+            globalBalanceCents: sql`${consumers.globalBalanceCents} - ${actualCost}`,
+          })
+          .where(
+            and(
+              eq(consumers.id, consumerId),
+              sql`${consumers.globalBalanceCents} >= ${actualCost}`
+            )
+          )
+      }
+
+      // Credit the original developer
+      const developerShareCents = Math.floor(actualCost * (developerRevenueSharePct / 100))
+      Promise.all([
+        db.update(tools).set({
+          totalInvocations: sql`${tools.totalInvocations} + 1`,
+          totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+          updatedAt: new Date(),
+        }).where(eq(tools.id, toolId)),
+        db.update(developers).set({
+          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+          updatedAt: new Date(),
+        }).where(eq(developers.id, developerId)),
+      ]).catch(() => {})
+    }
+
+    // Record the invocation
+    db.insert(invocations).values({
+      toolId,
+      consumerId,
+      apiKeyId: keyId,
+      method: `proxy:${request.method}`,
+      costCents: actualCost,
+      latencyMs,
+      status: 'success',
+      isTest: isTestKey,
+      isFlagged: flagged,
+      metadata: {
+        proxy: true,
+        failover: true,
+        originalSlug: slug,
+        fallbackSlug: fallback.slug,
+        originalStatus,
+      },
+    }).then(() => {}).catch(() => {})
+
+    // Log the failover event
+    logFailoverEvent({
+      originalSlug: slug,
+      fallbackSlug: fallback.slug,
+      consumerId,
+      costCents: actualCost,
+      originalStatus,
+      fallbackStatus,
+      latencyMs,
+      requestId,
+    })
+
+    // Build response with failover headers
+    const responseHeaders = new Headers()
+    fallbackResponse.headers.forEach((value, key) => {
+      const lower = key.toLowerCase()
+      if (lower !== 'transfer-encoding' && lower !== 'connection') {
+        responseHeaders.set(key, value)
+      }
+    })
+
+    responseHeaders.set('X-SettleGrid-Proxy', 'true')
+    responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
+    responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
+    responseHeaders.set('X-Powered-By', 'SettleGrid (settlegrid.ai)')
+    responseHeaders.set('X-SettleGrid-Tool', slug)
+    responseHeaders.set('X-SettleGrid-Protocol', 'api-key')
+    responseHeaders.set('X-SettleGrid-Cache', 'MISS')
+    addFailoverHeaders(responseHeaders, fallback.slug)
+    if (requestId) responseHeaders.set('x-request-id', requestId)
+
+    // Return the fallback response
+    return injectAttributionAndReturn(
+      fallbackResponse, responseHeaders, fallbackStatus, slug, actualCost, 'api-key'
+    )
+  } catch (err) {
+    logger.error('proxy.failover_error', {
+      slug,
+      category,
+      consumerId,
+      error: err instanceof Error ? err.message : String(err),
+      requestId,
+    })
+    return null
+  }
 }
 
 export async function POST(

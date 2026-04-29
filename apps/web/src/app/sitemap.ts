@@ -5,9 +5,10 @@ import { COLLECTION_SLUGS } from '@/lib/collections'
 import { HOWTO_SLUGS } from '@/lib/howto-guides'
 import { BLOG_SLUGS } from '@/lib/blog-posts'
 import { INTEGRATION_SLUGS } from '@/lib/integration-guides'
+import { FRAMEWORK_SLUGS } from '@/lib/frameworks'
 import { db } from '@/lib/db'
-import { tools } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { tools, mcpShadowIndex } from '@/lib/db/schema'
+import { eq, desc } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 const BASE_URL = 'https://settlegrid.ai'
@@ -40,6 +41,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   }
 
+  // ── Shadow directory pages ─────────────────────────────────────────────
+  const shadowEntries: MetadataRoute.Sitemap = []
+  try {
+    const shadowRows = await db
+      .select({
+        owner: mcpShadowIndex.owner,
+        repo: mcpShadowIndex.repo,
+        lastUpdated: mcpShadowIndex.lastUpdated,
+      })
+      .from(mcpShadowIndex)
+      .orderBy(desc(mcpShadowIndex.stars))
+      .limit(50000)
+
+    // Deduplicate by owner+repo (multiple sources may index the same project)
+    const seen = new Set<string>()
+    for (const row of shadowRows) {
+      const key = `${row.owner}/${row.repo}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      shadowEntries.push({
+        url: `${BASE_URL}/mcp/${row.owner}/${row.repo}`,
+        lastModified: row.lastUpdated ?? now,
+        changeFrequency: 'weekly',
+        priority: 0.5,
+      })
+    }
+  } catch (err) {
+    logger.warn('sitemap.shadow_query_failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
   return [
     // ── Marketing pages ──────────────────────────────────────────────────────
     {
@@ -47,6 +80,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 1.0,
+    },
+    {
+      url: `${BASE_URL}/platform`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.9,
     },
     {
       url: `${BASE_URL}/docs`,
@@ -101,20 +140,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     ),
     {
-      url: `${BASE_URL}/learn/compare`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    },
-    ...(['vs-diy', 'vs-nevermined', 'vs-stripe', 'vs-mcpize', 'vs-paid-ai', 'vs-moesif', 'vs-stripe-metronome', 'vs-orb', 'vs-lago', 'mcp-billing-platforms-2026'] as const).map(
-      (slug) => ({
-        url: `${BASE_URL}/learn/compare/${slug}`,
-        lastModified: now,
-        changeFrequency: 'monthly' as const,
-        priority: slug === 'mcp-billing-platforms-2026' ? 0.7 : 0.5,
-      })
-    ),
-    {
       url: `${BASE_URL}/learn/glossary`,
       lastModified: now,
       changeFrequency: 'monthly',
@@ -128,6 +153,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
 
     // ── Standalone pages ─────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/free-tools`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
     {
       url: `${BASE_URL}/pricing`,
       lastModified: now,
@@ -194,6 +225,47 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly' as const,
       priority: 0.7,
     })),
+
+    // ── Framework integration pages ──────────────────────────────────────────
+    ...FRAMEWORK_SLUGS.map((fw) => ({
+      url: `${BASE_URL}/explore/for/${fw}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
+
+    // ── Marketplace ────────────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/marketplace`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    ...(['mcp-servers', 'ai-models', 'apis', 'agent-tools', 'packages', 'automations', 'datasets', 'extensions'] as const).map(
+      (type) => ({
+        url: `${BASE_URL}/marketplace/${type}`,
+        lastModified: now,
+        changeFrequency: 'daily' as const,
+        priority: 0.8,
+      })
+    ),
+    ...(['huggingface', 'npm', 'pypi', 'smithery', 'apify', 'mcp-registry', 'pulsemcp', 'replicate', 'openrouter', 'github'] as const).map(
+      (eco) => ({
+        url: `${BASE_URL}/marketplace/ecosystem/${eco}`,
+        lastModified: now,
+        changeFrequency: 'daily' as const,
+        priority: 0.7,
+      })
+    ),
+
+
+    // ── Trending ──────────────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/marketplace/trending`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
 
     // ── How-to guides ─────────────────────────────────────────────────────────
     {
@@ -328,6 +400,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly',
       priority: 0.5,
     },
+    // ── Marketplace data APIs ─────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/api/marketplace/stats`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.6,
+    },
+    {
+      url: `${BASE_URL}/api/marketplace/bundles`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.5,
+    },
 
     // ── Discovery infrastructure ────────────────────────────────────────
     {
@@ -351,5 +436,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // ── Dynamic tool detail pages ──────────────────────────────────────────
     ...toolEntries,
+
+    // ── Shadow directory pages (P2.12) ────────────────────────────────────
+    ...shadowEntries,
   ]
 }
