@@ -66,7 +66,6 @@
   ],
   "rewrites": [
     {
-      "//": "P4.MKT2 — public x402 facilitator on a vanity subdomain. The `has` host filter scopes the rewrite so that ONLY requests to facilitator.settlegrid.ai/v1/* get routed to the internal /api/x402/facilitator/v1/* handlers; settlegrid.ai/v1/* (if it ever existed) would not match this rule and fall through to default routing.",
       "source": "/v1/:path*",
       "has": [
         { "type": "host", "value": "facilitator.settlegrid.ai" }
