@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
           eq(tools.status, 'unclaimed'),
           isNotNull(tools.claimEmailSentAt),
           // Exclude epoch-sentinel records (no email found)
-          sql`${tools.claimEmailSentAt} > ${epochDate}`,
+          sql`${tools.claimEmailSentAt} > ${epochDate.toISOString()}::timestamptz`,
           lt(tools.claimFollowUpCount, 3),
           isNotNull(tools.claimToken)
         )

@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     const [newToolsResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(tools)
-      .where(sql`${tools.status} = 'active' AND ${tools.createdAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${tools.status} = 'active' AND ${tools.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .limit(1)
 
     const newToolsCount = newToolsResult?.count ?? 0
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
         description: tools.description,
       })
       .from(tools)
-      .where(sql`${tools.status} = 'active' AND ${tools.createdAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${tools.status} = 'active' AND ${tools.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .orderBy(sql`${tools.totalInvocations} DESC`)
       .limit(5)
 
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(sql`${tools.status} = 'active' AND ${tools.category} IS NOT NULL AND ${tools.createdAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${tools.status} = 'active' AND ${tools.category} IS NOT NULL AND ${tools.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .groupBy(tools.category)
       .orderBy(sql`count(*) DESC`)
       .limit(5)

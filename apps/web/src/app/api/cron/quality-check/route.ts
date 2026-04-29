@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
           .where(
             and(
               eq(invocations.toolId, tool.toolId),
-              sql`${invocations.createdAt} >= ${oneHourAgo}`,
+              sql`${invocations.createdAt} >= ${oneHourAgo.toISOString()}::timestamptz`,
               sql`${invocations.latencyMs} IS NOT NULL`
             )
           )
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
           .where(
             and(
               eq(invocations.toolId, tool.toolId),
-              sql`${invocations.createdAt} >= ${oneHourAgo}`
+              sql`${invocations.createdAt} >= ${oneHourAgo.toISOString()}::timestamptz`
             )
           )
           .limit(1)
@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
             .where(
               and(
                 eq(invocations.toolId, tool.toolId),
-                sql`${invocations.createdAt} >= ${sevenDaysAgo}`
+                sql`${invocations.createdAt} >= ${sevenDaysAgo.toISOString()}::timestamptz`
               )
             )
             .limit(1)
