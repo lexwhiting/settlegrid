@@ -32,23 +32,14 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { USDC_ADDRESSES } from '@/lib/settlement/x402/types'
 import type { X402SupportedInfo } from '@/lib/settlement/x402/types'
+import {
+  PUBLIC_FACILITATOR_NETWORKS,
+  FACILITATOR_NAME,
+  FACILITATOR_VERSION,
+} from '../_shared'
 
 export const maxDuration = 30
 export { corsOptions as OPTIONS }
-
-/**
- * Networks the public facilitator officially supports on day one.
- * Filter applied to USDC_ADDRESSES (which includes ETH mainnet too).
- * Add to this list ONLY when the founder has run an end-to-end
- * settle on the new network from outside the dev environment.
- */
-export const PUBLIC_FACILITATOR_NETWORKS = ['eip155:8453', 'eip155:84532'] as const
-
-/** Facilitator name reported in /v1/supported. Stable per release. */
-export const FACILITATOR_NAME = 'SettleGrid' as const
-
-/** SemVer of the facilitator surface itself, not of the x402 spec. */
-export const FACILITATOR_VERSION = '1.0.0' as const
 
 export const GET = withCors(async function GET(request: NextRequest) {
   try {
