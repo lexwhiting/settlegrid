@@ -70,7 +70,7 @@ export async function POST(
         currentRevenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
       })
       .from(invocations)
-      .where(sql`${invocations.toolId} = ${id} AND ${invocations.createdAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${invocations.toolId} = ${id} AND ${invocations.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .groupBy(invocations.method)
       .orderBy(sql`count(*) desc`)
       .limit(200)
