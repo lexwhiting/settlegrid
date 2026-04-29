@@ -13,6 +13,7 @@
  */
 
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { NotifyMeForm } from './notify-form'
 
 export const metadata: Metadata = {
@@ -46,9 +47,9 @@ export default function MastercardVILandingPage() {
         */}
         <ol className="flex flex-wrap gap-2">
           <li>
-            <a href="/" className="hover:text-zinc-300">
+            <Link href="/" className="hover:text-zinc-300">
               SettleGrid
-            </a>
+            </Link>
           </li>
           <li aria-hidden>/</li>
           <li>Protocols</li>

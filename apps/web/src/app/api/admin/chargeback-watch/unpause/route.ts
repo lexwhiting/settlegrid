@@ -20,7 +20,7 @@
 
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, chargebackAlerts } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
