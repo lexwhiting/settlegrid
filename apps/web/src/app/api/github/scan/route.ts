@@ -10,7 +10,7 @@ import {
   getInstallationToken,
   listInstallationRepos,
 } from '@/lib/github'
-import { scanRepository } from '@/app/api/webhooks/github/route'
+import { scanRepository } from '@/app/api/webhooks/github/scan-impl'
 
 // ─── Schemas ────────────────────────────────────────────────────────────────────
 

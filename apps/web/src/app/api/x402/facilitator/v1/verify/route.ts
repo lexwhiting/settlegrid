@@ -36,7 +36,7 @@ import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { verifyExactPayment, verifyUptoPayment } from '@/lib/settlement/x402'
 import type { X402ExactPayload, X402UptoPayload } from '@/lib/settlement/x402'
 import { logger } from '@/lib/logger'
-import { PUBLIC_FACILITATOR_NETWORKS } from '../supported/route'
+import { PUBLIC_FACILITATOR_NETWORKS } from '../_shared'
 
 export const maxDuration = 30
 export { corsOptions as OPTIONS }

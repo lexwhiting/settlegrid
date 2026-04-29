@@ -69,12 +69,11 @@ vi.mock('drizzle-orm', () => ({
   })),
 }))
 
+import { GET, POST } from '../admin/signup-followup/route'
 import {
-  GET,
-  POST,
   SIGNUP_FOLLOWUP_STATUSES,
   isValidStatus,
-} from '../admin/signup-followup/route'
+} from '../admin/signup-followup/helpers'
 
 const ADMIN_EMAIL = 'lexwhiting365@gmail.com'
 const VALID_DEV_UUID = '11111111-1111-1111-1111-111111111111'

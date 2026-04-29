@@ -49,11 +49,11 @@ vi.mock('drizzle-orm', () => ({
   })),
 }))
 
+import { GET } from '../admin/launch-metrics/route'
 import {
-  GET,
   parseHnRankFromHtml,
   parsePostHogFunnelRow,
-} from '../admin/launch-metrics/route'
+} from '../admin/launch-metrics/helpers'
 
 const ADMIN_EMAIL = 'lexwhiting365@gmail.com'
 
