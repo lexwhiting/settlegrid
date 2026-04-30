@@ -133,7 +133,9 @@ check_supported() {
     echo "could not parse .networks from /v1/supported response"
     return 1
   }
-  if [[ "$got_networks" != "eip155:84532,eip155:8453" ]]; then
+  # Lexicographic sort: `eip155:8453` < `eip155:84532` (shorter
+  # string is a prefix of the longer one and sorts first).
+  if [[ "$got_networks" != "eip155:8453,eip155:84532" ]]; then
     echo "expected networks=[eip155:8453,eip155:84532], got: $got_networks"
     return 1
   fi
