@@ -1,0 +1,50 @@
+{
+  "slug": "weaviate",
+  "name": "Weaviate",
+  "description": "MCP server for Weaviate with SettleGrid billing. Manage Weaviate database users, roles, and permissions via the Weaviate REST API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "rag",
+    "weaviate",
+    "vector-database",
+    "rbac",
+    "users",
+    "roles",
+    "permissions",
+    "authorization",
+    "database"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-weaviate"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_user",
+    "get_own_info",
+    "get_role",
+    "get_role_users",
+    "get_user",
+    "get_user_roles",
+    "list_roles",
+    "rotate_user_key"
+  ],
+  "featured": false
+}

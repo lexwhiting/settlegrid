@@ -1,15 +1,62 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-16T03:17:00.785Z",
-  "commit": "8ac626b1ba7a90aa2bb24e4155267f28323413b5",
-  "totalTemplates": 20,
+  "generatedAt": "2026-04-19T20:36:52.001Z",
+  "commit": "f9f7a522897c924341ce9336479ac2182015dd82",
+  "totalTemplates": 97,
   "categories": {
-    "data": 7,
-    "devtools": 5,
-    "media": 4,
+    "ai": 21,
+    "data": 30,
+    "devtools": 24,
+    "media": 14,
+    "productivity": 4,
     "research": 4
   },
   "templates": [
+    {
+      "slug": "airbyte",
+      "name": "Airbyte",
+      "description": "MCP server for Airbyte with SettleGrid billing. Create and manage Airbyte data pipeline sources via the Airbyte API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "data-pipelines",
+        "airbyte",
+        "data-pipeline",
+        "etl",
+        "data-integration",
+        "source",
+        "connector",
+        "workspace",
+        "data-engineering",
+        "sync"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-airbyte"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_source"
+      ],
+      "featured": false
+    },
     {
       "slug": "api-football",
       "name": "API Football",
@@ -47,6 +94,401 @@
         "get-leagues",
         "get-standings",
         "get-fixtures"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "apify",
+      "name": "Apify",
+      "description": "MCP server for Apify with SettleGrid billing. Manage and run Apify Actors, datasets, and key-value stores via the Apify platform API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "scraping",
+        "apify",
+        "actors",
+        "web-scraping",
+        "automation",
+        "datasets",
+        "crawling",
+        "cloud",
+        "robotics",
+        "rpa"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-apify"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_actor",
+        "get_actor_run",
+        "get_dataset_items",
+        "get_key_value_store_record",
+        "list_actor_runs",
+        "list_actors",
+        "run_actor"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "arize-ax",
+      "name": "Arize Ax",
+      "description": "MCP server for Arize AX with SettleGrid billing. Manage spaces, models, and monitors in Arize AX — the AI observability and LLM evaluation platform.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "ml-monitoring",
+        "arize",
+        "llm",
+        "observability",
+        "monitoring",
+        "ml-models",
+        "ai-evaluation",
+        "spaces",
+        "monitors",
+        "mlops"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-arize-ax"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_model",
+        "delete_monitor",
+        "get_model",
+        "get_monitor",
+        "get_space",
+        "list_models",
+        "list_monitors",
+        "list_spaces"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "arize-phoenix",
+      "name": "Arize Phoenix",
+      "description": "MCP server for Arize Phoenix with SettleGrid billing. Manage LLM observability projects, traces, spans, datasets, and experiments via the Arize Phoenix REST API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "observability",
+        "llm",
+        "tracing",
+        "spans",
+        "datasets",
+        "experiments",
+        "monitoring",
+        "arize",
+        "phoenix"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-arize-phoenix"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_dataset",
+        "get_experiment",
+        "get_project",
+        "list_dataset_examples",
+        "list_datasets",
+        "list_experiments",
+        "list_projects",
+        "list_spans"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "assemblyai",
+      "name": "Assemblyai",
+      "description": "MCP server for AssemblyAI with SettleGrid billing. Transcribe audio, retrieve transcripts, and generate AI-powered summaries and insights using AssemblyAI's speech-to-text and LeMUR APIs.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "speech",
+        "transcription",
+        "speech-to-text",
+        "audio",
+        "lemur",
+        "summarization",
+        "nlp",
+        "captions",
+        "subtitles",
+        "assemblyai"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-assemblyai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "ask_lemur",
+        "export_transcript",
+        "generate_action_items",
+        "generate_summary",
+        "get_transcript_sentences",
+        "get_transcription",
+        "list_transcriptions",
+        "submit_transcription"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "bright-data",
+      "name": "Bright Data",
+      "description": "MCP server for Bright Data Scrapers Library with SettleGrid billing. Trigger and retrieve structured web scraping jobs from Bright Data's library of 660+ pre-built scrapers.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "scraping",
+        "web-scraping",
+        "data-extraction",
+        "bright-data",
+        "scrapers",
+        "datasets",
+        "automation",
+        "structured-data",
+        "proxy",
+        "crawler"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-bright-data"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_job_progress",
+        "get_snapshot_results",
+        "scrape_sync",
+        "trigger_scraper_job"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "browserbase",
+      "name": "Browserbase",
+      "description": "MCP server for Browserbase with SettleGrid billing. Create and manage cloud browser sessions for AI-driven web automation and scraping via the Browserbase API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "browser-automation",
+        "browser",
+        "automation",
+        "scraping",
+        "headless",
+        "playwright",
+        "puppeteer",
+        "session",
+        "cloud",
+        "ai-agent"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-browserbase"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_session",
+        "get_session",
+        "get_session_logs",
+        "get_session_recording",
+        "list_sessions",
+        "stop_session"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "browserless",
+      "name": "Browserless",
+      "description": "MCP server for Browserless with SettleGrid billing. Capture screenshots, generate PDFs, scrape page content, and extract structured data from web pages using the Browserless headless browser REST API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "browser-automation",
+        "browserless",
+        "headless-browser",
+        "screenshot",
+        "pdf",
+        "web-scraping",
+        "automation",
+        "html",
+        "puppeteer",
+        "content-extraction"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-browserless"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 3,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_page_content",
+        "scrape_page",
+        "smart_scrape_page",
+        "take_screenshot"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "cartesia",
+      "name": "Cartesia",
+      "description": "MCP server for Cartesia with SettleGrid billing. Convert text to speech and retrieve audio bytes using Cartesia's high-quality TTS API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "speech",
+        "text-to-speech",
+        "tts",
+        "audio",
+        "voice",
+        "speech-synthesis",
+        "cartesia",
+        "audio-generation"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-cartesia"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "synthesize_speech"
       ],
       "featured": false
     },
@@ -93,6 +535,145 @@
       "featured": false
     },
     {
+      "slug": "codacy",
+      "name": "Codacy",
+      "description": "MCP server for Codacy with SettleGrid billing. Access Codacy code quality analysis data including repository issues, commits, and tool configurations via the Codacy API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "code-analysis",
+        "codacy",
+        "code-quality",
+        "static-analysis",
+        "linting",
+        "code-review",
+        "issues",
+        "repositories",
+        "ci",
+        "devtools"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-codacy"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_authenticated_user",
+        "get_commit_analysis",
+        "get_repository_analysis",
+        "list_organizations",
+        "list_repositories",
+        "list_repository_commits",
+        "list_tools",
+        "search_repository_issues"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "cohere-embed",
+      "name": "Cohere Embed",
+      "description": "MCP server for Cohere Embed with SettleGrid billing. Generate semantic text embeddings using Cohere's embedding models for similarity, search, and classification tasks.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "embeddings",
+        "semantic-search",
+        "nlp",
+        "cohere",
+        "vectors",
+        "similarity",
+        "text-embeddings",
+        "machine-learning"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-cohere-embed"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 3,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "embed_single",
+        "embed_texts"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "comet-ml",
+      "name": "Comet Ml",
+      "description": "MCP server for Comet ML with SettleGrid billing. Access Comet ML experiment tracking data including workspaces, projects, and experiment metrics via the Comet REST API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "eval-tools",
+        "machine-learning",
+        "experiment-tracking",
+        "mlops",
+        "comet",
+        "metrics",
+        "model-monitoring",
+        "data-science"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-comet-ml"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_user_workspaces"
+      ],
+      "featured": false
+    },
+    {
       "slug": "cve-search",
       "name": "CVE Search",
       "description": "Search the NVD database for CVEs",
@@ -131,6 +712,198 @@
         "get-cve",
         "get-recent-cves",
         "search-by-cpe"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "deepgram",
+      "name": "Deepgram",
+      "description": "MCP server for Deepgram with SettleGrid billing. Transcribe audio to text, convert text to speech, and analyze audio/text intelligence using the Deepgram API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "speech",
+        "speech-to-text",
+        "transcription",
+        "text-to-speech",
+        "audio",
+        "deepgram",
+        "asr",
+        "voice",
+        "nlp",
+        "audio-intelligence"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-deepgram"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "analyze_text",
+        "get_project",
+        "get_project_balances",
+        "get_project_usage",
+        "list_project_keys",
+        "list_projects",
+        "synthesize_speech",
+        "transcribe_audio"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "deepl-document",
+      "name": "Deepl Document",
+      "description": "MCP server for DeepL Document Translation with SettleGrid billing. Upload, check status, and download translated documents using the DeepL API.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "tags": [
+        "translation",
+        "deepl",
+        "document",
+        "language",
+        "nlp",
+        "localization",
+        "word",
+        "pdf",
+        "multilingual"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-deepl-document"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "download_document",
+        "get_document_status",
+        "upload_document"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "diffbot",
+      "name": "Diffbot",
+      "description": "MCP server for Diffbot with SettleGrid billing. Automatically classify web pages and extract structured data using Diffbot's AI-powered Analyze API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "knowledge-graphs",
+        "diffbot",
+        "web-scraping",
+        "data-extraction",
+        "page-classification",
+        "article",
+        "product",
+        "nlp",
+        "structured-data",
+        "web-parsing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-diffbot"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "analyze_url"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "elevenlabs",
+      "name": "Elevenlabs",
+      "description": "MCP server for ElevenLabs with SettleGrid billing. Generate sound effects, retrieve speech history, and isolate audio using the ElevenLabs AI audio API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "speech",
+        "elevenlabs",
+        "text-to-speech",
+        "tts",
+        "sound-effects",
+        "audio",
+        "ai-voice",
+        "audio-isolation",
+        "voice-generation",
+        "sound-generation"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-elevenlabs"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_history_item",
+        "download_history_items",
+        "generate_sound_effect",
+        "get_history_item",
+        "get_speech_history"
       ],
       "featured": false
     },
@@ -178,6 +951,256 @@
       "featured": false
     },
     {
+      "slug": "fal-ai",
+      "name": "Fal Ai",
+      "description": "MCP server for Fal.ai with SettleGrid billing. Submit, monitor, and retrieve results from asynchronous AI model inference jobs on the Fal.ai platform.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "image-gen",
+        "fal",
+        "inference",
+        "image-generation",
+        "machine-learning",
+        "queue",
+        "async",
+        "generative-ai",
+        "model"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-fal-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "cancel_request",
+        "get_request_result",
+        "get_request_status",
+        "submit_request"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "fiddler-ai",
+      "name": "Fiddler Ai",
+      "description": "MCP server for Fiddler AI with SettleGrid billing. Manage and monitor AI models on the Fiddler platform — list, create, inspect, update, delete, and generate models from samples.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "ml-monitoring",
+        "fiddler",
+        "mlops",
+        "model-monitoring",
+        "machine-learning",
+        "model-management",
+        "explainability",
+        "drift",
+        "observability",
+        "data-science"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-fiddler-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_model",
+        "delete_model",
+        "generate_model_from_samples",
+        "get_model",
+        "list_models",
+        "update_model"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "firecrawl",
+      "name": "Firecrawl",
+      "description": "MCP server for Firecrawl with SettleGrid billing. Scrape, crawl, map, and extract structured data from websites using the Firecrawl API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "scraping",
+        "crawling",
+        "web-scraper",
+        "extract",
+        "markdown",
+        "llm",
+        "website",
+        "data-extraction",
+        "firecrawl"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-firecrawl"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "crawl_website",
+        "extract_data",
+        "generate_llmstxt",
+        "get_crawl_status",
+        "get_extract_status",
+        "get_llmstxt_status",
+        "map_website",
+        "scrape_url"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "fireworks-ai",
+      "name": "Fireworks Ai",
+      "description": "MCP server for Fireworks AI with SettleGrid billing. Access Fireworks AI inference endpoints for chat completions, text completions, embeddings, and image generation using fast open-source models.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "fine-tuning",
+        "fireworks",
+        "llm",
+        "chat",
+        "completions",
+        "embeddings",
+        "image-generation",
+        "inference",
+        "open-source-models",
+        "generative-ai"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-fireworks-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_chat_completion",
+        "create_embeddings",
+        "create_image",
+        "create_text_completion",
+        "get_model",
+        "list_models"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "fivetran",
+      "name": "Fivetran",
+      "description": "MCP server for Fivetran with SettleGrid billing. Manage Fivetran data pipeline connections, trigger syncs, and inspect schema metadata via the Fivetran REST API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "data-pipelines",
+        "fivetran",
+        "etl",
+        "data-pipeline",
+        "integration",
+        "sync",
+        "connections",
+        "schema",
+        "data-engineering",
+        "elt"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-fivetran"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_connection",
+        "get_connection",
+        "get_connection_schemas",
+        "get_schema_details",
+        "get_table_details",
+        "list_connections",
+        "trigger_resync",
+        "trigger_sync"
+      ],
+      "featured": false
+    },
+    {
       "slug": "flight-prices",
       "name": "Flight Prices",
       "description": "MCP server for flight price and route data with SettleGrid billing",
@@ -215,6 +1238,161 @@
         "search-flights",
         "get-flight-status",
         "get-routes"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "fluree",
+      "name": "Fluree",
+      "description": "MCP server for Fluree with SettleGrid billing. Create and query Fluree semantic ledgers with full transaction, history, and SPARQL support.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "knowledge-graphs",
+        "fluree",
+        "ledger",
+        "graph-database",
+        "semantic",
+        "sparql",
+        "linked-data",
+        "blockchain",
+        "query",
+        "transaction"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-fluree"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_ledger",
+        "delete_ledger",
+        "list_ledgers",
+        "query_history",
+        "query_ledger",
+        "query_sparql",
+        "transact_ledger"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "galileo",
+      "name": "Galileo",
+      "description": "MCP server for Galileo with SettleGrid billing. Interact with Galileo AI's project annotation, scorer management, and dataset operations via its REST API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "eval-tools",
+        "galileo",
+        "annotation",
+        "scorer",
+        "dataset",
+        "llm",
+        "evaluation",
+        "observability",
+        "ml",
+        "monitoring"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-galileo"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_annotation_rating",
+        "get_annotation_template",
+        "get_dataset",
+        "get_scorer",
+        "list_annotation_templates",
+        "list_datasets",
+        "list_scorer_versions",
+        "list_scorers"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "galileo-insights",
+      "name": "Galileo Insights",
+      "description": "MCP server for Galileo Insights with SettleGrid billing. Manage AI observability scorers, annotation templates, and datasets on the Galileo platform.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "ml-monitoring",
+        "galileo",
+        "ai-observability",
+        "llm-evaluation",
+        "scorers",
+        "annotations",
+        "datasets",
+        "monitoring",
+        "ai-quality",
+        "tracing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-galileo-insights"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_annotation_template",
+        "get_dataset",
+        "get_dataset_content",
+        "get_scorer",
+        "list_annotation_templates",
+        "list_datasets",
+        "list_scorer_versions",
+        "list_scorers"
       ],
       "featured": false
     },
@@ -303,6 +1481,57 @@
       "featured": false
     },
     {
+      "slug": "gretel-ai",
+      "name": "Gretel Ai",
+      "description": "MCP server for Gretel.ai with SettleGrid billing. Manage Gretel.ai projects, models, and synthetic data generation via the Gretel REST API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "synthetic-data",
+        "privacy",
+        "anonymization",
+        "machine-learning",
+        "data-generation",
+        "gretel",
+        "data-science",
+        "models",
+        "projects"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-gretel-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_project",
+        "get_model",
+        "get_model_records",
+        "get_project",
+        "get_project_records",
+        "list_artifacts",
+        "list_models",
+        "list_projects"
+      ],
+      "featured": false
+    },
+    {
       "slug": "guardian",
       "name": "The Guardian",
       "description": "Search articles from The Guardian newspaper.",
@@ -386,6 +1615,110 @@
       "featured": false
     },
     {
+      "slug": "helicone",
+      "name": "Helicone",
+      "description": "MCP server for Helicone with SettleGrid billing. Query and manage LLM observability data including requests, datasets, alerts, sessions, and analytics via the Helicone API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "llm-gateways",
+        "llm",
+        "observability",
+        "analytics",
+        "monitoring",
+        "logging",
+        "datasets",
+        "prompts",
+        "sessions",
+        "alerts"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-helicone"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_alerts",
+        "get_datasets",
+        "get_request_by_id",
+        "get_requests",
+        "get_sessions",
+        "get_user_metrics",
+        "query_hql",
+        "submit_request_feedback"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "hightouch",
+      "name": "Hightouch",
+      "description": "MCP server for Hightouch with SettleGrid billing. Interact with Hightouch syncs, models, sources, and destinations via the Hightouch REST API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "data-pipelines",
+        "hightouch",
+        "reverse-etl",
+        "syncs",
+        "models",
+        "destinations",
+        "sources",
+        "data-integration",
+        "pipeline",
+        "etl"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-hightouch"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_model",
+        "get_sync",
+        "list_destinations",
+        "list_models",
+        "list_sources",
+        "list_sync_runs",
+        "list_syncs",
+        "trigger_sync"
+      ],
+      "featured": false
+    },
+    {
       "slug": "holidays-worldwide",
       "name": "Holidays Worldwide",
       "description": "Get public holidays, long weekends, and available countries via the Nager.Date API.",
@@ -428,6 +1761,928 @@
       "featured": false
     },
     {
+      "slug": "hyperbrowser",
+      "name": "Hyperbrowser",
+      "description": "MCP server for Hyperbrowser with SettleGrid billing. Create and manage headless browser sessions via the Hyperbrowser API for web scraping and automation.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "browser-automation",
+        "browser",
+        "headless",
+        "scraping",
+        "automation",
+        "sessions",
+        "web",
+        "playwright",
+        "puppeteer"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-hyperbrowser"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_session",
+        "get_session",
+        "list_sessions",
+        "stop_session"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "ideogram",
+      "name": "Ideogram",
+      "description": "MCP server for Ideogram with SettleGrid billing. Generate, edit, remix, and reframe images using the Ideogram 3.0 AI image generation API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "image-gen",
+        "image-generation",
+        "text-to-image",
+        "image-editing",
+        "image-remix",
+        "generative-ai",
+        "ideogram",
+        "stable-diffusion",
+        "creative"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-ideogram"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 8,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "edit_image",
+        "generate_image",
+        "generate_transparent_image",
+        "remix_image"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "inngest",
+      "name": "Inngest",
+      "description": "MCP server for Inngest with SettleGrid billing. Manage Inngest events, function runs, and functions via the Inngest REST API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "agent-frameworks",
+        "inngest",
+        "workflow",
+        "events",
+        "functions",
+        "background-jobs",
+        "queues",
+        "automation",
+        "serverless"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-inngest"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "cancel_run",
+        "get_event",
+        "get_event_runs",
+        "get_run",
+        "list_events",
+        "list_functions",
+        "list_runs",
+        "send_event"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "jina-embeddings",
+      "name": "Jina Embeddings",
+      "description": "MCP server for Jina Embeddings with SettleGrid billing. Generate high-quality multimodal multilingual embeddings for text and content using Jina AI's embedding models.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "embeddings",
+        "vectors",
+        "nlp",
+        "semantic-search",
+        "rag",
+        "multimodal",
+        "multilingual",
+        "machine-learning",
+        "jina"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-jina-embeddings"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_embeddings",
+        "create_passage_embeddings",
+        "create_query_embedding"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "lancedb",
+      "name": "Lancedb",
+      "description": "MCP server for LanceDB with SettleGrid billing. Manage tables, insert records, and perform vector similarity search on LanceDB cloud databases.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "vector-dbs",
+        "lancedb",
+        "vector-database",
+        "vector-search",
+        "embeddings",
+        "similarity-search",
+        "machine-learning",
+        "database",
+        "indexing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-lancedb"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_records",
+        "describe_table",
+        "insert_records",
+        "list_indexes",
+        "list_tables",
+        "query_table",
+        "search_vectors",
+        "update_records"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "langfuse",
+      "name": "Langfuse",
+      "description": "MCP server for Langfuse with SettleGrid billing. Manage annotation queues and items for LLM observability and evaluation workflows via the Langfuse API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "observability",
+        "langfuse",
+        "llm",
+        "annotation",
+        "evaluation",
+        "tracing",
+        "monitoring",
+        "queue"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-langfuse"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_annotation_queue",
+        "create_queue_item",
+        "delete_queue_item",
+        "get_annotation_queue",
+        "get_queue_item",
+        "list_annotation_queues",
+        "list_queue_items",
+        "update_queue_item"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "langfuse-datasets",
+      "name": "Langfuse Datasets",
+      "description": "MCP server for Langfuse Datasets with SettleGrid billing. Manage Langfuse annotation queues and their items for LLM observability and evaluation workflows.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "eval-tools",
+        "langfuse",
+        "llm",
+        "observability",
+        "annotation",
+        "evaluation",
+        "datasets",
+        "queues",
+        "tracing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-langfuse-datasets"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_annotation_queue",
+        "create_queue_item",
+        "delete_queue_item",
+        "get_annotation_queue",
+        "get_queue_item",
+        "list_annotation_queues",
+        "list_queue_items",
+        "update_queue_item"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "langsmith",
+      "name": "Langsmith",
+      "description": "MCP server for LangSmith with SettleGrid billing. Manage and query LangSmith tracing sessions, filter views, and deployment info via the LangSmith API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "agent-frameworks",
+        "langsmith",
+        "langchain",
+        "tracing",
+        "llm",
+        "observability",
+        "sessions",
+        "monitoring",
+        "evaluation"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-langsmith"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_session",
+        "delete_session",
+        "get_server_info",
+        "get_session",
+        "get_session_metadata",
+        "get_session_view",
+        "list_session_views",
+        "list_sessions"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "langsmith-prompts",
+      "name": "Langsmith Prompts",
+      "description": "MCP server for LangSmith Prompts with SettleGrid billing. Manage and query LangSmith tracing sessions, metadata, and filter views via the LangSmith API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "prompt-engineering",
+        "langsmith",
+        "langchain",
+        "tracing",
+        "llm",
+        "observability",
+        "sessions",
+        "prompts",
+        "monitoring"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-langsmith-prompts"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_session",
+        "delete_session",
+        "get_server_info",
+        "get_session",
+        "get_session_metadata",
+        "list_session_views",
+        "list_sessions"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "langwatch",
+      "name": "Langwatch",
+      "description": "MCP server for LangWatch with SettleGrid billing. Search, retrieve, and inspect LangWatch traces capturing the full execution of LLM pipelines including spans, evaluations, and metadata.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "observability",
+        "llm",
+        "tracing",
+        "langwatch",
+        "ai-monitoring",
+        "spans",
+        "evaluations",
+        "pipelines",
+        "debugging",
+        "telemetry"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-langwatch"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_trace",
+        "search_traces"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "leonardo-ai",
+      "name": "Leonardo Ai",
+      "description": "MCP server for Leonardo.ai with SettleGrid billing. Generate AI images using Leonardo.ai's models with customizable prompts, styles, and generation parameters.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "image-gen",
+        "image-generation",
+        "stable-diffusion",
+        "text-to-image",
+        "generative-art",
+        "leonardo",
+        "image-synthesis",
+        "creative-ai"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-leonardo-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_generation",
+        "delete_generation",
+        "get_generation",
+        "get_user_info",
+        "list_platform_models"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "letta",
+      "name": "Letta",
+      "description": "MCP server for Letta with SettleGrid billing. Manage stateful AI agents and send messages via the Letta API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "agent-frameworks",
+        "agents",
+        "llm",
+        "memory",
+        "stateful",
+        "chat",
+        "automation",
+        "letta",
+        "messaging"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-letta"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_agent",
+        "delete_agent",
+        "get_agent",
+        "get_messages",
+        "list_agents",
+        "send_message",
+        "update_agent"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "lilt",
+      "name": "Lilt",
+      "description": "MCP server for Lilt with SettleGrid billing. Access Lilt's translation and content generation services including adaptive machine translation, document management, and AI-powered content creation.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "tags": [
+        "translation",
+        "machine-translation",
+        "localization",
+        "content-generation",
+        "nlp",
+        "language",
+        "lilt",
+        "documents",
+        "adaptive-mt"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-lilt"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_content",
+        "delete_create_content",
+        "get_create_content",
+        "get_create_content_by_id",
+        "get_create_preferences",
+        "get_domains",
+        "get_files",
+        "regenerate_create_content"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "litellm",
+      "name": "Litellm",
+      "description": "MCP server for LiteLLM with SettleGrid billing. Interact with LiteLLM proxy for OpenAI-compatible chat completions, text completions, embeddings, and model discovery.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "llm-gateways",
+        "llm",
+        "chat",
+        "completions",
+        "embeddings",
+        "openai",
+        "proxy",
+        "language-model",
+        "nlp"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-litellm"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_chat_completion",
+        "create_completion",
+        "create_embeddings",
+        "get_health",
+        "list_models"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "llamaparse",
+      "name": "Llamaparse",
+      "description": "MCP server for LlamaParse with SettleGrid billing. Upload documents for AI-powered parsing and retrieve results in markdown, text, or JSON format via the LlamaIndex LlamaParse API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "document-intelligence",
+        "llamaparse",
+        "llamaindex",
+        "document-parsing",
+        "pdf",
+        "markdown",
+        "ocr",
+        "text-extraction",
+        "llm",
+        "document-ai"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-llamaparse"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_job",
+        "get_job_status",
+        "get_page_image",
+        "get_result_json",
+        "get_result_markdown",
+        "get_result_text",
+        "upload_file_for_parsing"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "lokalise",
+      "name": "Lokalise",
+      "description": "MCP server for Lokalise with SettleGrid billing. Manage localization projects, keys, and translations via the Lokalise API.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "tags": [
+        "translation",
+        "lokalise",
+        "localization",
+        "i18n",
+        "l10n",
+        "internationalization",
+        "strings",
+        "keys",
+        "projects",
+        "languages"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-lokalise"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_key",
+        "create_project",
+        "get_project",
+        "list_keys",
+        "list_languages",
+        "list_projects",
+        "list_translations",
+        "update_translation"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "milvus",
+      "name": "Milvus",
+      "description": "MCP server for Milvus with SettleGrid billing. Create and manage vector database collections in Milvus via its RESTful API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "rag",
+        "milvus",
+        "vector-database",
+        "embeddings",
+        "similarity-search",
+        "machine-learning",
+        "collections",
+        "vector-search",
+        "ann"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-milvus"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_collection"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "mistral-ocr",
+      "name": "Mistral Ocr",
+      "description": "MCP server for Mistral OCR with SettleGrid billing. Extract text and structured content from documents and images using Mistral AI's OCR API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "document-intelligence",
+        "ocr",
+        "mistral",
+        "document",
+        "text-extraction",
+        "image",
+        "pdf",
+        "structured-data",
+        "vision"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-mistral-ocr"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "ocr_base64",
+        "ocr_url"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "nanonets",
+      "name": "Nanonets",
+      "description": "MCP server for Nanonets with SettleGrid billing. Interact with Nanonets OCR models to retrieve model details and upload training images via URL.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "document-intelligence",
+        "ocr",
+        "nanonets",
+        "machine-learning",
+        "image-recognition",
+        "document-processing",
+        "training",
+        "optical-character-recognition"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-nanonets"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_model_details",
+        "upload_training_images_by_url"
+      ],
+      "featured": false
+    },
+    {
       "slug": "nasa-data",
       "name": "NASA Open Data",
       "description": "Astronomy photos, near-Earth objects, and image search.",
@@ -465,6 +2720,99 @@
         "get-apod",
         "get-neo",
         "search-images"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "neo4j-auradb",
+      "name": "Neo4j Auradb",
+      "description": "MCP server for Neo4j AuraDB Query API with SettleGrid billing. Execute Cypher queries against a Neo4j AuraDB instance using the Neo4j Query API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "knowledge-graphs",
+        "neo4j",
+        "graph",
+        "database",
+        "cypher",
+        "auradb",
+        "query",
+        "graphdb",
+        "nosql"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-neo4j-auradb"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "run_cypher_query",
+        "run_read_query"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "nomic-atlas",
+      "name": "Nomic Atlas",
+      "description": "MCP server for Nomic Atlas with SettleGrid billing. Generate text and image embeddings and parse or extract content from files using the Nomic Atlas API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "embeddings",
+        "text-embeddings",
+        "image-embeddings",
+        "nomic",
+        "atlas",
+        "nlp",
+        "machine-learning",
+        "vectors",
+        "semantic-search",
+        "file-parsing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-nomic-atlas"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 3,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "embed_image",
+        "embed_text",
+        "extract_file",
+        "parse_file"
       ],
       "featured": false
     },
@@ -551,6 +2899,55 @@
       "featured": false
     },
     {
+      "slug": "openrouter",
+      "name": "Openrouter",
+      "description": "MCP server for OpenRouter with SettleGrid billing. Access and route requests to hundreds of AI language models via the OpenRouter unified API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "llm-gateways",
+        "llm",
+        "language-model",
+        "openrouter",
+        "chat",
+        "completions",
+        "gpt",
+        "claude",
+        "inference",
+        "routing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-openrouter"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_chat_completion",
+        "get_credits",
+        "get_generation",
+        "get_model",
+        "list_models"
+      ],
+      "featured": false
+    },
+    {
       "slug": "opensky",
       "name": "OpenSky Network",
       "description": "Live flight tracking and aircraft state vectors from the OpenSky Network.",
@@ -592,6 +2989,154 @@
       "featured": false
     },
     {
+      "slug": "oxylabs",
+      "name": "Oxylabs",
+      "description": "MCP server for Oxylabs Web Scraper with SettleGrid billing. Scrape any URL in realtime using Oxylabs' proxy infrastructure with optional JavaScript rendering, geo-targeting, and structured parsing.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "scraping",
+        "proxy",
+        "web-scraper",
+        "data-extraction",
+        "oxylabs",
+        "realtime",
+        "javascript-rendering",
+        "geo-targeting",
+        "amazon",
+        "google"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-oxylabs"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "scrape_amazon_product",
+        "scrape_google_search",
+        "scrape_url",
+        "scrape_with_js"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "patronus-ai",
+      "name": "Patronus Ai",
+      "description": "MCP server for Patronus AI with SettleGrid billing. Run AI output evaluations, manage experiments, and access datasets using the Patronus AI evaluation platform.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "eval-tools",
+        "ai-evaluation",
+        "llm",
+        "evaluation",
+        "experiments",
+        "datasets",
+        "patronus",
+        "ai-safety",
+        "ml-ops",
+        "quality-assurance"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-patronus-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_dataset",
+        "create_experiment",
+        "list_datasets",
+        "list_evaluators",
+        "list_experiments",
+        "run_evaluation"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "pinecone",
+      "name": "Pinecone",
+      "description": "MCP server for Pinecone with SettleGrid billing. Search, manage, and import vectors in Pinecone vector database indexes via the Data Plane API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "rag",
+        "pinecone",
+        "vector-database",
+        "embeddings",
+        "similarity-search",
+        "machine-learning",
+        "vector-search",
+        "semantic-search"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-pinecone"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_vectors",
+        "describe_bulk_import",
+        "fetch_vectors",
+        "get_index_stats",
+        "list_bulk_imports",
+        "list_vectors",
+        "query_vectors",
+        "start_bulk_import"
+      ],
+      "featured": false
+    },
+    {
       "slug": "podcast-index",
       "name": "Podcast Index",
       "description": "Search podcasts and episodes via the Podcast Index API.",
@@ -629,6 +3174,675 @@
         "search-podcasts",
         "get-podcast",
         "get-episodes"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "portkey",
+      "name": "Portkey",
+      "description": "MCP server for Portkey with SettleGrid billing. Render and execute Portkey prompt templates against configured LLMs via the Portkey Prompt API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "llm-gateways",
+        "portkey",
+        "llm",
+        "prompt",
+        "ai-gateway",
+        "prompt-engineering",
+        "completions",
+        "templates",
+        "nlp",
+        "generative-ai"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-portkey"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "execute_prompt",
+        "render_prompt"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "portkey-prompts",
+      "name": "Portkey Prompts",
+      "description": "MCP server for Portkey Prompts with SettleGrid billing. Run and manage Portkey prompt templates directly from your application using the Portkey Prompt API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "prompt-engineering",
+        "portkey",
+        "prompts",
+        "llm",
+        "templates",
+        "generative-ai",
+        "openai",
+        "inference"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-portkey-prompts"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "run_prompt"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "prefect",
+      "name": "Prefect",
+      "description": "MCP server for Prefect with SettleGrid billing. Manage and monitor Prefect Cloud workflows, flow runs, deployments, and task runs via the Prefect REST API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "data-pipelines",
+        "prefect",
+        "workflow",
+        "orchestration",
+        "dataflow",
+        "flow-runs",
+        "deployments",
+        "task-runs",
+        "automation",
+        "pipeline"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-prefect"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_flow_run_from_deployment",
+        "filter_deployments",
+        "filter_flow_runs",
+        "filter_flows",
+        "filter_logs",
+        "get_deployment",
+        "get_flow",
+        "get_flow_run"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "prompt-hub",
+      "name": "Prompt Hub",
+      "description": "MCP server for Prompt Hub with SettleGrid billing. Manage and retrieve AI prompts from PromptHub, including listing, fetching, creating, updating, and deleting prompts.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "prompt-engineering",
+        "prompts",
+        "llm",
+        "prompt-management",
+        "generative-ai",
+        "templates",
+        "openai",
+        "automation"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-prompt-hub"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_prompt",
+        "delete_prompt",
+        "get_prompt",
+        "list_prompts",
+        "update_prompt"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "promptlayer",
+      "name": "Promptlayer",
+      "description": "MCP server for PromptLayer with SettleGrid billing. Track, manage, and retrieve LLM prompt requests and templates via the PromptLayer API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "prompt-engineering",
+        "promptlayer",
+        "llm",
+        "prompt",
+        "tracking",
+        "openai",
+        "logging",
+        "templates",
+        "monitoring"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-promptlayer"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "add_request_tags",
+        "create_request_log",
+        "get_prompt_template",
+        "get_request",
+        "list_prompt_templates",
+        "search_requests"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "recraft",
+      "name": "Recraft",
+      "description": "MCP server for Recraft with SettleGrid billing. Generate, edit, vectorize, upscale, and manage AI-powered images and custom styles via the Recraft API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "image-gen",
+        "image-generation",
+        "ai-art",
+        "vectorize",
+        "upscale",
+        "background-removal",
+        "image-editing",
+        "generative-ai",
+        "design",
+        "recraft"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-recraft"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "clarity_upscale",
+        "delete_style",
+        "edit_image",
+        "generate_image",
+        "generative_upscale",
+        "list_styles",
+        "remove_background",
+        "vectorize_image"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "reducto",
+      "name": "Reducto",
+      "description": "MCP server for Reducto with SettleGrid billing. Parse and extract structured data from documents (PDFs, images, and more) using the Reducto document processing API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "document-intelligence",
+        "document-parsing",
+        "pdf",
+        "ocr",
+        "data-extraction",
+        "document-processing",
+        "reducto",
+        "text-extraction",
+        "file-parsing"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-reducto"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 8,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "parse_document"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "replicate",
+      "name": "Replicate",
+      "description": "MCP server for Replicate with SettleGrid billing. Run, manage, and monitor AI model predictions on Replicate's cloud infrastructure.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "image-gen",
+        "replicate",
+        "machine-learning",
+        "predictions",
+        "models",
+        "inference",
+        "image-generation",
+        "llm",
+        "fine-tuning"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-replicate"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "cancel_prediction",
+        "create_model_prediction",
+        "create_prediction",
+        "get_account",
+        "get_model",
+        "get_prediction",
+        "list_model_versions",
+        "list_predictions"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "replicate-trainings",
+      "name": "Replicate Trainings",
+      "description": "MCP server for Replicate Trainings with SettleGrid billing. Create, manage, and monitor model training jobs on the Replicate platform via its HTTP API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "fine-tuning",
+        "replicate",
+        "machine-learning",
+        "training",
+        "models",
+        "flux",
+        "diffusion",
+        "gpu",
+        "mlops"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-replicate-trainings"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "cancel_training",
+        "create_training",
+        "get_account",
+        "get_model",
+        "get_training",
+        "list_hardware",
+        "list_model_versions",
+        "list_trainings"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "rime-ai",
+      "name": "Rime Ai",
+      "description": "MCP server for Rime AI with SettleGrid billing. Convert text to lifelike speech audio using Rime AI's text-to-speech synthesis API.",
+      "version": "1.0.0",
+      "category": "media",
+      "tags": [
+        "speech",
+        "text-to-speech",
+        "tts",
+        "audio",
+        "speech-synthesis",
+        "voice",
+        "rime",
+        "natural-language"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-rime-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "synthesize_speech"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "scrapingbee",
+      "name": "Scrapingbee",
+      "description": "MCP server for ScrapingBee with SettleGrid billing. Scrape any webpage's HTML content with proxy rotation and optional JavaScript rendering via the ScrapingBee API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "scraping",
+        "web-scraping",
+        "proxy",
+        "headless-browser",
+        "html",
+        "javascript-rendering",
+        "data-extraction",
+        "automation",
+        "crawling"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-scrapingbee"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 3,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "scrape_url",
+        "scrape_with_extraction",
+        "scrape_with_premium_proxy"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "snyk",
+      "name": "Snyk",
+      "description": "MCP server for Snyk with SettleGrid billing. Query Snyk security data including organizations, projects, and vulnerability issues via the Snyk API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "code-analysis",
+        "snyk",
+        "security",
+        "vulnerabilities",
+        "dependencies",
+        "devsecops",
+        "sca",
+        "issues",
+        "projects",
+        "organizations"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-snyk"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_current_user",
+        "get_project_issues",
+        "list_org_issues",
+        "list_orgs",
+        "list_projects"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "sonarcloud",
+      "name": "Sonarcloud",
+      "description": "MCP server for SonarCloud with SettleGrid billing. Query SonarCloud projects, issues, metrics, and quality gates via the SonarCloud Web API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "code-analysis",
+        "sonarcloud",
+        "code-quality",
+        "static-analysis",
+        "security",
+        "code-coverage",
+        "issues",
+        "metrics",
+        "quality-gate",
+        "devops"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-sonarcloud"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_issue_changelog",
+        "get_project_analyses",
+        "get_project_metrics",
+        "get_quality_gate_status",
+        "list_projects",
+        "list_rules",
+        "search_hotspots",
+        "search_issues"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "sourcegraph",
+      "name": "Sourcegraph",
+      "description": "MCP server for Sourcegraph with SettleGrid billing. Search code across repositories using the Sourcegraph streaming search API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "code-analysis",
+        "sourcegraph",
+        "code-search",
+        "repository",
+        "search",
+        "code-intelligence",
+        "developer-tools",
+        "grep",
+        "symbol-search"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-sourcegraph"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 2,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "search_code"
       ],
       "featured": false
     },
@@ -714,6 +3928,105 @@
       "featured": false
     },
     {
+      "slug": "steel",
+      "name": "Steel",
+      "description": "MCP server for Steel with SettleGrid billing. Manage headless browser sessions, PDFs, and screenshots via the Steel API for AI agents.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "browser-automation",
+        "browser",
+        "headless",
+        "automation",
+        "scraping",
+        "ai-agents",
+        "sessions",
+        "screenshots",
+        "pdf",
+        "web"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-steel"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_session",
+        "get_pdf",
+        "get_screenshot",
+        "get_session",
+        "list_pdfs",
+        "list_screenshots",
+        "list_sessions",
+        "release_session"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "syntho",
+      "name": "Syntho",
+      "description": "MCP server for Syntho with SettleGrid billing. Manage organizations and users on the Syntho synthetic data platform via its REST API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "synthetic-data",
+        "syntho",
+        "organization",
+        "users",
+        "data-privacy",
+        "data-generation",
+        "management"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-syntho"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_user",
+        "delete_user",
+        "get_organization",
+        "get_user",
+        "list_users",
+        "update_user"
+      ],
+      "featured": false
+    },
+    {
       "slug": "tmdb",
       "name": "TMDB",
       "description": "Search movies, TV shows, and people via The Movie Database API.",
@@ -751,6 +4064,195 @@
         "search-movies",
         "get-movie",
         "search-tv"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "together-finetune",
+      "name": "Together Finetune",
+      "description": "MCP server for Together AI Fine-Tuning with SettleGrid billing. Create, monitor, and manage fine-tuning jobs on Together AI's platform via the fine-tuning API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "fine-tuning",
+        "together-ai",
+        "llm",
+        "machine-learning",
+        "model-training",
+        "nlp",
+        "inference",
+        "foundation-models"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-together-finetune"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "cancel_finetune_job",
+        "create_finetune_job",
+        "delete_finetune_model",
+        "get_finetune_job",
+        "list_finetune_events",
+        "list_finetune_jobs"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "tonic-fabricate",
+      "name": "Tonic Fabricate",
+      "description": "MCP server for Tonic Fabricate with SettleGrid billing. Generate realistic synthetic data at scale using Tonic Fabricate's API-driven data generation engine.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "synthetic-data",
+        "data-generation",
+        "fabricate",
+        "tonic",
+        "test-data",
+        "privacy",
+        "fake-data",
+        "data-masking",
+        "development",
+        "qa"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-tonic-fabricate"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 5,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "generate_data"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "tonic-textual",
+      "name": "Tonic Textual",
+      "description": "MCP server for Tonic Textual with SettleGrid billing. Redact and de-identify sensitive information from text strings using the Tonic Textual API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "synthetic-data",
+        "redaction",
+        "pii",
+        "privacy",
+        "data-masking",
+        "text-anonymization",
+        "sensitive-data",
+        "nlp",
+        "compliance",
+        "de-identification"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-tonic-textual"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 3,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "redact_text"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "typesense",
+      "name": "Typesense",
+      "description": "MCP server for Typesense with SettleGrid billing. Search, index, and manage collections and documents on a self-hosted Typesense search engine.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "vector-dbs",
+        "search",
+        "typesense",
+        "full-text-search",
+        "collections",
+        "documents",
+        "indexing",
+        "open-source",
+        "self-hosted"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-typesense"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_collection",
+        "delete_collection",
+        "delete_documents",
+        "get_collection",
+        "index_document",
+        "list_collections",
+        "search_documents",
+        "update_documents"
       ],
       "featured": false
     },
@@ -797,6 +4299,58 @@
       "featured": false
     },
     {
+      "slug": "vespa-document-v1",
+      "name": "Vespa Document V1",
+      "description": "MCP server for Vespa Document API with SettleGrid billing. Read, write, update, delete, and visit documents in a Vespa content cluster via the /document/v1 REST API.",
+      "version": "1.0.0",
+      "category": "data",
+      "tags": [
+        "vector-dbs",
+        "vespa",
+        "search",
+        "document",
+        "vector-search",
+        "indexing",
+        "content",
+        "nosql",
+        "retrieval",
+        "crud"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-vespa-document-v1"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "delete_document",
+        "delete_documents_by_selection",
+        "get_document",
+        "put_document",
+        "update_document",
+        "visit_all_documents",
+        "visit_documents",
+        "visit_group_documents"
+      ],
+      "featured": false
+    },
+    {
       "slug": "virustotal",
       "name": "VirusTotal",
       "description": "Scan URLs, files, and IPs for malware and threats",
@@ -835,6 +4389,200 @@
         "get-url-report",
         "get-ip-report",
         "get-domain-report"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "voyage-ai",
+      "name": "Voyage Ai",
+      "description": "MCP server for Voyage AI with SettleGrid billing. Generate high-quality text embeddings using Voyage AI's embedding models via the Voyage AI API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "embeddings",
+        "text-embedding",
+        "vector",
+        "semantic-search",
+        "nlp",
+        "machine-learning",
+        "voyage-ai",
+        "retrieval",
+        "similarity"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-voyage-ai"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 3,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_document_embeddings",
+        "create_embeddings",
+        "create_query_embedding"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "weave",
+      "name": "Weave",
+      "description": "MCP server for Weave (Weights & Biases) with SettleGrid billing. Query, manage, and analyze LLM traces, calls, objects, feedback, and cost data via the Weights & Biases Weave Service API.",
+      "version": "1.0.0",
+      "category": "devtools",
+      "tags": [
+        "observability",
+        "llm",
+        "tracing",
+        "wandb",
+        "weave",
+        "evaluation",
+        "monitoring",
+        "calls",
+        "feedback"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-weave"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_feedback",
+        "get_call",
+        "get_call_stats",
+        "query_calls",
+        "query_cost",
+        "query_feedback",
+        "query_objects",
+        "read_refs"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "weaviate",
+      "name": "Weaviate",
+      "description": "MCP server for Weaviate with SettleGrid billing. Manage Weaviate database users, roles, and permissions via the Weaviate REST API.",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": [
+        "rag",
+        "weaviate",
+        "vector-database",
+        "rbac",
+        "users",
+        "roles",
+        "permissions",
+        "authorization",
+        "database"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-weaviate"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "create_user",
+        "get_own_info",
+        "get_role",
+        "get_role_users",
+        "get_user",
+        "get_user_roles",
+        "list_roles",
+        "rotate_user_key"
+      ],
+      "featured": false
+    },
+    {
+      "slug": "weglot",
+      "name": "Weglot",
+      "description": "MCP server for Weglot with SettleGrid billing. Translate, retrieve, and update website content across multiple languages using the Weglot translation API.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "tags": [
+        "translation",
+        "localization",
+        "i18n",
+        "language",
+        "weglot",
+        "multilingual",
+        "website",
+        "content"
+      ],
+      "author": {
+        "name": "Alerterra, LLC",
+        "url": "https://settlegrid.ai",
+        "github": "settlegrid"
+      },
+      "repo": {
+        "type": "git",
+        "url": "https://github.com/settlegrid/settlegrid-weglot"
+      },
+      "runtime": "node",
+      "languages": [
+        "ts"
+      ],
+      "entry": "src/server.ts",
+      "pricing": {
+        "model": "per-call",
+        "perCallUsdCents": 1,
+        "currency": "USD"
+      },
+      "quality": {
+        "tests": false
+      },
+      "capabilities": [
+        "get_api_status",
+        "get_translations",
+        "translate_content",
+        "update_translations"
       ],
       "featured": false
     }

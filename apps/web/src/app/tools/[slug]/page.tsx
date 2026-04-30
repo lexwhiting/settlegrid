@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getCategoryBySlug } from '@/lib/categories'
+import { canPurchaseCredits } from '@/lib/marketplace-visibility'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -37,6 +38,15 @@ interface ToolData {
   developerName: string
   developerSlug: string | null
   category: string
+  /**
+   * P2.INTL2 — included in the response so the detail page can
+   * render differently for claimed-but-not-yet-monetized tools
+   * (status='draft' + listedInMarketplace=true). Without this field
+   * the page would show a broken "Purchase Credits" section for a
+   * tool that has no pricing configured yet.
+   */
+  status?: string
+  listedInMarketplace?: boolean
   currentVersion: string
   pricingConfig: {
     model?: string
@@ -348,6 +358,48 @@ export default async function ToolStorefrontPage({
             <span className="text-gray-100 truncate">{tool.name}</span>
           </nav>
 
+          {/*
+            P2.INTL2 — three detail-page states:
+              status='active'    → normal purchase flow
+              status='draft'     → claimed-but-not-yet-monetized (INTL2 corridor,
+                                   Stripe Connect unavailable) — show "Claimed"
+              status='unclaimed' → shadow-directory crawler entry, no developer
+                                   has claimed the listing — show "Unclaimed"
+                                   and invite the owner to claim. Critical not
+                                   to say "claimed" here: unclaimed tools have
+                                   NO developer, so the message would be false.
+          */}
+          {tool.status === 'draft' && (
+            <div
+              role="status"
+              className="mb-6 rounded-lg border border-amber-600/40 bg-amber-500/10 p-4"
+            >
+              <p className="text-sm font-semibold text-amber-300">
+                Claimed — pricing not yet configured
+              </p>
+              <p className="mt-1 text-xs text-amber-200/80">
+                The developer has claimed this listing but hasn&apos;t finished configuring payments
+                for their region yet. Buying credits isn&apos;t available for this tool today.
+              </p>
+            </div>
+          )}
+          {tool.status === 'unclaimed' && (
+            <div
+              role="status"
+              className="mb-6 rounded-lg border border-gray-500/40 bg-gray-500/10 p-4"
+            >
+              <p className="text-sm font-semibold text-gray-200">
+                Unclaimed listing
+              </p>
+              <p className="mt-1 text-xs text-gray-300/80">
+                This entry was indexed from a public directory and hasn&apos;t been claimed by its
+                maintainer yet. If you built this tool, you can{' '}
+                <Link href="/register" className="text-brand hover:underline">claim your listing</Link>{' '}
+                to set pricing and start receiving payouts.
+              </p>
+            </div>
+          )}
+
           <div className="mb-8">
             <div className="flex flex-wrap items-center gap-3 mb-3">
               <h1 className="text-4xl font-bold text-indigo dark:text-gray-100">{tool.name}</h1>
@@ -486,7 +538,15 @@ export default async function ToolStorefrontPage({
               <div className="mt-8 bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E] p-6">
                 <h2 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-4">Quick Start</h2>
                 <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                  <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
+                  {canPurchaseCredits(tool.status ?? '') && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
+                  )}
+                  {tool.status === 'draft' && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Wait for pricing</strong> — This tool has been claimed but Stripe payments aren&apos;t live in the developer&apos;s region yet. Buying credits will unlock once they finish onboarding.</p>
+                  )}
+                  {tool.status === 'unclaimed' && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Listing not yet claimed</strong> — Purchases aren&apos;t available for unclaimed listings. If you maintain this tool, <Link href="/register" className="text-brand hover:underline">claim your listing</Link> to enable monetization.</p>
+                  )}
                   <p><strong className="text-gray-900 dark:text-gray-200">2. Get your API key</strong> — After purchasing, go to your <Link href="/consumer" className="text-brand hover:underline">Consumer Dashboard</Link> to generate an API key.</p>
                   <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
                 </div>
@@ -504,26 +564,56 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
 
             {/* Purchase sidebar */}
             <div>
-              <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-brand p-6 sticky top-8">
-                <h3 className="font-semibold text-indigo dark:text-gray-100 mb-4">Buy Credits</h3>
-                <div className="space-y-2 mb-6">
-                  {[
-                    { amount: 500, label: '$5.00' },
-                    { amount: 2000, label: '$20.00' },
-                    { amount: 5000, label: '$50.00' },
-                  ].map((tier) => (
-                    <BuyCreditsButton
-                      key={tier.amount}
-                      toolId={tool.id}
-                      amountCents={tier.amount}
-                      label={tier.label}
-                    />
-                  ))}
+              {canPurchaseCredits(tool.status ?? '') ? (
+                <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-brand p-6 sticky top-8">
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-4">Buy Credits</h3>
+                  <div className="space-y-2 mb-6">
+                    {[
+                      { amount: 500, label: '$5.00' },
+                      { amount: 2000, label: '$20.00' },
+                      { amount: 5000, label: '$50.00' },
+                    ].map((tier) => (
+                      <BuyCreditsButton
+                        key={tier.amount}
+                        toolId={tool.id}
+                        amountCents={tier.amount}
+                        label={tier.label}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    Credits never expire. You can purchase more at any time.
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  Credits never expire. You can purchase more at any time.
-                </p>
-              </div>
+              ) : tool.status === 'draft' ? (
+                // P2.INTL2 — placeholder for claimed draft tools in Stripe-unsupported
+                // corridors. Do not render <BuyCreditsButton> since the tool has no
+                // price yet and the checkout session would fail.
+                <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-dashed border-gray-400 dark:border-[#3A3D4E] p-6 sticky top-8">
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-2">Pricing coming soon</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    This tool has been claimed. The developer will enable purchases once Stripe
+                    payments are available in their region.
+                  </p>
+                </div>
+              ) : (
+                // P2.INTL2 — unclaimed shadow-directory listing. No developer owns
+                // it, so no Buy Credits, no "coming soon" promise — instead invite
+                // the maintainer to claim. We explicitly don't mention "the
+                // developer" here because there isn't one.
+                <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-dashed border-gray-400 dark:border-[#3A3D4E] p-6 sticky top-8">
+                  <h3 className="font-semibold text-indigo dark:text-gray-100 mb-2">Unclaimed listing</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Purchases aren&apos;t available until the maintainer claims this listing.
+                  </p>
+                  <Link
+                    href="/register"
+                    className="inline-block text-sm font-medium text-brand hover:underline"
+                  >
+                    Claim this listing &rarr;
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 

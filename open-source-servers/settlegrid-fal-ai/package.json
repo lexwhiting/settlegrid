@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-fal-ai",
+  "version": "1.0.0",
+  "description": "MCP server for Fal.ai with SettleGrid billing. Submit, monitor, and retrieve results from asynchronous AI model inference jobs on the Fal.ai platform.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "fal",
+    "ai",
+    "inference",
+    "image-generation",
+    "machine-learning",
+    "queue",
+    "async",
+    "generative-ai",
+    "model"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fal-ai"
+  }
+}

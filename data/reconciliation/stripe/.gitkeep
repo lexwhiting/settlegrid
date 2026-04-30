@@ -1,0 +1,12 @@
+# P3.RAIL2 — Stripe reconciliation reports land here.
+#
+# The nightly orchestration script (`scripts/reconcile-stripe.ts`) writes one
+# JSON file per UTC calendar day, named `YYYY-MM-DD.json`. Each file holds a
+# combined report covering both reconciliation legs (charges + transfers).
+#
+# The directory is committed (this `.gitkeep`) so a fresh checkout has the
+# expected target path; reports themselves are also committed so the
+# reconciliation history is auditable.
+#
+# Schema: see `docs/reconciliation/example-report.json`.
+# Runbook: see `docs/reconciliation/reconcile-runbook.md`.

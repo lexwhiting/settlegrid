@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-together-finetune",
+  "version": "1.0.0",
+  "description": "MCP server for Together AI Fine-Tuning with SettleGrid billing. Create, monitor, and manage fine-tuning jobs on Together AI's platform via the fine-tuning API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "together-ai",
+    "fine-tuning",
+    "llm",
+    "machine-learning",
+    "model-training",
+    "ai",
+    "nlp",
+    "inference",
+    "foundation-models"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-together-finetune"
+  }
+}

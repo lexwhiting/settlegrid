@@ -1,18 +1,19 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { developers, webhookEndpoints } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getStripeSecretKey } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { planChangedEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { getTierConfig } from '@/lib/tier-config'
+import type Stripe from 'stripe'
+import { getStripeClient } from '@/lib/rails'
+import { withAutomaticTaxOnSubscription } from '@/lib/stripe-tax'
 
 export const maxDuration = 30
 
@@ -28,10 +29,6 @@ const PLAN_ORDER = ['free', 'builder', 'scale'] as const
 const changePlanSchema = z.object({
   plan: z.enum(['builder', 'scale']),
 })
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 /** POST /api/billing/change-plan — switch an existing subscription to a different plan */
 export async function POST(request: NextRequest) {
@@ -93,7 +90,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
 
     // Retrieve the current subscription to get the subscription item ID
     const subscription = await stripe.subscriptions.retrieve(developer.stripeSubscriptionId)
@@ -125,7 +122,12 @@ export async function POST(request: NextRequest) {
     // Update the subscription: swap the price on the existing subscription item.
     // Upgrades: prorate immediately (customer pays the difference now).
     // Downgrades: take effect at the next billing period (credit issued).
-    await stripe.subscriptions.update(developer.stripeSubscriptionId, {
+    // P2.TAX1 — ensure automatic_tax stays enabled on the updated
+    // subscription. Stripe preserves `automatic_tax.enabled` from the
+    // original subscription by default, but we set it explicitly
+    // here to guard against a future Stripe API default change
+    // leaking un-taxed plan changes through.
+    const updateParams: Stripe.SubscriptionUpdateParams = {
       items: [{
         id: subscriptionItemId,
         price: newPriceId,
@@ -135,7 +137,11 @@ export async function POST(request: NextRequest) {
         developerId: auth.id,
         plan: body.plan,
       },
-    })
+    }
+    await stripe.subscriptions.update(
+      developer.stripeSubscriptionId,
+      withAutomaticTaxOnSubscription(updateParams),
+    )
 
     // Update the developer tier in the database immediately.
     // The webhook (customer.subscription.updated) will also fire and confirm this,

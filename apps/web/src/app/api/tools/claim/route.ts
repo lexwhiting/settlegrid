@@ -28,6 +28,11 @@ const claimSchema = z.object({
     .min(1, 'Token is required')
     .max(64, 'Token too long')
     .regex(CLAIM_TOKEN_RE, 'Invalid claim token format'),
+  // Producer-audit #11 — developers in Stripe-unsupported corridors may
+  // want to claim without making the listing immediately visible. Default
+  // remains true (preserves marketplace visibility through the claim
+  // transition, the P2.INTL2 contract) but the API now accepts an opt-out.
+  listedInMarketplace: z.boolean().optional(),
 })
 
 // ─── POST /api/tools/claim ──────────────────────────────────────────────────
@@ -127,17 +132,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Transfer ownership: update developerId, status, clear claim token,
-    // and explicitly preserve marketplace visibility through the transition
-    // (P2.INTL2). Without listedInMarketplace=true the freshly-claimed tool
-    // would drop from /marketplace until the developer publishes — which
-    // requires Stripe — which is exactly the blocker for unsupported corridors.
+    // and preserve marketplace visibility through the transition (P2.INTL2
+    // contract). The default of `true` keeps the tool visible post-claim
+    // in Stripe-unsupported corridors; developers can opt out by passing
+    // listedInMarketplace=false in the request body (producer-audit #11)
+    // if they want to finish configuration before going live.
+    const listedInMarketplace = body.listedInMarketplace ?? true
     const [updated] = await db
       .update(tools)
       .set({
         developerId: auth.id,
         status: 'draft',
         claimToken: null,
-        listedInMarketplace: true,
+        listedInMarketplace,
         updatedAt: new Date(),
       })
       .where(and(eq(tools.id, tool.id), eq(tools.status, 'unclaimed')))

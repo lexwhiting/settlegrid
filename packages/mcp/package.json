@@ -85,6 +85,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "zod": "^3.23.0"
   },
   "peerDependencies": {

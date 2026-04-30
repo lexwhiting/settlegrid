@@ -50,7 +50,12 @@ export async function PUT(
       return errorResponse('Review not found or not associated with your tools.', 404, 'NOT_FOUND')
     }
 
-    // Update the developer response
+    // Producer-audit #13 — the UPDATE previously filtered on review.id
+    // only. Re-pin to review.toolId (already verified via the SELECT
+    // above) so a concurrent tool-ownership transfer between SELECT and
+    // UPDATE can't slip a response onto a review the caller no longer
+    // owns. Matches the defense-in-depth pattern in
+    // /api/tools/[id]/listed-in-marketplace/route.ts.
     const [updated] = await db
       .update(toolReviews)
       .set({
@@ -58,12 +63,16 @@ export async function PUT(
         developerRespondedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(toolReviews.id, id))
+      .where(and(eq(toolReviews.id, id), eq(toolReviews.toolId, review.toolId)))
       .returning({
         id: toolReviews.id,
         developerResponse: toolReviews.developerResponse,
         developerRespondedAt: toolReviews.developerRespondedAt,
       })
+
+    if (!updated) {
+      return errorResponse('Review not found.', 404, 'NOT_FOUND')
+    }
 
     return successResponse({ review: updated })
   } catch (error) {

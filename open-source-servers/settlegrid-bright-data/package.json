@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-bright-data",
+  "version": "1.0.0",
+  "description": "MCP server for Bright Data Scrapers Library with SettleGrid billing. Trigger and retrieve structured web scraping jobs from Bright Data's library of 660+ pre-built scrapers.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "scraping",
+    "web-scraping",
+    "data-extraction",
+    "bright-data",
+    "scrapers",
+    "datasets",
+    "automation",
+    "structured-data",
+    "proxy",
+    "crawler"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-bright-data"
+  }
+}

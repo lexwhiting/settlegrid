@@ -223,6 +223,59 @@ export function getDrainChannelAddress(): string | undefined {
   return process.env.DRAIN_CHANNEL_ADDRESS
 }
 
+/**
+ * Feature flag for the unified-adapter dispatch path.
+ *
+ * When `true`, the marketplace proxy at /api/proxy/[slug] routes
+ * payment-protocol detection through `protocolRegistry.detect()`
+ * from the bundled `@settlegrid/mcp` adapters (Layer A) instead of
+ * the historical 13-branch hand-rolled chain (Layer B).
+ *
+ * ## History
+ *
+ *   - P2.K1 shipped this flag defaulting to `false` (strict-truthy
+ *     `'true'` only enables), so the legacy 13-branch chain remained
+ *     authoritative while the unified path was shadow-validated.
+ *   - P2.K2 migrated the validation + 402-generation logic into the
+ *     adapter package so both dispatch paths delegate to the same
+ *     underlying functions.
+ *   - P2.K3 shipped the proxy-equivalence.test.ts snapshot test that
+ *     asserts byte-parity between the two paths, and reordered the
+ *     legacy chain to match the adapter registry's DETECTION_PRIORITY.
+ *     After both, the two paths are provably equivalent and this
+ *     function now DEFAULTS TO `true`. Set USE_UNIFIED_ADAPTERS='false'
+ *     explicitly to opt out (operational rollback hatch if an unforeseen
+ *     adapter-registry bug needs the legacy chain to take over).
+ *
+ * ## Value semantics (post-P2.K3 + P2.K3 hostile review)
+ *
+ *   - `'false'` / `'FALSE'` / `'False'` / ` false ` (any case + surrounding
+ *     whitespace) → legacy 13-branch chain (opt-out).
+ *   - anything else, including unset / undefined / empty string
+ *     / `'true'` / `'TRUE'` / `'1'` / `'flase'` (typo) → unified.
+ *
+ * Two design tensions inform the case-insensitive, whitespace-tolerant
+ * opt-out:
+ *
+ *   1. Typos in the OFF value should leave the unified path on — this
+ *      is the rollout-safety argument (a fat-fingered operator doesn't
+ *      silently revert to legacy during a routine deploy).
+ *   2. Explicit OFF intent (operator sets `USE_UNIFIED_ADAPTERS=FALSE`
+ *      as a rollback) MUST disable, regardless of case or surrounding
+ *      whitespace — this is the operational-rollback argument. In an
+ *      emergency, the operator should NOT have to discover the flag
+ *      is case-sensitive via another failed deploy.
+ *
+ * P2.K3's initial implementation was strict-case (`!== 'false'`); the
+ * hostile-review pass loosened it to `!== 'false'` after trim +
+ * lowercase. Both intents are now satisfied: `'flase'` stays on (typo
+ * → no match → not 'false' → unified), `'FALSE'` goes off (lowercased
+ * to 'false' → match → legacy).
+ */
+export function useUnifiedAdapters(): boolean {
+  return process.env.USE_UNIFIED_ADAPTERS?.trim().toLowerCase() !== 'false'
+}
+
 // Replicate API token — optional, needed for Replicate model crawler
 export function getReplicateToken(): string | undefined {
   return process.env.REPLICATE_API_TOKEN

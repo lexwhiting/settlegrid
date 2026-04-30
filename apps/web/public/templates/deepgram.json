@@ -1,0 +1,52 @@
+{
+  "slug": "deepgram",
+  "name": "Deepgram",
+  "description": "MCP server for Deepgram with SettleGrid billing. Transcribe audio to text, convert text to speech, and analyze audio/text intelligence using the Deepgram API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "speech",
+    "speech-to-text",
+    "transcription",
+    "text-to-speech",
+    "audio",
+    "deepgram",
+    "asr",
+    "voice",
+    "nlp",
+    "audio-intelligence"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-deepgram"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "analyze_text",
+    "get_project",
+    "get_project_balances",
+    "get_project_usage",
+    "list_project_keys",
+    "list_projects",
+    "synthesize_speech",
+    "transcribe_audio"
+  ],
+  "featured": false
+}

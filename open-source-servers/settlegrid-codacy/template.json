@@ -1,0 +1,51 @@
+{
+  "slug": "codacy",
+  "name": "Codacy",
+  "description": "MCP server for Codacy with SettleGrid billing. Access Codacy code quality analysis data including repository issues, commits, and tool configurations via the Codacy API.",
+  "version": "1.0.0",
+  "category": "devtools",
+  "tags": [
+    "code-analysis",
+    "codacy",
+    "code-quality",
+    "static-analysis",
+    "linting",
+    "code-review",
+    "issues",
+    "repositories",
+    "ci",
+    "devtools"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-codacy"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "get_authenticated_user",
+    "get_commit_analysis",
+    "get_repository_analysis",
+    "list_organizations",
+    "list_repositories",
+    "list_repository_commits",
+    "list_tools",
+    "search_repository_issues"
+  ],
+  "featured": false
+}

@@ -59,6 +59,8 @@ import {
   settlementCompletedEmail,
   settlementFailedEmail,
   newLoginEmail,
+  chargebackYellowAlertEmail,
+  chargebackRedAlertEmail,
   baseEmailTemplate,
   ctaButton,
   statusBadge,
@@ -2490,5 +2492,138 @@ describe('newLoginEmail', () => {
     const result = newLoginEmail('user@test.com', '<script>x</script>', '<b>agent</b>', '2026-03-20T14:30:00Z')
     expect(result.html).toContain('&lt;script&gt;x&lt;/script&gt;')
     expect(result.html).toContain('&lt;b&gt;agent&lt;/b&gt;')
+  })
+})
+
+// ─── P3.RAIL3 chargeback alerts ──────────────────────────────────────
+
+describe('chargebackYellowAlertEmail', () => {
+  const inputs = {
+    rateByCount: 0.004, // 0.4%
+    rateByVolume: 0.0035,
+    chargesCount: 250,
+    chargebacksCount: 1,
+    chargesVolumeCents: 250_000,
+    chargebacksVolumeCents: 875,
+  }
+
+  it('subject mentions the 0.3% threshold', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', 'Alice', inputs)
+    expect(r.subject).toContain('0.3%')
+  })
+
+  it('body shows the worst rate as a percentage', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', 'Alice', inputs)
+    // worst = max(0.004, 0.0035) = 0.4%
+    expect(r.html).toContain('0.40%')
+  })
+
+  it('greets developer by name when provided', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', 'Alice', inputs)
+    expect(r.html).toContain('Hi Alice')
+  })
+
+  it('escapes the developer name in the greeting', () => {
+    const r = chargebackYellowAlertEmail(
+      'dev@example.com',
+      '<script>alert(1)</script>',
+      inputs,
+    )
+    expect(r.html).not.toContain('<script>alert(1)</script>')
+    expect(r.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+  })
+
+  it('falls back to "there" when name is null', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('Hi there')
+  })
+
+  it('mentions the 7-day rate-limit window', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('7 days')
+  })
+
+  it('emphasises that yellow is informational only', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', null, inputs)
+    expect(r.html.toLowerCase()).toContain('informational')
+  })
+
+  it('uses the baseEmailTemplate wrapper', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('<!DOCTYPE html>')
+  })
+
+  it('includes the dispute counts as currency', () => {
+    const r = chargebackYellowAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('250') // charges count
+    expect(r.html).toContain('$8.75') // chargebacks volume in cents
+  })
+})
+
+describe('chargebackRedAlertEmail', () => {
+  const inputs = {
+    rateByCount: 0.006, // 0.6%
+    rateByVolume: 0.012, // 1.2% — volume signal exceeds count signal
+    chargesCount: 1000,
+    chargebacksCount: 6,
+    chargesVolumeCents: 500_000,
+    chargebacksVolumeCents: 6_000,
+  }
+
+  it('subject mentions the 0.5% threshold + onboarding pause', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', 'Bob', inputs)
+    expect(r.subject).toContain('0.5%')
+    expect(r.subject.toLowerCase()).toContain('paused')
+  })
+
+  it('reports the worst rate (volume here, not count)', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', 'Bob', inputs)
+    expect(r.html).toContain('1.20%') // 0.012 * 100
+  })
+
+  it('explains that new tool onboarding is paused but existing tools are unaffected', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', 'Bob', inputs)
+    expect(r.html).toContain('paused new tool onboarding')
+    expect(r.html).toContain('Existing tools and payouts are not affected')
+  })
+
+  it('cites the 1% Stripe intervention threshold so the developer knows the headroom', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', 'Bob', inputs)
+    expect(r.html).toContain('1% intervention')
+  })
+
+  it('links to the Stripe disputes dashboard', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', 'Bob', inputs)
+    expect(r.html).toContain('https://dashboard.stripe.com/disputes')
+  })
+
+  it('mentions the 24-hour rate-limit window for red tier', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', 'Bob', inputs)
+    expect(r.html).toContain('24 hours')
+  })
+
+  it('escapes the developer name', () => {
+    const r = chargebackRedAlertEmail(
+      'dev@example.com',
+      '<img src=x onerror=alert(1)>',
+      inputs,
+    )
+    expect(r.html).not.toContain('<img src=x onerror=alert(1)>')
+    expect(r.html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
+  it('falls back to "there" when name is null', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('Hi there')
+  })
+
+  it('uses the baseEmailTemplate wrapper', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('<!DOCTYPE html>')
+  })
+
+  it('includes a remediation CTA pointing to luther@', () => {
+    const r = chargebackRedAlertEmail('dev@example.com', null, inputs)
+    expect(r.html).toContain('luther@mail.settlegrid.ai')
   })
 })

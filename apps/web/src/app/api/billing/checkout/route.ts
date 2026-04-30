@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { purchases, tools, consumers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getStripeSecretKey, getAppUrl } from '@/lib/env'
+import { getAppUrl } from '@/lib/env'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { getStripeClient } from '@/lib/rails'
+import { canPurchaseCredits } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -24,10 +25,6 @@ const checkoutSchema = z.object({
     .min(MIN_CUSTOM_AMOUNT, `Minimum amount is ${MIN_CUSTOM_AMOUNT} cents`)
     .max(MAX_CUSTOM_AMOUNT, `Maximum amount is ${MAX_CUSTOM_AMOUNT} cents`),
 })
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,7 +64,10 @@ export async function POST(request: NextRequest) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
     }
 
-    if (tool.status !== 'active') {
+    if (!canPurchaseCredits(tool.status)) {
+      // Rule mirrors apps/web/src/app/tools/[slug]/page.tsx and
+      // components/storefront/buy-credits-button.tsx — the canonical
+      // helper is canPurchaseCredits in lib/marketplace-visibility.ts.
       return errorResponse('Tool is not active.', 400, 'TOOL_NOT_ACTIVE')
     }
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       .where(eq(consumers.id, auth.id))
       .limit(1)
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
     let stripeCustomerId = consumer?.stripeCustomerId
 
     if (!stripeCustomerId) {

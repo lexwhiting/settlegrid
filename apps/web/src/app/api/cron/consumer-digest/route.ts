@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
             })
             .from(tools)
             .where(
-              sql`${tools.createdAt} >= ${oneWeekAgo}
+              sql`${tools.createdAt} >= ${oneWeekAgo.toISOString()}::timestamptz
                 AND ${tools.status} IN ('active', 'unclaimed')
                 AND ${tools.category} IN (${sql.join(categories.map((c) => sql`${c}`), sql`, `)})`
             )

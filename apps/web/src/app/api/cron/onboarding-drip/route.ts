@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         createdAt: developers.createdAt,
       })
       .from(developers)
-      .where(sql`${developers.createdAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${developers.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .limit(1000)
 
     const redis = getRedis()

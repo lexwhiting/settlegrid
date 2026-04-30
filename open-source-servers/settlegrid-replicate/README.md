@@ -6,13 +6,13 @@ Replicate MCP Server with per-call billing via [SettleGrid](https://settlegrid.a
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/settlegrid/settlegrid-replicate)
 
-Run open-source ML models in the cloud via Replicate API
+Run, manage, and monitor AI model predictions on Replicate's cloud infrastructure.
 
 ## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # Add your SettleGrid API key + REPLICATE_API_TOKEN
+cp .env.example .env   # Add your SettleGrid API key
 npm run dev
 ```
 
@@ -20,17 +20,46 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `create_prediction(version, prompt)` | Create a prediction with a model | 5¢ |
-| `get_prediction(id)` | Get prediction status and output | 1¢ |
+| `create_prediction(version: string, input: Record<string, unknown>, webhook?: string)` | Create a prediction using a model version | 5¢ |
+| `get_prediction(prediction_id: string)` | Get a prediction by ID | 1¢ |
+| `list_predictions(cursor?: string)` | List recent predictions for the authenticated account | 1¢ |
+| `cancel_prediction(prediction_id: string)` | Cancel a running prediction | 2¢ |
+| `get_model(model_owner: string, model_name: string)` | Get details for a specific model | 1¢ |
+| `list_model_versions(model_owner: string, model_name: string)` | List all versions of a model | 1¢ |
+| `create_model_prediction(model_owner: string, model_name: string, input: Record<string, unknown>, webhook?: string)` | Create a prediction using an official model by owner and name | 5¢ |
+| `get_account()` | Get the authenticated account details | 1¢ |
 
 ## Parameters
 
 ### create_prediction
-- `version` (string, required) — Model version hash
-- `prompt` (string, required) — Input prompt
+- `version` (string, required) — The model version ID to run (e.g. sha256 hash)
+- `input` (object, required) — The model's input as a JSON object (model-specific parameters)
+- `webhook` (string) — A URL to receive POST requests with prediction status updates
 
 ### get_prediction
-- `id` (string, required) — Prediction ID
+- `prediction_id` (string, required) — The ID of the prediction to retrieve
+
+### list_predictions
+- `cursor` (string) — Pagination cursor from a previous response
+
+### cancel_prediction
+- `prediction_id` (string, required) — The ID of the prediction to cancel
+
+### get_model
+- `model_owner` (string, required) — The username or organization that owns the model
+- `model_name` (string, required) — The name of the model
+
+### list_model_versions
+- `model_owner` (string, required) — The username or organization that owns the model
+- `model_name` (string, required) — The name of the model
+
+### create_model_prediction
+- `model_owner` (string, required) — The owner of the model (e.g. 'stability-ai')
+- `model_name` (string, required) — The name of the model (e.g. 'stable-diffusion')
+- `input` (object, required) — The model's input as a JSON object (model-specific parameters)
+- `webhook` (string) — A URL to receive POST requests with prediction status updates
+
+### get_account
 
 ## Environment Variables
 
@@ -42,9 +71,9 @@ npm run dev
 ## Upstream API
 
 - **Provider**: Replicate
-- **Base URL**: https://api.replicate.com/v1
-- **Auth**: API key (bearer)
-- **Docs**: https://replicate.com/docs/
+- **Base URL**: https://api.replicate.com
+- **Auth**: API key required
+- **Docs**: https://replicate.com/docs/reference/http
 
 ## Deploy
 
@@ -52,7 +81,7 @@ npm run dev
 
 ```bash
 docker build -t settlegrid-replicate .
-docker run -e SETTLEGRID_API_KEY=sg_live_xxx -e REPLICATE_API_TOKEN=xxx -p 3000:3000 settlegrid-replicate
+docker run -e SETTLEGRID_API_KEY=sg_live_xxx -p 3000:3000 settlegrid-replicate
 ```
 
 ### Vercel

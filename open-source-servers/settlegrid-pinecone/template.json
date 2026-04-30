@@ -1,0 +1,49 @@
+{
+  "slug": "pinecone",
+  "name": "Pinecone",
+  "description": "MCP server for Pinecone with SettleGrid billing. Search, manage, and import vectors in Pinecone vector database indexes via the Data Plane API.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "rag",
+    "pinecone",
+    "vector-database",
+    "embeddings",
+    "similarity-search",
+    "machine-learning",
+    "vector-search",
+    "semantic-search"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-pinecone"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "delete_vectors",
+    "describe_bulk_import",
+    "fetch_vectors",
+    "get_index_stats",
+    "list_bulk_imports",
+    "list_vectors",
+    "query_vectors",
+    "start_bulk_import"
+  ],
+  "featured": false
+}

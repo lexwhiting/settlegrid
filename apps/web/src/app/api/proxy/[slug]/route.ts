@@ -24,7 +24,7 @@ import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
 import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
-import { isMastercardRequest, isMastercardEnabled, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
+import { isMastercardRequest, isMastercardEnabled, mastercardAdapter, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
 import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoPayment, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
 import { isL402Request, isL402Enabled, validateL402Payment, generateL402_402Response } from '@/lib/l402-proxy'
 import { isAlipayRequest, isAlipayEnabled, validateAlipayPayment, generateAlipay402Response } from '@/lib/alipay-proxy'
@@ -38,7 +38,9 @@ import {
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
+  useUnifiedAdapters,
 } from '@/lib/env'
+import { decideUnifiedDispatch, shouldDispatchUnified, type EnabledMap } from './_unified-dispatch'
 
 export const maxDuration = 60
 
@@ -263,6 +265,146 @@ function buildUpstreamHeaders(request: NextRequest): Headers {
   return headers
 }
 
+// ── P2.K1 — Unified-adapter dispatch (feature-flagged) ─────────────────
+//
+// When USE_UNIFIED_ADAPTERS=true, payment-protocol detection is delegated
+// to protocolRegistry.detect() from @settlegrid/mcp (via the
+// `decideUnifiedDispatch` helper in _unified-dispatch.ts) instead of the
+// legacy 13-branch chain. This is a routing change only — once detected,
+// the request is dispatched to the same legacy handler the 13-branch
+// chain would have invoked, so behavior is preserved for the 9 brokered
+// protocols. The 5 emerging protocols (l402, alipay/actp, kyapay, emvco,
+// drain) don't have adapters in @settlegrid/mcp yet; the unified path
+// returns 'no-match' for those, and the caller falls through to the
+// legacy chain so emerging-protocol traffic is preserved either way.
+//
+// Default OFF until P2.K3 ships the snapshot-equivalence test and a
+// snapshot run shows byte-for-byte parity for the 9 brokered protocols.
+
+/**
+ * Bridge from a unified-dispatch decision to the corresponding legacy
+ * handler. Returns `null` when the caller should fall through (no match
+ * or mcp-fallback). When a non-mcp adapter matched, returns the same
+ * NextResponse the legacy chain would have produced.
+ */
+async function tryUnifiedAdapterDispatch(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number,
+): Promise<NextResponse | null> {
+  const decision = await decideUnifiedDispatch(request)
+
+  // Per P2.K1 DoD ("Observability logs show path used"), tag each request
+  // with one of three path values so a log search tells the full story:
+  //   - 'unified-adapter'      : flag on, unified handled the request.
+  //   - 'unified-then-legacy'  : flag on, unified fell through to legacy
+  //                              chain (no-match, mcp-fallback, or
+  //                              protocol-disabled).
+  //   - 'legacy-13-branch'     : flag off (logged in handleProxy directly).
+  //
+  // Equivalence preservation: the legacy chain checks isXEnabled() before
+  // each isXRequest(). The unified path here MUST do the same, otherwise
+  // a request with mpp headers but no STRIPE_MPP_SECRET configured would
+  // 5xx via handleMppProxy in unified mode but 401 (fall-through to API
+  // key flow) in legacy mode — exactly the kind of silent divergence
+  // P2.K3's snapshot test exists to catch. The pure shouldDispatchUnified
+  // helper encapsulates this decision; production passes the real env
+  // helpers, tests pass synthetic predicates.
+  const enabledMap: EnabledMap = {
+    mpp: isMppEnabled,
+    x402: isX402Enabled,
+    ap2: isAp2Enabled,
+    'visa-tap': isVisaTapEnabled,
+    acp: isAcpEnabled,
+    ucp: isUcpEnabled,
+    'mastercard-vi': isMastercardEnabled,
+    'circle-nano': isCircleNanoEnabled,
+    // P2.K2 — five emerging protocols now have adapter-registry entries
+    // so their enabled-check is part of the equivalence contract too.
+    l402: isL402Enabled,
+    alipay: isAlipayEnabled,
+    kyapay: isKyaPayEnabled,
+    emvco: isEmvcoEnabled,
+    drain: isDrainEnabled,
+  }
+  const verdict = shouldDispatchUnified(decision, enabledMap)
+
+  if (!verdict.dispatch) {
+    logger.info('proxy.dispatch', {
+      path: 'unified-then-legacy',
+      slug,
+      requestId,
+      reason: verdict.reason,
+      protocol: verdict.protocol,
+    })
+    return null
+  }
+
+  logger.info('proxy.dispatch', {
+    path: 'unified-adapter',
+    slug,
+    requestId,
+    protocol: verdict.protocol,
+    // Defensive optional chaining — `operation` is required by the
+    // PaymentContext type, but a future adapter returning a malformed
+    // shape would otherwise throw a TypeError on field access.
+    operation: verdict.paymentContext?.operation
+      ? `${verdict.paymentContext.operation.service}.${verdict.paymentContext.operation.method}`
+      : undefined,
+  })
+
+  // All 8 non-mcp adapters route to one of three legacy handler
+  // families. If a new adapter is added to @settlegrid/mcp, TypeScript's
+  // exhaustiveness check below will surface this switch as incomplete.
+  switch (verdict.protocol) {
+    case 'mpp':
+      return handleMppProxy(request, slug, requestId, startTime)
+    case 'x402':
+      return handleX402Proxy(request, slug, requestId, startTime)
+    case 'ap2':
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    case 'visa-tap':
+      return handleVisaTapProxy(request, slug, requestId, startTime)
+    case 'acp':
+      return handleAcpProxy(request, slug, requestId, startTime)
+    case 'ucp':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    case 'mastercard-vi':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
+    case 'circle-nano':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    // P2.K2 — five emerging protocols. L402 has its own handler (the
+    // 402 response is async because it mints a Lightning invoice); the
+    // other four route through the generic handleProtocolProxy switch.
+    case 'l402':
+      return handleL402Proxy(request, slug, requestId, startTime)
+    case 'alipay':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'alipay')
+    case 'kyapay':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'kyapay')
+    case 'emvco':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'emvco')
+    case 'drain':
+      return handleProtocolProxy(request, slug, requestId, startTime, 'drain')
+    case 'mcp':
+      // Should not reach: decideUnifiedDispatch maps mcp → 'mcp-fallback'.
+      return null
+    default: {
+      // Exhaustiveness: after all 9 ProtocolName cases above return,
+      // `verdict` narrows to `never` here. Assigning the whole verdict
+      // (not verdict.protocol — TS quirk: property access on a
+      // never-narrowed variable resolves to `any`) preserves the
+      // compile-time check. Adding a new adapter to @settlegrid/mcp
+      // without updating this switch fails tsc on this line.
+      const _exhaustive: never = verdict
+      void _exhaustive
+      logger.warn('proxy.unified.unhandled_adapter', { slug, requestId })
+      return null
+    }
+  }
+}
+
 /**
  * Core proxy handler — shared between GET and POST.
  */
@@ -282,49 +424,74 @@ async function handleProxy(
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
+    // ── P2.K1 — Unified-adapter dispatch (feature-flagged) ───────────────────
+    // When USE_UNIFIED_ADAPTERS=true, route protocol detection through
+    // protocolRegistry.detect() from @settlegrid/mcp first. Falls through
+    // to the legacy chain below when no adapter matches (emerging
+    // protocols) or the mcp adapter matches (api-key flow).
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- not a React hook; `use*` is the feature-flag reader convention in @/lib/env
+    if (useUnifiedAdapters()) {
+      const dispatched = await tryUnifiedAdapterDispatch(request, slug, requestId, startTime)
+      if (dispatched !== null) return dispatched
+    } else {
+      // Legacy path observability — info level (low-volume) so we can
+      // verify the rollout split via log search without noise.
+      logger.info('proxy.dispatch', { path: 'legacy-13-branch', slug, requestId })
+    }
+
     // ── Payment Protocol Detection Chain ────────────────────────────────────
     // Check each payment protocol in priority order. When a protocol is
     // enabled and the request matches its headers, use that protocol's
     // payment flow instead of the standard API key flow.
+    //
+    // P2.K3: The ordering below mirrors @settlegrid/mcp's DETECTION_PRIORITY
+    // exactly — circle-nano before x402 (x402-compatible, more specific),
+    // mastercard-vi immediately after x402. This matters ONLY for requests
+    // that carry headers triggering more than one protocol (e.g. both
+    // x-circle-nano-auth AND payment-signature); otherwise disjoint
+    // triggers make order irrelevant. Matching the registry's order is
+    // what enables the P2.K3 proxy-equivalence.test.ts snapshot test to
+    // pass byte-for-byte — and therefore what makes the USE_UNIFIED_ADAPTERS
+    // default-flip to `true` a no-op from the consumer's perspective.
 
     // 1. Stripe MPP (Machine Payments Protocol — Stripe + Tempo)
     if (isMppEnabled() && isMppRequest(request)) {
       return handleMppProxy(request, slug, requestId, startTime)
     }
 
-    // 2. x402 (Coinbase — USDC on Base blockchain)
+    // 2. Circle Nanopayments (x402-compatible, more specific headers win)
+    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    }
+
+    // 3. x402 (Coinbase — USDC on Base blockchain)
     if (isX402Enabled() && isX402Request(request)) {
       return handleX402Proxy(request, slug, requestId, startTime)
     }
 
-    // 3. AP2 (Google Agentic Payments Protocol)
-    if (isAp2Enabled() && isAp2Request(request)) {
-      return handleAp2Proxy(request, slug, requestId, startTime)
-    }
-
-    // 4. Visa TAP (Trusted Agent Protocol)
-    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
-      return handleVisaTapProxy(request, slug, requestId, startTime)
-    }
-
-    // 5. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
-    if (isAcpEnabled() && isAcpRequest(request)) {
-      return handleAcpProxy(request, slug, requestId, startTime)
-    }
-
-    // 6. UCP (Universal Commerce Protocol)
-    if (isUcpEnabled() && isUcpRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
-    }
-
-    // 7. Mastercard Verifiable Intent
+    // 4. Mastercard Verifiable Intent (SD-JWT credential chain)
     if (isMastercardEnabled() && isMastercardRequest(request)) {
       return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
     }
 
-    // 8. Circle Nanopayments
-    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+    // 5. AP2 (Google Agentic Payments Protocol)
+    if (isAp2Enabled() && isAp2Request(request)) {
+      return handleAp2Proxy(request, slug, requestId, startTime)
+    }
+
+    // 6. ACP (Agentic Commerce Protocol — Stripe + OpenAI)
+    if (isAcpEnabled() && isAcpRequest(request)) {
+      return handleAcpProxy(request, slug, requestId, startTime)
+    }
+
+    // 7. UCP (Universal Commerce Protocol)
+    if (isUcpEnabled() && isUcpRequest(request)) {
+      return handleProtocolProxy(request, slug, requestId, startTime, 'ucp')
+    }
+
+    // 8. Visa TAP (Trusted Agent Protocol)
+    if (isVisaTapEnabled() && isVisaTapRequest(request)) {
+      return handleVisaTapProxy(request, slug, requestId, startTime)
     }
 
     // 9. L402 (Bitcoin Lightning)
@@ -694,8 +861,19 @@ async function handleProxy(
     // Only charge if upstream returned success
     const actualCost = upstreamOk && !auth.isTestKey ? costCents : 0
 
+    // Consumer-audit #2 — track actual collected cents separately from the
+    // intended cost. The atomic UPDATEs below may fail when two concurrent
+    // invocations drain the balance between the pre-check and the deduct.
+    // If the deduct fails we must NOT credit the developer — the upstream
+    // response already shipped (a free invocation), but paying the dev from
+    // a phantom balance would create a revenue leak and negative-sum
+    // accounting. Previously the revenue/balance updates ran unconditionally
+    // on `actualCost > 0` regardless of whether the money actually moved.
+    let collectedCents = 0
+    let collectedFrom: 'per_tool' | 'global' | 'none' = 'none'
+
     if (actualCost > 0) {
-      // Atomic balance deduction
+      // Atomic per-tool balance deduction (conditional on sufficient funds).
       const [updatedBalance] = await db
         .update(consumerToolBalances)
         .set({
@@ -711,8 +889,11 @@ async function handleProxy(
         )
         .returning({ balanceCents: consumerToolBalances.balanceCents })
 
-      if (!updatedBalance) {
-        // Per-tool balance insufficient — fallback to global balance
+      if (updatedBalance) {
+        collectedCents = actualCost
+        collectedFrom = 'per_tool'
+      } else {
+        // Per-tool balance insufficient — fallback to global balance.
         const [globalDeduct] = await db
           .update(consumers)
           .set({
@@ -726,27 +907,35 @@ async function handleProxy(
           )
           .returning({ globalBalanceCents: consumers.globalBalanceCents })
 
-        if (!globalDeduct) {
-          logger.warn('proxy.balance_race_condition', {
+        if (globalDeduct) {
+          collectedCents = actualCost
+          collectedFrom = 'global'
+        } else {
+          // Both conditional UPDATEs failed — the consumer's balance was
+          // drained by a concurrent invocation between our pre-check and
+          // this deduct. The upstream already ran. Log at ERROR level (not
+          // warn) so ops can reconcile, and return the response to the
+          // consumer without crediting the developer.
+          logger.error('proxy.balance_race_unpaid_invocation', {
             slug,
             consumerId: auth.consumerId,
+            toolId: auth.toolId,
             costCents: actualCost,
             requestId,
+            message: 'Concurrent invocation drained balance between pre-check and deduct. Upstream shipped; no charge collected; developer not credited.',
           })
         }
       }
-      // Always update tool revenue and developer balance on successful upstream
-      {
-        // Increment tool revenue + developer balance
-        const developerShareCents = Math.floor(actualCost * (auth.developerRevenueSharePct / 100))
+      // Only credit tool revenue + developer balance if we actually collected.
+      if (collectedCents > 0) {
+        const developerShareCents = Math.floor(collectedCents * (auth.developerRevenueSharePct / 100))
 
-        // Fire-and-forget: update tool stats + developer balance
         Promise.all([
           db
             .update(tools)
             .set({
               totalInvocations: sql`${tools.totalInvocations} + 1`,
-              totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+              totalRevenueCents: sql`${tools.totalRevenueCents} + ${collectedCents}`,
               updatedAt: new Date(),
             })
             .where(eq(tools.id, auth.toolId)),
@@ -760,6 +949,16 @@ async function handleProxy(
         ]).catch((err) => {
           logger.error('proxy.billing_update_error', { slug, requestId }, err)
         })
+      } else {
+        // Lost race: still increment invocation count so activity metrics
+        // reflect reality, but do NOT touch revenue or developer balance.
+        db.update(tools)
+          .set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(tools.id, auth.toolId))
+          .catch(() => {})
       }
     } else if (upstreamOk) {
       // Free tool or test key — still increment invocation count
@@ -773,14 +972,15 @@ async function handleProxy(
         .catch(() => {})
     }
 
-    // Record invocation (with fraud flag and test mode metadata)
+    // Record invocation (with fraud flag, test mode, and the balance-race
+    // outcome so reconciliation queries can find unpaid invocations).
     db.insert(invocations)
       .values({
         toolId: auth.toolId,
         consumerId: auth.consumerId,
         apiKeyId: auth.keyId,
         method: `proxy:${request.method}`,
-        costCents: actualCost,
+        costCents: collectedCents,
         latencyMs,
         status: upstreamOk ? 'success' : 'error',
         isTest: auth.isTestKey,
@@ -789,6 +989,10 @@ async function handleProxy(
           proxy: true,
           upstreamStatus,
           toolSlug: slug,
+          // Preserve the intended vs. collected split for reconciliation.
+          intendedCostCents: actualCost,
+          collectedCostCents: collectedCents,
+          collectedFrom,
           ...(auth.isTestKey ? { isTest: true } : {}),
           ...(fraudResult.flagged ? { fraudRiskScore: fraudResult.riskScore, fraudSignals: fraudResult.signals } : {}),
         },
@@ -1738,6 +1942,22 @@ async function handleProtocolProxy(
     paymentId = result.authorizationRef ?? result.intentId
     payerIdentifier = result.intentId
     if (!valid) {
+      // P3.PROT1 — Mastercard VI is a detection stub: full validation lands
+      // when Mastercard's Verifiable Intent API GAs (target 2026-Q3). When
+      // the validator returns ``MC_NOT_YET_SUPPORTED`` we surface the
+      // spec-literal 503 detection-stub envelope (``status: 'protocol_detected'``,
+      // ``expected_at: '2026-Q3'``, etc.) so the buyer's client sees a
+      // structured "coming soon" signal rather than a 402 "please pay
+      // properly" challenge for a rail we can't yet validate.
+      // Other failure codes (`MC_NOT_CONFIGURED`, `MC_INTENT_MISSING`)
+      // continue to fall through to the legacy 402 challenge path.
+      if (result.error?.code === 'MC_NOT_YET_SUPPORTED') {
+        const stub = mastercardAdapter.buildDetectionStubResponse()
+        const body = await stub.text()
+        const headers = new Headers(stub.headers)
+        if (requestId) headers.set('x-request-id', requestId)
+        return new NextResponse(body, { status: stub.status, headers })
+      }
       const resp402 = generateMastercard402Response(toolRow.slug, costCents, toolRow.name)
       const body = await resp402.text()
       const headers = new Headers(resp402.headers)

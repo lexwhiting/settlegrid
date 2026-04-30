@@ -1,0 +1,120 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "settlegrid-langchain"
+version = "0.1.0"
+description = "LangChain Python adapter for SettleGrid — wrap LangChain tools with pay-per-call metering."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Alerterra, LLC", email = "support@settlegrid.ai" },
+]
+keywords = [
+  "settlegrid",
+  "langchain",
+  "ai-agent-payments",
+  "pay-per-call",
+  "tool-calling",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+dependencies = [
+  "settlegrid>=0.1.0",
+  "langchain-core>=0.2,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=4.1",
+  "pytest-mock>=3.12",
+  "respx>=0.20",
+  "ruff>=0.4",
+  "mypy>=1.8",
+  "build>=1.0",
+  "twine>=4.0",
+]
+
+[project.urls]
+Homepage = "https://settlegrid.ai"
+Documentation = "https://settlegrid.ai/docs/python-langchain"
+Repository = "https://github.com/lexwhiting/settlegrid"
+Issues = "https://github.com/lexwhiting/settlegrid/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["settlegrid_langchain"]
+exclude = [
+  # D2 spec-diff fix — tests live INSIDE the package per the spec's
+  # ``settlegrid_langchain/__tests__/test_tool.py`` path. They MUST
+  # NOT ship in the wheel (which is the runtime install) — that would
+  # bloat installs and pollute the public namespace. Tests are still
+  # included in the sdist so source consumers can run them.
+  "settlegrid_langchain/__tests__/**",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["settlegrid_langchain/__tests__"]
+asyncio_mode = "auto"
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:httpx.*",
+  "ignore::DeprecationWarning:langchain_core.*",
+  "ignore::PendingDeprecationWarning:langchain_core.*",
+]
+
+[tool.coverage.run]
+source = ["settlegrid_langchain"]
+branch = false
+omit = [
+  # Tests live inside the package per spec; exclude from coverage
+  # reporting so the metric reflects only production code.
+  "settlegrid_langchain/__tests__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@overload",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "PT", "SIM"]
+ignore = [
+  "ANN101",
+  "ANN102",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"settlegrid_langchain/__tests__/**/*.py" = ["ANN", "PT011"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+# Exclude tests — they live inside the package per spec but are not
+# subject to the strict-typing requirements that apply to production code.
+exclude = ["settlegrid_langchain/__tests__/"]

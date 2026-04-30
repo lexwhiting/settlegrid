@@ -1,0 +1,47 @@
+{
+  "slug": "fal-ai",
+  "name": "Fal Ai",
+  "description": "MCP server for Fal.ai with SettleGrid billing. Submit, monitor, and retrieve results from asynchronous AI model inference jobs on the Fal.ai platform.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "image-gen",
+    "fal",
+    "inference",
+    "image-generation",
+    "machine-learning",
+    "queue",
+    "async",
+    "generative-ai",
+    "model"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fal-ai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 2,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "cancel_request",
+    "get_request_result",
+    "get_request_status",
+    "submit_request"
+  ],
+  "featured": false
+}

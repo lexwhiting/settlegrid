@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "source": "https://stripe.com/global",
+    "lastRefreshedAt": "2026-04-24",
+    "refreshCadenceDays": 90,
+    "refreshNotes": "Stripe expands supported-countries roughly quarterly. To refresh: visit https://stripe.com/global, capture the country list per Connect account-type (Express / Standard / Custom), update the express/standard/custom blocks below, bump lastRefreshedAt to today's date, and run `npm test --workspace=@settlegrid/rails` to validate. The router REJECTS countries not present in any block (waitlist), so adding a country here is the operational lever for unblocking developers in newly-supported regions. See packages/rails/data/README.md for the full SOP."
+  },
+  "express": {
+    "individualCountries": [
+      "AU", "AT", "BE", "BR", "BG", "CA", "HR", "CY", "CZ", "DK", "EE", "FI",
+      "FR", "DE", "GI", "GR", "HK", "HU", "IE", "IT", "JP", "LV", "LI",
+      "LT", "LU", "MT", "MX", "NL", "NZ", "NO", "PL", "PT", "RO", "SG", "SK",
+      "SI", "ES", "SE", "CH", "TH", "AE", "GB", "US"
+    ],
+    "businessCountries": [
+      "AU", "AT", "BE", "BR", "BG", "CA", "HR", "CY", "CZ", "DK", "EE", "FI",
+      "FR", "DE", "GI", "GR", "HK", "HU", "IN", "IE", "IT", "JP", "LV", "LI",
+      "LT", "LU", "MT", "MX", "NL", "NZ", "NO", "PL", "PT", "RO", "SG", "SK",
+      "SI", "ES", "SE", "CH", "TH", "AE", "GB", "US"
+    ]
+  },
+  "standard": {
+    "individualCountries": [
+      "AU", "AT", "BE", "BR", "BG", "CA", "HR", "CY", "CZ", "DK", "EE", "FI",
+      "FR", "DE", "GI", "GR", "HK", "HU", "IN", "IE", "IT", "JP", "LV", "LI",
+      "LT", "LU", "MT", "MX", "NL", "NZ", "NO", "PL", "PT", "RO", "SG", "SK",
+      "SI", "ES", "SE", "CH", "TH", "AE", "GB", "US"
+    ],
+    "businessCountries": [
+      "AU", "AT", "BE", "BR", "BG", "CA", "HR", "CY", "CZ", "DK", "EE", "FI",
+      "FR", "DE", "GI", "GR", "HK", "HU", "IN", "IE", "IT", "JP", "LV", "LI",
+      "LT", "LU", "MT", "MX", "NL", "NZ", "NO", "PL", "PT", "RO", "SG", "SK",
+      "SI", "ES", "SE", "CH", "TH", "AE", "GB", "US"
+    ]
+  },
+  "custom": {
+    "individualCountries": [],
+    "businessCountries": []
+  },
+  "payoutCurrencies": [
+    "USD", "EUR", "GBP", "AUD", "CAD", "CHF", "DKK", "HKD", "INR", "JPY",
+    "MXN", "NOK", "NZD", "SEK", "SGD", "THB", "BGN", "BRL", "CZK", "HUF",
+    "PLN", "RON", "AED"
+  ]
+}

@@ -1,6 +1,34 @@
 /**
  * @settlegrid/mcp - Cross-protocol dispatch kernel
  *
+ * P3.K4 wires adjacent to this file:
+ *   - `packages/mcp/src/rails/pricing.ts` exports `resolveRailFee`
+ *     (rate-card resolution) and `buildPricingResponseHeaders`
+ *     (the X-SettleGrid-Rail-Fee-* + X-SettleGrid-Platform-Take-*
+ *     header bundle). The router's settlement path calls
+ *     `resolveRailFee(adapter.pricing, { monthlyVolumeCents,
+ *     currency })` then `buildPricingResponseHeaders(fee,
+ *     platformTake)` and merges the result into the outbound
+ *     Response headers.
+ *   - `packages/mcp/src/ledger.ts` exports `recordLedgerEntry`
+ *     (unified-ledger write helper, injectable DB writer). Every
+ *     adapter's settlement event should eventually route through
+ *     this helper so reconciliation (P3.RAIL2) reads a single
+ *     source of truth.
+ *   - `packages/mcp/src/auth/tool-secret.ts` exports
+ *     `signPayload` + `verifyPayloadSignature` for HMAC-signing
+ *     outbound settlement webhooks. Distinct from the existing
+ *     `config.toolSecret` Bearer token read below — see the
+ *     tool-secret.ts module header for the namespace clarification.
+ *
+ * Full router integration of these three — pricing query at
+ * dispatch time, ledger write per settlement, webhook sign on
+ * every outbound payload — is tracked as P3.K4's "router wiring"
+ * item and will land with P3.RAIL1 / P3.RAIL2 (which need the
+ * pricing query for account-type routing and the ledger query
+ * for reconciliation). The helpers here are import-ready; the
+ * pre-existing dispatch logic below is unchanged.
+ *
  * `createDispatchKernel(sg)` turns a SettleGrid instance into a
  * protocol-aware request router. It takes an incoming `Request` and a
  * developer-provided handler, then internally:
@@ -76,6 +104,13 @@ import type { createMiddleware } from './middleware'
 // types.ts. Importing it as a type-only import avoids the runtime
 // circular dependency that a value import would create (index.ts
 // re-exports createDispatchKernel from this file).
+import {
+  authorizeInvocation,
+  buildAuthDeniedResponse,
+  type AuthorizationConfig,
+  type AuthorizationContext,
+  type AuthorizationResult,
+} from './authorize'
 import type { SettleGridInstance } from './index'
 import type {
   DispatchHandler,
@@ -164,9 +199,55 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
  */
 const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp']
 
-export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
+/**
+ * P3.K6 — options accepted by {@link createDispatchKernel}. Currently
+ * carries only the authorization-gate config; future kernel-level
+ * knobs (rail overrides, tracing, etc.) land here too.
+ *
+ * Pre-P3.K6 callers (`createDispatchKernel(sg)` with no second arg)
+ * continue to work unchanged — the gate runs with no-op defaults
+ * (all checks pass, OFAC wired-warn logged once per call).
+ */
+export interface CreateDispatchKernelOptions {
+  /**
+   * Pre-execution authorization gate configuration. Injected
+   * check primitives (rateLimiter, budgetChecker, fraudScorer,
+   * ofacScreener, aupEnforcer) + optional plugins. See
+   * `packages/mcp/src/authorize.ts` for the full contract.
+   *
+   * Hostile-review requirement (c): the gate cannot be bypassed
+   * by any code path in the kernel — every dispatch path calls
+   * `authorizeInvocation` between payment verification and tool
+   * execution. Leaving this option undefined does NOT disable
+   * the gate; it only means the built-in checks fall back to
+   * their no-op defaults.
+   */
+  authorize?: AuthorizationConfig
+  /**
+   * F10 spec-diff — fires AFTER every `authorizeInvocation` call
+   * (both allow and deny outcomes). Callers use this to persist
+   * the signals + artifact to the unified ledger's
+   * `authorization_signals` / `authorization_artifact` columns
+   * via `apps/web/src/lib/settlement/ledger.ts::recordSettlementEntry`.
+   *
+   * Non-throwing contract: hook errors are captured + logged, they
+   * do NOT affect dispatch. A broken hook cannot break tool
+   * execution or allow a denied invocation through.
+   */
+  onAuthorize?: (
+    result: AuthorizationResult,
+    ctx: AuthorizationContext,
+  ) => void | Promise<void>
+}
+
+export function createDispatchKernel(
+  sg: SettleGridInstance,
+  options: CreateDispatchKernelOptions = {},
+): DispatchKernel {
   const internals = extractKernelInternals(sg)
   const { middleware, config, pricing } = internals
+  const authConfig = options.authorize ?? {}
+  const onAuthorize = options.onAuthorize
 
   /**
    * Build the kernel's default 402 manifest. Hoisted out of `handle()`
@@ -218,7 +299,16 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
 
           // 3. Protocol-specific pipeline
           if (ctx.protocol === 'mcp') {
-            return await handleSgBalance(ctx, adapter, request, runHandler, middleware)
+            return await handleSgBalance(
+              ctx,
+              adapter,
+              request,
+              runHandler,
+              middleware,
+              config,
+              authConfig,
+              onAuthorize,
+            )
           }
           if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
             return await handleFacilitatorProtocol(
@@ -227,6 +317,8 @@ export function createDispatchKernel(sg: SettleGridInstance): DispatchKernel {
               request,
               runHandler,
               config,
+              authConfig,
+              onAuthorize,
             )
           }
           // Protocol is recognized by the registry but not wired into
@@ -281,6 +373,51 @@ function buildKernelFault500(err: unknown, config: NormalizedConfig): Response {
   )
 }
 
+// ─── P3.K6 — onAuthorize hook invoker (F10 spec-diff) ────────────────────
+//
+// Non-throwing contract: the kernel dispatch MUST NOT be affected by
+// a broken onAuthorize hook. A caller who wires a flaky ledger
+// writer into this hook can't accidentally fail-open an authorized
+// invocation (the deny-response has already been built when this
+// fires) or swallow a successful handler run. Errors are silently
+// consumed here — the observability dance is the caller's
+// responsibility (they hooked it).
+
+async function fireOnAuthorize(
+  hook:
+    | ((
+        result: AuthorizationResult,
+        ctx: AuthorizationContext,
+      ) => void | Promise<void>)
+    | undefined,
+  result: AuthorizationResult,
+  ctx: AuthorizationContext,
+): Promise<void> {
+  if (hook === undefined) return
+  try {
+    await hook(result, ctx)
+  } catch (err) {
+    // Hook errors don't propagate — by contract — but they ARE
+    // logged. Hostile fix H4: a flaky operator-registered ledger
+    // writer (DB blip, ORM bug, etc.) would otherwise silently
+    // drop compliance audit rows. console.error gives the
+    // operator a visible trail without taking down dispatch. The
+    // log line is intentionally generic (no PII from `ctx` /
+    // `result` is included) so a misconfigured log sink doesn't
+    // leak sensitive context.
+    try {
+      // eslint-disable-next-line no-console
+      console.error(
+        '[settlegrid] onAuthorize hook threw (silent by contract):',
+        err instanceof Error ? err.message : String(err),
+      )
+    } catch {
+      // Silent — even console.error can fail under exotic
+      // sandboxing. The kernel must not break here.
+    }
+  }
+}
+
 // ─── sg-balance (MCP) pipeline ─────────────────────────────────────────────
 
 async function handleSgBalance(
@@ -289,6 +426,11 @@ async function handleSgBalance(
   request: Request,
   runHandler: DispatchHandler,
   middleware: ReturnType<typeof createMiddleware>,
+  config: NormalizedConfig,
+  authConfig: AuthorizationConfig,
+  onAuthorize:
+    | ((result: AuthorizationResult, ctx: AuthorizationContext) => void | Promise<void>)
+    | undefined,
 ): Promise<Response> {
   const startTime = Date.now()
   const apiKey = ctx.identity.value
@@ -307,6 +449,27 @@ async function handleSgBalance(
   )
   if (!sufficient) {
     throw new InsufficientCreditsError(costCents, validation.balanceCents)
+  }
+
+  // 2b. P3.K6 — pre-execution authorization gate. Runs OFAC (first,
+  // per strict-liability hostile req a) + rate/budget/fraud/AUP +
+  // any registered plugins. Denial short-circuits before the
+  // developer's handler runs — hostile req (c): the gate cannot be
+  // bypassed by any code path. Signals array is recorded for audit
+  // (written to ledger when wired by the caller); the 403 response
+  // exposes only the top-level `reason` per hostile req (e).
+  const authCtx: AuthorizationContext = {
+    apiKey: ctx.identity.value,
+    toolSlug: config.toolSlug,
+    method,
+    consumerId: validation.consumerId,
+    costCents,
+    keyId: validation.keyId,
+  }
+  const authResult = await authorizeInvocation(authCtx, authConfig)
+  await fireOnAuthorize(onAuthorize, authResult, authCtx)
+  if (!authResult.allowed) {
+    return buildAuthDeniedResponse(authResult)
   }
 
   // 3. Run the developer's handler. The return value is intentionally
@@ -360,6 +523,10 @@ async function handleFacilitatorProtocol(
   request: Request,
   runHandler: DispatchHandler,
   config: NormalizedConfig,
+  authConfig: AuthorizationConfig,
+  onAuthorize:
+    | ((result: AuthorizationResult, ctx: AuthorizationContext) => void | Promise<void>)
+    | undefined,
 ): Promise<Response> {
   const startTime = Date.now()
   const protocol = ctx.protocol
@@ -367,6 +534,23 @@ async function handleFacilitatorProtocol(
 
   // 1. Verify payment via facilitator — throws on failure
   await facilitatorVerify(config, protocol, ctx, authHeader)
+
+  // 1b. P3.K6 — pre-execution authorization gate (mirrors the
+  // sg-balance path). Runs AFTER verify (we know the payment is
+  // valid) and BEFORE handler. Hostile req (c): there is no
+  // dispatch path without this gate. The 403 response leaks only
+  // `reason` per hostile req (e); the signals array stays
+  // internal.
+  const authCtx: AuthorizationContext = {
+    apiKey: ctx.identity.value,
+    toolSlug: config.toolSlug,
+    method: ctx.operation.method,
+  }
+  const authResult = await authorizeInvocation(authCtx, authConfig)
+  await fireOnAuthorize(onAuthorize, authResult, authCtx)
+  if (!authResult.allowed) {
+    return buildAuthDeniedResponse(authResult)
+  }
 
   // 2. Run the developer's handler; its return value is forwarded to
   // settle so the server can compute the final cost (e.g., token count

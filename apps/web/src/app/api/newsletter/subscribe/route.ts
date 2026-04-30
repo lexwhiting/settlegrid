@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { randomBytes } from 'crypto'
 import { db } from '@/lib/db'
 import { consumers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody, ParseBodyError } from '@/lib/api'
@@ -58,11 +59,20 @@ export async function POST(request: NextRequest) {
       return successResponse({ message: 'Successfully resubscribed.', subscribed: true, frequency })
     }
 
-    // Create a minimal consumer record for newsletter-only subscribers
+    // Consumer-audit #10 — mint a referralCode at newsletter-subscribe
+    // time. Previously newsletter-only consumers had a NULL referralCode,
+    // which later broke referral sign-ups: the `consumers.referralCode`
+    // unique index would conflict when the real signup tried to mint one.
+    // Matching the format used by /api/consumer/referral and the developer
+    // referrals route (`ref_` + 12 hex chars).
+    const referralCode = `ref_${randomBytes(6).toString('hex')}`
+
+    // Create a minimal consumer record for newsletter-only subscribers.
     await db.insert(consumers).values({
       email,
       newsletterSubscribed: true,
       newsletterFrequency: frequency,
+      referralCode,
     })
 
     logger.info('newsletter.subscribed', { email })

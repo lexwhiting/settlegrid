@@ -35,7 +35,7 @@ function makeResult(protocol: ProtocolName): SettlementResult {
 // ─── 1. Auto-registration ────────────────────────────────────────────────────
 
 describe('Auto-registration', () => {
-  it('protocolRegistry has all 9 adapters registered on import', () => {
+  it('protocolRegistry has all 14 adapters registered on import', () => {
     expect(protocolRegistry.has('mcp')).toBe(true)
     expect(protocolRegistry.has('x402')).toBe(true)
     expect(protocolRegistry.has('ap2')).toBe(true)
@@ -45,10 +45,16 @@ describe('Auto-registration', () => {
     expect(protocolRegistry.has('acp')).toBe(true)
     expect(protocolRegistry.has('mastercard-vi')).toBe(true)
     expect(protocolRegistry.has('circle-nano')).toBe(true)
+    // P2.K2 — five emerging protocols
+    expect(protocolRegistry.has('l402')).toBe(true)
+    expect(protocolRegistry.has('alipay')).toBe(true)
+    expect(protocolRegistry.has('kyapay')).toBe(true)
+    expect(protocolRegistry.has('emvco')).toBe(true)
+    expect(protocolRegistry.has('drain')).toBe(true)
   })
 
-  it('protocolRegistry lists exactly 9 adapters', () => {
-    expect(protocolRegistry.list()).toHaveLength(9)
+  it('protocolRegistry lists exactly 14 adapters', () => {
+    expect(protocolRegistry.list()).toHaveLength(14)
   })
 
   it('MCP adapter is correct class instance', () => {
@@ -223,13 +229,43 @@ describe('Error format standardization', () => {
 // ─── 3. Protocol detection priority ──────────────────────────────────────────
 
 describe('Protocol detection priority', () => {
-  it('DETECTION_PRIORITY is mpp > circle-nano > x402 > mastercard-vi > ap2 > acp > ucp > visa-tap > mcp', () => {
-    expect(DETECTION_PRIORITY).toEqual(['mpp', 'circle-nano', 'x402', 'mastercard-vi', 'ap2', 'acp', 'ucp', 'visa-tap', 'mcp'])
+  it('DETECTION_PRIORITY orders 14 protocols: mpp > circle-nano > x402 > mastercard-vi > ap2 > acp > ucp > visa-tap > l402 > alipay > kyapay > emvco > drain > mcp', () => {
+    expect(DETECTION_PRIORITY).toEqual([
+      'mpp',
+      'circle-nano',
+      'x402',
+      'mastercard-vi',
+      'ap2',
+      'acp',
+      'ucp',
+      'visa-tap',
+      'l402',
+      'alipay',
+      'kyapay',
+      'emvco',
+      'drain',
+      'mcp',
+    ])
   })
 
   it('registry exposes detectionPriority', () => {
     const registry = new ProtocolRegistry()
-    expect(registry.detectionPriority).toEqual(['mpp', 'circle-nano', 'x402', 'mastercard-vi', 'ap2', 'acp', 'ucp', 'visa-tap', 'mcp'])
+    expect(registry.detectionPriority).toEqual([
+      'mpp',
+      'circle-nano',
+      'x402',
+      'mastercard-vi',
+      'ap2',
+      'acp',
+      'ucp',
+      'visa-tap',
+      'l402',
+      'alipay',
+      'kyapay',
+      'emvco',
+      'drain',
+      'mcp',
+    ])
   })
 
   describe('conflicting headers', () => {
@@ -458,9 +494,9 @@ describe('Adapter metrics', () => {
     expect(m.lastErrorAt! >= before).toBe(true)
   })
 
-  it('getAllMetrics returns all 9 protocols', () => {
+  it('getAllMetrics returns all 14 protocols', () => {
     const all = adapterMetrics.getAllMetrics()
-    expect(Object.keys(all)).toHaveLength(9)
+    expect(Object.keys(all)).toHaveLength(14)
     expect(all.mcp).toBeDefined()
     expect(all.x402).toBeDefined()
     expect(all.ap2).toBeDefined()
@@ -470,6 +506,12 @@ describe('Adapter metrics', () => {
     expect(all.acp).toBeDefined()
     expect(all['mastercard-vi']).toBeDefined()
     expect(all['circle-nano']).toBeDefined()
+    // P2.K2 — five emerging protocols
+    expect(all.l402).toBeDefined()
+    expect(all.alipay).toBeDefined()
+    expect(all.kyapay).toBeDefined()
+    expect(all.emvco).toBeDefined()
+    expect(all.drain).toBeDefined()
   })
 
   it('getAllMetrics reflects recorded data', () => {
@@ -543,11 +585,17 @@ describe('Protocol detection edge cases', () => {
     expect(registry.detect(req)?.name).toBe('mcp')
   })
 
-  it('empty payment-signature matches x402', () => {
+  it('empty payment-signature does NOT match x402 (P2.K3: truthy check)', () => {
+    // Pre-P2.K3, the x402 canHandle used `headers.get('payment-signature') !== null`
+    // which matched an empty-string header. P2.K3 unified canHandle through the
+    // module-level isX402Request (copied from the original lib/x402-proxy.ts),
+    // which uses a truthy check — an empty-string payment-signature is a
+    // malformed request, not an x402 trigger. Both legacy + unified paths
+    // now agree that empty does not match.
     const req = new Request('http://localhost/api/settle', {
       headers: { 'payment-signature': '' },
     })
-    expect(registry.detect(req)?.name).toBe('x402')
+    expect(registry.detect(req)?.name).not.toBe('x402')
   })
 
   it('Authorization header without sg_ prefix does not match MCP', () => {

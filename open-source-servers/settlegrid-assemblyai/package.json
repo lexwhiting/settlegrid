@@ -1,7 +1,7 @@
 {
   "name": "settlegrid-assemblyai",
   "version": "1.0.0",
-  "description": "MCP server for AssemblyAI with SettleGrid billing. Speech-to-text transcription with speaker labels and sentiment",
+  "description": "MCP server for AssemblyAI with SettleGrid billing. Transcribe audio, retrieve transcripts, and generate AI-powered summaries and insights using AssemblyAI's speech-to-text and LeMUR APIs.",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -19,10 +19,16 @@
     "settlegrid",
     "mcp",
     "ai",
-    "speech-to-text",
     "transcription",
+    "speech-to-text",
+    "audio",
     "ai",
-    "audio"
+    "lemur",
+    "summarization",
+    "nlp",
+    "captions",
+    "subtitles",
+    "assemblyai"
   ],
   "license": "MIT",
   "repository": {

@@ -857,6 +857,45 @@ ${alertBanner('info', 'Access revoked', 'You no longer have access to tools, API
   }
 }
 
+/**
+ * P3.RAIL1 — confirmation email for the Stripe Connect waitlist.
+ *
+ * Sent when a developer in a country+entity-type combination Stripe
+ * Connect doesn't yet support submits the waitlist form on
+ * `/onboarding/waitlist`. The copy is country-specific (mentions
+ * their country code + entity type) so a recipient can verify they
+ * landed in the right bucket before deciding whether to wait or
+ * adjust their entity registration.
+ *
+ * Inputs are escaped before interpolation; `countryIso` is also
+ * length-clamped via `String.prototype.slice` to a maximum of 2
+ * characters so a malicious caller cannot smuggle HTML by passing a
+ * 10MB country code through the route. (The route already validates
+ * with Zod, but defense-in-depth — the email template should not
+ * trust its callers.)
+ */
+export function railWaitlistEmail(
+  email: string,
+  countryIso: string,
+  entityType: 'individual' | 'company',
+): EmailTemplate {
+  const safeCountry = escapeHtml(String(countryIso).slice(0, 8).toUpperCase())
+  const safeEntity = escapeHtml(entityType === 'company' ? 'business' : 'individual')
+  return {
+    subject: sanitizeSubject(`You're on the SettleGrid Stripe Connect waitlist`),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">You're on the Waitlist!</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Stripe Connect doesn't yet support <strong>${safeEntity}</strong> accounts in <strong>${safeCountry}</strong>. We've added you to our waitlist and will email you the moment a payment rail covering your country lands.</p>
+${alertBanner('info', 'What happens next', 'We track waitlist demand by country. As soon as Stripe expands its supported-countries matrix — or we add a second rail that covers your region — we will email you with onboarding instructions. No further action needed on your part.')}
+${ctaButton('Read the docs', 'https://settlegrid.ai/docs')}
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px;margin:16px 0 0">If you registered as the wrong entity type and that was the blocker, sign back in and switch entity types — the waitlist is per-(country,entity) combination, so a different combination may already be live.</p>
+`,
+      { preheader: `You're on the SettleGrid waitlist for Stripe Connect ${safeEntity} accounts in ${safeCountry}.` },
+    ),
+  }
+}
+
 export function waitlistConfirmationEmail(
   email: string,
   feature: string
@@ -2571,6 +2610,105 @@ ${dividerLine()}
 </p>
 `,
       { preheader: `${data.totalActiveTools} tools, +${data.newToolsCount} new this month on SettleGrid.` },
+    ),
+  }
+}
+
+// ─── P3.RAIL3 — Chargeback velocity alerts ─────────────────────────────
+
+/**
+ * Yellow-tier (>0.3% chargeback rate) alert to the developer.
+ * Friendly tone — this is a heads-up, not a punishment. Includes the
+ * raw rates so the developer can compare against Stripe's dashboard.
+ */
+export function chargebackYellowAlertEmail(
+  email: string,
+  developerName: string | null,
+  inputs: {
+    rateByCount: number
+    rateByVolume: number
+    chargesCount: number
+    chargebacksCount: number
+    chargesVolumeCents: number
+    chargebacksVolumeCents: number
+  },
+  options?: { preheader?: string }
+): EmailTemplate {
+  const greeting = developerName ? escapeHtml(developerName) : 'there'
+  const ratePct = (Math.max(inputs.rateByCount, inputs.rateByVolume) * 100).toFixed(2)
+  return {
+    subject: sanitizeSubject('Chargeback rate above 0.3% — heads-up'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Chargeback rate trending up</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${greeting}, your account&apos;s chargeback rate has crossed the 0.3% watch line over the last 30 days. Stripe begins flagging accounts at 1%, so there&apos;s plenty of room to course-correct.</p>
+${alertBanner(
+  'warning',
+  `Current rate: ${ratePct}%`,
+  'Yellow tier — informational only. No action taken on your account.',
+)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Rate by count', `${(inputs.rateByCount * 100).toFixed(2)}%`)}
+${dataRow('Rate by volume', `${(inputs.rateByVolume * 100).toFixed(2)}%`)}
+${dataRow('Charges (30d)', `${inputs.chargesCount} (${formatCurrency(inputs.chargesVolumeCents)})`)}
+${dataRow('Disputes (30d)', `${inputs.chargebacksCount} (${formatCurrency(inputs.chargebacksVolumeCents)})`)}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0">Common causes worth ruling out: stale subscription cards, vague descriptors on the consumer&apos;s statement, and tools that consumers forgot they enabled.</p>
+${ctaButton('Review your dashboard', 'https://settlegrid.ai/dashboard')}
+<p style="color:#9ca3af;font-size:11px;line-height:1.5;margin:24px 0 0;font-family:${FONT_STACK}">You will not receive another yellow alert from us within 7 days.</p>
+`,
+      { preheader: options?.preheader ?? `Chargeback rate at ${ratePct}% — yellow tier (informational).` },
+    ),
+  }
+}
+
+/**
+ * Red-tier (>0.5% chargeback rate) alert to the developer.
+ * Conveys that new tool onboarding has been auto-paused and that
+ * the founder has been looped in. Stays factual; no shaming.
+ */
+export function chargebackRedAlertEmail(
+  email: string,
+  developerName: string | null,
+  inputs: {
+    rateByCount: number
+    rateByVolume: number
+    chargesCount: number
+    chargebacksCount: number
+    chargesVolumeCents: number
+    chargebacksVolumeCents: number
+  },
+  options?: { preheader?: string }
+): EmailTemplate {
+  const greeting = developerName ? escapeHtml(developerName) : 'there'
+  const ratePct = (Math.max(inputs.rateByCount, inputs.rateByVolume) * 100).toFixed(2)
+  return {
+    subject: sanitizeSubject('Chargeback rate above 0.5% — onboarding paused'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Action required: chargeback rate at ${ratePct}%</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${greeting}, your account has crossed the 0.5% chargeback rate over the last 30 days. To stay below Stripe&apos;s 1% intervention threshold, we have paused new tool onboarding for your account. Existing tools and payouts are not affected.</p>
+${alertBanner(
+  'error',
+  `Current rate: ${ratePct}%`,
+  'Red tier — new tool onboarding is paused. Existing tools continue to run.',
+)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+${dataRow('Rate by count', `${(inputs.rateByCount * 100).toFixed(2)}%`)}
+${dataRow('Rate by volume', `${(inputs.rateByVolume * 100).toFixed(2)}%`)}
+${dataRow('Charges (30d)', `${inputs.chargesCount} (${formatCurrency(inputs.chargesVolumeCents)})`)}
+${dataRow('Disputes (30d)', `${inputs.chargebacksCount} (${formatCurrency(inputs.chargebacksVolumeCents)})`)}
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:16px 0"><strong>What to do next:</strong></p>
+<ol class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px;margin:0 0 16px">
+<li>Review the disputed charges in your <a href="https://dashboard.stripe.com/disputes" style="color:#E5A336">Stripe dispute dashboard</a>.</li>
+<li>Submit evidence for any disputes you believe are unfounded.</li>
+<li>Reply to this email with a remediation plan; we&apos;ll lift the pause once the rate drops back to 0.3% or after a one-on-one.</li>
+</ol>
+${ctaButton('Reply to discuss', 'mailto:luther@mail.settlegrid.ai?subject=Chargeback%20remediation%20plan', '#dc2626')}
+<p style="color:#9ca3af;font-size:11px;line-height:1.5;margin:24px 0 0;font-family:${FONT_STACK}">You will not receive another red alert from us within 24 hours.</p>
+`,
+      { preheader: options?.preheader ?? `Chargeback rate at ${ratePct}% — onboarding paused. Reply to discuss.` },
     ),
   }
 }

@@ -1,0 +1,36 @@
+{
+  "name": "settlegrid-rime-ai",
+  "version": "1.0.0",
+  "description": "MCP server for Rime AI with SettleGrid billing. Convert text to lifelike speech audio using Rime AI's text-to-speech synthesis API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "text-to-speech",
+    "tts",
+    "audio",
+    "speech-synthesis",
+    "voice",
+    "ai",
+    "rime",
+    "natural-language"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-rime-ai"
+  }
+}

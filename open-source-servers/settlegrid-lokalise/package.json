@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-lokalise",
+  "version": "1.0.0",
+  "description": "MCP server for Lokalise with SettleGrid billing. Manage localization projects, keys, and translations via the Lokalise API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "lokalise",
+    "localization",
+    "i18n",
+    "translation",
+    "l10n",
+    "internationalization",
+    "strings",
+    "keys",
+    "projects",
+    "languages"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-lokalise"
+  }
+}

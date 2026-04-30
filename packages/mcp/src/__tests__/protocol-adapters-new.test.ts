@@ -797,8 +797,8 @@ describe('Detection priority with new adapters', () => {
     registry.register(new MCPAdapter())
   })
 
-  it('full priority order has 9 entries', () => {
-    expect(DETECTION_PRIORITY).toHaveLength(9)
+  it('full priority order has 14 entries (P2.K2: +l402, alipay, kyapay, emvco, drain)', () => {
+    expect(DETECTION_PRIORITY).toHaveLength(14)
   })
 
   it('mpp is first in priority', () => {

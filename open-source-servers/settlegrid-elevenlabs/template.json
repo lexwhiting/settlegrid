@@ -1,0 +1,48 @@
+{
+  "slug": "elevenlabs",
+  "name": "Elevenlabs",
+  "description": "MCP server for ElevenLabs with SettleGrid billing. Generate sound effects, retrieve speech history, and isolate audio using the ElevenLabs AI audio API.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "speech",
+    "elevenlabs",
+    "text-to-speech",
+    "tts",
+    "sound-effects",
+    "audio",
+    "ai-voice",
+    "audio-isolation",
+    "voice-generation",
+    "sound-generation"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-elevenlabs"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "delete_history_item",
+    "download_history_items",
+    "generate_sound_effect",
+    "get_history_item",
+    "get_speech_history"
+  ],
+  "featured": false
+}

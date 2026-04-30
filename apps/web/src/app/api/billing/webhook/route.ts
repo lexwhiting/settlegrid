@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, purchases, consumerToolBalances, consumers, tools } from '@/lib/db/schema'
+import { developers, purchases, consumerToolBalances, consumers, tools, processedWebhookEvents } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
-import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/env'
+import { getStripeWebhookSecret } from '@/lib/env'
 import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
 import {
   creditPurchaseConfirmationEmail,
@@ -13,6 +13,7 @@ import {
   paymentFailedEmail,
   sendEmail,
 } from '@/lib/email'
+import { getStripeClient } from '@/lib/rails'
 
 /** Valid paid plan tiers that map from Stripe subscription metadata.
  * 'starter' and 'growth' are legacy tiers — mapped to 'builder' internally. */
@@ -31,10 +32,6 @@ function normalizeTier(plan: string): string {
 
 export const maxDuration = 60
 
-
-function getStripe(): Stripe {
-  return new Stripe(getStripeSecretKey())
-}
 
 /**
  * Look up consumer email and tool name for sending transactional emails.
@@ -94,7 +91,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('Missing Stripe signature.', 400, 'MISSING_SIGNATURE')
     }
 
-    const stripe = getStripe()
+    const stripe = getStripeClient()
     let event: Stripe.Event
 
     try {
@@ -103,6 +100,39 @@ export async function POST(request: NextRequest) {
       const message = err instanceof Error ? err.message : 'Invalid signature'
       logger.error('stripe.webhook.signature_failed', { reason: message })
       return errorResponse('Invalid webhook signature.', 400, 'INVALID_SIGNATURE')
+    }
+
+    // Consumer-audit #1 — idempotency gate. Stripe retries on any HTTP
+    // error or slow ACK. Without this check, a retried
+    // checkout.session.completed would credit the consumer twice.
+    //
+    // Pattern: try to record the event ID first; if the PK unique
+    // constraint on event_id rejects the insert, the event has already
+    // been processed — ACK 200 and skip. ON CONFLICT DO NOTHING makes
+    // the check atomic (no SELECT-then-INSERT race).
+    try {
+      const insertedRows = await db
+        .insert(processedWebhookEvents)
+        .values({ eventId: event.id, source: 'stripe', eventType: event.type })
+        .onConflictDoNothing({ target: processedWebhookEvents.eventId })
+        .returning({ eventId: processedWebhookEvents.eventId })
+
+      if (insertedRows.length === 0) {
+        logger.info('stripe.webhook.duplicate_event_skipped', {
+          eventId: event.id,
+          eventType: event.type,
+        })
+        return successResponse({ received: true, duplicate: true })
+      }
+    } catch (err) {
+      // If the idempotency ledger is unreachable, do NOT proceed —
+      // processing without the guard could double-credit on Stripe retries.
+      // Return 503 so Stripe retries after the DB recovers.
+      logger.error('stripe.webhook.idempotency_ledger_failed', {
+        eventId: event.id,
+        eventType: event.type,
+      }, err)
+      return errorResponse('Idempotency ledger unavailable.', 503, 'IDEMPOTENCY_UNAVAILABLE')
     }
 
     switch (event.type) {
@@ -213,7 +243,21 @@ export async function POST(request: NextRequest) {
         const amountCents = parseInt(session.metadata?.amountCents ?? '0', 10)
 
         if (!purchaseId || !consumerId || !toolId || !amountCents) {
-          logger.error('stripe.webhook.missing_metadata', { sessionId: session.id })
+          // Consumer-audit #3 — if metadata is missing the session was
+          // created malformed (checkout route should have required it).
+          // We can't process the credit. Log loud so ops gets alerted
+          // and returns 200 so Stripe doesn't retry an event that will
+          // keep failing. The idempotency ledger still records the
+          // event ID, so a replay after a checkout-route fix is a no-op.
+          logger.error('stripe.webhook.missing_metadata_session', {
+            sessionId: session.id,
+            eventId: event.id,
+            hasPurchaseId: !!purchaseId,
+            hasConsumerId: !!consumerId,
+            hasToolId: !!toolId,
+            hasAmountCents: !!amountCents,
+            message: 'credit pack session completed but metadata was malformed — consumer paid but received no credit. Investigate via Stripe dashboard and reconcile manually.',
+          })
           return successResponse({ received: true })
         }
 

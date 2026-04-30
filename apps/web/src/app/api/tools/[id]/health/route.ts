@@ -69,7 +69,7 @@ export async function GET(
         avgResponseTimeMs: sql<number>`coalesce(avg(${toolHealthChecks.responseTimeMs}), 0)::int`,
       })
       .from(toolHealthChecks)
-      .where(sql`${toolHealthChecks.toolId} = ${id} AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${toolHealthChecks.toolId} = ${id} AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
 
     const total = uptimeStats?.total ?? 0
     const uptimePct = total > 0 ? Math.round((uptimeStats.upCount / total) * 10000) / 100 : 100
@@ -96,7 +96,7 @@ export async function GET(
         checkedAt: toolHealthChecks.checkedAt,
       })
       .from(toolHealthChecks)
-      .where(sql`${toolHealthChecks.toolId} = ${id} AND ${toolHealthChecks.status} != 'up' AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo}`)
+      .where(sql`${toolHealthChecks.toolId} = ${id} AND ${toolHealthChecks.status} != 'up' AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
       .orderBy(desc(toolHealthChecks.checkedAt))
       .limit(50)
 

@@ -13,6 +13,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForAct
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     innerJoin: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
   }
   return {
     mockDb,
@@ -43,6 +44,7 @@ vi.mock('@/lib/db/schema', () => ({
     totalRevenueCents: 'total_revenue_cents',
     healthEndpoint: 'health_endpoint',
     currentVersion: 'current_version',
+    listedInMarketplace: 'listed_in_marketplace',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
@@ -56,6 +58,9 @@ vi.mock('@/lib/db/schema', () => ({
     toolId: 'tool_id',
     rating: 'rating',
     comment: 'comment',
+    status: 'status',
+    developerResponse: 'developer_response',
+    developerRespondedAt: 'developer_responded_at',
     createdAt: 'created_at',
     consumerId: 'consumer_id',
   },
@@ -66,6 +71,7 @@ vi.mock('@/lib/db/schema', () => ({
     changeType: 'change_type',
     summary: 'summary',
     releasedAt: 'released_at',
+    createdAt: 'created_at',
   },
 }))
 
@@ -81,6 +87,8 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
+  or: vi.fn().mockImplementation((...args: unknown[]) => ({ or: args })),
+  desc: vi.fn().mockImplementation((a: unknown) => ({ desc: a })),
 }))
 
 vi.mock('@/lib/quality-gates', () => ({
@@ -348,6 +356,7 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     mockDb.from.mockReturnThis()
     mockDb.where.mockReturnThis()
     mockDb.innerJoin.mockReturnThis()
+    mockDb.orderBy.mockReturnThis()
     mockDb.limit.mockReset()
     mockDb.limit.mockResolvedValue([])
   })
@@ -380,5 +389,196 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     const response = await getPublic(request, { params: Promise.resolve({ slug: 'nonexistent' }) })
 
     expect(response.status).toBe(404)
+  })
+
+  // P2.INTL2 hostile-review regression: previously the public detail route
+  // hand-rolled a predicate missing status='unclaimed', so every unclaimed
+  // tool card in the marketplace linked to a 404. This test locks in that
+  // the predicate goes through the canonical marketplaceInclusionSql helper.
+  it('returns 200 for unclaimed tool (matches marketplace visibility)', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-u',
+        name: 'Unclaimed Tool',
+        slug: 'unclaimed-tool',
+        description: 'A shadow-directory crawl result',
+        status: 'unclaimed',
+        listedInMarketplace: true,
+        pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+        developerName: 'Crawler Stub',
+      },
+    ])
+
+    const request = makeRequest('/api/tools/public/unclaimed-tool')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'unclaimed-tool' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.status).toBe('unclaimed')
+  })
+
+  it('returns 200 for draft tool when listedInMarketplace=true (claimed-but-not-monetized)', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-d',
+        name: 'Claimed Draft',
+        slug: 'claimed-draft',
+        description: 'Claimed, pricing pending',
+        status: 'draft',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 0 },
+        developerName: 'Dev In Stripe-Unsupported Region',
+      },
+    ])
+
+    const request = makeRequest('/api/tools/public/claimed-draft')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'claimed-draft' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.status).toBe('draft')
+    expect(data.data.listedInMarketplace).toBe(true)
+  })
+
+  it('serializes status + listedInMarketplace so the detail page can render the right variant', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-a',
+        name: 'Active Tool',
+        slug: 'active-tool',
+        description: 'Published',
+        status: 'active',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 10 },
+        developerName: 'Dev',
+      },
+    ])
+
+    const request = makeRequest('/api/tools/public/active-tool')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'active-tool' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data).toHaveProperty('status', 'active')
+    expect(data.data).toHaveProperty('listedInMarketplace', true)
+  })
+
+  // Coverage close-out: the reviews/changelog aggregation paths and the
+  // error handler were previously uncovered. These exercise the full
+  // response shape (averageRating math, review count, changelog
+  // serialization) and the try/catch around internalErrorResponse.
+
+  it('aggregates averageRating across multiple reviews (round-trip of the math path)', async () => {
+    const now = new Date()
+    // .select().from(tools).innerJoin().where().limit() → tool
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-r',
+        name: 'Reviewed Tool',
+        slug: 'reviewed-tool',
+        status: 'active',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+    // .select().from(toolReviews).where().orderBy().limit(20) → reviews
+    mockDb.limit.mockResolvedValueOnce([
+      { id: 'r1', rating: 5, comment: 'Great', developerResponse: null, developerRespondedAt: null, createdAt: now },
+      { id: 'r2', rating: 3, comment: 'Meh', developerResponse: 'thx', developerRespondedAt: now, createdAt: now },
+      { id: 'r3', rating: 4, comment: null, developerResponse: null, developerRespondedAt: null, createdAt: now },
+    ])
+    // .select().from(toolChangelogs).where().orderBy().limit(10) → []
+    mockDb.limit.mockResolvedValueOnce([])
+
+    const request = makeRequest('/api/tools/public/reviewed-tool')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'reviewed-tool' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.reviewCount).toBe(3)
+    // (5 + 3 + 4) / 3 = 4.0 → rounded to one decimal
+    expect(data.data.averageRating).toBe(4)
+    expect(data.data.reviews).toHaveLength(3)
+    // Anonymity wrapper — each review is attributed to "Verified User",
+    // not the actual consumer. Documents that the route deliberately
+    // strips the consumer name from the public response.
+    for (const r of data.data.reviews) {
+      expect(r.consumerName).toBe('Verified User')
+    }
+  })
+
+  it('surfaces the changelog list in release-date-desc order', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-c',
+        name: 'Changelog Tool',
+        slug: 'changelog-tool',
+        status: 'active',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+    mockDb.limit.mockResolvedValueOnce([]) // no reviews
+    mockDb.limit.mockResolvedValueOnce([
+      { version: '1.2.0', changeType: 'feature', summary: 'Added X', releasedAt: new Date('2026-03-01') },
+      { version: '1.1.0', changeType: 'fix', summary: 'Fixed Y', releasedAt: new Date('2026-02-01') },
+    ])
+
+    const request = makeRequest('/api/tools/public/changelog-tool')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'changelog-tool' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.changelog).toHaveLength(2)
+    expect(data.data.changelog[0].version).toBe('1.2.0')
+  })
+
+  it('tolerates reviews table missing (averageRating=0, reviewCount=0)', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-n',
+        name: 'No Reviews Table',
+        slug: 'no-reviews-table',
+        status: 'active',
+        listedInMarketplace: true,
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+    // Reviews fetch throws (table missing)
+    mockDb.limit.mockRejectedValueOnce(new Error('relation "tool_reviews" does not exist'))
+    // Changelog fetch returns []
+    mockDb.limit.mockResolvedValueOnce([])
+
+    const request = makeRequest('/api/tools/public/no-reviews-table')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'no-reviews-table' }) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data.reviewCount).toBe(0)
+    expect(data.data.averageRating).toBe(0)
+    expect(data.data.reviews).toEqual([])
+  })
+
+  it('returns 500 INTERNAL_ERROR when the tool SELECT throws', async () => {
+    mockDb.limit.mockRejectedValueOnce(new Error('postgres down'))
+    const request = makeRequest('/api/tools/public/boom')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'boom' }) })
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe('INTERNAL_ERROR')
+  })
+
+  it('returns 429 when rate limit exceeded', async () => {
+    mockCheckRateLimit.mockResolvedValueOnce({ success: false, limit: 100, remaining: 0, reset: 0 })
+    const request = makeRequest('/api/tools/public/rate-limited')
+    const response = await getPublic(request, { params: Promise.resolve({ slug: 'rate-limited' }) })
+
+    expect(response.status).toBe(429)
+    const body = await response.json()
+    expect(body.code).toBe('RATE_LIMIT_EXCEEDED')
   })
 })

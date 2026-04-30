@@ -88,12 +88,21 @@ export default function RegisterPage() {
       .catch(() => setDeveloperCount(null))
   }, [])
 
-  // Capture referral code from URL and persist to cookie so it survives the OAuth redirect
+  // Producer-audit #9 — referral code from URL, persisted through OAuth
+  // redirect. SameSite=Strict prevents an attacker from cross-posting a
+  // victim to /register with a hidden ref param to harvest the signup
+  // bonus (CSRF-style fraud). Strict is fine here: OAuth redirects are
+  // top-level navigations within our own origin, which Strict allows.
+  // Secure is added so the cookie only travels over HTTPS.
   useEffect(() => {
     const ref = searchParams.get('ref')
     if (ref && /^inv_[0-9a-f]{24}$/.test(ref)) {
       setReferralCode(ref)
-      document.cookie = `sg_ref=${ref}; path=/; max-age=3600; SameSite=Lax`
+      const cookieFlags = ['path=/', 'max-age=3600', 'SameSite=Strict']
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        cookieFlags.push('Secure')
+      }
+      document.cookie = `sg_ref=${ref}; ${cookieFlags.join('; ')}`
     }
   }, [searchParams])
 

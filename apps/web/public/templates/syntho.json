@@ -1,0 +1,47 @@
+{
+  "slug": "syntho",
+  "name": "Syntho",
+  "description": "MCP server for Syntho with SettleGrid billing. Manage organizations and users on the Syntho synthetic data platform via its REST API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "synthetic-data",
+    "syntho",
+    "organization",
+    "users",
+    "data-privacy",
+    "data-generation",
+    "management"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-syntho"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_user",
+    "delete_user",
+    "get_organization",
+    "get_user",
+    "list_users",
+    "update_user"
+  ],
+  "featured": false
+}

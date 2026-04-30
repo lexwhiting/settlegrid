@@ -1,7 +1,4 @@
 import { NextRequest } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getGitHubWebhookSecret } from '@/lib/env'
@@ -9,32 +6,16 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import {
   verifyWebhookSignature,
   getInstallationToken,
-  fetchFileContent,
   listInstallationRepos,
   isGitHubAppConfigured,
 } from '@/lib/github'
+import { scanRepository, type ScanResult } from './scan-impl'
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
-const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
-const SYSTEM_DEVELOPER_NAME = 'SettleGrid System'
-const MAX_NAME_LENGTH = 256
-const MAX_DESCRIPTION_LENGTH = 2000
 const MAX_REPOS_PER_SCAN = 50
 
-/** SDK package names that indicate a SettleGrid tool */
-const SETTLEGRID_PACKAGES = ['@settlegrid/mcp', '@settlegrid/sdk'] as const
-
 // ─── Types ──────────────────────────────────────────────────────────────────────
-
-interface PackageJson {
-  name?: string
-  description?: string
-  dependencies?: Record<string, string>
-  devDependencies?: Record<string, string>
-  [key: string]: unknown
-}
 
 interface PushEventPayload {
   ref?: string
@@ -68,247 +49,6 @@ interface InstallationRepositoriesEventPayload {
   }
   repositories_added?: Array<{ name?: string; full_name?: string }>
   repositories_removed?: Array<{ name?: string; full_name?: string }>
-}
-
-interface ScanResult {
-  repo: string
-  found: boolean
-  action: 'created' | 'updated' | 'skipped' | 'error'
-  slug?: string
-  error?: string
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-
-/**
- * Sanitizes a string into a URL-safe slug.
- */
-function toSlug(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 128)
-}
-
-/**
- * Sanitizes free-text, stripping control characters.
- */
-function sanitizeText(raw: string, maxLength: number): string {
-  // eslint-disable-next-line no-control-regex
-  const cleaned = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim()
-  return cleaned.slice(0, maxLength)
-}
-
-/**
- * Checks whether a package.json contains any SettleGrid SDK package.
- */
-function hasSettleGridSdk(pkg: PackageJson): boolean {
-  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
-  return SETTLEGRID_PACKAGES.some((name) => name in allDeps)
-}
-
-/**
- * Extracts the first paragraph after the title from a README.
- * Returns null if no suitable paragraph is found.
- */
-function extractReadmeDescription(readme: string): string | null {
-  const lines = readme.split('\n')
-  let pastTitle = false
-  const paragraphLines: string[] = []
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Skip title lines (# heading or === underline)
-    if (!pastTitle) {
-      if (trimmed.startsWith('#') || trimmed.match(/^[=]+$/)) {
-        pastTitle = true
-        continue
-      }
-      // If the first non-empty line is not a heading, treat it as past the title
-      if (trimmed.length > 0) {
-        pastTitle = true
-      }
-    }
-
-    if (pastTitle) {
-      // Skip empty lines before the paragraph starts
-      if (paragraphLines.length === 0 && trimmed.length === 0) {
-        continue
-      }
-
-      // Stop at the next heading or empty line after content
-      if (trimmed.length === 0 && paragraphLines.length > 0) {
-        break
-      }
-      if (trimmed.startsWith('#')) {
-        break
-      }
-
-      paragraphLines.push(trimmed)
-    }
-  }
-
-  if (paragraphLines.length === 0) {
-    return null
-  }
-
-  return paragraphLines.join(' ').slice(0, MAX_DESCRIPTION_LENGTH)
-}
-
-/**
- * Ensures the SettleGrid system developer row exists.
- * Returns the developer ID.
- */
-async function ensureSystemDeveloper(): Promise<string> {
-  const existing = await db
-    .select({ id: developers.id })
-    .from(developers)
-    .where(eq(developers.slug, SYSTEM_DEVELOPER_SLUG))
-    .limit(1)
-
-  if (existing.length > 0) {
-    return existing[0].id
-  }
-
-  const inserted = await db
-    .insert(developers)
-    .values({
-      email: SYSTEM_DEVELOPER_EMAIL,
-      name: SYSTEM_DEVELOPER_NAME,
-      slug: SYSTEM_DEVELOPER_SLUG,
-    })
-    .returning({ id: developers.id })
-
-  logger.info('github.webhook.system_developer_created', {
-    developerId: inserted[0].id,
-  })
-
-  return inserted[0].id
-}
-
-// ─── Repository Scanning ───────────────────────────────────────────────────────
-
-/**
- * Scans a single repository for SettleGrid SDK usage.
- *
- * 1. Fetches package.json
- * 2. Checks for @settlegrid/mcp or @settlegrid/sdk in dependencies
- * 3. If found, creates or updates a tool listing
- * 4. Fetches README.md for description enrichment
- */
-export async function scanRepository(
-  owner: string,
-  repo: string,
-  installationId: number
-): Promise<ScanResult> {
-  const repoFullName = `${owner}/${repo}`
-
-  try {
-    // Get installation token
-    const token = await getInstallationToken(installationId)
-
-    // Fetch package.json
-    const packageJsonRaw = await fetchFileContent(token, owner, repo, 'package.json')
-
-    if (!packageJsonRaw) {
-      logger.info('github.scan.no_package_json', { repo: repoFullName })
-      return { repo: repoFullName, found: false, action: 'skipped' }
-    }
-
-    let pkg: PackageJson
-    try {
-      pkg = JSON.parse(packageJsonRaw) as PackageJson
-    } catch {
-      logger.warn('github.scan.invalid_package_json', { repo: repoFullName })
-      return { repo: repoFullName, found: false, action: 'skipped' }
-    }
-
-    // Check for SettleGrid SDK
-    if (!hasSettleGridSdk(pkg)) {
-      logger.info('github.scan.no_sdk', { repo: repoFullName })
-      return { repo: repoFullName, found: false, action: 'skipped' }
-    }
-
-    logger.info('github.scan.sdk_found', { repo: repoFullName })
-
-    // Extract metadata from package.json
-    const rawName = typeof pkg.name === 'string' && pkg.name.trim().length > 0
-      ? pkg.name.trim()
-      : repo
-    const name = sanitizeText(rawName, MAX_NAME_LENGTH)
-    const slug = toSlug(rawName)
-
-    if (slug.length === 0) {
-      return { repo: repoFullName, found: true, action: 'skipped', error: 'Could not generate slug' }
-    }
-
-    // Try to get a richer description from the README
-    let description: string | null = null
-
-    const readmeRaw = await fetchFileContent(token, owner, repo, 'README.md')
-    if (readmeRaw) {
-      description = extractReadmeDescription(readmeRaw)
-    }
-
-    // Fall back to package.json description
-    if (!description && typeof pkg.description === 'string' && pkg.description.trim().length > 0) {
-      description = sanitizeText(pkg.description, MAX_DESCRIPTION_LENGTH)
-    }
-
-    // Ensure system developer exists
-    const systemDeveloperId = await ensureSystemDeveloper()
-
-    // Check if a tool with this slug already exists
-    const existing = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.slug, slug))
-      .limit(1)
-
-    if (existing.length > 0) {
-      // Update the existing tool's description if we have a better one
-      if (description) {
-        await db
-          .update(tools)
-          .set({
-            description,
-            updatedAt: new Date(),
-          })
-          .where(eq(tools.id, existing[0].id))
-      }
-
-      logger.info('github.scan.tool_updated', { repo: repoFullName, slug })
-      return { repo: repoFullName, found: true, action: 'updated', slug }
-    }
-
-    // Create a new tool listing
-    await db.insert(tools).values({
-      developerId: systemDeveloperId,
-      name,
-      slug,
-      description,
-      status: 'discovered',
-      category: null,
-    })
-
-    logger.info('github.scan.tool_created', { repo: repoFullName, slug, name })
-    return { repo: repoFullName, found: true, action: 'created', slug }
-  } catch (error) {
-    logger.error(
-      'github.scan.error',
-      { repo: repoFullName },
-      error
-    )
-    return {
-      repo: repoFullName,
-      found: false,
-      action: 'error',
-      error: error instanceof Error ? error.message : String(error),
-    }
-  }
 }
 
 // ─── Event Handlers ─────────────────────────────────────────────────────────────

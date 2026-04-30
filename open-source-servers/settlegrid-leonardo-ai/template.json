@@ -1,0 +1,46 @@
+{
+  "slug": "leonardo-ai",
+  "name": "Leonardo Ai",
+  "description": "MCP server for Leonardo.ai with SettleGrid billing. Generate AI images using Leonardo.ai's models with customizable prompts, styles, and generation parameters.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "image-gen",
+    "image-generation",
+    "stable-diffusion",
+    "text-to-image",
+    "generative-art",
+    "leonardo",
+    "image-synthesis",
+    "creative-ai"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-leonardo-ai"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_generation",
+    "delete_generation",
+    "get_generation",
+    "get_user_info",
+    "list_platform_models"
+  ],
+  "featured": false
+}

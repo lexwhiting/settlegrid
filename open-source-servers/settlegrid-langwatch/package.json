@@ -1,0 +1,38 @@
+{
+  "name": "settlegrid-langwatch",
+  "version": "1.0.0",
+  "description": "MCP server for LangWatch with SettleGrid billing. Search, retrieve, and inspect LangWatch traces capturing the full execution of LLM pipelines including spans, evaluations, and metadata.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "llm",
+    "tracing",
+    "observability",
+    "langwatch",
+    "ai-monitoring",
+    "spans",
+    "evaluations",
+    "pipelines",
+    "debugging",
+    "telemetry"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-langwatch"
+  }
+}
