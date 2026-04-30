@@ -28,7 +28,8 @@
         "ANTHROPIC_API_KEY",
         "STRIPE_PRICE_STARTER",
         "STRIPE_PRICE_GROWTH",
-        "STRIPE_PRICE_SCALE"
+        "STRIPE_PRICE_SCALE",
+        "UPTIMEROBOT_STATUS_URL"
       ]
     },
     "dev": {
