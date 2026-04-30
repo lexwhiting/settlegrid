@@ -41,6 +41,43 @@ export type ProtocolName =
   | 'acp'
   | 'mastercard-vi'
   | 'circle-nano'
+  // P2.K2 — emerging protocols promoted from apps/web/src/lib/*-proxy.ts into
+  // the bundled adapter registry. All five ship as standalone adapter classes
+  // with full detection, context extraction, validation, and 402-generation
+  // logic; the historical lib/*-proxy.ts files become thin re-exports.
+  | 'l402'
+  | 'alipay' // ACTP — Agentic Commerce Trust Protocol (Ant Group)
+  | 'kyapay'
+  | 'emvco'
+  | 'drain'
+
+// ─── Adapter logging (P2.K2) ────────────────────────────────────────────────
+
+/**
+ * Structured log callback for adapter validation / 402 generation flows.
+ *
+ * P2.K2 moves the per-protocol validation + 402 generation logic from the
+ * apps/web/src/lib/*-proxy.ts files into `@settlegrid/mcp` so the unified
+ * adapter path is self-contained. The lib code used `logger` from
+ * `apps/web/src/lib/logger` for in-flight structured events (external API
+ * calls, macaroon mint, voucher verification). Because `@settlegrid/mcp`
+ * cannot depend on apps/web, the migrated functions accept an optional
+ * `AdapterLogger` parameter that the lib wrappers wire to their app-side
+ * logger. When not passed, the default is a no-op — the adapter package
+ * stays zero-dep.
+ */
+export type AdapterLogger = {
+  info: (event: string, data?: Record<string, unknown>) => void
+  warn: (event: string, data?: Record<string, unknown>) => void
+  error: (event: string, data?: Record<string, unknown>, err?: unknown) => void
+}
+
+/** No-op logger used as the default when an adapter caller omits one. */
+export const NOOP_LOGGER: AdapterLogger = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+}
 
 // ─── Identity type (how the caller authenticates) ──────────────────────────
 
@@ -172,4 +209,35 @@ export interface ProtocolAdapter {
    * a valid `AcceptEntry`.
    */
   buildChallenge(options: BuildChallengeOptions): AcceptEntry
+
+  /**
+   * P2.K2 — validate a protocol-specific payment and return a
+   * structured result. Optional on the interface so external adapters
+   * written against the P1 contract are not forced to implement it.
+   * The 14 bundled adapters all implement it.
+   *
+   * The `options` argument is intentionally typed as `unknown` at the
+   * interface level because each protocol has its own ValidateOptions
+   * shape (e.g. `MppValidateOptions` carries a Stripe secret,
+   * `KyaPayValidateOptions` carries a JWT verification key). Concrete
+   * adapter classes narrow this to their specific options type — the
+   * interface stays structural so the ProtocolAdapter union remains
+   * assignable from any registered adapter.
+   */
+  verify?(request: Request, options: unknown): Promise<unknown>
+
+  /**
+   * P2.K2 — generate the full protocol-specific 402 Payment Required
+   * Response. Different from `buildChallenge` which builds ONE entry
+   * for the multi-protocol manifest (buildMultiProtocol402's
+   * `accepts[]` array). `build402Response` returns a complete
+   * single-protocol 402 Response with protocol-specific headers and
+   * body (e.g. L402's WWW-Authenticate, MPP's X-Payment-*, x402's
+   * X-Payment-Required).
+   *
+   * Optional on the interface for the same reason as `verify`.
+   * May be sync or async — L402 is async (it mints a Lightning
+   * invoice via LND); the other 13 are sync.
+   */
+  build402Response?(options: unknown): Response | Promise<Response>
 }

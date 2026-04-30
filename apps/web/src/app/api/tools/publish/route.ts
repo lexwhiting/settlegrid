@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
+import { validateToolForActivation } from '@/lib/quality-gates'
 
 export const maxDuration = 60
 
@@ -217,6 +218,7 @@ export async function PUT(request: NextRequest) {
         id: tools.id,
         developerId: tools.developerId,
         name: tools.name,
+        status: tools.status,
       })
       .from(tools)
       .where(eq(tools.slug, body.slug))
@@ -238,6 +240,21 @@ export async function PUT(request: NextRequest) {
     }
     let isCreate = false
 
+    // Producer-audit #8 — the API-key publish path previously wrote
+    // status='active' unconditionally, bypassing the quality gates that
+    // the dashboard PATCH /api/tools/[id]/status enforces. Two-phase
+    // write: (1) upsert, (2) run validateToolForActivation, (3) flip
+    // to 'active' iff it passes.
+    //
+    // Regression-guard (post-audit fix): the UPDATE path preserves
+    // `existing.status` through the initial write instead of
+    // demoting to 'draft'. Previously a re-publish of a working
+    // active tool that failed the gate would drop the tool offline
+    // until fixed — surprising behavior for developers who expect
+    // a failed update to leave their live tool alone. Now only
+    // brand-new tools (CREATE path) default to 'draft'.
+    const statusOnInitialWrite = existing ? existing.status : 'draft'
+
     if (existing) {
       // Verify ownership
       if (existing.developerId !== auth.id) {
@@ -249,7 +266,8 @@ export async function PUT(request: NextRequest) {
         )
       }
 
-      // Update existing tool
+      // Update existing tool — preserve status so a failed gate below
+      // doesn't demote a currently-active tool.
       const [updated] = await db
         .update(tools)
         .set({
@@ -260,7 +278,7 @@ export async function PUT(request: NextRequest) {
           tags: body.tags ?? [],
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
-          status: 'active',
+          status: statusOnInitialWrite,
           updatedAt: new Date(),
         })
         .where(and(eq(tools.id, existing.id), eq(tools.developerId, auth.id)))
@@ -304,7 +322,7 @@ export async function PUT(request: NextRequest) {
           tags: body.tags ?? [],
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
-          status: 'active',
+          status: 'draft',
         })
         .returning({
           id: tools.id,
@@ -330,6 +348,37 @@ export async function PUT(request: NextRequest) {
         version: body.version,
         requestId,
       })
+    }
+
+    // Producer-audit #8 — quality gate. Flip to 'active' only if the
+    // checks the dashboard enforces all pass. On failure return 422 WITHOUT
+    // touching status — CREATE tools stay at 'draft' (they never were
+    // active), UPDATE tools stay at `existing.status` (e.g., an already-
+    // active tool stays active with the new body fields; a draft stays a
+    // draft). The developer can fix issues and re-run publish.
+    const gateResult = await validateToolForActivation(toolRecord.id, auth.id)
+    if (!gateResult.passed) {
+      return errorResponse(
+        'Tool does not meet quality requirements for the Showcase',
+        422,
+        'QUALITY_GATE_FAILED',
+        requestId,
+        {
+          failures: gateResult.failures,
+          toolId: toolRecord.id,
+          currentStatus: statusOnInitialWrite,
+        },
+      )
+    }
+
+    const [activated] = await db
+      .update(tools)
+      .set({ status: 'active', updatedAt: new Date() })
+      .where(and(eq(tools.id, toolRecord.id), eq(tools.developerId, auth.id)))
+      .returning({ status: tools.status, updatedAt: tools.updatedAt })
+
+    if (activated) {
+      toolRecord = { ...toolRecord, status: activated.status, updatedAt: activated.updatedAt }
     }
 
     // Audit log

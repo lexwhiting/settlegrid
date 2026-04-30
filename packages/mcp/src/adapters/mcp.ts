@@ -180,4 +180,20 @@ export class MCPAdapter implements ProtocolAdapter {
       topUpUrl: SETTLEGRID_TOPUP_URL,
     }
   }
+
+  /**
+   * P2.K2 — verify() method for MCP requests.
+   * MCP validation is "does the x-api-key resolve to a valid SettleGrid
+   * consumer with sufficient credits" — that logic lives in the proxy
+   * route handler (authenticateProxyRequest + balance check) because it
+   * needs database access, not in the adapter. The verify() method here
+   * is a no-op that returns the extracted payment context, so the
+   * ProtocolAdapter.verify shape is uniform across all 14 adapters.
+   */
+  async verify(
+    request: Request,
+    _options: { enabled?: boolean } = {},
+  ): Promise<PaymentContext> {
+    return this.extractPaymentContext(request)
+  }
 }

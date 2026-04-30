@@ -1,0 +1,44 @@
+{
+  "slug": "airbyte",
+  "name": "Airbyte",
+  "description": "MCP server for Airbyte with SettleGrid billing. Create and manage Airbyte data pipeline sources via the Airbyte API.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "data-pipelines",
+    "airbyte",
+    "data-pipeline",
+    "etl",
+    "data-integration",
+    "source",
+    "connector",
+    "workspace",
+    "data-engineering",
+    "sync"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-airbyte"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 5
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_source"
+  ],
+  "featured": false
+}

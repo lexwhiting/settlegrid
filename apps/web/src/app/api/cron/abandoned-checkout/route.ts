@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
         and(
           eq(purchases.status, 'pending'),
           isNull(purchases.reminderSentAt),
-          sql`${purchases.createdAt} <= ${oneHourAgo}`,
-          sql`${purchases.createdAt} >= ${twentyFourHoursAgo}`
+          sql`${purchases.createdAt} <= ${oneHourAgo.toISOString()}::timestamptz`,
+          sql`${purchases.createdAt} >= ${twentyFourHoursAgo.toISOString()}::timestamptz`
         )
       )
       .limit(MAX_REMINDERS_PER_RUN)

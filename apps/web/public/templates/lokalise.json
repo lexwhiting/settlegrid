@@ -1,0 +1,52 @@
+{
+  "slug": "lokalise",
+  "name": "Lokalise",
+  "description": "MCP server for Lokalise with SettleGrid billing. Manage localization projects, keys, and translations via the Lokalise API.",
+  "version": "1.0.0",
+  "category": "productivity",
+  "tags": [
+    "translation",
+    "lokalise",
+    "localization",
+    "i18n",
+    "l10n",
+    "internationalization",
+    "strings",
+    "keys",
+    "projects",
+    "languages"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-lokalise"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_key",
+    "create_project",
+    "get_project",
+    "list_keys",
+    "list_languages",
+    "list_projects",
+    "list_translations",
+    "update_translation"
+  ],
+  "featured": false
+}

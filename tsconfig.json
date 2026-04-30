@@ -19,6 +19,6 @@
     { "path": "packages/mcp" },
     { "path": "packages/create-settlegrid-tool" },
     { "path": "packages/discovery-server" },
-    { "path": "packages/settlegrid-cursor" }
+    { "path": "packages/cursor" }
   ]
 }

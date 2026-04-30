@@ -1,0 +1,28 @@
+{
+  "runId": "retry-2026-04-19T20-31-53-480Z",
+  "startedAt": "2026-04-19T20:31:53.487Z",
+  "completedAt": "2026-04-19T20:35:52.648Z",
+  "durationSeconds": 239,
+  "totalAttempts": 17,
+  "passed": 4,
+  "rejected": 0,
+  "failed": 13,
+  "rejectRatePct": 76.5,
+  "totalCostUsdTracked": 0,
+  "costPerSuccessfulTemplateUsdTracked": 0,
+  "tokensInTracked": 0,
+  "tokensOutTracked": 0,
+  "topFailureClusters": [
+    {
+      "verdict": "fetch-docs-failed",
+      "count": 8
+    },
+    {
+      "verdict": "synthesize-failed",
+      "count": 5
+    }
+  ],
+  "costTrackingNote": "Tracked cost covers generateSpec (Haiku) only — fetchApiDocs + synthesizeTemplate use their own Anthropic clients and are NOT captured by the BudgetTracker. Real Sonnet spend on this run was ~$25-35 untracked (per P3.1 known limitation).",
+  "backfilledTemplateJson": 4,
+  "skippedAlreadyHadTemplateJson": 0
+}

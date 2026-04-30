@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ToolTypeBadge, type ToolType } from '@/components/ui/tool-type-badge'
 import { EcosystemIcon, type SourceEcosystem } from '@/components/ui/ecosystem-icon'
-import { shouldShowClaimedBadge } from '@/lib/marketplace-visibility'
+import { shouldShowClaimedBadge, shouldShowUnclaimedBadge } from '@/lib/marketplace-visibility'
 
 export interface MarketplaceTool {
   id: string
@@ -118,7 +118,12 @@ export function ToolCard({ tool }: ToolCardProps) {
               </svg>
               {formatInvocations(tool.totalInvocations)} calls
             </span>
-            {tool.status === 'active' && tool.totalRevenueCents === 0 && !tool.verified && (
+            {/* Consumer-audit #6: render the "Unclaimed" badge on the
+                actual status='unclaimed' state, not on the legacy heuristic
+                (status='active' && no revenue && !verified) which fired
+                on "published but unused" — a different concept. The
+                canonical helper lives in lib/marketplace-visibility.ts. */}
+            {shouldShowUnclaimedBadge(tool.status) && (
               <span className="text-[10px] text-gray-500 bg-[#252836] px-1.5 py-0.5 rounded">
                 Unclaimed
               </span>

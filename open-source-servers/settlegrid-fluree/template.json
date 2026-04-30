@@ -1,0 +1,50 @@
+{
+  "slug": "fluree",
+  "name": "Fluree",
+  "description": "MCP server for Fluree with SettleGrid billing. Create and query Fluree semantic ledgers with full transaction, history, and SPARQL support.",
+  "version": "1.0.0",
+  "category": "data",
+  "tags": [
+    "knowledge-graphs",
+    "fluree",
+    "ledger",
+    "graph-database",
+    "semantic",
+    "sparql",
+    "linked-data",
+    "blockchain",
+    "query",
+    "transaction"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-fluree"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 2
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_ledger",
+    "delete_ledger",
+    "list_ledgers",
+    "query_history",
+    "query_ledger",
+    "query_sparql",
+    "transact_ledger"
+  ],
+  "featured": false
+}

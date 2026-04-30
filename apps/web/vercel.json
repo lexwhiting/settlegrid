@@ -63,5 +63,14 @@
       "path": "/api/cron/consumer-schedules",
       "schedule": "*/5 * * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/v1/:path*",
+      "has": [
+        { "type": "host", "value": "facilitator.settlegrid.ai" }
+      ],
+      "destination": "/api/x402/facilitator/v1/:path*"
+    }
   ]
 }

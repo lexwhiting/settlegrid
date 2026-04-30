@@ -1,0 +1,47 @@
+{
+  "slug": "prompt-hub",
+  "name": "Prompt Hub",
+  "description": "MCP server for Prompt Hub with SettleGrid billing. Manage and retrieve AI prompts from PromptHub, including listing, fetching, creating, updating, and deleting prompts.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": [
+    "prompt-engineering",
+    "prompts",
+    "llm",
+    "prompt-management",
+    "generative-ai",
+    "templates",
+    "openai",
+    "automation"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-prompt-hub"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "create_prompt",
+    "delete_prompt",
+    "get_prompt",
+    "list_prompts",
+    "update_prompt"
+  ],
+  "featured": false
+}

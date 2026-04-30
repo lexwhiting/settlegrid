@@ -31,6 +31,7 @@ import type {
 import type { NormalizedConfig } from './config'
 import { TokenBucketRateLimiter } from './rate-limiter'
 import { CircuitBreaker } from './circuit-breaker'
+import { emitFirstBilledCall } from './telemetry'
 
 /**
  * Extract an API key from various sources in priority order:
@@ -421,6 +422,22 @@ export function createMiddleware(
       costCents: context.costCents,
       latencyMs,
     }, resilience)
+
+    // P4.1 — fire `first_billed_call` once per (toolSlug, consumerId)
+    // per process. Fire-and-forget; the helper handles dedupe and
+    // opt-out, and never throws. Optional-chain on `result?.success`
+    // (hostile-review H5) so an empty-body 200 from /meter
+    // (apiCall returns null on empty body) doesn't TypeError on
+    // dereference and break the meter() return path.
+    if (result?.success) {
+      void emitFirstBilledCall({
+        toolSlug: config.toolSlug,
+        consumerId: context.consumerId,
+        apiUrl: config.apiUrl,
+        method: context.method,
+        amountCents: context.costCents,
+      })
+    }
 
     // Invalidate cache to reflect new balance
     // We don't have the raw key here, but the balance will be stale

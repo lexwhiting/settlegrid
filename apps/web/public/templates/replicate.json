@@ -1,0 +1,51 @@
+{
+  "slug": "replicate",
+  "name": "Replicate",
+  "description": "MCP server for Replicate with SettleGrid billing. Run, manage, and monitor AI model predictions on Replicate's cloud infrastructure.",
+  "version": "1.0.0",
+  "category": "media",
+  "tags": [
+    "image-gen",
+    "replicate",
+    "machine-learning",
+    "predictions",
+    "models",
+    "inference",
+    "image-generation",
+    "llm",
+    "fine-tuning"
+  ],
+  "author": {
+    "name": "Alerterra, LLC",
+    "url": "https://settlegrid.ai",
+    "github": "settlegrid"
+  },
+  "repo": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-replicate"
+  },
+  "runtime": "node",
+  "languages": [
+    "ts"
+  ],
+  "entry": "src/server.ts",
+  "pricing": {
+    "model": "per-call",
+    "perCallUsdCents": 1,
+    "currency": "USD"
+  },
+  "quality": {
+    "tests": false
+  },
+  "capabilities": [
+    "cancel_prediction",
+    "create_model_prediction",
+    "create_prediction",
+    "get_account",
+    "get_model",
+    "get_prediction",
+    "list_model_versions",
+    "list_predictions"
+  ],
+  "featured": false
+}

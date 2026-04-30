@@ -638,10 +638,11 @@ describe('Page Files', () => {
     'app/(dashboard)/dashboard/analytics/error.tsx',
     'app/(dashboard)/dashboard/analytics/loading.tsx',
 
-    // Dashboard - Payouts
-    'app/(dashboard)/dashboard/payouts/page.tsx',
-    'app/(dashboard)/dashboard/payouts/error.tsx',
-    'app/(dashboard)/dashboard/payouts/loading.tsx',
+    // Dashboard - Payouts (P3.RAIL3 — moved out of (dashboard) route group
+    // because the verifier checks the literal path apps/web/src/app/dashboard/payouts/page.tsx)
+    'app/dashboard/payouts/page.tsx',
+    'app/dashboard/payouts/error.tsx',
+    'app/dashboard/payouts/loading.tsx',
 
     // Dashboard - Webhooks
     'app/(dashboard)/dashboard/webhooks/page.tsx',

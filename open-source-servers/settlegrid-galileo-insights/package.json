@@ -1,0 +1,37 @@
+{
+  "name": "settlegrid-galileo-insights",
+  "version": "1.0.0",
+  "description": "MCP server for Galileo Insights with SettleGrid billing. Manage AI observability scorers, annotation templates, and datasets on the Galileo platform.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@settlegrid/mcp": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "settlegrid",
+    "mcp",
+    "ai",
+    "galileo",
+    "ai-observability",
+    "llm-evaluation",
+    "scorers",
+    "annotations",
+    "datasets",
+    "monitoring",
+    "ai-quality",
+    "tracing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/settlegrid/settlegrid-galileo-insights"
+  }
+}
