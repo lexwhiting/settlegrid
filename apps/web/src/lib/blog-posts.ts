@@ -688,7 +688,7 @@ export const BLOG_POSTS: BlogPost[] = [
       'settlegrid-templates-launch',
     ],
     body: X402_FACILITATOR_LAUNCH_BODY,
-    published: false,
+    published: true,
   },
 ]
 
