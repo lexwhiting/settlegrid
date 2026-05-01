@@ -25,9 +25,14 @@ import {
   SHIPPED_ADAPTERS,
 } from './data'
 
-const DIMENSION_LIST = dimensions.map((d) => d.label.toLowerCase()).join(', ')
+// `Intl.ListFormat` defaults to long-style conjunction in en-US, which
+// includes the Oxford comma. Output for the canonical statement:
+// "MCP, x402, AP2, ..., Mastercard VI, and Circle Nano". Computed once
+// at module load.
 const ADAPTER_LIST = new Intl.ListFormat('en').format(
-  // ListFormat needs a mutable string[]; the readonly tuple is incompatible.
+  // ListFormat's TS lib types accept `Iterable<string>` in newer libs
+  // and `string[]` in older ones; spreading produces a mutable copy
+  // that satisfies both.
   [...SHIPPED_ADAPTERS],
 )
 
@@ -37,7 +42,7 @@ const ADAPTER_LIST = new Intl.ListFormat('en').format(
 
 export const metadata: Metadata = {
   title: 'SettleGrid vs. Nevermined: Honest Comparison',
-  description: `An honest comparison of SettleGrid and Nevermined.ai across ${dimensions.length} dimensions: ${DIMENSION_LIST}. Claims anchored to shipped code and public sources.`,
+  description: `An honest comparison of SettleGrid and Nevermined.ai across ${dimensions.length} dimensions: protocol breadth, default rail, pricing, SDKs, named customers, multi-hop settlement, framework distribution, geographic coverage, and compliance. Claims anchored to shipped code and public sources.`,
   alternates: { canonical: 'https://settlegrid.ai/compare/nevermined' },
   keywords: [
     'SettleGrid vs Nevermined',
@@ -66,16 +71,19 @@ export const metadata: Metadata = {
 /*  JSON-LD                                                                    */
 /* -------------------------------------------------------------------------- */
 
+// Breadcrumb is two items because there's no /compare index page in the
+// app router (apps/web/src/app/compare/ has only nevermined/ as a child,
+// not a page.tsx). Pointing position 2 at /compare would be a 404 to
+// Google's structured-data crawler — so we go Home → leaf directly.
 const jsonLdBreadcrumb = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
     { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://settlegrid.ai' },
-    { '@type': 'ListItem', position: 2, name: 'Compare', item: 'https://settlegrid.ai/compare' },
     {
       '@type': 'ListItem',
-      position: 3,
-      name: 'Nevermined',
+      position: 2,
+      name: 'SettleGrid vs. Nevermined',
       item: 'https://settlegrid.ai/compare/nevermined',
     },
   ],
@@ -185,8 +193,10 @@ export default function CompareNeverminedPage() {
                 aria-label={`SettleGrid versus Nevermined comparison across ${dimensions.length} dimensions`}
               >
                 <caption className="sr-only">
-                  Side-by-side comparison of SettleGrid and Nevermined across{' '}
-                  {DIMENSION_LIST}.
+                  Side-by-side comparison of SettleGrid and Nevermined across
+                  protocol breadth, default rail, take rate, SDK languages,
+                  named customers, multi-hop settlement primitives, framework
+                  distribution, geographic coverage, and compliance posture.
                 </caption>
                 <thead className="bg-[#161822]">
                   <tr>
