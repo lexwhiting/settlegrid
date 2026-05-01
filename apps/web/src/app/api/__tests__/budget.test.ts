@@ -45,6 +45,19 @@ vi.mock('@/lib/db/schema', () => ({
     name: 'name',
     slug: 'slug',
   },
+  // Referenced by writeAuditLog in the PATCH path — the audit insert is
+  // wrapped in try/catch so a missing mock didn't fail the test, but it
+  // was producing noisy stderr on every PATCH test run.
+  auditLogs: {
+    developerId: 'developer_id',
+    consumerId: 'consumer_id',
+    action: 'action',
+    resourceType: 'resource_type',
+    resourceId: 'resource_id',
+    details: 'details',
+    ipAddress: 'ip_address',
+    userAgent: 'user_agent',
+  },
 }))
 
 vi.mock('@/lib/middleware/auth', () => ({
