@@ -371,6 +371,60 @@ describe('P2.MKT1 / P4.MKT3 — SEO / metadata', () => {
   })
 })
 
+describe('P4.MKT3 — anti-regression on staleness fixes', () => {
+  it('"Public x402 facilitator as a network service" is no longer a Nevermined-stronger claim', () => {
+    // P4.MKT2 shipped facilitator.settlegrid.ai on 2026-04-29. Both
+    // projects now operate a public facilitator; this is no longer a
+    // Nevermined-only differentiator. The phrase may still appear in
+    // an explanatory comment in data.ts, so anchor on the structural
+    // pattern `claim: '...'` to guard against the live claim re-entering.
+    expect(dataSrc).not.toMatch(
+      /claim:\s*['"]Public x402 facilitator/,
+    )
+  })
+
+  it('Asia-Pacific rail stubs cite the real file path, not the stale settlement/adapters/ one', () => {
+    // The strategy doc said adapters/, but the actual files live at
+    // apps/web/src/lib/*-proxy.ts. The exact stale cite text was
+    // "apps/web/src/lib/settlement/adapters/ (experimental" — if it
+    // returns, this test catches it. The new cite ends with
+    // "apps/web/src/lib/ (experimental status documented per file)".
+    expect(dataSrc).not.toContain(
+      'apps/web/src/lib/settlement/adapters/ (experimental',
+    )
+    expect(dataSrc).toContain('apps/web/src/lib/alipay-proxy.ts')
+  })
+
+  it('Python SDK claim acknowledges packages/sdk-python (not just "no Python SDK yet")', () => {
+    // Honest framing: SettleGrid has Python SDK in monorepo at v0.1.0
+    // but not yet published to PyPI. payments-py IS on PyPI.
+    expect(dataSrc).toContain('packages/sdk-python')
+    expect(dataSrc).toContain('not yet published')
+  })
+
+  it('Take rate cite matches the live /pricing tiers (2.5% in $10K-$50K bracket)', () => {
+    // Hostile round caught compare page citing 3% in the middle
+    // bracket while /pricing ships 2.5%. Guard against re-divergence.
+    expect(dataSrc).toContain('2.5% $10K–$50K')
+    expect(dataSrc).not.toMatch(/3% \$10K[^$]*\$50K/)
+  })
+
+  it('data.ts has a Citation policy block', () => {
+    // Future reviewers need to know the rules for sharpening Nevermined
+    // URLs and refreshing counts. Block lives in the file header.
+    expect(dataSrc).toContain('Citation policy')
+  })
+
+  it('Last reviewed date in page.tsx is after the strategy doc snapshot (2026-04-17)', () => {
+    // If someone refreshes data.ts content but forgets to bump the
+    // reviewed date, this test surfaces the staleness.
+    const match = pageSrc.match(/Last reviewed:\s*(\d{4}-\d{2}-\d{2})/)
+    expect(match).not.toBeNull()
+    const reviewedDate = match![1]
+    expect(reviewedDate >= '2026-04-30').toBe(true)
+  })
+})
+
 describe('P4.MKT3 — sitemap + cross-link integration', () => {
   it('sitemap.ts includes the /compare/nevermined entry', () => {
     const sitemapSrc = readFileSync(
