@@ -22,7 +22,14 @@ import {
   dimensions,
   neverminedStronger,
   settlegridStronger,
+  SHIPPED_ADAPTERS,
 } from './data'
+
+const DIMENSION_LIST = dimensions.map((d) => d.label.toLowerCase()).join(', ')
+const ADAPTER_LIST = new Intl.ListFormat('en').format(
+  // ListFormat needs a mutable string[]; the readonly tuple is incompatible.
+  [...SHIPPED_ADAPTERS],
+)
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -30,8 +37,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'SettleGrid vs. Nevermined: Honest Comparison',
-  description:
-    'An honest comparison of SettleGrid and Nevermined.ai across nine dimensions: protocol breadth, default rail, pricing, SDKs, named customers, multi-hop settlement, framework distribution, geographic coverage, and compliance. Claims anchored to shipped code and public sources.',
+  description: `An honest comparison of SettleGrid and Nevermined.ai across ${dimensions.length} dimensions: ${DIMENSION_LIST}. Claims anchored to shipped code and public sources.`,
   alternates: { canonical: 'https://settlegrid.ai/compare/nevermined' },
   keywords: [
     'SettleGrid vs Nevermined',
@@ -44,8 +50,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: 'SettleGrid vs. Nevermined: Honest Comparison',
-    description:
-      'Nine-dimension comparison of SettleGrid and Nevermined.ai, anchored to shipped code and public sources.',
+    description: `${dimensions.length}-dimension comparison of SettleGrid and Nevermined.ai, anchored to shipped code and public sources.`,
     type: 'article',
     siteName: 'SettleGrid',
     url: 'https://settlegrid.ai/compare/nevermined',
@@ -53,8 +58,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'SettleGrid vs. Nevermined: Honest Comparison',
-    description:
-      'Nine-dimension comparison, anchored to shipped code and public sources.',
+    description: `${dimensions.length}-dimension comparison, anchored to shipped code and public sources.`,
   },
 }
 
@@ -150,16 +154,16 @@ export default function CompareNeverminedPage() {
               SettleGrid is the <strong className="text-gray-200">rail-neutral,
               protocol-neutral settlement layer for the long tail of AI tools</strong>.
               Nevermined is a crypto-first agent payments platform that defaults to
-              USDC on Base. This page compares both across nine dimensions. Every
-              claim is anchored to shipped code or a public URL. Where Nevermined is
-              genuinely stronger, we say so.
+              USDC on Base. This page compares both across {dimensions.length} dimensions.
+              Every claim is anchored to shipped code or a public URL. Where Nevermined
+              is genuinely stronger, we say so.
             </p>
           </section>
 
           {/* ---- Side-by-side comparison table ---- */}
           <section className="mb-20">
             <h2 className="text-2xl font-bold text-gray-100 mb-2">
-              Side-by-side across nine dimensions
+              Side-by-side across {dimensions.length} dimensions
             </h2>
             <p className="text-sm text-gray-400 mb-8">
               Claims sourced from{' '}
@@ -178,13 +182,11 @@ export default function CompareNeverminedPage() {
             <div className="hidden md:block overflow-x-auto">
               <table
                 className="w-full text-sm border border-[#2A2D3E] rounded-xl overflow-hidden"
-                aria-label="SettleGrid versus Nevermined comparison across nine dimensions"
+                aria-label={`SettleGrid versus Nevermined comparison across ${dimensions.length} dimensions`}
               >
                 <caption className="sr-only">
-                  Side-by-side comparison of SettleGrid and Nevermined across
-                  protocol breadth, default rail, take rate, SDK languages,
-                  named customers, multi-hop settlement primitives, framework
-                  distribution, geographic coverage, and compliance posture.
+                  Side-by-side comparison of SettleGrid and Nevermined across{' '}
+                  {DIMENSION_LIST}.
                 </caption>
                 <thead className="bg-[#161822]">
                   <tr>
@@ -367,13 +369,12 @@ export default function CompareNeverminedPage() {
                 for the long tail of AI tools. Unlike crypto-first agent payment
                 platforms that default to USDC on a specific chain, SettleGrid
                 routes every incoming request through a runtime detection chain
-                across nine shipped protocol adapters &mdash; MCP, x402, AP2, MPP,
-                ACP, UCP, Visa TAP, Mastercard VI, and Circle Nano &mdash; so
-                merchants accept whatever protocol the buyer arrives with.
-                Settlement sessions support multi-hop atomic workflows, so Agent A
-                paying Agent B paying Agent C commits or rolls back as one unit.
-                Progressive pricing means developers keep 100% of revenue under
-                $1,000 per month and never cross 5% at scale.
+                across {SHIPPED_ADAPTERS.length} shipped protocol adapters &mdash;{' '}
+                {ADAPTER_LIST} &mdash; so merchants accept whatever protocol the
+                buyer arrives with. Settlement sessions support multi-hop atomic
+                workflows, so Agent A paying Agent B paying Agent C commits or
+                rolls back as one unit. Progressive pricing means developers keep
+                100% of revenue under $1,000 per month and never cross 5% at scale.
               </p>
             </div>
           </section>

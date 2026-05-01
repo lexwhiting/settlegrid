@@ -21,6 +21,13 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import {
+  dimensions,
+  neverminedStronger,
+  settlegridStronger,
+  SHIPPED_ADAPTERS,
+  TEMPLATE_COUNT,
+} from '../compare/nevermined/data'
 
 const repoRoot = resolve(__dirname, '../../../../..')
 const pagePath = join(repoRoot, 'apps/web/src/app/compare/nevermined/page.tsx')
@@ -94,8 +101,14 @@ describe('P2.MKT1 — DoD item 3: "Where SettleGrid is stronger" section', () =>
     expect(pageSrc).toMatch(/Where SettleGrid is (genuinely )?stronger/)
   })
 
-  it('lists the 9 protocol adapters', () => {
-    expect(dataSrc).toContain('9 protocol adapters')
+  it('lists protocol adapters via SHIPPED_ADAPTERS (length-driven)', () => {
+    // P4.MKT3 final: claim is now dynamic — `${SHIPPED_ADAPTERS.length}
+    // protocol adapters shipped in production code`. This test reads the
+    // resolved claim at runtime so it survives count changes.
+    expect(SHIPPED_ADAPTERS.length).toBeGreaterThanOrEqual(9)
+    expect(settlegridStronger[0].claim).toBe(
+      `${SHIPPED_ADAPTERS.length} protocol adapters shipped in production code`,
+    )
   })
 
   it('lists the multi-hop settlement primitive names', () => {
@@ -109,12 +122,15 @@ describe('P2.MKT1 — DoD item 3: "Where SettleGrid is stronger" section', () =>
     expect(dataSrc).toMatch(/0%\s*→\s*5%/)
   })
 
-  it('lists the open-source-server template count (current measurement)', () => {
-    // Updated 2026-05-01 (P4.MKT3): exact count is 954 vs strategy
-    // doc's 1,022. The "approximately true" range test below guards
-    // against drift; this assertion fixes the page copy to a number
-    // we measured during the spec-diff round.
-    expect(dataSrc).toContain('954')
+  it('lists the open-source-server template count (computed at module load)', () => {
+    // P4.MKT3 final: TEMPLATE_COUNT is computed from readdirSync at
+    // module load — never goes stale silently. Assert the runtime
+    // value is reasonable + the claim interpolates it.
+    expect(TEMPLATE_COUNT).toBeGreaterThan(800)
+    expect(TEMPLATE_COUNT).toBeLessThan(2000)
+    expect(settlegridStronger[3].claim).toBe(
+      `${TEMPLATE_COUNT} pre-wired open-source MCP server templates`,
+    )
   })
 })
 
@@ -220,15 +236,23 @@ describe('P2.MKT1 — claim verifiability: every cited path exists', () => {
     expect(src).toMatch(/export\s+(async\s+)?function\s+rollbackSettlementBatch/)
   })
 
-  it('the templates-count claim is approximately true (drift-tolerant window)', () => {
+  it('TEMPLATE_COUNT matches the actual filesystem count exactly', () => {
     const dir = join(repoRoot, 'open-source-servers')
-    const count = readdirSync(dir, { withFileTypes: true }).filter((e) =>
+    const actual = readdirSync(dir, { withFileTypes: true }).filter((e) =>
       e.isDirectory(),
     ).length
-    // Page copy reflects the count at the last reviewed date.
-    // This test guards against massive drift; intentionally loose.
-    expect(count).toBeGreaterThan(800)
-    expect(count).toBeLessThan(2000)
+    // P4.MKT3 final: dynamic computation means claim and reality
+    // can never silently diverge. If they drift, fix data.ts (or
+    // this test, if the path resolution changed).
+    expect(TEMPLATE_COUNT).toBe(actual)
+  })
+
+  it('SHIPPED_ADAPTERS.length matches the actual adapter file count', () => {
+    const dir = join(repoRoot, 'apps/web/src/lib/settlement/adapters/')
+    const files = readdirSync(dir).filter(
+      (f) => f.endsWith('.ts') && f !== 'index.ts' && !f.endsWith('.test.ts'),
+    )
+    expect(SHIPPED_ADAPTERS.length).toBe(files.length)
   })
 })
 
@@ -422,6 +446,39 @@ describe('P4.MKT3 — anti-regression on staleness fixes', () => {
     expect(match).not.toBeNull()
     const reviewedDate = match![1]
     expect(reviewedDate >= '2026-04-30').toBe(true)
+  })
+
+  it('"PayPal for AI narrative" is no longer a neverminedStronger claim (was an inference, spec §1 forbids)', () => {
+    // P4.MKT3 final: removed because the spec disallows inferences,
+    // and "PayPal for AI" framing was SettleGrid's interpretation of
+    // Nevermined's positioning, not a fact Nevermined publishes.
+    expect(neverminedStronger.find((p) => p.claim.includes('PayPal for AI'))).toBeUndefined()
+  })
+
+  it('every neverminedStronger item has a sourceUrl (no unsourced bullets)', () => {
+    // Spec implementation step 2: "replace any unsourced bullet with
+    // a citation or remove it". P4.MKT3 final pass added permalinks
+    // for funding + virtual cards; "PayPal for AI" was removed.
+    for (const point of neverminedStronger) {
+      expect(point.sourceUrl, `Missing sourceUrl for: ${point.claim}`).toBeTruthy()
+    }
+  })
+
+  it('Public funding signal links to a real funding-news permalink', () => {
+    const funding = neverminedStronger.find((p) =>
+      p.claim.includes('Public funding signal'),
+    )
+    expect(funding).toBeDefined()
+    expect(funding!.sourceUrl).toMatch(/^https:\/\//)
+    expect(funding!.sourceUrl).not.toBe('https://nevermined.ai')
+  })
+
+  it('Live virtual card issuance links to the specific Nevermined blog post (not the homepage)', () => {
+    const cards = neverminedStronger.find((p) =>
+      p.claim.includes('Live virtual card issuance'),
+    )
+    expect(cards).toBeDefined()
+    expect(cards!.sourceUrl).toContain('nevermined.ai/blog/')
   })
 })
 

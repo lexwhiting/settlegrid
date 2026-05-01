@@ -22,7 +22,49 @@
  *     reviewed date when these drift.
  */
 
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { gh } from './helpers'
+
+/**
+ * Adapter inventory — single source of truth for the "9 shipped
+ * adapters" claim. Update this list when a new protocol adapter
+ * ships in apps/web/src/lib/settlement/adapters/. The `cite` text
+ * and `value` text below interpolate from this list, so the page
+ * never drifts from the data on a count change.
+ */
+export const SHIPPED_ADAPTERS = [
+  'MCP',
+  'x402',
+  'AP2',
+  'MPP',
+  'ACP',
+  'UCP',
+  'Visa TAP',
+  'Mastercard VI',
+  'Circle Nano',
+] as const
+
+/**
+ * Open-source-server template count — computed at module load time
+ * from the actual repo state. Falls back to the last measured value
+ * if the filesystem read fails (e.g., the dir isn't reachable in
+ * a particular runtime). This way the page's count claim auto-syncs
+ * with reality on every build.
+ */
+const TEMPLATE_COUNT_FALLBACK = 954
+function computeTemplateCount(): number {
+  try {
+    // Next.js builds run from apps/web/, so repo root is two levels up.
+    const repoRoot = join(process.cwd(), '..', '..')
+    return readdirSync(join(repoRoot, 'open-source-servers'), {
+      withFileTypes: true,
+    }).filter((e) => e.isDirectory()).length
+  } catch {
+    return TEMPLATE_COUNT_FALLBACK
+  }
+}
+export const TEMPLATE_COUNT = computeTemplateCount()
 
 export type Cell = {
   value: string
@@ -52,8 +94,8 @@ export const dimensions: Dimension[] = [
   {
     label: 'Protocol breadth',
     settlegrid: {
-      value: '9 shipped adapters',
-      cite: 'MCP, x402, AP2, MPP, ACP, UCP, Visa TAP, Mastercard VI, Circle Nano — apps/web/src/lib/settlement/adapters/',
+      value: `${SHIPPED_ADAPTERS.length} shipped adapters`,
+      cite: `${SHIPPED_ADAPTERS.join(', ')} — apps/web/src/lib/settlement/adapters/`,
       sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
     },
     nevermined: {
@@ -135,9 +177,8 @@ export const dimensions: Dimension[] = [
   {
     label: 'Framework distribution',
     settlegrid: {
-      value: 'CLI + 5 adapter packages + 954 templates',
-      cite:
-        'create-settlegrid-tool, @settlegrid/{ai-sdk,mastra,langchain,n8n,cursor}, settlegrid-mcpb + open-source-servers/ (954 templates)',
+      value: `CLI + 5 adapter packages + ${TEMPLATE_COUNT} templates`,
+      cite: `create-settlegrid-tool, @settlegrid/{ai-sdk,mastra,langchain,n8n,cursor}, settlegrid-mcpb + open-source-servers/ (${TEMPLATE_COUNT} templates)`,
       sourceUrl: gh('packages'),
     },
     nevermined: {
@@ -205,30 +246,29 @@ export const neverminedStronger: Point[] = [
   {
     claim: 'Public funding signal',
     cite:
-      '$4M seed January 2025 (Generative Ventures lead; NEAR, Polymorphic, Halo participating) — creates procurement credibility',
-  },
-  {
-    claim: '"PayPal for AI" narrative',
-    cite:
-      'A sticky consumer metaphor that buyers grasp in one sentence — SettleGrid\'s "settlement layer" framing is more precise but less story-shaped',
+      '$4M seed January 2025 (Generative Ventures lead; Polymorphic, Halo, Arca participating) — creates procurement credibility',
+    sourceUrl:
+      'https://fintech.global/2025/01/10/nevermined-secures-4m-to-revolutionise-ai-commerce-with-ai-payment-protocol/',
   },
   {
     claim: 'EUR/EURC multi-currency',
-    cite: 'Announced March 2026',
+    cite:
+      'EUR via Card Delegation + EURC (Circle stablecoin on Base) announced 2026 — neutralizes a USD-only objection from European builders',
     sourceUrl: 'https://nevermined.ai/blog',
   },
   {
     claim: 'Live virtual card issuance',
-    cite: 'Nevermined Pay (Visa / VGS integration, April 2026) — virtual cards with spending rules',
-    sourceUrl: 'https://nevermined.ai',
+    cite:
+      'Nevermined × Visa Intelligent Commerce + Coinbase x402 + VGS (April 9, 2026) — virtual cards for AI agents with budget/per-purchase/merchant/time guardrails',
+    sourceUrl:
+      'https://nevermined.ai/blog/nevermined-unlocks-autonomous-agent-card-payments-with-x402-opening-a-new-market-for-publishers-digital-merchants',
   },
 ]
 
 export const settlegridStronger: Point[] = [
   {
-    claim: '9 protocol adapters shipped in production code',
-    cite:
-      'MCP, x402, AP2, MPP, ACP, UCP, Visa TAP, Mastercard VI, Circle Nano — apps/web/src/lib/settlement/adapters/',
+    claim: `${SHIPPED_ADAPTERS.length} protocol adapters shipped in production code`,
+    cite: `${SHIPPED_ADAPTERS.join(', ')} — apps/web/src/lib/settlement/adapters/`,
     sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
   },
   {
@@ -244,7 +284,7 @@ export const settlegridStronger: Point[] = [
     sourceUrl: '/pricing',
   },
   {
-    claim: '954 pre-wired open-source MCP server templates',
+    claim: `${TEMPLATE_COUNT} pre-wired open-source MCP server templates`,
     cite:
       'open-source-servers/ — distribution asset a competitor cannot easily replicate',
     sourceUrl: gh('open-source-servers'),
