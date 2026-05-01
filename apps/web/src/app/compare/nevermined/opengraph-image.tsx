@@ -50,7 +50,7 @@ export default async function Image() {
           Honest side-by-side comparison
         </div>
         <div style={{ fontSize: 22, color: '#71717A' }}>
-          9 dimensions · cited claims · honest tradeoffs
+          Cited claims · honest tradeoffs · source-tracked
         </div>
       </div>
     ),

@@ -48,21 +48,48 @@ export const SHIPPED_ADAPTERS = [
 /**
  * Open-source-server template count — computed at module load time
  * from the actual repo state. Falls back to the last measured value
- * if the filesystem read fails (e.g., the dir isn't reachable in
- * a particular runtime). This way the page's count claim auto-syncs
- * with reality on every build.
+ * if all filesystem-read candidates fail. This way the page's count
+ * claim auto-syncs with reality on every build.
+ *
+ * NOT EDGE-SAFE: this module imports `node:fs`. Importing data.ts in
+ * an edge-runtime route (e.g., a route with `export const runtime =
+ * 'edge'`) will crash at module load. Server components and Node-
+ * runtime API routes are fine.
+ *
+ * Path resolution tries multiple candidates rather than assuming
+ * `process.cwd() === apps/web`, so it survives:
+ *   - `next build` from apps/web (the normal case)
+ *   - vitest run from the monorepo root
+ *   - vitest run from apps/web
+ *   - any cwd where `open-source-servers/` is reachable as a sibling
+ *     of `apps/`
+ *
+ * Returned counts below 100 are treated as suspect (likely the wrong
+ * dir or a partial filesystem) and fall through to the next candidate
+ * or the fallback.
  */
 const TEMPLATE_COUNT_FALLBACK = 954
+const TEMPLATE_COUNT_SANITY_FLOOR = 100
 function computeTemplateCount(): number {
-  try {
-    // Next.js builds run from apps/web/, so repo root is two levels up.
-    const repoRoot = join(process.cwd(), '..', '..')
-    return readdirSync(join(repoRoot, 'open-source-servers'), {
-      withFileTypes: true,
-    }).filter((e) => e.isDirectory()).length
-  } catch {
-    return TEMPLATE_COUNT_FALLBACK
+  const cwd = process.cwd()
+  const candidatePaths = [
+    join(cwd, '..', '..', 'open-source-servers'), // from apps/web
+    join(cwd, 'open-source-servers'),              // from repo root
+    join(cwd, '..', 'open-source-servers'),        // from apps/
+  ]
+  for (const candidate of candidatePaths) {
+    try {
+      const count = readdirSync(candidate, { withFileTypes: true }).filter(
+        (e) => e.isDirectory() && !e.name.startsWith('.'),
+      ).length
+      if (count >= TEMPLATE_COUNT_SANITY_FLOOR) {
+        return count
+      }
+    } catch {
+      // Try the next candidate.
+    }
   }
+  return TEMPLATE_COUNT_FALLBACK
 }
 export const TEMPLATE_COUNT = computeTemplateCount()
 
