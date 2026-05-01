@@ -1,16 +1,21 @@
 /**
- * P2.MKT1 — content-integrity tests for /compare/nevermined.
+ * P2.MKT1 / P4.MKT3 — content-integrity tests for /compare/nevermined.
  *
  * The page's value is the honesty + verifiability of its claims.
  * These tests verify:
- *   - Every DoD requirement from the P2.MKT1 spec is present
+ *   - Every DoD requirement from the P2.MKT1 / P4.MKT3 specs is present
  *   - Every file path cited on the page actually exists in the repo
  *   - The canonical differentiation statement is present verbatim
  *   - CTA links resolve to existing routes
  *   - All 9 comparison dimensions are covered
  *   - Each "Where X is stronger" section exists and has ≥5 entries
- *   - The page passes baseline a11y hygiene (table caption, scope,
- *     etc.) that was wired in the hostile-review pass
+ *   - The page passes baseline a11y hygiene (table caption, scope, etc.)
+ *
+ * P4.MKT3 split: dimensions, neverminedStronger, settlegridStronger live
+ * in `./data.ts` as the single source of truth. Tests that target
+ * data-driven content read `dataSrc`; tests that target rendering or
+ * page-level structure read `pageSrc`. Tests that don't care which file
+ * the content lives in use `allSrc`.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -19,7 +24,10 @@ import { join, resolve } from 'node:path'
 
 const repoRoot = resolve(__dirname, '../../../../..')
 const pagePath = join(repoRoot, 'apps/web/src/app/compare/nevermined/page.tsx')
+const dataPath = join(repoRoot, 'apps/web/src/app/compare/nevermined/data.ts')
 const pageSrc = readFileSync(pagePath, 'utf8')
+const dataSrc = readFileSync(dataPath, 'utf8')
+const allSrc = `${pageSrc}\n---DATA---\n${dataSrc}`
 
 describe('P2.MKT1 — page presence', () => {
   it('page file exists at apps/web/src/app/compare/nevermined/page.tsx', () => {
@@ -28,6 +36,10 @@ describe('P2.MKT1 — page presence', () => {
 
   it('default-exports a React component named CompareNeverminedPage', () => {
     expect(pageSrc).toContain('export default function CompareNeverminedPage')
+  })
+
+  it('data module exists at apps/web/src/app/compare/nevermined/data.ts', () => {
+    expect(existsSync(dataPath)).toBe(true)
   })
 })
 
@@ -45,7 +57,8 @@ describe('P2.MKT1 — DoD item 1: side-by-side table covering 9 dimensions', () 
   ]
 
   it.each(requiredDimensions)('includes "%s" dimension', (dim) => {
-    expect(pageSrc).toContain(dim)
+    // Dimension labels live in data.ts and are rendered by page.tsx.
+    expect(dataSrc).toContain(dim)
   })
 
   it('uses a <table> element on desktop breakpoints', () => {
@@ -63,16 +76,16 @@ describe('P2.MKT1 — DoD item 2: "Where Nevermined is stronger" section', () =>
     expect(pageSrc).toMatch(/Where Nevermined is (genuinely )?stronger/)
   })
 
-  it('lists Python SDK parity (payments-py on PyPI)', () => {
-    expect(pageSrc).toContain('payments-py')
+  it('lists Python SDK on PyPI (payments-py)', () => {
+    expect(dataSrc).toContain('payments-py')
   })
 
   it('lists named-customer advantage (Valory)', () => {
-    expect(pageSrc).toContain('Valory')
+    expect(dataSrc).toContain('Valory')
   })
 
   it('lists funding signal ($4M seed)', () => {
-    expect(pageSrc).toContain('$4M seed')
+    expect(dataSrc).toContain('$4M seed')
   })
 })
 
@@ -82,22 +95,26 @@ describe('P2.MKT1 — DoD item 3: "Where SettleGrid is stronger" section', () =>
   })
 
   it('lists the 9 protocol adapters', () => {
-    expect(pageSrc).toContain('9 protocol adapters')
+    expect(dataSrc).toContain('9 protocol adapters')
   })
 
   it('lists the multi-hop settlement primitive names', () => {
-    expect(pageSrc).toContain('recordHop')
-    expect(pageSrc).toContain('finalizeSession')
-    expect(pageSrc).toContain('processSettlementBatch')
-    expect(pageSrc).toContain('rollbackSettlementBatch')
+    expect(dataSrc).toContain('recordHop')
+    expect(dataSrc).toContain('finalizeSession')
+    expect(dataSrc).toContain('processSettlementBatch')
+    expect(dataSrc).toContain('rollbackSettlementBatch')
   })
 
   it('lists the progressive 0% → 5% pricing', () => {
-    expect(pageSrc).toMatch(/0%\s*→\s*5%/)
+    expect(dataSrc).toMatch(/0%\s*→\s*5%/)
   })
 
-  it('lists the 1,022 open-source templates', () => {
-    expect(pageSrc).toContain('1,022')
+  it('lists the open-source-server template count (current measurement)', () => {
+    // Updated 2026-05-01 (P4.MKT3): exact count is 954 vs strategy
+    // doc's 1,022. The "approximately true" range test below guards
+    // against drift; this assertion fixes the page copy to a number
+    // we measured during the spec-diff round.
+    expect(dataSrc).toContain('954')
   })
 })
 
@@ -177,6 +194,7 @@ describe('P2.MKT1 — claim verifiability: every cited path exists', () => {
     'apps/web/src/lib/settlement/currency.ts',
     'packages/mcp/src/adapters/',
     'open-source-servers/',
+    'apps/web/src/lib/alipay-proxy.ts',
   ]
 
   it.each(citedPaths)('cited path "%s" exists in the repo', (p) => {
@@ -202,14 +220,13 @@ describe('P2.MKT1 — claim verifiability: every cited path exists', () => {
     expect(src).toMatch(/export\s+(async\s+)?function\s+rollbackSettlementBatch/)
   })
 
-  it('the 1,022-templates claim is approximately true (drift-tolerant window)', () => {
+  it('the templates-count claim is approximately true (drift-tolerant window)', () => {
     const dir = join(repoRoot, 'open-source-servers')
     const count = readdirSync(dir, { withFileTypes: true }).filter((e) =>
       e.isDirectory(),
     ).length
-    // The exact page copy is 1,022. If the catalog has drifted by more
-    // than a few hundred, someone should update the page copy too.
-    // This test guards against massive drift; it's intentionally loose.
+    // Page copy reflects the count at the last reviewed date.
+    // This test guards against massive drift; intentionally loose.
     expect(count).toBeGreaterThan(800)
     expect(count).toBeLessThan(2000)
   })
@@ -236,9 +253,7 @@ describe('P2.MKT1 — a11y hygiene (hostile-review follow-through)', () => {
   })
 
   it('external links carry rel="noopener noreferrer"', () => {
-    // Every target="_blank" must pair with rel including both
-    // noopener and noreferrer (or at least one of them per modern
-    // guidance). Check there's no target="_blank" WITHOUT a rel.
+    // Every target="_blank" must pair with rel including noopener.
     const externalOpens = pageSrc.match(/target="_blank"/g) ?? []
     const safeOpens = pageSrc.match(
       /target="_blank"[\s\S]{0,120}?rel="[^"]*noopener[^"]*"/g,
@@ -249,18 +264,21 @@ describe('P2.MKT1 — a11y hygiene (hostile-review follow-through)', () => {
 
 describe('P2.MKT1 — URL-safety wiring in the page', () => {
   // The helpers themselves are unit-tested in
-  // compare-nevermined-helpers.test.ts. This suite just asserts the
-  // page imports and uses them (rather than rolling its own
-  // `startsWith('/')` classifier which had the phishing bug).
-  it('imports gh() and isSafeSourceUrl from ./helpers', () => {
-    expect(pageSrc).toMatch(
-      /import\s*\{[^}]*\bgh\b[^}]*\bisSafeSourceUrl\b[^}]*\}\s*from\s*['"]\.\/helpers['"]/,
-    )
+  // compare-nevermined-helpers.test.ts. This suite asserts that page.tsx
+  // and data.ts use them rather than rolling their own classifiers.
+  it('page.tsx imports isSafeSourceUrl from ./helpers (P4.MKT3: gh moved to data.ts)', () => {
+    expect(pageSrc).toMatch(/import\s*\{[^}]*\bisSafeSourceUrl\b[^}]*\}\s*from\s*['"]\.\/helpers['"]/)
+  })
+
+  it('data.ts imports gh from ./helpers (P4.MKT3 split)', () => {
+    expect(dataSrc).toMatch(/import\s*\{[^}]*\bgh\b[^}]*\}\s*from\s*['"]\.\/helpers['"]/)
   })
 
   it('does NOT redefine the helpers inline (they live in ./helpers.ts)', () => {
     expect(pageSrc).not.toMatch(/^function isSafeSourceUrl/m)
     expect(pageSrc).not.toMatch(/^const gh = /m)
+    expect(dataSrc).not.toMatch(/^function isSafeSourceUrl/m)
+    expect(dataSrc).not.toMatch(/^function gh\(/m)
   })
 
   it('uses isSafeSourceUrl() rather than raw startsWith for link branching', () => {
@@ -269,9 +287,9 @@ describe('P2.MKT1 — URL-safety wiring in the page', () => {
     expect(pageSrc).toContain('isSafeSourceUrl(')
   })
 
-  it('uses Nevermined\'s canonical .ai domain (positioning doc source of truth)', () => {
-    expect(pageSrc).not.toContain('nevermined.io')
-    expect(pageSrc).toContain('nevermined.ai')
+  it("uses Nevermined's canonical .ai domain (positioning doc source of truth)", () => {
+    expect(allSrc).not.toContain('nevermined.io')
+    expect(allSrc).toContain('nevermined.ai')
   })
 
   it('/pricing internal route exists (target of two claims\' sourceUrl)', () => {
@@ -294,8 +312,8 @@ describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
     expect(helpersSrc).toContain('github.com/lexwhiting/settlegrid')
   })
 
-  it('every Cell/Point type supports a sourceUrl field', () => {
-    expect(pageSrc).toMatch(/sourceUrl\?\s*:\s*string/)
+  it('every Cell/Point type supports a sourceUrl field (defined in data.ts)', () => {
+    expect(dataSrc).toMatch(/sourceUrl\?\s*:\s*string/)
   })
 
   it('renders citations as links when sourceUrl is present', () => {
@@ -305,30 +323,30 @@ describe('P2.MKT1 — clickable citation links (re-audit fix)', () => {
     expect(pageSrc).toMatch(/target="_blank"[\s\S]{0,200}rel="noopener noreferrer"/)
   })
 
-  it('the shipped-code citations invoke gh() with the expected paths', () => {
-    // Source uses the `gh(path)` helper (imported from ./helpers)
-    // to build canonical GitHub URLs. Assert the invocations line up
-    // with the dirs/files those claims anchor to.
-    expect(pageSrc).toMatch(
+  it('the shipped-code citations invoke gh() with the expected paths (in data.ts)', () => {
+    expect(dataSrc).toMatch(
       /gh\(['"]apps\/web\/src\/lib\/settlement\/adapters['"]\)/,
     )
-    expect(pageSrc).toMatch(
+    expect(dataSrc).toMatch(
       /gh\(['"]apps\/web\/src\/lib\/settlement\/sessions\.ts['"]\)/,
     )
   })
 
-  it('the Python SDK claim links to PyPI', () => {
-    expect(pageSrc).toContain('pypi.org/project/payments-py')
+  it('the Python SDK claim links to PyPI (payments-py specifically)', () => {
+    expect(dataSrc).toContain('pypi.org/project/payments-py')
+    // P4.MKT3 sharpened the GitHub URL too.
+    expect(dataSrc).toContain('github.com/nevermined-io/payments-py')
   })
 
   it('the pricing-related claims link to the internal /pricing route', () => {
-    expect(pageSrc).toMatch(/sourceUrl:\s*['"]\/pricing['"]/)
+    expect(dataSrc).toMatch(/sourceUrl:\s*['"]\/pricing['"]/)
   })
 })
 
-describe('P2.MKT1 — SEO / metadata', () => {
-  it('exports a title containing "SettleGrid vs Nevermined"', () => {
-    expect(pageSrc).toMatch(/title:\s*['"]SettleGrid vs Nevermined/)
+describe('P2.MKT1 / P4.MKT3 — SEO / metadata', () => {
+  it('exports a title containing "SettleGrid vs. Nevermined" (P4.MKT3 spec wording)', () => {
+    // Spec wording: "SettleGrid vs. Nevermined: Honest Comparison"
+    expect(pageSrc).toMatch(/title:\s*['"]SettleGrid vs\.? Nevermined/)
   })
 
   it('exports a canonical URL pointing at /compare/nevermined', () => {
@@ -342,5 +360,47 @@ describe('P2.MKT1 — SEO / metadata', () => {
   it('declares OpenGraph metadata (title + type)', () => {
     expect(pageSrc).toMatch(/openGraph:\s*{/)
     expect(pageSrc).toMatch(/type:\s*['"]article['"]/)
+  })
+
+  it('has an opengraph-image route (Next.js auto-detection)', () => {
+    const ogImagePath = join(
+      repoRoot,
+      'apps/web/src/app/compare/nevermined/opengraph-image.tsx',
+    )
+    expect(existsSync(ogImagePath)).toBe(true)
+  })
+})
+
+describe('P4.MKT3 — sitemap + cross-link integration', () => {
+  it('sitemap.ts includes the /compare/nevermined entry', () => {
+    const sitemapSrc = readFileSync(
+      join(repoRoot, 'apps/web/src/app/sitemap.ts'),
+      'utf8',
+    )
+    expect(sitemapSrc).toContain('/compare/nevermined')
+  })
+
+  it('homepage hero has a Compare-to-Nevermined link', () => {
+    const heroSrc = readFileSync(
+      join(repoRoot, 'apps/web/src/components/marketing/hero.tsx'),
+      'utf8',
+    )
+    expect(heroSrc).toMatch(/href="\/compare\/nevermined"/)
+  })
+
+  it('x402-facilitator-launch blog post cross-links the comparison page', () => {
+    const launchSrc = readFileSync(
+      join(repoRoot, 'apps/web/src/lib/blog-bodies/x402-facilitator-launch.md'),
+      'utf8',
+    )
+    expect(launchSrc).toContain('settlegrid.ai/compare/nevermined')
+  })
+
+  it('Show HN response kit cross-links the comparison page', () => {
+    const kitSrc = readFileSync(
+      join(repoRoot, 'docs/launch/show-hn-response-kit.md'),
+      'utf8',
+    )
+    expect(kitSrc).toContain('settlegrid.ai/compare/nevermined')
   })
 })
