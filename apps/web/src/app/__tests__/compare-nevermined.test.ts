@@ -63,9 +63,24 @@ describe('P2.MKT1 — DoD item 1: side-by-side table covering 9 dimensions', () 
     'Compliance posture',
   ]
 
+  it('exports exactly 9 dimensions', () => {
+    expect(dimensions).toHaveLength(9)
+  })
+
   it.each(requiredDimensions)('includes "%s" dimension', (dim) => {
-    // Dimension labels live in data.ts and are rendered by page.tsx.
-    expect(dataSrc).toContain(dim)
+    // Runtime check against the typed array — catches label drift,
+    // accidental reordering with renaming, and missing dimensions in
+    // a single shape that a substring search would miss.
+    expect(dimensions.map((d) => d.label)).toContain(dim)
+  })
+
+  it('every dimension has both settlegrid and nevermined cells with value+cite', () => {
+    for (const d of dimensions) {
+      expect(d.settlegrid.value).toBeTruthy()
+      expect(d.settlegrid.cite).toBeTruthy()
+      expect(d.nevermined.value).toBeTruthy()
+      expect(d.nevermined.cite).toBeTruthy()
+    }
   })
 
   it('uses a <table> element on desktop breakpoints', () => {
