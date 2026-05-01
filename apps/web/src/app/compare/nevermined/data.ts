@@ -83,7 +83,7 @@ export const dimensions: Dimension[] = [
     settlegrid: {
       value: '0% → 5% progressive',
       cite:
-        '0% on first $1K/mo, 2% $1K–$10K, 3% $10K–$50K, 5% $50K+ — apps/web/src/app/pricing/page.tsx',
+        '0% on first $1K/mo, 2% $1K–$10K, 2.5% $10K–$50K, 5% $50K+ — apps/web/src/app/pricing/page.tsx',
       sourceUrl: '/pricing',
     },
     nevermined: {
