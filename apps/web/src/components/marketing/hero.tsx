@@ -50,6 +50,12 @@ export function Hero() {
               >
                 View docs <span aria-hidden="true">→</span>
               </Link>
+              <Link
+                href="/compare/nevermined"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Compare to Nevermined <span aria-hidden="true">→</span>
+              </Link>
             </div>
             {/* npm + GitHub links */}
             <div className="flex items-center gap-5 text-sm text-muted-foreground">

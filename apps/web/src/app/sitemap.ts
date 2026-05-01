@@ -184,6 +184,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     },
 
+    // ── Comparison pages ─────────────────────────────────────────────────────
+    {
+      url: `${BASE_URL}/compare/nevermined`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+
     // ── Solutions pages ─────────────────────────────────────────────────────
     {
       url: `${BASE_URL}/solutions`,

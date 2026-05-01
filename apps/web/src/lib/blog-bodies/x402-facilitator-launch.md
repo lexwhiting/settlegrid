@@ -96,6 +96,12 @@ region or your SDK already pins another provider's URL, keep
 using what works. The protocol is bigger than any single
 facilitator — including ours.
 
+If you're picking between SettleGrid and Nevermined more
+broadly — pricing, protocol breadth, SDK languages, named
+customers — the side-by-side at
+[settlegrid.ai/compare/nevermined](https://settlegrid.ai/compare/nevermined)
+calls out where each is genuinely stronger.
+
 ## Operational stance
 
 I'm a solo founder. The facilitator runs on the same Vercel
