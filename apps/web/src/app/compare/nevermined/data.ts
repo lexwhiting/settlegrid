@@ -11,6 +11,15 @@
  *
  * If Nevermined lands a feature we claimed they lacked, or SettleGrid's
  * shipped claim regresses, update BOTH this file AND the strategy doc.
+ *
+ * Citation policy:
+ *   - SettleGrid claims cite a repo path (linked via gh()).
+ *   - Nevermined claims cite the most specific public URL we have. Where
+ *     a per-claim permalink hasn't been surfaced yet, the cite links to
+ *     the relevant docs/blog index. Sharpen as specific URLs surface.
+ *   - Numeric counts (templates, adapters) reflect the repo state at the
+ *     last reviewed date in page.tsx. Update both this file and the
+ *     reviewed date when these drift.
  */
 
 import { gh } from './helpers'
@@ -86,15 +95,15 @@ export const dimensions: Dimension[] = [
   {
     label: 'SDK languages',
     settlegrid: {
-      value: 'TypeScript (Python planned)',
+      value: 'TypeScript shipped; Python in development',
       cite:
-        '@settlegrid/mcp + ai-sdk + mastra + langchain + n8n + cursor on npm; no Python SDK yet',
+        '@settlegrid/mcp + ai-sdk + mastra + langchain + n8n + cursor on npm; packages/sdk-python at v0.1.0 not yet published to PyPI',
       sourceUrl: 'https://www.npmjs.com/org/settlegrid',
     },
     nevermined: {
       value: 'TypeScript + Python',
       cite: 'payments (TS) and payments-py (Python)',
-      sourceUrl: 'https://github.com/nevermined-io',
+      sourceUrl: 'https://github.com/nevermined-io/payments-py',
     },
   },
   {
@@ -126,9 +135,9 @@ export const dimensions: Dimension[] = [
   {
     label: 'Framework distribution',
     settlegrid: {
-      value: 'CLI + 5 adapter packages + 1,022 templates',
+      value: 'CLI + 5 adapter packages + 954 templates',
       cite:
-        'create-settlegrid-tool, @settlegrid/{ai-sdk,mastra,langchain,n8n,cursor}, settlegrid-mcpb + open-source-servers/ (1,022 templates)',
+        'create-settlegrid-tool, @settlegrid/{ai-sdk,mastra,langchain,n8n,cursor}, settlegrid-mcpb + open-source-servers/ (954 templates)',
       sourceUrl: gh('packages'),
     },
     nevermined: {
@@ -142,8 +151,8 @@ export const dimensions: Dimension[] = [
     settlegrid: {
       value: 'Stripe Connect + Asia-Pacific rail stubs',
       cite:
-        'alipay-proxy, kyapay-proxy, emvco-proxy, drain-proxy stubs — apps/web/src/lib/settlement/adapters/ (experimental status documented)',
-      sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
+        'alipay-proxy, kyapay-proxy, emvco-proxy, drain-proxy stubs — apps/web/src/lib/ (experimental status documented per file)',
+      sourceUrl: gh('apps/web/src/lib/alipay-proxy.ts'),
     },
     nevermined: {
       value: 'Stripe Connect + EUR/EURC',
@@ -182,8 +191,9 @@ export const neverminedStronger: Point[] = [
     sourceUrl: 'https://nevermined.ai',
   },
   {
-    claim: 'Python SDK parity',
-    cite: 'payments-py on PyPI. SettleGrid ships TypeScript only today.',
+    claim: 'Python SDK on PyPI today',
+    cite:
+      "payments-py is published to PyPI. SettleGrid's settlegrid Python SDK lives in packages/sdk-python at v0.1.0 but is not yet published.",
     sourceUrl: 'https://pypi.org/project/payments-py/',
   },
   {
@@ -234,7 +244,7 @@ export const settlegridStronger: Point[] = [
     sourceUrl: '/pricing',
   },
   {
-    claim: '1,022 pre-wired open-source MCP server templates',
+    claim: '954 pre-wired open-source MCP server templates',
     cite:
       'open-source-servers/ — distribution asset a competitor cannot easily replicate',
     sourceUrl: gh('open-source-servers'),
@@ -260,7 +270,7 @@ export const settlegridStronger: Point[] = [
   {
     claim: 'Asia-Pacific rail coverage (stubs, experimental)',
     cite:
-      'alipay-proxy, kyapay-proxy, emvco-proxy, drain-proxy — scaffolding in place; functional status documented per adapter',
-    sourceUrl: gh('apps/web/src/lib/settlement/adapters'),
+      'alipay-proxy, kyapay-proxy, emvco-proxy, drain-proxy in apps/web/src/lib/ — scaffolding in place; functional status documented per file',
+    sourceUrl: gh('apps/web/src/lib/alipay-proxy.ts'),
   },
 ]
