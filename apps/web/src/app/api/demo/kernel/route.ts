@@ -48,9 +48,14 @@ const MAX_HEADER_VALUE_LEN = 4096
 
 /**
  * Headers the visitor cannot set on the reconstructed Request. These
- * are server-side concerns (auth to the sandbox) or
- * connection-machinery the kernel doesn't read anyway. Stripping
- * them prevents a visitor from forging a kernel→sandbox auth header.
+ * are server-side concerns (auth to the sandbox), connection-machinery
+ * the kernel doesn't read anyway, or proxy-injected metadata that the
+ * kernel could otherwise mistake as authoritative if the upstream
+ * deploy ever started reading it.
+ *
+ * `x-forwarded-for` / `x-real-ip` are explicitly denied even though
+ * the kernel doesn't currently read them — defense in depth against
+ * a future change that does.
  */
 const VISITOR_HEADER_DENYLIST = new Set([
   'authorization',
@@ -59,7 +64,21 @@ const VISITOR_HEADER_DENYLIST = new Set([
   'content-length',
   'transfer-encoding',
   'cookie',
+  'x-forwarded-for',
+  'x-real-ip',
+  'x-forwarded-host',
+  'x-forwarded-proto',
 ])
+
+/**
+ * Schemes accepted on the visitor's `url` field. Restricting to
+ * `http:`/`https:` blocks low-value (and potentially confusing)
+ * inputs like `file://`, `javascript:`, `data:`, and `chrome:` —
+ * the kernel doesn't actually fetch the URL (it only embeds the
+ * value in the 402 manifest's `resource.url` field), so this is
+ * hygiene rather than SSRF prevention.
+ */
+const ALLOWED_URL_SCHEMES = new Set(['http:', 'https:'])
 
 interface KernelInvokeRequest {
   /** Target URL the kernel sees (illustrative — not actually fetched). */
@@ -208,14 +227,22 @@ function reconstructKernelRequest(spec: KernelInvokeRequest): Request {
       ? spec.url
       : 'https://demo.settlegrid.ai/api/demo-tool/invoke'
 
-  // Validate the URL is well-formed before passing to `new Request`,
-  // which throws a less-helpful TypeError on bad inputs. The
-  // constructed URL is intentionally discarded — we only want the
-  // throw-on-invalid behavior.
+  // Validate the URL is well-formed AND uses an allowed scheme
+  // before passing to `new Request`. `new URL(url)` throws on
+  // unparseable input; the scheme check rejects `file:`,
+  // `javascript:`, `data:` etc. so the 402 manifest's `resource.url`
+  // never echoes a scheme that would be confusing or weaponizable
+  // when a visitor copies the manifest into a different tool.
+  let parsed: URL
   try {
-    void new URL(url)
+    parsed = new URL(url)
   } catch {
     throw new Error(`Invalid url: ${JSON.stringify(url)}`)
+  }
+  if (!ALLOWED_URL_SCHEMES.has(parsed.protocol)) {
+    throw new Error(
+      `Invalid url scheme ${JSON.stringify(parsed.protocol)} — only http: and https: accepted.`,
+    )
   }
 
   const method =

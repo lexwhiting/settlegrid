@@ -23,11 +23,22 @@ import {
   DEMO_TOOL_SECRET,
   DEMO_TOOL_SLUG,
 } from '@/lib/demo-kernel-config'
+import { checkDemoRateLimit } from '@/lib/demo-rate-limit'
 
 // Force this route to run on the Node.js runtime so a future edge
 // migration of the surrounding routes can't accidentally regress the
 // sandbox into edge-mode (which would expose a different mock surface).
 export const runtime = 'nodejs'
+
+/**
+ * Hard cap on the kernel-supplied request body, in bytes. The kernel
+ * sends small JSON payloads (validate-key with one apiKey field,
+ * meter with five fields, verify/settle with the payment context
+ * envelope). A ~16 KiB cap is comfortably above the largest expected
+ * shape and well below anything that would consume meaningful memory
+ * if a direct-curl client tries to flood the route.
+ */
+const MAX_SANDBOX_BODY_BYTES = 16 * 1024
 
 interface SandboxContext {
   params: Promise<{ path: string[] }>
@@ -52,15 +63,47 @@ export async function POST(
   req: Request,
   context: SandboxContext,
 ): Promise<Response> {
+  // Apply the demo rate limit BEFORE body read so a flood of direct-
+  // curl traffic against this catch-all (bypassing /api/demo/kernel)
+  // can't drown the route. Same 30/hr/IP bucket as the kernel
+  // proxy — one demo session shares the limit across both.
+  const rate = await checkDemoRateLimit(req.headers)
+  if (!rate.success) {
+    return NextResponse.json(
+      {
+        error: 'rate_limited',
+        message: `Demo limit is ${rate.limit} requests/hour/IP. Try again at ${new Date(
+          rate.reset,
+        ).toISOString()}.`,
+      },
+      {
+        status: 429,
+        headers: {
+          'x-ratelimit-limit': String(rate.limit),
+          'x-ratelimit-remaining': String(rate.remaining),
+          'x-ratelimit-reset': String(rate.reset),
+        },
+      },
+    )
+  }
+
   const { path } = await context.params
   const route = '/' + path.join('/')
 
   // Best-effort body read — used to echo specific fields back into
   // the stubbed response so the response viewer shows a coherent
-  // story (e.g. operationId derived from method).
+  // story (e.g. operationId derived from method). Capped at
+  // MAX_SANDBOX_BODY_BYTES so a direct-curl client can't drown us
+  // with a multi-megabyte body before the unknown-path 404 fires.
   let body: Record<string, unknown> = {}
   try {
     const text = await req.text()
+    if (text.length > MAX_SANDBOX_BODY_BYTES) {
+      return NextResponse.json(
+        { error: 'request_too_large', maxBytes: MAX_SANDBOX_BODY_BYTES },
+        { status: 413 },
+      )
+    }
     if (text.length > 0) {
       const parsed = JSON.parse(text) as unknown
       if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
