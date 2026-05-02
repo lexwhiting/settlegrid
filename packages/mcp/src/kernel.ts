@@ -196,6 +196,15 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
  * kernel has no implementation for them yet, so advertising them in a
  * 402 manifest would be misleading. Consumers who want to also accept
  * those protocols should call `buildMultiProtocol402` directly.
+ *
+ * @see docs/phase-reports/P5-kernel-dispatch-expansion-deferred.md
+ *   for the deferred work that grows this list. AP2, ACP, UCP, and
+ *   Circle Nano are Tier 1 (code-only); L402 and the rest are
+ *   Tier 2/3 (partner sandbox or real-world infra). When extending
+ *   this list, also update `KERNEL_DISPATCHED_PROTOCOLS` in
+ *   `apps/web/src/lib/demo-kernel-config.ts` so the /demo/kernel
+ *   page reclassifies the new adapter from "402-manifest only"
+ *   to "settled end-to-end."
  */
 const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp']
 
