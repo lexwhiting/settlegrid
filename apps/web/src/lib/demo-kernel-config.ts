@@ -144,8 +144,18 @@ export async function demoHandler(ctx: {
  * adapter to its dispatch surface (e.g., L402 macaroon flow lands in
  * Phase 2), update this list to match. The `compare-nevermined`
  * runtime tests catch drift in the SHIPPED_ADAPTERS export; this list
- * has no analogous source-of-truth, so a CI test below asserts each
- * entry is a known ProtocolName.
+ * has no analogous source-of-truth, so the demo-kernel-config tests
+ * pin its expected value.
+ *
+ * Deferred work that grows this list:
+ *   docs/phase-reports/P5-kernel-dispatch-expansion-deferred.md
+ *
+ * When the kernel side adds an adapter (e.g. AP2 from Tier 1):
+ *   1. Add the protocol name here.
+ *   2. The /demo/kernel page automatically reclassifies that adapter
+ *      from "402-manifest only" to "settled end-to-end" on next build.
+ *   3. The compare-nevermined narrative copy may need an update
+ *      ("3 settled / 11 detected" → "4 settled / 10 detected").
  */
 export const KERNEL_DISPATCHED_PROTOCOLS: readonly ProtocolName[] = [
   'mcp',
