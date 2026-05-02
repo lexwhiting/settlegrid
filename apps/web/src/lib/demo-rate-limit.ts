@@ -51,10 +51,24 @@ export function __resetDemoRateLimiterForTests(): void {
 /**
  * Best-effort IP extraction from a Next.js request's headers.
  *
- * Vercel forwards the visitor's IP in `x-forwarded-for` (left-most
- * entry is the original client; subsequent entries are upstream
- * proxies). We take only the left-most entry to prevent a header-
- * crafted `1.2.3.4, malicious-spoof` from poisoning the bucket key.
+ * Trust model: this function ASSUMES the runtime is fronted by a
+ * trusted proxy (Vercel, Cloudflare, AWS ALB) that authoritatively
+ * sets `x-forwarded-for` to the real client IP at index 0, with any
+ * inbound visitor-supplied entries appended to the right. On
+ * Vercel — the deploy target this repo is calibrated for — this
+ * holds: Vercel rewrites `x-forwarded-for` before user code runs,
+ * placing the actual edge-observed IP at the head of the list.
+ *
+ * If you redeploy this code somewhere without that property
+ * (Render, Fly.io with default config, raw Node behind a basic
+ * reverse proxy), a malicious visitor can spoof the rate-limit
+ * bucket key by setting their own `x-forwarded-for: trusted-ip`.
+ * That degrades the demo's rate limit from "30/hr/IP" to "30/hr
+ * per spoofed-IP" — still anti-abuse, just bypassable per actor.
+ *
+ * We take only the LEFT-most entry: with the proxy-trust model,
+ * that entry is the trusted one; in the no-trust model, every
+ * entry is equally untrusted, so `[0]` is no worse than `[N-1]`.
  */
 export function extractClientIp(headers: Headers): string {
   const forwarded = headers.get('x-forwarded-for')

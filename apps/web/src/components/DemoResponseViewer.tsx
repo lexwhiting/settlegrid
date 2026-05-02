@@ -333,6 +333,13 @@ function formatBody(body: unknown, fallback: string): string {
  * Build a self-contained markdown transcript a visitor can paste
  * into a bug report or share with a teammate. Includes the request
  * spec, the routing decision, and the response.
+ *
+ * Fence selection: a kernel response body or a visitor-supplied
+ * request body could legitimately contain three backticks (e.g. a
+ * developer pasting a JSON payload that quotes some markdown). We
+ * pick the shortest fence that doesn't appear inside the embedded
+ * content, so the markdown round-trips intact even when the content
+ * itself contains code-fence-like substrings.
  */
 export function buildTranscript(
   request: RequestSpec,
@@ -355,15 +362,18 @@ export function buildTranscript(
     )
     .join('\n')
 
+  const requestBlock = `${request.method} ${request.url}\n${headerLines || '(no visitor headers)'}\n\n${request.body || '(empty body)'}`
+  const responseBlock = `HTTP/1.1 ${result.response.status} ${result.response.statusText}\n${respHeaderLines}\n\n${result.response.bodyText || '(empty body)'}`
+
+  const requestFence = pickFence(requestBlock)
+  const responseFence = pickFence(responseBlock)
+
   return `# SettleGrid kernel demo transcript
 
 ## Request
-\`\`\`
-${request.method} ${request.url}
-${headerLines || '(no visitor headers)'}
-
-${request.body || '(empty body)'}
-\`\`\`
+${requestFence}
+${requestBlock}
+${requestFence}
 
 ## Routing decision
 **Detected:** ${
@@ -376,12 +386,9 @@ ${request.body || '(empty body)'}
 ${stepLines}
 
 ## Response
-\`\`\`
-HTTP/1.1 ${result.response.status} ${result.response.statusText}
-${respHeaderLines}
-
-${result.response.bodyText || '(empty body)'}
-\`\`\`
+${responseFence}
+${responseBlock}
+${responseFence}
 
 ## Source
 ${
@@ -392,6 +399,21 @@ ${
     : KERNEL_SOURCE_URL
 }
 `
+}
+
+/**
+ * Pick a code-fence string of N backticks where N is the shortest
+ * length not present as a contiguous run in `content`. Markdown
+ * spec: a fence opens/closes with a run of >=3 matching backticks,
+ * and the run inside the block must be SHORTER than the fence.
+ * So content with `\`\`\`` (3 backticks) needs a 4-backtick fence.
+ */
+function pickFence(content: string): string {
+  let n = 3
+  while (content.includes('`'.repeat(n))) {
+    n += 1
+  }
+  return '`'.repeat(n)
 }
 
 function stepGlyph(state: RoutingDecisionStep['state']): string {

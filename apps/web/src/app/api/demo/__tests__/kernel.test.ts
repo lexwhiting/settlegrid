@@ -136,6 +136,30 @@ describe('request validation', () => {
     expect(body.error).toBe('invalid_spec')
     expect(body.message).toContain('Invalid url')
   })
+
+  it.each([
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'data:text/html,<script>',
+    'ftp://example.com/foo',
+    'chrome://settings',
+  ])('rejects non-http/https URL scheme %s (post-hostile-review F1 fix)', async (badUrl) => {
+    const res = await POST(makeReq({ url: badUrl }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('invalid_spec')
+    expect(body.message).toContain('Invalid url scheme')
+  })
+
+  it('accepts http://', async () => {
+    const res = await POST(makeReq({ url: 'http://example.com/foo' }))
+    expect(res.status).toBe(200)
+  })
+
+  it('accepts https://', async () => {
+    const res = await POST(makeReq({ url: 'https://example.com/foo' }))
+    expect(res.status).toBe(200)
+  })
 })
 
 describe('request reconstruction', () => {
@@ -204,6 +228,25 @@ describe('request reconstruction', () => {
     expect(kernelReq?.headers.get('host')).not.toBe('evil.example.com')
     expect(kernelReq?.headers.get('connection')).toBeNull()
     expect(kernelReq?.headers.get('transfer-encoding')).toBeNull()
+  })
+
+  it('STRIPS x-forwarded-for / x-real-ip / x-forwarded-host / x-forwarded-proto from visitor input (post-hostile-review F5 fix)', async () => {
+    await POST(
+      makeReq({
+        url: 'https://example.com/foo',
+        headers: {
+          'x-forwarded-for': '1.1.1.1',
+          'x-real-ip': '2.2.2.2',
+          'x-forwarded-host': 'evil.example.com',
+          'x-forwarded-proto': 'gopher',
+        },
+      }),
+    )
+    const kernelReq = mockHandle.mock.calls[0]?.[0] as Request | undefined
+    expect(kernelReq?.headers.get('x-forwarded-for')).toBeNull()
+    expect(kernelReq?.headers.get('x-real-ip')).toBeNull()
+    expect(kernelReq?.headers.get('x-forwarded-host')).toBeNull()
+    expect(kernelReq?.headers.get('x-forwarded-proto')).toBeNull()
   })
 
   it('caps headers at 32 entries', async () => {

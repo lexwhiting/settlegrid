@@ -10,11 +10,31 @@
  * production payment paths (db, stripe, settlement, fraud).
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
+const { mockRateLimit } = vi.hoisted(() => ({ mockRateLimit: vi.fn() }))
+
+vi.mock('@/lib/demo-rate-limit', () => ({
+  checkDemoRateLimit: mockRateLimit,
+}))
+
 import { POST } from '@/app/api/demo/sandbox/[...path]/route'
 import { DEMO_TOOL_SECRET } from '@/lib/demo-kernel-config'
+
+beforeEach(() => {
+  mockRateLimit.mockReset()
+  // Default to allowing all traffic through; tests that exercise
+  // the rate-limited path override per-call.
+  mockRateLimit.mockResolvedValue({
+    success: true,
+    limit: 30,
+    remaining: 29,
+    reset: 1700000000,
+    identifier: '203.0.113.4',
+  })
+})
 
 function makeContext(path: string[]): {
   params: Promise<{ path: string[] }>
@@ -162,6 +182,49 @@ describe('sandbox unknown path', () => {
     expect(json.error).toBe('unknown-sandbox-path')
     expect(json.received).toBe('/api/made-up/route')
     expect(Array.isArray(json.knownRoutes)).toBe(true)
+  })
+})
+
+describe('sandbox rate-limit + body-cap (post-hostile-review F3 / F4 fixes)', () => {
+  it('returns 429 when checkDemoRateLimit reports success=false', async () => {
+    mockRateLimit.mockResolvedValueOnce({
+      success: false,
+      limit: 30,
+      remaining: 0,
+      reset: Date.now() + 60_000,
+      identifier: '203.0.113.4',
+    })
+    const res = await POST(
+      makeReq({ apiKey: 'sk_test' }),
+      makeContext(['api', 'sdk', 'validate-key']),
+    )
+    expect(res.status).toBe(429)
+    expect(res.headers.get('x-ratelimit-limit')).toBe('30')
+  })
+
+  it('returns 413 when the body exceeds the sandbox cap', async () => {
+    // Construct a body larger than MAX_SANDBOX_BODY_BYTES (16 KiB).
+    const huge = { padding: 'A'.repeat(20 * 1024) }
+    const res = await POST(
+      makeReq(huge),
+      makeContext(['api', 'sdk', 'validate-key']),
+    )
+    expect(res.status).toBe(413)
+    const json = await res.json()
+    expect(json.error).toBe('request_too_large')
+    expect(json.maxBytes).toBe(16 * 1024)
+  })
+
+  it('shares the 30/IP/hour bucket with /api/demo/kernel (same identifier prefix)', async () => {
+    // The mock just records what the route called; the real bucket
+    // key is `demo-kernel:<ip>` (verified in demo-rate-limit.test.ts).
+    // Here we confirm that the sandbox calls the same helper, which
+    // ensures the bucket is shared.
+    await POST(
+      makeReq({ apiKey: 'sk_test' }),
+      makeContext(['api', 'sdk', 'validate-key']),
+    )
+    expect(mockRateLimit).toHaveBeenCalledOnce()
   })
 })
 
