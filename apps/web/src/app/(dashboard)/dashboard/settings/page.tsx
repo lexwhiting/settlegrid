@@ -352,6 +352,12 @@ export default function SettingsPage() {
   const [changingPlan, setChangingPlan] = useState<string | null>(null)
   const searchParams = useSearchParams()
 
+  // Public-profile setup banner — set when the visitor lands here
+  // via /dashboard/profile because their profile isn't configured
+  // yet. Without this signal, the redirect is indistinguishable from
+  // a direct Settings click.
+  const [showPublicProfileSetup, setShowPublicProfileSetup] = useState(false)
+
   // ─── Fetch Profile ──────────────────────────────────────────────────────────
 
   const fetchProfile = useCallback(async () => {
@@ -438,7 +444,21 @@ export default function SettingsPage() {
       url.searchParams.delete('subscription')
       window.history.replaceState({}, '', url.toString())
     }
+
+    if (searchParams.get('setup') === 'public-profile') {
+      setShowPublicProfileSetup(true)
+      setActiveSection('profile')
+    }
   }, [searchParams, toast])
+
+  function dismissPublicProfileSetup() {
+    setShowPublicProfileSetup(false)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('setup')
+    // Strip the #profile hash too so re-loads don't re-trigger
+    // section-anchor scroll on a now-dismissed banner.
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`)
+  }
 
   // ─── Scroll spy ─────────────────────────────────────────────────────────────
 
@@ -956,6 +976,35 @@ export default function SettingsPage() {
 
           {/* ═══ Section 1: Profile ═══════════════════════════════════ */}
           <section id="profile">
+            {showPublicProfileSetup && (
+              <div
+                role="status"
+                className="mb-4 flex items-start justify-between gap-4 rounded-lg border border-brand/30 bg-brand/5 px-4 py-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <svg className="w-5 h-5 shrink-0 text-brand dark:text-amber-400 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                  </svg>
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">Set up your public profile</p>
+                    <p className="mt-0.5 text-gray-600 dark:text-gray-400">
+                      Pick a profile URL below and switch <span className="font-medium">Public profile</span> on. Your profile will be live at{' '}
+                      <span className="font-mono text-xs">settlegrid.ai/dev/{profileSlug || '[your-slug]'}</span>.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissPublicProfileSetup}
+                  className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Profile</CardTitle>

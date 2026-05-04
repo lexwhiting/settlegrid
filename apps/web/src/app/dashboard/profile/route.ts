@@ -20,7 +20,10 @@ import { developers } from '@/lib/db/schema'
 
 export async function GET(request: NextRequest) {
   const { origin } = request.nextUrl
-  const settingsUrl = `${origin}/dashboard/settings#profile`
+  // The query param is the signal Settings reads to surface a "set
+  // up your public profile" banner — without it, this redirect is
+  // visually indistinguishable from clicking the plain Settings link.
+  const settingsUrl = `${origin}/dashboard/settings?setup=public-profile#profile`
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

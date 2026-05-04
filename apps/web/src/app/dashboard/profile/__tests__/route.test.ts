@@ -85,7 +85,10 @@ describe('GET /dashboard/profile', () => {
     )
   })
 
-  it('redirects to settings when developer has no slug', async () => {
+  it('redirects to settings with setup=public-profile when developer has no slug', async () => {
+    // The setup query param is the signal Settings reads to render
+    // the "set up your public profile" banner. Without it, the
+    // landing looks identical to a plain Settings click.
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'auth-user-2' } },
     })
@@ -98,7 +101,7 @@ describe('GET /dashboard/profile', () => {
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe(
-      'http://localhost:3005/dashboard/settings#profile',
+      'http://localhost:3005/dashboard/settings?setup=public-profile#profile',
     )
   })
 
@@ -119,7 +122,7 @@ describe('GET /dashboard/profile', () => {
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe(
-      'http://localhost:3005/dashboard/settings#profile',
+      'http://localhost:3005/dashboard/settings?setup=public-profile#profile',
     )
   })
 
@@ -134,7 +137,7 @@ describe('GET /dashboard/profile', () => {
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe(
-      'http://localhost:3005/dashboard/settings#profile',
+      'http://localhost:3005/dashboard/settings?setup=public-profile#profile',
     )
   })
 })
