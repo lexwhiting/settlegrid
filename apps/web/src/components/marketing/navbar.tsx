@@ -45,6 +45,14 @@ export function Navbar() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {/* Sign in (returning users) */}
+            <Link
+              href="/login"
+              className="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Sign in
+            </Link>
+
             {/* CTA */}
             <Link
               href="/start"
@@ -89,6 +97,13 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <Link
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1 border-t border-border/50 pt-3 mt-1"
+            >
+              Sign in
+            </Link>
           </nav>
         </div>
       )}
