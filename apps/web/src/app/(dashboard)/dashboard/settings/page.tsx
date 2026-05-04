@@ -829,9 +829,24 @@ export default function SettingsPage() {
         toast(data.error || 'Failed to start upgrade', 'error')
         return
       }
+      // Founding Members get all paid features for free — the route
+      // short-circuits with foundingMember:true and no checkoutUrl.
+      // Surface the message so the click doesn't look like a no-op.
+      if (data.foundingMember) {
+        toast(
+          data.message ||
+            "You're a Founding Member — all paid features are already unlocked. No subscription needed.",
+          'info',
+        )
+        return
+      }
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl
+        return
       }
+      // Defensive: 200 with no actionable field. Treat as a soft
+      // failure so the visitor isn't left guessing.
+      toast('Upgrade response was incomplete. Please try again.', 'error')
     } catch {
       toast('Network error', 'error')
     } finally {
