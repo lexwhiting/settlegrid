@@ -343,12 +343,13 @@ describe('P2.TAX1 — pre-existing subscribe-route guards (coverage close-out)',
     expect(body.code).toBe('UNAUTHORIZED')
   })
 
-  it('returns 400 INVALID_PLAN when plan has no Stripe price ID', async () => {
+  it('returns 400 INVALID_PLAN when STRIPE_PRICE_BUILDER is unset', async () => {
+    // Verifies the no-fallback contract: if STRIPE_PRICE_BUILDER is
+    // unset, the route fails loudly rather than silently charging the
+    // legacy $9 STRIPE_PRICE_STARTER price (the bug that shipped on
+    // 2026-05-04).
     const originalBuilder = process.env.STRIPE_PRICE_BUILDER
-    const originalStarter = process.env.STRIPE_PRICE_STARTER
     delete process.env.STRIPE_PRICE_BUILDER
-    delete process.env.STRIPE_PRICE_STARTER
-    // Re-import so the module reads the fresh env.
     vi.resetModules()
     try {
       const { POST } = await import('../billing/subscribe/route')
@@ -363,7 +364,6 @@ describe('P2.TAX1 — pre-existing subscribe-route guards (coverage close-out)',
       expect(body.code).toBe('INVALID_PLAN')
     } finally {
       if (originalBuilder) process.env.STRIPE_PRICE_BUILDER = originalBuilder
-      if (originalStarter) process.env.STRIPE_PRICE_STARTER = originalStarter
       vi.resetModules()
     }
   })

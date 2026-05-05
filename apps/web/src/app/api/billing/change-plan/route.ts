@@ -18,9 +18,11 @@ import { withAutomaticTaxOnSubscription } from '@/lib/stripe-tax'
 export const maxDuration = 30
 
 // ── Plan → Stripe Price ID mapping ──────────────────────────────────────────
+// No fallback to legacy STRIPE_PRICE_STARTER (see subscribe/route.ts for
+// the rationale — silent $9 charge when BUILDER was unset).
 
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  builder: (process.env.STRIPE_PRICE_BUILDER ?? process.env.STRIPE_PRICE_STARTER)?.trim(),
+  builder: process.env.STRIPE_PRICE_BUILDER?.trim(),
   scale: process.env.STRIPE_PRICE_SCALE?.trim(),
 }
 
