@@ -13,10 +13,14 @@ import { withAutomaticTax } from '@/lib/stripe-tax'
 
 export const maxDuration = 30
 
-// ── Plan → Stripe Price ID mapping (configure in env or replace with real IDs) ──
+// ── Plan → Stripe Price ID mapping ──────────────────────────────────────────
+// No fallback to legacy STRIPE_PRICE_STARTER — that footgun (silently
+// charging $9 instead of $19 when STRIPE_PRICE_BUILDER was unset) shipped
+// once and we don't want it to ship again. If BUILDER isn't set, the
+// route returns INVALID_PLAN loudly.
 
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  builder: (process.env.STRIPE_PRICE_BUILDER ?? process.env.STRIPE_PRICE_STARTER)?.trim(),
+  builder: process.env.STRIPE_PRICE_BUILDER?.trim(),
   scale: process.env.STRIPE_PRICE_SCALE?.trim(),
 }
 
