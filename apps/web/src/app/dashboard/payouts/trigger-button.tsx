@@ -57,25 +57,58 @@ export default function TriggerPayoutButton({
       })
       const data = (await res.json().catch(() => ({}))) as TriggerPayoutResponse
 
-      if (!res.ok) {
-        // Map known codes to friendly toasts. Anything else falls back
-        // to the server's error message — already plain-text safe.
-        const friendly =
-          data.code === 'PAYOUT_IN_PROGRESS'
-            ? 'A payout is already in progress. Refresh to see status.'
-            : data.code === 'BELOW_MINIMUM'
-              ? 'Balance is below the minimum payout threshold.'
-              : data.code === 'NEEDS_RECONNECT'
-                ? 'Stripe Connect needs reconnection. Visit Settings.'
-                : (data.error ?? 'Payout failed. Please try again.')
-        toast(friendly, 'error')
+      // Some "non-success" outcomes return HTTP 200/202 (e.g.
+      // PAYOUT_PARTIAL_SUCCESS — Stripe transferred but DB sync
+      // failed; PAYOUT_UNKNOWN — Stripe outcome indeterminate). The
+      // body's `code` field is the authoritative discriminator.
+      const isErrorBody = !!data.code || !!data.error
+      const isSuccess = res.ok && !isErrorBody
+
+      if (isSuccess) {
+        const amount = data.payout?.amountCents ?? 0
+        toast(`Payout sent: $${(amount / 100).toFixed(2)}`, 'success')
+        router.refresh()
         return
       }
 
-      const amount = data.payout?.amountCents ?? 0
-      toast(`Payout sent: $${(amount / 100).toFixed(2)}`, 'success')
-      // Refresh server data so the history table + balance update.
-      router.refresh()
+      // Yellow-state outcomes — the request did SOMETHING (transferred
+      // money or marked an unknown row), but the dev needs to know
+      // it's not a clean success. Refresh so they see the in-flight
+      // row in the dashboard.
+      if (data.code === 'PAYOUT_PARTIAL_SUCCESS') {
+        toast(
+          'Payout sent to Stripe. Reconciliation in progress; refresh in a moment.',
+          'info',
+        )
+        router.refresh()
+        return
+      }
+      if (data.code === 'PAYOUT_UNKNOWN') {
+        toast(
+          'Payout submitted but Stripe response was inconclusive. Reconciliation will run within 24 hours.',
+          'info',
+        )
+        router.refresh()
+        return
+      }
+      if (data.code === 'PAYOUT_RECONCILE_REQUIRED') {
+        toast(
+          'Payout state is temporarily inconsistent. Auto-reconciliation runs within 24h. Contact support if it persists.',
+          'error',
+        )
+        return
+      }
+
+      // Standard error states.
+      const friendly =
+        data.code === 'PAYOUT_IN_PROGRESS'
+          ? 'A payout is already in progress. Refresh to see status.'
+          : data.code === 'BELOW_MINIMUM'
+            ? 'Balance is below the minimum payout threshold.'
+            : data.code === 'NEEDS_RECONNECT'
+              ? 'Stripe Connect needs reconnection. Visit Settings.'
+              : (data.error ?? 'Payout failed. Please try again.')
+      toast(friendly, 'error')
     } catch {
       toast('Network error. Please try again.', 'error')
     } finally {

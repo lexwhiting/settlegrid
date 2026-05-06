@@ -60,6 +60,18 @@ vi.mock('@/lib/db/schema', () => ({
     createdAt: 'created_at',
     status: 'status',
     errorMessage: 'error_message',
+    amountCents: 'amount_cents',
+    platformFeeCents: 'platform_fee_cents',
+    stripeTransferId: 'stripe_transfer_id',
+  },
+  auditLogs: {
+    id: 'id',
+    developerId: 'developer_id',
+    action: 'action',
+    resourceType: 'resource_type',
+    resourceId: 'resource_id',
+    details: 'details',
+    createdAt: 'created_at',
   },
 }))
 
@@ -279,9 +291,11 @@ describe('GET /api/cron/process-payouts', () => {
     expect(res.status).toBe(429)
   })
 
-  it('orphan-row cleanup: shape A (no stripe_transfer_id) → failed + balance refund', async () => {
-    // Step 0 of the cron: orphan-select returns one stuck row whose
-    // stripe_transfer_id is NULL → Stripe never paid, refund balance.
+  it('orphan-row cleanup: shape A (no stripe_transfer_id, no indeterminate marker) → failed + balance refund', async () => {
+    // Step 0 of the cron flow:
+    //   1st .limit(): orphan-select → returns the one stuck row
+    //   2nd .limit(): audit-log check for indeterminate marker → empty
+    //   3rd .limit(): eligible-select after orphan sweep → empty
     // The CAS conditional UPDATE writes-and-returns the id; we mock
     // returning() to indicate the row was claimed (length 1).
     mockDb.limit
@@ -294,8 +308,8 @@ describe('GET /api/cron/process-payouts', () => {
           stripeTransferId: null,
         },
       ])
-      .mockResolvedValueOnce([]) // eligible-select empty after orphan sweep
-    // The CAS UPDATE returns the row id when claimed.
+      .mockResolvedValueOnce([]) // audit-log: no indeterminate marker
+      .mockResolvedValueOnce([]) // eligible-select empty
     mockDb.returning.mockResolvedValueOnce([{ id: 'orphan-no-stripe' }])
 
     const res = await processPayoutsCron(makeReq({ authorization: 'Bearer test-secret' }))
@@ -307,6 +321,43 @@ describe('GET /api/cron/process-payouts', () => {
       }),
     )
     expect(mockDb.update).toHaveBeenCalled()
+  })
+
+  it('orphan-row cleanup: shape A WITH indeterminate marker → demoted to unknown, balance NOT refunded', async () => {
+    // Same shape A as above, but an audit-log entry exists indicating
+    // an indeterminate Stripe outcome. Refunding would risk a silent
+    // double-pay. Instead, demote to 'unknown' so webhook
+    // reconciliation can resolve the truth.
+    mockDb.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'orphan-indeterminate',
+          developerId: 'dev-i',
+          amountCents: 5000,
+          platformFeeCents: 0,
+          stripeTransferId: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'audit-marker-1' }]) // audit-log: indeterminate marker FOUND
+      .mockResolvedValueOnce([]) // eligible-select empty
+    // The 'demote to unknown' UPDATE uses .returning({id})
+    mockDb.returning.mockResolvedValueOnce([{ id: 'orphan-indeterminate' }])
+
+    const res = await processPayoutsCron(makeReq({ authorization: 'Bearer test-secret' }))
+    expect(res.status).toBe(200)
+    // Status was set to 'unknown', not 'failed' — no balance refund
+    // in this path.
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'unknown',
+        errorMessage: expect.stringContaining('webhook reconciliation required'),
+      }),
+    )
+    // Critical: the .set() call did NOT carry status='failed' for
+    // this orphan (would mean we refunded).
+    expect(mockDb.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' }),
+    )
   })
 
   it('orphan-row cleanup: shape B (stripe_transfer_id present) → recover to completed + audit log', async () => {
@@ -348,7 +399,8 @@ describe('GET /api/cron/process-payouts', () => {
           stripeTransferId: null,
         },
       ])
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]) // audit-log: no indeterminate marker
+      .mockResolvedValueOnce([]) // eligible-select empty
     // CAS UPDATE returns NO rows (other run won the race).
     mockDb.returning.mockResolvedValueOnce([])
 
