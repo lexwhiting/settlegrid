@@ -392,4 +392,105 @@ describe('processPayout — typed result for every branch', () => {
       expect(result.errorMessage).toContain('24 hours')
     }
   })
+
+  it('PAYOUT_UNKNOWN on StripeConnectionError (indeterminate); balance NOT restored', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-conn', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-conn', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+    mockStripeTransfers.create.mockRejectedValueOnce(
+      Object.assign(new Error('Network timeout'), { type: 'StripeConnectionError' }),
+    )
+
+    const result = await processPayout({ developerId: 'dev-conn', trigger: 'manual' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errorCode).toBe('PAYOUT_UNKNOWN')
+      expect(result.httpStatus).toBe(202)
+    }
+    // CRITICAL: only 1 transaction (the preflight). No rollback fired,
+    // so the developer's balance was NOT restored. The 'unknown' state
+    // is set via a single-row UPDATE (not a transaction).
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    // The payout row was marked 'unknown'.
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'unknown' }),
+    )
+  })
+
+  it('PAYOUT_UNKNOWN on StripeAPIError (Stripe-side 5xx)', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-5xx', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-5xx', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+    mockStripeTransfers.create.mockRejectedValueOnce(
+      Object.assign(new Error('Stripe internal error'), { type: 'StripeAPIError' }),
+    )
+
+    const result = await processPayout({ developerId: 'dev-5xx', trigger: 'manual' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errorCode).toBe('PAYOUT_UNKNOWN')
+  })
+
+  it('PAYOUT_UNKNOWN on StripeIdempotencyError (previous attempt likely succeeded)', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-idem', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-idem', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+    mockStripeTransfers.create.mockRejectedValueOnce(
+      Object.assign(new Error('Idempotency key conflict'), { type: 'StripeIdempotencyError' }),
+    )
+
+    const result = await processPayout({ developerId: 'dev-idem', trigger: 'manual' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errorCode).toBe('PAYOUT_UNKNOWN')
+  })
+
+  it('PAYOUT_RECONCILE_REQUIRED when rollback transaction itself throws', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-stuck', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-stuck', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+    // Stripe call: definitive error (not indeterminate, so we'd
+    // attempt rollback).
+    mockStripeTransfers.create.mockRejectedValueOnce(
+      Object.assign(new Error('Invalid request'), { type: 'StripeInvalidRequestError' }),
+    )
+    // First transaction = preflight (resolved). Second transaction =
+    // rollback (rejects).
+    mockDb.transaction
+      .mockImplementationOnce(async (fn: (tx: typeof mockDb) => Promise<unknown>) => fn(mockDb))
+      .mockRejectedValueOnce(new Error('DB connection lost mid-rollback'))
+
+    const result = await processPayout({ developerId: 'dev-stuck', trigger: 'manual' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errorCode).toBe('PAYOUT_RECONCILE_REQUIRED')
+      expect(result.httpStatus).toBe(500)
+    }
+  })
 })

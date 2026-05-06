@@ -34,7 +34,7 @@ import { NextRequest } from 'next/server'
 import { and, eq, gte, sql } from 'drizzle-orm'
 import Stripe from 'stripe'
 import { db } from '@/lib/db'
-import { developers, payouts as payoutsTable } from '@/lib/db/schema'
+import { developers, payouts as payoutsTable, auditLogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getCronSecret, getStripeSecretKey } from '@/lib/env'
 import { logger } from '@/lib/logger'
@@ -169,9 +169,62 @@ export async function GET(request: NextRequest) {
               },
             })
           } else {
-            // Shape A: no Stripe transfer. Refund balance + mark
-            // 'failed' inside a transaction. The status UPDATE is
-            // CAS-conditional (WHERE status='processing'); if a
+            // Shape A: no Stripe transfer ID recorded. The default
+            // assumption is "Stripe never paid; safe to refund." But
+            // if processPayout hit an indeterminate Stripe error AND
+            // failed to mark the row 'unknown' (DB blip during the
+            // catch path), it left a `payout.indeterminate_unmarked`
+            // audit-log entry. In that case Stripe MAY have paid and
+            // refunding would silently double-pay on the next attempt.
+            // Check for the audit signal before refunding; if found,
+            // demote the row to 'unknown' (no balance change) and
+            // require operator reconciliation.
+            const [indeterminateMarker] = await db
+              .select({ id: auditLogs.id })
+              .from(auditLogs)
+              .where(
+                and(
+                  eq(auditLogs.action, 'payout.indeterminate_unmarked'),
+                  eq(auditLogs.resourceType, 'payout'),
+                  eq(auditLogs.resourceId, orphan.id),
+                ),
+              )
+              .limit(1)
+
+            if (indeterminateMarker) {
+              const claimedUnknown = await db
+                .update(payoutsTable)
+                .set({
+                  status: 'unknown',
+                  errorMessage: 'auto-demoted: indeterminate stripe outcome; webhook reconciliation required',
+                })
+                .where(
+                  and(
+                    eq(payoutsTable.id, orphan.id),
+                    eq(payoutsTable.status, 'processing'),
+                  ),
+                )
+                .returning({ id: payoutsTable.id })
+              if (claimedUnknown.length === 0) {
+                logger.info('cron.process_payouts.orphan_already_handled', {
+                  payoutId: orphan.id,
+                  shape: 'A-indeterminate',
+                })
+                continue
+              }
+              logger.error('cron.process_payouts.orphan_demoted_to_unknown', {
+                payoutId: orphan.id,
+                developerId: orphan.developerId,
+                amountCents: orphan.amountCents,
+                platformFeeCents: orphan.platformFeeCents,
+                message: 'shape-A orphan with indeterminate audit marker; manual stripe reconciliation required',
+              })
+              continue
+            }
+
+            // No indeterminate marker → safe to refund + mark failed
+            // inside a transaction. The status UPDATE is CAS-
+            // conditional (WHERE status='processing'); if a
             // concurrent run already won, the UPDATE returns 0 rows
             // and we abort the whole tx so balance is NOT incremented.
             const grossCents = orphan.amountCents + orphan.platformFeeCents
@@ -241,11 +294,19 @@ export async function GET(request: NextRequest) {
     //   stripe_connect_status = 'active'
     //   balance_cents >= payout_minimum_cents
     //   NOT EXISTS (recent payouts row for this developer in the last
-    //               23h with status processing|completed)
+    //               23h with status processing|completed|unknown)
     //
     // The "last 23h" cooldown uses NOW() - INTERVAL '23 hours'. We use
     // 23h (not 24h) so a daily cron with a few minutes of jitter
     // doesn't accidentally skip a developer because of clock drift.
+    //
+    // 'unknown' is included in the cooldown set: a row in that state
+    // means a previous Stripe call returned an indeterminate result
+    // and we cannot know whether the dev was already paid. Re-running
+    // would risk a double-pay even with the partial unique index
+    // (the index blocks via constraint violation, but at the cost of
+    // an extra Stripe API call attempt). Filtering at SELECT time
+    // saves the round-trip.
     const eligible = await db
       .select({
         id: developers.id,
@@ -260,7 +321,7 @@ export async function GET(request: NextRequest) {
             SELECT 1 FROM ${payoutsTable}
             WHERE ${payoutsTable.developerId} = ${developers.id}
               AND ${payoutsTable.createdAt} > NOW() - INTERVAL '23 hours'
-              AND ${payoutsTable.status} IN ('processing', 'completed')
+              AND ${payoutsTable.status} IN ('processing', 'completed', 'unknown')
           )`,
         ),
       )
@@ -354,7 +415,16 @@ export async function GET(request: NextRequest) {
             errorCode: result.errorCode,
           })
           failedCount += 1
-          logger.warn('cron.process_payouts.developer_failed', {
+          // PAYOUT_UNKNOWN / PAYOUT_RECONCILE_REQUIRED / PAYOUT_PARTIAL_SUCCESS
+          // are operationally serious — Stripe may have actually
+          // moved money. Log at ERROR so they surface above the
+          // ordinary "below_minimum" / "stripe_not_active" noise.
+          const isCritical =
+            result.errorCode === 'PAYOUT_UNKNOWN' ||
+            result.errorCode === 'PAYOUT_RECONCILE_REQUIRED' ||
+            result.errorCode === 'PAYOUT_PARTIAL_SUCCESS'
+          const logFn = isCritical ? logger.error : logger.warn
+          logFn('cron.process_payouts.developer_failed', {
             developerId: dev.id,
             errorCode: result.errorCode,
             errorMessage: result.errorMessage,
@@ -378,6 +448,32 @@ export async function GET(request: NextRequest) {
       succeededCount,
       failedCount,
     })
+
+    // Watchdog: count of payouts in 'unknown' status created in the
+    // last 24h. 'unknown' rows require webhook reconciliation
+    // (currently deferred — see settlegrid-payouts-deferred-followups.md).
+    // Restricting to "recent" prevents the log from spamming ERROR on
+    // every cron run after ops has acknowledged a stale backlog.
+    try {
+      const [{ count: unknownCount } = { count: 0 }] = await db
+        .select({ count: sql<number>`COUNT(*)::int` })
+        .from(payoutsTable)
+        .where(
+          and(
+            eq(payoutsTable.status, 'unknown'),
+            sql`${payoutsTable.createdAt} > NOW() - INTERVAL '24 hours'`,
+          ),
+        )
+      if (unknownCount > 0) {
+        logger.error('cron.process_payouts.unknown_rows_pending_reconcile', {
+          count: unknownCount,
+          message: 'fresh payouts in unknown status — Stripe webhook reconciliation needed',
+        })
+      }
+    } catch (watchdogErr) {
+      // Watchdog failure shouldn't fail the run.
+      logger.error('cron.process_payouts.watchdog_failed', {}, watchdogErr as Error)
+    }
 
     // Cap outcomes in the response body — full per-developer outcomes
     // already went to logger.info above (durable observability), and

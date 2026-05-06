@@ -165,15 +165,35 @@ function statusVariantClasses(status: string): string {
   switch (status) {
     case 'completed':
     case 'paid':
+    case 'reconciled':
       return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
     case 'pending':
+    case 'processing':
       return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
     case 'in_transit':
       return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+    case 'unknown':
+      // Indeterminate — Stripe call returned without confirmation.
+      // Awaiting webhook reconciliation. Distinct color from 'pending'
+      // so ops can spot it at a glance.
+      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200'
     case 'failed':
       return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
     default:
       return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+  }
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'unknown':
+      return 'Reconciling'
+    case 'reconciled':
+      return 'Reconciled'
+    case 'processing':
+      return 'Processing'
+    default:
+      return status
   }
 }
 
@@ -268,7 +288,12 @@ export default async function PayoutsPage() {
     .where(
       and(
         eq(payoutsTable.developerId, auth.id),
-        inArray(payoutsTable.status, ['pending', 'in_transit']),
+        // 'processing' and 'unknown' are also in-flight states from
+        // the dev's perspective: balance was debited, payout row
+        // exists, outcome not yet observable. Without these, a stuck
+        // 'unknown' row would be invisible — dev sees balance=0, no
+        // upcoming payout, and a confused mental model.
+        inArray(payoutsTable.status, ['pending', 'in_transit', 'processing', 'unknown']),
       ),
     )
     .orderBy(payoutsTable.createdAt)
@@ -462,7 +487,7 @@ export default async function PayoutsPage() {
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusVariantClasses(p.status)}`}
                           >
-                            {p.status}
+                            {statusLabel(p.status)}
                           </span>
                         </td>
                       </tr>
@@ -581,7 +606,7 @@ export default async function PayoutsPage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusVariantClasses(p.status)}`}
                       >
-                        {p.status}
+                        {statusLabel(p.status)}
                       </span>
                     </td>
                   </tr>

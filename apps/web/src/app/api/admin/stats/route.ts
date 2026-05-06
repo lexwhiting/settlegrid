@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { sql, eq, count } from 'drizzle-orm'
+import { sql, eq, count, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, consumers, tools, invocations, payouts } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -111,10 +111,14 @@ export async function GET(request: NextRequest) {
       .select({ total: sql<number>`COALESCE(SUM(${payouts.amountCents}), 0)` })
       .from(payouts)
       .where(eq(payouts.status, 'completed'))
+    // In-flight payouts include the legacy 'pending' status plus
+    // 'processing' (debited but not yet sent to Stripe) and 'unknown'
+    // (Stripe response was indeterminate, awaiting reconciliation).
+    // All three represent platform-side liability that must clear.
     const [payoutPending] = await db
       .select({ total: sql<number>`COALESCE(SUM(${payouts.amountCents}), 0)` })
       .from(payouts)
-      .where(eq(payouts.status, 'pending'))
+      .where(inArray(payouts.status, ['pending', 'processing', 'unknown']))
 
     // ── Recent signups (last 20, combined developers + consumers) ──
     const recentDevs = await db
