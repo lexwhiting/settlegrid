@@ -1,8 +1,21 @@
+/**
+ * /api/payouts/trigger safety tests — concurrency hardening from
+ * P5.PAYOUTS-1 (commit XXXX). The trigger route now serializes each
+ * developer's payout via SELECT FOR UPDATE inside db.transaction(),
+ * uses a Stripe idempotency key, and restores balance + marks the
+ * payout failed in a single transaction when the Stripe call throws.
+ *
+ * These tests are the regression guard. If any of them fail, real
+ * money correctness is at risk: either the developer is undercredited
+ * (balance lost on Stripe failure), the same payout fires twice
+ * (idempotency key gone), or two concurrent triggers both succeed
+ * (mutex broken).
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const { mockDb, mockRequireDeveloper, mockStripeTransfers } = vi.hoisted(() => {
-  const mockDb = {
+  const mockDb: Record<string, ReturnType<typeof vi.fn>> = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
@@ -13,7 +26,9 @@ const { mockDb, mockRequireDeveloper, mockStripeTransfers } = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    for: vi.fn().mockReturnThis(),
   }
+  mockDb.transaction = vi.fn().mockImplementation(async (fn) => fn(mockDb))
 
   const mockStripeTransfers = {
     create: vi.fn().mockResolvedValue({ id: 'tr_test_123' }),
@@ -21,15 +36,14 @@ const { mockDb, mockRequireDeveloper, mockStripeTransfers } = vi.hoisted(() => {
 
   return {
     mockDb,
-    mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
+    mockRequireDeveloper: vi
+      .fn()
+      .mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
     mockStripeTransfers,
   }
 })
 
-vi.mock('@/lib/db', () => ({
-  db: mockDb,
-  schema: {},
-}))
+vi.mock('@/lib/db', () => ({ db: mockDb, schema: {} }))
 
 vi.mock('@/lib/db/schema', () => ({
   payouts: {
@@ -46,6 +60,8 @@ vi.mock('@/lib/db/schema', () => ({
   },
   developers: {
     id: 'id',
+    email: 'email',
+    name: 'name',
     balanceCents: 'balance_cents',
     revenueSharePct: 'revenue_share_pct',
     stripeConnectId: 'stripe_connect_id',
@@ -53,16 +69,25 @@ vi.mock('@/lib/db/schema', () => ({
     payoutMinimumCents: 'payout_minimum_cents',
     updatedAt: 'updated_at',
   },
+  auditLogs: {
+    id: 'id',
+    developerId: 'developer_id',
+    action: 'action',
+    resourceType: 'resource_type',
+    resourceId: 'resource_id',
+    details: 'details',
+    ipAddress: 'ip_address',
+    userAgent: 'user_agent',
+    createdAt: 'created_at',
+  },
 }))
 
-vi.mock('@/lib/middleware/auth', () => ({
-  requireDeveloper: mockRequireDeveloper,
-}))
+vi.mock('@/lib/middleware/auth', () => ({ requireDeveloper: mockRequireDeveloper }))
 
 vi.mock('stripe', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    transfers: mockStripeTransfers,
-  })),
+  default: vi
+    .fn()
+    .mockImplementation(() => ({ transfers: mockStripeTransfers })),
 }))
 
 vi.mock('@/lib/env', () => ({
@@ -71,7 +96,9 @@ vi.mock('@/lib/env', () => ({
 
 vi.mock('@/lib/rate-limit', () => ({
   apiLimiter: {},
-  checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
+  checkRateLimit: vi
+    .fn()
+    .mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -85,7 +112,7 @@ vi.mock('drizzle-orm', () => ({
       sql: strings,
       values,
     })),
-    { raw: vi.fn() }
+    { raw: vi.fn() },
   ),
 }))
 
@@ -100,7 +127,7 @@ function makeRequest(url: string, method: string = 'POST', body?: unknown): Next
   return new NextRequest(`http://localhost:3005${url}`, init)
 }
 
-describe('Payout Safety (Transaction Wrapping)', () => {
+describe('Payout Safety (concurrency + transactional rollback)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDb.select.mockReturnThis()
@@ -110,27 +137,34 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     mockDb.values.mockReturnThis()
     mockDb.update.mockReturnThis()
     mockDb.set.mockReturnThis()
+    mockDb.for.mockReturnThis()
+    mockDb.transaction.mockImplementation(async (fn: (tx: typeof mockDb) => Promise<unknown>) =>
+      fn(mockDb),
+    )
     mockStripeTransfers.create.mockResolvedValue({ id: 'tr_test_123' })
   })
 
-  it('creates payout with processing status then completes', async () => {
-    mockDb.limit.mockResolvedValueOnce([{
-      id: 'dev-123',
-      balanceCents: 5000,
-      revenueSharePct: 95,
-      stripeConnectId: 'acct_test_123',
-      stripeConnectStatus: 'active',
-      payoutMinimumCents: 100,
-    }])
+  it('creates payout with processing status then transitions to completed', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'dev-123',
+        email: 'dev@example.com',
+        name: 'Test Dev',
+        balanceCents: 5000,
+        stripeConnectId: 'acct_test_123',
+        stripeConnectStatus: 'active',
+        payoutMinimumCents: 100,
+      },
+    ])
 
-    // First returning = payout insert (processing)
-    mockDb.returning.mockResolvedValueOnce([{
-      id: 'payout-1',
-      amountCents: 5000,
-      platformFeeCents: 263,
-      status: 'processing',
-      createdAt: new Date().toISOString(),
-    }])
+    mockDb.returning.mockResolvedValueOnce([
+      {
+        id: 'payout-1',
+        amountCents: 5000,
+        platformFeeCents: 0,
+        createdAt: new Date().toISOString(),
+      },
+    ])
 
     const request = makeRequest('/api/payouts/trigger')
     const response = await triggerPayout(request)
@@ -140,34 +174,40 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     expect(data.payout.status).toBe('completed')
     expect(data.payout.stripeTransferId).toBe('tr_test_123')
 
-    // Verify update was called (to mark completed + reset balance)
-    expect(mockDb.update).toHaveBeenCalled()
+    // The completion update transitioned the row from 'processing' →
+    // 'completed' with the Stripe transfer id stamped in.
     expect(mockDb.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'completed', stripeTransferId: 'tr_test_123' })
+      expect.objectContaining({
+        status: 'completed',
+        stripeTransferId: 'tr_test_123',
+      }),
     )
   })
 
-  it('marks payout as failed when Stripe transfer fails', async () => {
-    mockDb.limit.mockResolvedValueOnce([{
-      id: 'dev-123',
-      balanceCents: 5000,
-      revenueSharePct: 95,
-      stripeConnectId: 'acct_test_123',
-      stripeConnectStatus: 'active',
-      payoutMinimumCents: 100,
-    }])
+  it('rolls back balance + marks payout failed when Stripe transfer throws', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'dev-123',
+        email: 'dev@example.com',
+        name: 'Test Dev',
+        balanceCents: 5000,
+        stripeConnectId: 'acct_test_123',
+        stripeConnectStatus: 'active',
+        payoutMinimumCents: 100,
+      },
+    ])
+    mockDb.returning.mockResolvedValueOnce([
+      {
+        id: 'payout-1',
+        amountCents: 5000,
+        platformFeeCents: 0,
+        createdAt: new Date().toISOString(),
+      },
+    ])
 
-    // Payout insert (processing)
-    mockDb.returning.mockResolvedValueOnce([{
-      id: 'payout-1',
-      amountCents: 5000,
-      platformFeeCents: 263,
-      status: 'processing',
-      createdAt: new Date().toISOString(),
-    }])
-
-    // Stripe transfer fails
-    mockStripeTransfers.create.mockRejectedValueOnce(new Error('Insufficient funds in Stripe account'))
+    mockStripeTransfers.create.mockRejectedValueOnce(
+      new Error('Insufficient funds in Stripe account'),
+    )
 
     const request = makeRequest('/api/payouts/trigger')
     const response = await triggerPayout(request)
@@ -177,63 +217,44 @@ describe('Payout Safety (Transaction Wrapping)', () => {
     expect(data.code).toBe('STRIPE_TRANSFER_FAILED')
     expect(data.error).toContain('Insufficient funds')
 
-    // Verify payout was updated to 'failed' with error message
+    // The rollback update marked the payout 'failed' with the error
+    // message preserved for forensic reconciliation.
     expect(mockDb.set).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'failed',
         errorMessage: 'Insufficient funds in Stripe account',
-      })
+      }),
     )
+
+    // Two transactions: preflight (zero balance) + rollback (restore
+    // balance + mark failed). If only one fired, balance was zeroed
+    // without a Stripe transfer — money lost.
+    expect(mockDb.transaction).toHaveBeenCalledTimes(2)
   })
 
-  it('does not reset developer balance on Stripe failure', async () => {
-    mockDb.limit.mockResolvedValueOnce([{
-      id: 'dev-123',
-      balanceCents: 5000,
-      revenueSharePct: 95,
-      stripeConnectId: 'acct_test_123',
-      stripeConnectStatus: 'active',
-      payoutMinimumCents: 100,
-    }])
-
-    mockDb.returning.mockResolvedValueOnce([{
-      id: 'payout-1',
-      amountCents: 5000,
-      platformFeeCents: 263,
-      status: 'processing',
-      createdAt: new Date().toISOString(),
-    }])
-
-    mockStripeTransfers.create.mockRejectedValueOnce(new Error('Network error'))
-
-    const request = makeRequest('/api/payouts/trigger')
-    await triggerPayout(request)
-
-    // Balance should NOT be reset to 0 — verify that set({balanceCents: 0}) was NOT called
-    const setCalls = mockDb.set.mock.calls
-    const balanceResetCall = setCalls.find(
-      (call) => call[0]?.balanceCents === 0
-    )
-    expect(balanceResetCall).toBeUndefined()
-  })
-
-  it('includes payout ID in Stripe transfer metadata', async () => {
-    mockDb.limit.mockResolvedValueOnce([{
-      id: 'dev-123',
-      balanceCents: 3000,
-      revenueSharePct: 95,
-      stripeConnectId: 'acct_test_456',
-      stripeConnectStatus: 'active',
-      payoutMinimumCents: 100,
-    }])
-
-    mockDb.returning.mockResolvedValueOnce([{
-      id: 'payout-99',
-      amountCents: 3000,
-      platformFeeCents: 157,
-      status: 'processing',
-      createdAt: new Date().toISOString(),
-    }])
+  it('passes a deterministic idempotency key on Stripe transfers.create', async () => {
+    // Idempotency key = `payout:${payoutRecord.id}`. Stripe dedupes
+    // on this for 24h, so a Vercel cron retry or transient network
+    // error doesn't produce a duplicate transfer.
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'dev-123',
+        email: 'dev@example.com',
+        name: 'Test Dev',
+        balanceCents: 3000,
+        stripeConnectId: 'acct_test_456',
+        stripeConnectStatus: 'active',
+        payoutMinimumCents: 100,
+      },
+    ])
+    mockDb.returning.mockResolvedValueOnce([
+      {
+        id: 'payout-99',
+        amountCents: 3000,
+        platformFeeCents: 0,
+        createdAt: new Date().toISOString(),
+      },
+    ])
 
     const request = makeRequest('/api/payouts/trigger')
     await triggerPayout(request)
@@ -244,7 +265,70 @@ describe('Payout Safety (Transaction Wrapping)', () => {
         currency: 'usd',
         destination: 'acct_test_456',
         metadata: expect.objectContaining({ payoutId: 'payout-99' }),
-      })
+      }),
+      expect.objectContaining({ idempotencyKey: 'payout:payout-99' }),
     )
+  })
+
+  it('marks Connect as needs_reconnect on terminal Stripe account errors', async () => {
+    // account_invalid means the developer's connected account is dead.
+    // We flip stripeConnectStatus so the cron stops retrying daily,
+    // and surface NEEDS_RECONNECT to prompt re-onboarding.
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'dev-123',
+        email: 'dev@example.com',
+        name: 'Test Dev',
+        balanceCents: 5000,
+        stripeConnectId: 'acct_dead',
+        stripeConnectStatus: 'active',
+        payoutMinimumCents: 100,
+      },
+    ])
+    mockDb.returning.mockResolvedValueOnce([
+      {
+        id: 'payout-deadacct',
+        amountCents: 5000,
+        platformFeeCents: 0,
+        createdAt: new Date().toISOString(),
+      },
+    ])
+
+    const stripeErr = Object.assign(new Error('No such account'), {
+      code: 'account_invalid',
+    })
+    mockStripeTransfers.create.mockRejectedValueOnce(stripeErr)
+
+    const request = makeRequest('/api/payouts/trigger')
+    const response = await triggerPayout(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(502)
+    expect(data.code).toBe('NEEDS_RECONNECT')
+
+    // The rollback transaction also flipped the connect status.
+    expect(mockDb.set).toHaveBeenCalledWith(
+      expect.objectContaining({ stripeConnectStatus: 'needs_reconnect' }),
+    )
+  })
+
+  it('returns 409 PAYOUT_IN_PROGRESS when partial unique index rejects a concurrent INSERT', async () => {
+    // Migration 0009 created a partial unique index on
+    // payouts(developer_id) WHERE status='processing'. A second
+    // concurrent attempt for the same developer hits a 23505
+    // unique_violation. The route catches that specific constraint
+    // name and returns 409 — anything else propagates.
+    const collision = Object.assign(new Error('duplicate key'), {
+      code: '23505',
+      constraint_name: 'payouts_one_processing_per_dev',
+    })
+    mockDb.transaction.mockRejectedValueOnce(collision)
+
+    const request = makeRequest('/api/payouts/trigger')
+    const response = await triggerPayout(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(data.code).toBe('PAYOUT_IN_PROGRESS')
   })
 })
