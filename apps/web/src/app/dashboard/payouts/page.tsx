@@ -336,7 +336,7 @@ export default async function PayoutsPage() {
               schedule.
             </p>
             <Link
-              href="/api/stripe/connect"
+              href="/onboarding"
               className="inline-flex items-center justify-center rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90"
             >
               Connect Stripe

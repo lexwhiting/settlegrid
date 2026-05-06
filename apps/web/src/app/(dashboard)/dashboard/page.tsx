@@ -533,7 +533,7 @@ export default function DeveloperDashboardPage() {
 
   const checklistSteps = [
     { key: 'create-tool', label: 'Create your first tool', description: 'Register an MCP tool to start metering usage and collecting payments.', done: hasTools, href: '/dashboard/tools', cta: 'Create Tool' },
-    { key: 'connect-stripe', label: 'Connect Stripe for payouts', description: 'Earn now, cash out later — your revenue accrues while you set up Stripe. Connect anytime to withdraw.', done: stripeConnected, href: '/dashboard/settings#payouts', cta: 'Connect Stripe' },
+    { key: 'connect-stripe', label: 'Connect Stripe for payouts', description: 'Earn now, cash out later — your revenue accrues while you set up Stripe. Connect anytime to withdraw.', done: stripeConnected, href: '/onboarding', cta: 'Connect Stripe' },
     { key: 'install-sdk', label: 'Install the SDK', description: 'Add the SettleGrid SDK to your project.', done: sdkInstalled, href: null, cta: null },
     { key: 'test-invocation', label: 'Make a test invocation', description: 'Send a test call to verify metering is working.', done: hasInvocations, href: '/docs', cta: 'View Docs' },
     { key: 'go-live', label: 'Go live', description: 'Activate a tool to start accepting production traffic.', done: hasActiveTool, href: '/dashboard/tools', cta: 'Manage Tools' },
