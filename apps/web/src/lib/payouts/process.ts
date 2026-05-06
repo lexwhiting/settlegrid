@@ -543,7 +543,7 @@ export async function processPayout(
     }
   }
 
-  // ── Phase 3: mark completed (with retry) ────────────────────────────
+  // ── Phase 3: mark completed (with retry, CAS-conditional) ──────────
   //
   // The Stripe transfer succeeded; our DB needs to record it. Up to
   // four attempts: an initial try plus three retries with 100/500/
@@ -554,15 +554,45 @@ export async function processPayout(
   // as "Stripe paid, we just lost the result" and recover correctly
   // up to 24h later. If even the single-column attempt fails, we log
   // critical and return PAYOUT_PARTIAL_SUCCESS.
+  //
+  // CAS guard: the UPDATE is conditional on status='processing'. If
+  // a Stripe `transfer.reversed` webhook fires between our preflight
+  // commit and Stripe's transfers.create resolving (Stripe ships
+  // webhooks in parallel with the SDK return), the webhook handler
+  // may have already flipped the row to 'failed' + refunded balance.
+  // Without the CAS guard we'd unconditionally write 'completed' on
+  // top, blasting the refund and producing a silent double-pay. The
+  // guard makes the UPDATE a no-op in that race; we detect via empty
+  // .returning() and log the lost-race for ops visibility.
   const RETRY_BACKOFF_MS = [100, 500, 2000]
   const MAX_COMPLETION_ATTEMPTS = 1 + RETRY_BACKOFF_MS.length
   let completionErr: Error | null = null
+  let casLost = false
   for (let i = 0; i < MAX_COMPLETION_ATTEMPTS; i++) {
     try {
-      await db
+      const updated = await db
         .update(payouts)
         .set({ status: 'completed', stripeTransferId: transfer.id })
-        .where(eq(payouts.id, payoutRecord.id))
+        .where(
+          and(
+            eq(payouts.id, payoutRecord.id),
+            eq(payouts.status, 'processing'),
+          ),
+        )
+        .returning({ id: payouts.id })
+      if (updated.length === 0) {
+        // Race-lost: a webhook (transfer.reversed) or another path
+        // already moved the row out of 'processing'. The webhook
+        // handler is the authoritative state writer in that case;
+        // we DO NOT overwrite. Log loudly so ops see the timeline.
+        casLost = true
+        logger.warn('payout.completion_update_cas_lost', {
+          developerId,
+          payoutId: payoutRecord.id,
+          stripeTransferId: transfer.id,
+          message: 'webhook (likely transfer.reversed) flipped status before our completion UPDATE; honoring webhook state',
+        })
+      }
       completionErr = null
       break
     } catch (err) {
@@ -574,15 +604,37 @@ export async function processPayout(
     }
   }
 
+  if (casLost) {
+    // The webhook already transitioned the row. Return success at the
+    // helper level — the dev's outcome is captured in the webhook
+    // path. The trigger button / cron will see the final status on
+    // their next refresh.
+    return {
+      ok: true,
+      payoutId: payoutRecord.id,
+      amountCents: payoutAmountCents,
+      platformFeeCents,
+      grossCents,
+      stripeTransferId: transfer.id,
+      createdAt: payoutRecord.createdAt,
+    }
+  }
+
   if (completionErr) {
     // Fallback: try to at least stamp `stripeTransferId` so orphan
     // cleanup can route this row to 'completed' rather than 'failed'
-    // (which would silently lose a real Stripe payment).
+    // (which would silently lose a real Stripe payment). Same CAS
+    // guard so we don't overwrite a webhook-set 'failed' state.
     try {
       await db
         .update(payouts)
         .set({ stripeTransferId: transfer.id })
-        .where(eq(payouts.id, payoutRecord.id))
+        .where(
+          and(
+            eq(payouts.id, payoutRecord.id),
+            eq(payouts.status, 'processing'),
+          ),
+        )
       logger.error(
         'payout.completion_update_exhausted_partial_recovery',
         {

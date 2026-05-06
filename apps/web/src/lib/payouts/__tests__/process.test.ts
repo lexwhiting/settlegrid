@@ -327,6 +327,37 @@ describe('processPayout — typed result for every branch', () => {
     )
   })
 
+  // Helpers for db.update() mock chain. Two terminal shapes:
+  //   - preflight + fallback: chain ends at .where() (awaited)
+  //   - completion: chain ends at .where().returning() (awaited)
+  const whereChainSuccess = () => ({
+    set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+  })
+  const whereChainReject = (err: string) => ({
+    set: vi.fn().mockReturnValue({ where: vi.fn().mockRejectedValue(new Error(err)) }),
+  })
+  const returningChainSuccess = (id = 'p-test') => ({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id }]),
+      }),
+    }),
+  })
+  const returningChainCasLost = () => ({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([]),
+      }),
+    }),
+  })
+  const returningChainReject = (err: string) => ({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockRejectedValue(new Error(err)),
+      }),
+    }),
+  })
+
   it('completion UPDATE retries (initial + 3 backoff retries; 4th attempt wins) → ok:true', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{
@@ -339,24 +370,50 @@ describe('processPayout — typed result for every branch', () => {
       id: 'p-retry', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
     }])
 
-    // Each db.update() returns a chain whose terminal .where() is
-    // awaited. We swap the chain per call:
-    //   call 1: preflight balance debit (success)
-    //   call 2: completion attempt 1 (reject)
-    //   call 3: completion attempt 2 (reject)
-    //   call 4: completion attempt 3 (reject)
-    //   call 5: completion attempt 4 (success — wins; no fallback runs)
-    const chainSuccess = () => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) })
-    const chainReject = (err: string) => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockRejectedValue(new Error(err)) }) })
+    // Each db.update() returns a chain. Order of calls:
+    //   1 preflight balance debit (where-terminal, success)
+    //   2-4 completion attempts 1-3 (returning-terminal, reject)
+    //   5 completion attempt 4 (returning-terminal, success — wins)
     mockDb.update
-      .mockReturnValueOnce(chainSuccess()) // preflight
-      .mockReturnValueOnce(chainReject('blip 1'))
-      .mockReturnValueOnce(chainReject('blip 2'))
-      .mockReturnValueOnce(chainReject('blip 3'))
-      .mockReturnValueOnce(chainSuccess()) // attempt 4 wins
+      .mockReturnValueOnce(whereChainSuccess()) // preflight
+      .mockReturnValueOnce(returningChainReject('blip 1'))
+      .mockReturnValueOnce(returningChainReject('blip 2'))
+      .mockReturnValueOnce(returningChainReject('blip 3'))
+      .mockReturnValueOnce(returningChainSuccess('p-retry')) // attempt 4 wins
 
     const result = await processPayout({ developerId: 'dev-retry', trigger: 'manual' })
     expect(result.ok).toBe(true)
+  })
+
+  it('completion UPDATE CAS-loss (webhook beat us) → ok:true with no overwrite', async () => {
+    // The headline race that blocks the webhook handler from shipping:
+    // a transfer.reversed webhook arrives BEFORE Stripe's transfers.create
+    // resolves. Webhook flips 'processing' → 'failed' + refunds balance.
+    // Then Stripe SDK call resolves; our completion UPDATE fires with
+    // CAS guard `WHERE status='processing'`, finds zero rows, returns
+    // empty .returning(). We log lost-race and return ok:true (the
+    // webhook handler is the authoritative state writer).
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-race', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-race', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+    mockDb.update
+      .mockReturnValueOnce(whereChainSuccess()) // preflight
+      .mockReturnValueOnce(returningChainCasLost()) // CAS guard fails — webhook moved row
+
+    const result = await processPayout({ developerId: 'dev-race', trigger: 'manual' })
+    // Helper succeeds at the contract level — the dev was paid by
+    // Stripe, the webhook's state is authoritative.
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.stripeTransferId).toBe('tr_test_123')
+    }
   })
 
   it('completion UPDATE exhausts all 4 attempts AND fallback → PAYOUT_PARTIAL_SUCCESS (200)', async () => {
@@ -371,17 +428,16 @@ describe('processPayout — typed result for every branch', () => {
       id: 'p-exhaust', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
     }])
 
-    // Preflight succeeds, ALL 4 completion attempts AND the
-    // single-column fallback all reject. 6 mocks total.
-    const chainSuccess = () => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) })
-    const chainReject = (err: string) => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockRejectedValue(new Error(err)) }) })
+    // Preflight succeeds (where-terminal), ALL 4 completion attempts
+    // (returning-terminal, reject) AND the single-column fallback
+    // (where-terminal, reject) all fail. 6 update mocks total.
     mockDb.update
-      .mockReturnValueOnce(chainSuccess()) // preflight
-      .mockReturnValueOnce(chainReject('blip 1'))
-      .mockReturnValueOnce(chainReject('blip 2'))
-      .mockReturnValueOnce(chainReject('blip 3'))
-      .mockReturnValueOnce(chainReject('blip 4'))
-      .mockReturnValueOnce(chainReject('fallback fails too'))
+      .mockReturnValueOnce(whereChainSuccess())                  // preflight
+      .mockReturnValueOnce(returningChainReject('blip 1'))       // completion 1
+      .mockReturnValueOnce(returningChainReject('blip 2'))       // completion 2
+      .mockReturnValueOnce(returningChainReject('blip 3'))       // completion 3
+      .mockReturnValueOnce(returningChainReject('blip 4'))       // completion 4
+      .mockReturnValueOnce(whereChainReject('fallback fails too')) // fallback
 
     const result = await processPayout({ developerId: 'dev-exhaust', trigger: 'manual' })
     expect(result.ok).toBe(false)
