@@ -672,18 +672,22 @@ async function handleProxy(
               )
           }
 
-          // Fire-and-forget: update tool stats
-          Promise.all([
-            db.update(tools).set({
-              totalInvocations: sql`${tools.totalInvocations} + 1`,
-              totalRevenueCents: sql`${tools.totalRevenueCents} + ${costCents}`,
-              updatedAt: new Date(),
-            }).where(eq(tools.id, auth.toolId)),
-            db.update(developers).set({
-              balanceCents: sql`${developers.balanceCents} + ${Math.floor(costCents * (auth.developerRevenueSharePct / 100))}`,
-              updatedAt: new Date(),
-            }).where(eq(developers.id, auth.tool.developerId)),
-          ]).catch(() => {})
+          // Awaited — see proxy.billing_update_error rationale above.
+          try {
+            await Promise.all([
+              db.update(tools).set({
+                totalInvocations: sql`${tools.totalInvocations} + 1`,
+                totalRevenueCents: sql`${tools.totalRevenueCents} + ${costCents}`,
+                updatedAt: new Date(),
+              }).where(eq(tools.id, auth.toolId)),
+              db.update(developers).set({
+                balanceCents: sql`${developers.balanceCents} + ${Math.floor(costCents * (auth.developerRevenueSharePct / 100))}`,
+                updatedAt: new Date(),
+              }).where(eq(developers.id, auth.tool.developerId)),
+            ])
+          } catch (err) {
+            logger.error('proxy.cached_billing_update_error', { slug, requestId }, err)
+          }
         }
 
         // Record the (cached) invocation
@@ -930,25 +934,32 @@ async function handleProxy(
       if (collectedCents > 0) {
         const developerShareCents = Math.floor(collectedCents * (auth.developerRevenueSharePct / 100))
 
-        Promise.all([
-          db
-            .update(tools)
-            .set({
-              totalInvocations: sql`${tools.totalInvocations} + 1`,
-              totalRevenueCents: sql`${tools.totalRevenueCents} + ${collectedCents}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(tools.id, auth.toolId)),
-          db
-            .update(developers)
-            .set({
-              balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(developers.id, auth.tool.developerId)),
-        ]).catch((err) => {
+        // MUST be awaited — Vercel kills serverless containers as soon
+        // as the response is sent, which kills the Postgres connection
+        // mid-handshake and silently drops the writes (verified
+        // 2026-05-06: every billed invocation lost developer credit
+        // because of fire-and-forget Promise.all + CONNECT_TIMEOUT).
+        try {
+          await Promise.all([
+            db
+              .update(tools)
+              .set({
+                totalInvocations: sql`${tools.totalInvocations} + 1`,
+                totalRevenueCents: sql`${tools.totalRevenueCents} + ${collectedCents}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(tools.id, auth.toolId)),
+            db
+              .update(developers)
+              .set({
+                balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(developers.id, auth.tool.developerId)),
+          ])
+        } catch (err) {
           logger.error('proxy.billing_update_error', { slug, requestId }, err)
-        })
+        }
       } else {
         // Lost race: still increment invocation count so activity metrics
         // reflect reality, but do NOT touch revenue or developer balance.
@@ -1325,25 +1336,28 @@ async function handleMppProxy(
     // Increment tool revenue + developer balance
     const developerShareCents = Math.floor(actualCost * (toolRow.revenueSharePct / 100))
 
-    Promise.all([
-      db
-        .update(tools)
-        .set({
-          totalInvocations: sql`${tools.totalInvocations} + 1`,
-          totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(tools.id, toolRow.id)),
-      db
-        .update(developers)
-        .set({
-          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(developers.id, toolRow.developerId)),
-    ]).catch((err) => {
+    // Awaited — see proxy.billing_update_error rationale above.
+    try {
+      await Promise.all([
+        db
+          .update(tools)
+          .set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(tools.id, toolRow.id)),
+        db
+          .update(developers)
+          .set({
+            balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(developers.id, toolRow.developerId)),
+      ])
+    } catch (err) {
       logger.error('proxy.mpp_billing_update_error', { slug, requestId }, err)
-    })
+    }
   }
 
   // Record the MPP invocation
@@ -1631,19 +1645,22 @@ async function forwardAndBill(
   if (upstreamOk) {
     const developerShareCents = Math.floor(actualCost * (toolRow.revenueSharePct / 100))
 
-    Promise.all([
-      db.update(tools).set({
-        totalInvocations: sql`${tools.totalInvocations} + 1`,
-        totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
-        updatedAt: new Date(),
-      }).where(eq(tools.id, toolRow.id)),
-      db.update(developers).set({
-        balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-        updatedAt: new Date(),
-      }).where(eq(developers.id, toolRow.developerId)),
-    ]).catch((err) => {
+    // Awaited — see proxy.billing_update_error rationale above.
+    try {
+      await Promise.all([
+        db.update(tools).set({
+          totalInvocations: sql`${tools.totalInvocations} + 1`,
+          totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+          updatedAt: new Date(),
+        }).where(eq(tools.id, toolRow.id)),
+        db.update(developers).set({
+          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+          updatedAt: new Date(),
+        }).where(eq(developers.id, toolRow.developerId)),
+      ])
+    } catch (err) {
       logger.error(`proxy.${paymentMethod}_billing_update_error`, { slug, requestId }, err)
-    })
+    }
   }
 
   recordProtocolInvocation({
@@ -2216,17 +2233,22 @@ async function attemptFailover(params: FailoverParams): Promise<NextResponse | n
 
       // Credit the original developer
       const developerShareCents = Math.floor(actualCost * (developerRevenueSharePct / 100))
-      Promise.all([
-        db.update(tools).set({
-          totalInvocations: sql`${tools.totalInvocations} + 1`,
-          totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
-          updatedAt: new Date(),
-        }).where(eq(tools.id, toolId)),
-        db.update(developers).set({
-          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
-          updatedAt: new Date(),
-        }).where(eq(developers.id, developerId)),
-      ]).catch(() => {})
+      // Awaited — see proxy.billing_update_error rationale above.
+      try {
+        await Promise.all([
+          db.update(tools).set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+            updatedAt: new Date(),
+          }).where(eq(tools.id, toolId)),
+          db.update(developers).set({
+            balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+            updatedAt: new Date(),
+          }).where(eq(developers.id, developerId)),
+        ])
+      } catch (err) {
+        logger.error('proxy.failover_billing_update_error', { slug, requestId }, err)
+      }
     }
 
     // Record the invocation
