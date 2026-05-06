@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import type Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, purchases, consumerToolBalances, consumers, tools, processedWebhookEvents } from '@/lib/db/schema'
+import { developers, purchases, consumerToolBalances, consumers, tools, processedWebhookEvents, payouts } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getStripeWebhookSecret } from '@/lib/env'
@@ -523,6 +523,272 @@ export async function POST(request: NextRequest) {
             subscriptionId: subscription.id,
           })
         }
+        break
+      }
+
+      // ── Transfer reconciliation events (P5.PAYOUTS-CLEANUP-3) ─────
+      //
+      // We send transfers to connected accounts via stripe.transfers.create
+      // in lib/payouts/process.ts. These webhooks are the "Stripe says
+      // it really did happen" / "Stripe reversed it" signals that close
+      // the network-timeout double-pay loophole introduced when we
+      // started writing 'unknown' status on indeterminate Stripe errors.
+      //
+      // metadata.payoutId is the join key (set in processPayout). Empty
+      // metadata means the transfer was created elsewhere (operator in
+      // Stripe Dashboard, third-party tooling, etc.) — ack and ignore.
+      //
+      // Each handler wraps state changes in a single tx with FOR UPDATE
+      // on the payout row. State transitions are idempotent (replays
+      // see the row already in target state and no-op naturally).
+      //
+      // Critical retry-safety mechanism: the global event-id idempotency
+      // gate at the top of this route (line ~115) commits BEFORE the
+      // switch runs. If a handler tx throws AFTER the eventId is
+      // recorded, Stripe's retry would hit the dedup gate and skip the
+      // handler permanently — state lost. Each transfer.* handler wraps
+      // its work in try/catch and deletes the eventId on failure so
+      // retries can replay.
+
+      case 'transfer.created': {
+        try {
+          const transfer = event.data.object as Stripe.Transfer
+          const payoutId = transfer.metadata?.payoutId
+          if (!payoutId) {
+            logger.info('stripe.webhook.transfer_created_no_payout_id', {
+              transferId: transfer.id,
+            })
+            break
+          }
+          await db.transaction(async (tx) => {
+            const [row] = await tx
+              .select({
+                id: payouts.id,
+                status: payouts.status,
+                developerId: payouts.developerId,
+                amountCents: payouts.amountCents,
+                platformFeeCents: payouts.platformFeeCents,
+                stripeTransferId: payouts.stripeTransferId,
+              })
+              .from(payouts)
+              .where(eq(payouts.id, payoutId))
+              .for('update')
+              .limit(1)
+            if (!row) {
+              logger.warn('stripe.webhook.transfer_created_unknown_payout_id', {
+                transferId: transfer.id,
+                payoutId,
+              })
+              return
+            }
+            switch (row.status) {
+              case 'completed':
+              case 'reconciled':
+                // Idempotent replay — the row already reflects this
+                // transfer, no-op.
+                logger.info('stripe.webhook.transfer_created_idempotent', {
+                  payoutId,
+                  transferId: transfer.id,
+                  status: row.status,
+                })
+                return
+              case 'unknown':
+              case 'processing':
+                // Stripe is confirming the transfer. Promote to
+                // 'completed' and record the transfer id (in case the
+                // 'unknown' write happened before the Stripe call
+                // resolved with the id).
+                await tx
+                  .update(payouts)
+                  .set({
+                    status: 'completed',
+                    stripeTransferId: transfer.id,
+                  })
+                  .where(eq(payouts.id, payoutId))
+                logger.info('stripe.webhook.transfer_created_reconciled', {
+                  payoutId,
+                  transferId: transfer.id,
+                  fromStatus: row.status,
+                })
+                return
+              case 'failed': {
+                // Critical: we previously rolled back believing the
+                // transfer failed, but Stripe is now confirming it
+                // happened. Re-debit balance and mark 'reconciled'.
+                //
+                // Overdraw guard: read current balance INSIDE the tx
+                // (FOR UPDATE), compute the underflow delta if any,
+                // then UPDATE with GREATEST(... - grossCents, 0)
+                // clamp. Surface the underflow in the log so ops can
+                // record the platform's receivable claim. Without
+                // logging the delta, money loss is silent.
+                const grossCents = row.amountCents + row.platformFeeCents
+                const [currentDev] = await tx
+                  .select({ balanceCents: developers.balanceCents })
+                  .from(developers)
+                  .where(eq(developers.id, row.developerId))
+                  .for('update')
+                  .limit(1)
+                const currentBalanceCents = currentDev?.balanceCents ?? 0
+                const underflowCents = Math.max(0, grossCents - currentBalanceCents)
+                await tx
+                  .update(developers)
+                  .set({
+                    balanceCents: sql`GREATEST(${developers.balanceCents} - ${grossCents}, 0)`,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(developers.id, row.developerId))
+                await tx
+                  .update(payouts)
+                  .set({
+                    status: 'reconciled',
+                    stripeTransferId: transfer.id,
+                    errorMessage:
+                      'reconciled: rollback was incorrect; transfer.created webhook confirmed transfer succeeded',
+                  })
+                  .where(eq(payouts.id, payoutId))
+                logger.error(
+                  'stripe.webhook.transfer_created_after_failed_rollback',
+                  {
+                    payoutId,
+                    transferId: transfer.id,
+                    grossCents,
+                    currentBalanceCents,
+                    underflowCents,
+                    developerId: row.developerId,
+                    message:
+                      underflowCents > 0
+                        ? `rollback was wrong; balance underflowed by ${underflowCents}c (clamped to 0; platform-side receivable)`
+                        : 'rollback was wrong; balance re-debited cleanly',
+                  },
+                )
+                return
+              }
+              default:
+                logger.warn('stripe.webhook.transfer_created_unexpected_state', {
+                  payoutId,
+                  transferId: transfer.id,
+                  status: row.status,
+                })
+            }
+          })
+        } catch (handlerErr) {
+          // Clear the dedup marker so Stripe's retry can replay this
+          // event — otherwise the global gate would skip it.
+          await db
+            .delete(processedWebhookEvents)
+            .where(eq(processedWebhookEvents.eventId, event.id))
+            .catch((delErr) => {
+              logger.error(
+                'stripe.webhook.dedup_delete_failed',
+                { eventId: event.id, eventType: event.type },
+                delErr as Error,
+              )
+            })
+          throw handlerErr
+        }
+        break
+      }
+
+      case 'transfer.reversed': {
+        try {
+          const transfer = event.data.object as Stripe.Transfer
+          const payoutId = transfer.metadata?.payoutId
+          if (!payoutId) {
+            logger.info('stripe.webhook.transfer_reversed_no_payout_id', {
+              transferId: transfer.id,
+            })
+            break
+          }
+          await db.transaction(async (tx) => {
+            const [row] = await tx
+              .select({
+                id: payouts.id,
+                status: payouts.status,
+                developerId: payouts.developerId,
+                amountCents: payouts.amountCents,
+                platformFeeCents: payouts.platformFeeCents,
+              })
+              .from(payouts)
+              .where(eq(payouts.id, payoutId))
+              .for('update')
+              .limit(1)
+            if (!row) {
+              logger.warn('stripe.webhook.transfer_reversed_unknown_payout_id', {
+                transferId: transfer.id,
+                payoutId,
+              })
+              return
+            }
+            // Refund applies whenever balance is currently considered
+            // debited (i.e., we previously took it out of the dev's
+            // pool to pay them via Stripe). That covers:
+            //   - 'completed' / 'reconciled': dev was paid, balance
+            //      stays at 0; reversal returns it to the dev
+            //   - 'unknown': we MARKED 'unknown' WITHOUT refund (the
+            //      whole point of 'unknown' is "Stripe may have paid;
+            //      don't refund yet"). The reversal confirms Stripe
+            //      DID pay AND then reversed — so we now know the dev
+            //      was paid then unpaid, net zero. Refund balance.
+            //   - 'processing': in-flight; refund balance defensively.
+            // 'failed' or other: no-op, the rollback already refunded.
+            const refundableStatuses = ['completed', 'reconciled', 'unknown', 'processing']
+            if (refundableStatuses.includes(row.status)) {
+              const grossCents = row.amountCents + row.platformFeeCents
+              await tx
+                .update(developers)
+                .set({
+                  balanceCents: sql`${developers.balanceCents} + ${grossCents}`,
+                  updatedAt: new Date(),
+                })
+                .where(eq(developers.id, row.developerId))
+              await tx
+                .update(payouts)
+                .set({
+                  status: 'failed',
+                  errorMessage: `reversed: stripe transfer ${transfer.id} reversed`,
+                })
+                .where(eq(payouts.id, payoutId))
+              logger.warn('stripe.webhook.transfer_reversed_handled', {
+                payoutId,
+                transferId: transfer.id,
+                refundedCents: grossCents,
+                fromStatus: row.status,
+              })
+            } else {
+              logger.info('stripe.webhook.transfer_reversed_no_op', {
+                payoutId,
+                transferId: transfer.id,
+                status: row.status,
+              })
+            }
+          })
+        } catch (handlerErr) {
+          await db
+            .delete(processedWebhookEvents)
+            .where(eq(processedWebhookEvents.eventId, event.id))
+            .catch((delErr) => {
+              logger.error(
+                'stripe.webhook.dedup_delete_failed',
+                { eventId: event.id, eventType: event.type },
+                delErr as Error,
+              )
+            })
+          throw handlerErr
+        }
+        break
+      }
+
+      case 'transfer.updated': {
+        // Observability only — Stripe may emit this for fee/metadata
+        // changes. No DB state change required; just log so the event
+        // shows up in our dashboards.
+        const transfer = event.data.object as Stripe.Transfer
+        logger.info('stripe.webhook.transfer_updated', {
+          transferId: transfer.id,
+          payoutId: transfer.metadata?.payoutId,
+          amount: transfer.amount,
+        })
         break
       }
 
