@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 
@@ -296,8 +296,10 @@ export default function SettingsPage() {
   const [payoutMinimumDollars, setPayoutMinimumDollars] = useState('1')
   const [savingPayouts, setSavingPayouts] = useState(false)
 
-  // Stripe connect state
-  const [connecting, setConnecting] = useState(false)
+  // Stripe connect rails (Connect onboarding is initiated via the
+  // /onboarding Server Component — see the conditional Link below.
+  // No client-side connectStripe() handler needed; onboarding's own
+  // server-side eligibility check is the single source of truth).
   const [rails, setRails] = useState<RailDisplayMeta[]>([])
 
   // Notification state
@@ -573,20 +575,6 @@ export default function SettingsPage() {
       setSavingPayouts(false)
     }
   }, [payoutSchedule, payoutMinimumDollars, toast])
-
-  async function connectStripe() {
-    setConnecting(true)
-    try {
-      const res = await fetch('/api/stripe/connect', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) { toast(data.error || 'Failed to start Stripe Connect', 'error'); return }
-      window.location.href = data.url
-    } catch {
-      toast('Network error', 'error')
-    } finally {
-      setConnecting(false)
-    }
-  }
 
   function saveNotifications() {
     setSavingNotifications(true)
@@ -1231,9 +1219,18 @@ export default function SettingsPage() {
                               {profile?.stripeConnectStatus === 'active' ? 'Connected' : profile?.stripeConnectStatus === 'pending' ? 'Pending' : 'Not Connected'}
                             </Badge>
                             {profile?.stripeConnectStatus !== 'active' && (
-                              <Button size="sm" onClick={connectStripe} disabled={connecting}>
-                                {connecting ? 'Connecting...' : profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : `Connect ${rail.displayName}`}
-                              </Button>
+                              // Connect onboarding lives at /onboarding —
+                              // a Server Component that runs the
+                              // eligibility check before any Stripe-side
+                              // traffic. POSTing /api/stripe/connect from
+                              // the client (the prior implementation) is
+                              // explicitly rejected by the route now.
+                              <Link
+                                href="/onboarding"
+                                className={buttonVariants({ size: 'sm' })}
+                              >
+                                {profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : `Connect ${rail.displayName}`}
+                              </Link>
                             )}
                           </>
                         ) : (
