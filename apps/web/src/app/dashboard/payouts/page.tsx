@@ -27,6 +27,7 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { getStripeClient } from '@/lib/rails'
 import { logger } from '@/lib/logger'
 import ScheduleForm from './schedule-form'
+import TriggerPayoutButton from './trigger-button'
 import { SCHEDULE_TTL_MS, nextPayoutDates } from './_lib'
 
 export const dynamic = 'force-dynamic'
@@ -203,6 +204,7 @@ export default async function PayoutsPage() {
       payoutScheduleMonthDay: developers.payoutScheduleMonthDay,
       payoutScheduleSyncedAt: developers.payoutScheduleSyncedAt,
       payoutMinimumCents: developers.payoutMinimumCents,
+      balanceCents: developers.balanceCents,
       onboardingPaused: developers.onboardingPaused,
       onboardingPausedReason: developers.onboardingPausedReason,
     })
@@ -343,11 +345,29 @@ export default async function PayoutsPage() {
             </Link>
           </div>
         ) : (
-          <ScheduleForm
-            initialInterval={initialInterval}
-            initialWeekday={initialWeekday}
-            initialMonthDay={dev.payoutScheduleMonthDay ?? null}
-          />
+          <div className="space-y-6">
+            <ScheduleForm
+              initialInterval={initialInterval}
+              initialWeekday={initialWeekday}
+              initialMonthDay={dev.payoutScheduleMonthDay ?? null}
+            />
+            {/* Manual trigger — only when Connect is active and balance
+                meets the threshold. Server-side eligibility checks
+                are still authoritative; we hide the button when we
+                already know it'd 400. */}
+            {dev.stripeConnectStatus === 'active' &&
+              dev.balanceCents >= dev.payoutMinimumCents && (
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
+                  <h3 className="text-sm font-semibold text-indigo dark:text-gray-100 mb-2">
+                    Or pay out now
+                  </h3>
+                  <TriggerPayoutButton
+                    balanceCents={dev.balanceCents}
+                    payoutMinimumCents={dev.payoutMinimumCents}
+                  />
+                </div>
+              )}
+          </div>
         )}
       </section>
 
