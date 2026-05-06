@@ -681,7 +681,7 @@ async function handleProxy(
                 updatedAt: new Date(),
               }).where(eq(tools.id, auth.toolId)),
               db.update(developers).set({
-                balanceCents: sql`${developers.balanceCents} + ${Math.floor(costCents * (auth.developerRevenueSharePct / 100))}`,
+                balanceCents: sql`${developers.balanceCents} + ${costCents}`,
                 updatedAt: new Date(),
               }).where(eq(developers.id, auth.tool.developerId)),
             ])
@@ -802,7 +802,6 @@ async function handleProxy(
               keyId: auth.keyId,
               toolId: auth.toolId,
               developerId: auth.tool.developerId,
-              developerRevenueSharePct: auth.developerRevenueSharePct,
               flagged: fraudResult.flagged,
               originalStatus: null,
             })
@@ -853,7 +852,6 @@ async function handleProxy(
             keyId: auth.keyId,
             toolId: auth.toolId,
             developerId: auth.tool.developerId,
-            developerRevenueSharePct: auth.developerRevenueSharePct,
             flagged: fraudResult.flagged,
             originalStatus: upstreamStatus,
           })
@@ -932,8 +930,6 @@ async function handleProxy(
       }
       // Only credit tool revenue + developer balance if we actually collected.
       if (collectedCents > 0) {
-        const developerShareCents = Math.floor(collectedCents * (auth.developerRevenueSharePct / 100))
-
         // MUST be awaited — Vercel kills serverless containers as soon
         // as the response is sent, which kills the Postgres connection
         // mid-handshake and silently drops the writes (verified
@@ -952,7 +948,7 @@ async function handleProxy(
             db
               .update(developers)
               .set({
-                balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+                balanceCents: sql`${developers.balanceCents} + ${collectedCents}`,
                 updatedAt: new Date(),
               })
               .where(eq(developers.id, auth.tool.developerId)),
@@ -1333,9 +1329,6 @@ async function handleMppProxy(
   const actualCost = upstreamOk ? costCents : 0
 
   if (upstreamOk) {
-    // Increment tool revenue + developer balance
-    const developerShareCents = Math.floor(actualCost * (toolRow.revenueSharePct / 100))
-
     // Awaited — see proxy.billing_update_error rationale above.
     try {
       await Promise.all([
@@ -1350,7 +1343,7 @@ async function handleMppProxy(
         db
           .update(developers)
           .set({
-            balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+            balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
             updatedAt: new Date(),
           })
           .where(eq(developers.id, toolRow.developerId)),
@@ -1643,8 +1636,6 @@ async function forwardAndBill(
   const actualCost = upstreamOk ? costCents : 0
 
   if (upstreamOk) {
-    const developerShareCents = Math.floor(actualCost * (toolRow.revenueSharePct / 100))
-
     // Awaited — see proxy.billing_update_error rationale above.
     try {
       await Promise.all([
@@ -1654,7 +1645,7 @@ async function forwardAndBill(
           updatedAt: new Date(),
         }).where(eq(tools.id, toolRow.id)),
         db.update(developers).set({
-          balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+          balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
           updatedAt: new Date(),
         }).where(eq(developers.id, toolRow.developerId)),
       ])
@@ -2138,7 +2129,6 @@ interface FailoverParams {
   keyId: string
   toolId: string
   developerId: string
-  developerRevenueSharePct: number
   flagged: boolean
   originalStatus: number | null
 }
@@ -2152,7 +2142,7 @@ async function attemptFailover(params: FailoverParams): Promise<NextResponse | n
   const {
     slug, category, consumerId, costCents, request, requestBody,
     startTime, requestId, isTestKey, keyId, toolId, developerId,
-    developerRevenueSharePct, flagged, originalStatus,
+    flagged, originalStatus,
   } = params
 
   try {
@@ -2232,7 +2222,6 @@ async function attemptFailover(params: FailoverParams): Promise<NextResponse | n
       }
 
       // Credit the original developer
-      const developerShareCents = Math.floor(actualCost * (developerRevenueSharePct / 100))
       // Awaited — see proxy.billing_update_error rationale above.
       try {
         await Promise.all([
@@ -2242,7 +2231,7 @@ async function attemptFailover(params: FailoverParams): Promise<NextResponse | n
             updatedAt: new Date(),
           }).where(eq(tools.id, toolId)),
           db.update(developers).set({
-            balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+            balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
             updatedAt: new Date(),
           }).where(eq(developers.id, developerId)),
         ])

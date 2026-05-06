@@ -359,6 +359,51 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
     )
   })
 
+  // Progressive bracket boundary cases — pin the math at every break.
+  // Brackets (from lib/pricing.ts):
+  //   $0–$1,000     → 0%
+  //   $1,001–$10,000  → 2%
+  //   $10,001–$50,000 → 2.5%
+  //   $50,001+       → 5%
+  describe.each([
+    // [balanceCents, expectedFee, expectedPayout, label]
+    [50_000, 0, 50_000, '$500 (mid first bracket → 0% take)'],
+    [100_000, 0, 100_000, '$1,000 exact (top of first bracket → still 0%)'],
+    [100_001, 0, 100_001, '$1,000.01 (1¢ into 2% bracket — 0.02 floors to 0)'],
+    [100_100, 2, 100_098, '$1,001 (100¢ into 2% bracket → 2¢ take)'],
+  ])('progressive bracket boundary: balance=%i', (balance, expectedFee, expectedPayout) => {
+    it(`fee=${expectedFee}, payout=${expectedPayout}`, async () => {
+      mockDb.limit.mockResolvedValueOnce([{
+        id: 'dev-bracket',
+        email: 'dev@example.com',
+        name: 'Test Dev',
+        balanceCents: balance,
+        stripeConnectId: 'acct_test',
+        stripeConnectStatus: 'active',
+        payoutMinimumCents: 100,
+      }])
+      mockDb.returning.mockResolvedValueOnce([{
+        id: 'payout-bracket',
+        amountCents: expectedPayout,
+        platformFeeCents: expectedFee,
+        createdAt: new Date().toISOString(),
+      }])
+
+      const request = makeRequest('/api/payouts/trigger', 'POST')
+      const response = await triggerPayout(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.payout.amountCents).toBe(expectedPayout)
+      expect(data.payout.platformFeeCents).toBe(expectedFee)
+      // Stripe is debited the NET (post-take) amount, not the gross.
+      expect(mockStripeTransfers.create).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: expectedPayout }),
+        expect.anything(),
+      )
+    })
+  })
+
   it('applies progressive take to the $2473.50 reference balance', async () => {
     // The founder's historical balance — exact numbers from the
     // launch-day plan. balance=247350 → take = (247350-100000) * 0.02
