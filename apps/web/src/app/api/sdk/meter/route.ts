@@ -318,8 +318,6 @@ export const POST = withCors(async function POST(request: NextRequest) {
       return errorResponse('Insufficient credits.', 402, 'INSUFFICIENT_CREDITS')
     }
 
-    const developerShareCents = Math.floor(body.costCents * (effectiveRevenueSharePct / 100))
-
     // Atomic DB deduction
     const [updatedBalance] = await db
       .update(consumerToolBalances)
@@ -350,11 +348,11 @@ export const POST = withCors(async function POST(request: NextRequest) {
       })
       .where(eq(tools.id, body.toolId))
 
-    // Add developer share
+    // Add developer share (gross — progressive take is applied at payout time)
     await db
       .update(developers)
       .set({
-        balanceCents: sql`${developers.balanceCents} + ${developerShareCents}`,
+        balanceCents: sql`${developers.balanceCents} + ${body.costCents}`,
         updatedAt: sql`${now.toISOString()}::timestamptz`,
       })
       .where(eq(developers.id, toolDev.developerId))
