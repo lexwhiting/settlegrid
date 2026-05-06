@@ -99,6 +99,7 @@ vi.mock('@/lib/rate-limit', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
+  and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({

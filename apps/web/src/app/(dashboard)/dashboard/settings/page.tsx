@@ -1214,9 +1214,23 @@ export default function SettingsPage() {
                         {rail.id === 'stripe-connect' ? (
                           <>
                             <Badge
-                              variant={profile?.stripeConnectStatus === 'active' ? 'success' : profile?.stripeConnectStatus === 'pending' ? 'warning' : 'secondary'}
+                              variant={
+                                profile?.stripeConnectStatus === 'active'
+                                  ? 'success'
+                                  : profile?.stripeConnectStatus === 'needs_reconnect'
+                                    ? 'warning'
+                                    : profile?.stripeConnectStatus === 'pending'
+                                      ? 'warning'
+                                      : 'secondary'
+                              }
                             >
-                              {profile?.stripeConnectStatus === 'active' ? 'Connected' : profile?.stripeConnectStatus === 'pending' ? 'Pending' : 'Not Connected'}
+                              {profile?.stripeConnectStatus === 'active'
+                                ? 'Connected'
+                                : profile?.stripeConnectStatus === 'needs_reconnect'
+                                  ? 'Reconnection required'
+                                  : profile?.stripeConnectStatus === 'pending'
+                                    ? 'Pending'
+                                    : 'Not Connected'}
                             </Badge>
                             {profile?.stripeConnectStatus !== 'active' && (
                               // Connect onboarding lives at /onboarding —
@@ -1229,8 +1243,22 @@ export default function SettingsPage() {
                                 href="/onboarding"
                                 className={buttonVariants({ size: 'sm' })}
                               >
-                                {profile?.stripeConnectStatus === 'pending' ? 'Reconnect' : `Connect ${rail.displayName}`}
+                                {profile?.stripeConnectStatus === 'needs_reconnect' ||
+                                profile?.stripeConnectStatus === 'pending'
+                                  ? 'Reconnect'
+                                  : `Connect ${rail.displayName}`}
                               </Link>
+                            )}
+                            {profile?.stripeConnectStatus === 'needs_reconnect' && (
+                              // The trigger route flips this status when
+                              // Stripe returns account_invalid or
+                              // insufficient_capabilities — both signal
+                              // the connected account stopped accepting
+                              // payouts. Re-onboarding through Stripe's
+                              // Express flow is the recovery path.
+                              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                                Stripe rejected a recent payout because your connected account stopped accepting transfers. Re-onboard to restore payouts.
+                              </p>
                             )}
                           </>
                         ) : (

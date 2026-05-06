@@ -90,6 +90,13 @@ export async function GET(request: NextRequest) {
 
         const hasTools = devTools.length > 0
         const hasStripe = dev.stripeConnectStatus === 'active'
+        // 'needs_reconnect' means a previously-active Connect account
+        // was rejected by Stripe (account_invalid / insufficient_
+        // capabilities). The dev already onboarded once — re-sending
+        // onboarding-drip emails is wrong. The Settings page surfaces
+        // a reconnect CTA; that's their touchpoint, not these emails.
+        if (dev.stripeConnectStatus === 'needs_reconnect') continue
+
         const stripeStarted = dev.stripeConnectStatus === 'pending' || dev.stripeConnectStatus === 'incomplete'
 
         // ─── D2: +24h, no tool ────────────────────────────────────────

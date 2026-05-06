@@ -39,7 +39,7 @@
  */
 
 import Stripe from 'stripe'
-import { eq, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, payouts } from '@/lib/db/schema'
 import { getStripeSecretKey } from '@/lib/env'
@@ -56,6 +56,7 @@ export type ProcessPayoutErrorCode =
   | 'PAYOUT_IN_PROGRESS'
   | 'STRIPE_TRANSFER_FAILED'
   | 'NEEDS_RECONNECT'
+  | 'PAYOUT_PARTIAL_SUCCESS'
   | 'INTERNAL'
 
 export interface ProcessPayoutSuccess {
@@ -145,6 +146,7 @@ export async function processPayout(
           stripeConnectId: developers.stripeConnectId,
           stripeConnectStatus: developers.stripeConnectStatus,
           payoutMinimumCents: developers.payoutMinimumCents,
+          createdAt: developers.createdAt,
         })
         .from(developers)
         .where(eq(developers.id, developerId))
@@ -192,14 +194,34 @@ export async function processPayout(
       const platformFeeCents = calculateTakeCents(grossCents)
       const payoutAmountCents = grossCents - platformFeeCents
 
+      // Derive periodStart from the previous COMPLETED payout's periodEnd.
+      // This eliminates overlap between consecutive payouts that the old
+      // now-30d fabrication produced. Falls back to the developer's
+      // account creation date for the very first payout. Failed/unknown
+      // payouts are intentionally excluded — they don't represent paid
+      // periods.
+      const [previousPayout] = await tx
+        .select({ periodEnd: payouts.periodEnd })
+        .from(payouts)
+        .where(
+          and(
+            eq(payouts.developerId, developer.id),
+            eq(payouts.status, 'completed'),
+          ),
+        )
+        .orderBy(desc(payouts.periodEnd))
+        .limit(1)
+
       const now = new Date()
+      const periodStart = previousPayout?.periodEnd ?? developer.createdAt
+
       const [payoutRecord] = await tx
         .insert(payouts)
         .values({
           developerId: developer.id,
           amountCents: payoutAmountCents,
           platformFeeCents,
-          periodStart: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+          periodStart,
           periodEnd: now,
           status: 'processing',
         })
@@ -344,14 +366,92 @@ export async function processPayout(
     }
   }
 
-  // ── Phase 3: mark completed ──────────────────────────────────────────
-  await db
-    .update(payouts)
-    .set({ status: 'completed', stripeTransferId: transfer.id })
-    .where(eq(payouts.id, payoutRecord.id))
+  // ── Phase 3: mark completed (with retry) ────────────────────────────
+  //
+  // The Stripe transfer succeeded; our DB needs to record it. Up to
+  // four attempts: an initial try plus three retries with 100/500/
+  // 2000ms backoff between successive failures. If all four full
+  // UPDATEs fail (DB outage), we make one last single-column attempt
+  // to write at least `stripeTransferId` — enough for the orphan-
+  // cleanup path in `/api/cron/process-payouts` to recognize the row
+  // as "Stripe paid, we just lost the result" and recover correctly
+  // up to 24h later. If even the single-column attempt fails, we log
+  // critical and return PAYOUT_PARTIAL_SUCCESS.
+  const RETRY_BACKOFF_MS = [100, 500, 2000]
+  const MAX_COMPLETION_ATTEMPTS = 1 + RETRY_BACKOFF_MS.length
+  let completionErr: Error | null = null
+  for (let i = 0; i < MAX_COMPLETION_ATTEMPTS; i++) {
+    try {
+      await db
+        .update(payouts)
+        .set({ status: 'completed', stripeTransferId: transfer.id })
+        .where(eq(payouts.id, payoutRecord.id))
+      completionErr = null
+      break
+    } catch (err) {
+      completionErr = err as Error
+      // Sleep BEFORE the next retry, never after the final attempt.
+      if (i < RETRY_BACKOFF_MS.length) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS[i]))
+      }
+    }
+  }
+
+  if (completionErr) {
+    // Fallback: try to at least stamp `stripeTransferId` so orphan
+    // cleanup can route this row to 'completed' rather than 'failed'
+    // (which would silently lose a real Stripe payment).
+    try {
+      await db
+        .update(payouts)
+        .set({ stripeTransferId: transfer.id })
+        .where(eq(payouts.id, payoutRecord.id))
+      logger.error(
+        'payout.completion_update_exhausted_partial_recovery',
+        {
+          developerId,
+          payoutId: payoutRecord.id,
+          stripeTransferId: transfer.id,
+          amountCents: payoutAmountCents,
+          trigger,
+        },
+        completionErr,
+      )
+    } catch (fallbackErr) {
+      // Worst case: row stays 'processing' with no stripeTransferId.
+      // Operator must reconcile via Stripe's transfer log + payoutId
+      // metadata. Orphan cleanup will eventually mark this row 'failed'
+      // and restore balance — which is WRONG given Stripe paid out, so
+      // we surface this loudly enough that ops can intervene first.
+      logger.error(
+        'payout.completion_update_exhausted_fully',
+        {
+          developerId,
+          payoutId: payoutRecord.id,
+          stripeTransferId: transfer.id,
+          amountCents: payoutAmountCents,
+          trigger,
+          fallbackErr: (fallbackErr as Error).message,
+        },
+        completionErr,
+      )
+    }
+
+    return {
+      ok: false,
+      errorCode: 'PAYOUT_PARTIAL_SUCCESS',
+      errorMessage: `Payout transferred (Stripe id ${transfer.id}) but our records are out of sync. Reconciliation will run within 24 hours; further payout attempts are blocked until then.`,
+      // 200 because the money DID move; this is a database-sync issue,
+      // not a payment failure. Caller (UI) treats this as a success
+      // toast with a reconciliation note.
+      httpStatus: 200,
+    }
+  }
 
   // Fire-and-forget audit + email — observability/notification, must
-  // not affect transactional correctness.
+  // not affect transactional correctness. `writeAuditLog` swallows its
+  // own errors internally (lib/audit.ts), so no .catch() is needed
+  // here. `sendEmail` propagates errors, so its .catch() is real.
   writeAuditLog({
     developerId,
     action: 'payout.triggered',
@@ -365,9 +465,7 @@ export async function processPayout(
       trigger,
     },
     ipAddress,
-  }).catch((err) =>
-    logger.error('payout.audit_log_failed', { payoutId: payoutRecord.id }, err),
-  )
+  })
 
   if (developerEmail) {
     const displayName = developerName ?? developerEmail

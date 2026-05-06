@@ -29,6 +29,7 @@ const { mockDb, mockStripeTransfers } = vi.hoisted(() => {
     returning: vi.fn().mockResolvedValue([]),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
     for: vi.fn().mockReturnThis(),
   }
   mockDb.transaction = vi.fn().mockImplementation(async (fn) => fn(mockDb))
@@ -93,6 +94,8 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
+  and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
+  desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
       sql: strings,
@@ -114,6 +117,7 @@ describe('processPayout — typed result for every branch', () => {
     mockDb.values.mockReturnThis()
     mockDb.update.mockReturnThis()
     mockDb.set.mockReturnThis()
+    mockDb.orderBy.mockReturnThis()
     mockDb.for.mockReturnThis()
     mockDb.transaction.mockImplementation(async (fn: (tx: typeof mockDb) => Promise<unknown>) =>
       fn(mockDb),
@@ -130,6 +134,7 @@ describe('processPayout — typed result for every branch', () => {
       stripeConnectId: 'acct_x',
       stripeConnectStatus: 'active',
       payoutMinimumCents: 100,
+      createdAt: new Date('2026-01-01'),
     }])
     mockDb.returning.mockResolvedValueOnce([{
       id: 'p-1',
@@ -209,6 +214,7 @@ describe('processPayout — typed result for every branch', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-6', email: 'd@e.com', name: null, balanceCents: 5000,
       stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+      createdAt: new Date('2026-01-01'),
     }])
     mockDb.returning.mockResolvedValueOnce([{
       id: 'p-failed', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
@@ -229,6 +235,7 @@ describe('processPayout — typed result for every branch', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-7', email: 'd@e.com', name: null, balanceCents: 5000,
       stripeConnectId: 'acct_dead', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+      createdAt: new Date('2026-01-01'),
     }])
     mockDb.returning.mockResolvedValueOnce([{
       id: 'p-dead', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
@@ -263,6 +270,7 @@ describe('processPayout — typed result for every branch', () => {
     mockDb.limit.mockResolvedValueOnce([{
       id: 'dev-9', email: 'd@e.com', name: null, balanceCents: 3000,
       stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+      createdAt: new Date('2026-01-01'),
     }])
     mockDb.returning.mockResolvedValueOnce([{
       id: 'payout-key', amountCents: 3000, platformFeeCents: 0, createdAt: new Date(),
@@ -273,5 +281,115 @@ describe('processPayout — typed result for every branch', () => {
       expect.objectContaining({ amount: 3000, destination: 'acct' }),
       expect.objectContaining({ idempotencyKey: 'payout:payout-key' }),
     )
+  })
+
+  it('periodStart derives from previous completed payout periodEnd', async () => {
+    // Developer SELECT returns the dev row, then the previous-payout
+    // SELECT returns a completed payout whose periodEnd should become
+    // the new payout's periodStart.
+    const prevPeriodEnd = new Date('2026-04-01T00:00:00Z')
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-period', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2025-01-01T00:00:00Z'),
+      }])
+      .mockResolvedValueOnce([{ periodEnd: prevPeriodEnd }])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-period', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+
+    const result = await processPayout({ developerId: 'dev-period', trigger: 'manual' })
+    expect(result.ok).toBe(true)
+    // Confirm the INSERT received periodStart equal to the previous periodEnd.
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({ periodStart: prevPeriodEnd }),
+    )
+  })
+
+  it('periodStart falls back to developers.createdAt when no previous payout exists', async () => {
+    const devCreatedAt = new Date('2026-01-15T00:00:00Z')
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-first', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: devCreatedAt,
+      }])
+      .mockResolvedValueOnce([]) // no previous payout
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-first', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+
+    const result = await processPayout({ developerId: 'dev-first', trigger: 'manual' })
+    expect(result.ok).toBe(true)
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({ periodStart: devCreatedAt }),
+    )
+  })
+
+  it('completion UPDATE retries (initial + 3 backoff retries; 4th attempt wins) → ok:true', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-retry', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-retry', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+
+    // Each db.update() returns a chain whose terminal .where() is
+    // awaited. We swap the chain per call:
+    //   call 1: preflight balance debit (success)
+    //   call 2: completion attempt 1 (reject)
+    //   call 3: completion attempt 2 (reject)
+    //   call 4: completion attempt 3 (reject)
+    //   call 5: completion attempt 4 (success — wins; no fallback runs)
+    const chainSuccess = () => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) })
+    const chainReject = (err: string) => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockRejectedValue(new Error(err)) }) })
+    mockDb.update
+      .mockReturnValueOnce(chainSuccess()) // preflight
+      .mockReturnValueOnce(chainReject('blip 1'))
+      .mockReturnValueOnce(chainReject('blip 2'))
+      .mockReturnValueOnce(chainReject('blip 3'))
+      .mockReturnValueOnce(chainSuccess()) // attempt 4 wins
+
+    const result = await processPayout({ developerId: 'dev-retry', trigger: 'manual' })
+    expect(result.ok).toBe(true)
+  })
+
+  it('completion UPDATE exhausts all 4 attempts AND fallback → PAYOUT_PARTIAL_SUCCESS (200)', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{
+        id: 'dev-exhaust', email: 'd@e.com', name: null, balanceCents: 5000,
+        stripeConnectId: 'acct', stripeConnectStatus: 'active', payoutMinimumCents: 100,
+        createdAt: new Date('2026-01-01'),
+      }])
+      .mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'p-exhaust', amountCents: 5000, platformFeeCents: 0, createdAt: new Date(),
+    }])
+
+    // Preflight succeeds, ALL 4 completion attempts AND the
+    // single-column fallback all reject. 6 mocks total.
+    const chainSuccess = () => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) })
+    const chainReject = (err: string) => ({ set: vi.fn().mockReturnValue({ where: vi.fn().mockRejectedValue(new Error(err)) }) })
+    mockDb.update
+      .mockReturnValueOnce(chainSuccess()) // preflight
+      .mockReturnValueOnce(chainReject('blip 1'))
+      .mockReturnValueOnce(chainReject('blip 2'))
+      .mockReturnValueOnce(chainReject('blip 3'))
+      .mockReturnValueOnce(chainReject('blip 4'))
+      .mockReturnValueOnce(chainReject('fallback fails too'))
+
+    const result = await processPayout({ developerId: 'dev-exhaust', trigger: 'manual' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errorCode).toBe('PAYOUT_PARTIAL_SUCCESS')
+      expect(result.httpStatus).toBe(200)
+      expect(result.errorMessage).toContain('tr_test_123')
+      expect(result.errorMessage).toContain('24 hours')
+    }
   })
 })

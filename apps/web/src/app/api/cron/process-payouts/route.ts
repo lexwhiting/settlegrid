@@ -41,6 +41,7 @@ import { logger } from '@/lib/logger'
 import { processPayout } from '@/lib/payouts/process'
 import { calculateTakeCents } from '@/lib/pricing'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 300 // 5 min — generous for ≤ ~hundreds of devs
 
@@ -76,33 +77,155 @@ export async function GET(request: NextRequest) {
 
     // ── Step 0: orphan-row cleanup ───────────────────────────────────────
     //
-    // A row stuck in status='processing' from a previous run (Vercel
-    // killed mid-Stripe-call, the post-Stripe completion UPDATE
-    // failed, etc.) blocks the partial unique index from accepting
-    // a new attempt for that developer. Mark such rows as 'failed'
-    // so the next preflight INSERT can succeed and reconciliation
-    // (manual / future webhook handler) can sweep up the truth.
+    // A row stuck in status='processing' from a previous run blocks the
+    // partial unique index from accepting a new attempt for that
+    // developer. Two distinct shapes of orphan, handled differently:
     //
-    // 24h is the same window as Stripe's idempotency-key TTL — past
-    // that we know any orphan is unrecoverable via auto-retry.
+    //   A. stripe_transfer_id IS NULL → the Stripe transfer was never
+    //      created (lambda died before/during the call, or before the
+    //      completion UPDATE). The developer's balance was already
+    //      debited in preflight; we MUST restore it, otherwise that
+    //      money is silently lost. Mark 'failed', refund balance.
+    //
+    //   B. stripe_transfer_id IS NOT NULL → the Stripe transfer DID
+    //      complete (the completion UPDATE wrote the id but failed to
+    //      flip status to 'completed'; or the partial-recovery
+    //      single-column UPDATE in process.ts:Phase 3 fired). Stripe
+    //      really paid the dev. Mark 'completed' (the status it should
+    //      have reached); do NOT touch balance (correctly debited).
+    //
+    // 24h matches Stripe's idempotency-key TTL — past that we know any
+    // orphan is unrecoverable via auto-retry from the original caller.
+    //
+    // The whole orphan sweep runs per-row in its own transaction so a
+    // single bad row can't poison the whole sweep.
     try {
-      const orphanResult = await db
-        .update(payoutsTable)
-        .set({
-          status: 'failed',
-          errorMessage: 'auto-released: stuck in processing > 24h',
+      const orphans = await db
+        .select({
+          id: payoutsTable.id,
+          developerId: payoutsTable.developerId,
+          amountCents: payoutsTable.amountCents,
+          platformFeeCents: payoutsTable.platformFeeCents,
+          stripeTransferId: payoutsTable.stripeTransferId,
         })
+        .from(payoutsTable)
         .where(
           and(
             eq(payoutsTable.status, 'processing'),
             sql`${payoutsTable.createdAt} < NOW() - INTERVAL '24 hours'`,
           ),
         )
-        .returning({ id: payoutsTable.id })
-      if (orphanResult.length > 0) {
-        logger.warn('cron.process_payouts.orphan_released', {
-          count: orphanResult.length,
-          ids: orphanResult.map((r) => r.id),
+        .limit(100)
+
+      let releasedFailed = 0
+      let releasedCompleted = 0
+      for (const orphan of orphans) {
+        try {
+          if (orphan.stripeTransferId) {
+            // Shape B: Stripe paid, our row stuck. Recover to
+            // 'completed'. Conditional UPDATE acts as a CAS — only
+            // succeeds if status is still 'processing'. If a concurrent
+            // cron run already processed this orphan, our UPDATE
+            // returns 0 rows and we no-op.
+            const claimed = await db
+              .update(payoutsTable)
+              .set({
+                status: 'completed',
+                errorMessage: 'auto-recovered: stripe transfer succeeded; row stuck in processing > 24h',
+              })
+              .where(
+                and(
+                  eq(payoutsTable.id, orphan.id),
+                  eq(payoutsTable.status, 'processing'),
+                ),
+              )
+              .returning({ id: payoutsTable.id })
+            if (claimed.length === 0) {
+              logger.info('cron.process_payouts.orphan_already_handled', {
+                payoutId: orphan.id,
+                shape: 'B',
+              })
+              continue
+            }
+            releasedCompleted += 1
+            logger.warn('cron.process_payouts.orphan_recovered_to_completed', {
+              payoutId: orphan.id,
+              developerId: orphan.developerId,
+              stripeTransferId: orphan.stripeTransferId,
+            })
+            // Best-effort audit log so the founder/operator has a paper
+            // trail of silent recoveries. writeAuditLog swallows its
+            // own errors so this can't poison the loop.
+            await writeAuditLog({
+              developerId: orphan.developerId,
+              action: 'payout.auto_recovered_to_completed',
+              resourceType: 'payout',
+              resourceId: orphan.id,
+              details: {
+                stripeTransferId: orphan.stripeTransferId,
+                amountCents: orphan.amountCents,
+                platformFeeCents: orphan.platformFeeCents,
+                reason: 'stuck_processing_with_stripe_transfer',
+              },
+            })
+          } else {
+            // Shape A: no Stripe transfer. Refund balance + mark
+            // 'failed' inside a transaction. The status UPDATE is
+            // CAS-conditional (WHERE status='processing'); if a
+            // concurrent run already won, the UPDATE returns 0 rows
+            // and we abort the whole tx so balance is NOT incremented.
+            const grossCents = orphan.amountCents + orphan.platformFeeCents
+            const claimed = await db.transaction(async (tx) => {
+              const released = await tx
+                .update(payoutsTable)
+                .set({
+                  status: 'failed',
+                  errorMessage: 'auto-released: stuck in processing > 24h, no stripe transfer recorded',
+                })
+                .where(
+                  and(
+                    eq(payoutsTable.id, orphan.id),
+                    eq(payoutsTable.status, 'processing'),
+                  ),
+                )
+                .returning({ id: payoutsTable.id })
+              if (released.length === 0) return false
+              await tx
+                .update(developers)
+                .set({
+                  balanceCents: sql`${developers.balanceCents} + ${grossCents}`,
+                  updatedAt: new Date(),
+                })
+                .where(eq(developers.id, orphan.developerId))
+              return true
+            })
+            if (!claimed) {
+              logger.info('cron.process_payouts.orphan_already_handled', {
+                payoutId: orphan.id,
+                shape: 'A',
+              })
+              continue
+            }
+            releasedFailed += 1
+            logger.warn('cron.process_payouts.orphan_released_to_failed', {
+              payoutId: orphan.id,
+              developerId: orphan.developerId,
+              refundedCents: grossCents,
+            })
+          }
+        } catch (perRowErr) {
+          logger.error(
+            'cron.process_payouts.orphan_per_row_failed',
+            { payoutId: orphan.id, developerId: orphan.developerId },
+            perRowErr as Error,
+          )
+        }
+      }
+      if (releasedFailed + releasedCompleted > 0) {
+        logger.info('cron.process_payouts.orphan_sweep_complete', {
+          releasedFailed,
+          releasedCompleted,
+          totalScanned: orphans.length,
         })
       }
     } catch (err) {
@@ -256,11 +379,21 @@ export async function GET(request: NextRequest) {
       failedCount,
     })
 
+    // Cap outcomes in the response body — full per-developer outcomes
+    // already went to logger.info above (durable observability), and
+    // Vercel's response body limit is 4.5 MB. At 100 outcomes ~ 200 B
+    // each ≈ 20 KB, comfortably bounded. Caller still gets accurate
+    // counts; the array is a sample for spot-checking.
+    const OUTCOMES_CAP = 100
+    const outcomesTruncated = outcomes.length > OUTCOMES_CAP
+    const outcomesSample = outcomesTruncated ? outcomes.slice(0, OUTCOMES_CAP) : outcomes
+
     return successResponse({
       processedCount: eligible.length,
       succeededCount,
       failedCount,
-      outcomes,
+      outcomes: outcomesSample,
+      outcomesTruncated,
     })
   } catch (error) {
     return internalErrorResponse(error)
