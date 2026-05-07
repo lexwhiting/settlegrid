@@ -53,6 +53,14 @@ export function getStripeWebhookSecret(): string | undefined {
   return process.env.STRIPE_WEBHOOK_SECRET
 }
 
+// Connect-mode webhook secret — separate endpoint that subscribes to
+// connected-account events (payout.failed, etc). Distinct from the
+// platform-mode STRIPE_WEBHOOK_SECRET because Stripe issues per-endpoint
+// secrets and we run the two endpoints in parallel.
+export function getStripeConnectWebhookSecret(): string | undefined {
+  return process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+}
+
 export function getResendApiKey(): string {
   return requireEnv('RESEND_API_KEY')
 }
