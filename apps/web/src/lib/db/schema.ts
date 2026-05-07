@@ -32,7 +32,7 @@ export const developers = pgTable('developers', {
   apiKeyHash: text('api_key_hash'),
   balanceCents: integer('balance_cents').notNull().default(0),
   payoutSchedule: text('payout_schedule').notNull().default('monthly'),
-  payoutMinimumCents: integer('payout_minimum_cents').notNull().default(100), // $1 minimum — lowest in the industry
+  payoutMinimumCents: integer('payout_minimum_cents').notNull().default(2500), // $25 default; Stripe per-payout fees (≈$0.25 + 0.25%) erode small amounts. Per-dev tunable down to $1.
   // Notification preferences — { eventType: boolean } pairs
   notificationPreferences: jsonb('notification_preferences').notNull().default('{}'),
   // Notification webhooks — { slack?: string, discord?: string }

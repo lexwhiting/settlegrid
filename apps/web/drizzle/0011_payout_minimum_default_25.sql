@@ -1,0 +1,11 @@
+-- P5.PAYOUTS-CLEANUP-5 — raise default payout minimum from $1 to $25.
+--
+-- Stripe Connect deducts a per-payout fee on the transfer to a
+-- developer's bank (~$0.25 fixed + 0.25% on Express). At the $1
+-- default, this eats ~25% of each payout — silent value erosion.
+-- $25 brings the effective fee to ~1.2%.
+--
+-- Existing developers retain whatever value they have explicitly
+-- (or implicitly) set; this only affects future inserts that don't
+-- specify a value.
+ALTER TABLE developers ALTER COLUMN payout_minimum_cents SET DEFAULT 2500;
