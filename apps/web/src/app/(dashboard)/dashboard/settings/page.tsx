@@ -293,7 +293,7 @@ export default function SettingsPage() {
 
   // Payout form state
   const [payoutSchedule, setPayoutSchedule] = useState('monthly')
-  const [payoutMinimumDollars, setPayoutMinimumDollars] = useState('1')
+  const [payoutMinimumDollars, setPayoutMinimumDollars] = useState('25')
   const [savingPayouts, setSavingPayouts] = useState(false)
 
   // Stripe connect rails (Connect onboarding is initiated via the
@@ -1304,7 +1304,18 @@ export default function SettingsPage() {
                       className="max-w-[120px]"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">As low as $1 — get paid faster</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Stripe charges a per-payout fee on the transfer to your bank (typically a fixed amount + small percentage). At the $25 default, this fee is roughly 1% of each payout; smaller thresholds get paid faster but lose more proportionally to fees.{' '}
+                    <a
+                      href="https://stripe.com/connect/pricing"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-brand"
+                    >
+                      Stripe Connect pricing
+                    </a>
+                    . Adjustable from $1 to $500.
+                  </p>
                 </div>
 
                 {/* Current Balance */}

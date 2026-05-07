@@ -96,7 +96,7 @@ function registerDeveloper(email: string, name: string): MockDeveloper {
     stripeConnectId: null,
     stripeConnectStatus: 'not_started',
     balanceCents: 0,
-    payoutMinimumCents: 100,
+    payoutMinimumCents: 2500,
   }
   mockDevelopers.push(dev)
   return dev
@@ -438,8 +438,8 @@ describe('Payout Flow', () => {
   it('fails when balance is below minimum', () => {
     const dev = registerDeveloper('dev@example.com', 'Dev')
     connectStripe(dev)
-    // Default payoutMinimumCents is 100 ($1). Set below to trigger the
-    // minimum-balance check.
+    // Default payoutMinimumCents is 2500 ($25). Set below to trigger
+    // the minimum-balance check.
     dev.balanceCents = 50
 
     const result = triggerPayout(dev)
@@ -471,6 +471,10 @@ describe('Full Lifecycle Scenario', () => {
   it('developer -> tool -> consumer -> purchase -> invoke -> payout', () => {
     // 1. Developer registers and creates a tool
     const dev = registerDeveloper('alice@startup.com', 'Alice')
+    // This end-to-end test wants a small final balance to validate
+    // the full payout flow without requiring 600+ mock invocations.
+    // Lower the per-dev threshold below the $25 default.
+    dev.payoutMinimumCents = 100
     const tool = createTool(dev.id, 'Classifier', 'classifier', 5)
     activateTool(tool)
     connectStripe(dev)
