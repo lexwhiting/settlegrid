@@ -23,6 +23,17 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    /**
+     * Default 5000ms is too tight for Vite-node first-import resolution
+     * on the heaviest modules (e.g. settlement registry pulls in 14
+     * adapters + their crypto/protocol deps; under parallel-test load
+     * the first import can take 5–8 seconds before any test code runs).
+     * Repeatedly observed flakiness in `smoke.test.ts` and
+     * `multi-hop.test.ts` "exports" tests at the 5s threshold. 15s
+     * keeps the safety margin without masking real long-running tests
+     * (those still want explicit per-test timeouts).
+     */
+    testTimeout: 15_000,
   },
   resolve: {
     alias: {

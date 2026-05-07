@@ -217,8 +217,7 @@ const BASE_VOUCHER: Parameters<typeof __internal__.computeVoucherHash>[0] = {
 }
 
 describe('computeVoucherHash — structural invariants (P3.K5 coverage)', () => {
-  const { computeVoucherHash, padAddress, padUint256, centsToUsdcBaseUnits } =
-    __internal__
+  const { computeVoucherHash } = __internal__
 
   it('returns exactly 64 lowercase hex chars (32-byte Keccak-256 digest)', () => {
     const digest = computeVoucherHash(BASE_VOUCHER)
