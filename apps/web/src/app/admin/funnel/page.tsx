@@ -26,6 +26,9 @@ import {
   Legend,
   ResponsiveContainer,
   CartesianGrid,
+  FunnelChart,
+  Funnel,
+  LabelList,
 } from 'recharts'
 
 interface FunnelEventCounts {
@@ -43,13 +46,28 @@ interface FunnelConversion {
   fromUniques: number
   toUniques: number
   rate: number | null
-  medianSecondsToConvert: number | null
+  medianMinutesToConvert: number | null
+}
+interface DailyStats {
+  total: number
+  activeDays: number
+  minNonZero: number
+  median: number
+  max: number
+  peakDay: string | null
+  spikeRatio: number | null
+}
+interface HourBucket {
+  hourUtc: number
+  count: number
 }
 interface FunnelData {
   generatedAt: string
   windowDays: number
   events: Record<string, FunnelEventCounts>
   daily: FunnelDailyPoint[]
+  dailyStats: Record<string, DailyStats>
+  hourClusters: HourBucket[]
   conversions: FunnelConversion[]
   topTemplates: Array<{ slug: string; successes: number }>
   topErrors: Array<{ code: string; failures: number }>
@@ -81,12 +99,12 @@ function formatPercent(rate: number | null): string {
   return `${(rate * 100).toFixed(1)}%`
 }
 
-function formatDuration(seconds: number | null): string {
-  if (seconds === null || seconds <= 0) return '--'
-  if (seconds < 60) return `${Math.round(seconds)}s`
-  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`
-  if (seconds < 86400) return `${(seconds / 3600).toFixed(1)}h`
-  return `${(seconds / 86400).toFixed(1)}d`
+function formatMinutes(min: number | null): string {
+  if (min === null || min <= 0) return '--'
+  if (min < 1) return `${(min * 60).toFixed(0)}s`
+  if (min < 60) return `${min.toFixed(1)}m`
+  if (min < 1440) return `${(min / 60).toFixed(1)}h`
+  return `${(min / 1440).toFixed(1)}d`
 }
 
 /**
@@ -203,45 +221,148 @@ export default function FunnelDashboardPage() {
             </div>
           )}
 
-          {/* ─── 5-stage funnel ─────────────────────────────────────── */}
+          {/* ─── 5-stage funnel chart with dropoff percentages ──────── */}
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-gray-200">
               5-stage funnel
             </h2>
-            <div className="space-y-2">
-              {FUNNEL_STAGES.map((stage, i) => {
-                const conv = response?.data?.conversions.find(
-                  (c) => c.fromStage === FUNNEL_STAGES[i - 1] && c.toStage === stage,
-                )
-                const stageUniques =
-                  i === 0
-                    ? response?.data?.events[stage]?.unique ?? null
-                    : conv?.toUniques ?? null
-                return (
-                  <div key={stage}>
-                    {i > 0 && conv && (
-                      <div className="ml-6 my-1 text-xs text-gray-500">
-                        ↓ {formatPercent(conv.rate)} conversion · median time:{' '}
-                        {formatDuration(conv.medianSecondsToConvert)}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Real recharts FunnelChart per spec D12 */}
+              <div className="rounded-lg border border-gray-700 bg-[#161822] p-4 h-80">
+                {response?.data ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <FunnelChart>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#161822',
+                          border: '1px solid #2A2D3E',
+                        }}
+                        formatter={(value: number) => formatNumber(value)}
+                      />
+                      <Funnel
+                        dataKey="value"
+                        data={FUNNEL_STAGES.map((stage, i) => {
+                          const conv = response.data!.conversions.find(
+                            (c) =>
+                              c.fromStage === FUNNEL_STAGES[i - 1] &&
+                              c.toStage === stage,
+                          )
+                          const stageUniques =
+                            i === 0
+                              ? response.data!.events[stage]?.unique ?? 0
+                              : conv?.toUniques ?? 0
+                          return {
+                            name: stage,
+                            value: stageUniques,
+                            fill: STAGE_COLORS[stage],
+                          }
+                        })}
+                        isAnimationActive
+                      >
+                        <LabelList
+                          position="right"
+                          fill="#e5e7eb"
+                          stroke="none"
+                          dataKey="name"
+                          fontSize={11}
+                        />
+                      </Funnel>
+                    </FunnelChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-sm text-gray-500 flex items-center justify-center h-full">
+                    No funnel data yet.
+                  </p>
+                )}
+              </div>
+
+              {/* Per-transition dropoff detail to the right of the chart */}
+              <div className="rounded-lg border border-gray-700 bg-[#161822] p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-gray-200 mb-2">
+                  Stage-to-stage dropoff
+                </h3>
+                {FUNNEL_STAGES.map((stage, i) => {
+                  const conv = response?.data?.conversions.find(
+                    (c) => c.fromStage === FUNNEL_STAGES[i - 1] && c.toStage === stage,
+                  )
+                  const stageUniques =
+                    i === 0
+                      ? response?.data?.events[stage]?.unique ?? null
+                      : conv?.toUniques ?? null
+                  return (
+                    <div key={stage} className="text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-gray-300">
+                          Stage {i + 1} · {stage}
+                        </span>
+                        <span className="tabular-nums text-gray-100 font-semibold">
+                          {formatNumber(stageUniques)}
+                        </span>
                       </div>
-                    )}
-                    <div
-                      className="rounded-md border border-gray-700 bg-[#161822] px-4 py-3 flex items-center justify-between"
-                      style={{
-                        borderLeftColor: STAGE_COLORS[stage],
-                        borderLeftWidth: 4,
-                      }}
-                    >
-                      <span className="font-mono text-sm text-gray-200">
-                        Stage {i + 1} · {stage}
-                      </span>
-                      <span className="text-lg font-semibold text-gray-100 tabular-nums">
-                        {formatNumber(stageUniques)} users
-                      </span>
+                      {i > 0 && conv && (
+                        <div className="ml-2 mt-0.5 text-gray-500">
+                          ↳ {formatPercent(conv.rate)} conv · median{' '}
+                          {formatMinutes(conv.medianMinutesToConvert)}{' '}
+                          time-to-convert
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* ─── Anomaly section: spikes + dips + hour clustering ──── */}
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-gray-200">
+              Anomalies (spikes, dips, timezone)
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <AnomalyCard
+                title="Daily spikes (max/median ≥ 2×)"
+                empty="No spikes."
+                rows={
+                  response?.data
+                    ? Object.entries(response.data.dailyStats)
+                        .filter(
+                          ([, s]) =>
+                            s.spikeRatio !== null && s.spikeRatio >= 2,
+                        )
+                        .sort(
+                          (a, b) =>
+                            (b[1].spikeRatio ?? 0) - (a[1].spikeRatio ?? 0),
+                        )
+                        .map(([event, s]) => ({
+                          left: event,
+                          right: `${(s.spikeRatio ?? 0).toFixed(1)}× on ${s.peakDay ?? '--'}`,
+                        }))
+                    : []
+                }
+              />
+              <AnomalyCard
+                title="Day-coverage dips (< 50% active)"
+                empty="No dips."
+                rows={
+                  response?.data
+                    ? Object.entries(response.data.dailyStats)
+                        .filter(
+                          ([, s]) =>
+                            s.total > 0 &&
+                            response.data!.windowDays > 0 &&
+                            s.activeDays < response.data!.windowDays / 2,
+                        )
+                        .sort((a, b) => a[1].activeDays - b[1].activeDays)
+                        .map(([event, s]) => ({
+                          left: event,
+                          right: `${s.activeDays}/${response.data!.windowDays} days`,
+                        }))
+                    : []
+                }
+              />
+              <HourClusterCard
+                hourClusters={response?.data?.hourClusters ?? []}
+              />
             </div>
           </section>
 
@@ -316,6 +437,96 @@ export default function FunnelDashboardPage() {
           </section>
         </div>
       </main>
+    </div>
+  )
+}
+
+function AnomalyCard({
+  title,
+  rows,
+  empty,
+}: {
+  title: string
+  rows: Array<{ left: string; right: string }>
+  empty: string
+}) {
+  return (
+    <div className="rounded-lg border border-gray-700 bg-[#161822] p-4">
+      <h3 className="text-sm font-semibold text-gray-200 mb-3">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="text-xs text-gray-500">{empty}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {rows.map((r) => (
+            <li
+              key={r.left}
+              className="flex justify-between text-xs border-b border-gray-800/40 pb-1"
+            >
+              <code className="text-gray-300 font-mono">{r.left}</code>
+              <span className="text-gray-100 tabular-nums">{r.right}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function HourClusterCard({ hourClusters }: { hourClusters: HourBucket[] }) {
+  if (hourClusters.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-700 bg-[#161822] p-4">
+        <h3 className="text-sm font-semibold text-gray-200 mb-3">
+          Hour-of-day (UTC, gallery_viewed)
+        </h3>
+        <p className="text-xs text-gray-500">No top-of-funnel events in window.</p>
+      </div>
+    )
+  }
+  const total = hourClusters.reduce((a, b) => a + b.count, 0)
+  const peak = hourClusters.reduce(
+    (best, h) => (h.count > best.count ? h : best),
+    hourClusters[0],
+  )
+  const peakShare = total > 0 ? peak.count / total : 0
+  // Build a 24-bucket array filled with zeros for sparse data
+  const fullDay = Array.from({ length: 24 }, (_, h) => {
+    const bucket = hourClusters.find((c) => c.hourUtc === h)
+    return { hourUtc: h, count: bucket?.count ?? 0 }
+  })
+  const max = peak.count || 1
+  return (
+    <div className="rounded-lg border border-gray-700 bg-[#161822] p-4">
+      <h3 className="text-sm font-semibold text-gray-200 mb-2">
+        Hour-of-day (UTC, gallery_viewed)
+      </h3>
+      <p className="text-xs text-gray-500 mb-2">
+        Peak{' '}
+        <strong className="text-gray-100">
+          {peak.hourUtc.toString().padStart(2, '0')}:00 UTC
+        </strong>{' '}
+        — {formatPercent(peakShare)} of total
+        {peakShare >= 0.2 ? (
+          <span className="text-amber-400"> · single timezone likely dominates</span>
+        ) : null}
+      </p>
+      <div className="flex items-end gap-px h-16">
+        {fullDay.map((b) => (
+          <div
+            key={b.hourUtc}
+            title={`${b.hourUtc.toString().padStart(2, '0')}:00 UTC: ${b.count}`}
+            className="flex-1 bg-blue-500/40"
+            style={{ height: `${(b.count / max) * 100}%` }}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-gray-500 mt-1 font-mono">
+        <span>00</span>
+        <span>06</span>
+        <span>12</span>
+        <span>18</span>
+        <span>23</span>
+      </div>
     </div>
   )
 }
