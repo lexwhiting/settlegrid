@@ -242,7 +242,7 @@ function buildSignedRequest(
   secret: string,
   opts: { timestamp?: number; headerName?: string } = {},
 ): Request {
-  const { header, timestamp } = signPayload(payload, secret, {
+  const { header } = signPayload(payload, secret, {
     timestamp: opts.timestamp,
   })
   const headers = new Headers({ 'content-type': 'application/json' })

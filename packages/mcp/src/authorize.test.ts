@@ -7,7 +7,7 @@
  * built-ins.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   authorizeInvocation,
   buildAuthDeniedResponse,
@@ -486,7 +486,6 @@ describe('authorizeInvocation — deterministic clock', () => {
       clock: () => t,
     }
     // Advance clock by 42ms between start and end
-    const origClock = config.clock
     config.clock = () => {
       const cur = t
       t += 42 // advanced between the two calls

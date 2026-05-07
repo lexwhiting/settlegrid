@@ -12,7 +12,6 @@
  */
 import { describe, it, expect } from 'vitest'
 import { protocolRegistry } from '../adapters'
-import type { ProtocolAdapter } from '../adapters/types'
 import {
   buildMultiProtocol402,
   type PaymentRequiredBody,
@@ -482,9 +481,8 @@ describe('buildMultiProtocol402', () => {
     it('H4: adapter returning an object without scheme falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
       const original = mcpAdapter!.buildChallenge
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry =>
-        ({ foo: 'bar' }) as any
+        ({ foo: 'bar' }) as unknown as AcceptEntry
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,
@@ -501,9 +499,8 @@ describe('buildMultiProtocol402', () => {
     it('H4: adapter with scheme field that is not a string falls back to inline entry', async () => {
       const mcpAdapter = protocolRegistry.get('mcp')
       const original = mcpAdapter!.buildChallenge
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mcpAdapter!.buildChallenge = (_options: BuildChallengeOptions): AcceptEntry =>
-        ({ scheme: 42 }) as any
+        ({ scheme: 42 }) as unknown as AcceptEntry
       try {
         const response = buildMultiProtocol402({
           resource: BASE_RESOURCE,

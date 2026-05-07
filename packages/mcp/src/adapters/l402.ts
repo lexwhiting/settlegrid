@@ -25,11 +25,8 @@ import type {
 } from '../402-builder'
 import { resolveOperationCost } from '../config'
 import type { SettleGridInternalEvent } from '../rails/types'
-import {
-  createLndClient,
-  LND_NOT_WIRED_MESSAGE,
-} from './lightning/lnd'
-import type { VoltageClient, VoltageInvoice } from './lightning/voltage'
+import { createLndClient } from './lightning/lnd'
+import type { VoltageClient } from './lightning/voltage'
 import { createVoltageClient, streamTextCapped } from './lightning/voltage'
 import type {
   AdapterLogger,
@@ -1576,7 +1573,7 @@ export interface L402ChallengeEnvelope {
  * caveat (otherwise verifyPayment falls back to length-only checks
  * and logs a warning).
  */
-export interface L402VerifyPaymentOptions extends L402ValidateOptions {}
+export type L402VerifyPaymentOptions = L402ValidateOptions
 
 /**
  * Input to {@link L402Adapter.settle}. `invocationId` is the
