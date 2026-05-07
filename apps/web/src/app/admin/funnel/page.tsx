@@ -227,7 +227,11 @@ export default function FunnelDashboardPage() {
               5-stage funnel
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Real recharts FunnelChart per spec D12 */}
+              {/* Real recharts FunnelChart per spec D12. Each bar carries
+                  TWO labels: the stage name on the right, and the
+                  "from-prev conversion %" centered on the bar (blank
+                  for stage 1, which has no preceding stage). The
+                  side panel still surfaces median time-to-convert. */}
               <div className="rounded-lg border border-gray-700 bg-[#161822] p-4 h-80">
                 {response?.data ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -251,10 +255,17 @@ export default function FunnelDashboardPage() {
                             i === 0
                               ? response.data!.events[stage]?.unique ?? 0
                               : conv?.toUniques ?? 0
+                          const dropoffLabel =
+                            i === 0
+                              ? `${formatNumber(stageUniques)} entered`
+                              : conv?.rate === null || conv?.rate === undefined
+                                ? '—'
+                                : `${formatNumber(stageUniques)} · ${formatPercent(conv.rate)} from prev`
                           return {
                             name: stage,
                             value: stageUniques,
                             fill: STAGE_COLORS[stage],
+                            dropoffLabel,
                           }
                         })}
                         isAnimationActive
@@ -265,6 +276,14 @@ export default function FunnelDashboardPage() {
                           stroke="none"
                           dataKey="name"
                           fontSize={11}
+                        />
+                        <LabelList
+                          position="center"
+                          fill="#0C0E14"
+                          stroke="none"
+                          dataKey="dropoffLabel"
+                          fontSize={11}
+                          fontWeight={600}
                         />
                       </Funnel>
                     </FunnelChart>
