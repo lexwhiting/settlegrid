@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   computeDailyStats,
+  parseMedianMinutes,
   runFunnelQueries,
   FUNNEL_STAGES,
   FUNNEL_TRANSITIONS,
@@ -118,6 +119,56 @@ describe('computeDailyStats', () => {
     expect(stats.gallery_viewed.total).toBe(100)
     expect(stats.first_billed_call.total).toBe(1)
     expect(stats.template_detail_viewed.total).toBe(0)
+  })
+})
+
+describe('parseMedianMinutes', () => {
+  it('returns null when upstream returns undefined (no row at all)', () => {
+    expect(parseMedianMinutes(undefined)).toBeNull()
+  })
+
+  it('returns null when upstream returns empty rows array', () => {
+    expect(parseMedianMinutes([])).toBeNull()
+  })
+
+  it('returns null when row is empty (no columns)', () => {
+    expect(parseMedianMinutes([[]])).toBeNull()
+  })
+
+  it('returns null when median seconds is null (no users qualified)', () => {
+    expect(parseMedianMinutes([[null]])).toBeNull()
+  })
+
+  it('returns null when median seconds is exactly 0 (defensive — query enforces t_to > t_from)', () => {
+    expect(parseMedianMinutes([[0]])).toBeNull()
+  })
+
+  it('preserves sub-minute precision (regression: 1.5s no longer rounds to 0/null)', () => {
+    // Pre-fix this returned null because `Math.round(0.025 * 10) / 10 = 0`
+    // and the storage layer mapped 0 → null. Then the formatters rendered
+    // `--` for what was a real, fast conversion. Full-precision storage
+    // keeps the signal; formatters round at the leaf.
+    const result = parseMedianMinutes([[1.5]])
+    expect(result).not.toBeNull()
+    expect(result).toBeCloseTo(0.025, 6)
+  })
+
+  it('preserves 1-second median precision (lower-bound regression)', () => {
+    const result = parseMedianMinutes([[1]])
+    expect(result).not.toBeNull()
+    expect(result).toBeCloseTo(1 / 60, 6)
+  })
+
+  it('returns 1 minute for 60-second median', () => {
+    expect(parseMedianMinutes([[60]])).toBe(1)
+  })
+
+  it('returns 60 minutes for 3600-second median', () => {
+    expect(parseMedianMinutes([[3600]])).toBe(60)
+  })
+
+  it('coerces string-shaped seconds value (HogQL occasionally returns wide numerics as strings)', () => {
+    expect(parseMedianMinutes([[ '120' ]])).toBe(2)
   })
 })
 

@@ -76,13 +76,20 @@ export interface FunnelConversion {
   rate: number | null
   /**
    * Median time between fromStage's first occurrence and toStage's
-   * first occurrence, per user, in minutes (rounded to 1 decimal).
-   * Null when no users completed both in order.
+   * first occurrence, per user, in minutes (full precision — display
+   * formatters round to fit their unit). Null when no users completed
+   * both in order.
    *
    * Spec D9 calls for minutes as the canonical unit. The HogQL query
    * computes seconds via toUnixTimestamp arithmetic; we divide by 60
    * here so consumers (script markdown, dashboard, JSON sidecar) all
    * see the same minute-denominated number.
+   *
+   * Precision note: pre-rounding to 1 decimal at storage (the prior
+   * shape) silently dropped 1–2-second medians to 0, which the
+   * formatters then rendered as `--` (no-data) — losing real signal.
+   * Full precision keeps "fast conversion" measurable; formatters do
+   * their own rounding at display (see fmtMinutes / formatMinutes).
    */
   medianMinutesToConvert: number | null
 }
@@ -338,6 +345,36 @@ function buildHourQuery(days: number): string {
   `.trim()
 }
 
+// ─── Time-to-convert parsing (extracted for testability) ────────────────────
+
+/**
+ * Parse the median-seconds row returned by `buildTimeToConvertQuery`
+ * into a minute-denominated number (full precision; display formatters
+ * round). Returns null when the upstream returned no row, an empty
+ * row, or a non-positive seconds value.
+ *
+ * Behaviour table:
+ *   undefined / [] / [[]]                 → null   (no row from PostHog)
+ *   [[null]]                              → null   (no users qualified)
+ *   [[0]]                                 → null   (zero seconds — impossible
+ *                                                   per query's `t_to > t_from`,
+ *                                                   but defensive)
+ *   [[1.5]]                               → 0.025  (was 0 under old rounding,
+ *                                                   which displayed as `--`)
+ *   [[60]]                                → 1
+ *   [[3600]]                              → 60
+ *
+ * Exported for testing.
+ */
+export function parseMedianMinutes(
+  upstreamRows: unknown[][] | undefined,
+): number | null {
+  const ttcRow = upstreamRows?.[0] ?? []
+  if (ttcRow.length === 0) return null
+  const seconds = asNumber(ttcRow[0])
+  return seconds > 0 ? seconds / 60 : null
+}
+
 // ─── Anomaly aggregations (computed in TS from `daily` rows) ────────────────
 
 /**
@@ -468,17 +505,20 @@ export async function runFunnelQueries(
 
     // Compose the 4 conversions. Spec D9 requires minutes as the
     // canonical time-to-convert unit; HogQL returns seconds via
-    // toUnixTimestamp arithmetic, so we divide by 60 here (rounded
-    // to 1 decimal) and surface as `medianMinutesToConvert`.
+    // toUnixTimestamp arithmetic, so we divide by 60 here and surface
+    // as `medianMinutesToConvert`. Full precision is preserved at
+    // storage so 1–2-second medians don't get rounded to 0 and lost
+    // to the formatters' "no-data" branch (`min <= 0` → `--`).
+    // Display formatters (fmtMinutes / formatMinutes) round at the
+    // leaf using `.toFixed(1)`.
     const conversions: FunnelConversion[] = FUNNEL_TRANSITIONS.map(
       (t, idx) => {
         const fromUniques = stageUniques[t.from]
         const toUniques = stageUniques[t.to]
         const rate = fromUniques > 0 ? toUniques / fromUniques : null
-        const ttcRow = timeToConvertResults[idx]?.[0] ?? []
-        const seconds = ttcRow.length > 0 ? asNumber(ttcRow[0]) : 0
-        const medianMinutesToConvert =
-          seconds > 0 ? Math.round((seconds / 60) * 10) / 10 : null
+        const medianMinutesToConvert = parseMedianMinutes(
+          timeToConvertResults[idx],
+        )
         return {
           fromStage: t.from,
           toStage: t.to,
