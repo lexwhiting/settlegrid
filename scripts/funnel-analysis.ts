@@ -94,12 +94,12 @@ function fmtPct(rate: number | null): string {
   return rate === null ? 'n/a' : `${(rate * 100).toFixed(1)}%`
 }
 
-function fmtDuration(seconds: number | null): string {
-  if (seconds === null || seconds <= 0) return 'n/a'
-  if (seconds < 60) return `${Math.round(seconds)}s`
-  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`
-  if (seconds < 86400) return `${(seconds / 3600).toFixed(1)}h`
-  return `${(seconds / 86400).toFixed(1)}d`
+function fmtMinutes(min: number | null): string {
+  if (min === null || min <= 0) return 'n/a'
+  if (min < 1) return `${(min * 60).toFixed(0)}s`
+  if (min < 60) return `${min.toFixed(1)}m`
+  if (min < 1440) return `${(min / 60).toFixed(1)}h`
+  return `${(min / 1440).toFixed(1)}d`
 }
 
 function buildMarkdown(data: FunnelData): string {
@@ -108,12 +108,19 @@ function buildMarkdown(data: FunnelData): string {
   lines.push(``)
   lines.push(`## Section 1 — Raw event counts (${data.windowDays}-day window)`)
   lines.push(``)
-  lines.push(`| Event | Total | Unique users |`)
-  lines.push(`|---|---:|---:|`)
+  lines.push(`| Event | Total | Unique users | Active days | Min/day | Median/day | Max/day | Peak day |`)
+  lines.push(`|---|---:|---:|---:|---:|---:|---:|---|`)
   for (const e of EVENT_NAMES) {
     const c = data.events[e]
-    lines.push(`| \`${e}\` | ${fmtNum(c.total)} | ${fmtNum(c.unique)} |`)
+    const stats = data.dailyStats[e]
+    lines.push(
+      `| \`${e}\` | ${fmtNum(c.total)} | ${fmtNum(c.unique)} | ${fmtNum(stats.activeDays)} | ${fmtNum(stats.minNonZero)} | ${fmtNum(Math.round(stats.median * 10) / 10)} | ${fmtNum(stats.max)} | ${stats.peakDay ?? 'n/a'} |`,
+    )
   }
+  lines.push(``)
+  lines.push(
+    `_Per-event daily breakdown: above table summarizes the daily distribution. Full per-day-per-event grid is in the JSON sidecar (\`daily\` array)._`,
+  )
   lines.push(``)
 
   lines.push(`## Section 2 — Conversion rates between funnel stages`)
@@ -122,7 +129,7 @@ function buildMarkdown(data: FunnelData): string {
   lines.push(`|---|---:|---:|---:|---:|`)
   for (const c of data.conversions) {
     lines.push(
-      `| \`${c.fromStage}\` → \`${c.toStage}\` | ${fmtNum(c.fromUniques)} | ${fmtNum(c.toUniques)} | ${fmtPct(c.rate)} | ${fmtDuration(c.medianSecondsToConvert)} |`,
+      `| \`${c.fromStage}\` → \`${c.toStage}\` | ${fmtNum(c.fromUniques)} | ${fmtNum(c.toUniques)} | ${fmtPct(c.rate)} | ${fmtMinutes(c.medianMinutesToConvert)} |`,
     )
   }
   lines.push(``)
@@ -153,7 +160,7 @@ function buildMarkdown(data: FunnelData): string {
     .sort((a, b) => b.absoluteLost - a.absoluteLost)
   for (const d of dropoffs) {
     lines.push(
-      `- \`${d.fromStage}\` → \`${d.toStage}\`: lost **${fmtNum(d.absoluteLost)} users** (${d.relativeLossRate === null ? 'n/a' : fmtPct(d.relativeLossRate)} dropped). Median time-to-convert for those who did convert: ${fmtDuration(d.medianSecondsToConvert)}.`,
+      `- \`${d.fromStage}\` → \`${d.toStage}\`: lost **${fmtNum(d.absoluteLost)} users** (${d.relativeLossRate === null ? 'n/a' : fmtPct(d.relativeLossRate)} dropped). Median time-to-convert for those who did convert: ${fmtMinutes(d.medianMinutesToConvert)}.`,
     )
   }
   lines.push(``)
@@ -168,9 +175,75 @@ function buildMarkdown(data: FunnelData): string {
   }
   lines.push(``)
 
-  lines.push(`## Section 4 — Anomalies (manual founder review)`)
+  lines.push(`## Section 4 — Anomalies (spikes, dips, timezone effects)`)
   lines.push(``)
-  lines.push(`Top templates by \`scaffold_success\`:`)
+  // ── Data-derived spikes ────────────────────────────────────────────
+  lines.push(`**Spikes** — events whose peak day was disproportionately large (max-day / median-day ratio):`)
+  lines.push(``)
+  const spikes = (Object.entries(data.dailyStats) as Array<[
+    string,
+    typeof data.dailyStats[keyof typeof data.dailyStats],
+  ]>)
+    .filter(([, s]) => s.spikeRatio !== null && s.spikeRatio >= 2)
+    .sort((a, b) => (b[1].spikeRatio ?? 0) - (a[1].spikeRatio ?? 0))
+  if (spikes.length === 0) {
+    lines.push(`- _(no events have a max-day-to-median-day ratio ≥ 2x)_`)
+  } else {
+    for (const [event, s] of spikes) {
+      lines.push(
+        `- \`${event}\`: ${fmtNum(s.max)} on ${s.peakDay} vs median ${fmtNum(Math.round(s.median * 10) / 10)} (${(s.spikeRatio ?? 0).toFixed(1)}x). Investigate the day's traffic source.`,
+      )
+    }
+  }
+  lines.push(``)
+
+  // ── Dips ───────────────────────────────────────────────────────────
+  lines.push(`**Dips** — events with low active-day coverage relative to window:`)
+  lines.push(``)
+  const dips = (Object.entries(data.dailyStats) as Array<[
+    string,
+    typeof data.dailyStats[keyof typeof data.dailyStats],
+  ]>)
+    .filter(([, s]) => s.total > 0 && s.activeDays < data.windowDays / 2)
+    .sort((a, b) => a[1].activeDays - b[1].activeDays)
+  if (dips.length === 0) {
+    lines.push(`- _(no events with < 50% day coverage; activity is well-distributed)_`)
+  } else {
+    for (const [event, s] of dips) {
+      lines.push(
+        `- \`${event}\`: only ${s.activeDays} of ${data.windowDays} days had any events. Investigate downtime / outages / instrumentation gaps.`,
+      )
+    }
+  }
+  lines.push(``)
+
+  // ── Timezone clustering ────────────────────────────────────────────
+  lines.push(`**Timezone clustering** — hour-of-day distribution (UTC) for \`gallery_viewed\` (top of funnel):`)
+  lines.push(``)
+  if (data.hourClusters.length === 0) {
+    lines.push(`- _(no \`gallery_viewed\` events in window)_`)
+  } else {
+    const totalHourly = data.hourClusters.reduce((a, b) => a + b.count, 0)
+    const peakHour = data.hourClusters.reduce(
+      (best, h) => (h.count > best.count ? h : best),
+      data.hourClusters[0],
+    )
+    const peakShare = totalHourly > 0 ? peakHour.count / totalHourly : 0
+    lines.push(
+      `- Peak hour: **${peakHour.hourUtc.toString().padStart(2, '0')}:00 UTC** with ${fmtNum(peakHour.count)} events (${fmtPct(peakShare)} of total).`,
+    )
+    if (peakShare >= 0.2) {
+      lines.push(
+        `- Concentration ≥ 20% in a single hour suggests a dominant timezone. Cross-reference geo breakdown below to identify it.`,
+      )
+    } else {
+      lines.push(`- Distribution is reasonably spread; no single timezone dominates.`)
+    }
+  }
+  lines.push(``)
+
+  // ── Top templates / geo (kept here as supporting context for anomaly review) ─
+  lines.push(`**Top templates by \`scaffold_success\`:**`)
   lines.push(``)
   if (data.topTemplates.length === 0) {
     lines.push(`- _(no scaffold successes in window)_`)
@@ -180,7 +253,7 @@ function buildMarkdown(data: FunnelData): string {
     }
   }
   lines.push(``)
-  lines.push(`Geographic breakdown (top countries by event volume):`)
+  lines.push(`**Geographic breakdown (top countries by event volume):**`)
   lines.push(``)
   if (data.geoBreakdown.length === 0) {
     lines.push(`- _(no country-tagged events in window)_`)
@@ -189,10 +262,6 @@ function buildMarkdown(data: FunnelData): string {
       lines.push(`- \`${g.country}\`: ${fmtNum(g.events)} events`)
     }
   }
-  lines.push(``)
-  lines.push(
-    `**Founder review checklist (Section 4):** spikes/dips in daily counts (re-render the daily chart at \`/admin/funnel\` to eyeball), timezone clustering of events (US-day vs IST-day), correlation of error codes with specific templates.`,
-  )
   lines.push(``)
 
   lines.push(
