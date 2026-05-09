@@ -56,8 +56,36 @@ jobs:
           git config user.name "settlegrid-bot"
           git config user.email "bot@settlegrid.ai"
 
+      - name: Check required secrets
+        id: secrets_check
+        env:
+          PH_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          PH_PID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          ANTH: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          # Pre-launch the workflow gets pushed before any of the
+          # required secrets are configured. Rather than letting the
+          # script's hard-fail-on-missing-env path produce a red ❌
+          # every Monday until the founder configures secrets, we
+          # detect the missing-secret state up front and skip the rest
+          # of the run with a GH notice (yellow, not red — surfaces in
+          # the run UI without paging email).
+          missing=()
+          if [[ -z "${PH_KEY:-}" ]]; then missing+=("POSTHOG_PERSONAL_API_KEY"); fi
+          if [[ -z "${PH_PID:-}" ]]; then missing+=("POSTHOG_PROJECT_ID"); fi
+          if [[ -z "${ANTH:-}" ]]; then missing+=("ANTHROPIC_API_KEY"); fi
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            joined=$(IFS=', '; echo "${missing[*]}")
+            echo "::notice title=TOTW skipped::Required secrets not configured: ${joined}. Set them under Settings → Secrets and variables → Actions to enable the weekly draft."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Pick + draft
         id: pick
+        if: steps.secrets_check.outputs.skip != 'true'
         env:
           POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
           POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
@@ -73,6 +101,7 @@ jobs:
 
       - name: Read output
         id: out
+        if: steps.secrets_check.outputs.skip != 'true'
         run: |
           set -euo pipefail
           if [[ ! -f /tmp/totw-output.json ]]; then

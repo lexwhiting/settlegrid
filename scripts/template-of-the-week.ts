@@ -59,6 +59,10 @@ import {
   makeDraftPaths,
   validateDraft,
 } from '../apps/web/src/lib/totw/draft.js'
+import {
+  type SplicePayload,
+  spliceRegisteredText,
+} from '../apps/web/src/lib/totw/splice.js'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -413,106 +417,14 @@ async function generateDraft(args: {
 }
 
 // ─── registered.ts splice ──────────────────────────────────────────────────
-
-interface SplicePayload {
-  importBinding: string
-  bodyFilename: string
-  postSlug: string
-  templateName: string
-  templateSlug: string
-  date: string
-  wordCount: number
-  body: string // for keyword extraction
-}
-
-const IMPORTS_BEGIN = '// TOTW_IMPORTS_BEGIN'
-const IMPORTS_END = '// TOTW_IMPORTS_END'
-const ENTRIES_BEGIN = '// TOTW_ENTRIES_BEGIN'
-const ENTRIES_END = '// TOTW_ENTRIES_END'
+// Pure splice logic (renderEntryBlock, escapeForTsString, insertBefore,
+// spliceRegisteredText) lives in apps/web/src/lib/totw/splice.ts so it
+// can be unit-tested in isolation. This wrapper handles only the fs IO.
 
 async function spliceRegistered(payload: SplicePayload): Promise<void> {
   const current = await readFile(REGISTERED_PATH, 'utf-8')
-
-  const importLine = `import ${payload.importBinding} from './${payload.bodyFilename}'`
-  const entryBlock = renderEntryBlock(payload)
-
-  // Per-marker check: insertBefore returns input unchanged when the
-  // marker is absent. Doing both inserts and then checking only
-  // `next === current` would silently produce a half-spliced file
-  // when one marker is present and the other has been removed by an
-  // operator. Check each insert independently.
-  const afterImport = insertBefore(current, IMPORTS_END, importLine + '\n')
-  if (afterImport === current) {
-    throw new Error(
-      `Marker ${IMPORTS_END} not found in ${REGISTERED_PATH}. Restore the BEGIN/END comment markers before re-running.`,
-    )
-  }
-
-  const afterEntry = insertBefore(afterImport, ENTRIES_END, entryBlock + '\n')
-  if (afterEntry === afterImport) {
-    throw new Error(
-      `Marker ${ENTRIES_END} not found in ${REGISTERED_PATH}. Restore the BEGIN/END comment markers before re-running.`,
-    )
-  }
-
-  await writeFile(REGISTERED_PATH, afterEntry, 'utf-8')
-}
-
-function insertBefore(haystack: string, marker: string, payload: string): string {
-  const idx = haystack.indexOf(marker)
-  if (idx === -1) return haystack
-  return haystack.slice(0, idx) + payload + haystack.slice(idx)
-}
-
-function renderEntryBlock(p: SplicePayload): string {
-  const escapedTitle = escapeForTsString(`${p.templateName} — Template of the Week`)
-  const escapedDescription = escapeForTsString(
-    `Why ${p.templateName} caught our eye this week — what it does, the minimal setup, and the angle that makes it worth a paragraph today.`,
-  )
-  // Reading-time at 240 wpm rounded up to nearest minute.
-  const readingMin = Math.max(1, Math.ceil(p.wordCount / 240))
-  return [
-    `  {`,
-    `    slug: '${p.postSlug}',`,
-    `    title: ${escapedTitle},`,
-    `    description: ${escapedDescription},`,
-    `    datePublished: '${p.date}',`,
-    `    dateModified: '${p.date}',`,
-    `    keywords: [`,
-    `      'SettleGrid template',`,
-    `      'MCP server',`,
-    `      'template of the week',`,
-    `      ${escapeForTsString(p.templateName)},`,
-    `    ],`,
-    `    readingTime: '${readingMin} min read',`,
-    `    wordCount: ${p.wordCount},`,
-    `    author: {`,
-    `      name: 'Lex Whiting',`,
-    `      url: 'https://x.com/lexwhiting',`,
-    `      bio: 'Founder, SettleGrid. Bootstrapping a settlement layer for the AI economy.',`,
-    `    },`,
-    `    relatedSlugs: ['settlegrid-templates-launch'],`,
-    `    body: ${p.importBinding},`,
-    `    published: false,`,
-    `  },`,
-  ].join('\n')
-}
-
-/**
- * Escape an arbitrary string for embedding inside a single-quoted TS
- * string literal. Order matters: backslash first (so it doesn't
- * double-escape the escapes added after), then quotes, then line
- * terminators (which would break the literal). U+2028 / U+2029
- * don't need escaping at modern TS targets (ES2019+ allows them as
- * literal characters); Next.js builds at ES2022.
- */
-function escapeForTsString(s: string): string {
-  const escaped = s
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
-  return `'${escaped}'`
+  const next = spliceRegisteredText(current, payload)
+  await writeFile(REGISTERED_PATH, next, 'utf-8')
 }
 
 // ─── Output JSON ────────────────────────────────────────────────────────────
@@ -638,7 +550,6 @@ async function main(): Promise<void> {
       templateSlug: winnerTemplate.slug,
       date: todayDate,
       wordCount,
-      body: draftBody,
     })
     const entry: TotwHistoryEntry = {
       slug: winner.slug,
