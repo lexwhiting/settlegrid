@@ -15,11 +15,27 @@ interface RailRow {
   takeCentsTotal: number
 }
 
+interface PayoutStatus {
+  mode: 'manual' | 'auto'
+  cronSchedule: string
+  nextCronRun: string
+  lastSuccess: {
+    occurredAt: string | null
+    amountCents: number
+  }
+  pending: {
+    count: number
+    amountCentsTotal: number
+  }
+  failed24h: number
+}
+
 interface RailsData {
   view: 'rails'
   generatedAt: string
   windowDays: number
   perRail: RailRow[]
+  payoutStatus: PayoutStatus
 }
 
 export default function KernelHealthRailsPage() {
@@ -89,15 +105,85 @@ export default function KernelHealthRailsPage() {
           <p className="text-muted-foreground">Loading…</p>
         ) : error === 'failed' ? (
           <p className="text-destructive">Failed to load. Try refreshing.</p>
-        ) : data && data.perRail.length === 0 ? (
-          <p className="text-muted-foreground">
-            No settled invocations in the last {data.windowDays} days.
-          </p>
         ) : data ? (
-          <RailsTable rows={data.perRail} />
+          <>
+            <PayoutStatusPanel status={data.payoutStatus} />
+            <h2 className="mt-8 mb-3 text-lg font-semibold">
+              Per-rail accumulation
+            </h2>
+            {data.perRail.length === 0 ? (
+              <p className="text-muted-foreground">
+                No settled invocations in the last {data.windowDays} days.
+              </p>
+            ) : (
+              <RailsTable rows={data.perRail} />
+            )}
+          </>
         ) : null}
       </div>
     </main>
+  )
+}
+
+function PayoutStatusPanel({ status }: { status: PayoutStatus }) {
+  const pendingUsd = status.pending.amountCentsTotal / 100
+  const lastSuccessUsd = status.lastSuccess.amountCents / 100
+  const lastSuccessLabel = status.lastSuccess.occurredAt
+    ? new Date(status.lastSuccess.occurredAt).toISOString().slice(0, 10)
+    : '—'
+  const nextRunLabel = new Date(status.nextCronRun)
+    .toISOString()
+    .replace('T', ' ')
+    .slice(0, 16) + ' UTC'
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold">Payout schedule status</h2>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card label="Mode" value={status.mode} />
+        <Card label="Next cron run" value={nextRunLabel} />
+        <Card
+          label="Pending"
+          value={`${status.pending.count} dev${status.pending.count === 1 ? '' : 's'} · ${pendingUsd.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}`}
+        />
+        <Card
+          label="Failed (24h)"
+          value={status.failed24h.toLocaleString()}
+          severity={status.failed24h > 0 ? 'warn' : 'normal'}
+        />
+        <Card
+          label="Last success"
+          value={`${lastSuccessLabel} · ${lastSuccessUsd.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}`}
+        />
+        <Card
+          label="Cron schedule"
+          value={status.cronSchedule}
+        />
+      </div>
+    </section>
+  )
+}
+
+function Card({
+  label,
+  value,
+  severity = 'normal',
+}: {
+  label: string
+  value: string
+  severity?: 'normal' | 'warn'
+}) {
+  return (
+    <div
+      className={
+        'rounded-lg border p-4 ' +
+        (severity === 'warn' ? 'border-destructive/40 bg-destructive/5' : '')
+      }
+    >
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-2 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
   )
 }
 

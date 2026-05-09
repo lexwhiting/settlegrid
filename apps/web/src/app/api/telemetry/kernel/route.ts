@@ -131,7 +131,10 @@ export async function POST(request: NextRequest) {
     return errorResponse('props.adapter required.', 400, 'INVALID_BODY')
   }
   const rail = typeof props.rail === 'string' ? props.rail : null
-  const devId = typeof props.devId === 'string' ? props.devId : null
+  // Spec §P5.K1 — kernel events use snake_case property names
+  // (`dev_id`, `amount_cents`, `latency_ms`, etc.). The DB column
+  // `dev_id` is denormalized from `props.dev_id`.
+  const devId = typeof props.dev_id === 'string' ? props.dev_id : null
 
   try {
     await db.insert(kernelTelemetry).values({
@@ -163,7 +166,7 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST
     ).replace(/\/$/, '')
     const distinctId =
-      typeof props.devId === 'string' ? props.devId : 'anonymous-kernel'
+      typeof props.dev_id === 'string' ? props.dev_id : 'anonymous-kernel'
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 5_000)

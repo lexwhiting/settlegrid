@@ -18,6 +18,7 @@ interface OverviewRow {
   total: number
   successes: number
   errors: number
+  errorRate: number
   p50: number
   p95: number
   p99: number
@@ -28,6 +29,7 @@ interface OverviewData {
   generatedAt: string
   windowDays: number
   totalEvents: number
+  currentQps: number
   perAdapter: OverviewRow[]
 }
 
@@ -108,13 +110,30 @@ export default function KernelHealthPage() {
 }
 
 function SummaryCards({ data }: { data: OverviewData }) {
+  // QPS is computed over a 60s sliding window. Render one decimal so
+  // sub-1-QPS systems still show signal (0.0 → 0.7 → 1.5 etc).
+  const qps =
+    data.currentQps >= 10
+      ? data.currentQps.toFixed(0)
+      : data.currentQps.toFixed(1)
+  // Aggregate error rate over the dashboard window.
+  const totalsAcrossAdapters = data.perAdapter.reduce(
+    (acc, r) => ({ total: acc.total + r.total, errors: acc.errors + r.errors }),
+    { total: 0, errors: 0 },
+  )
+  const aggregateErrorRate =
+    totalsAcrossAdapters.total === 0
+      ? 0
+      : (totalsAcrossAdapters.errors / totalsAcrossAdapters.total) * 100
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
-      <Card label="Total events" value={data.totalEvents.toLocaleString()} />
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-8">
+      <Card label="Current QPS (60s)" value={qps} />
       <Card
-        label="Adapters with traffic"
-        value={data.perAdapter.length.toLocaleString()}
+        label="Error rate"
+        value={`${aggregateErrorRate.toFixed(2)}%`}
       />
+      <Card label="Total events" value={data.totalEvents.toLocaleString()} />
       <Card
         label="Window"
         value={`${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
@@ -139,7 +158,7 @@ function AdapterTable({ rows }: { rows: OverviewRow[] }) {
           <tr>
             <th className="px-4 py-2">Adapter</th>
             <th className="px-4 py-2 text-right">Total</th>
-            <th className="px-4 py-2 text-right">Success rate</th>
+            <th className="px-4 py-2 text-right">Error rate</th>
             <th className="px-4 py-2 text-right">p50 (ms)</th>
             <th className="px-4 py-2 text-right">p95 (ms)</th>
             <th className="px-4 py-2 text-right">p99 (ms)</th>
@@ -148,15 +167,16 @@ function AdapterTable({ rows }: { rows: OverviewRow[] }) {
         </thead>
         <tbody>
           {rows.map((r) => {
-            const successRate =
-              r.total === 0 ? 0 : (r.successes / r.total) * 100
+            const errorRatePct = r.errorRate * 100
             return (
               <tr key={r.adapter} className="border-t">
                 <td className="px-4 py-2 font-mono">{r.adapter}</td>
                 <td className="px-4 py-2 text-right">
                   {r.total.toLocaleString()}
                 </td>
-                <td className="px-4 py-2 text-right">{successRate.toFixed(1)}%</td>
+                <td className="px-4 py-2 text-right">
+                  {errorRatePct.toFixed(2)}%
+                </td>
                 <td className="px-4 py-2 text-right">{r.p50.toFixed(0)}</td>
                 <td className="px-4 py-2 text-right">{r.p95.toFixed(0)}</td>
                 <td className="px-4 py-2 text-right">{r.p99.toFixed(0)}</td>

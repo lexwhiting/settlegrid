@@ -168,29 +168,30 @@ describe('sanitizeEvent', () => {
         adapter: 'mcp',
         protocol: 'mcp',
         currency: 'USD',
-        amountCents: 5,
-        devId: '00000000-0000-4000-8000-000000000001',
+        amount_cents: 5,
+        dev_id: '00000000-0000-4000-8000-000000000001',
       },
     })
     expect(out.props).toEqual({
       adapter: 'mcp',
       protocol: 'mcp',
       currency: 'USD',
-      amountCents: 5,
-      devId: '00000000-0000-4000-8000-000000000001',
+      amount_cents: 5,
+      dev_id: '00000000-0000-4000-8000-000000000001',
     })
   })
 
-  it('redacts PII in adapter_error.errorMessage', () => {
+  it('redacts PII in adapter_error.error_message', () => {
     const out = sanitizeEvent({
       name: 'kernel.adapter_error',
       props: {
         adapter: 'x402',
-        errorClass: 'NetworkError',
-        errorMessage: 'failed for user alice@example.com',
+        error_class: 'NetworkError',
+        error_message: 'failed for user alice@example.com',
       },
     })
-    expect(out.props.errorMessage).toBe('[redacted]')
+    if (out.name !== 'kernel.adapter_error') throw new Error('discriminant')
+    expect(out.props.error_message).toBe('[redacted]')
   })
 
   it('rejects malformed adapter slug', () => {
@@ -198,7 +199,7 @@ describe('sanitizeEvent', () => {
       name: 'kernel.adapter_latency_ms',
       props: {
         adapter: "'; DROP TABLE kernel_telemetry;",
-        latencyMs: 100,
+        latency_ms: 100,
         success: true,
       },
     })
@@ -211,28 +212,30 @@ describe('sanitizeEvent', () => {
       props: {
         adapter: 'mcp',
         rail: 'mcp',
-        amountCents: Number.NaN,
-        takeCents: -1,
-        latencyMs: Number.POSITIVE_INFINITY,
+        amount_cents: Number.NaN,
+        take_cents: -1,
+        latency_ms: Number.POSITIVE_INFINITY,
       },
     })
-    expect(out.props.amountCents).toBe(0)
-    expect(out.props.takeCents).toBe(0)
-    expect(out.props.latencyMs).toBe(0)
+    if (out.name !== 'kernel.invocation_settled') throw new Error('discriminant')
+    expect(out.props.amount_cents).toBe(0)
+    expect(out.props.take_cents).toBe(0)
+    expect(out.props.latency_ms).toBe(0)
   })
 
-  it('drops bad entries from routing_decision.alternativesConsidered', () => {
+  it('drops bad entries from routing_decision.alternatives_considered', () => {
     const out = sanitizeEvent({
       name: 'kernel.routing_decision',
       props: {
         adapter: 'mcp',
         rail: 'mcp',
         reason: 'phase-1 protocol-match routing',
-        alternativesConsidered: ['mcp', 'x402', 'evil; rm -rf /', '', 42 as unknown as string],
-        feeBps: 0,
+        alternatives_considered: ['mcp', 'x402', 'evil; rm -rf /', '', 42 as unknown as string],
+        fee_bps: 0,
       },
     })
-    expect(out.props.alternativesConsidered).toEqual(['mcp', 'x402'])
+    if (out.name !== 'kernel.routing_decision') throw new Error('discriminant')
+    expect(out.props.alternatives_considered).toEqual(['mcp', 'x402'])
   })
 })
 
@@ -245,8 +248,8 @@ describe('memoryKernelEmitter', () => {
         adapter: 'mcp',
         protocol: 'mcp',
         currency: 'USD',
-        amountCents: 5,
-        devId: null,
+        amount_cents: 5,
+        dev_id: null,
       },
     })
     expect(m.events).toHaveLength(1)
@@ -257,7 +260,7 @@ describe('memoryKernelEmitter', () => {
     const m = memoryKernelEmitter()
     m.emit({
       name: 'kernel.adapter_latency_ms',
-      props: { adapter: 'mcp', latencyMs: 5, success: true },
+      props: { adapter: 'mcp', latency_ms: 5, success: true },
     })
     expect(m.events).toHaveLength(1)
     m.clear()
@@ -270,7 +273,7 @@ describe('memoryKernelEmitter', () => {
       m.emit({
         name: 'kernel.adapter_latency_ms',
         // @ts-expect-error — intentionally bad shape
-        props: { adapter: null, latencyMs: 'fast', success: 'yes' },
+        props: { adapter: null, latency_ms: 'fast', success: 'yes' },
       }),
     ).not.toThrow()
   })
@@ -292,8 +295,8 @@ describe('createKernelEmitter (HTTP)', () => {
         adapter: 'mcp',
         protocol: 'mcp',
         currency: 'USD',
-        amountCents: 5,
-        devId: null,
+        amount_cents: 5,
+        dev_id: null,
       },
     })
 
@@ -316,7 +319,7 @@ describe('createKernelEmitter (HTTP)', () => {
     expect(() =>
       emitter.emit({
         name: 'kernel.adapter_latency_ms',
-        props: { adapter: 'mcp', latencyMs: 5, success: true },
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
       }),
     ).not.toThrow()
   })
@@ -329,7 +332,7 @@ describe('createKernelEmitter (HTTP)', () => {
     const emitter = createKernelEmitter({ apiUrl: 'https://api.example.com' })
     emitter.emit({
       name: 'kernel.adapter_latency_ms',
-      props: { adapter: 'mcp', latencyMs: 5, success: true },
+      props: { adapter: 'mcp', latency_ms: 5, success: true },
     })
     await new Promise((r) => setImmediate(r))
     expect(fakeFetch).not.toHaveBeenCalled()
@@ -342,7 +345,7 @@ describe('noopKernelEmitter', () => {
     expect(() =>
       e.emit({
         name: 'kernel.adapter_latency_ms',
-        props: { adapter: 'mcp', latencyMs: 5, success: true },
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
       }),
     ).not.toThrow()
   })

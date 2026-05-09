@@ -83,41 +83,56 @@ export function isKernelEventName(name: string): name is KernelEventName {
 }
 
 // ─── Event property types ──────────────────────────────────────────────────
+//
+// Property names are snake_case throughout — matches both the spec
+// literal (which lists `amount_cents`, `dev_id`, `latency_ms`, etc.)
+// and the existing P4.1 PostHog convention (event properties like
+// `template_slug`, `error_code`, `ip_country`). Diverging into camelCase
+// would surface as PostHog-side property drift and break funnel-style
+// joins between funnel events (which use snake_case) and kernel events
+// (which would use camelCase) in any future cross-event analysis.
 
 export interface KernelRequestReceivedProps {
   adapter: string
   protocol: string
   currency: string
-  amountCents: number
-  devId: string | null
+  amount_cents: number
+  dev_id: string | null
 }
 
 export interface KernelRoutingDecisionProps {
+  /**
+   * Documented enrichment beyond spec literal: spec lists only
+   * `{ rail, reason, alternatives_considered, fee_bps }`. We add
+   * `adapter` because routing happens per-adapter and the dashboard
+   * needs to filter routing decisions by adapter without re-deriving
+   * which adapter was active. Future analysts can ignore the field.
+   */
   adapter: string
   rail: string
   reason: string
-  alternativesConsidered: string[]
-  feeBps: number
+  alternatives_considered: string[]
+  fee_bps: number
 }
 
 export interface KernelAdapterLatencyProps {
   adapter: string
-  latencyMs: number
+  latency_ms: number
   success: boolean
 }
 
 export interface KernelAdapterErrorProps {
   adapter: string
-  errorClass: string
-  errorMessage: string
+  error_class: string
+  error_message: string
 }
 
 export interface KernelInvocationSettledProps {
   adapter: string
   rail: string
-  amountCents: number
-  takeCents: number
-  latencyMs: number
+  amount_cents: number
+  take_cents: number
+  latency_ms: number
 }
 
 export type KernelTelemetryEvent =
@@ -218,8 +233,8 @@ export function sanitizeEvent(event: KernelTelemetryEvent): KernelTelemetryEvent
           adapter: sanitizeEnumLike(event.props.adapter),
           protocol: sanitizeEnumLike(event.props.protocol),
           currency: sanitizeEnumLike(event.props.currency),
-          amountCents: sanitizeNonNegNumber(event.props.amountCents),
-          devId: sanitizeDevId(event.props.devId),
+          amount_cents: sanitizeNonNegNumber(event.props.amount_cents),
+          dev_id: sanitizeDevId(event.props.dev_id),
         },
       }
     case 'kernel.routing_decision':
@@ -229,10 +244,10 @@ export function sanitizeEvent(event: KernelTelemetryEvent): KernelTelemetryEvent
           adapter: sanitizeEnumLike(event.props.adapter),
           rail: sanitizeEnumLike(event.props.rail),
           reason: sanitizeFreeText(event.props.reason),
-          alternativesConsidered: sanitizeStringList(
-            event.props.alternativesConsidered,
+          alternatives_considered: sanitizeStringList(
+            event.props.alternatives_considered,
           ),
-          feeBps: sanitizeNonNegNumber(event.props.feeBps),
+          fee_bps: sanitizeNonNegNumber(event.props.fee_bps),
         },
       }
     case 'kernel.adapter_latency_ms':
@@ -240,7 +255,7 @@ export function sanitizeEvent(event: KernelTelemetryEvent): KernelTelemetryEvent
         name: event.name,
         props: {
           adapter: sanitizeEnumLike(event.props.adapter),
-          latencyMs: sanitizeNonNegNumber(event.props.latencyMs),
+          latency_ms: sanitizeNonNegNumber(event.props.latency_ms),
           success: Boolean(event.props.success),
         },
       }
@@ -249,8 +264,8 @@ export function sanitizeEvent(event: KernelTelemetryEvent): KernelTelemetryEvent
         name: event.name,
         props: {
           adapter: sanitizeEnumLike(event.props.adapter),
-          errorClass: sanitizeEnumLike(event.props.errorClass),
-          errorMessage: sanitizeFreeText(event.props.errorMessage),
+          error_class: sanitizeEnumLike(event.props.error_class),
+          error_message: sanitizeFreeText(event.props.error_message),
         },
       }
     case 'kernel.invocation_settled':
@@ -259,9 +274,9 @@ export function sanitizeEvent(event: KernelTelemetryEvent): KernelTelemetryEvent
         props: {
           adapter: sanitizeEnumLike(event.props.adapter),
           rail: sanitizeEnumLike(event.props.rail),
-          amountCents: sanitizeNonNegNumber(event.props.amountCents),
-          takeCents: sanitizeNonNegNumber(event.props.takeCents),
-          latencyMs: sanitizeNonNegNumber(event.props.latencyMs),
+          amount_cents: sanitizeNonNegNumber(event.props.amount_cents),
+          take_cents: sanitizeNonNegNumber(event.props.take_cents),
+          latency_ms: sanitizeNonNegNumber(event.props.latency_ms),
         },
       }
   }
