@@ -351,8 +351,8 @@ export function createDispatchKernel(
               adapter: adapter.name,
               protocol: ctx.protocol,
               currency: ctx.payment.amount?.currency ?? '',
-              amountCents: bigintToSafeNumber(ctx.payment.amount?.value),
-              devId: null,
+              amount_cents: bigintToSafeNumber(ctx.payment.amount?.value),
+              dev_id: null,
             },
           })
 
@@ -368,8 +368,8 @@ export function createDispatchKernel(
               adapter: adapter.name,
               rail: ctx.protocol,
               reason: 'phase-1 protocol-match routing',
-              alternativesConsidered: PHASE_1_KERNEL_PROTOCOLS,
-              feeBps: 0,
+              alternatives_considered: PHASE_1_KERNEL_PROTOCOLS,
+              fee_bps: 0,
             },
           })
 
@@ -413,7 +413,7 @@ export function createDispatchKernel(
             name: 'kernel.adapter_latency_ms',
             props: {
               adapter: adapter.name,
-              latencyMs: Date.now() - adapterStartMs,
+              latency_ms: Date.now() - adapterStartMs,
               success: true,
             },
           })
@@ -429,8 +429,8 @@ export function createDispatchKernel(
             name: 'kernel.adapter_error',
             props: {
               adapter: adapter.name,
-              errorClass: errInst ? errInst.constructor.name : 'UnknownError',
-              errorMessage: errInst ? errInst.message : String(err),
+              error_class: errInst ? errInst.constructor.name : 'UnknownError',
+              error_message: errInst ? errInst.message : String(err),
             },
           })
           // P5.K1 — kernel.adapter_latency_ms (error path). Same
@@ -439,7 +439,7 @@ export function createDispatchKernel(
             name: 'kernel.adapter_latency_ms',
             props: {
               adapter: adapter.name,
-              latencyMs: Date.now() - adapterStartMs,
+              latency_ms: Date.now() - adapterStartMs,
               success: false,
             },
           })
@@ -640,9 +640,9 @@ async function handleSgBalance(
       props: {
         adapter: adapter.name,
         rail: 'mcp',
-        amountCents: meterResponse.costCents,
-        takeCents: 0,
-        latencyMs,
+        amount_cents: meterResponse.costCents,
+        take_cents: 0,
+        latency_ms: latencyMs,
       },
     })
   }
@@ -717,9 +717,9 @@ async function handleFacilitatorProtocol(
       props: {
         adapter: adapter.name,
         rail: protocol,
-        amountCents: settlementResult.costCents,
-        takeCents: extractTakeCents(settlementResult),
-        latencyMs,
+        amount_cents: settlementResult.costCents,
+        take_cents: extractTakeCents(settlementResult),
+        latency_ms: latencyMs,
       },
     })
   }

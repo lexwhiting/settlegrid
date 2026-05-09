@@ -40,6 +40,8 @@ interface OverviewLatencyRow {
   total: number
   successes: number
   errors: number
+  /** Error rate over the window: errors / total (0 when total = 0). */
+  errorRate: number
   p50: number
   p95: number
   p99: number
@@ -50,6 +52,14 @@ export interface KernelHealthOverview {
   generatedAt: string
   windowDays: number
   totalEvents: number
+  /**
+   * Current queries-per-second over the last 60 seconds. Spec §P5.K1
+   * top-level dashboard requires "current QPS" alongside p50/p95/p99
+   * latency. Computed from the count of `kernel.adapter_latency_ms`
+   * events in the last 60s (the canonical "request happened" event)
+   * divided by 60.
+   */
+  currentQps: number
   perAdapter: OverviewLatencyRow[]
 }
 
@@ -82,6 +92,38 @@ export interface KernelHealthRails {
     amountCentsTotal: number
     takeCentsTotal: number
   }[]
+  /**
+   * Spec §P5.K1 — "rail-fee accumulation, payout schedule status".
+   * Surfaces the platform-level payout pipeline so an admin can
+   * answer "are accumulated fees flowing out to developers as
+   * expected?" at a glance.
+   *
+   * - `mode` is the platform-level payout schedule. Currently
+   *   "manual" per the 2026-04 ops decision (see memory
+   *   `settlegrid-progress.md`); the daily cron triggers, but
+   *   each batch is operator-confirmed.
+   * - `cronSchedule` is the cron expression for the processor.
+   * - `nextCronRun` is the next 12:00 UTC instant.
+   * - `lastSuccess` is the most recent payout with status='success'.
+   * - `pending` aggregates rows in pending/processing state — the
+   *   amount waiting to flow and the count of developers in that
+   *   queue.
+   * - `failed24h` flags any failures in the last 24h.
+   */
+  payoutStatus: {
+    mode: 'manual' | 'auto'
+    cronSchedule: string
+    nextCronRun: string
+    lastSuccess: {
+      occurredAt: string | null
+      amountCents: number
+    }
+    pending: {
+      count: number
+      amountCentsTotal: number
+    }
+    failed24h: number
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -158,9 +200,9 @@ async function loadOverview(
       count(*)::text AS total,
       count(*) FILTER (WHERE (props ->> 'success')::boolean = true)::text AS successes,
       count(*) FILTER (WHERE (props ->> 'success')::boolean = false)::text AS errors,
-      percentile_cont(0.5) WITHIN GROUP (ORDER BY (props ->> 'latencyMs')::int)::text AS p50,
-      percentile_cont(0.95) WITHIN GROUP (ORDER BY (props ->> 'latencyMs')::int)::text AS p95,
-      percentile_cont(0.99) WITHIN GROUP (ORDER BY (props ->> 'latencyMs')::int)::text AS p99
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int)::text AS p50,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int)::text AS p95,
+      percentile_cont(0.99) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int)::text AS p99
     FROM kernel_telemetry
     WHERE event_name = 'kernel.adapter_latency_ms'
       AND occurred_at >= ${cutoff}
@@ -183,20 +225,40 @@ async function loadOverview(
     WHERE occurred_at >= ${cutoff}
   `)) as unknown as Array<{ total: string }>
 
+  // Spec §P5.K1 — current QPS. Last-60-second count of latency events
+  // (the canonical "request happened" event) ÷ 60. We use a separate
+  // query rather than re-scoping the per-adapter aggregate because
+  // QPS is a sliding 60s window, while the per-adapter table is over
+  // the dashboard's selected window (default 7 days). Joining the two
+  // would skew either signal.
+  const qpsResult = (await db.execute(sql`
+    SELECT count(*)::text AS recent
+    FROM kernel_telemetry
+    WHERE event_name = 'kernel.adapter_latency_ms'
+      AND occurred_at >= now() - INTERVAL '60 seconds'
+  `)) as unknown as Array<{ recent: string }>
+  const currentQps = Number(qpsResult[0]?.recent ?? 0) / 60
+
   return {
     view: 'overview',
     generatedAt: new Date().toISOString(),
     windowDays,
     totalEvents: Number(totalResult[0]?.total ?? 0),
-    perAdapter: rowsResult.map((r) => ({
-      adapter: r.adapter,
-      total: Number(r.total),
-      successes: Number(r.successes),
-      errors: Number(r.errors),
-      p50: Number(r.p50),
-      p95: Number(r.p95),
-      p99: Number(r.p99),
-    })),
+    currentQps,
+    perAdapter: rowsResult.map((r) => {
+      const total = Number(r.total)
+      const errors = Number(r.errors)
+      return {
+        adapter: r.adapter,
+        total,
+        successes: Number(r.successes),
+        errors,
+        errorRate: total === 0 ? 0 : errors / total,
+        p50: Number(r.p50),
+        p95: Number(r.p95),
+        p99: Number(r.p99),
+      }
+    }),
   }
 }
 
@@ -210,9 +272,9 @@ async function loadAdapter(
       count(*)::text AS total,
       count(*) FILTER (WHERE (props ->> 'success')::boolean = true)::text AS successes,
       count(*) FILTER (WHERE (props ->> 'success')::boolean = false)::text AS errors,
-      coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY (props ->> 'latencyMs')::int), 0)::text AS p50,
-      coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY (props ->> 'latencyMs')::int), 0)::text AS p95,
-      coalesce(percentile_cont(0.99) WITHIN GROUP (ORDER BY (props ->> 'latencyMs')::int), 0)::text AS p99
+      coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int), 0)::text AS p50,
+      coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int), 0)::text AS p95,
+      coalesce(percentile_cont(0.99) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int), 0)::text AS p99
     FROM kernel_telemetry
     WHERE event_name = 'kernel.adapter_latency_ms'
       AND adapter = ${adapter}
@@ -241,10 +303,10 @@ async function loadAdapter(
   const histResult = (await db.execute(sql`
     SELECT
       CASE
-        WHEN (props ->> 'latencyMs')::int < 1000
-          THEN ((props ->> 'latencyMs')::int / 50) * 50
-        WHEN (props ->> 'latencyMs')::int < 5000
-          THEN 1000 + (((props ->> 'latencyMs')::int - 1000) / 250) * 250
+        WHEN (props ->> 'latency_ms')::int < 1000
+          THEN ((props ->> 'latency_ms')::int / 50) * 50
+        WHEN (props ->> 'latency_ms')::int < 5000
+          THEN 1000 + (((props ->> 'latency_ms')::int - 1000) / 250) * 250
         ELSE 5000
       END::text AS bucket_ms,
       count(*)::text AS count
@@ -294,9 +356,9 @@ async function loadAdapter(
           r.occurredAt instanceof Date
             ? r.occurredAt.toISOString()
             : String(r.occurredAt),
-        errorClass: typeof p.errorClass === 'string' ? p.errorClass : null,
+        errorClass: typeof p.error_class === 'string' ? p.error_class : null,
         errorMessage:
-          typeof p.errorMessage === 'string' ? p.errorMessage : null,
+          typeof p.error_message === 'string' ? p.error_message : null,
       }
     }),
   }
@@ -310,8 +372,8 @@ async function loadRails(
     SELECT
       rail,
       count(*)::text AS settled_count,
-      coalesce(sum((props ->> 'amountCents')::bigint), 0)::text AS amount_cents_total,
-      coalesce(sum((props ->> 'takeCents')::bigint), 0)::text AS take_cents_total
+      coalesce(sum((props ->> 'amount_cents')::bigint), 0)::text AS amount_cents_total,
+      coalesce(sum((props ->> 'take_cents')::bigint), 0)::text AS take_cents_total
     FROM kernel_telemetry
     WHERE event_name = 'kernel.invocation_settled'
       AND occurred_at >= ${cutoff}
@@ -325,6 +387,41 @@ async function loadRails(
     amount_cents_total: string
     take_cents_total: string
   }>
+  // Spec §P5.K1 — payout schedule status. Three queries: pending
+  // aggregate, last successful payout, last 24h failure count. Each
+  // hits the existing `payouts_status_idx` so even a deep payout
+  // history doesn't slow this query down.
+  const pendingResult = (await db.execute(sql`
+    SELECT
+      count(*)::text AS pending_count,
+      coalesce(sum(amount_cents), 0)::text AS pending_amount_cents
+    FROM payouts
+    WHERE status IN ('pending', 'processing')
+  `)) as unknown as Array<{
+    pending_count: string
+    pending_amount_cents: string
+  }>
+  const lastSuccessResult = (await db.execute(sql`
+    SELECT created_at, amount_cents
+    FROM payouts
+    WHERE status = 'success'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `)) as unknown as Array<{ created_at: string | Date; amount_cents: number }>
+  const failedResult = (await db.execute(sql`
+    SELECT count(*)::text AS failed_count
+    FROM payouts
+    WHERE status = 'failed'
+      AND created_at >= now() - INTERVAL '24 hours'
+  `)) as unknown as Array<{ failed_count: string }>
+
+  const lastSuccessRow = lastSuccessResult[0]
+  const lastOccurredAt = lastSuccessRow?.created_at
+    ? lastSuccessRow.created_at instanceof Date
+      ? lastSuccessRow.created_at.toISOString()
+      : new Date(lastSuccessRow.created_at).toISOString()
+    : null
+
   return {
     view: 'rails',
     generatedAt: new Date().toISOString(),
@@ -335,5 +432,43 @@ async function loadRails(
       amountCentsTotal: Number(r.amount_cents_total),
       takeCentsTotal: Number(r.take_cents_total),
     })),
+    payoutStatus: {
+      mode: 'manual' as const,
+      cronSchedule: '0 12 * * *',
+      nextCronRun: nextDailyCronRunAt12Utc().toISOString(),
+      lastSuccess: {
+        occurredAt: lastOccurredAt,
+        amountCents: Number(lastSuccessRow?.amount_cents ?? 0),
+      },
+      pending: {
+        count: Number(pendingResult[0]?.pending_count ?? 0),
+        amountCentsTotal: Number(pendingResult[0]?.pending_amount_cents ?? 0),
+      },
+      failed24h: Number(failedResult[0]?.failed_count ?? 0),
+    },
   }
+}
+
+/**
+ * Compute the next daily 12:00 UTC instant from "now". Used to surface
+ * the next scheduled payout cron run on the rails dashboard. Pure (no
+ * side effects, takes "now" implicitly via Date.now()).
+ */
+function nextDailyCronRunAt12Utc(): Date {
+  const now = new Date()
+  const candidate = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      12,
+      0,
+      0,
+      0,
+    ),
+  )
+  if (candidate.getTime() <= now.getTime()) {
+    candidate.setUTCDate(candidate.getUTCDate() + 1)
+  }
+  return candidate
 }
