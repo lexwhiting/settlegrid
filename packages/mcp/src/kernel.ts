@@ -112,6 +112,10 @@ import {
   type AuthorizationResult,
 } from './authorize'
 import type { SettleGridInstance } from './index'
+import {
+  type KernelTelemetryEmitter,
+  noopKernelEmitter,
+} from './kernel-telemetry'
 import type {
   DispatchHandler,
   DispatchKernel,
@@ -209,6 +213,19 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
 const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp']
 
 /**
+ * P5.K1 — convert an optional bigint (PaymentContext.payment.amount.value)
+ * to a finite Number suitable for telemetry. Clamps overflow to
+ * MAX_SAFE_INTEGER so a wei-denominated amount on a crypto rail
+ * doesn't poison aggregates with NaN. Returns 0 for undefined.
+ */
+function bigintToSafeNumber(v: bigint | undefined): number {
+  if (typeof v !== 'bigint') return 0
+  if (v < 0n) return 0
+  const max = BigInt(Number.MAX_SAFE_INTEGER)
+  return v > max ? Number.MAX_SAFE_INTEGER : Number(v)
+}
+
+/**
  * P3.K6 — options accepted by {@link createDispatchKernel}. Currently
  * carries only the authorization-gate config; future kernel-level
  * knobs (rail overrides, tracing, etc.) land here too.
@@ -247,6 +264,16 @@ export interface CreateDispatchKernelOptions {
     result: AuthorizationResult,
     ctx: AuthorizationContext,
   ) => void | Promise<void>
+  /**
+   * P5.K1 — kernel telemetry emitter. When unset, defaults to a
+   * no-op (no events fire). Production deployments wire
+   * `createKernelEmitter({ apiUrl })` from `./kernel-telemetry`,
+   * which POSTs sanitized events to
+   * `${apiUrl}/api/telemetry/kernel`. The contract is
+   * fire-and-forget: emit() is sync, never throws, never blocks
+   * dispatch.
+   */
+  emitter?: KernelTelemetryEmitter
 }
 
 export function createDispatchKernel(
@@ -257,6 +284,7 @@ export function createDispatchKernel(
   const { middleware, config, pricing } = internals
   const authConfig = options.authorize ?? {}
   const onAuthorize = options.onAuthorize
+  const emitter = options.emitter ?? noopKernelEmitter()
 
   /**
    * Build the kernel's default 402 manifest. Hoisted out of `handle()`
@@ -302,13 +330,53 @@ export function createDispatchKernel(
           return build402(request)
         }
 
+        // P5.K1 — outer-pipeline timing for kernel.adapter_latency_ms.
+        // Started here (after detection) so it covers extract +
+        // pipeline; pre-detection time isn't really "the adapter's"
+        // latency.
+        const adapterStartMs = Date.now()
         try {
           // 2. Extract normalized payment context
           const ctx = await adapter.extractPaymentContext(request)
 
+          // P5.K1 — kernel.request_received. Emitted AFTER extract so
+          // we have the operation context (method, amount, currency).
+          // `payment.amount` is optional + bigint-valued; sanitize-side
+          // clamps non-finite/NaN to 0 anyway, but we extract carefully
+          // here so a 2^64-shaped bigint (Currency in wei, etc.) doesn't
+          // explode at JSON.stringify time.
+          emitter.emit({
+            name: 'kernel.request_received',
+            props: {
+              adapter: adapter.name,
+              protocol: ctx.protocol,
+              currency: ctx.payment.amount?.currency ?? '',
+              amountCents: bigintToSafeNumber(ctx.payment.amount?.value),
+              devId: null,
+            },
+          })
+
+          // P5.K1 — kernel.routing_decision. The Phase 1 kernel routes
+          // strictly by protocol detection — there's no per-request
+          // rail-substitution logic yet. `reason` reflects that;
+          // `alternatives_considered` is the full Phase 1 set so future
+          // routing-decision queries can show "which rails were
+          // candidates at the time of this request."
+          emitter.emit({
+            name: 'kernel.routing_decision',
+            props: {
+              adapter: adapter.name,
+              rail: ctx.protocol,
+              reason: 'phase-1 protocol-match routing',
+              alternativesConsidered: PHASE_1_KERNEL_PROTOCOLS,
+              feeBps: 0,
+            },
+          })
+
           // 3. Protocol-specific pipeline
+          let response: Response
           if (ctx.protocol === 'mcp') {
-            return await handleSgBalance(
+            response = await handleSgBalance(
               ctx,
               adapter,
               request,
@@ -317,10 +385,10 @@ export function createDispatchKernel(
               config,
               authConfig,
               onAuthorize,
+              emitter,
             )
-          }
-          if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
-            return await handleFacilitatorProtocol(
+          } else if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
+            response = await handleFacilitatorProtocol(
               ctx,
               adapter,
               request,
@@ -328,16 +396,53 @@ export function createDispatchKernel(
               config,
               authConfig,
               onAuthorize,
+              emitter,
             )
+          } else {
+            // Protocol is recognized by the registry but not wired
+            // into the Phase 1 kernel (ap2, visa-tap, ucp, acp,
+            // mastercard-vi, circle-nano). Fall through to the 402
+            // manifest (with the method from ctx so the advertised
+            // price is method-specific) rather than silently accepting
+            // a payment the kernel cannot actually settle.
+            response = build402(request, ctx.operation.method)
           }
-          // Protocol is recognized by the registry but not wired into
-          // the Phase 1 kernel (ap2, visa-tap, ucp, acp, mastercard-vi,
-          // circle-nano). Fall through to the 402 manifest (with the
-          // method from ctx so the advertised price is method-specific)
-          // rather than silently accepting a payment the kernel cannot
-          // actually settle.
-          return build402(request, ctx.operation.method)
+
+          // P5.K1 — kernel.adapter_latency_ms (success path).
+          emitter.emit({
+            name: 'kernel.adapter_latency_ms',
+            props: {
+              adapter: adapter.name,
+              latencyMs: Date.now() - adapterStartMs,
+              success: true,
+            },
+          })
+
+          return response
         } catch (err) {
+          // P5.K1 — kernel.adapter_error. Sanitization is applied in
+          // the emitter (sanitizeFreeText strips PII-shaped content
+          // from err.message), so it's safe to pass the message
+          // through here.
+          const errInst = err instanceof Error ? err : null
+          emitter.emit({
+            name: 'kernel.adapter_error',
+            props: {
+              adapter: adapter.name,
+              errorClass: errInst ? errInst.constructor.name : 'UnknownError',
+              errorMessage: errInst ? errInst.message : String(err),
+            },
+          })
+          // P5.K1 — kernel.adapter_latency_ms (error path). Same
+          // adapter, same timing window, success=false.
+          emitter.emit({
+            name: 'kernel.adapter_latency_ms',
+            props: {
+              adapter: adapter.name,
+              latencyMs: Date.now() - adapterStartMs,
+              success: false,
+            },
+          })
           return adapter.formatError(normalizeError(err), request)
         }
       } catch (fatalErr) {
@@ -440,6 +545,7 @@ async function handleSgBalance(
   onAuthorize:
     | ((result: AuthorizationResult, ctx: AuthorizationContext) => void | Promise<void>)
     | undefined,
+  emitter: KernelTelemetryEmitter,
 ): Promise<Response> {
   const startTime = Date.now()
   const apiKey = ctx.identity.value
@@ -510,6 +616,7 @@ async function handleSgBalance(
   // transaction log. The two values are typically identical for
   // per-invocation pricing, but diverging them silently would be a
   // billing-correctness bug.
+  const latencyMs = Date.now() - startTime
   const settlementResult: SettlementResult = {
     status: meterResponse.success ? 'settled' : 'failed',
     operationId: meterResponse.invocationId,
@@ -517,10 +624,29 @@ async function handleSgBalance(
     remainingBalanceCents: meterResponse.remainingBalanceCents,
     metadata: {
       protocol: 'mcp',
-      latencyMs: Date.now() - startTime,
+      latencyMs,
       settlementType: 'real-time',
     },
   }
+
+  // P5.K1 — kernel.invocation_settled. Only emitted on a successful
+  // meter response; a failed-meter outcome would skew the dashboard's
+  // settled-volume aggregate. takeCents is 0 for the sg-balance path
+  // — the platform fee is captured server-side via Stripe Connect's
+  // application_fee, not pre-deducted here.
+  if (meterResponse.success) {
+    emitter.emit({
+      name: 'kernel.invocation_settled',
+      props: {
+        adapter: adapter.name,
+        rail: 'mcp',
+        amountCents: meterResponse.costCents,
+        takeCents: 0,
+        latencyMs,
+      },
+    })
+  }
+
   return adapter.formatResponse(settlementResult, request)
 }
 
@@ -536,6 +662,7 @@ async function handleFacilitatorProtocol(
   onAuthorize:
     | ((result: AuthorizationResult, ctx: AuthorizationContext) => void | Promise<void>)
     | undefined,
+  emitter: KernelTelemetryEmitter,
 ): Promise<Response> {
   const startTime = Date.now()
   const protocol = ctx.protocol
@@ -570,16 +697,49 @@ async function handleFacilitatorProtocol(
   // adapter can format for the consumer. latencyMs is measured from
   // verify-start so the metadata reflects the whole pipeline, not just
   // the handler.
+  const latencyMs = Date.now() - startTime
   const settlementResult = await facilitatorSettle(
     config,
     protocol,
     ctx,
     handlerResult,
-    Date.now() - startTime,
+    latencyMs,
     authHeader,
   )
 
+  // P5.K1 — kernel.invocation_settled. Facilitator-rail flow: emit on
+  // 'settled' status only. takeCents is read from settlementResult's
+  // metadata when present (facilitator computes the fee server-side
+  // and surfaces it back); 0 otherwise.
+  if (settlementResult.status === 'settled') {
+    emitter.emit({
+      name: 'kernel.invocation_settled',
+      props: {
+        adapter: adapter.name,
+        rail: protocol,
+        amountCents: settlementResult.costCents,
+        takeCents: extractTakeCents(settlementResult),
+        latencyMs,
+      },
+    })
+  }
+
   return adapter.formatResponse(settlementResult, request)
+}
+
+/**
+ * Best-effort extraction of platform-fee cents from a SettlementResult
+ * metadata block. Facilitator settle responses carry a `takeCents` or
+ * similar property; if absent we report 0. Defensive against shape
+ * drift.
+ */
+function extractTakeCents(result: SettlementResult): number {
+  const meta = result.metadata as unknown as Record<string, unknown>
+  const candidate = meta?.takeCents ?? meta?.take_cents ?? meta?.platformFeeCents
+  if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0) {
+    return candidate
+  }
+  return 0
 }
 
 // ─── Facilitator auth resolution ───────────────────────────────────────────

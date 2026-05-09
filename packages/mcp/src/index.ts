@@ -1016,3 +1016,28 @@ export type {
   AupCheck,
   AupOutcome,
 } from './authorize'
+
+// ─── P5.K1 — Kernel telemetry ─────────────────────────────────────────
+
+export {
+  KERNEL_EVENT_NAMES,
+  isKernelEventName,
+  isKernelTelemetryOptedOut,
+  sanitizeEvent as sanitizeKernelEvent,
+  createKernelEmitter,
+  noopKernelEmitter,
+  memoryKernelEmitter,
+  __setKernelFetchForTests,
+} from './kernel-telemetry'
+export type {
+  KernelEventName,
+  KernelTelemetryEvent,
+  KernelTelemetryEmitter,
+  MemoryKernelEmitter,
+  KernelRequestReceivedProps,
+  KernelRoutingDecisionProps,
+  KernelAdapterLatencyProps,
+  KernelAdapterErrorProps,
+  KernelInvocationSettledProps,
+  CreateKernelEmitterOptions,
+} from './kernel-telemetry'

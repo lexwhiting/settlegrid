@@ -1340,3 +1340,76 @@ export const chargebackAlertsRelations = relations(chargebackAlerts, ({ one }) =
     references: [developers.id],
   }),
 }))
+
+// ─── P5.K1 — Kernel telemetry ──────────────────────────────────────────────────
+
+/**
+ * Backing store for the `/admin/kernel-health` dashboard. Populated
+ * via POST to `/api/internal/kernel-telemetry` from the SDK kernel's
+ * emitter. The table is the dashboard's source of truth so the
+ * surface keeps working when PostHog is unreachable; PostHog
+ * forwarding from the same endpoint is a parallel sink.
+ *
+ * Indexed for the three dashboard queries: top-level (by occurredAt
+ * desc), per-adapter (by adapter, occurredAt), and rails (by rail,
+ * occurredAt). Composite indices keep dashboard queries fast under
+ * deep history; old rows are reclaimed by a future data-retention
+ * job (out of scope for P5.K1).
+ *
+ * `props` is jsonb — the schema is event-name-keyed and varies per
+ * event type (see packages/mcp/src/kernel-telemetry.ts). Keeping it
+ * loose at the DB layer avoids per-event-type table sprawl.
+ */
+export const kernelTelemetry = pgTable(
+  'kernel_telemetry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventName: text('event_name').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
+     * Adapter denormalized so per-adapter dashboard queries hit an
+     * index instead of probing into `props.adapter`. Required for
+     * all five event types.
+     */
+    adapter: text('adapter').notNull(),
+    /**
+     * Rail denormalized for the rails dashboard. Null for events
+     * that don't carry a rail (latency / error events are
+     * adapter-scoped, not rail-scoped).
+     */
+    rail: text('rail'),
+    /**
+     * Developer UUID. Null when the event happened before we knew
+     * the developer or for events that don't carry it. Indexed for
+     * future per-developer drill-downs.
+     */
+    devId: uuid('dev_id'),
+    /** Event-type-specific properties (sanitized at emit-time). */
+    props: jsonb('props').notNull().$type<Record<string, unknown>>(),
+  },
+  (table) => [
+    index('kernel_telemetry_occurred_at_idx').on(desc(table.occurredAt)),
+    index('kernel_telemetry_adapter_idx').on(
+      table.adapter,
+      desc(table.occurredAt),
+    ),
+    index('kernel_telemetry_rail_idx').on(table.rail, desc(table.occurredAt)),
+    index('kernel_telemetry_event_name_idx').on(
+      table.eventName,
+      desc(table.occurredAt),
+    ),
+    index('kernel_telemetry_dev_id_idx').on(table.devId),
+    check(
+      'kernel_telemetry_event_name_check',
+      sql`${table.eventName} IN (
+        'kernel.request_received',
+        'kernel.routing_decision',
+        'kernel.adapter_latency_ms',
+        'kernel.adapter_error',
+        'kernel.invocation_settled'
+      )`,
+    ),
+  ],
+)
