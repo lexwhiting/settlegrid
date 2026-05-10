@@ -1345,10 +1345,12 @@ export const chargebackAlertsRelations = relations(chargebackAlerts, ({ one }) =
 
 /**
  * Backing store for the `/admin/kernel-health` dashboard. Populated
- * via POST to `/api/internal/kernel-telemetry` from the SDK kernel's
- * emitter. The table is the dashboard's source of truth so the
- * surface keeps working when PostHog is unreachable; PostHog
- * forwarding from the same endpoint is a parallel sink.
+ * via POST to `/api/telemetry/kernel` from the SDK kernel's
+ * emitter (the spec'd `/api/internal/...` path was relocated under
+ * D2 because `internal/` is gitignored repo-wide). The table is the
+ * dashboard's source of truth so the surface keeps working when
+ * PostHog is unreachable; PostHog forwarding from the same endpoint
+ * is a parallel sink.
  *
  * Indexed for the three dashboard queries: top-level (by occurredAt
  * desc), per-adapter (by adapter, occurredAt), and rails (by rail,

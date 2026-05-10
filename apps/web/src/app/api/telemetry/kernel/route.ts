@@ -26,6 +26,7 @@
  * - No echo of the bearer token in any 4xx/5xx body (no info leak).
  */
 import { NextRequest } from 'next/server'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { kernelTelemetry } from '@/lib/db/schema'
@@ -46,9 +47,44 @@ const KERNEL_EVENT_NAMES = [
 
 const MAX_BODY_BYTES = 4 * 1024 // 4 KB
 
+/**
+ * Numeric properties the SQL aggregates cast to `int` / `bigint`.
+ * Validated as JS-safe non-negative integers up front so a buggy
+ * authenticated caller (or a future SDK regression that bypasses the
+ * sanitizer) cannot park a `1.5` or `9e30` in jsonb that breaks every
+ * subsequent dashboard query with `invalid input syntax for integer`.
+ *
+ * Floats / negatives / non-finite values fail the schema → 400; the
+ * row is never inserted and the dashboard stays queryable.
+ */
+const SafeIntProp = z
+  .number()
+  .finite()
+  .nonnegative()
+  .max(Number.MAX_SAFE_INTEGER)
+  .int()
+
 const KernelTelemetryBodySchema = z.object({
   name: z.enum(KERNEL_EVENT_NAMES),
-  props: z.record(z.unknown()),
+  props: z
+    .record(z.unknown())
+    .refine(
+      (p) => {
+        for (const key of [
+          'amount_cents',
+          'take_cents',
+          'latency_ms',
+          'fee_bps',
+        ] as const) {
+          if (key in p && p[key] !== undefined) {
+            const r = SafeIntProp.safeParse(p[key])
+            if (!r.success) return false
+          }
+        }
+        return true
+      },
+      { message: 'numeric props must be safe non-negative integers' },
+    ),
   ts: z.string().datetime().optional(),
 })
 
@@ -60,18 +96,23 @@ const KernelTelemetryBodySchema = z.object({
 const limiter = createRateLimiter(600, '1 m')
 
 /**
- * Constant-time string compare. Guards against timing oracles on the
- * shared bearer token — a naive `===` could leak the token byte-by-byte
- * via response-time differences if the route is called frequently
- * enough.
+ * Constant-time bearer-token compare. Hostile-review hardening:
+ * collapsing both inputs to a fixed-size sha256 digest BEFORE the
+ * timing-safe compare removes the length-disclosure side-channel of
+ * the previous string-length pre-check (`if (a.length !== b.length)
+ * return false`). The hash output is always 32 bytes regardless of
+ * input length, so a flooder probing different token lengths sees
+ * indistinguishable response timing for the auth path.
+ *
+ * sha256 is collision-resistant; matching digests with non-matching
+ * inputs is computationally infeasible at the level of this
+ * primitive, so the digest compare is a sound proxy for the original
+ * string compare.
  */
 function constantTimeEquals(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i += 1) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  }
-  return diff === 0
+  const ha = createHash('sha256').update(a, 'utf8').digest()
+  const hb = createHash('sha256').update(b, 'utf8').digest()
+  return timingSafeEqual(ha, hb)
 }
 
 export async function POST(request: NextRequest) {
@@ -106,7 +147,19 @@ export async function POST(request: NextRequest) {
     return errorResponse('Invalid token.', 401, 'UNAUTHORIZED')
   }
 
-  // Body cap before parse.
+  // Body cap. Two-tier check: (1) declared Content-Length short-
+  // circuits BEFORE buffering the body into memory — matches the P4.1
+  // capture-proxy pattern. A flooder declaring 100 MB is rejected at
+  // the header check rather than after Vercel finishes streaming the
+  // body in. (2) post-buffer length check catches chunked / unset
+  // Content-Length cases.
+  const declared = request.headers.get('content-length')
+  if (declared !== null) {
+    const n = Number.parseInt(declared, 10)
+    if (Number.isFinite(n) && n > MAX_BODY_BYTES) {
+      return errorResponse('Body exceeds 4 KB.', 413, 'PAYLOAD_TOO_LARGE')
+    }
+  }
   const raw = await request.text()
   if (raw.length > MAX_BODY_BYTES) {
     return errorResponse('Body exceeds 4 KB.', 413, 'PAYLOAD_TOO_LARGE')
@@ -130,11 +183,19 @@ export async function POST(request: NextRequest) {
   if (!adapter) {
     return errorResponse('props.adapter required.', 400, 'INVALID_BODY')
   }
-  const rail = typeof props.rail === 'string' ? props.rail : null
+  // Sanitizer collapses bad rail input to `''` upstream. Normalize
+  // empty-string rail to NULL at the DB layer so the rails dashboard's
+  // `WHERE rail IS NOT NULL` filter excludes them — otherwise stray
+  // empty-string rails would surface in the rails table as a noisy
+  // blank row.
+  const railRaw = typeof props.rail === 'string' ? props.rail : null
+  const rail = railRaw && railRaw.length > 0 ? railRaw : null
   // Spec §P5.K1 — kernel events use snake_case property names
   // (`dev_id`, `amount_cents`, `latency_ms`, etc.). The DB column
-  // `dev_id` is denormalized from `props.dev_id`.
-  const devId = typeof props.dev_id === 'string' ? props.dev_id : null
+  // `dev_id` is denormalized from `props.dev_id`. Normalize empty
+  // string to null for the same reason.
+  const devIdRaw = typeof props.dev_id === 'string' ? props.dev_id : null
+  const devId = devIdRaw && devIdRaw.length > 0 ? devIdRaw : null
 
   try {
     await db.insert(kernelTelemetry).values({
@@ -165,8 +226,11 @@ export async function POST(request: NextRequest) {
     const phHost = (
       process.env.NEXT_PUBLIC_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST
     ).replace(/\/$/, '')
-    const distinctId =
-      typeof props.dev_id === 'string' ? props.dev_id : 'anonymous-kernel'
+    // Use the normalized devId (empty-string already collapsed to null)
+    // so a stray `dev_id: ''` doesn't surface as an empty distinct_id
+    // in PostHog, which would silently merge unrelated traffic into
+    // one user.
+    const distinctId = devId ?? 'anonymous-kernel'
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 5_000)

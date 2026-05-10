@@ -1,9 +1,10 @@
 -- P5.K1 — Kernel telemetry backing store.
 --
--- Populated via POST to /api/internal/kernel-telemetry from the SDK
--- kernel's emitter. Source of truth for /admin/kernel-health when
--- PostHog is unreachable; PostHog forwarding from the same endpoint
--- is a parallel sink.
+-- Populated via POST to /api/telemetry/kernel from the SDK kernel's
+-- emitter (the spec'd /api/internal/... path was relocated under D2
+-- because internal/ is gitignored repo-wide). Source of truth for
+-- /admin/kernel-health when PostHog is unreachable; PostHog
+-- forwarding from the same endpoint is a parallel sink.
 --
 -- Indices match the three dashboard query shapes: top-level by
 -- occurred_at desc, per-adapter by (adapter, occurred_at desc),
