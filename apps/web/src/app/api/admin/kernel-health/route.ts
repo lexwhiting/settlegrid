@@ -401,10 +401,17 @@ async function loadRails(
     pending_count: string
     pending_amount_cents: string
   }>
+  // Production payout success states. Writers in lib/payouts/process.ts
+  // and the Stripe webhook handler use 'completed' for the
+  // CAS-completed Stripe transfer, 'paid' / 'reconciled' for the
+  // post-webhook reconciled state, and (legacy) 'unknown' is a
+  // reconciling state — explicitly NOT a success. Spec'd as a stable
+  // set so the dashboard can't drift from the writer side; if this
+  // list ever grows, update it here.
   const lastSuccessResult = (await db.execute(sql`
     SELECT created_at, amount_cents
     FROM payouts
-    WHERE status = 'success'
+    WHERE status IN ('completed', 'paid', 'reconciled')
     ORDER BY created_at DESC
     LIMIT 1
   `)) as unknown as Array<{ created_at: string | Date; amount_cents: number }>

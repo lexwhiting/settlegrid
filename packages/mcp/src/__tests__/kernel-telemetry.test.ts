@@ -280,7 +280,7 @@ describe('memoryKernelEmitter', () => {
 })
 
 describe('createKernelEmitter (HTTP)', () => {
-  it('POSTs sanitized event to apiUrl + /api/internal/kernel-telemetry', async () => {
+  it('POSTs sanitized event to apiUrl + /api/telemetry/kernel', async () => {
     const calls: { url: string; body: unknown }[] = []
     const fakeFetch = vi.fn(async (url: string, init: RequestInit) => {
       calls.push({ url, body: JSON.parse(init.body as string) })
