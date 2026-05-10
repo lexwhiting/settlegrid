@@ -3,8 +3,14 @@
  *
  * POST endpoint the SDK kernel's emitter targets. Validates +
  * persists to `kernel_telemetry` AND forwards to PostHog
- * server-side (using the platform's `POSTHOG_API_KEY`, never the
- * SDK-side public key, so the SDK tarball stays free of secrets).
+ * server-side. The forward prefers `POSTHOG_API_KEY` and falls back
+ * to `NEXT_PUBLIC_POSTHOG_KEY` so the same env config that the
+ * client-side analytics already use will work for the kernel sink
+ * without a separate variable. Either way the key is read from the
+ * server's process env — neither is bundled into the SDK tarball
+ * the kernel ships in. (PostHog's `/i/v0/e/` event-capture endpoint
+ * is keyed on the project key, which is correctly public; the
+ * fallback does not weaken the secrecy posture.)
  *
  * # Auth
  *

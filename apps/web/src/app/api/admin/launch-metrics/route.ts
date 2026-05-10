@@ -9,14 +9,16 @@
  * ## Auth
  *
  * Same gate as `/api/admin/stats`: rate-limited by IP, then
- * `requireDeveloper`, then ADMIN_EMAILS allowlist. Returns 404 to
- * non-admins (paired with the dashboard's 404-style error UI) so
- * `/admin/launch-dashboard` doesn't reveal admin surfaces exist.
- *
- * Wait — the spec says "protected by existing admin guard." We use
- * 401/403 for unauth/non-admin to match the existing pattern in
- * `/api/admin/stats`. The dashboard page renders a generic 404 for
- * any non-200 response, which is what hides the surface.
+ * `requireDeveloper`, then ADMIN_EMAILS allowlist. Returns 401 on
+ * unauth and 403 on non-admin email, matching the `/api/admin/stats`
+ * pattern. The `/admin/launch-dashboard` page renders a generic 404
+ * for any non-200 response, which is what actually hides the
+ * admin surface — the route's status codes are the source of truth
+ * for API consumers (e.g., monitoring), the dashboard's UI is the
+ * surface-hide. (Sibling note: `/api/admin/kernel-health` chose to
+ * return 404 directly from the route. Both patterns are valid; the
+ * difference is whether the route or the page handles the surface-
+ * hide. This route delegates to the page.)
  *
  * ## Cache
  *
