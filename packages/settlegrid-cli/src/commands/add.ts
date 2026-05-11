@@ -56,6 +56,20 @@ interface JsonResult {
     | 'unknown-type'
     | 'error'
   mode: 'dry-run' | 'apply'
+  /**
+   * The raw `source` argument the CLI was invoked with (a GitHub URL,
+   * a local path, or `null` if the user invoked with `--github` /
+   * `--path` options instead). Captured at init time so that when
+   * source resolution itself fails (bad path, network error, etc.)
+   * the JSON output still surfaces *what was attempted*. Without
+   * this field, an early-failure `error: "ENOENT"` is uninterpretable
+   * — the operator can't tell which input triggered it.
+   *
+   * Stays in sync with `resolvedDir` (which is null until resolve
+   * succeeds): `inputSource` is "what they typed", `resolvedDir` is
+   * "what we ended up with after resolution."
+   */
+  inputSource: string | null
   resolvedDir: string | null
   detect: DetectResult | null
   transform: TransformOutput | null
@@ -107,6 +121,9 @@ export function addCommand(program: Command): void {
       const json: JsonResult = {
         status: 'error',
         mode: options.dryRun === true ? 'dry-run' : 'apply',
+        // Captured pre-resolution so an early failure (bad path,
+        // network error) surfaces what input triggered it.
+        inputSource: source ?? null,
         resolvedDir: null,
         detect: null,
         transform: null,
