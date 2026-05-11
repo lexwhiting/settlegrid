@@ -71,11 +71,40 @@ export type ScaffoldErrorCode =
  * setting `SETTLEGRID_TELEMETRY=0` MUST disable telemetry even if
  * they later add whitespace, uppercase the value, etc. — operational
  * predictability matters more than strict parsing.
+ *
+ * CI environments also implicitly opt out. The `CI` env var is set
+ * to a truthy value by every major CI platform (GitHub Actions,
+ * GitLab, CircleCI, Travis, Buildkite, etc.), and `CONTINUOUS_
+ * INTEGRATION` covers a few older systems. Without this opt-out,
+ * every `npm install @settlegrid/cli` triggered by a developer's CI
+ * pipeline would fire `cli_install_started` — silently inflating the
+ * funnel's CLI-install count with bot traffic and depressing the
+ * downstream conversion rate. The CI opt-out is implicit (no user
+ * action required) because asking every CI operator to set
+ * `SETTLEGRID_TELEMETRY=0` is unrealistic.
  */
 export function isOptedOut(): boolean {
+  if (isCi()) return true
   const raw = process.env.SETTLEGRID_TELEMETRY?.trim().toLowerCase()
   if (!raw) return false
   return raw === '0' || raw === 'false' || raw === 'no' || raw === 'off'
+}
+
+/**
+ * CI environment detection. `CI` is the de-facto-standard env var
+ * across virtually every CI platform (Vercel, GitHub Actions, GitLab,
+ * CircleCI, Travis, Buildkite, AppVeyor, Drone, etc.). Some older
+ * systems set `CONTINUOUS_INTEGRATION` instead. We treat any truthy
+ * value as a positive CI signal — including the literal string
+ * `'false'`, which is intentional: a CI that exports `CI=false` is
+ * still a CI environment (the value is conventionally just "true"
+ * but the variable's PRESENCE is the load-bearing signal).
+ */
+function isCi(): boolean {
+  return (
+    process.env.CI !== undefined ||
+    process.env.CONTINUOUS_INTEGRATION !== undefined
+  )
 }
 
 /** Resolve the proxy base URL. Trailing slashes stripped. */
