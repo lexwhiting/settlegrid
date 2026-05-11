@@ -71,8 +71,8 @@ const ENV_KEYS = [
   'STRIPE_SECRET_KEY',
   'LAUNCH_HN_ITEM_ID',
   'SENTRY_AUTH_TOKEN',
-  'SENTRY_ORG_SLUG',
-  'SENTRY_PROJECT_SLUG',
+  'SENTRY_ORG',
+  'SENTRY_PROJECT',
 ] as const
 let envSnapshot: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
 
@@ -441,8 +441,8 @@ describe('GET /api/admin/launch-metrics — happy-path payload assembly', () => 
 
   it('counts Sentry events when fully configured', async () => {
     process.env.SENTRY_AUTH_TOKEN = 'token'
-    process.env.SENTRY_ORG_SLUG = 'sg'
-    process.env.SENTRY_PROJECT_SLUG = 'web'
+    process.env.SENTRY_ORG = 'sg'
+    process.env.SENTRY_PROJECT = 'web'
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
