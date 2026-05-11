@@ -349,6 +349,10 @@ describe('settlegrid add — P2.4 PR fallback + token-never-logged smoke tests',
     const parsed = JSON.parse(lines[0]) as Record<string, unknown>
     expect(parsed.status).toBe('dry-run-complete')
     expect(parsed.mode).toBe('dry-run')
+    // inputSource is null because the source came via `--path`, not
+    // as a positional argument (Phase 1-5 E2E audit fix — early-
+    // failure paths must surface the raw positional input).
+    expect(parsed.inputSource).toBeNull()
 
     // detect fields
     expect(parsed.detect).toMatchObject({
@@ -370,6 +374,41 @@ describe('settlegrid add — P2.4 PR fallback + token-never-logged smoke tests',
     expect(transform.changedFiles[0].after).toContain(
       "from '@settlegrid/mcp'",
     )
+  })
+
+  // Phase 1-5 E2E audit regression guard. When source resolution
+  // itself fails (bad path, network error, etc.) the JSON output
+  // must still surface the raw positional `source` arg via the
+  // `inputSource` field — otherwise the operator gets only
+  // `error: "ENOENT"` with no record of what input triggered it,
+  // and funnel drop-off debugging loses the load-bearing signal.
+  // Bug found by sub-agent audit on 2026-05-11, fixed in this commit.
+  it('--json captures inputSource even when source resolution fails (early-failure path)', () => {
+    const fakePath = '/tmp/__definitely-not-a-real-path-' + Date.now()
+    const result = spawnSync(
+      'node',
+      [distEntry, 'add', fakePath, '--dry-run', '--no-pr', '--json'],
+      { encoding: 'utf-8', env: testEnv },
+    )
+    expect(result.status).not.toBe(0)
+
+    const lines = result.stdout.split('\n').filter((l) => l.length > 0)
+    expect(lines).toHaveLength(1)
+    const parsed = JSON.parse(lines[0]) as Record<string, unknown>
+
+    // Status flips to 'error' because resolveSource threw before any
+    // later stage could set a more specific status.
+    expect(parsed.status).toBe('error')
+    // resolvedDir stays null — resolution never completed.
+    expect(parsed.resolvedDir).toBeNull()
+    // The critical assertion: inputSource preserves the raw arg the
+    // user typed, so debugging "what triggered ENOENT?" doesn't need
+    // a separate shell-history dive.
+    expect(parsed.inputSource).toBe(fakePath)
+    // The error message is captured too, but on its own (without
+    // inputSource) would be uninterpretable.
+    expect(typeof parsed.error).toBe('string')
+    expect((parsed.error as string).length).toBeGreaterThan(0)
   })
 
   // P2.4 DoD: "Token never logged or echoed to stdout (grep check
