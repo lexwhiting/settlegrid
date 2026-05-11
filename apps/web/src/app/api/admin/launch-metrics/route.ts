@@ -370,10 +370,18 @@ async function fetchHnRank(
  * to fire during launch shouldn't gate the dashboard).
  */
 async function fetchSentryErrorsLastHour(): Promise<number | null> {
-  const dsn = process.env.SENTRY_AUTH_TOKEN
-  const orgSlug = process.env.SENTRY_ORG_SLUG
-  const projectSlug = process.env.SENTRY_PROJECT_SLUG
-  if (!dsn || !orgSlug || !projectSlug) return null
+  // Env var names match the Sentry SDK's installer convention
+  // (`SENTRY_ORG`, `SENTRY_PROJECT`) — NOT `SENTRY_ORG_SLUG` /
+  // `SENTRY_PROJECT_SLUG`. The values stored under those names ARE
+  // the org + project slugs that the REST API takes, but the
+  // variable names omit `_SLUG` to match what Sentry's `sentry-cli`
+  // installer sets up. Using the wrong names here would make this
+  // card silently return null on production even when Vercel has
+  // the values set correctly.
+  const authToken = process.env.SENTRY_AUTH_TOKEN
+  const orgSlug = process.env.SENTRY_ORG
+  const projectSlug = process.env.SENTRY_PROJECT
+  if (!authToken || !orgSlug || !projectSlug) return null
 
   const url =
     `https://sentry.io/api/0/organizations/${encodeURIComponent(orgSlug)}/events/` +
@@ -385,7 +393,7 @@ async function fetchSentryErrorsLastHour(): Promise<number | null> {
   const timer = setTimeout(() => controller.abort(), PER_SOURCE_TIMEOUT_MS)
   try {
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${dsn}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       signal: controller.signal,
     })
     if (!res.ok) return null
