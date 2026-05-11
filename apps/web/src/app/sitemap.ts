@@ -51,6 +51,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastUpdated: mcpShadowIndex.lastUpdated,
       })
       .from(mcpShadowIndex)
+      // Exclude entries marked `settlegridAvailable=false` (takedowns,
+      // DMCA, spam-shaped repos). The shadow page sets robots:noindex
+      // for those, so including them in the sitemap would waste
+      // crawl budget — Google would fetch the page only to honor the
+      // noindex directive. Default for new rows is `true`, so this
+      // filter is permissive in the common case.
+      .where(eq(mcpShadowIndex.settlegridAvailable, true))
       .orderBy(desc(mcpShadowIndex.stars))
       .limit(50000)
 

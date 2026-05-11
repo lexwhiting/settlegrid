@@ -34,6 +34,13 @@ beforeEach(() => {
   process.env = { ...ORIGINAL_ENV, HOME: tmpHome, USERPROFILE: tmpHome }
   delete process.env.SETTLEGRID_TELEMETRY
   delete process.env.SETTLEGRID_API_URL
+  // CI env vars must be cleared too — if the test runner itself is
+  // in CI (vitest under GitHub Actions, for example), the
+  // CI-implicit-opt-out path would short-circuit every isOptedOut()
+  // test that expects false. We restore the original CI setting in
+  // afterEach via the `process.env = { ...ORIGINAL_ENV }` reset.
+  delete process.env.CI
+  delete process.env.CONTINUOUS_INTEGRATION
 })
 
 afterEach(() => {
@@ -67,6 +74,40 @@ describe('isOptedOut', () => {
       expect(isOptedOut()).toBe(false)
     },
   )
+
+  // Phase 1-5 E2E audit (round 2) — CI environments must implicitly
+  // opt out. Without this, every `npm install @settlegrid/cli`
+  // triggered by a developer's CI pipeline fires `cli_install_started`
+  // and pollutes the funnel with bot traffic.
+  describe('CI auto-opt-out', () => {
+    it.each(['true', '1', 'yes', 'false', ''])(
+      'returns true when CI=%p (any defined value counts as CI)',
+      (val) => {
+        process.env.CI = val
+        expect(isOptedOut()).toBe(true)
+      },
+    )
+
+    it('returns true when CONTINUOUS_INTEGRATION is set (older CI systems)', () => {
+      process.env.CONTINUOUS_INTEGRATION = 'true'
+      expect(isOptedOut()).toBe(true)
+    })
+
+    it('CI auto-opt-out wins over explicit SETTLEGRID_TELEMETRY=1', () => {
+      // A user who tries to force-enable telemetry in CI should still
+      // be opted out — the CI signal is structural, the env override
+      // is for local dev / power users on their own machines.
+      process.env.CI = 'true'
+      process.env.SETTLEGRID_TELEMETRY = '1'
+      expect(isOptedOut()).toBe(true)
+    })
+
+    it('returns false when neither CI nor CONTINUOUS_INTEGRATION is set', () => {
+      delete process.env.CI
+      delete process.env.CONTINUOUS_INTEGRATION
+      expect(isOptedOut()).toBe(false)
+    })
+  })
 })
 
 describe('getProxyBase', () => {
