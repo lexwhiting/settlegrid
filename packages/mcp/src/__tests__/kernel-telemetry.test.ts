@@ -12,7 +12,7 @@
  *   - memoryKernelEmitter: collects sanitized events
  *   - opt-out: SETTLEGRID_TELEMETRY=0 yields a no-op emitter
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   KERNEL_EVENT_NAMES,
   __setKernelFetchForTests,
@@ -336,6 +336,134 @@ describe('createKernelEmitter (HTTP)', () => {
     })
     await new Promise((r) => setImmediate(r))
     expect(fakeFetch).not.toHaveBeenCalled()
+  })
+
+  // Option C — bearer-auth flow for the platform's kernel sink.
+  // The server sink rejects events without a matching bearer once
+  // KERNEL_TELEMETRY_AUTH_TOKEN is set; the SDK must therefore be able
+  // to send a token when its caller wants events to land.
+  describe('authToken (Option C)', () => {
+    let savedEnvToken: string | undefined
+
+    beforeEach(() => {
+      savedEnvToken = process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN
+      delete process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN
+    })
+
+    afterEach(() => {
+      if (savedEnvToken === undefined) {
+        delete process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN
+      } else {
+        process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN = savedEnvToken
+      }
+    })
+
+    it('sends Authorization: Bearer <token> when authToken is passed in opts', async () => {
+      const calls: { url: string; headers: Record<string, string> }[] = []
+      const fakeFetch = vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({
+          url,
+          headers: init.headers as Record<string, string>,
+        })
+        return new Response(null, { status: 200 })
+      })
+      __setKernelFetchForTests(fakeFetch as unknown as typeof fetch)
+
+      const emitter = createKernelEmitter({
+        apiUrl: 'https://api.example.com',
+        authToken: 'platform-secret-32-bytes-of-hex-xx',
+      })
+      emitter.emit({
+        name: 'kernel.adapter_latency_ms',
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
+      })
+
+      await new Promise((r) => setImmediate(r))
+      expect(calls).toHaveLength(1)
+      expect(calls[0].headers.authorization).toBe(
+        'Bearer platform-secret-32-bytes-of-hex-xx',
+      )
+    })
+
+    it('falls back to SETTLEGRID_KERNEL_TELEMETRY_TOKEN env when opts.authToken unset', async () => {
+      process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN = 'token-from-env-source'
+      const calls: { headers: Record<string, string> }[] = []
+      const fakeFetch = vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push({ headers: init.headers as Record<string, string> })
+        return new Response(null, { status: 200 })
+      })
+      __setKernelFetchForTests(fakeFetch as unknown as typeof fetch)
+
+      const emitter = createKernelEmitter({ apiUrl: 'https://api.example.com' })
+      emitter.emit({
+        name: 'kernel.adapter_latency_ms',
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
+      })
+
+      await new Promise((r) => setImmediate(r))
+      expect(calls[0].headers.authorization).toBe('Bearer token-from-env-source')
+    })
+
+    it('opts.authToken wins over env when both are set (explicit > implicit)', async () => {
+      process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN = 'env-token-loses'
+      const calls: { headers: Record<string, string> }[] = []
+      const fakeFetch = vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push({ headers: init.headers as Record<string, string> })
+        return new Response(null, { status: 200 })
+      })
+      __setKernelFetchForTests(fakeFetch as unknown as typeof fetch)
+
+      const emitter = createKernelEmitter({
+        apiUrl: 'https://api.example.com',
+        authToken: 'opts-token-wins',
+      })
+      emitter.emit({
+        name: 'kernel.adapter_latency_ms',
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
+      })
+
+      await new Promise((r) => setImmediate(r))
+      expect(calls[0].headers.authorization).toBe('Bearer opts-token-wins')
+    })
+
+    it('omits Authorization header entirely when neither opts nor env is set', async () => {
+      const calls: { headers: Record<string, string> }[] = []
+      const fakeFetch = vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push({ headers: init.headers as Record<string, string> })
+        return new Response(null, { status: 200 })
+      })
+      __setKernelFetchForTests(fakeFetch as unknown as typeof fetch)
+
+      const emitter = createKernelEmitter({ apiUrl: 'https://api.example.com' })
+      emitter.emit({
+        name: 'kernel.adapter_latency_ms',
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
+      })
+
+      await new Promise((r) => setImmediate(r))
+      expect(calls[0].headers.authorization).toBeUndefined()
+    })
+
+    it('treats empty-string authToken as unset (no header sent)', async () => {
+      const calls: { headers: Record<string, string> }[] = []
+      const fakeFetch = vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push({ headers: init.headers as Record<string, string> })
+        return new Response(null, { status: 200 })
+      })
+      __setKernelFetchForTests(fakeFetch as unknown as typeof fetch)
+
+      const emitter = createKernelEmitter({
+        apiUrl: 'https://api.example.com',
+        authToken: '',
+      })
+      emitter.emit({
+        name: 'kernel.adapter_latency_ms',
+        props: { adapter: 'mcp', latency_ms: 5, success: true },
+      })
+
+      await new Promise((r) => setImmediate(r))
+      expect(calls[0].headers.authorization).toBeUndefined()
+    })
   })
 })
 
