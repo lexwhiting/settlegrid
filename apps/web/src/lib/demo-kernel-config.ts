@@ -27,6 +27,7 @@
 
 import {
   createDispatchKernel,
+  createKernelEmitter,
   protocolRegistry,
   settlegrid,
   type DispatchKernel,
@@ -101,9 +102,29 @@ export function buildDemoSg(): SettleGridInstance {
  * Build the demo dispatch kernel against a fresh sg. The kernel has
  * no per-call state itself, but `buildDemoSg` does (middleware cache,
  * normalized config), so building once per request is the safe default.
+ *
+ * P5.K1 Option C — wires `createKernelEmitter` with the platform's
+ * `KERNEL_TELEMETRY_AUTH_TOKEN` so demo traffic actually populates the
+ * `/admin/kernel-health` dashboard. When the env is unset (pre-launch
+ * local dev), the emitter still calls the sink, which returns
+ * `200 + sink_disabled` and the SDK's fire-and-forget swallows the
+ * no-op — same graceful-degradation behavior as before. When set
+ * (post-launch on Vercel), events flow through, the sink writes to
+ * `kernel_telemetry`, and the dashboard renders real data.
+ *
+ * `apiUrl` for the emitter is the public app URL (NOT the sandbox
+ * URL the kernel itself targets) — the sink lives at
+ * `/api/telemetry/kernel` on the main app, not under `/api/demo/sandbox`.
  */
 export function buildDemoKernel(): DispatchKernel {
-  return createDispatchKernel(buildDemoSg())
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
+    'http://localhost:3005'
+  const emitter = createKernelEmitter({
+    apiUrl: appUrl,
+    authToken: process.env.KERNEL_TELEMETRY_AUTH_TOKEN,
+  })
+  return createDispatchKernel(buildDemoSg(), { emitter })
 }
 
 /* -------------------------------------------------------------------------- */

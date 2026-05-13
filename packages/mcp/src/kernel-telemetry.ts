@@ -313,7 +313,11 @@ interface ProxyBody {
   ts: string
 }
 
-async function postToProxy(apiUrl: string, body: ProxyBody): Promise<boolean> {
+async function postToProxy(
+  apiUrl: string,
+  body: ProxyBody,
+  authToken?: string,
+): Promise<boolean> {
   const fetchImpl = fetchOverride ?? globalThis.fetch
   if (typeof fetchImpl !== 'function') return false
 
@@ -326,10 +330,23 @@ async function postToProxy(apiUrl: string, body: ProxyBody): Promise<boolean> {
     KERNEL_TELEMETRY_TIMEOUT_MS,
   )
 
+  // Include Authorization header only when authToken is present.
+  // When unset, the request goes anonymous and the server-side sink
+  // either returns 200 sink_disabled (when KERNEL_TELEMETRY_AUTH_TOKEN
+  // is unset server-side) or 401 (when it IS set). Either way the
+  // emitter's caller never sees the failure — the .catch() in
+  // createKernelEmitter swallows it.
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  }
+  if (authToken && authToken.length > 0) {
+    headers.authorization = `Bearer ${authToken}`
+  }
+
   try {
     const res = await fetchImpl(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
       redirect: 'error',
       signal: controller.signal,
@@ -345,6 +362,24 @@ async function postToProxy(apiUrl: string, body: ProxyBody): Promise<boolean> {
 export interface CreateKernelEmitterOptions {
   /** Base URL of the SettleGrid API. Defaults to https://settlegrid.ai. */
   apiUrl?: string
+  /**
+   * Bearer token sent as `Authorization: Bearer <token>` to the kernel
+   * telemetry sink at `${apiUrl}/api/telemetry/kernel`. Required when
+   * the platform's sink is configured with `KERNEL_TELEMETRY_AUTH_TOKEN`
+   * (the server's expected-token env var) — without a matching bearer,
+   * the sink returns 401 and the SDK silently swallows the failure.
+   *
+   * If unset, falls back to `process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN`.
+   * If still unset, no Authorization header is sent (anonymous request).
+   *
+   * Intended use: platform-internal kernel dispatch (the SettleGrid
+   * /demo/kernel route and any future internal cron-driven dispatches).
+   * External developers running the SDK on their own infrastructure
+   * typically leave this unset and accept that their kernel events do
+   * not flow into the SettleGrid platform's analytics — they configure
+   * their own observability stack on the side.
+   */
+  authToken?: string
 }
 
 /**
@@ -360,6 +395,13 @@ export function createKernelEmitter(
   opts: CreateKernelEmitterOptions = {},
 ): KernelTelemetryEmitter {
   const apiUrl = opts.apiUrl ?? DEFAULT_PROXY_BASE
+  // Token precedence: explicit opts.authToken > env-var fallback >
+  // undefined. The env var name is intentionally distinct from the
+  // server's `KERNEL_TELEMETRY_AUTH_TOKEN` — a developer accidentally
+  // setting the server's env-name in their own process should NOT
+  // auto-route their kernel events into the SettleGrid platform.
+  const authToken =
+    opts.authToken ?? process.env.SETTLEGRID_KERNEL_TELEMETRY_TOKEN
   if (isKernelTelemetryOptedOut()) {
     return noopKernelEmitter()
   }
@@ -373,7 +415,7 @@ export function createKernelEmitter(
           ts: new Date().toISOString(),
         }
         // Fire-and-forget; promise rejection silently swallowed.
-        void postToProxy(apiUrl, body).catch(() => {
+        void postToProxy(apiUrl, body, authToken).catch(() => {
           /* fire-and-forget */
         })
       } catch {
