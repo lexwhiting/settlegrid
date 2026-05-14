@@ -64,6 +64,36 @@ describe('Middleware security headers', () => {
     expect(csp).toContain("frame-ancestors 'none'")
   })
 
+  // 2026-05-14 launch-day verification: PostHog client SDK lazy-loads
+  // helpers (web-vitals, recorder, dead-clicks, surveys, array config)
+  // from us-assets.i.posthog.com. Without script-src allowing
+  // *.posthog.com, those loads are silently CSP-blocked and the entire
+  // client-side funnel telemetry (gallery_viewed, template_detail_viewed,
+  // shadow_directory_viewed) stops firing for visitors. Regression
+  // guard so a future security-headers tightening doesn't strip the
+  // allow without realizing the cost.
+  it('CSP allows PostHog scripts (regression guard for silent telemetry-block)', async () => {
+    const response = await middleware(createRequest('/dashboard'))
+    const csp = response.headers.get('Content-Security-Policy')!
+    // Asserts script-src lists *.posthog.com — must NOT just check the
+    // string is present anywhere, because *.posthog.com showing up only
+    // in connect-src wouldn't fix the script-load issue.
+    const scriptSrcMatch = csp.match(/script-src ([^;]+)/)
+    expect(scriptSrcMatch).not.toBeNull()
+    expect(scriptSrcMatch![1]).toContain('https://*.posthog.com')
+  })
+
+  it('CSP allows blob: workers for PostHog session-replay', async () => {
+    const response = await middleware(createRequest('/dashboard'))
+    const csp = response.headers.get('Content-Security-Policy')!
+    // PostHog's session-replay worker is loaded from a blob: URL —
+    // without worker-src blob:, the recorder fails silently. Same
+    // regression-guard rationale as the PostHog script-src test.
+    const workerSrcMatch = csp.match(/worker-src ([^;]+)/)
+    expect(workerSrcMatch).not.toBeNull()
+    expect(workerSrcMatch![1]).toContain('blob:')
+  })
+
   it('sets Referrer-Policy header', async () => {
     const response = await middleware(createRequest('/dashboard'))
     expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin')

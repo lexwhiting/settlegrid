@@ -74,13 +74,21 @@ function addSecurityHeaders(response: NextResponse): void {
 
   // In production, omit 'unsafe-eval' from script-src. Next.js needs it in dev for
   // fast-refresh / eval-based source maps, but it is unnecessary in production builds.
+  //
+  // PostHog's client SDK lazy-loads helper bundles (web-vitals, recorder,
+  // dead-clicks, surveys, the array config) from us-assets.i.posthog.com and
+  // us.i.posthog.com. Without these in script-src the SDK's main script
+  // loads via 'unsafe-inline' but every lazy-loaded helper is blocked,
+  // silently breaking client-side funnel telemetry (gallery_viewed,
+  // template_detail_viewed, etc.). The wildcard *.posthog.com covers EU
+  // variants if NEXT_PUBLIC_POSTHOG_HOST is ever switched.
   const scriptSrc = process.env.NODE_ENV === 'production'
-    ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    ? "script-src 'self' 'unsafe-inline' https://*.posthog.com"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.posthog.com"
 
   response.headers.set(
     'Content-Security-Policy',
-    `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-src https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-ancestors 'none'`
+    `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-src https://ncqjvmpruutwhilldcjp.supabase.co https://auth.settlegrid.ai; frame-ancestors 'none'; worker-src 'self' blob:`
   )
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 }
