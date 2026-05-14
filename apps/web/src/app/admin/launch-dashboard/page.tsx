@@ -144,8 +144,15 @@ export default function LaunchDashboardPage() {
         setLoading(false)
         return
       }
-      const json = (await res.json()) as { data: LaunchMetrics }
-      setMetrics(json.data)
+      // The route at /api/admin/launch-metrics returns the payload
+      // FLAT (no { data: ... } wrap) — see api/admin/launch-metrics/
+      // route.ts:149 `return successResponse(payload)` and the
+      // corresponding tests asserting body.posthog (not body.data.posthog).
+      // Reading json.data would silently set metrics to undefined and
+      // collapse the dashboard's ternary chain to null, rendering only
+      // the page header.
+      const payload = (await res.json()) as LaunchMetrics
+      setMetrics(payload)
       setLastRefresh(new Date())
       setError(null)
     } catch {
