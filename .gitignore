@@ -122,3 +122,30 @@ docs/legal/
 # Internal operational data (GTM cohort details, country/waitlist state)
 data/gtm/
 data/international/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pass 2 additions (2026-05-15) — directories/files missed by the first audit
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Root-level docs/ planning + handoff
+docs/ai-employee-handoff.md
+docs/ai-employee-plan-settlegrid-v3.1.md
+docs/ai-employee-*
+
+# Content drafts (dev.to articles pre-publication)
+docs/devto-*
+
+# Internal operational + compliance + decision directories
+docs/launches/
+docs/operations/
+docs/sops/
+docs/phase-gates/
+docs/reconciliation/
+docs/anthropic-submission/
+docs/directory-submissions/
+docs/audits/
+docs/decisions/
+
+# Word doc exports anywhere in docs/ (the .md sources stay tracked if public)
+docs/*.docx
+docs/**/*.docx
