@@ -59,3 +59,66 @@ scripts/gridbot/logs/*.jsonl
 scripts/.cache/
 # P4.6 generated output — 100 emails with real names + addresses. DO NOT COMMIT.
 scripts/.outreach/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Internal planning + operational docs (2026-05-14 audit cleanup)
+#
+# These were committed before the pattern-based protections above were added,
+# then slipped into public-repo history. Phase A blocked new commits; a
+# Phase B `git filter-repo` pass scrubbed the historical commits separately.
+#
+# To add a NEW file under one of the blanket-ignored dirs below, decide first
+# whether it should be public. If yes, add an explicit `!` exception. The
+# default is "internal, do not commit."
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Strategic planning at root (specific files)
+/MASTER_PLAN.md
+/REVENUE_MODEL_5Y.md
+/DEMAND_GENERATION_PLAN.md
+/NUCLEAR_EXPANSION_PLAN.md
+/UNIVERSAL_EXPANSION_PLAN.md
+/WEAKNESS_DEEP_RESEARCH.md
+/DISCOVERY_PLAYBOOK.md
+/REVIEW_MODERATION_PLAN.md
+/QUALITY_MONITORING_RECOMMENDATION.md
+/ONBOARDING_UX_DESIGN.md
+/FRONTEND_BACKEND_AUDIT.md
+/AUDIT_LOG.md
+/phase-3-audit-log.md
+/HANDOFF-*
+
+# Pattern-based root protection (defense-in-depth — catches future siblings)
+/*_PLAN.md
+/*_MODEL*.md
+/*PLAYBOOK*.md
+/*_RESEARCH*.md
+/*AUDIT_LOG*.md
+
+# Internal docs directories — blanket-ignore with explicit exceptions for
+# .gitkeep markers (so the directory structure persists locally)
+docs/launch/
+docs/master-plan/
+docs/memos/
+docs/plans/
+docs/retrospectives/
+docs/audit-failures/
+!docs/audit-failures/.gitkeep
+docs/phase-reports/
+!docs/phase-reports/.gitkeep
+docs/template-audit/
+docs/content/
+docs/interviews/
+!docs/interviews/transcripts/.gitkeep
+
+# docs/legal/ — internal compliance + operational SOPs by default. The
+# four genuinely public-facing policy drafts are explicit exceptions.
+docs/legal/
+!docs/legal/aup.md
+!docs/legal/acceptable-use-policy.md
+!docs/legal/privacy-notice-draft.md
+!docs/legal/terms-of-service-draft.md
+
+# Internal operational data (GTM cohort details, country/waitlist state)
+data/gtm/
+data/international/
