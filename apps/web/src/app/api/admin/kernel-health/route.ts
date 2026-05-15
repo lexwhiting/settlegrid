@@ -205,7 +205,7 @@ async function loadOverview(
       percentile_cont(0.99) WITHIN GROUP (ORDER BY (props ->> 'latency_ms')::int)::text AS p99
     FROM kernel_telemetry
     WHERE event_name = 'kernel.adapter_latency_ms'
-      AND occurred_at >= ${cutoff}
+      AND occurred_at >= ${cutoff.toISOString()}
     GROUP BY adapter
     ORDER BY total DESC
     LIMIT 50
@@ -222,7 +222,7 @@ async function loadOverview(
   const totalResult = (await db.execute(sql`
     SELECT count(*)::text AS total
     FROM kernel_telemetry
-    WHERE occurred_at >= ${cutoff}
+    WHERE occurred_at >= ${cutoff.toISOString()}
   `)) as unknown as Array<{ total: string }>
 
   // Spec §P5.K1 — current QPS. Last-60-second count of latency events
@@ -278,7 +278,7 @@ async function loadAdapter(
     FROM kernel_telemetry
     WHERE event_name = 'kernel.adapter_latency_ms'
       AND adapter = ${adapter}
-      AND occurred_at >= ${cutoff}
+      AND occurred_at >= ${cutoff.toISOString()}
   `)) as unknown as Array<{
     total: string
     successes: string
@@ -313,7 +313,7 @@ async function loadAdapter(
     FROM kernel_telemetry
     WHERE event_name = 'kernel.adapter_latency_ms'
       AND adapter = ${adapter}
-      AND occurred_at >= ${cutoff}
+      AND occurred_at >= ${cutoff.toISOString()}
     GROUP BY bucket_ms
     ORDER BY bucket_ms ASC
   `)) as unknown as Array<{ bucket_ms: string; count: string }>
@@ -376,7 +376,7 @@ async function loadRails(
       coalesce(sum((props ->> 'take_cents')::bigint), 0)::text AS take_cents_total
     FROM kernel_telemetry
     WHERE event_name = 'kernel.invocation_settled'
-      AND occurred_at >= ${cutoff}
+      AND occurred_at >= ${cutoff.toISOString()}
       AND rail IS NOT NULL
     GROUP BY rail
     ORDER BY take_cents_total DESC
