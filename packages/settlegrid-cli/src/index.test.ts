@@ -31,13 +31,15 @@ beforeAll(() => {
 describe('settlegrid CLI binary — core smoke tests', () => {
   // Per P2.1 spec #5: a smoke test that spawns the built binary with
   // --version AND asserts non-zero exit on an unknown subcommand.
-  it('prints 0.1.0 for --version and exits non-zero on an unknown subcommand', () => {
+  it('prints the package.json version for --version and exits non-zero on an unknown subcommand', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const expectedVersion = require('../package.json').version
     const versionResult = spawnSync('node', [distEntry, '--version'], {
       encoding: 'utf-8',
       env: testEnv,
     })
     expect(versionResult.status).toBe(0)
-    expect(versionResult.stdout.trim()).toMatch(/^0\.1\.0$/)
+    expect(versionResult.stdout.trim()).toBe(expectedVersion)
 
     const unknownResult = spawnSync(
       'node',

@@ -143,8 +143,25 @@ const UUID_RE =
  * run, missing file, or corrupt content. Never throws — on any
  * filesystem error we return an in-process UUID so telemetry still
  * works (just won't be stable across invocations).
+ *
+ * Browser → CLI handoff: `SETTLEGRID_POSTHOG_ID` env var, when set
+ * to a valid UUID, overrides both the persisted file and any
+ * generated id for this invocation. The gallery's Copy-Install-
+ * Command button on /templates/<slug> embeds the browser's PostHog
+ * distinct_id into the generated command so the postinstall hook
+ * AND the `add` subcommand emit telemetry under the same id as the
+ * preceding browser session — collapsing gallery_viewed,
+ * template_detail_viewed, cli_install_started, and scaffold_success
+ * onto a single PostHog person.
+ *
+ * The env var is NOT persisted to ~/.settlegrid/telemetry-id (a
+ * borrowed browser id shouldn't pin the machine's identity for all
+ * future invocations).
  */
 export function getDistinctId(): string {
+  const envId = process.env.SETTLEGRID_POSTHOG_ID?.trim()
+  if (envId && UUID_RE.test(envId)) return envId
+
   const file = telemetryIdPath()
   try {
     const existing = readFileSync(file, 'utf8').trim()

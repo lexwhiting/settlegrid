@@ -1,6 +1,6 @@
 {
   "name": "@settlegrid/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SettleGrid CLI — monetize any MCP server, REST API, or AI agent with one command.",
   "keywords": [
     "settlegrid",
