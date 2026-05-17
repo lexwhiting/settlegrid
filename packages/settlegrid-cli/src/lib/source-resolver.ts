@@ -57,7 +57,14 @@ export async function resolveSource(
       // that never need a GitHub fetch (e.g. `--path` only) and makes
       // vitest mocks easy to apply when needed.
       const giget = await import('giget')
-      await giget.downloadTemplate(opts.github, { dir: target, force: true })
+      // Normalize a raw https://github.com/owner/repo[/...] URL to giget's
+      // `github:owner/repo` shorthand. giget passes the raw URL to undici
+      // which fetches the HTML preview page instead of the tarball, and
+      // tar-stream then fails with TAR_BAD_ARCHIVE. The shorthand form
+      // routes through giget's GitHub provider, which constructs the
+      // correct codeload tarball URL.
+      const source = normaliseGithubUrl(opts.github)
+      await giget.downloadTemplate(source, { dir: target, force: true })
     } catch (err) {
       // Clean up the mkdtemp we just created before re-throwing, so a
       // transient network or bad-URL failure doesn't leak tmpdirs. The
@@ -87,4 +94,22 @@ export async function resolveSource(
  */
 export function isGithubUrl(s: string): boolean {
   return /^(https?:\/\/|github:|gh:|git@|git:\/\/)/i.test(s)
+}
+
+/**
+ * Convert a `https://github.com/<owner>/<repo>[.git][/...]` URL to giget's
+ * `github:<owner>/<repo>` shorthand. Leaves non-https forms (giget shorthand,
+ * git@, git://) untouched — they already route through giget's providers.
+ *
+ * The full repo URL works in a browser but not for giget: giget's default
+ * fetch fetches whatever the URL responds with as a tarball, and
+ * github.com/<owner>/<repo> returns the HTML preview page which tar-stream
+ * cannot parse (TAR_BAD_ARCHIVE).
+ */
+export function normaliseGithubUrl(s: string): string {
+  const m = s.match(
+    /^https?:\/\/(?:www\.)?github\.com\/([^/\s]+)\/([^/\s?#]+?)(?:\.git)?(?:[/?#].*)?$/i,
+  )
+  if (!m) return s
+  return `github:${m[1]}/${m[2]}`
 }
