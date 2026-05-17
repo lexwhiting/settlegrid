@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { GALLERY_ENABLED } from '@/env'
 import { getRegistry, getTemplateBySlug } from '@/lib/registry'
 import { DeployButton } from '@/components/templates/DeployButton'
+import { CopyInstallCommand } from '@/components/templates/CopyInstallCommand'
 import { TemplateDetailViewedEmitter } from '@/components/telemetry/TemplateDetailViewedEmitter'
 
 export const dynamic = 'force-static'
@@ -127,10 +128,14 @@ export default async function TemplateDetailPage({
             <h2 className="text-xl font-semibold text-foreground mb-4">
               Quickstart
             </h2>
-            <div className="rounded-lg border border-border bg-[#0C0E14] p-4 overflow-x-auto">
+            <CopyInstallCommand slug={slug} />
+            <div className="mt-4 rounded-lg border border-border bg-[#0C0E14] p-4 overflow-x-auto">
+              <p className="text-xs font-medium tracking-wider uppercase text-muted-foreground mb-2">
+                Or clone directly
+              </p>
               <pre className="text-sm font-mono text-gray-300">
                 <code>
-                  {`npx create-settlegrid-tool --template ${slug}\n\n# Or clone directly:\ngit clone ${template.repo.url}\ncd ${dirSlug}\nnpm install && cp .env.example .env\nnpm run dev`}
+                  {`git clone ${template.repo.url}\ncd ${dirSlug}\nnpm install && cp .env.example .env\nnpm run dev`}
                 </code>
               </pre>
             </div>
