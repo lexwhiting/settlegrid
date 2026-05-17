@@ -17,6 +17,12 @@ with HTTP 400.
   `packages/settlegrid-cli/src/telemetry.ts`, which POSTs to the
   proxy at `https://settlegrid.ai/api/telemetry/capture`. The
   PostHog project key never ships in the CLI tarball.
+- **Scaffolder** (`create-settlegrid-tool`, Node process) — emitted
+  via `packages/create-settlegrid-tool/src/telemetry.ts`, a mirror
+  of the CLI's. Shares the CLI's persistent distinct_id file
+  (`~/.settlegrid/telemetry-id`) so a developer who runs both
+  packages is one PostHog person. POSTs to the same proxy; no
+  PostHog key ships in the tarball.
 - **SDK** (`@settlegrid/mcp`, runs inside consumers' tool servers) —
   emitted via `packages/mcp/src/telemetry.ts`, which POSTs to the
   proxy at `${config.apiUrl}/api/telemetry/capture` (defaults to
@@ -27,7 +33,7 @@ with HTTP 400.
 | Surface | distinct_id |
 |---|---|
 | Browser | PostHog's anonymous-cookie ID (managed by `posthog-js`) |
-| CLI | random UUID written to `~/.settlegrid/telemetry-id` (mode 0600) on first run |
+| CLI / `create-settlegrid-tool` | `SETTLEGRID_POSTHOG_ID` env var (the browser → CLI handoff) when set to a valid UUID, else a random UUID written to `~/.settlegrid/telemetry-id` (mode 0600) on first run |
 | SDK | `sha256(toolSlug)` — anonymous, deterministic per tool |
 
 ## Opt-out
@@ -112,22 +118,24 @@ Content-Type: application/json
 - **Funnel role:** SEO-discovery surface — visitor landed on an indexed shadow page.
 
 ### 4. `cli_install_started`
-- **Surface:** CLI, on `npm install`'s postinstall hook
+- **Surface:** CLI / `create-settlegrid-tool`, on the postinstall hook
 - **Properties:** `{ cli_version: string, node_version: string, os: string }`
 - **distinct_id:** CLI persistent UUID
 - **Funnel role:** Activation — developer installed the CLI binary.
 
 ### 5. `scaffold_success`
-- **Surface:** CLI, after a successful `settlegrid add` run
+- **Surface:** CLI, after a successful `settlegrid add` run; or
+  `create-settlegrid-tool`, after a successful scaffold run
 - **Properties:** `{ template_slug: string, duration_ms: number }`
 - **distinct_id:** CLI persistent UUID
 - **Funnel role:** Activation — developer wrapped a real repo with monetization.
 
 ### 6. `scaffold_failed`
-- **Surface:** CLI, on any error path of `settlegrid add`
+- **Surface:** CLI, on any error path of `settlegrid add`; or
+  `create-settlegrid-tool`, on any error path of a scaffold run
 - **Properties:** `{ template_slug: string, error_code: string }`
 - **distinct_id:** CLI persistent UUID
-- **Funnel role:** Drop-off — diagnostic for what's blocking activation. `error_code` is one of: `unknown_repo_type`, `transform_error`, `pr_failed`, `resolve_error`, `unknown`.
+- **Funnel role:** Drop-off — diagnostic for what's blocking activation. `error_code` is one of — from `@settlegrid/cli`: `unknown_repo_type`, `transform_error`, `pr_failed`, `resolve_error`, `unknown`; from `create-settlegrid-tool`: `template_not_found`, `download_failed`, `write_failed`, `unknown`.
 
 ### 7. `sdk_first_init`
 - **Surface:** SDK, on the first `settlegrid.init()` per process+toolSlug

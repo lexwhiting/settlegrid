@@ -1,6 +1,11 @@
 import pc from 'picocolors'
 
-export function banner(): string {
+/**
+ * Render the startup banner. The version is passed in (resolved from
+ * package.json by the caller via `readPackageVersion()`) so the
+ * displayed `v…` never drifts from the published version.
+ */
+export function banner(version: string): string {
   const emerald = pc.green
   const dim = pc.dim
 
@@ -12,8 +17,8 @@ ${emerald('  |___/\\___|\\__|\\__|_\\___| \\___|_| |_\\__,_|')}
 `
 
   const tagline = dim('  The Settlement Layer for the AI Economy')
-  const version = dim('  v1.0.0')
+  const versionLine = dim(`  v${version}`)
   const separator = dim('  ' + '-'.repeat(44))
 
-  return `${art}${tagline}\n${version}\n${separator}\n`
+  return `${art}${tagline}\n${versionLine}\n${separator}\n`
 }
