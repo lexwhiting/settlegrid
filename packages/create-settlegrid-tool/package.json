@@ -1,6 +1,6 @@
 {
   "name": "create-settlegrid-tool",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create a monetized AI tool with SettleGrid in 30 seconds",
   "keywords": [
     "settlegrid",
@@ -47,10 +47,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
+    "postinstall": "node ./dist/postinstall.js || true",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "fs-extra": "^11.2.0",
+    "giget": "^1.2.3",
     "picocolors": "^1.1.0",
     "prompts": "^2.4.2"
   },
