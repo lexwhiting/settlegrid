@@ -4,27 +4,33 @@ import { useEffect, useState } from 'react'
 import { usePostHog } from 'posthog-js/react'
 
 interface CopyInstallCommandProps {
-  /** Template slug, e.g. "airbyte" — used to construct the github: target. */
+  /** Gallery template slug, e.g. "tmdb". */
   slug: string
 }
 
 /**
- * Renders the one-line `npx @settlegrid/cli add ...` install command for a
- * template, pre-filled with the visitor's PostHog distinct_id as a
- * `SETTLEGRID_POSTHOG_ID=<id>` env-var prefix.
+ * Renders the one-line `npx create-settlegrid-tool --template <slug>` command
+ * for a gallery template, pre-filled with the visitor's PostHog distinct_id
+ * as a `SETTLEGRID_POSTHOG_ID=<id>` env-var prefix.
  *
- * The CLI's getDistinctId() honours that env var (see
- * packages/settlegrid-cli/src/telemetry.ts), so when a visitor pastes the
- * command into their shell, both the postinstall hook
- * (`cli_install_started`) and the `add` invocation
+ * `create-settlegrid-tool`'s getDistinctId() honours that env var (see
+ * packages/create-settlegrid-tool/src/telemetry.ts), so when a visitor pastes
+ * the command into their shell, both the postinstall hook
+ * (`cli_install_started`) and the scaffold run
  * (`scaffold_success` / `scaffold_failed`) emit telemetry under the same
- * distinct_id as the preceding browser session. That collapses the four
- * funnel events onto a single PostHog Person, which is the load-bearing
- * requirement for measuring gallery_viewed → cli_install_started conversion.
+ * distinct_id as the preceding browser session. That collapses the funnel
+ * events onto a single PostHog Person, which is the load-bearing requirement
+ * for measuring gallery_viewed → cli_install_started → scaffold conversion.
+ *
+ * `--template <slug>` downloads the already-monetized gallery repo
+ * (github.com/settlegrid/settlegrid-<slug>). This is the correct verb for the
+ * gallery flow — unlike `@settlegrid/cli add`, which is a codemod for
+ * wrapping an UN-monetized repo and (correctly) reports an already-wrapped
+ * gallery template as an unknown repo type.
  *
  * If PostHog hasn't initialised (ad-blocker, opt-out, first paint before
  * provider mount), we fall back to the plain command without the prefix —
- * the install still works, telemetry just won't correlate to the browser id.
+ * the scaffold still works, telemetry just won't correlate to the browser id.
  */
 export function CopyInstallCommand({ slug }: CopyInstallCommandProps) {
   const posthog = usePostHog()
@@ -40,10 +46,9 @@ export function CopyInstallCommand({ slug }: CopyInstallCommandProps) {
     if (typeof id === 'string' && id.length > 0) setDistinctId(id)
   }, [posthog])
 
-  const target = `gh:settlegrid/settlegrid-${slug}`
   const command = distinctId
-    ? `SETTLEGRID_POSTHOG_ID=${distinctId} npx @settlegrid/cli add --github ${target}`
-    : `npx @settlegrid/cli add --github ${target}`
+    ? `SETTLEGRID_POSTHOG_ID=${distinctId} npx create-settlegrid-tool --template ${slug}`
+    : `npx create-settlegrid-tool --template ${slug}`
 
   const onCopy = async (): Promise<void> => {
     try {
@@ -61,7 +66,7 @@ export function CopyInstallCommand({ slug }: CopyInstallCommandProps) {
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-secondary/40">
         <span className="text-xs font-medium tracking-wider uppercase text-muted-foreground">
-          Install with the SettleGrid CLI
+          Scaffold this template
         </span>
         <button
           type="button"
