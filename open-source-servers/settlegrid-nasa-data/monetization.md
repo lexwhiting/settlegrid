@@ -2,22 +2,30 @@
 
 ## Revenue Model
 
-This template uses **per-call pricing** via SettleGrid.
+This template uses **per-call pricing** via SettleGrid with **progressive
+take rates**. The first $1,000 of monthly revenue per developer is
+fee-free; tiered fees apply only above that threshold.
 
-| Metric | Value |
-|--------|-------|
-| **Price per call** | $0.01 (1¢) |
-| **SettleGrid fee** | 20% |
-| **Your revenue per call** | $0.008 |
+| Tier                            | SettleGrid take | Your share |
+|---------------------------------|-----------------|------------|
+| First $1,000 / month           | **0%**          | **100%**   |
+| Above $1,000 / month           | **2–5%** (volume-tiered) | **95–98%**  |
 
-## Revenue Examples
+| Metric                                          | Value             |
+|-------------------------------------------------|-------------------|
+| **Price per call**                              | $0.01 (1¢)       |
+| **Your revenue per call — first $1,000/mo**    | $0.0100 (100%)   |
+| **Your revenue per call — above $1,000/mo**    | $0.0095–$0.0098 |
 
-| Monthly Calls | Gross Revenue | SettleGrid Fee (20%) | Your Revenue |
-|---------------|--------------|----------------------|-------------|
-| 1,000 | $10 | $2 | **$8** |
-| 10,000 | $100 | $20 | **$80** |
-| 100,000 | $1,000 | $200 | **$800** |
-| 1,000,000 | $10,000 | $2,000 | **$8,000** |
+## Revenue Examples (at $0.01 / call)
+
+| Monthly Calls | Gross Revenue | SettleGrid Fee       | Your Revenue   |
+|---------------|---------------|----------------------|----------------|
+| 1,000         | $10          | **$0** (under $1k)  | **$10**       |
+| 10,000        | $100         | **$0** (under $1k)  | **$100**      |
+| 100,000       | $1,000       | **$0** (at $1k cap) | **$1,000**    |
+| 1,000,000     | $10,000      | ~$450 (≈5% on $9k above $1k) | **~$9,550** |
+
 
 ## How It Works
 
