@@ -30,7 +30,13 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_user_workspaces": {
+        "costCents": 1,
+        "displayName": "Get User Workspaces"
+      }
+    }
   },
   "quality": {
     "tests": false

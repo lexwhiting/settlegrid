@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 5
+    "perCallUsdCents": 5,
+    "methods": {
+      "generate_image": {
+        "costCents": 8,
+        "displayName": "Generate Image"
+      },
+      "edit_image": {
+        "costCents": 8,
+        "displayName": "Edit Image"
+      },
+      "vectorize_image": {
+        "costCents": 5,
+        "displayName": "Vectorize Image"
+      },
+      "remove_background": {
+        "costCents": 5,
+        "displayName": "Remove Background"
+      },
+      "clarity_upscale": {
+        "costCents": 5,
+        "displayName": "Clarity Upscale"
+      },
+      "generative_upscale": {
+        "costCents": 8,
+        "displayName": "Generative Upscale"
+      },
+      "list_styles": {
+        "costCents": 1,
+        "displayName": "List Styles"
+      },
+      "delete_style": {
+        "costCents": 2,
+        "displayName": "Delete Style"
+      }
+    }
   },
   "quality": {
     "tests": false

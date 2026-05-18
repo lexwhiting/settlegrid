@@ -32,7 +32,37 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_agents": {
+        "costCents": 1,
+        "displayName": "List Agents"
+      },
+      "create_agent": {
+        "costCents": 5,
+        "displayName": "Create Agent"
+      },
+      "get_agent": {
+        "costCents": 1,
+        "displayName": "Get Agent"
+      },
+      "update_agent": {
+        "costCents": 3,
+        "displayName": "Update Agent"
+      },
+      "delete_agent": {
+        "costCents": 2,
+        "displayName": "Delete Agent"
+      },
+      "send_message": {
+        "costCents": 5,
+        "displayName": "Send Message"
+      },
+      "get_messages": {
+        "costCents": 1,
+        "displayName": "Get Messages"
+      }
+    }
   },
   "quality": {
     "tests": false

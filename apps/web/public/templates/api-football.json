@@ -25,8 +25,22 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1,
-    "currency": "USD"
+    "perCallUsdCents": 2,
+    "currency": "USD",
+    "methods": {
+      "get_leagues": {
+        "costCents": 2,
+        "displayName": "Get Leagues"
+      },
+      "get_standings": {
+        "costCents": 2,
+        "displayName": "Get Standings"
+      },
+      "get_fixtures": {
+        "costCents": 2,
+        "displayName": "Get Fixtures"
+      }
+    }
   },
   "quality": {
     "tests": false

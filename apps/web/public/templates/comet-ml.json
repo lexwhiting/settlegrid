@@ -31,7 +31,13 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_user_workspaces": {
+        "costCents": 1,
+        "displayName": "Get User Workspaces"
+      }
+    }
   },
   "quality": {
     "tests": false

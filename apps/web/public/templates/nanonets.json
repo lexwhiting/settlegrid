@@ -31,7 +31,17 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_model_details": {
+        "costCents": 1,
+        "displayName": "Get Model Details"
+      },
+      "upload_training_images_by_url": {
+        "costCents": 3,
+        "displayName": "Upload Training Images by URL"
+      }
+    }
   },
   "quality": {
     "tests": false

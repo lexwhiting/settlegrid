@@ -33,7 +33,37 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_actors": {
+        "costCents": 1,
+        "displayName": "List Actors"
+      },
+      "get_actor": {
+        "costCents": 1,
+        "displayName": "Get Actor"
+      },
+      "run_actor": {
+        "costCents": 10,
+        "displayName": "Run Actor"
+      },
+      "get_actor_run": {
+        "costCents": 1,
+        "displayName": "Get Actor Run"
+      },
+      "get_dataset_items": {
+        "costCents": 2,
+        "displayName": "Get Dataset Items"
+      },
+      "get_key_value_store_record": {
+        "costCents": 1,
+        "displayName": "Get Key-Value Store Record"
+      },
+      "list_actor_runs": {
+        "costCents": 1,
+        "displayName": "List Actor Runs"
+      }
+    }
   },
   "quality": {
     "tests": false

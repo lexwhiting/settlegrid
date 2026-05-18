@@ -33,7 +33,37 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 2,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "create_ledger": {
+        "costCents": 3,
+        "displayName": "Create Ledger"
+      },
+      "list_ledgers": {
+        "costCents": 1,
+        "displayName": "List Ledgers"
+      },
+      "query_ledger": {
+        "costCents": 2,
+        "displayName": "Query Ledger"
+      },
+      "transact_ledger": {
+        "costCents": 4,
+        "displayName": "Transact Ledger"
+      },
+      "query_history": {
+        "costCents": 2,
+        "displayName": "Query History"
+      },
+      "query_sparql": {
+        "costCents": 2,
+        "displayName": "Query SPARQL"
+      },
+      "delete_ledger": {
+        "costCents": 5,
+        "displayName": "Delete Ledger"
+      }
+    }
   },
   "quality": {
     "tests": false

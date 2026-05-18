@@ -27,7 +27,21 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_states": {
+        "costCents": 1,
+        "displayName": "All State Vectors"
+      },
+      "get_flights_by_aircraft": {
+        "costCents": 1,
+        "displayName": "Flights by Aircraft"
+      },
+      "get_track": {
+        "costCents": 1,
+        "displayName": "Flight Track"
+      }
+    }
   },
   "quality": {
     "tests": false

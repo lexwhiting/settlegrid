@@ -26,7 +26,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 2,
+    "methods": {
+      "search_articles": {
+        "costCents": 2,
+        "displayName": "Search Articles"
+      },
+      "get_article": {
+        "costCents": 2,
+        "displayName": "Get Article"
+      },
+      "list_sections": {
+        "costCents": 2,
+        "displayName": "List Sections"
+      }
+    }
   },
   "quality": {
     "tests": false

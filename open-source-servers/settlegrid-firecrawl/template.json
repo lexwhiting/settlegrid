@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 2
+    "perCallUsdCents": 2,
+    "methods": {
+      "scrape_url": {
+        "costCents": 2,
+        "displayName": "Scrape URL"
+      },
+      "crawl_website": {
+        "costCents": 5,
+        "displayName": "Crawl Website"
+      },
+      "get_crawl_status": {
+        "costCents": 1,
+        "displayName": "Get Crawl Status"
+      },
+      "map_website": {
+        "costCents": 2,
+        "displayName": "Map Website"
+      },
+      "extract_data": {
+        "costCents": 8,
+        "displayName": "Extract Data"
+      },
+      "get_extract_status": {
+        "costCents": 1,
+        "displayName": "Get Extract Status"
+      },
+      "generate_llmstxt": {
+        "costCents": 5,
+        "displayName": "Generate LLMs.txt"
+      },
+      "get_llmstxt_status": {
+        "costCents": 1,
+        "displayName": "Get LLMs.txt Status"
+      }
+    }
   },
   "quality": {
     "tests": false

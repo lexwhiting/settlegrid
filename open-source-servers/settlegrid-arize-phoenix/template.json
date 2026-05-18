@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "list_projects": {
+        "costCents": 1,
+        "displayName": "List Projects"
+      },
+      "get_project": {
+        "costCents": 1,
+        "displayName": "Get Project"
+      },
+      "list_spans": {
+        "costCents": 1,
+        "displayName": "List Spans"
+      },
+      "list_datasets": {
+        "costCents": 1,
+        "displayName": "List Datasets"
+      },
+      "get_dataset": {
+        "costCents": 1,
+        "displayName": "Get Dataset"
+      },
+      "list_dataset_examples": {
+        "costCents": 1,
+        "displayName": "List Dataset Examples"
+      },
+      "list_experiments": {
+        "costCents": 1,
+        "displayName": "List Experiments"
+      },
+      "get_experiment": {
+        "costCents": 1,
+        "displayName": "Get Experiment"
+      }
+    }
   },
   "quality": {
     "tests": false

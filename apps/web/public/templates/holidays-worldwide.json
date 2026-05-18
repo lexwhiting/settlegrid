@@ -28,7 +28,21 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_holidays": {
+        "costCents": 1,
+        "displayName": "Get Holidays"
+      },
+      "get_long_weekends": {
+        "costCents": 1,
+        "displayName": "Long Weekends"
+      },
+      "next_holiday": {
+        "costCents": 1,
+        "displayName": "Next Holiday"
+      }
+    }
   },
   "quality": {
     "tests": false

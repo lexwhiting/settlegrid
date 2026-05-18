@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_requests": {
+        "costCents": 1,
+        "displayName": "Get Requests"
+      },
+      "get_request_by_id": {
+        "costCents": 1,
+        "displayName": "Get Request By ID"
+      },
+      "submit_request_feedback": {
+        "costCents": 2,
+        "displayName": "Submit Request Feedback"
+      },
+      "query_hql": {
+        "costCents": 3,
+        "displayName": "Query HQL"
+      },
+      "get_datasets": {
+        "costCents": 1,
+        "displayName": "Get Datasets"
+      },
+      "get_alerts": {
+        "costCents": 1,
+        "displayName": "Get Alerts"
+      },
+      "get_sessions": {
+        "costCents": 1,
+        "displayName": "Get Sessions"
+      },
+      "get_user_metrics": {
+        "costCents": 2,
+        "displayName": "Get User Metrics"
+      }
+    }
   },
   "quality": {
     "tests": false

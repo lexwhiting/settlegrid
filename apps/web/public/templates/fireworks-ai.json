@@ -33,7 +33,33 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 5,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "create_chat_completion": {
+        "costCents": 5,
+        "displayName": "Create Chat Completion"
+      },
+      "create_text_completion": {
+        "costCents": 5,
+        "displayName": "Create Text Completion"
+      },
+      "create_embeddings": {
+        "costCents": 2,
+        "displayName": "Create Embeddings"
+      },
+      "create_image": {
+        "costCents": 8,
+        "displayName": "Create Image"
+      },
+      "list_models": {
+        "costCents": 1,
+        "displayName": "List Models"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      }
+    }
   },
   "quality": {
     "tests": false

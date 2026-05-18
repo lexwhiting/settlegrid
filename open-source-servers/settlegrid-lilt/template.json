@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_create_content": {
+        "costCents": 1,
+        "displayName": "Get Create Content"
+      },
+      "get_create_content_by_id": {
+        "costCents": 1,
+        "displayName": "Get Create Content By ID"
+      },
+      "create_content": {
+        "costCents": 5,
+        "displayName": "Create Content"
+      },
+      "delete_create_content": {
+        "costCents": 2,
+        "displayName": "Delete Create Content"
+      },
+      "get_create_preferences": {
+        "costCents": 1,
+        "displayName": "Get Create Preferences"
+      },
+      "get_domains": {
+        "costCents": 1,
+        "displayName": "Get Domains"
+      },
+      "get_files": {
+        "costCents": 1,
+        "displayName": "Get Files"
+      },
+      "regenerate_create_content": {
+        "costCents": 5,
+        "displayName": "Regenerate Create Content"
+      }
+    }
   },
   "quality": {
     "tests": false

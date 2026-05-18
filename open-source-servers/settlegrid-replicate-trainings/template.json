@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "create_training": {
+        "costCents": 5,
+        "displayName": "Create Training"
+      },
+      "list_trainings": {
+        "costCents": 1,
+        "displayName": "List Trainings"
+      },
+      "get_training": {
+        "costCents": 1,
+        "displayName": "Get Training"
+      },
+      "cancel_training": {
+        "costCents": 2,
+        "displayName": "Cancel Training"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "list_model_versions": {
+        "costCents": 1,
+        "displayName": "List Model Versions"
+      },
+      "get_account": {
+        "costCents": 1,
+        "displayName": "Get Account"
+      },
+      "list_hardware": {
+        "costCents": 1,
+        "displayName": "List Hardware"
+      }
+    }
   },
   "quality": {
     "tests": false

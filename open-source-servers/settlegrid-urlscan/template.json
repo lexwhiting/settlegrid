@@ -26,7 +26,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "submit_scan": {
+        "costCents": 2,
+        "displayName": "Submit URL for scanning"
+      },
+      "get_result": {
+        "costCents": 1,
+        "displayName": "Get scan result by UUID"
+      },
+      "search_scans": {
+        "costCents": 1,
+        "displayName": "Search existing scans"
+      },
+      "get_screenshot": {
+        "costCents": 1,
+        "displayName": "Get screenshot URL"
+      }
+    }
   },
   "quality": {
     "tests": false

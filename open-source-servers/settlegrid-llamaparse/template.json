@@ -32,7 +32,37 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 2
+    "perCallUsdCents": 2,
+    "methods": {
+      "upload_file_for_parsing": {
+        "costCents": 5,
+        "displayName": "Upload File for Parsing"
+      },
+      "get_job_status": {
+        "costCents": 1,
+        "displayName": "Get Job Status"
+      },
+      "get_result_markdown": {
+        "costCents": 2,
+        "displayName": "Get Result Markdown"
+      },
+      "get_result_text": {
+        "costCents": 2,
+        "displayName": "Get Result Text"
+      },
+      "get_result_json": {
+        "costCents": 2,
+        "displayName": "Get Result JSON"
+      },
+      "get_page_image": {
+        "costCents": 2,
+        "displayName": "Get Page Image"
+      },
+      "delete_job": {
+        "costCents": 1,
+        "displayName": "Delete Job"
+      }
+    }
   },
   "quality": {
     "tests": false

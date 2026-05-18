@@ -30,7 +30,33 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "create_finetune_job": {
+        "costCents": 5,
+        "displayName": "Create Fine-Tune Job"
+      },
+      "list_finetune_jobs": {
+        "costCents": 1,
+        "displayName": "List Fine-Tune Jobs"
+      },
+      "get_finetune_job": {
+        "costCents": 1,
+        "displayName": "Get Fine-Tune Job"
+      },
+      "cancel_finetune_job": {
+        "costCents": 2,
+        "displayName": "Cancel Fine-Tune Job"
+      },
+      "list_finetune_events": {
+        "costCents": 1,
+        "displayName": "List Fine-Tune Events"
+      },
+      "delete_finetune_model": {
+        "costCents": 3,
+        "displayName": "Delete Fine-Tuned Model"
+      }
+    }
   },
   "quality": {
     "tests": false

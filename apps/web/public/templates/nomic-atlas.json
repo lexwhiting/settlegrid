@@ -33,7 +33,25 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 3,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "embed_text": {
+        "costCents": 3,
+        "displayName": "Embed Text"
+      },
+      "embed_image": {
+        "costCents": 4,
+        "displayName": "Embed Image"
+      },
+      "parse_file": {
+        "costCents": 5,
+        "displayName": "Parse File"
+      },
+      "extract_file": {
+        "costCents": 5,
+        "displayName": "Extract File"
+      }
+    }
   },
   "quality": {
     "tests": false

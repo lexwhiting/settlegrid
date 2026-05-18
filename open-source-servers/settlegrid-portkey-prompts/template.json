@@ -30,7 +30,13 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 5
+    "perCallUsdCents": 5,
+    "methods": {
+      "run_prompt": {
+        "costCents": 5,
+        "displayName": "Run Prompt Template"
+      }
+    }
   },
   "quality": {
     "tests": false

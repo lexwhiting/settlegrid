@@ -29,7 +29,33 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_organization": {
+        "costCents": 1,
+        "displayName": "Get Organization"
+      },
+      "list_users": {
+        "costCents": 1,
+        "displayName": "List Users"
+      },
+      "create_user": {
+        "costCents": 3,
+        "displayName": "Create User"
+      },
+      "get_user": {
+        "costCents": 1,
+        "displayName": "Get User"
+      },
+      "update_user": {
+        "costCents": 2,
+        "displayName": "Update User"
+      },
+      "delete_user": {
+        "costCents": 3,
+        "displayName": "Delete User"
+      }
+    }
   },
   "quality": {
     "tests": false

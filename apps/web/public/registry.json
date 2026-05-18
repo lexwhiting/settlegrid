@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-19T20:36:52.001Z",
-  "commit": "f9f7a522897c924341ce9336479ac2182015dd82",
+  "generatedAt": "2026-05-18T18:16:34.208Z",
+  "commit": "c22fa28e24ce80b084a87ff8111013482e62be31",
   "totalTemplates": 97,
   "categories": {
     "ai": 21,
@@ -47,7 +47,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_source": {
+            "costCents": 5,
+            "displayName": "Create Source"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -84,8 +90,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "get_leagues": {
+            "costCents": 2,
+            "displayName": "Get Leagues"
+          },
+          "get_standings": {
+            "costCents": 2,
+            "displayName": "Get Standings"
+          },
+          "get_fixtures": {
+            "costCents": 2,
+            "displayName": "Get Fixtures"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -132,7 +152,37 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_actors": {
+            "costCents": 1,
+            "displayName": "List Actors"
+          },
+          "get_actor": {
+            "costCents": 1,
+            "displayName": "Get Actor"
+          },
+          "run_actor": {
+            "costCents": 10,
+            "displayName": "Run Actor"
+          },
+          "get_actor_run": {
+            "costCents": 1,
+            "displayName": "Get Actor Run"
+          },
+          "get_dataset_items": {
+            "costCents": 2,
+            "displayName": "Get Dataset Items"
+          },
+          "get_key_value_store_record": {
+            "costCents": 1,
+            "displayName": "Get Key-Value Store Record"
+          },
+          "list_actor_runs": {
+            "costCents": 1,
+            "displayName": "List Actor Runs"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -183,7 +233,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_spaces": {
+            "costCents": 1,
+            "displayName": "List Spaces"
+          },
+          "get_space": {
+            "costCents": 1,
+            "displayName": "Get Space"
+          },
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "delete_model": {
+            "costCents": 3,
+            "displayName": "Delete Model"
+          },
+          "list_monitors": {
+            "costCents": 1,
+            "displayName": "List Monitors"
+          },
+          "get_monitor": {
+            "costCents": 1,
+            "displayName": "Get Monitor"
+          },
+          "delete_monitor": {
+            "costCents": 3,
+            "displayName": "Delete Monitor"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -234,7 +318,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_projects": {
+            "costCents": 1,
+            "displayName": "List Projects"
+          },
+          "get_project": {
+            "costCents": 1,
+            "displayName": "Get Project"
+          },
+          "list_spans": {
+            "costCents": 1,
+            "displayName": "List Spans"
+          },
+          "list_datasets": {
+            "costCents": 1,
+            "displayName": "List Datasets"
+          },
+          "get_dataset": {
+            "costCents": 1,
+            "displayName": "Get Dataset"
+          },
+          "list_dataset_examples": {
+            "costCents": 1,
+            "displayName": "List Dataset Examples"
+          },
+          "list_experiments": {
+            "costCents": 1,
+            "displayName": "List Experiments"
+          },
+          "get_experiment": {
+            "costCents": 1,
+            "displayName": "Get Experiment"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -286,7 +404,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "submit_transcription": {
+            "costCents": 5,
+            "displayName": "Submit Transcription"
+          },
+          "get_transcription": {
+            "costCents": 1,
+            "displayName": "Get Transcription"
+          },
+          "list_transcriptions": {
+            "costCents": 1,
+            "displayName": "List Transcriptions"
+          },
+          "get_transcript_sentences": {
+            "costCents": 1,
+            "displayName": "Get Transcript Sentences"
+          },
+          "export_transcript": {
+            "costCents": 2,
+            "displayName": "Export Transcript"
+          },
+          "generate_summary": {
+            "costCents": 8,
+            "displayName": "Generate Summary"
+          },
+          "ask_lemur": {
+            "costCents": 8,
+            "displayName": "Ask LeMUR"
+          },
+          "generate_action_items": {
+            "costCents": 8,
+            "displayName": "Generate Action Items"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -338,7 +490,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "trigger_scraper_job": {
+            "costCents": 5,
+            "displayName": "Trigger Scraper Job"
+          },
+          "get_job_progress": {
+            "costCents": 1,
+            "displayName": "Get Job Progress"
+          },
+          "get_snapshot_results": {
+            "costCents": 2,
+            "displayName": "Get Snapshot Results"
+          },
+          "scrape_sync": {
+            "costCents": 8,
+            "displayName": "Scrape Synchronous"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -386,7 +556,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_session": {
+            "costCents": 5,
+            "displayName": "Create Session"
+          },
+          "get_session": {
+            "costCents": 1,
+            "displayName": "Get Session"
+          },
+          "list_sessions": {
+            "costCents": 1,
+            "displayName": "List Sessions"
+          },
+          "stop_session": {
+            "costCents": 2,
+            "displayName": "Stop Session"
+          },
+          "get_session_recording": {
+            "costCents": 2,
+            "displayName": "Get Session Recording"
+          },
+          "get_session_logs": {
+            "costCents": 1,
+            "displayName": "Get Session Logs"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -436,7 +632,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 3,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "take_screenshot": {
+            "costCents": 5,
+            "displayName": "Take Screenshot"
+          },
+          "get_page_content": {
+            "costCents": 3,
+            "displayName": "Get Page Content"
+          },
+          "scrape_page": {
+            "costCents": 4,
+            "displayName": "Scrape Page"
+          },
+          "smart_scrape_page": {
+            "costCents": 6,
+            "displayName": "Smart Scrape Page"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -482,7 +696,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "synthesize_speech": {
+            "costCents": 5,
+            "displayName": "Synthesize Speech"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -522,7 +742,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_trials": {
+            "costCents": 1,
+            "displayName": "Search clinical trials"
+          },
+          "get_trial": {
+            "costCents": 1,
+            "displayName": "Get trial details"
+          },
+          "get_stats": {
+            "costCents": 2,
+            "displayName": "Get condition statistics"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -569,7 +803,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_authenticated_user": {
+            "costCents": 1,
+            "displayName": "Get Authenticated User"
+          },
+          "list_organizations": {
+            "costCents": 1,
+            "displayName": "List Organizations"
+          },
+          "list_repositories": {
+            "costCents": 1,
+            "displayName": "List Repositories"
+          },
+          "get_repository_analysis": {
+            "costCents": 1,
+            "displayName": "Get Repository Analysis"
+          },
+          "search_repository_issues": {
+            "costCents": 2,
+            "displayName": "Search Repository Issues"
+          },
+          "list_repository_commits": {
+            "costCents": 1,
+            "displayName": "List Repository Commits"
+          },
+          "get_commit_analysis": {
+            "costCents": 1,
+            "displayName": "Get Commit Analysis"
+          },
+          "list_tools": {
+            "costCents": 1,
+            "displayName": "List Tools"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -619,7 +887,17 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 3,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "embed_texts": {
+            "costCents": 5,
+            "displayName": "Embed Texts (batch)"
+          },
+          "embed_single": {
+            "costCents": 3,
+            "displayName": "Embed Single Text"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -663,7 +941,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_user_workspaces": {
+            "costCents": 1,
+            "displayName": "Get User Workspaces"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -702,7 +986,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_cve": {
+            "costCents": 1,
+            "displayName": "Search CVEs by keyword"
+          },
+          "get_cve": {
+            "costCents": 1,
+            "displayName": "Get CVE details by ID"
+          },
+          "get_recent_cves": {
+            "costCents": 2,
+            "displayName": "Get recent CVEs"
+          },
+          "search_by_cpe": {
+            "costCents": 2,
+            "displayName": "Search CVEs by CPE"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -750,7 +1052,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "transcribe_audio": {
+            "costCents": 5,
+            "displayName": "Transcribe Audio"
+          },
+          "synthesize_speech": {
+            "costCents": 5,
+            "displayName": "Synthesize Speech"
+          },
+          "analyze_text": {
+            "costCents": 5,
+            "displayName": "Analyze Text/Audio"
+          },
+          "list_projects": {
+            "costCents": 1,
+            "displayName": "List Projects"
+          },
+          "get_project": {
+            "costCents": 1,
+            "displayName": "Get Project"
+          },
+          "get_project_usage": {
+            "costCents": 1,
+            "displayName": "Get Project Usage"
+          },
+          "list_project_keys": {
+            "costCents": 1,
+            "displayName": "List Project Keys"
+          },
+          "get_project_balances": {
+            "costCents": 1,
+            "displayName": "Get Project Balances"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -801,7 +1137,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "upload_document": {
+            "costCents": 5,
+            "displayName": "Upload Document"
+          },
+          "get_document_status": {
+            "costCents": 1,
+            "displayName": "Get Document Status"
+          },
+          "download_document": {
+            "costCents": 2,
+            "displayName": "Download Document"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -848,7 +1198,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "analyze_url": {
+            "costCents": 5,
+            "displayName": "Analyze URL"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -893,7 +1249,29 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_speech_history": {
+            "costCents": 1,
+            "displayName": "Get Speech History"
+          },
+          "get_history_item": {
+            "costCents": 1,
+            "displayName": "Get History Item"
+          },
+          "delete_history_item": {
+            "costCents": 2,
+            "displayName": "Delete History Item"
+          },
+          "generate_sound_effect": {
+            "costCents": 8,
+            "displayName": "Generate Sound Effect"
+          },
+          "download_history_items": {
+            "costCents": 3,
+            "displayName": "Download History Items"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -938,7 +1316,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_definition": {
+            "costCents": 1,
+            "displayName": "Get word definitions"
+          },
+          "get_etymology": {
+            "costCents": 2,
+            "displayName": "Get word etymology"
+          },
+          "get_phonetics": {
+            "costCents": 1,
+            "displayName": "Get word phonetics"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -984,7 +1376,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "submit_request": {
+            "costCents": 5,
+            "displayName": "Submit Request"
+          },
+          "get_request_status": {
+            "costCents": 1,
+            "displayName": "Get Request Status"
+          },
+          "get_request_result": {
+            "costCents": 2,
+            "displayName": "Get Request Result"
+          },
+          "cancel_request": {
+            "costCents": 1,
+            "displayName": "Cancel Request"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1032,7 +1442,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "create_model": {
+            "costCents": 5,
+            "displayName": "Create Model"
+          },
+          "update_model": {
+            "costCents": 3,
+            "displayName": "Update Model"
+          },
+          "delete_model": {
+            "costCents": 5,
+            "displayName": "Delete Model"
+          },
+          "generate_model_from_samples": {
+            "costCents": 5,
+            "displayName": "Generate Model From Samples"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1081,7 +1517,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "scrape_url": {
+            "costCents": 2,
+            "displayName": "Scrape URL"
+          },
+          "crawl_website": {
+            "costCents": 5,
+            "displayName": "Crawl Website"
+          },
+          "get_crawl_status": {
+            "costCents": 1,
+            "displayName": "Get Crawl Status"
+          },
+          "map_website": {
+            "costCents": 2,
+            "displayName": "Map Website"
+          },
+          "extract_data": {
+            "costCents": 8,
+            "displayName": "Extract Data"
+          },
+          "get_extract_status": {
+            "costCents": 1,
+            "displayName": "Get Extract Status"
+          },
+          "generate_llmstxt": {
+            "costCents": 5,
+            "displayName": "Generate LLMs.txt"
+          },
+          "get_llmstxt_status": {
+            "costCents": 1,
+            "displayName": "Get LLMs.txt Status"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1133,7 +1603,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_chat_completion": {
+            "costCents": 5,
+            "displayName": "Create Chat Completion"
+          },
+          "create_text_completion": {
+            "costCents": 5,
+            "displayName": "Create Text Completion"
+          },
+          "create_embeddings": {
+            "costCents": 2,
+            "displayName": "Create Embeddings"
+          },
+          "create_image": {
+            "costCents": 8,
+            "displayName": "Create Image"
+          },
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1183,7 +1679,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_connections": {
+            "costCents": 1,
+            "displayName": "List Connections"
+          },
+          "get_connection": {
+            "costCents": 1,
+            "displayName": "Get Connection"
+          },
+          "trigger_sync": {
+            "costCents": 3,
+            "displayName": "Trigger Sync"
+          },
+          "trigger_resync": {
+            "costCents": 5,
+            "displayName": "Trigger Resync"
+          },
+          "get_connection_schemas": {
+            "costCents": 1,
+            "displayName": "Get Connection Schemas"
+          },
+          "get_schema_details": {
+            "costCents": 1,
+            "displayName": "Get Schema Details"
+          },
+          "get_table_details": {
+            "costCents": 1,
+            "displayName": "Get Table Details"
+          },
+          "delete_connection": {
+            "costCents": 5,
+            "displayName": "Delete Connection"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1229,7 +1759,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_flights": {
+            "costCents": 2,
+            "displayName": "Search flights between airports"
+          },
+          "get_flight_status": {
+            "costCents": 1,
+            "displayName": "Get flight status"
+          },
+          "get_routes": {
+            "costCents": 1,
+            "displayName": "Get airline routes"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1276,7 +1820,37 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_ledger": {
+            "costCents": 3,
+            "displayName": "Create Ledger"
+          },
+          "list_ledgers": {
+            "costCents": 1,
+            "displayName": "List Ledgers"
+          },
+          "query_ledger": {
+            "costCents": 2,
+            "displayName": "Query Ledger"
+          },
+          "transact_ledger": {
+            "costCents": 4,
+            "displayName": "Transact Ledger"
+          },
+          "query_history": {
+            "costCents": 2,
+            "displayName": "Query History"
+          },
+          "query_sparql": {
+            "costCents": 2,
+            "displayName": "Query SPARQL"
+          },
+          "delete_ledger": {
+            "costCents": 5,
+            "displayName": "Delete Ledger"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1327,7 +1901,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_annotation_templates": {
+            "costCents": 1,
+            "displayName": "List Annotation Templates"
+          },
+          "get_annotation_template": {
+            "costCents": 1,
+            "displayName": "Get Annotation Template"
+          },
+          "get_annotation_rating": {
+            "costCents": 1,
+            "displayName": "Get Annotation Rating"
+          },
+          "get_scorer": {
+            "costCents": 1,
+            "displayName": "Get Scorer"
+          },
+          "list_scorers": {
+            "costCents": 1,
+            "displayName": "List Scorers"
+          },
+          "list_scorer_versions": {
+            "costCents": 1,
+            "displayName": "List Scorer Versions"
+          },
+          "get_dataset": {
+            "costCents": 1,
+            "displayName": "Get Dataset"
+          },
+          "list_datasets": {
+            "costCents": 1,
+            "displayName": "List Datasets"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1379,7 +1987,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_scorers": {
+            "costCents": 1,
+            "displayName": "List Scorers"
+          },
+          "get_scorer": {
+            "costCents": 1,
+            "displayName": "Get Scorer"
+          },
+          "list_scorer_versions": {
+            "costCents": 1,
+            "displayName": "List Scorer Versions"
+          },
+          "list_annotation_templates": {
+            "costCents": 1,
+            "displayName": "List Annotation Templates"
+          },
+          "get_annotation_template": {
+            "costCents": 1,
+            "displayName": "Get Annotation Template"
+          },
+          "list_datasets": {
+            "costCents": 1,
+            "displayName": "List Datasets"
+          },
+          "get_dataset": {
+            "costCents": 1,
+            "displayName": "Get Dataset"
+          },
+          "get_dataset_content": {
+            "costCents": 2,
+            "displayName": "Get Dataset Content"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1425,8 +2067,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_repos": {
+            "costCents": 2,
+            "displayName": "Search Repos"
+          },
+          "get_repo": {
+            "costCents": 2,
+            "displayName": "Get Repo"
+          },
+          "search_issues": {
+            "costCents": 2,
+            "displayName": "Search Issues"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1467,8 +2123,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_projects": {
+            "costCents": 2,
+            "displayName": "Search Projects"
+          },
+          "get_project": {
+            "costCents": 2,
+            "displayName": "Get Project"
+          },
+          "list_pipelines": {
+            "costCents": 2,
+            "displayName": "List Pipelines"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1514,7 +2184,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_projects": {
+            "costCents": 1,
+            "displayName": "List Projects"
+          },
+          "get_project": {
+            "costCents": 1,
+            "displayName": "Get Project"
+          },
+          "create_project": {
+            "costCents": 3,
+            "displayName": "Create Project"
+          },
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "get_project_records": {
+            "costCents": 2,
+            "displayName": "Get Project Records"
+          },
+          "get_model_records": {
+            "costCents": 2,
+            "displayName": "Get Model Records"
+          },
+          "list_artifacts": {
+            "costCents": 1,
+            "displayName": "List Artifacts"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1559,8 +2263,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_articles": {
+            "costCents": 2,
+            "displayName": "Search Articles"
+          },
+          "get_article": {
+            "costCents": 2,
+            "displayName": "Get Article"
+          },
+          "list_sections": {
+            "costCents": 2,
+            "displayName": "List Sections"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1602,7 +2320,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_books": {
+            "costCents": 1,
+            "displayName": "Search Books"
+          },
+          "get_book": {
+            "costCents": 1,
+            "displayName": "Get Book Details"
+          },
+          "get_popular": {
+            "costCents": 1,
+            "displayName": "Popular Books"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1649,7 +2381,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_requests": {
+            "costCents": 1,
+            "displayName": "Get Requests"
+          },
+          "get_request_by_id": {
+            "costCents": 1,
+            "displayName": "Get Request By ID"
+          },
+          "submit_request_feedback": {
+            "costCents": 2,
+            "displayName": "Submit Request Feedback"
+          },
+          "query_hql": {
+            "costCents": 3,
+            "displayName": "Query HQL"
+          },
+          "get_datasets": {
+            "costCents": 1,
+            "displayName": "Get Datasets"
+          },
+          "get_alerts": {
+            "costCents": 1,
+            "displayName": "Get Alerts"
+          },
+          "get_sessions": {
+            "costCents": 1,
+            "displayName": "Get Sessions"
+          },
+          "get_user_metrics": {
+            "costCents": 2,
+            "displayName": "Get User Metrics"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1701,7 +2467,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_syncs": {
+            "costCents": 1,
+            "displayName": "List Syncs"
+          },
+          "get_sync": {
+            "costCents": 1,
+            "displayName": "Get Sync"
+          },
+          "trigger_sync": {
+            "costCents": 5,
+            "displayName": "Trigger Sync"
+          },
+          "list_sync_runs": {
+            "costCents": 1,
+            "displayName": "List Sync Runs"
+          },
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "list_sources": {
+            "costCents": 1,
+            "displayName": "List Sources"
+          },
+          "list_destinations": {
+            "costCents": 1,
+            "displayName": "List Destinations"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1748,7 +2548,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_holidays": {
+            "costCents": 1,
+            "displayName": "Get Holidays"
+          },
+          "get_long_weekends": {
+            "costCents": 1,
+            "displayName": "Long Weekends"
+          },
+          "next_holiday": {
+            "costCents": 1,
+            "displayName": "Next Holiday"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1794,7 +2608,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_session": {
+            "costCents": 5,
+            "displayName": "Create Session"
+          },
+          "get_session": {
+            "costCents": 1,
+            "displayName": "Get Session"
+          },
+          "stop_session": {
+            "costCents": 2,
+            "displayName": "Stop Session"
+          },
+          "list_sessions": {
+            "costCents": 1,
+            "displayName": "List Sessions"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1841,7 +2673,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 8,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "generate_image": {
+            "costCents": 8,
+            "displayName": "Generate Image"
+          },
+          "generate_transparent_image": {
+            "costCents": 8,
+            "displayName": "Generate Transparent Image"
+          },
+          "edit_image": {
+            "costCents": 8,
+            "displayName": "Edit Image"
+          },
+          "remix_image": {
+            "costCents": 8,
+            "displayName": "Remix Image"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1888,7 +2738,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_events": {
+            "costCents": 1,
+            "displayName": "List Events"
+          },
+          "get_event": {
+            "costCents": 1,
+            "displayName": "Get Event"
+          },
+          "send_event": {
+            "costCents": 3,
+            "displayName": "Send Event"
+          },
+          "get_event_runs": {
+            "costCents": 1,
+            "displayName": "Get Event Runs"
+          },
+          "list_runs": {
+            "costCents": 1,
+            "displayName": "List Runs"
+          },
+          "get_run": {
+            "costCents": 1,
+            "displayName": "Get Run"
+          },
+          "cancel_run": {
+            "costCents": 3,
+            "displayName": "Cancel Run"
+          },
+          "list_functions": {
+            "costCents": 1,
+            "displayName": "List Functions"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1939,7 +2823,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_embeddings": {
+            "costCents": 5,
+            "displayName": "Create Embeddings"
+          },
+          "create_query_embedding": {
+            "costCents": 3,
+            "displayName": "Create Query Embedding"
+          },
+          "create_passage_embeddings": {
+            "costCents": 5,
+            "displayName": "Create Passage Embeddings"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -1985,7 +2883,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_tables": {
+            "costCents": 1,
+            "displayName": "List Tables"
+          },
+          "describe_table": {
+            "costCents": 1,
+            "displayName": "Describe Table"
+          },
+          "search_vectors": {
+            "costCents": 3,
+            "displayName": "Vector Search"
+          },
+          "query_table": {
+            "costCents": 2,
+            "displayName": "Query Table"
+          },
+          "insert_records": {
+            "costCents": 3,
+            "displayName": "Insert Records"
+          },
+          "update_records": {
+            "costCents": 3,
+            "displayName": "Update Records"
+          },
+          "delete_records": {
+            "costCents": 3,
+            "displayName": "Delete Records"
+          },
+          "list_indexes": {
+            "costCents": 1,
+            "displayName": "List Indexes"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2035,7 +2967,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_annotation_queues": {
+            "costCents": 1,
+            "displayName": "List Annotation Queues"
+          },
+          "create_annotation_queue": {
+            "costCents": 3,
+            "displayName": "Create Annotation Queue"
+          },
+          "get_annotation_queue": {
+            "costCents": 1,
+            "displayName": "Get Annotation Queue"
+          },
+          "list_queue_items": {
+            "costCents": 1,
+            "displayName": "List Queue Items"
+          },
+          "create_queue_item": {
+            "costCents": 3,
+            "displayName": "Create Queue Item"
+          },
+          "get_queue_item": {
+            "costCents": 1,
+            "displayName": "Get Queue Item"
+          },
+          "update_queue_item": {
+            "costCents": 3,
+            "displayName": "Update Queue Item"
+          },
+          "delete_queue_item": {
+            "costCents": 3,
+            "displayName": "Delete Queue Item"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2086,7 +3052,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_annotation_queues": {
+            "costCents": 1,
+            "displayName": "List Annotation Queues"
+          },
+          "get_annotation_queue": {
+            "costCents": 1,
+            "displayName": "Get Annotation Queue"
+          },
+          "create_annotation_queue": {
+            "costCents": 3,
+            "displayName": "Create Annotation Queue"
+          },
+          "list_queue_items": {
+            "costCents": 1,
+            "displayName": "List Queue Items"
+          },
+          "get_queue_item": {
+            "costCents": 1,
+            "displayName": "Get Queue Item"
+          },
+          "create_queue_item": {
+            "costCents": 3,
+            "displayName": "Create Queue Item"
+          },
+          "update_queue_item": {
+            "costCents": 3,
+            "displayName": "Update Queue Item"
+          },
+          "delete_queue_item": {
+            "costCents": 2,
+            "displayName": "Delete Queue Item"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2137,7 +3137,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_server_info": {
+            "costCents": 1,
+            "displayName": "Get Server Info"
+          },
+          "list_sessions": {
+            "costCents": 1,
+            "displayName": "List Sessions"
+          },
+          "get_session": {
+            "costCents": 1,
+            "displayName": "Get Session"
+          },
+          "create_session": {
+            "costCents": 3,
+            "displayName": "Create Session"
+          },
+          "delete_session": {
+            "costCents": 3,
+            "displayName": "Delete Session"
+          },
+          "get_session_metadata": {
+            "costCents": 1,
+            "displayName": "Get Session Metadata"
+          },
+          "list_session_views": {
+            "costCents": 1,
+            "displayName": "List Session Views"
+          },
+          "get_session_view": {
+            "costCents": 1,
+            "displayName": "Get Session View"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2188,7 +3222,37 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_sessions": {
+            "costCents": 1,
+            "displayName": "List Sessions"
+          },
+          "get_session": {
+            "costCents": 1,
+            "displayName": "Get Session"
+          },
+          "create_session": {
+            "costCents": 3,
+            "displayName": "Create Session"
+          },
+          "delete_session": {
+            "costCents": 2,
+            "displayName": "Delete Session"
+          },
+          "get_session_metadata": {
+            "costCents": 1,
+            "displayName": "Get Session Metadata"
+          },
+          "list_session_views": {
+            "costCents": 1,
+            "displayName": "List Session Views"
+          },
+          "get_server_info": {
+            "costCents": 1,
+            "displayName": "Get Server Info"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2239,7 +3303,17 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_traces": {
+            "costCents": 2,
+            "displayName": "Search Traces"
+          },
+          "get_trace": {
+            "costCents": 1,
+            "displayName": "Get Trace"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2283,7 +3357,29 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_generation": {
+            "costCents": 8,
+            "displayName": "Create Generation"
+          },
+          "get_generation": {
+            "costCents": 1,
+            "displayName": "Get Generation"
+          },
+          "delete_generation": {
+            "costCents": 2,
+            "displayName": "Delete Generation"
+          },
+          "get_user_info": {
+            "costCents": 1,
+            "displayName": "Get User Info"
+          },
+          "list_platform_models": {
+            "costCents": 1,
+            "displayName": "List Platform Models"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2331,7 +3427,37 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_agents": {
+            "costCents": 1,
+            "displayName": "List Agents"
+          },
+          "create_agent": {
+            "costCents": 5,
+            "displayName": "Create Agent"
+          },
+          "get_agent": {
+            "costCents": 1,
+            "displayName": "Get Agent"
+          },
+          "update_agent": {
+            "costCents": 3,
+            "displayName": "Update Agent"
+          },
+          "delete_agent": {
+            "costCents": 2,
+            "displayName": "Delete Agent"
+          },
+          "send_message": {
+            "costCents": 5,
+            "displayName": "Send Message"
+          },
+          "get_messages": {
+            "costCents": 1,
+            "displayName": "Get Messages"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2381,7 +3507,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_create_content": {
+            "costCents": 1,
+            "displayName": "Get Create Content"
+          },
+          "get_create_content_by_id": {
+            "costCents": 1,
+            "displayName": "Get Create Content By ID"
+          },
+          "create_content": {
+            "costCents": 5,
+            "displayName": "Create Content"
+          },
+          "delete_create_content": {
+            "costCents": 2,
+            "displayName": "Delete Create Content"
+          },
+          "get_create_preferences": {
+            "costCents": 1,
+            "displayName": "Get Create Preferences"
+          },
+          "get_domains": {
+            "costCents": 1,
+            "displayName": "Get Domains"
+          },
+          "get_files": {
+            "costCents": 1,
+            "displayName": "Get Files"
+          },
+          "regenerate_create_content": {
+            "costCents": 5,
+            "displayName": "Regenerate Create Content"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2432,7 +3592,29 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_chat_completion": {
+            "costCents": 5,
+            "displayName": "Create Chat Completion"
+          },
+          "create_completion": {
+            "costCents": 5,
+            "displayName": "Create Text Completion"
+          },
+          "create_embeddings": {
+            "costCents": 2,
+            "displayName": "Create Embeddings"
+          },
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_health": {
+            "costCents": 1,
+            "displayName": "Get Health"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2481,7 +3663,37 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "upload_file_for_parsing": {
+            "costCents": 5,
+            "displayName": "Upload File for Parsing"
+          },
+          "get_job_status": {
+            "costCents": 1,
+            "displayName": "Get Job Status"
+          },
+          "get_result_markdown": {
+            "costCents": 2,
+            "displayName": "Get Result Markdown"
+          },
+          "get_result_text": {
+            "costCents": 2,
+            "displayName": "Get Result Text"
+          },
+          "get_result_json": {
+            "costCents": 2,
+            "displayName": "Get Result JSON"
+          },
+          "get_page_image": {
+            "costCents": 2,
+            "displayName": "Get Page Image"
+          },
+          "delete_job": {
+            "costCents": 1,
+            "displayName": "Delete Job"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2532,7 +3744,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_project": {
+            "costCents": 3,
+            "displayName": "Create Project"
+          },
+          "list_projects": {
+            "costCents": 1,
+            "displayName": "List Projects"
+          },
+          "get_project": {
+            "costCents": 1,
+            "displayName": "Get Project"
+          },
+          "list_keys": {
+            "costCents": 1,
+            "displayName": "List Keys"
+          },
+          "create_key": {
+            "costCents": 3,
+            "displayName": "Create Key"
+          },
+          "list_languages": {
+            "costCents": 1,
+            "displayName": "List Languages"
+          },
+          "list_translations": {
+            "costCents": 1,
+            "displayName": "List Translations"
+          },
+          "update_translation": {
+            "costCents": 3,
+            "displayName": "Update Translation"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2583,7 +3829,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_collection": {
+            "costCents": 5,
+            "displayName": "Create Collection"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2627,7 +3879,17 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "ocr_url": {
+            "costCents": 5,
+            "displayName": "OCR from URL"
+          },
+          "ocr_base64": {
+            "costCents": 5,
+            "displayName": "OCR from Base64"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2671,7 +3933,17 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_model_details": {
+            "costCents": 1,
+            "displayName": "Get Model Details"
+          },
+          "upload_training_images_by_url": {
+            "costCents": 3,
+            "displayName": "Upload Training Images by URL"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2711,7 +3983,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_apod": {
+            "costCents": 1,
+            "displayName": "Astronomy Picture of the Day"
+          },
+          "get_neo": {
+            "costCents": 2,
+            "displayName": "Near-Earth Objects"
+          },
+          "search_images": {
+            "costCents": 1,
+            "displayName": "Image Search"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2757,7 +4043,17 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "run_cypher_query": {
+            "costCents": 3,
+            "displayName": "Run Cypher Query"
+          },
+          "run_read_query": {
+            "costCents": 2,
+            "displayName": "Run Read Query"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2803,7 +4099,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 3,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "embed_text": {
+            "costCents": 3,
+            "displayName": "Embed Text"
+          },
+          "embed_image": {
+            "costCents": 4,
+            "displayName": "Embed Image"
+          },
+          "parse_file": {
+            "costCents": 5,
+            "displayName": "Parse File"
+          },
+          "extract_file": {
+            "costCents": 5,
+            "displayName": "Extract File"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2845,7 +4159,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_works": {
+            "costCents": 1,
+            "displayName": "Search Works"
+          },
+          "get_author": {
+            "costCents": 1,
+            "displayName": "Get Author"
+          },
+          "search_institutions": {
+            "costCents": 1,
+            "displayName": "Search Institutions"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2886,7 +4214,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_latest": {
+            "costCents": 1,
+            "displayName": "Get Latest"
+          },
+          "get_locations": {
+            "costCents": 1,
+            "displayName": "Get Locations"
+          },
+          "get_measurements": {
+            "costCents": 1,
+            "displayName": "Get Measurements"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2933,7 +4275,29 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_chat_completion": {
+            "costCents": 5,
+            "displayName": "Create Chat Completion"
+          },
+          "list_models": {
+            "costCents": 1,
+            "displayName": "List Models"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "get_generation": {
+            "costCents": 1,
+            "displayName": "Get Generation"
+          },
+          "get_credits": {
+            "costCents": 1,
+            "displayName": "Get Credits"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -2976,7 +4340,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_states": {
+            "costCents": 1,
+            "displayName": "All State Vectors"
+          },
+          "get_flights_by_aircraft": {
+            "costCents": 1,
+            "displayName": "Flights by Aircraft"
+          },
+          "get_track": {
+            "costCents": 1,
+            "displayName": "Flight Track"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3023,7 +4401,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "scrape_url": {
+            "costCents": 5,
+            "displayName": "Scrape URL"
+          },
+          "scrape_google_search": {
+            "costCents": 5,
+            "displayName": "Scrape Google Search"
+          },
+          "scrape_amazon_product": {
+            "costCents": 5,
+            "displayName": "Scrape Amazon Product"
+          },
+          "scrape_with_js": {
+            "costCents": 7,
+            "displayName": "Scrape with JS Rendering"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3071,7 +4467,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "run_evaluation": {
+            "costCents": 5,
+            "displayName": "Run Evaluation"
+          },
+          "list_evaluators": {
+            "costCents": 1,
+            "displayName": "List Evaluators"
+          },
+          "create_experiment": {
+            "costCents": 3,
+            "displayName": "Create Experiment"
+          },
+          "list_experiments": {
+            "costCents": 1,
+            "displayName": "List Experiments"
+          },
+          "list_datasets": {
+            "costCents": 1,
+            "displayName": "List Datasets"
+          },
+          "create_dataset": {
+            "costCents": 3,
+            "displayName": "Create Dataset"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3119,7 +4541,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "query_vectors": {
+            "costCents": 2,
+            "displayName": "Query Vectors"
+          },
+          "get_index_stats": {
+            "costCents": 1,
+            "displayName": "Get Index Stats"
+          },
+          "fetch_vectors": {
+            "costCents": 1,
+            "displayName": "Fetch Vectors"
+          },
+          "list_vectors": {
+            "costCents": 1,
+            "displayName": "List Vectors"
+          },
+          "delete_vectors": {
+            "costCents": 2,
+            "displayName": "Delete Vectors"
+          },
+          "start_bulk_import": {
+            "costCents": 5,
+            "displayName": "Start Bulk Import"
+          },
+          "list_bulk_imports": {
+            "costCents": 1,
+            "displayName": "List Bulk Imports"
+          },
+          "describe_bulk_import": {
+            "costCents": 1,
+            "displayName": "Describe Bulk Import"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3164,8 +4620,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_podcasts": {
+            "costCents": 2,
+            "displayName": "Search Podcasts"
+          },
+          "get_podcast": {
+            "costCents": 2,
+            "displayName": "Get Podcast"
+          },
+          "get_episodes": {
+            "costCents": 2,
+            "displayName": "Get Episodes"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3212,7 +4682,17 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "render_prompt": {
+            "costCents": 1,
+            "displayName": "Render Prompt"
+          },
+          "execute_prompt": {
+            "costCents": 5,
+            "displayName": "Execute Prompt"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3256,7 +4736,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "run_prompt": {
+            "costCents": 5,
+            "displayName": "Run Prompt Template"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3301,7 +4787,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_flow": {
+            "costCents": 1,
+            "displayName": "Get Flow"
+          },
+          "filter_flows": {
+            "costCents": 1,
+            "displayName": "Filter Flows"
+          },
+          "get_flow_run": {
+            "costCents": 1,
+            "displayName": "Get Flow Run"
+          },
+          "filter_flow_runs": {
+            "costCents": 2,
+            "displayName": "Filter Flow Runs"
+          },
+          "create_flow_run_from_deployment": {
+            "costCents": 5,
+            "displayName": "Create Flow Run from Deployment"
+          },
+          "get_deployment": {
+            "costCents": 1,
+            "displayName": "Get Deployment"
+          },
+          "filter_deployments": {
+            "costCents": 1,
+            "displayName": "Filter Deployments"
+          },
+          "filter_logs": {
+            "costCents": 2,
+            "displayName": "Filter Logs"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3351,7 +4871,29 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_prompts": {
+            "costCents": 1,
+            "displayName": "List Prompts"
+          },
+          "get_prompt": {
+            "costCents": 1,
+            "displayName": "Get Prompt"
+          },
+          "create_prompt": {
+            "costCents": 3,
+            "displayName": "Create Prompt"
+          },
+          "update_prompt": {
+            "costCents": 3,
+            "displayName": "Update Prompt"
+          },
+          "delete_prompt": {
+            "costCents": 2,
+            "displayName": "Delete Prompt"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3399,7 +4941,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_request": {
+            "costCents": 1,
+            "displayName": "Get Request"
+          },
+          "search_requests": {
+            "costCents": 2,
+            "displayName": "Search Requests"
+          },
+          "get_prompt_template": {
+            "costCents": 1,
+            "displayName": "Get Prompt Template"
+          },
+          "list_prompt_templates": {
+            "costCents": 1,
+            "displayName": "List Prompt Templates"
+          },
+          "create_request_log": {
+            "costCents": 3,
+            "displayName": "Create Request Log"
+          },
+          "add_request_tags": {
+            "costCents": 2,
+            "displayName": "Add Request Tags"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3449,7 +5017,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "generate_image": {
+            "costCents": 8,
+            "displayName": "Generate Image"
+          },
+          "edit_image": {
+            "costCents": 8,
+            "displayName": "Edit Image"
+          },
+          "vectorize_image": {
+            "costCents": 5,
+            "displayName": "Vectorize Image"
+          },
+          "remove_background": {
+            "costCents": 5,
+            "displayName": "Remove Background"
+          },
+          "clarity_upscale": {
+            "costCents": 5,
+            "displayName": "Clarity Upscale"
+          },
+          "generative_upscale": {
+            "costCents": 8,
+            "displayName": "Generative Upscale"
+          },
+          "list_styles": {
+            "costCents": 1,
+            "displayName": "List Styles"
+          },
+          "delete_style": {
+            "costCents": 2,
+            "displayName": "Delete Style"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3500,7 +5102,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 8,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "parse_document": {
+            "costCents": 8,
+            "displayName": "Parse Document"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3544,7 +5152,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_prediction": {
+            "costCents": 5,
+            "displayName": "Create Prediction"
+          },
+          "get_prediction": {
+            "costCents": 1,
+            "displayName": "Get Prediction"
+          },
+          "list_predictions": {
+            "costCents": 1,
+            "displayName": "List Predictions"
+          },
+          "cancel_prediction": {
+            "costCents": 2,
+            "displayName": "Cancel Prediction"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "list_model_versions": {
+            "costCents": 1,
+            "displayName": "List Model Versions"
+          },
+          "create_model_prediction": {
+            "costCents": 5,
+            "displayName": "Create Model Prediction"
+          },
+          "get_account": {
+            "costCents": 1,
+            "displayName": "Get Account"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3595,7 +5237,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_training": {
+            "costCents": 5,
+            "displayName": "Create Training"
+          },
+          "list_trainings": {
+            "costCents": 1,
+            "displayName": "List Trainings"
+          },
+          "get_training": {
+            "costCents": 1,
+            "displayName": "Get Training"
+          },
+          "cancel_training": {
+            "costCents": 2,
+            "displayName": "Cancel Training"
+          },
+          "get_model": {
+            "costCents": 1,
+            "displayName": "Get Model"
+          },
+          "list_model_versions": {
+            "costCents": 1,
+            "displayName": "List Model Versions"
+          },
+          "get_account": {
+            "costCents": 1,
+            "displayName": "Get Account"
+          },
+          "list_hardware": {
+            "costCents": 1,
+            "displayName": "List Hardware"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3645,7 +5321,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "synthesize_speech": {
+            "costCents": 5,
+            "displayName": "Synthesize Speech"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3689,7 +5371,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 3,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "scrape_url": {
+            "costCents": 3,
+            "displayName": "Scrape URL"
+          },
+          "scrape_with_extraction": {
+            "costCents": 5,
+            "displayName": "Scrape with Extraction Rules"
+          },
+          "scrape_with_premium_proxy": {
+            "costCents": 7,
+            "displayName": "Scrape with Premium Proxy"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3736,7 +5432,29 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_current_user": {
+            "costCents": 1,
+            "displayName": "Get Current User"
+          },
+          "list_orgs": {
+            "costCents": 1,
+            "displayName": "List Organizations"
+          },
+          "list_projects": {
+            "costCents": 1,
+            "displayName": "List Projects"
+          },
+          "get_project_issues": {
+            "costCents": 2,
+            "displayName": "Get Project Issues"
+          },
+          "list_org_issues": {
+            "costCents": 2,
+            "displayName": "List Org Issues"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3785,7 +5503,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_issues": {
+            "costCents": 2,
+            "displayName": "Search Issues"
+          },
+          "get_project_metrics": {
+            "costCents": 1,
+            "displayName": "Get Project Metrics"
+          },
+          "get_quality_gate_status": {
+            "costCents": 1,
+            "displayName": "Get Quality Gate Status"
+          },
+          "list_projects": {
+            "costCents": 1,
+            "displayName": "List Projects"
+          },
+          "get_project_analyses": {
+            "costCents": 1,
+            "displayName": "Get Project Analyses"
+          },
+          "search_hotspots": {
+            "costCents": 2,
+            "displayName": "Search Hotspots"
+          },
+          "get_issue_changelog": {
+            "costCents": 1,
+            "displayName": "Get Issue Changelog"
+          },
+          "list_rules": {
+            "costCents": 1,
+            "displayName": "List Rules"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3836,7 +5588,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 2,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "search_code": {
+            "costCents": 2,
+            "displayName": "Search Code"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3874,8 +5632,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_recipes": {
+            "costCents": 2,
+            "displayName": "Search Recipes"
+          },
+          "get_recipe": {
+            "costCents": 2,
+            "displayName": "Get Recipe"
+          },
+          "search_ingredients": {
+            "costCents": 2,
+            "displayName": "Search Ingredients"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3914,8 +5686,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_tracks": {
+            "costCents": 2,
+            "displayName": "Search Tracks"
+          },
+          "search_artists": {
+            "costCents": 2,
+            "displayName": "Search Artists"
+          },
+          "get_track": {
+            "costCents": 2,
+            "displayName": "Get Track"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -3962,7 +5748,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_sessions": {
+            "costCents": 1,
+            "displayName": "List Sessions"
+          },
+          "create_session": {
+            "costCents": 3,
+            "displayName": "Create Session"
+          },
+          "get_session": {
+            "costCents": 1,
+            "displayName": "Get Session"
+          },
+          "release_session": {
+            "costCents": 2,
+            "displayName": "Release Session"
+          },
+          "list_screenshots": {
+            "costCents": 1,
+            "displayName": "List Screenshots"
+          },
+          "get_screenshot": {
+            "costCents": 1,
+            "displayName": "Get Screenshot"
+          },
+          "list_pdfs": {
+            "costCents": 1,
+            "displayName": "List PDFs"
+          },
+          "get_pdf": {
+            "costCents": 1,
+            "displayName": "Get PDF"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4011,7 +5831,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_organization": {
+            "costCents": 1,
+            "displayName": "Get Organization"
+          },
+          "list_users": {
+            "costCents": 1,
+            "displayName": "List Users"
+          },
+          "create_user": {
+            "costCents": 3,
+            "displayName": "Create User"
+          },
+          "get_user": {
+            "costCents": 1,
+            "displayName": "Get User"
+          },
+          "update_user": {
+            "costCents": 2,
+            "displayName": "Update User"
+          },
+          "delete_user": {
+            "costCents": 3,
+            "displayName": "Delete User"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4054,8 +5900,22 @@
       "entry": "src/server.ts",
       "pricing": {
         "model": "per-call",
-        "perCallUsdCents": 1,
-        "currency": "USD"
+        "perCallUsdCents": 2,
+        "currency": "USD",
+        "methods": {
+          "search_movies": {
+            "costCents": 2,
+            "displayName": "Search Movies"
+          },
+          "get_movie": {
+            "costCents": 2,
+            "displayName": "Get Movie"
+          },
+          "search_tv": {
+            "costCents": 2,
+            "displayName": "Search TV Shows"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4100,7 +5960,33 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_finetune_job": {
+            "costCents": 5,
+            "displayName": "Create Fine-Tune Job"
+          },
+          "list_finetune_jobs": {
+            "costCents": 1,
+            "displayName": "List Fine-Tune Jobs"
+          },
+          "get_finetune_job": {
+            "costCents": 1,
+            "displayName": "Get Fine-Tune Job"
+          },
+          "cancel_finetune_job": {
+            "costCents": 2,
+            "displayName": "Cancel Fine-Tune Job"
+          },
+          "list_finetune_events": {
+            "costCents": 1,
+            "displayName": "List Fine-Tune Events"
+          },
+          "delete_finetune_model": {
+            "costCents": 3,
+            "displayName": "Delete Fine-Tuned Model"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4150,7 +6036,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 5,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "generate_data": {
+            "costCents": 5,
+            "displayName": "Generate Synthetic Data"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4195,7 +6087,13 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 3,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "redact_text": {
+            "costCents": 3,
+            "displayName": "Redact Text"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4239,7 +6137,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "list_collections": {
+            "costCents": 1,
+            "displayName": "List Collections"
+          },
+          "get_collection": {
+            "costCents": 1,
+            "displayName": "Get Collection"
+          },
+          "create_collection": {
+            "costCents": 3,
+            "displayName": "Create Collection"
+          },
+          "delete_collection": {
+            "costCents": 5,
+            "displayName": "Delete Collection"
+          },
+          "search_documents": {
+            "costCents": 2,
+            "displayName": "Search Documents"
+          },
+          "index_document": {
+            "costCents": 2,
+            "displayName": "Index Document"
+          },
+          "delete_documents": {
+            "costCents": 4,
+            "displayName": "Delete Documents"
+          },
+          "update_documents": {
+            "costCents": 3,
+            "displayName": "Update Documents"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4285,7 +6217,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "submit_scan": {
+            "costCents": 2,
+            "displayName": "Submit URL for scanning"
+          },
+          "get_result": {
+            "costCents": 1,
+            "displayName": "Get scan result by UUID"
+          },
+          "search_scans": {
+            "costCents": 1,
+            "displayName": "Search existing scans"
+          },
+          "get_screenshot": {
+            "costCents": 1,
+            "displayName": "Get screenshot URL"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4333,7 +6283,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_document": {
+            "costCents": 1,
+            "displayName": "Get Document"
+          },
+          "put_document": {
+            "costCents": 3,
+            "displayName": "Put Document"
+          },
+          "update_document": {
+            "costCents": 3,
+            "displayName": "Update Document"
+          },
+          "delete_document": {
+            "costCents": 2,
+            "displayName": "Delete Document"
+          },
+          "visit_documents": {
+            "costCents": 2,
+            "displayName": "Visit Documents"
+          },
+          "visit_all_documents": {
+            "costCents": 2,
+            "displayName": "Visit All Documents"
+          },
+          "delete_documents_by_selection": {
+            "costCents": 5,
+            "displayName": "Delete Documents By Selection"
+          },
+          "visit_group_documents": {
+            "costCents": 2,
+            "displayName": "Visit Group Documents"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4379,7 +6363,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "scan_url": {
+            "costCents": 2,
+            "displayName": "Submit URL for scanning"
+          },
+          "get_url_report": {
+            "costCents": 1,
+            "displayName": "Get URL scan report"
+          },
+          "get_ip_report": {
+            "costCents": 1,
+            "displayName": "Get IP address report"
+          },
+          "get_domain_report": {
+            "costCents": 1,
+            "displayName": "Get domain report"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4426,7 +6428,21 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 3,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "create_embeddings": {
+            "costCents": 3,
+            "displayName": "Create Embeddings"
+          },
+          "create_query_embedding": {
+            "costCents": 2,
+            "displayName": "Create Query Embedding"
+          },
+          "create_document_embeddings": {
+            "costCents": 3,
+            "displayName": "Create Document Embeddings"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4472,7 +6488,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_call": {
+            "costCents": 1,
+            "displayName": "Get Call"
+          },
+          "query_calls": {
+            "costCents": 2,
+            "displayName": "Query Calls"
+          },
+          "get_call_stats": {
+            "costCents": 2,
+            "displayName": "Get Call Stats"
+          },
+          "query_objects": {
+            "costCents": 2,
+            "displayName": "Query Objects"
+          },
+          "query_feedback": {
+            "costCents": 2,
+            "displayName": "Query Feedback"
+          },
+          "create_feedback": {
+            "costCents": 3,
+            "displayName": "Create Feedback"
+          },
+          "query_cost": {
+            "costCents": 2,
+            "displayName": "Query Cost"
+          },
+          "read_refs": {
+            "costCents": 2,
+            "displayName": "Read Refs"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4523,7 +6573,41 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "get_own_info": {
+            "costCents": 1,
+            "displayName": "Get Own Info"
+          },
+          "get_user": {
+            "costCents": 1,
+            "displayName": "Get User"
+          },
+          "create_user": {
+            "costCents": 3,
+            "displayName": "Create User"
+          },
+          "get_user_roles": {
+            "costCents": 1,
+            "displayName": "Get User Roles"
+          },
+          "list_roles": {
+            "costCents": 1,
+            "displayName": "List Roles"
+          },
+          "get_role": {
+            "costCents": 1,
+            "displayName": "Get Role"
+          },
+          "get_role_users": {
+            "costCents": 1,
+            "displayName": "Get Role Users"
+          },
+          "rotate_user_key": {
+            "costCents": 5,
+            "displayName": "Rotate User Key"
+          }
+        }
       },
       "quality": {
         "tests": false
@@ -4573,7 +6657,25 @@
       "pricing": {
         "model": "per-call",
         "perCallUsdCents": 1,
-        "currency": "USD"
+        "currency": "USD",
+        "methods": {
+          "translate_content": {
+            "costCents": 3,
+            "displayName": "Translate Content"
+          },
+          "get_api_status": {
+            "costCents": 1,
+            "displayName": "Get API Status"
+          },
+          "get_translations": {
+            "costCents": 1,
+            "displayName": "Get Translations"
+          },
+          "update_translations": {
+            "costCents": 3,
+            "displayName": "Update Translations"
+          }
+        }
       },
       "quality": {
         "tests": false

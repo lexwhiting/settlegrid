@@ -31,7 +31,29 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_prompts": {
+        "costCents": 1,
+        "displayName": "List Prompts"
+      },
+      "get_prompt": {
+        "costCents": 1,
+        "displayName": "Get Prompt"
+      },
+      "create_prompt": {
+        "costCents": 3,
+        "displayName": "Create Prompt"
+      },
+      "update_prompt": {
+        "costCents": 3,
+        "displayName": "Update Prompt"
+      },
+      "delete_prompt": {
+        "costCents": 2,
+        "displayName": "Delete Prompt"
+      }
+    }
   },
   "quality": {
     "tests": false

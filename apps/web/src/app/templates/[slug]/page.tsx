@@ -12,6 +12,23 @@ import { TemplateDetailViewedEmitter } from '@/components/telemetry/TemplateDeta
 
 export const dynamic = 'force-static'
 
+/**
+ * Net monthly revenue (USD) for `calls` invocations at `priceCents`/call
+ * under SettleGrid's progressive take rate — 0% on the first $1,000/mo of
+ * revenue, then 2–5% above it. Uses the conservative top of the band (5%)
+ * so the displayed estimate is never overstated.
+ */
+function netMonthlyRevenueUsd(priceCents: number, calls: number): number {
+  const grossUsd = (calls * priceCents) / 100
+  const feeUsd = grossUsd > 1000 ? (grossUsd - 1000) * 0.05 : 0
+  return grossUsd - feeUsd
+}
+
+/** Format a USD amount as a whole-dollar, comma-grouped string. */
+function formatUsd(amount: number): string {
+  return `$${Math.round(amount).toLocaleString('en-US')}`
+}
+
 export function generateStaticParams() {
   const registry = getRegistry()
   return registry.templates.map((t) => ({ slug: t.slug }))
@@ -61,12 +78,29 @@ export default async function TemplateDetailPage({
   }
 
   const dirSlug = `settlegrid-${slug}`
-  const pricingDisplay =
-    template.pricing.model === 'per-call' && template.pricing.perCallUsdCents
-      ? `${template.pricing.perCallUsdCents}\u00A2/call`
-      : template.pricing.model === 'free'
-        ? 'Free'
-        : template.pricing.model
+
+  // Pricing \u2014 `perCallCents` is the headline per-call price; `methods` is
+  // the per-method price map (present on regenerated manifests). When the
+  // method costs vary, the headline becomes a "from <min>\u00A2" range.
+  const perCallCents =
+    template.pricing.model === 'per-call'
+      ? template.pricing.perCallUsdCents
+      : undefined
+  const methods = template.pricing.methods
+  const methodCosts = methods
+    ? Object.values(methods).map((m) => m.costCents)
+    : []
+  const minMethodCost =
+    methodCosts.length > 0 ? Math.min(...methodCosts) : undefined
+  const methodCostsVary =
+    minMethodCost !== undefined && minMethodCost !== Math.max(...methodCosts)
+  const pricingDisplay = perCallCents
+    ? methodCostsVary && minMethodCost !== undefined
+      ? `from ${minMethodCost}\u00A2/call`
+      : `${perCallCents}\u00A2/call`
+    : template.pricing.model === 'free'
+      ? 'Free'
+      : template.pricing.model
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -174,32 +208,62 @@ export default async function TemplateDetailPage({
           )}
 
           {/* Monetization */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Monetization
-            </h2>
-            <div className="rounded-lg border border-border bg-card p-6">
-              <p className="text-sm text-muted-foreground mb-4">
-                At the default {pricingDisplay} pricing:
-              </p>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-semibold text-foreground">$8</p>
-                  <p className="text-xs text-muted-foreground">1K calls/mo</p>
+          {perCallCents ? (
+            <section className="mb-10">
+              <h2 className="text-xl font-semibold text-foreground mb-4">
+                Monetization
+              </h2>
+              <div className="rounded-lg border border-border bg-card p-6">
+                <p className="text-sm text-muted-foreground mb-5">
+                  SettleGrid takes{' '}
+                  <span className="font-medium text-foreground">0%</span> on
+                  your first $1,000/mo of revenue, then 2&ndash;5%
+                  (volume-tiered) above it. Estimated monthly revenue at{' '}
+                  {perCallCents}&#162;/call:
+                </p>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  {[1000, 10000, 100000].map((calls) => (
+                    <div key={calls}>
+                      <p className="text-2xl font-semibold text-foreground">
+                        {formatUsd(netMonthlyRevenueUsd(perCallCents, calls))}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {calls.toLocaleString('en-US')} calls/mo
+                      </p>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <p className="text-2xl font-semibold text-foreground">$80</p>
-                  <p className="text-xs text-muted-foreground">10K calls/mo</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-foreground">$800</p>
-                  <p className="text-xs text-muted-foreground">
-                    100K calls/mo
-                  </p>
-                </div>
+
+                {methods && Object.keys(methods).length > 0 && (
+                  <div className="mt-6 border-t border-border pt-6">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+                      Per-method pricing
+                    </p>
+                    <div className="divide-y divide-border rounded-lg border border-border">
+                      {Object.entries(methods).map(([method, m]) => (
+                        <div
+                          key={method}
+                          className="flex items-center justify-between gap-4 px-4 py-2.5"
+                        >
+                          <span className="text-sm">
+                            <code className="text-foreground">{method}</code>
+                            {m.displayName && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {m.displayName}
+                              </span>
+                            )}
+                          </span>
+                          <span className="whitespace-nowrap text-sm font-medium text-[#E5A336]">
+                            {m.costCents}&#162;/call
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </section>
+            </section>
+          ) : null}
 
           {/* Author */}
           <section className="mb-10">

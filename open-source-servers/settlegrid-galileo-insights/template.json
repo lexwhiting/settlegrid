@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "list_scorers": {
+        "costCents": 1,
+        "displayName": "List Scorers"
+      },
+      "get_scorer": {
+        "costCents": 1,
+        "displayName": "Get Scorer"
+      },
+      "list_scorer_versions": {
+        "costCents": 1,
+        "displayName": "List Scorer Versions"
+      },
+      "list_annotation_templates": {
+        "costCents": 1,
+        "displayName": "List Annotation Templates"
+      },
+      "get_annotation_template": {
+        "costCents": 1,
+        "displayName": "Get Annotation Template"
+      },
+      "list_datasets": {
+        "costCents": 1,
+        "displayName": "List Datasets"
+      },
+      "get_dataset": {
+        "costCents": 1,
+        "displayName": "Get Dataset"
+      },
+      "get_dataset_content": {
+        "costCents": 2,
+        "displayName": "Get Dataset Content"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -32,7 +32,17 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "search_traces": {
+        "costCents": 2,
+        "displayName": "Search Traces"
+      },
+      "get_trace": {
+        "costCents": 1,
+        "displayName": "Get Trace"
+      }
+    }
   },
   "quality": {
     "tests": false

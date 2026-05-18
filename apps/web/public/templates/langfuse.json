@@ -31,7 +31,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_annotation_queues": {
+        "costCents": 1,
+        "displayName": "List Annotation Queues"
+      },
+      "create_annotation_queue": {
+        "costCents": 3,
+        "displayName": "Create Annotation Queue"
+      },
+      "get_annotation_queue": {
+        "costCents": 1,
+        "displayName": "Get Annotation Queue"
+      },
+      "list_queue_items": {
+        "costCents": 1,
+        "displayName": "List Queue Items"
+      },
+      "create_queue_item": {
+        "costCents": 3,
+        "displayName": "Create Queue Item"
+      },
+      "get_queue_item": {
+        "costCents": 1,
+        "displayName": "Get Queue Item"
+      },
+      "update_queue_item": {
+        "costCents": 3,
+        "displayName": "Update Queue Item"
+      },
+      "delete_queue_item": {
+        "costCents": 3,
+        "displayName": "Delete Queue Item"
+      }
+    }
   },
   "quality": {
     "tests": false

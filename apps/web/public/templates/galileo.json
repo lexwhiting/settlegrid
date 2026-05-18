@@ -33,7 +33,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_annotation_templates": {
+        "costCents": 1,
+        "displayName": "List Annotation Templates"
+      },
+      "get_annotation_template": {
+        "costCents": 1,
+        "displayName": "Get Annotation Template"
+      },
+      "get_annotation_rating": {
+        "costCents": 1,
+        "displayName": "Get Annotation Rating"
+      },
+      "get_scorer": {
+        "costCents": 1,
+        "displayName": "Get Scorer"
+      },
+      "list_scorers": {
+        "costCents": 1,
+        "displayName": "List Scorers"
+      },
+      "list_scorer_versions": {
+        "costCents": 1,
+        "displayName": "List Scorer Versions"
+      },
+      "get_dataset": {
+        "costCents": 1,
+        "displayName": "Get Dataset"
+      },
+      "list_datasets": {
+        "costCents": 1,
+        "displayName": "List Datasets"
+      }
+    }
   },
   "quality": {
     "tests": false

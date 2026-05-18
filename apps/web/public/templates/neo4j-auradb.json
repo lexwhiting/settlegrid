@@ -32,7 +32,17 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 2,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "run_cypher_query": {
+        "costCents": 3,
+        "displayName": "Run Cypher Query"
+      },
+      "run_read_query": {
+        "costCents": 2,
+        "displayName": "Run Read Query"
+      }
+    }
   },
   "quality": {
     "tests": false

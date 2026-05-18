@@ -32,7 +32,13 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 5,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "create_collection": {
+        "costCents": 5,
+        "displayName": "Create Collection"
+      }
+    }
   },
   "quality": {
     "tests": false

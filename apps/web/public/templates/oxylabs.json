@@ -33,7 +33,25 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 5,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "scrape_url": {
+        "costCents": 5,
+        "displayName": "Scrape URL"
+      },
+      "scrape_google_search": {
+        "costCents": 5,
+        "displayName": "Scrape Google Search"
+      },
+      "scrape_amazon_product": {
+        "costCents": 5,
+        "displayName": "Scrape Amazon Product"
+      },
+      "scrape_with_js": {
+        "costCents": 7,
+        "displayName": "Scrape with JS Rendering"
+      }
+    }
   },
   "quality": {
     "tests": false

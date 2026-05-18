@@ -33,7 +33,25 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 3,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "take_screenshot": {
+        "costCents": 5,
+        "displayName": "Take Screenshot"
+      },
+      "get_page_content": {
+        "costCents": 3,
+        "displayName": "Get Page Content"
+      },
+      "scrape_page": {
+        "costCents": 4,
+        "displayName": "Scrape Page"
+      },
+      "smart_scrape_page": {
+        "costCents": 6,
+        "displayName": "Smart Scrape Page"
+      }
+    }
   },
   "quality": {
     "tests": false

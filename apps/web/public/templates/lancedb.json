@@ -32,7 +32,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_tables": {
+        "costCents": 1,
+        "displayName": "List Tables"
+      },
+      "describe_table": {
+        "costCents": 1,
+        "displayName": "Describe Table"
+      },
+      "search_vectors": {
+        "costCents": 3,
+        "displayName": "Vector Search"
+      },
+      "query_table": {
+        "costCents": 2,
+        "displayName": "Query Table"
+      },
+      "insert_records": {
+        "costCents": 3,
+        "displayName": "Insert Records"
+      },
+      "update_records": {
+        "costCents": 3,
+        "displayName": "Update Records"
+      },
+      "delete_records": {
+        "costCents": 3,
+        "displayName": "Delete Records"
+      },
+      "list_indexes": {
+        "costCents": 1,
+        "displayName": "List Indexes"
+      }
+    }
   },
   "quality": {
     "tests": false

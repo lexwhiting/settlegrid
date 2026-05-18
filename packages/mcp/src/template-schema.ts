@@ -56,6 +56,31 @@ const httpUrl = z
   )
   .url()
 
+/**
+ * Per-method pricing entry — mirrors the SDK's `pricing.methods` value
+ * shape in `packages/mcp/src/config.ts` (`generalizedPricingConfigSchema`):
+ * `{ costCents, displayName?, unitType? }`.
+ *
+ * An MCP-server template exposes multiple tools ("methods"), each with its
+ * own cost. The SDK already meters per-method — `resolveOperationCost()`
+ * looks up `pricing.methods[method].costCents` — but `template.json`
+ * historically flattened pricing to a single `perCallUsdCents`. This entry
+ * lets the gallery manifest carry the same per-method detail the platform
+ * already bills on, instead of a lossy single number.
+ *
+ * `costCents` gets the same `.int().finite().nonnegative()` hardening as
+ * `pricing.perCallUsdCents`: it is an integer monetary amount (Stripe
+ * convention) and `Infinity` / `NaN` must not validate on a billing-adjacent
+ * field. The SDK's own schema uses the equivalent `.int().min(0)`; the
+ * extra `.finite()` keeps this field consistent with its sibling
+ * `perCallUsdCents` in the same `pricing` object.
+ */
+const templateMethodPricingSchema = z.object({
+  costCents: z.number().int().finite().nonnegative(),
+  displayName: z.string().optional(),
+  unitType: z.string().optional(),
+})
+
 export const templateManifestSchema = z
   .object({
     /**
@@ -128,9 +153,20 @@ export const templateManifestSchema = z
     entry: z.string(),
 
     /**
-     * Pricing model + optional per-call amount. When `model` is
-     * `'per-call'`, `perCallUsdCents` is required via the
-     * `.refine` below; other models ignore it.
+     * Pricing model, optional headline per-call amount, and an optional
+     * per-method price map.
+     *
+     * When `model` is `'per-call'`, `perCallUsdCents` is required via the
+     * `.refine` below; other models ignore it. `perCallUsdCents` is the
+     * gallery's headline / "from" price — by convention equal to the
+     * server's `defaultCostCents`.
+     *
+     * `methods` is the optional per-method price map. The SDK already
+     * meters each MCP tool at `pricing.methods[method].costCents`, so
+     * carrying that map here lets the gallery render real per-method costs
+     * rather than one flattened number. It is OPTIONAL — uniform-priced
+     * templates and pre-existing manifests validate cleanly without it —
+     * so adding it is backward-compatible.
      *
      * `perCallUsdCents` is additionally constrained to `.int().finite()`
      * because the field name literally means "cents" (integer monetary
@@ -143,6 +179,7 @@ export const templateManifestSchema = z
         model: z.enum(['free', 'per-call', 'subscription', 'tiered']),
         perCallUsdCents: z.number().int().finite().nonnegative().optional(),
         currency: z.literal('USD').default('USD'),
+        methods: z.record(z.string(), templateMethodPricingSchema).optional(),
       })
       .refine(
         (data) =>

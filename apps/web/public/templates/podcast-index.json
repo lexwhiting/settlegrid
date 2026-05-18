@@ -26,8 +26,22 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1,
-    "currency": "USD"
+    "perCallUsdCents": 2,
+    "currency": "USD",
+    "methods": {
+      "search_podcasts": {
+        "costCents": 2,
+        "displayName": "Search Podcasts"
+      },
+      "get_podcast": {
+        "costCents": 2,
+        "displayName": "Get Podcast"
+      },
+      "get_episodes": {
+        "costCents": 2,
+        "displayName": "Get Episodes"
+      }
+    }
   },
   "quality": {
     "tests": false

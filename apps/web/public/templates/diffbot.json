@@ -33,7 +33,13 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 5,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "analyze_url": {
+        "costCents": 5,
+        "displayName": "Analyze URL"
+      }
+    }
   },
   "quality": {
     "tests": false

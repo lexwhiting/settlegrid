@@ -27,7 +27,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 2,
+    "methods": {
+      "search_repos": {
+        "costCents": 2,
+        "displayName": "Search Repos"
+      },
+      "get_repo": {
+        "costCents": 2,
+        "displayName": "Get Repo"
+      },
+      "search_issues": {
+        "costCents": 2,
+        "displayName": "Search Issues"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "create_prediction": {
+        "costCents": 5,
+        "displayName": "Create Prediction"
+      },
+      "get_prediction": {
+        "costCents": 1,
+        "displayName": "Get Prediction"
+      },
+      "list_predictions": {
+        "costCents": 1,
+        "displayName": "List Predictions"
+      },
+      "cancel_prediction": {
+        "costCents": 2,
+        "displayName": "Cancel Prediction"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "list_model_versions": {
+        "costCents": 1,
+        "displayName": "List Model Versions"
+      },
+      "create_model_prediction": {
+        "costCents": 5,
+        "displayName": "Create Model Prediction"
+      },
+      "get_account": {
+        "costCents": 1,
+        "displayName": "Get Account"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -26,7 +26,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "search_flights": {
+        "costCents": 2,
+        "displayName": "Search flights between airports"
+      },
+      "get_flight_status": {
+        "costCents": 1,
+        "displayName": "Get flight status"
+      },
+      "get_routes": {
+        "costCents": 1,
+        "displayName": "Get airline routes"
+      }
+    }
   },
   "quality": {
     "tests": false

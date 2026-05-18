@@ -32,7 +32,33 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "create_session": {
+        "costCents": 5,
+        "displayName": "Create Session"
+      },
+      "get_session": {
+        "costCents": 1,
+        "displayName": "Get Session"
+      },
+      "list_sessions": {
+        "costCents": 1,
+        "displayName": "List Sessions"
+      },
+      "stop_session": {
+        "costCents": 2,
+        "displayName": "Stop Session"
+      },
+      "get_session_recording": {
+        "costCents": 2,
+        "displayName": "Get Session Recording"
+      },
+      "get_session_logs": {
+        "costCents": 1,
+        "displayName": "Get Session Logs"
+      }
+    }
   },
   "quality": {
     "tests": false

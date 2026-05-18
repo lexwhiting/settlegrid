@@ -31,7 +31,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 8
+    "perCallUsdCents": 8,
+    "methods": {
+      "generate_image": {
+        "costCents": 8,
+        "displayName": "Generate Image"
+      },
+      "generate_transparent_image": {
+        "costCents": 8,
+        "displayName": "Generate Transparent Image"
+      },
+      "edit_image": {
+        "costCents": 8,
+        "displayName": "Edit Image"
+      },
+      "remix_image": {
+        "costCents": 8,
+        "displayName": "Remix Image"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -31,7 +31,17 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 5
+    "perCallUsdCents": 5,
+    "methods": {
+      "ocr_url": {
+        "costCents": 5,
+        "displayName": "OCR from URL"
+      },
+      "ocr_base64": {
+        "costCents": 5,
+        "displayName": "OCR from Base64"
+      }
+    }
   },
   "quality": {
     "tests": false

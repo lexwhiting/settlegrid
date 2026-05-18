@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_call": {
+        "costCents": 1,
+        "displayName": "Get Call"
+      },
+      "query_calls": {
+        "costCents": 2,
+        "displayName": "Query Calls"
+      },
+      "get_call_stats": {
+        "costCents": 2,
+        "displayName": "Get Call Stats"
+      },
+      "query_objects": {
+        "costCents": 2,
+        "displayName": "Query Objects"
+      },
+      "query_feedback": {
+        "costCents": 2,
+        "displayName": "Query Feedback"
+      },
+      "create_feedback": {
+        "costCents": 3,
+        "displayName": "Create Feedback"
+      },
+      "query_cost": {
+        "costCents": 2,
+        "displayName": "Query Cost"
+      },
+      "read_refs": {
+        "costCents": 2,
+        "displayName": "Read Refs"
+      }
+    }
   },
   "quality": {
     "tests": false

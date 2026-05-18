@@ -26,7 +26,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 2,
+    "methods": {
+      "search_recipes": {
+        "costCents": 2,
+        "displayName": "Search Recipes"
+      },
+      "get_recipe": {
+        "costCents": 2,
+        "displayName": "Get Recipe"
+      },
+      "search_ingredients": {
+        "costCents": 2,
+        "displayName": "Search Ingredients"
+      }
+    }
   },
   "quality": {
     "tests": false

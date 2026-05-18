@@ -25,7 +25,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 2,
+    "methods": {
+      "search_tracks": {
+        "costCents": 2,
+        "displayName": "Search Tracks"
+      },
+      "search_artists": {
+        "costCents": 2,
+        "displayName": "Search Artists"
+      },
+      "get_track": {
+        "costCents": 2,
+        "displayName": "Get Track"
+      }
+    }
   },
   "quality": {
     "tests": false
