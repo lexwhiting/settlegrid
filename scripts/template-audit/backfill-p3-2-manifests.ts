@@ -1,17 +1,23 @@
 #!/usr/bin/env tsx
 /**
- * One-shot backfill script for the P3.2 Templater scale run output.
+ * One-shot backfill script — HISTORICAL ONLY for new templates.
  *
- * Surfaced by the P3.2 spec-diff audit:
- *   (1) New Templater templates ship without template.json (P2.6 manifest)
- *       — so they're invisible to the gallery registry build (P2.7
- *       build-registry.ts walks open-source-servers/ *\/template.json).
+ * Originally surfaced by the P3.2 spec-diff audit:
+ *   (1) New Templater templates shipped without template.json (P2.6
+ *       manifest) — so they were invisible to the gallery registry build
+ *       (P2.7 build-registry.ts walks open-source-servers/ *\/template.json).
  *   (2) The run produced JSONL per-attempt telemetry but not the
  *       aggregate <timestamp>-summary.json required by the P3.2 DoD.
  *
- * This script fixes both without changing Templater pipeline code —
- * the pipeline fix (emit template.json during generateTemplateFiles)
- * is a follow-up for a future Templater prompt iteration.
+ * The pipeline fix has now landed: `scripts/gen/core.mjs#generateFromSpec`
+ * emits a schema-valid `template.json` at generation time, sourced from
+ * the structured `TemplateSpec` + the generated `server.ts`. Templater-
+ * generated templates are gallery-ready without a backfill pass.
+ *
+ * This script remains useful for:
+ *   - Re-running summary aggregation on historical JSONL telemetry.
+ *   - Recovering from a hypothetical regression in the generator's
+ *     manifest emission (defensive fallback; not part of any pipeline).
  *
  * Run:
  *   npx tsx scripts/template-audit/backfill-p3-2-manifests.ts \
@@ -24,6 +30,10 @@ import {
   extractServerPricing,
   type MethodPricing,
 } from '../lib/template-pricing';
+import {
+  TEMPLATER_TO_GALLERY_CATEGORY as SHARED_TEMPLATER_TO_GALLERY_CATEGORY,
+  mapCategory as sharedMapCategory,
+} from '../lib/templater-categories.mjs';
 
 interface AttemptTelemetry {
   runId: string;
@@ -62,31 +72,19 @@ type GalleryCategory =
   | 'research'
   | 'other';
 
-const TEMPLATER_TO_GALLERY_CATEGORY: Record<string, GalleryCategory> = {
-  rag: 'ai',
-  'vector-dbs': 'data',
-  'agent-frameworks': 'ai',
-  'llm-gateways': 'ai',
-  'eval-tools': 'devtools',
-  observability: 'devtools',
-  'fine-tuning': 'ai',
-  embeddings: 'ai',
-  'image-gen': 'media',
-  speech: 'media',
-  translation: 'productivity',
-  'code-analysis': 'devtools',
-  scraping: 'data',
-  'browser-automation': 'devtools',
-  'data-pipelines': 'data',
-  'document-intelligence': 'data',
-  'knowledge-graphs': 'data',
-  'prompt-engineering': 'ai',
-  'synthetic-data': 'data',
-  'ml-monitoring': 'devtools',
-};
+// Re-export the shared map + helper so consumers (and the existing backfill
+// test suite at scripts/template-audit/__tests__/backfill.test.ts) keep
+// the same import surface. The runtime data lives in
+// scripts/lib/templater-categories.mjs (the single source of truth);
+// `as` casts narrow the .mjs's loose `string` return to this file's
+// locally-declared `GalleryCategory` union.
+export const TEMPLATER_TO_GALLERY_CATEGORY =
+  SHARED_TEMPLATER_TO_GALLERY_CATEGORY as Readonly<
+    Record<string, GalleryCategory>
+  >;
 
 export function mapCategory(templaterCategory: string): GalleryCategory {
-  return TEMPLATER_TO_GALLERY_CATEGORY[templaterCategory] ?? 'other';
+  return sharedMapCategory(templaterCategory) as GalleryCategory;
 }
 
 interface TemplateManifest {
