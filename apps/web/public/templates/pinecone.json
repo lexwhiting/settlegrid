@@ -31,7 +31,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "query_vectors": {
+        "costCents": 2,
+        "displayName": "Query Vectors"
+      },
+      "get_index_stats": {
+        "costCents": 1,
+        "displayName": "Get Index Stats"
+      },
+      "fetch_vectors": {
+        "costCents": 1,
+        "displayName": "Fetch Vectors"
+      },
+      "list_vectors": {
+        "costCents": 1,
+        "displayName": "List Vectors"
+      },
+      "delete_vectors": {
+        "costCents": 2,
+        "displayName": "Delete Vectors"
+      },
+      "start_bulk_import": {
+        "costCents": 5,
+        "displayName": "Start Bulk Import"
+      },
+      "list_bulk_imports": {
+        "costCents": 1,
+        "displayName": "List Bulk Imports"
+      },
+      "describe_bulk_import": {
+        "costCents": 1,
+        "displayName": "Describe Bulk Import"
+      }
+    }
   },
   "quality": {
     "tests": false

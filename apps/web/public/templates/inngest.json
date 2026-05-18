@@ -32,7 +32,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_events": {
+        "costCents": 1,
+        "displayName": "List Events"
+      },
+      "get_event": {
+        "costCents": 1,
+        "displayName": "Get Event"
+      },
+      "send_event": {
+        "costCents": 3,
+        "displayName": "Send Event"
+      },
+      "get_event_runs": {
+        "costCents": 1,
+        "displayName": "Get Event Runs"
+      },
+      "list_runs": {
+        "costCents": 1,
+        "displayName": "List Runs"
+      },
+      "get_run": {
+        "costCents": 1,
+        "displayName": "Get Run"
+      },
+      "cancel_run": {
+        "costCents": 3,
+        "displayName": "Cancel Run"
+      },
+      "list_functions": {
+        "costCents": 1,
+        "displayName": "List Functions"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -26,7 +26,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "search_works": {
+        "costCents": 1,
+        "displayName": "Search Works"
+      },
+      "get_author": {
+        "costCents": 1,
+        "displayName": "Get Author"
+      },
+      "search_institutions": {
+        "costCents": 1,
+        "displayName": "Search Institutions"
+      }
+    }
   },
   "quality": {
     "tests": false

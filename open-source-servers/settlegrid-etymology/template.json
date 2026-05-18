@@ -28,7 +28,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_definition": {
+        "costCents": 1,
+        "displayName": "Get word definitions"
+      },
+      "get_etymology": {
+        "costCents": 2,
+        "displayName": "Get word etymology"
+      },
+      "get_phonetics": {
+        "costCents": 1,
+        "displayName": "Get word phonetics"
+      }
+    }
   },
   "quality": {
     "tests": false

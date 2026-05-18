@@ -78,6 +78,26 @@ const validFull: TemplateManifest = {
   trendingRank: 3,
 }
 
+/**
+ * A per-call manifest carrying a populated `pricing.methods` map — the
+ * per-method price detail the SDK already meters on. Exercises the
+ * optional `methods` field added alongside `perCallUsdCents`.
+ */
+const validWithMethods: TemplateManifest = {
+  ...validMinimal,
+  slug: 'priced-multi-tool',
+  pricing: {
+    model: 'per-call',
+    perCallUsdCents: 2,
+    currency: 'USD',
+    methods: {
+      search_movies: { costCents: 2, displayName: 'Search Movies' },
+      get_movie: { costCents: 2, displayName: 'Get Movie', unitType: 'call' },
+      deep_analyze: { costCents: 10 },
+    },
+  },
+}
+
 // ─── Happy paths ────────────────────────────────────────────────────────────
 
 describe('templateManifestSchema — happy paths', () => {
@@ -514,6 +534,144 @@ describe('templateManifestSchema — pricing hardening', () => {
       pricing: { model: 'per-call', perCallUsdCents: 0, currency: 'USD' },
     })
     expect(result.success).toBe(true)
+  })
+})
+
+// ─── Per-method pricing (pricing.methods map) ──────────────────────────────
+//
+// `pricing.methods` is an OPTIONAL per-method price map mirroring the SDK's
+// `pricing.methods` shape (config.ts `generalizedPricingConfigSchema`). It
+// lets a manifest carry the real per-tool costs the platform already meters
+// instead of a single flattened `perCallUsdCents`. Each entry's `costCents`
+// inherits the same `.int().finite().nonnegative()` billing-path hardening
+// as `perCallUsdCents`.
+
+describe('templateManifestSchema — per-method pricing (methods map)', () => {
+  it('accepts a manifest with a populated methods map', () => {
+    const result = validateTemplateManifest(validWithMethods)
+    expect(result.pricing.methods).toBeDefined()
+    expect(result.pricing.methods?.search_movies.costCents).toBe(2)
+    expect(result.pricing.methods?.search_movies.displayName).toBe(
+      'Search Movies',
+    )
+  })
+
+  it('accepts a method entry carrying the optional unitType field', () => {
+    const result = validateTemplateManifest(validWithMethods)
+    expect(result.pricing.methods?.get_movie.unitType).toBe('call')
+  })
+
+  it('accepts a method entry with only costCents (displayName/unitType optional)', () => {
+    const result = validateTemplateManifest(validWithMethods)
+    expect(result.pricing.methods?.deep_analyze).toEqual({ costCents: 10 })
+  })
+
+  it('treats methods as optional — a manifest without it still validates', () => {
+    // validMinimal carries no pricing.methods — locks in backward-compat.
+    const result = safeValidateTemplateManifest(validMinimal)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.pricing.methods).toBeUndefined()
+    }
+  })
+
+  it('round-trips the methods map through parse → stringify → parse', () => {
+    const parsed = validateTemplateManifest(validWithMethods)
+    const reparsed = validateTemplateManifest(
+      JSON.parse(JSON.stringify(parsed)),
+    )
+    expect(reparsed).toEqual(parsed)
+  })
+
+  it('rejects a method entry missing the required costCents', () => {
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      pricing: {
+        model: 'per-call',
+        perCallUsdCents: 1,
+        currency: 'USD',
+        methods: { search: { displayName: 'Search' } },
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a negative method costCents', () => {
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      pricing: {
+        model: 'per-call',
+        perCallUsdCents: 1,
+        currency: 'USD',
+        methods: { search: { costCents: -1 } },
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a fractional method costCents', () => {
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      pricing: {
+        model: 'per-call',
+        perCallUsdCents: 1,
+        currency: 'USD',
+        methods: { search: { costCents: 1.5 } },
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects Infinity / -Infinity / NaN method costCents (billing-path hardening)', () => {
+    for (const bad of [
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.NaN,
+    ]) {
+      const result = safeValidateTemplateManifest({
+        ...validMinimal,
+        pricing: {
+          model: 'per-call',
+          perCallUsdCents: 1,
+          currency: 'USD',
+          methods: { search: { costCents: bad } },
+        },
+      })
+      expect(result.success, `costCents=${bad} should reject`).toBe(false)
+    }
+  })
+
+  it('accepts a method costCents of 0 (integer zero, parity with perCallUsdCents)', () => {
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      pricing: {
+        model: 'per-call',
+        perCallUsdCents: 1,
+        currency: 'USD',
+        methods: { ping: { costCents: 0 } },
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('emits a pricing.methods.<key>.costCents dot-path on a nested error', () => {
+    const result = safeValidateTemplateManifest({
+      ...validMinimal,
+      pricing: {
+        model: 'per-call',
+        perCallUsdCents: 1,
+        currency: 'USD',
+        methods: { search: { costCents: -1 } },
+      },
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(
+        result.errors.some((e) =>
+          e.startsWith('pricing.methods.search.costCents:'),
+        ),
+      ).toBe(true)
+    }
   })
 })
 

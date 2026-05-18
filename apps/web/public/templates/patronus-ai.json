@@ -33,7 +33,33 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "run_evaluation": {
+        "costCents": 5,
+        "displayName": "Run Evaluation"
+      },
+      "list_evaluators": {
+        "costCents": 1,
+        "displayName": "List Evaluators"
+      },
+      "create_experiment": {
+        "costCents": 3,
+        "displayName": "Create Experiment"
+      },
+      "list_experiments": {
+        "costCents": 1,
+        "displayName": "List Experiments"
+      },
+      "list_datasets": {
+        "costCents": 1,
+        "displayName": "List Datasets"
+      },
+      "create_dataset": {
+        "costCents": 3,
+        "displayName": "Create Dataset"
+      }
+    }
   },
   "quality": {
     "tests": false

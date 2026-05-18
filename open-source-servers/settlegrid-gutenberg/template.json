@@ -27,7 +27,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "search_books": {
+        "costCents": 1,
+        "displayName": "Search Books"
+      },
+      "get_book": {
+        "costCents": 1,
+        "displayName": "Get Book Details"
+      },
+      "get_popular": {
+        "costCents": 1,
+        "displayName": "Popular Books"
+      }
+    }
   },
   "quality": {
     "tests": false

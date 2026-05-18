@@ -32,7 +32,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_projects": {
+        "costCents": 1,
+        "displayName": "List Projects"
+      },
+      "get_project": {
+        "costCents": 1,
+        "displayName": "Get Project"
+      },
+      "create_project": {
+        "costCents": 3,
+        "displayName": "Create Project"
+      },
+      "list_models": {
+        "costCents": 1,
+        "displayName": "List Models"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "get_project_records": {
+        "costCents": 2,
+        "displayName": "Get Project Records"
+      },
+      "get_model_records": {
+        "costCents": 2,
+        "displayName": "Get Model Records"
+      },
+      "list_artifacts": {
+        "costCents": 1,
+        "displayName": "List Artifacts"
+      }
+    }
   },
   "quality": {
     "tests": false

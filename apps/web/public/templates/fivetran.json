@@ -33,7 +33,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_connections": {
+        "costCents": 1,
+        "displayName": "List Connections"
+      },
+      "get_connection": {
+        "costCents": 1,
+        "displayName": "Get Connection"
+      },
+      "trigger_sync": {
+        "costCents": 3,
+        "displayName": "Trigger Sync"
+      },
+      "trigger_resync": {
+        "costCents": 5,
+        "displayName": "Trigger Resync"
+      },
+      "get_connection_schemas": {
+        "costCents": 1,
+        "displayName": "Get Connection Schemas"
+      },
+      "get_schema_details": {
+        "costCents": 1,
+        "displayName": "Get Schema Details"
+      },
+      "get_table_details": {
+        "costCents": 1,
+        "displayName": "Get Table Details"
+      },
+      "delete_connection": {
+        "costCents": 5,
+        "displayName": "Delete Connection"
+      }
+    }
   },
   "quality": {
     "tests": false

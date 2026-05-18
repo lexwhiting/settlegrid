@@ -31,7 +31,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 2
+    "perCallUsdCents": 2,
+    "methods": {
+      "submit_request": {
+        "costCents": 5,
+        "displayName": "Submit Request"
+      },
+      "get_request_status": {
+        "costCents": 1,
+        "displayName": "Get Request Status"
+      },
+      "get_request_result": {
+        "costCents": 2,
+        "displayName": "Get Request Result"
+      },
+      "cancel_request": {
+        "costCents": 1,
+        "displayName": "Cancel Request"
+      }
+    }
   },
   "quality": {
     "tests": false

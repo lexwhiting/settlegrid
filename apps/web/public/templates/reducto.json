@@ -32,7 +32,13 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 8,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "parse_document": {
+        "costCents": 8,
+        "displayName": "Parse Document"
+      }
+    }
   },
   "quality": {
     "tests": false

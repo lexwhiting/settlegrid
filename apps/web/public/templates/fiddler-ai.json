@@ -33,7 +33,33 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_models": {
+        "costCents": 1,
+        "displayName": "List Models"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "create_model": {
+        "costCents": 5,
+        "displayName": "Create Model"
+      },
+      "update_model": {
+        "costCents": 3,
+        "displayName": "Update Model"
+      },
+      "delete_model": {
+        "costCents": 5,
+        "displayName": "Delete Model"
+      },
+      "generate_model_from_samples": {
+        "costCents": 5,
+        "displayName": "Generate Model From Samples"
+      }
+    }
   },
   "quality": {
     "tests": false

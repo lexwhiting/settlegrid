@@ -53,6 +53,20 @@ Fake MCP Server with per-call billing.
 - **Docs**: https://docs.fake.dev
 `
 
+const FAKE_SERVER_TS = `import { settlegrid } from '@settlegrid/mcp'
+const sg = settlegrid.init({
+  toolSlug: 'fake-api',
+  pricing: {
+    defaultCostCents: 1,
+    methods: {
+      search_items: { costCents: 1, displayName: 'Search fake items' },
+      get_item: { costCents: 1, displayName: 'Get a specific item' },
+    },
+  },
+})
+export { sg }
+`
+
 const FAKE_CTX = {
   entry: FAKE_ENTRY,
   description: 'Search fake resources on Fake Platform.',
@@ -62,6 +76,13 @@ const FAKE_CTX = {
     '| Method | Description | Cost |\n|--------|-------------|------|\n| `search_items(query)` | Search fake items | 1\u00A2 |\n| `get_item(id)` | Get a specific item | 1\u00A2 |',
   capabilities: ['search-items', 'get-item'],
   upstreamInfo: '- **Provider**: Fake Platform\n- **Base URL**: https://api.fake.dev\n- **Auth**: API key required\n- **Docs**: https://docs.fake.dev',
+  serverPricing: {
+    defaultCostCents: 1,
+    methods: {
+      search_items: { costCents: 1, displayName: 'Search fake items' },
+      get_item: { costCents: 1, displayName: 'Get a specific item' },
+    },
+  },
 }
 
 // ── Test setup ─────────────────────────────────────────────────────────────
@@ -76,9 +97,10 @@ beforeEach(async () => {
 
   // Create fake template directory with package.json and README
   const fakeDir = join(tmpServers, 'settlegrid-fake-api')
-  await mkdir(fakeDir, { recursive: true })
+  await mkdir(join(fakeDir, 'src'), { recursive: true })
   await writeFile(join(fakeDir, 'package.json'), JSON.stringify(FAKE_PKG))
   await writeFile(join(fakeDir, 'README.md'), FAKE_README)
+  await writeFile(join(fakeDir, 'src', 'server.ts'), FAKE_SERVER_TS)
 
   // Create CANONICAL_20.json for tests
   tmpCanonical = join(tmpRoot, 'CANONICAL_20.json')
@@ -115,6 +137,16 @@ describe('polish-canonical', () => {
         featured: false,
       })
 
+      // Pricing — including the per-method map — is sourced from server.ts.
+      expect((manifest as Record<string, unknown>).pricing).toEqual({
+        model: 'per-call',
+        perCallUsdCents: 1,
+        methods: {
+          search_items: { costCents: 1, displayName: 'Search fake items' },
+          get_item: { costCents: 1, displayName: 'Get a specific item' },
+        },
+      })
+
       // Tags exclude generic keywords
       const tags = (manifest as Record<string, unknown>).tags as string[]
       expect(tags).not.toContain('settlegrid')
@@ -133,6 +165,10 @@ describe('polish-canonical', () => {
       expect(readme).toContain('npx create-settlegrid-tool --template fake-api')
       expect(readme).toContain('## Monetization')
       expect(readme).toContain('monetization.md')
+      // Monetization block uses the progressive fee model — not the
+      // stale flat-20%-fee table.
+      expect(readme).toContain('At the default 1¢/call pricing')
+      expect(readme).not.toContain('after 20% fee')
       expect(readme).toContain('Deploy with Vercel')
       expect(readme).toContain('Loom demo placeholder')
       expect(readme).toContain('remove-settlegrid.md')
@@ -153,14 +189,19 @@ describe('polish-canonical', () => {
   })
 
   describe('generateMonetizationMd', () => {
-    it('contains pricing math', () => {
+    it('renders the progressive 0% / 2–5% revenue model from server.ts pricing', () => {
       const md = generateMonetizationMd(FAKE_CTX)
 
       expect(md).toContain('Monetization Guide')
-      expect(md).toContain('$0.01')
-      expect(md).toContain('20%')
-      expect(md).toContain('$0.008')
-      expect(md).toContain('10,000')
+      expect(md).toContain('## Revenue Model')
+      expect(md).toContain('$0.01 (1¢)')
+      expect(md).toContain('## Revenue Examples (at $0.01 / call)')
+      expect(md).toContain('2–5%')
+      expect(md).toContain('## How It Works')
+      expect(md).toContain('## Adjusting Pricing')
+      // The stale flat-20%-fee model must be gone.
+      expect(md).not.toContain('20%')
+      expect(md).not.toContain('$0.008')
     })
   })
 
@@ -192,6 +233,12 @@ describe('polish-canonical', () => {
       const tj = JSON.parse(await readFile(join(dir, 'template.json'), 'utf-8'))
       expect(tj.slug).toBe('fake-api')
       expect(tj.category).toBe('devtools')
+      // Pricing (incl. per-method map) was sourced from the fixture server.ts.
+      expect(tj.pricing.perCallUsdCents).toBe(1)
+      expect(tj.pricing.methods).toMatchObject({
+        search_items: { costCents: 1 },
+        get_item: { costCents: 1 },
+      })
 
       // README.md was rewritten
       const readme = await readFile(join(dir, 'README.md'), 'utf-8')

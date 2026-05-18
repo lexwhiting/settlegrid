@@ -27,7 +27,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 2,
+    "methods": {
+      "search_projects": {
+        "costCents": 2,
+        "displayName": "Search Projects"
+      },
+      "get_project": {
+        "costCents": 2,
+        "displayName": "Get Project"
+      },
+      "list_pipelines": {
+        "costCents": 2,
+        "displayName": "List Pipelines"
+      }
+    }
   },
   "quality": {
     "tests": false

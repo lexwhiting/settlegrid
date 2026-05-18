@@ -21,7 +21,20 @@ export interface TemplateManifest {
   runtime: string
   languages: string[]
   entry: string
-  pricing: { model: string; perCallUsdCents?: number; currency: string }
+  pricing: {
+    model: string
+    perCallUsdCents?: number
+    currency: string
+    /**
+     * Optional per-method price map — mirrors the SDK's `pricing.methods`
+     * shape. Present on regenerated manifests; absent on older ones, so
+     * always guard before reading.
+     */
+    methods?: Record<
+      string,
+      { costCents: number; displayName?: string; unitType?: string }
+    >
+  }
   quality: { tests: boolean; ciPassing?: boolean; lastVerifiedAt?: string }
   capabilities: string[]
   screenshots?: { url: string; alt: string }[]

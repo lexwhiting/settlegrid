@@ -32,7 +32,29 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "create_chat_completion": {
+        "costCents": 5,
+        "displayName": "Create Chat Completion"
+      },
+      "list_models": {
+        "costCents": 1,
+        "displayName": "List Models"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "get_generation": {
+        "costCents": 1,
+        "displayName": "Get Generation"
+      },
+      "get_credits": {
+        "costCents": 1,
+        "displayName": "Get Credits"
+      }
+    }
   },
   "quality": {
     "tests": false

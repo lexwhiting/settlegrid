@@ -32,7 +32,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 2
+    "perCallUsdCents": 2,
+    "methods": {
+      "trigger_scraper_job": {
+        "costCents": 5,
+        "displayName": "Trigger Scraper Job"
+      },
+      "get_job_progress": {
+        "costCents": 1,
+        "displayName": "Get Job Progress"
+      },
+      "get_snapshot_results": {
+        "costCents": 2,
+        "displayName": "Get Snapshot Results"
+      },
+      "scrape_sync": {
+        "costCents": 8,
+        "displayName": "Scrape Synchronous"
+      }
+    }
   },
   "quality": {
     "tests": false

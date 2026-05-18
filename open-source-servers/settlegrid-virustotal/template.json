@@ -26,7 +26,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "scan_url": {
+        "costCents": 2,
+        "displayName": "Submit URL for scanning"
+      },
+      "get_url_report": {
+        "costCents": 1,
+        "displayName": "Get URL scan report"
+      },
+      "get_ip_report": {
+        "costCents": 1,
+        "displayName": "Get IP address report"
+      },
+      "get_domain_report": {
+        "costCents": 1,
+        "displayName": "Get domain report"
+      }
+    }
   },
   "quality": {
     "tests": false

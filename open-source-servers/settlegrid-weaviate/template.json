@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_own_info": {
+        "costCents": 1,
+        "displayName": "Get Own Info"
+      },
+      "get_user": {
+        "costCents": 1,
+        "displayName": "Get User"
+      },
+      "create_user": {
+        "costCents": 3,
+        "displayName": "Create User"
+      },
+      "get_user_roles": {
+        "costCents": 1,
+        "displayName": "Get User Roles"
+      },
+      "list_roles": {
+        "costCents": 1,
+        "displayName": "List Roles"
+      },
+      "get_role": {
+        "costCents": 1,
+        "displayName": "Get Role"
+      },
+      "get_role_users": {
+        "costCents": 1,
+        "displayName": "Get Role Users"
+      },
+      "rotate_user_key": {
+        "costCents": 5,
+        "displayName": "Rotate User Key"
+      }
+    }
   },
   "quality": {
     "tests": false

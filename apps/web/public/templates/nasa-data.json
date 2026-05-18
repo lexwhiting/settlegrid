@@ -27,7 +27,21 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_apod": {
+        "costCents": 1,
+        "displayName": "Astronomy Picture of the Day"
+      },
+      "get_neo": {
+        "costCents": 2,
+        "displayName": "Near-Earth Objects"
+      },
+      "search_images": {
+        "costCents": 1,
+        "displayName": "Image Search"
+      }
+    }
   },
   "quality": {
     "tests": false

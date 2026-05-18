@@ -30,7 +30,17 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 3
+    "perCallUsdCents": 3,
+    "methods": {
+      "embed_texts": {
+        "costCents": 5,
+        "displayName": "Embed Texts (batch)"
+      },
+      "embed_single": {
+        "costCents": 3,
+        "displayName": "Embed Single Text"
+      }
+    }
   },
   "quality": {
     "tests": false

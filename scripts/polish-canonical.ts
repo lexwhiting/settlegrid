@@ -13,6 +13,12 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { safeValidateTemplateManifest } from '@settlegrid/mcp'
+import {
+  extractServerPricing,
+  renderMonetizationSections,
+  renderReadmeMonetization,
+  type ServerPricing,
+} from './lib/template-pricing'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -47,6 +53,12 @@ interface TemplateContext {
   methodsTable: string
   capabilities: string[]
   upstreamInfo: string
+  /**
+   * Pricing extracted from the template's `src/server.ts` — the source of
+   * truth the SDK actually meters on. Drives `template.json` pricing and
+   * the price-dependent figures in README.md / monetization.md.
+   */
+  serverPricing: ServerPricing
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -111,7 +123,12 @@ export function generateTemplateJson(ctx: TemplateContext): object {
     entry: 'src/server.ts',
     pricing: {
       model: 'per-call',
-      perCallUsdCents: 1,
+      // Sourced from server.ts — never hardcoded. `perCallUsdCents` is the
+      // headline price; `methods` carries the full per-method price map.
+      perCallUsdCents: ctx.serverPricing.defaultCostCents,
+      ...(ctx.serverPricing.methods
+        ? { methods: ctx.serverPricing.methods }
+        : {}),
     },
     quality: {
       tests: false,
@@ -152,18 +169,7 @@ npm run dev
 
 ${ctx.methodsTable}
 
-## Monetization
-
-Turn this template into a revenue stream. At the default 1\u00A2/call pricing:
-
-| Monthly Calls | Your Revenue (after 20% fee) |
-|---------------|------------------------------|
-| 1,000 | $8 |
-| 10,000 | $80 |
-| 100,000 | $800 |
-
-See [monetization.md](monetization.md) for full pricing math and payout details.
-
+${renderReadmeMonetization(ctx.serverPricing.defaultCostCents)}
 ## Deploy
 
 [![Deploy with Vercel](https://vercel.com/button)](${deployUrl})
@@ -205,25 +211,7 @@ Built with [SettleGrid](https://settlegrid.ai) — The Settlement Layer for the 
 export function generateMonetizationMd(ctx: TemplateContext): string {
   return `# Monetization Guide — ${ctx.entry.name}
 
-## Revenue Model
-
-This template uses **per-call pricing** via SettleGrid.
-
-| Metric | Value |
-|--------|-------|
-| **Price per call** | $0.01 (1\u00A2) |
-| **SettleGrid fee** | 20% |
-| **Your revenue per call** | $0.008 |
-
-## Revenue Examples
-
-| Monthly Calls | Gross Revenue | SettleGrid Fee (20%) | Your Revenue |
-|---------------|--------------|----------------------|-------------|
-| 1,000 | $10 | $2 | **$8** |
-| 10,000 | $100 | $20 | **$80** |
-| 100,000 | $1,000 | $200 | **$800** |
-| 1,000,000 | $10,000 | $2,000 | **$8,000** |
-
+${renderMonetizationSections(ctx.serverPricing.defaultCostCents)}
 ## How It Works
 
 1. An AI agent calls your MCP server method
@@ -366,6 +354,20 @@ export async function polishCanonical(
       // No existing README — methods table will be empty
     }
 
+    // Read src/server.ts for pricing — the source of truth the SDK meters
+    // on. A missing/unreadable server.ts falls back to a 1¢ default with no
+    // method map; the generated manifest still validates.
+    let serverPricing: ServerPricing = { defaultCostCents: 1 }
+    try {
+      const serverTs = await readFile(
+        join(templateDir, 'src', 'server.ts'),
+        'utf-8',
+      )
+      serverPricing = extractServerPricing(serverTs)
+    } catch {
+      // No server.ts — keep the 1¢ fallback.
+    }
+
     const description =
       pkgJson.description?.replace(/^MCP server for .+? with SettleGrid billing\.\s*/, '') ||
       `${entry.name} MCP server`
@@ -381,6 +383,7 @@ export async function polishCanonical(
       methodsTable: extractMethodsTable(existingReadme),
       capabilities: extractCapabilities(existingReadme),
       upstreamInfo: extractUpstreamInfo(existingReadme),
+      serverPricing,
     }
 
     // Generate template.json

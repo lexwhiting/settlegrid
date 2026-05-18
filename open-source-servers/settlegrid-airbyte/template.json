@@ -32,7 +32,13 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 5
+    "perCallUsdCents": 5,
+    "methods": {
+      "create_source": {
+        "costCents": 5,
+        "displayName": "Create Source"
+      }
+    }
   },
   "quality": {
     "tests": false

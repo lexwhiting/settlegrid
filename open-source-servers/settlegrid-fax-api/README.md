@@ -18,16 +18,29 @@ npm run dev
 
 | Method | Description | Cost |
 |--------|-------------|------|
-| `format_fax_cover(...)` | Format Fax Cover | 2¢ |
-| `get_country_codes(...)` | Get Country Codes | 2¢ |
+| `generate_cover_page(...)` | Generate Cover Page | 1¢ |
+| `format_document(...)` | Format Document | 1¢ |
+| `get_country_codes(...)` | Get Country Codes | 1¢ |
 
 ## Parameters
 
-### format_fax_cover
-- `to_name` (string; to_fax: string; from_name: string; from_fax: string; subject: string; pages: number; message?: string, required)
+### generate_cover_page
+- `to` (string, required)
+- `from` (string, required)
+- `subject` (string, required)
+- `company` (string, optional)
+- `pages` (number, optional)
+- `message` (string, optional)
+- `urgent` (boolean, optional)
+
+### format_document
+- `text` (string, required)
+- `header` (string, optional)
+- `footer` (string, optional)
+- `page_numbers` (boolean, optional)
 
 ### get_country_codes
-- `country` (string, optional)
+- _No parameters._
 
 ## Environment Variables
 

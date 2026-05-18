@@ -33,7 +33,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_document": {
+        "costCents": 1,
+        "displayName": "Get Document"
+      },
+      "put_document": {
+        "costCents": 3,
+        "displayName": "Put Document"
+      },
+      "update_document": {
+        "costCents": 3,
+        "displayName": "Update Document"
+      },
+      "delete_document": {
+        "costCents": 2,
+        "displayName": "Delete Document"
+      },
+      "visit_documents": {
+        "costCents": 2,
+        "displayName": "Visit Documents"
+      },
+      "visit_all_documents": {
+        "costCents": 2,
+        "displayName": "Visit All Documents"
+      },
+      "delete_documents_by_selection": {
+        "costCents": 5,
+        "displayName": "Delete Documents By Selection"
+      },
+      "visit_group_documents": {
+        "costCents": 2,
+        "displayName": "Visit Group Documents"
+      }
+    }
   },
   "quality": {
     "tests": false

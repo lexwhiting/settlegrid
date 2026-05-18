@@ -33,7 +33,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "search_issues": {
+        "costCents": 2,
+        "displayName": "Search Issues"
+      },
+      "get_project_metrics": {
+        "costCents": 1,
+        "displayName": "Get Project Metrics"
+      },
+      "get_quality_gate_status": {
+        "costCents": 1,
+        "displayName": "Get Quality Gate Status"
+      },
+      "list_projects": {
+        "costCents": 1,
+        "displayName": "List Projects"
+      },
+      "get_project_analyses": {
+        "costCents": 1,
+        "displayName": "Get Project Analyses"
+      },
+      "search_hotspots": {
+        "costCents": 2,
+        "displayName": "Search Hotspots"
+      },
+      "get_issue_changelog": {
+        "costCents": 1,
+        "displayName": "Get Issue Changelog"
+      },
+      "list_rules": {
+        "costCents": 1,
+        "displayName": "List Rules"
+      }
+    }
   },
   "quality": {
     "tests": false

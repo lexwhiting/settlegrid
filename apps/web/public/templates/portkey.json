@@ -33,7 +33,17 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "render_prompt": {
+        "costCents": 1,
+        "displayName": "Render Prompt"
+      },
+      "execute_prompt": {
+        "costCents": 5,
+        "displayName": "Execute Prompt"
+      }
+    }
   },
   "quality": {
     "tests": false

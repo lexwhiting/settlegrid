@@ -26,7 +26,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 2,
+    "methods": {
+      "search_movies": {
+        "costCents": 2,
+        "displayName": "Search Movies"
+      },
+      "get_movie": {
+        "costCents": 2,
+        "displayName": "Get Movie"
+      },
+      "search_tv": {
+        "costCents": 2,
+        "displayName": "Search TV Shows"
+      }
+    }
   },
   "quality": {
     "tests": false

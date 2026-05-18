@@ -31,7 +31,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 3
+    "perCallUsdCents": 3,
+    "methods": {
+      "create_embeddings": {
+        "costCents": 3,
+        "displayName": "Create Embeddings"
+      },
+      "create_query_embedding": {
+        "costCents": 2,
+        "displayName": "Create Query Embedding"
+      },
+      "create_document_embeddings": {
+        "costCents": 3,
+        "displayName": "Create Document Embeddings"
+      }
+    }
   },
   "quality": {
     "tests": false

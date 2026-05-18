@@ -119,11 +119,12 @@ describe('extractDefaultCostCents', () => {
     expect(extractDefaultCostCents("defaultCostCents: 0")).toBe(1);
   });
 
-  it('first occurrence wins (no nested matching)', () => {
-    // If someone wrote `// defaultCostCents: 100` in a comment first, the
-    // comment wins. This is acceptable — operator can fix by renaming.
+  it('ignores a defaultCostCents mention outside the pricing block', () => {
+    // A stray comment mentioning defaultCostCents must not shadow the real
+    // value: the shared extractor scopes its lookup to the `pricing: {...}`
+    // object literal, so the comment is skipped and the real value wins.
     const src = `// defaultCostCents: 100\npricing: { defaultCostCents: 2 }`;
-    expect(extractDefaultCostCents(src)).toBe(100);
+    expect(extractDefaultCostCents(src)).toBe(2);
   });
 });
 
@@ -213,10 +214,41 @@ describe('buildManifest', () => {
     expect(m.entry).toBe('src/server.ts');
     expect(m.runtime).toBe('node');
     expect(m.languages).toEqual(['ts']);
-    expect(m.pricing).toEqual({ model: 'per-call', perCallUsdCents: 2 });
+    expect(m.pricing).toEqual({
+      model: 'per-call',
+      perCallUsdCents: 2,
+      methods: { list_indexes: { costCents: 2 } },
+    });
     expect(m.quality).toEqual({ tests: false });
     expect(m.capabilities).toEqual(['list_indexes']);
     expect(m.featured).toBe(false);
+  });
+
+  it('emits pricing.methods sourced from the server.ts methods block', () => {
+    const serverTs = `
+      const sg = settlegrid.init({
+        toolSlug: 'multi',
+        pricing: {
+          defaultCostCents: 1,
+          methods: {
+            search: { costCents: 1, displayName: 'Search' },
+            deep: { costCents: 5, displayName: 'Deep Analyze' },
+          },
+        },
+      });
+    `;
+    const m = buildManifest('multi', 'rag', basePkg, serverTs);
+    expect(m.pricing.methods).toEqual({
+      search: { costCents: 1, displayName: 'Search' },
+      deep: { costCents: 5, displayName: 'Deep Analyze' },
+    });
+  });
+
+  it('omits pricing.methods when server.ts has no methods block', () => {
+    const serverTs = `settlegrid.init({ toolSlug: 't', pricing: { defaultCostCents: 3 } });`;
+    const m = buildManifest('t', 'rag', basePkg, serverTs);
+    expect(m.pricing.perCallUsdCents).toBe(3);
+    expect(m.pricing.methods).toBeUndefined();
   });
 
   it('populates author + repo with canonical SettleGrid values', () => {

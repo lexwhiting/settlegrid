@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_flow": {
+        "costCents": 1,
+        "displayName": "Get Flow"
+      },
+      "filter_flows": {
+        "costCents": 1,
+        "displayName": "Filter Flows"
+      },
+      "get_flow_run": {
+        "costCents": 1,
+        "displayName": "Get Flow Run"
+      },
+      "filter_flow_runs": {
+        "costCents": 2,
+        "displayName": "Filter Flow Runs"
+      },
+      "create_flow_run_from_deployment": {
+        "costCents": 5,
+        "displayName": "Create Flow Run from Deployment"
+      },
+      "get_deployment": {
+        "costCents": 1,
+        "displayName": "Get Deployment"
+      },
+      "filter_deployments": {
+        "costCents": 1,
+        "displayName": "Filter Deployments"
+      },
+      "filter_logs": {
+        "costCents": 2,
+        "displayName": "Filter Logs"
+      }
+    }
   },
   "quality": {
     "tests": false

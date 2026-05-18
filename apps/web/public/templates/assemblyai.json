@@ -33,7 +33,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "submit_transcription": {
+        "costCents": 5,
+        "displayName": "Submit Transcription"
+      },
+      "get_transcription": {
+        "costCents": 1,
+        "displayName": "Get Transcription"
+      },
+      "list_transcriptions": {
+        "costCents": 1,
+        "displayName": "List Transcriptions"
+      },
+      "get_transcript_sentences": {
+        "costCents": 1,
+        "displayName": "Get Transcript Sentences"
+      },
+      "export_transcript": {
+        "costCents": 2,
+        "displayName": "Export Transcript"
+      },
+      "generate_summary": {
+        "costCents": 8,
+        "displayName": "Generate Summary"
+      },
+      "ask_lemur": {
+        "costCents": 8,
+        "displayName": "Ask LeMUR"
+      },
+      "generate_action_items": {
+        "costCents": 8,
+        "displayName": "Generate Action Items"
+      }
+    }
   },
   "quality": {
     "tests": false

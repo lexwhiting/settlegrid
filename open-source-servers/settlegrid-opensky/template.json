@@ -26,7 +26,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_states": {
+        "costCents": 1,
+        "displayName": "All State Vectors"
+      },
+      "get_flights_by_aircraft": {
+        "costCents": 1,
+        "displayName": "Flights by Aircraft"
+      },
+      "get_track": {
+        "costCents": 1,
+        "displayName": "Flight Track"
+      }
+    }
   },
   "quality": {
     "tests": false

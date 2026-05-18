@@ -33,7 +33,29 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_speech_history": {
+        "costCents": 1,
+        "displayName": "Get Speech History"
+      },
+      "get_history_item": {
+        "costCents": 1,
+        "displayName": "Get History Item"
+      },
+      "delete_history_item": {
+        "costCents": 2,
+        "displayName": "Delete History Item"
+      },
+      "generate_sound_effect": {
+        "costCents": 8,
+        "displayName": "Generate Sound Effect"
+      },
+      "download_history_items": {
+        "costCents": 3,
+        "displayName": "Download History Items"
+      }
+    }
   },
   "quality": {
     "tests": false

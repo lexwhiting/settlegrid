@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "list_syncs": {
+        "costCents": 1,
+        "displayName": "List Syncs"
+      },
+      "get_sync": {
+        "costCents": 1,
+        "displayName": "Get Sync"
+      },
+      "trigger_sync": {
+        "costCents": 5,
+        "displayName": "Trigger Sync"
+      },
+      "list_sync_runs": {
+        "costCents": 1,
+        "displayName": "List Sync Runs"
+      },
+      "list_models": {
+        "costCents": 1,
+        "displayName": "List Models"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "list_sources": {
+        "costCents": 1,
+        "displayName": "List Sources"
+      },
+      "list_destinations": {
+        "costCents": 1,
+        "displayName": "List Destinations"
+      }
+    }
   },
   "quality": {
     "tests": false

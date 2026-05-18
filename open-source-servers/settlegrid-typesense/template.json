@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "list_collections": {
+        "costCents": 1,
+        "displayName": "List Collections"
+      },
+      "get_collection": {
+        "costCents": 1,
+        "displayName": "Get Collection"
+      },
+      "create_collection": {
+        "costCents": 3,
+        "displayName": "Create Collection"
+      },
+      "delete_collection": {
+        "costCents": 5,
+        "displayName": "Delete Collection"
+      },
+      "search_documents": {
+        "costCents": 2,
+        "displayName": "Search Documents"
+      },
+      "index_document": {
+        "costCents": 2,
+        "displayName": "Index Document"
+      },
+      "delete_documents": {
+        "costCents": 4,
+        "displayName": "Delete Documents"
+      },
+      "update_documents": {
+        "costCents": 3,
+        "displayName": "Update Documents"
+      }
+    }
   },
   "quality": {
     "tests": false

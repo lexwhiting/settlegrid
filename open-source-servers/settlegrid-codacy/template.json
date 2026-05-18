@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_authenticated_user": {
+        "costCents": 1,
+        "displayName": "Get Authenticated User"
+      },
+      "list_organizations": {
+        "costCents": 1,
+        "displayName": "List Organizations"
+      },
+      "list_repositories": {
+        "costCents": 1,
+        "displayName": "List Repositories"
+      },
+      "get_repository_analysis": {
+        "costCents": 1,
+        "displayName": "Get Repository Analysis"
+      },
+      "search_repository_issues": {
+        "costCents": 2,
+        "displayName": "Search Repository Issues"
+      },
+      "list_repository_commits": {
+        "costCents": 1,
+        "displayName": "List Repository Commits"
+      },
+      "get_commit_analysis": {
+        "costCents": 1,
+        "displayName": "Get Commit Analysis"
+      },
+      "list_tools": {
+        "costCents": 1,
+        "displayName": "List Tools"
+      }
+    }
   },
   "quality": {
     "tests": false

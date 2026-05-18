@@ -31,7 +31,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 2
+    "perCallUsdCents": 2,
+    "methods": {
+      "upload_document": {
+        "costCents": 5,
+        "displayName": "Upload Document"
+      },
+      "get_document_status": {
+        "costCents": 1,
+        "displayName": "Get Document Status"
+      },
+      "download_document": {
+        "costCents": 2,
+        "displayName": "Download Document"
+      }
+    }
   },
   "quality": {
     "tests": false

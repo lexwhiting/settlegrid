@@ -31,7 +31,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_server_info": {
+        "costCents": 1,
+        "displayName": "Get Server Info"
+      },
+      "list_sessions": {
+        "costCents": 1,
+        "displayName": "List Sessions"
+      },
+      "get_session": {
+        "costCents": 1,
+        "displayName": "Get Session"
+      },
+      "create_session": {
+        "costCents": 3,
+        "displayName": "Create Session"
+      },
+      "delete_session": {
+        "costCents": 3,
+        "displayName": "Delete Session"
+      },
+      "get_session_metadata": {
+        "costCents": 1,
+        "displayName": "Get Session Metadata"
+      },
+      "list_session_views": {
+        "costCents": 1,
+        "displayName": "List Session Views"
+      },
+      "get_session_view": {
+        "costCents": 1,
+        "displayName": "Get Session View"
+      }
+    }
   },
   "quality": {
     "tests": false

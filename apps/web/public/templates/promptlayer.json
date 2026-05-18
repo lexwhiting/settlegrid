@@ -32,7 +32,33 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_request": {
+        "costCents": 1,
+        "displayName": "Get Request"
+      },
+      "search_requests": {
+        "costCents": 2,
+        "displayName": "Search Requests"
+      },
+      "get_prompt_template": {
+        "costCents": 1,
+        "displayName": "Get Prompt Template"
+      },
+      "list_prompt_templates": {
+        "costCents": 1,
+        "displayName": "List Prompt Templates"
+      },
+      "create_request_log": {
+        "costCents": 3,
+        "displayName": "Create Request Log"
+      },
+      "add_request_tags": {
+        "costCents": 2,
+        "displayName": "Add Request Tags"
+      }
+    }
   },
   "quality": {
     "tests": false

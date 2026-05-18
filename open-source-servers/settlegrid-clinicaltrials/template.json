@@ -27,7 +27,21 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "search_trials": {
+        "costCents": 1,
+        "displayName": "Search clinical trials"
+      },
+      "get_trial": {
+        "costCents": 1,
+        "displayName": "Get trial details"
+      },
+      "get_stats": {
+        "costCents": 2,
+        "displayName": "Get condition statistics"
+      }
+    }
   },
   "quality": {
     "tests": false

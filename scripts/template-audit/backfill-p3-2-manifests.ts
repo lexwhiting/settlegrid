@@ -20,6 +20,10 @@
 
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
+import {
+  extractServerPricing,
+  type MethodPricing,
+} from '../lib/template-pricing';
 
 interface AttemptTelemetry {
   runId: string;
@@ -98,7 +102,16 @@ interface TemplateManifest {
   runtime: 'node';
   languages: string[];
   entry: string;
-  pricing: { model: 'per-call'; perCallUsdCents: number };
+  /**
+   * `perCallUsdCents` is the headline price (= server.ts `defaultCostCents`);
+   * `methods` carries the full per-method price map so the manifest is not a
+   * lossy projection of the SDK pricing the platform actually meters on.
+   */
+  pricing: {
+    model: 'per-call';
+    perCallUsdCents: number;
+    methods?: Record<string, MethodPricing>;
+  };
   quality: { tests: false };
   capabilities: string[];
   featured: boolean;
@@ -144,16 +157,15 @@ export async function readServerTs(templateDir: string): Promise<string | null> 
 
 /**
  * Extract pricing.defaultCostCents from the `settlegrid.init({...})` call
- * in server.ts. Regex-based since we don't ship an AST parser here.
- * Falls back to 1 if not found.
+ * in server.ts. Delegates to the shared `extractServerPricing()` — the
+ * single source of truth for pricing extraction — and applies a >= 1
+ * floor: a missing or zero default falls back to 1.
  */
 export function extractDefaultCostCents(serverTs: string): number {
-  const m = serverTs.match(/defaultCostCents\s*:\s*(\d+)/);
-  if (m) {
-    const v = Number.parseInt(m[1], 10);
-    if (Number.isInteger(v) && v >= 1) return v;
-  }
-  return 1;
+  const { defaultCostCents } = extractServerPricing(serverTs);
+  return Number.isInteger(defaultCostCents) && defaultCostCents >= 1
+    ? defaultCostCents
+    : 1;
 }
 
 /**
@@ -211,6 +223,9 @@ export function buildManifest(
         .map((k) => k as string)
     : [];
   const perCallUsdCents = extractDefaultCostCents(serverTs);
+  // Per-method price map — the SDK already meters per method, so the
+  // manifest carries the full map rather than a single flattened number.
+  const { methods } = extractServerPricing(serverTs);
   const capabilities = extractCapabilities(serverTs);
 
   // Tag assembly:
@@ -246,7 +261,11 @@ export function buildManifest(
     runtime: 'node',
     languages: ['ts'],
     entry: 'src/server.ts',
-    pricing: { model: 'per-call', perCallUsdCents },
+    pricing: {
+      model: 'per-call',
+      perCallUsdCents,
+      ...(methods ? { methods } : {}),
+    },
     quality: { tests: false },
     capabilities,
     featured: false,

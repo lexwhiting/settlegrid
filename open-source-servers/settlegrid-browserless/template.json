@@ -32,7 +32,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 3
+    "perCallUsdCents": 3,
+    "methods": {
+      "take_screenshot": {
+        "costCents": 5,
+        "displayName": "Take Screenshot"
+      },
+      "get_page_content": {
+        "costCents": 3,
+        "displayName": "Get Page Content"
+      },
+      "scrape_page": {
+        "costCents": 4,
+        "displayName": "Scrape Page"
+      },
+      "smart_scrape_page": {
+        "costCents": 6,
+        "displayName": "Smart Scrape Page"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -137,6 +137,28 @@
               "type": "string",
               "const": "USD",
               "default": "USD"
+            },
+            "methods": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "costCents": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "unitType": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "costCents"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [

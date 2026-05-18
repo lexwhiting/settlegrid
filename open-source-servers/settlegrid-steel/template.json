@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "list_sessions": {
+        "costCents": 1,
+        "displayName": "List Sessions"
+      },
+      "create_session": {
+        "costCents": 3,
+        "displayName": "Create Session"
+      },
+      "get_session": {
+        "costCents": 1,
+        "displayName": "Get Session"
+      },
+      "release_session": {
+        "costCents": 2,
+        "displayName": "Release Session"
+      },
+      "list_screenshots": {
+        "costCents": 1,
+        "displayName": "List Screenshots"
+      },
+      "get_screenshot": {
+        "costCents": 1,
+        "displayName": "Get Screenshot"
+      },
+      "list_pdfs": {
+        "costCents": 1,
+        "displayName": "List PDFs"
+      },
+      "get_pdf": {
+        "costCents": 1,
+        "displayName": "Get PDF"
+      }
+    }
   },
   "quality": {
     "tests": false

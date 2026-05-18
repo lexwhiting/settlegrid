@@ -33,7 +33,41 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "list_spaces": {
+        "costCents": 1,
+        "displayName": "List Spaces"
+      },
+      "get_space": {
+        "costCents": 1,
+        "displayName": "Get Space"
+      },
+      "list_models": {
+        "costCents": 1,
+        "displayName": "List Models"
+      },
+      "get_model": {
+        "costCents": 1,
+        "displayName": "Get Model"
+      },
+      "delete_model": {
+        "costCents": 3,
+        "displayName": "Delete Model"
+      },
+      "list_monitors": {
+        "costCents": 1,
+        "displayName": "List Monitors"
+      },
+      "get_monitor": {
+        "costCents": 1,
+        "displayName": "Get Monitor"
+      },
+      "delete_monitor": {
+        "costCents": 3,
+        "displayName": "Delete Monitor"
+      }
+    }
   },
   "quality": {
     "tests": false

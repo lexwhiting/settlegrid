@@ -32,7 +32,21 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 3,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "create_embeddings": {
+        "costCents": 3,
+        "displayName": "Create Embeddings"
+      },
+      "create_query_embedding": {
+        "costCents": 2,
+        "displayName": "Create Query Embedding"
+      },
+      "create_document_embeddings": {
+        "costCents": 3,
+        "displayName": "Create Document Embeddings"
+      }
+    }
   },
   "quality": {
     "tests": false

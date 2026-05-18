@@ -30,7 +30,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "translate_content": {
+        "costCents": 3,
+        "displayName": "Translate Content"
+      },
+      "get_api_status": {
+        "costCents": 1,
+        "displayName": "Get API Status"
+      },
+      "get_translations": {
+        "costCents": 1,
+        "displayName": "Get Translations"
+      },
+      "update_translations": {
+        "costCents": 3,
+        "displayName": "Update Translations"
+      }
+    }
   },
   "quality": {
     "tests": false

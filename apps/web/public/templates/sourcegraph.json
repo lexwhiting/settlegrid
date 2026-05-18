@@ -32,7 +32,13 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 2,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "search_code": {
+        "costCents": 2,
+        "displayName": "Search Code"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -30,7 +30,29 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "create_generation": {
+        "costCents": 8,
+        "displayName": "Create Generation"
+      },
+      "get_generation": {
+        "costCents": 1,
+        "displayName": "Get Generation"
+      },
+      "delete_generation": {
+        "costCents": 2,
+        "displayName": "Delete Generation"
+      },
+      "get_user_info": {
+        "costCents": 1,
+        "displayName": "Get User Info"
+      },
+      "list_platform_models": {
+        "costCents": 1,
+        "displayName": "List Platform Models"
+      }
+    }
   },
   "quality": {
     "tests": false

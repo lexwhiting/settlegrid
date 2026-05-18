@@ -31,7 +31,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 2
+    "perCallUsdCents": 2,
+    "methods": {
+      "create_session": {
+        "costCents": 5,
+        "displayName": "Create Session"
+      },
+      "get_session": {
+        "costCents": 1,
+        "displayName": "Get Session"
+      },
+      "stop_session": {
+        "costCents": 2,
+        "displayName": "Stop Session"
+      },
+      "list_sessions": {
+        "costCents": 1,
+        "displayName": "List Sessions"
+      }
+    }
   },
   "quality": {
     "tests": false

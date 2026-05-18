@@ -33,7 +33,17 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "search_traces": {
+        "costCents": 2,
+        "displayName": "Search Traces"
+      },
+      "get_trace": {
+        "costCents": 1,
+        "displayName": "Get Trace"
+      }
+    }
   },
   "quality": {
     "tests": false

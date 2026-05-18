@@ -32,7 +32,13 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 3
+    "perCallUsdCents": 3,
+    "methods": {
+      "redact_text": {
+        "costCents": 3,
+        "displayName": "Redact Text"
+      }
+    }
   },
   "quality": {
     "tests": false

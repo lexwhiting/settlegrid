@@ -32,7 +32,41 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "transcribe_audio": {
+        "costCents": 5,
+        "displayName": "Transcribe Audio"
+      },
+      "synthesize_speech": {
+        "costCents": 5,
+        "displayName": "Synthesize Speech"
+      },
+      "analyze_text": {
+        "costCents": 5,
+        "displayName": "Analyze Text/Audio"
+      },
+      "list_projects": {
+        "costCents": 1,
+        "displayName": "List Projects"
+      },
+      "get_project": {
+        "costCents": 1,
+        "displayName": "Get Project"
+      },
+      "get_project_usage": {
+        "costCents": 1,
+        "displayName": "Get Project Usage"
+      },
+      "list_project_keys": {
+        "costCents": 1,
+        "displayName": "List Project Keys"
+      },
+      "get_project_balances": {
+        "costCents": 1,
+        "displayName": "Get Project Balances"
+      }
+    }
   },
   "quality": {
     "tests": false

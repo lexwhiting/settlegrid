@@ -31,7 +31,13 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 8
+    "perCallUsdCents": 8,
+    "methods": {
+      "parse_document": {
+        "costCents": 8,
+        "displayName": "Parse Document"
+      }
+    }
   },
   "quality": {
     "tests": false

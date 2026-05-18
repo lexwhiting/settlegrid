@@ -32,7 +32,29 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 1
+    "perCallUsdCents": 1,
+    "methods": {
+      "get_current_user": {
+        "costCents": 1,
+        "displayName": "Get Current User"
+      },
+      "list_orgs": {
+        "costCents": 1,
+        "displayName": "List Organizations"
+      },
+      "list_projects": {
+        "costCents": 1,
+        "displayName": "List Projects"
+      },
+      "get_project_issues": {
+        "costCents": 2,
+        "displayName": "Get Project Issues"
+      },
+      "list_org_issues": {
+        "costCents": 2,
+        "displayName": "List Org Issues"
+      }
+    }
   },
   "quality": {
     "tests": false

@@ -29,7 +29,21 @@
   "pricing": {
     "model": "per-call",
     "perCallUsdCents": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "methods": {
+      "get_definition": {
+        "costCents": 1,
+        "displayName": "Get word definitions"
+      },
+      "get_etymology": {
+        "costCents": 2,
+        "displayName": "Get word etymology"
+      },
+      "get_phonetics": {
+        "costCents": 1,
+        "displayName": "Get word phonetics"
+      }
+    }
   },
   "quality": {
     "tests": false

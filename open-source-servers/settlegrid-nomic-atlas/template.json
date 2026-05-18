@@ -32,7 +32,25 @@
   "entry": "src/server.ts",
   "pricing": {
     "model": "per-call",
-    "perCallUsdCents": 3
+    "perCallUsdCents": 3,
+    "methods": {
+      "embed_text": {
+        "costCents": 3,
+        "displayName": "Embed Text"
+      },
+      "embed_image": {
+        "costCents": 4,
+        "displayName": "Embed Image"
+      },
+      "parse_file": {
+        "costCents": 5,
+        "displayName": "Parse File"
+      },
+      "extract_file": {
+        "costCents": 5,
+        "displayName": "Extract File"
+      }
+    }
   },
   "quality": {
     "tests": false
