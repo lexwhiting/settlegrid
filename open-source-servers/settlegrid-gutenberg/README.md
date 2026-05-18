@@ -30,13 +30,13 @@ npm run dev
 
 ## Monetization
 
-Turn this template into a revenue stream. At the default 1¢/call pricing:
+Turn this template into a revenue stream. At the default 1¢/call pricing, SettleGrid takes 0% on your first $1,000/mo of revenue (then 2–5%, volume-tiered, above it):
 
-| Monthly Calls | Your Revenue (after 20% fee) |
-|---------------|------------------------------|
-| 1,000 | $8 |
-| 10,000 | $80 |
-| 100,000 | $800 |
+| Monthly Calls | Your Revenue |
+|---------------|--------------|
+| 1,000 | $10 |
+| 10,000 | $100 |
+| 100,000 | $1,000 |
 
 See [monetization.md](monetization.md) for full pricing math and payout details.
 
