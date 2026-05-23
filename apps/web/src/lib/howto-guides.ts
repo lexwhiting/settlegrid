@@ -32,11 +32,11 @@ export const HOWTO_GUIDES: HowToGuide[] = [
     steps: [
       {
         heading: 'Install the SettleGrid SDK',
-        content: `The fastest way to get started is with the SettleGrid scaffolding CLI. Run \`npx create-settlegrid-tool\` in your terminal and follow the interactive prompts. The CLI creates a complete project with TypeScript, billing hooks, and test harnesses already wired in. You can also pass flags like \`--category data\` or \`--pricing per-call\` to skip the prompts.
+        content: `The fastest way to get started is with the SettleGrid scaffolding CLI. Run \`npx create-settlegrid-tool\` in your terminal and follow the interactive prompts. The CLI creates a complete project with TypeScript, billing hooks, and test harnesses already wired in. Run it interactively, or pass \`--template <slug>\` to scaffold a specific gallery template (for example, \`--template tmdb\`).
 
-If you prefer to add SettleGrid to an existing MCP server, install the SDK directly with \`npm install @settlegrid/mcp\`. The SDK exports a \`withBilling\` wrapper that intercepts tool calls, meters usage, and settles payments automatically. It works with any MCP server implementation that follows the Model Context Protocol specification.
+If you prefer to add SettleGrid to an existing MCP server, install the SDK directly with \`npm install @settlegrid/mcp\`. You initialize the SDK with \`settlegrid.init()\` and wrap your handler with \`sg.wrap()\`, which intercepts tool calls, meters usage, and settles payments automatically. It works with any MCP server implementation that follows the Model Context Protocol specification.
 
-After installation, verify your setup by running \`npx settlegrid doctor\`. This command checks your Node.js version (18+), validates your \`tsconfig.json\` settings, and confirms the SDK can reach the SettleGrid API. Fix any warnings before proceeding — they will save you debugging time later.`,
+After installation, build your project with \`npm run build\` and run your test suite to confirm everything is wired up correctly. Fix any errors before proceeding — they will save you debugging time later.`,
       },
       {
         heading: 'Create Your Tool Handler',
@@ -48,17 +48,17 @@ Keep your handler focused on a single capability. MCP tools work best when they 
       },
       {
         heading: 'Configure Pricing',
-        content: `Pricing is defined in your \`settlegrid.config.ts\` file at the project root. The simplest model is per-invocation: set a price in cents and every successful tool call charges that amount. For example, \`pricing: { model: 'per-call', amount: 5 }\` charges 5 cents per call. The SDK supports six pricing models: per-call, per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).
+        content: `Pricing is defined in the \`pricing\` option you pass to \`settlegrid.init()\`. The simplest model is per-call: set a price in cents and every successful tool call charges that amount. For example, \`settlegrid.init({ toolSlug: 'my-tool', pricing: { defaultCostCents: 5 } })\` charges 5 cents per call. The SDK supports six pricing models: per-call, per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).
 
 For your first tool, start with per-call pricing. It is the easiest to reason about, the simplest to communicate to consumers, and works well for tools with consistent compute costs. You can always switch to a more sophisticated model later — SettleGrid handles the migration transparently and notifies existing consumers of the change.
 
 Set your price based on the value your tool delivers, not just your compute cost. A data enrichment tool that saves an agent 30 seconds of research is worth more than the 0.2 cents of API calls it takes to run. Research comparable tools on the SettleGrid marketplace (\`/explore\`) to benchmark your pricing against competitors. Most first-time tool builders underprice by 3-5x.`,
       },
       {
-        heading: 'Test Locally with the Sandbox',
-        content: `Before deploying, test your tool end-to-end using the SettleGrid sandbox. Run \`npx settlegrid sandbox\` to start a local instance that simulates the full billing pipeline — metering, settlement, webhook delivery — without processing real payments. The sandbox logs every event to your terminal so you can verify each step.
+        heading: 'Test Your Tool Locally',
+        content: `Before deploying, test your tool with your own unit tests. The handler you pass to \`sg.wrap()\` is a normal async function, so you can call it directly and assert on its output — billing is applied transparently around it, so your core logic is fully testable in isolation.
 
-Write integration tests that call your tool through the sandbox and assert on both the response and the billing events. The SDK includes test utilities: \`createTestClient()\` creates a pre-authenticated client, and \`expectBillingEvent()\` asserts that a specific metering event was recorded. Run your tests with \`npm test\` — the scaffolded project includes a Jest configuration that automatically starts and stops the sandbox.
+Cover the cases that matter: valid input, invalid input, and upstream failures. Use whatever test runner your project already uses and run it with \`npm test\` — the project scaffolded by \`create-settlegrid-tool\` ships with a test setup ready to go.
 
 Test edge cases: what happens when your tool receives invalid input, when your upstream API is down, or when the agent sends a request that exceeds your rate limits? The SDK returns structured errors for all of these cases, but verify that your handler doesn't swallow errors or return partial results that could confuse agents. A well-tested tool earns consumer trust and reduces support burden.`,
       },
@@ -66,9 +66,9 @@ Test edge cases: what happens when your tool receives invalid input, when your u
         heading: 'Deploy and Publish',
         content: `Deploy your MCP server to any hosting provider — Vercel, Railway, Fly.io, AWS Lambda, or your own infrastructure. The SettleGrid SDK is runtime-agnostic: it works in Node.js, Deno, and Bun. For serverless deployments, the SDK batches metering events and flushes them asynchronously to avoid adding latency to your responses.
 
-Once deployed, publish your tool to the SettleGrid marketplace by running \`npx settlegrid publish\`. This command validates your configuration, creates your tool listing, and submits it for review. Listings go live within minutes and appear in the explore page, category pages, and the Discovery API that AI agents use to find tools.
+Once deployed, publish your tool from your SettleGrid dashboard (Dashboard → Tools → New Tool), or programmatically with \`PUT /api/tools/publish\` using your API key. Publishing validates your configuration, runs the listing quality checks, and creates your tool listing. Listings go live within minutes and appear in the explore page, category pages, and the Discovery API that AI agents use to find tools.
 
-After publishing, add the SettleGrid badge to your project's README with \`npx settlegrid badge\`. The badge shows your tool's pricing, category, and reputation score, and links directly to your marketplace listing. Tools with README badges see 3x more discovery traffic because they are visible to developers browsing GitHub and npm.`,
+After publishing, add the SettleGrid badge to your project's README — copy the markdown from your tool listing page, e.g. \`[![SettleGrid](https://settlegrid.ai/api/badge/tool/your-slug)](https://settlegrid.ai/tools/your-slug)\`. The badge links directly to your marketplace listing. Tools with README badges see 3x more discovery traffic because they are visible to developers browsing GitHub and npm.`,
       },
       {
         heading: 'Monitor and Iterate',
@@ -100,7 +100,7 @@ Iterate on your tool based on real usage patterns. The dashboard shows which inp
     steps: [
       {
         heading: 'Choose a Template',
-        content: `SettleGrid provides 13 MCP server templates and 4 REST API templates, each with billing pre-wired. Browse them at \`/templates\` or run \`npx create-settlegrid-tool --list\` to see all options in your terminal. Templates range from simple (a single-tool server that wraps an external API) to complex (multi-tool servers with database connections, caching, and rate limiting).
+        content: `SettleGrid provides 13 MCP server templates and 4 REST API templates, each with billing pre-wired. Browse them at \`/templates\`, then scaffold one with \`npx create-settlegrid-tool --template <slug>\`. Templates range from simple (a single-tool server that wraps an external API) to complex (multi-tool servers with database connections, caching, and rate limiting).
 
 For your first deployment, choose a template that closely matches your use case. The "web-search" template is a good starting point if your tool calls external APIs. The "database-query" template works well for tools that read from a database. The "ai-proxy" template suits tools that call an LLM and add value on top (summarization, classification, extraction).
 
@@ -112,7 +112,7 @@ Each template includes a complete project structure: source code, tests, Dockerf
 
 If your tool calls external APIs, add those credentials as environment variables too. Never hardcode secrets in your source code — the templates use \`process.env\` for all configuration and include a \`.env.example\` file documenting every required variable. For local development, copy \`.env.example\` to \`.env.local\` and fill in your values.
 
-For production deployments, configure secrets through your hosting provider's dashboard or CLI. On Vercel, use \`vercel env add\`. On Railway, use the Variables tab. On Fly.io, use \`fly secrets set\`. All three platforms encrypt secrets at rest and inject them as environment variables at runtime. Double-check that your \`SETTLEGRID_API_KEY\` is the production key, not the sandbox key — they are different.`,
+For production deployments, configure secrets through your hosting provider's dashboard or CLI. On Vercel, use \`vercel env add\`. On Railway, use the Variables tab. On Fly.io, use \`fly secrets set\`. All three platforms encrypt secrets at rest and inject them as environment variables at runtime. Double-check that your \`SETTLEGRID_API_KEY\` is your production key.`,
       },
       {
         heading: 'Deploy to Your Platform',
@@ -128,15 +128,15 @@ For production workloads, configure auto-scaling. The SettleGrid SDK is stateles
 
 Once connected, SettleGrid automatically transfers your earnings to your Stripe balance on a rolling 7-day schedule. You can view pending payouts, completed transfers, and revenue breakdowns in both the SettleGrid dashboard and the Stripe dashboard. SettleGrid uses a progressive take rate: 0% on your first $1K/mo of revenue, 2% on $1K-$10K, 2.5% on $10K-$50K, and 5% above $50K. Most developers pay 0%.
 
-Test the payment flow end-to-end before going live. Use the SettleGrid sandbox with Stripe test mode to simulate tool calls, verify that metering events are recorded, and confirm that settlement amounts are correct. The sandbox produces test webhook events that you can inspect in the Stripe dashboard under Developers > Webhooks. Verify that the amounts, descriptions, and metadata match your expectations.`,
+Test the payment flow end-to-end before going live. Use Stripe test mode to simulate payouts, verify that metering events are recorded, and confirm that settlement amounts are correct. Stripe test mode produces test webhook events that you can inspect in the Stripe dashboard under Developers > Webhooks. Verify that the amounts, descriptions, and metadata match your expectations.`,
       },
       {
         heading: 'Go Live and Verify',
-        content: `When you are ready to accept real payments, switch from sandbox mode to production mode in your \`settlegrid.config.ts\` by setting \`mode: 'live'\` (or by removing the \`mode\` field, since \`live\` is the default). Redeploy your server with the production \`SETTLEGRID_API_KEY\`. The SDK will now meter real usage and settle real payments.
+        content: `When you are ready to accept real payments, redeploy your server with your production \`SETTLEGRID_API_KEY\`. Live billing is the default — there is no separate mode to enable. The SDK will now meter real usage and settle real payments.
 
 Verify the production deployment by making a few test calls from the SettleGrid dashboard's built-in tool tester. Check that calls succeed, latency is acceptable (<500ms p95 for most tools), and billing events appear in the Metering tab. Make one call with intentionally invalid input to verify that your error handling works and that failed calls are not billed.
 
-Publish your tool to the marketplace by running \`npx settlegrid publish --live\`. Your listing will appear in the explore page, category pages, search results, and the Discovery API within minutes. Monitor the dashboard closely for the first 24 hours — watch for error rate spikes, latency regressions, or unexpected billing patterns. Set up PagerDuty or Slack alerts for critical metrics so you can respond quickly to production issues.`,
+Publish your tool to the marketplace from your SettleGrid dashboard (Dashboard → Tools → New Tool). Your listing will appear in the explore page, category pages, search results, and the Discovery API within minutes. Monitor the dashboard closely for the first 24 hours — watch for error rate spikes, latency regressions, or unexpected billing patterns. Set up PagerDuty or Slack alerts for critical metrics so you can respond quickly to production issues.`,
       },
       {
         heading: 'Set Up Monitoring and Alerts',
@@ -154,7 +154,7 @@ Review your server logs weekly. Look for patterns: are certain input formats cau
     slug: 'how-to-set-pricing',
     title: 'How to Set the Right Price for Your AI Tool',
     description:
-      'A practical guide to pricing your MCP tool for maximum revenue. Covers pricing model selection, competitor benchmarking, base price setting, tier design, sandbox testing, and ongoing optimization.',
+      'A practical guide to pricing your MCP tool for maximum revenue. Covers pricing model selection, competitor benchmarking, base price setting, tier design, local testing, and ongoing optimization.',
     icon: 'M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
     keywords: [
       'MCP tool pricing',
@@ -196,13 +196,13 @@ Set your initial price slightly below where you think optimal is. It is psycholo
 
 Each tier should deliver clearly differentiated value. Agents choose tiers based on their needs, and well-designed tiers increase average revenue per consumer by 40-60% compared to flat pricing. The key is ensuring the premium tier feels like a genuine upgrade, not just "the same thing with a higher price tag."
 
-Configure tiers in your \`settlegrid.config.ts\` using the tiered pricing model. Map each tier to specific tool methods: basic methods in the low tier, advanced methods in the high tier. The SDK handles routing, metering, and billing automatically — agents see the tier and price before each call and can choose which tier to invoke based on their budget and needs.`,
+Configure tiers in the \`pricing\` option you pass to \`settlegrid.init()\`, using the tiered pricing model. Map each tier to specific tool methods: basic methods in the low tier, advanced methods in the high tier. The SDK handles routing, metering, and billing automatically — agents see the tier and price before each call and can choose which tier to invoke based on their budget and needs.`,
       },
       {
-        heading: 'Test with the Sandbox',
-        content: `Before going live with real pricing, validate your entire billing flow in the SettleGrid sandbox. Run \`npx settlegrid sandbox\` and make representative calls at each pricing tier. Verify that the metered amounts match your configuration, that failed calls are not charged, and that the consumer-facing price display is accurate.
+        heading: 'Test Your Pricing',
+        content: `Before going live with real pricing, validate your pricing configuration with unit tests that call your wrapped handler at each pricing tier. Verify that the metered amounts match your configuration, that failed calls are not charged, and that the consumer-facing price display is accurate.
 
-Simulate high-volume scenarios to ensure your pricing scales correctly. The sandbox supports burst testing: send 1,000 calls in rapid succession and verify that every call is metered individually, no events are dropped, and the total billing matches your expected revenue. This is especially important for per-token and per-byte models where the metered amount varies per call.
+Simulate high-volume scenarios to ensure your pricing scales correctly: send many calls in rapid succession in a test and verify that every call is metered individually, no events are dropped, and the total billing matches your expected revenue. This is especially important for per-token and per-byte models where the metered amount varies per call.
 
 Run an A/B test before launch if possible. SettleGrid supports price experiments: set two prices for the same tool and the platform randomly assigns consumers to each group. After 48 hours, compare conversion rates and revenue per consumer. This data-driven approach removes guesswork and lets you launch with confidence that your price is in the right range.`,
       },
@@ -244,7 +244,7 @@ Tag your listing with accurate categories and keywords. SettleGrid uses these fo
       },
       {
         heading: 'Add Badges and Social Proof',
-        content: `SettleGrid generates embeddable badges for your tool that display pricing, category, and reputation score. Run \`npx settlegrid badge\` to generate badge markdown for your README, website, and social profiles. Tools with badges in their GitHub README see 3x more click-through to their SettleGrid listing.
+        content: `SettleGrid generates embeddable badges for your tool. Copy the badge markdown from your tool listing page — e.g. \`[![SettleGrid](https://settlegrid.ai/api/badge/tool/your-slug)](https://settlegrid.ai/tools/your-slug)\` — and add it to your README, website, and social profiles. Tools with badges in their GitHub README see 3x more click-through to their SettleGrid listing.
 
 Encourage consumers to leave reviews after using your tool. Reviews are the strongest signal for marketplace ranking — tools with 10+ positive reviews rank 2-4 positions higher in search results and category pages. You can prompt for reviews by including a review link in your tool's response metadata (the SDK supports a \`reviewUrl\` field in the response envelope).
 
@@ -256,7 +256,7 @@ Build social proof beyond the marketplace. Share usage milestones on Twitter/X, 
 
 Create a \`.well-known/mcp/server-card.json\` file in your deployment (the SettleGrid templates include one). This file follows the MCP Discovery specification and allows AI agents to discover your tool by probing your server's well-known URL. Any agent that supports MCP Discovery will find your tool automatically if it knows your server's base URL.
 
-Register with the SettleGrid Discovery API by publishing your tool (this happens automatically when you run \`npx settlegrid publish\`). The Discovery API is a public, unauthenticated endpoint that AI agents query to find tools by category, capability, and pricing. It is the primary discovery channel for agent-to-agent workflows and accounts for the majority of new consumer acquisition on the platform.`,
+Register with the SettleGrid Discovery API by publishing your tool (this happens automatically when you publish from your dashboard). The Discovery API is a public, unauthenticated endpoint that AI agents query to find tools by category, capability, and pricing. It is the primary discovery channel for agent-to-agent workflows and accounts for the majority of new consumer acquisition on the platform.`,
       },
       {
         heading: 'Submit to MCP Registries',
@@ -336,7 +336,7 @@ Publish your referral program prominently. Add it to your tool's listing descrip
       },
       {
         heading: 'Automate with CI/CD',
-        content: `Manual deployments do not scale. Set up a CI/CD pipeline that automatically tests, builds, and deploys your tool on every push to main. The SettleGrid templates include GitHub Actions workflows that run your test suite, check for TypeScript errors, validate your \`settlegrid.config.ts\`, and deploy to your hosting platform — all in under 3 minutes.
+        content: `Manual deployments do not scale. Set up a CI/CD pipeline that automatically tests, builds, and deploys your tool on every push to main. The SettleGrid templates include GitHub Actions workflows that run your test suite, check for TypeScript errors, and deploy to your hosting platform — all in under 3 minutes.
 
 Add automated quality gates. Configure your pipeline to block deployment if test coverage drops below 80%, if any test fails, or if p95 latency in staging exceeds 500ms. These gates prevent regressions that erode consumer trust and reduce revenue. A single deployment that breaks your tool can cost days of lost revenue and months of lost reputation.
 

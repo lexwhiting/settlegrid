@@ -1754,7 +1754,7 @@ jobs:
             <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
               <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">What It Does</h3>
               <ul className="list-disc list-inside space-y-2 text-sm text-gray-400">
-                <li>Reads your tool configuration from <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">settlegrid.json</code> or package.json</li>
+                <li>Reads your tool configuration from <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">settlegrid.config.json</code></li>
                 <li>Creates or updates your tool listing on the SettleGrid registry</li>
                 <li>Syncs metadata (name, description, version, pricing) automatically</li>
                 <li>Reports publish status back to the GitHub Actions workflow</li>
