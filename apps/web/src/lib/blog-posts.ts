@@ -121,7 +121,7 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         question: 'How do I monetize an MCP server?',
-        answer: 'Install the SettleGrid SDK with npm install @settlegrid/mcp, wrap your handler with sg.wrap(yourHandler, { costCents: 5 }), deploy, and publish with npx settlegrid publish. The entire process takes under 5 minutes.',
+        answer: 'Install the SettleGrid SDK with npm install @settlegrid/mcp, wrap your handler with sg.wrap(yourHandler, { costCents: 5 }), deploy, and publish from your SettleGrid dashboard (Dashboard → Tools → New Tool). The entire process takes under 5 minutes.',
       },
       {
         question: 'How much does it cost to add billing to an MCP server?',
@@ -148,13 +148,13 @@ export const BLOG_POSTS: BlogPost[] = [
         id: 'step-1-install',
         heading: 'Step 1: Install the SettleGrid SDK',
         content:
-          'Run `npm install @settlegrid/mcp` in your MCP server project. The SDK exports a `withBilling` wrapper that intercepts tool calls, meters usage, and settles payments automatically. It works with any MCP server implementation that follows the Model Context Protocol specification.\n\nAlternatively, scaffold a new project with `npx create-settlegrid-tool`. The CLI creates a complete project with TypeScript, billing hooks, test harnesses, and deployment configs for Vercel, Railway, and Fly.io. You can pass flags like `--category data` or `--pricing per-call` to skip the prompts.\n\nVerify your setup with `npx settlegrid doctor`. This checks your Node.js version, validates your `tsconfig.json`, and confirms the SDK can reach the SettleGrid API.',
+          'Run `npm install @settlegrid/mcp` in your MCP server project. You initialize the SDK with `settlegrid.init()` and wrap your handler with `sg.wrap()`, which intercepts tool calls, meters usage, and settles payments automatically. It works with any MCP server implementation that follows the Model Context Protocol specification.\n\nAlternatively, scaffold a new project with `npx create-settlegrid-tool`. The CLI creates a complete project with TypeScript, billing hooks, test harnesses, and deployment configs for Vercel, Railway, and Fly.io. Run it interactively, or pass `--template <slug>` to scaffold a specific gallery template (for example, `--template tmdb`).\n\nThen build your project and run your tests to confirm the SDK is wired up correctly before moving on.',
       },
       {
         id: 'step-2-pricing',
         heading: 'Step 2: Set Your Pricing',
         content:
-          'Configure pricing in your `settlegrid.config.ts` file. The simplest model is per-invocation: set a price in cents and every successful tool call charges that amount. For example, `pricing: { model: "per-call", amount: 5 }` charges 5 cents per call.\n\nSettleGrid supports six pricing models: per-call, per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success). Start with per-call if you are unsure. It is the easiest to reason about and the easiest for consumers to understand.\n\nPrice based on value, not cost. A data enrichment tool that saves an agent 30 seconds of research is worth 10 to 25 cents, regardless of whether your compute cost is 0.1 cents. Most first-time tool builders underprice by 3 to 5 times.',
+          'Configure pricing when you initialize the SDK. The simplest model is per-call: set a price in cents and every successful tool call charges that amount. For example, `settlegrid.init({ toolSlug: "my-tool", pricing: { defaultCostCents: 5 } })` charges 5 cents per call.\n\nSettleGrid supports six pricing models: per-call, per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success). Start with per-call if you are unsure. It is the easiest to reason about and the easiest for consumers to understand.\n\nPrice based on value, not cost. A data enrichment tool that saves an agent 30 seconds of research is worth 10 to 25 cents, regardless of whether your compute cost is 0.1 cents. Most first-time tool builders underprice by 3 to 5 times.',
       },
       {
         id: 'step-3-wrap',
@@ -166,13 +166,13 @@ export const BLOG_POSTS: BlogPost[] = [
         id: 'step-4-deploy',
         heading: 'Step 4: Deploy and Publish',
         content:
-          'Deploy your MCP server to any hosting provider. The SDK is runtime-agnostic and works in Node.js, Deno, and Bun. For serverless deployments, the SDK batches metering events and flushes them asynchronously to avoid adding latency.\n\nPublish your tool to the SettleGrid marketplace by running `npx settlegrid publish`. Your listing appears in the explore page, category pages, search results, and the Discovery API that AI agents use to find tools. Listings go live within minutes.\n\nConnect Stripe for payouts in the SettleGrid dashboard under Settings. SettleGrid uses Stripe Connect to pay tool publishers. Earnings transfer to your Stripe balance on a rolling 7-day schedule. Progressive take rate: 0% on your first $1K/mo of revenue.',
+          'Deploy your MCP server to any hosting provider. The SDK is runtime-agnostic and works in Node.js, Deno, and Bun. For serverless deployments, the SDK batches metering events and flushes them asynchronously to avoid adding latency.\n\nPublish your tool to the SettleGrid marketplace from your dashboard (Dashboard → Tools → New Tool) — or programmatically with `PUT /api/tools/publish` using your API key. Your listing appears in the explore page, category pages, search results, and the Discovery API that AI agents use to find tools. Listings go live within minutes.\n\nConnect Stripe for payouts in the SettleGrid dashboard under Settings. SettleGrid uses Stripe Connect to pay tool publishers. Earnings transfer to your Stripe balance on a rolling 7-day schedule. Progressive take rate: 0% on your first $1K/mo of revenue.',
       },
       {
         id: 'step-5-profit',
         heading: 'Step 5: Monitor and Grow',
         content:
-          'Use the SettleGrid dashboard to monitor usage, revenue, and consumer behavior in real time. Track calls per minute, p50/p95 latency, error rate, revenue by day, and top consumers. Set up alerts for anomalies.\n\nReview your pricing after the first week. If your tool has high adoption but low revenue, your price is too low. If adoption is slow despite strong discovery metrics, your price may be too high or your listing needs improvement.\n\nAdd the SettleGrid badge to your GitHub README with `npx settlegrid badge`. Tools with README badges see 3x more discovery traffic. Register in MCP directories, write content about your tool, and leverage cross-promotion with complementary tools to accelerate growth.',
+          'Use the SettleGrid dashboard to monitor usage, revenue, and consumer behavior in real time. Track calls per minute, p50/p95 latency, error rate, revenue by day, and top consumers. Set up alerts for anomalies.\n\nReview your pricing after the first week. If your tool has high adoption but low revenue, your price is too low. If adoption is slow despite strong discovery metrics, your price may be too high or your listing needs improvement.\n\nAdd the SettleGrid badge to your GitHub README — copy the markdown shown on your tool listing page, e.g. `[![SettleGrid](https://settlegrid.ai/api/badge/tool/your-slug)](https://settlegrid.ai/tools/your-slug)`. Tools with README badges see 3x more discovery traffic. Register in MCP directories, write content about your tool, and leverage cross-promotion with complementary tools to accelerate growth.',
       },
     ],
   },
@@ -421,7 +421,7 @@ export const BLOG_POSTS: BlogPost[] = [
         id: 'quickstart',
         heading: 'Quickstart: Zero to Revenue in 5 Minutes',
         content:
-          'Here is the complete quickstart for monetizing your MCP tool with SettleGrid for free.\n\nStep 1: Sign up at settlegrid.ai/register. No credit card required. You get an API key immediately.\n\nStep 2: Install the SDK in your MCP server project: `npm install @settlegrid/mcp`\n\nStep 3: Add two lines of code to your handler:\n`const sg = settlegrid.init({ toolSlug: "your-tool" })`\n`const billed = sg.wrap(yourHandler, { costCents: 5 })`\n\nStep 4: Deploy your server to any hosting provider (Vercel, Railway, Fly.io, or your own infrastructure).\n\nStep 5: Publish to the marketplace: `npx settlegrid publish`\n\nStep 6: Connect Stripe for payouts in the SettleGrid dashboard.\n\nThat is it. Your tool is now live, discoverable, and earning revenue on every call. Total time: under 5 minutes. Total cost: $0.',
+          'Here is the complete quickstart for monetizing your MCP tool with SettleGrid for free.\n\nStep 1: Sign up at settlegrid.ai/register. No credit card required. You get an API key immediately.\n\nStep 2: Install the SDK in your MCP server project: `npm install @settlegrid/mcp`\n\nStep 3: Add two lines of code to your handler:\n`const sg = settlegrid.init({ toolSlug: "your-tool" })`\n`const billed = sg.wrap(yourHandler, { costCents: 5 })`\n\nStep 4: Deploy your server to any hosting provider (Vercel, Railway, Fly.io, or your own infrastructure).\n\nStep 5: Publish to the marketplace from your dashboard (Dashboard → Tools → New Tool).\n\nStep 6: Connect Stripe for payouts in the SettleGrid dashboard.\n\nThat is it. Your tool is now live, discoverable, and earning revenue on every call. Total time: under 5 minutes. Total cost: $0.',
       },
       {
         id: 'free-vs-paid',

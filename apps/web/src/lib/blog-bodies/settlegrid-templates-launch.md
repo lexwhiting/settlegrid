@@ -157,8 +157,7 @@ is a list of {{METRICS: 97 templates as of today — replace
 with the live `totalTemplates` count from registry.json on
 publish day}} pre-wired MCP servers, each with billing already
 hooked up. Fork one, deploy it to Vercel, point a card at
-Stripe Connect, and the first call charges. The CLI is `npx
-settlegrid add github:owner/repo` for repos you already have
+Stripe Connect, and the first call charges. The CLI is `npx @settlegrid/cli add github:owner/repo` for repos you already have
 and `npx create-settlegrid-tool` for new projects; the codemod
 wraps every tool handler with `sg.wrap()`, adds the SDK to
 `package.json`, and either applies the change locally or opens
@@ -184,7 +183,7 @@ each other.
 ## Try it in 60 seconds
 
 ```bash
-npx settlegrid add github:owner/repo --dry-run
+npx @settlegrid/cli add github:owner/repo --dry-run
 ```
 
 If the codemod can identify the entry file, you'll see

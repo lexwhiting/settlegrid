@@ -182,7 +182,7 @@ const SECTIONS = [
     paragraphs: [
       'Adding SettleGrid billing to an existing MCP tool requires two lines of code. First, install the SDK: npm install @settlegrid/mcp. Then wrap your handler with the billing layer. The SDK exports a settlegrid.init() function that creates a billing context, and a sg.wrap() function that wraps your handler with metering and payment settlement.',
       'The wrap function is transparent: it passes the same input to your handler and returns the same output to the caller. Your tool code does not change at all. The only difference is that each successful call is now metered and billed. Rate-limited calls return structured error responses that agents can interpret and retry.',
-      'After wrapping your handler, deploy your MCP server to any hosting provider (Vercel, Railway, Fly.io, or your own infrastructure) and publish to the SettleGrid marketplace with npx settlegrid publish. Your tool listing goes live within minutes and becomes discoverable by AI agents through the Discovery API, the MCP Discovery Server, and the explore marketplace.',
+      'After wrapping your handler, deploy your MCP server to any hosting provider (Vercel, Railway, Fly.io, or your own infrastructure) and publish to the SettleGrid marketplace from your dashboard (Dashboard → Tools → New Tool — or programmatically via PUT /api/tools/publish with your API key). Your tool listing goes live within minutes and becomes discoverable by AI agents through the Discovery API, the MCP Discovery Server, and the explore marketplace.',
     ],
   },
   {

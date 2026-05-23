@@ -367,7 +367,7 @@ export default async function GuidePage({
               Scaffold a {category.name.toLowerCase()} tool with billing pre-wired:
             </p>
             <CopyableCodeBlock
-              code={`npx create-settlegrid-tool --category ${category.slug}`}
+              code={`npx create-settlegrid-tool`}
               title="Terminal"
               className="!my-0"
             />

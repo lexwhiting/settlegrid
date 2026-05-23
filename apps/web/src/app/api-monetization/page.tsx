@@ -120,8 +120,8 @@ export default function ApiMonetizationPage() {
                 Choose per-invocation, per-token, per-byte, per-second, tiered, or outcome-based pricing. You set the price.
               </p>
               <div className="text-sm bg-[#0C0E14] border border-[#2A2D3E] px-3 py-2 rounded-lg font-mono text-gray-300">
-                <span className="text-gray-500">{/* settlegrid.config.json */}</span><br />
-                {`{ "pricing": { "model": "per-invocation", "defaultCostCents": 5 } }`}
+                <span className="text-gray-500">{/* in settlegrid.init() */}</span><br />
+                {`{ pricing: { defaultCostCents: 5 } }`}
               </div>
             </div>
             <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6">
@@ -150,14 +150,14 @@ export default function ApiMonetizationPage() {
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed overflow-x-auto">
 {`import { settlegrid } from '@settlegrid/mcp'
 
-const sg = settlegrid({
-  apiKey: process.env.SG_KEY,
+const sg = settlegrid.init({
   toolSlug: 'my-translation-api',
+  pricing: { defaultCostCents: 5 },
 })
 
-app.post('/translate', sg.meter(), (req, res) => {
-  const result = translate(req.body.text)
-  res.json({ translation: result })
+app.post('/translate', async (req, res) => {
+  await sg.meter(req.header('x-api-key'), 'translate')
+  res.json({ translation: translate(req.body.text) })
 })`}
                 </pre>
               </div>
@@ -165,19 +165,18 @@ app.post('/translate', sg.meter(), (req, res) => {
               <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6">
                 <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Serverless / Next.js API Route</h3>
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed overflow-x-auto">
-{`import { settlegrid } from '@settlegrid/mcp'
+{`import { settlegridMiddleware } from '@settlegrid/mcp/rest'
 
-const sg = settlegrid({
-  apiKey: process.env.SG_KEY,
+const withBilling = settlegridMiddleware({
   toolSlug: 'my-analysis-api',
+  costCents: 5,
 })
 
-export async function POST(req: Request) {
-  const { consumerId } = await sg.verify(req)
-  const data = await req.json()
-  const result = analyze(data)
-  await sg.record(consumerId, 5) // 5 cents
-  return Response.json(result)
+export async function POST(request: Request) {
+  return withBilling(request, async () => {
+    const data = await request.json()
+    return Response.json(analyze(data))
+  })
 }`}
                 </pre>
               </div>
