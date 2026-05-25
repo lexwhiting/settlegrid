@@ -106,7 +106,7 @@ When the test passes, three dynamic-pricing moves are worth considering.
 
 ### Price experiments
 
-Run an A/B test: 50% of traffic sees price A, 50% sees price B, for 48 to 72 hours. Measure total revenue (price × volume) for each variant. Most developers find their revenue-maximizing price is 20 to 50% higher than their initial guess — first prices tend to be pegged to cost floor plus a thin margin rather than to value delivered, and the market tolerates more than you think.
+Run a sequential price experiment: set price A for a few days, then price B for the next few days, and compare total revenue (price × volume) across the two periods. You can change your price at any time from the dashboard, so this kind of iterative comparison is straightforward. Most developers find their revenue-maximizing price is 20 to 50% higher than their initial guess — first prices tend to be pegged to cost floor plus a thin margin rather than to value delivered, and the market tolerates more than you think.
 
 ### Time-of-day pricing
 
@@ -122,7 +122,7 @@ Dynamic pricing that over-rotates destroys trust. If your price changes every ho
 
 Three illustrative pricing patterns drawn from common MCP-ecosystem dynamics. Each sketch is a composite teaching example rather than a specific named tool — the numbers and behaviors are the kind of thing that plays out in practice, not a claim about any one real deployment.
 
-**A sentiment-analysis tool that started at 2 cents.** The developer's cost floor was about 1 cent (Haiku inference plus a few tenths of a cent for infrastructure). They launched at 2 cents per call, expecting thin margins but high volume. Adoption was decent but revenue was stuck at a ceiling. An A/B test comparing 2 cents vs 5 cents showed volume dropped by about 20% at 5 cents, but revenue grew by about 90%. They settled at 4 cents as the revenue-maximizing point and doubled their monthly earnings without changing the tool at all. Lesson: your first price is almost always too low.
+**A sentiment-analysis tool that started at 2 cents.** The developer's cost floor was about 1 cent (Haiku inference plus a few tenths of a cent for infrastructure). They launched at 2 cents per call, expecting thin margins but high volume. Adoption was decent but revenue was stuck at a ceiling. Comparing 2 cents vs 5 cents over successive periods showed volume dropped by about 20% at 5 cents, but revenue grew by about 90%. They settled at 4 cents as the revenue-maximizing point and doubled their monthly earnings without changing the tool at all. Lesson: your first price is almost always too low.
 
 **A legal-document-review tool priced per outcome.** Inference cost per review was ~$0.60 (Opus, long-context). A flat per-call price of $1 would have been viable, but the tool had a 25% "no violations found" outcome where the caller derived no actionable value. The developer moved to outcome-based: $1.50 on findings, $0 on clean reviews. Volume tripled (agents routed more work through the tool because downside was zero), and total revenue grew about 40% despite collecting on only 75% of calls. Lesson: aligning price with value delivered can grow the pie, not just redistribute it.
 

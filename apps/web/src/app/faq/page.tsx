@@ -96,7 +96,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     faqs: [
       {
         q: 'What pricing models does SettleGrid support?',
-        a: 'Six models: per-invocation (fixed cost per call), per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).',
+        a: 'Six models: per-call (a fixed cost per call — named per-invocation in the dashboard and API), per-token, per-byte, per-second, tiered (different prices per method), and outcome-based (charge only on success).',
       },
       {
         q: 'Are there overage charges on the Free tier?',

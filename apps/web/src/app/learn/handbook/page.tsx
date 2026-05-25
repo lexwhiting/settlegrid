@@ -311,7 +311,7 @@ export default function HandbookPage() {
           </div>
 
           <Callout>
-            <strong className="text-amber-400">Recommendation:</strong> Start with per-invocation pricing.
+            <strong className="text-amber-400">Recommendation:</strong> Start with per-call pricing.
             It is the easiest to understand, easiest to implement, and what consumers expect.
             You can always switch to a more sophisticated model later.
           </Callout>
@@ -525,7 +525,7 @@ export async function POST(request: Request) {
                 <li>Raise prices 10-20% and monitor churn — if no one leaves, raise again</li>
                 <li>Add premium methods at higher price points</li>
                 <li>Offer volume discounts via tiered pricing for high-usage consumers</li>
-                <li>A/B test different price points by creating tool variants</li>
+                <li>Test different price points by adjusting your price and measuring the impact over time</li>
               </ul>
             </div>
 

@@ -94,7 +94,7 @@ function getGuideContent(cat: CategoryDefinition): GuideSection[] {
       content: [
         'Getting your first paying agent takes five steps:',
         '1. Build your MCP server with the capability you want to monetize. Use `npx create-settlegrid-tool` to scaffold a project with billing pre-wired.',
-        '2. Choose a pricing model. For most tools, per-invocation is the simplest starting point. You can switch to per-token or tiered pricing later.',
+        '2. Choose a pricing model. For most tools, per-call is the simplest starting point. You can switch to per-token or tiered pricing later.',
         '3. Register on SettleGrid and connect your Stripe account. This takes under 5 minutes.',
         '4. Deploy your server and publish your tool. SettleGrid generates a storefront page, handles metering, and processes payments automatically.',
         '5. Promote your tool via its auto-generated explore page, category listing, and README badge.',
@@ -118,13 +118,13 @@ function getGuideContent(cat: CategoryDefinition): GuideSection[] {
 function getPricingAdvice(slug: string): string {
   const models: Record<string, string> = {
     data: 'Per-invocation is the standard for data tools. Charge 1-10\u00A2 per query for basic lookups, 10-50\u00A2 for enriched responses with joins or aggregations, and $1+ for real-time streaming feeds. Consider tiered pricing if your tool has both simple lookups and complex analytics methods.',
-    nlp: 'Per-token pricing aligns costs with value for NLP tools. Charge $0.001-0.01 per 1K tokens for text classification, $0.01-0.05 for summarization, and $0.05-0.20 for translation. Alternatively, per-invocation works well for fixed-scope operations like sentiment analysis.',
+    nlp: 'Per-token pricing aligns costs with value for NLP tools. Charge $0.001-0.01 per 1K tokens for text classification, $0.01-0.05 for summarization, and $0.05-0.20 for translation. Alternatively, per-call works well for fixed-scope operations like sentiment analysis.',
     image: 'Per-invocation at premium rates (25-100\u00A2 per call) works best for image tools because compute costs are higher. For image generation, outcome-based pricing (charge more for high-resolution outputs) can increase ARPU. Per-byte pricing suits tools that process variable-size images.',
     code: 'Per-invocation at 5-25\u00A2 per call is standard for code tools. Tiered pricing per method works well when you have both fast operations (formatting, 2\u00A2) and slow operations (full analysis, 25\u00A2). Outcome-based pricing (charge only on successful lint/test passes) can differentiate your tool.',
     search: 'Per-invocation at 2-15\u00A2 per query is the natural model for search tools. Charge more for semantic search (which requires embedding computation) vs. keyword search. Tiered pricing works when you offer both basic and enriched results (with snippets, metadata, or relevance scores).',
     finance: 'Finance tools command premium pricing: 10-100\u00A2 per query for market data, $1+ for complex financial computations. Per-second pricing works for streaming market feeds. Outcome-based pricing (charge only on successful trade execution or fraud detection) can maximize revenue.',
     science: 'Per-invocation at 10-50\u00A2 for data lookups, $1+ for compute-intensive simulations. Per-second pricing suits long-running computations. Science tools often have high per-call costs but low volume — price to cover compute with margin, not to maximize call count.',
-    media: 'Per-byte or per-second pricing aligns with the variable cost of media processing. Charge $0.01-0.05 per MB for audio transcription, $0.05-0.20 per minute for video analysis. Image generation tools work well with per-invocation at 10-50\u00A2.',
+    media: 'Per-byte or per-second pricing aligns with the variable cost of media processing. Charge $0.01-0.05 per MB for audio transcription, $0.05-0.20 per minute for video analysis. Image generation tools work well with per-call at 10-50\u00A2.',
     security: 'Security tools justify premium pricing because the cost of NOT using them is high. Charge 25-100\u00A2 per scan, $1+ for comprehensive vulnerability assessments. Per-invocation is standard, but tiered pricing per severity level (basic scan vs. deep analysis) can increase ARPU.',
     communication: 'Per-invocation at 1-5\u00A2 per message for email/SMS, 0.5-2\u00A2 for push notifications. Volume-based tiers (first 1K messages at 2\u00A2, next 10K at 1\u00A2) encourage adoption. Tiered pricing per channel (email cheaper than SMS) matches your underlying costs.',
     productivity: 'Per-invocation at 2-10\u00A2 per call is standard. Productivity tools benefit from tiered pricing per method because operations vary in complexity: a quick date format (1\u00A2) vs. a full document merge (15\u00A2). Keep the entry price low to encourage high-frequency use.',
