@@ -117,7 +117,7 @@ export default function ApiMonetizationPage() {
               </div>
               <h2 className="text-lg font-semibold text-gray-100 mb-2">Set your pricing</h2>
               <p className="text-sm text-gray-400 mb-4">
-                Choose per-invocation, per-token, per-byte, per-second, tiered, or outcome-based pricing. You set the price.
+                Choose per-call, per-token, per-byte, per-second, tiered, or outcome-based pricing. You set the price.
               </p>
               <div className="text-sm bg-[#0C0E14] border border-[#2A2D3E] px-3 py-2 rounded-lg font-mono text-gray-300">
                 <span className="text-gray-500">{/* in settlegrid.init() */}</span><br />
@@ -165,7 +165,7 @@ app.post('/translate', async (req, res) => {
               <div className="bg-[#161822] rounded-xl border border-[#2A2D3E] p-6">
                 <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Serverless / Next.js API Route</h3>
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed overflow-x-auto">
-{`import { settlegridMiddleware } from '@settlegrid/mcp/rest'
+{`import { settlegridMiddleware } from '@settlegrid/mcp'
 
 const withBilling = settlegridMiddleware({
   toolSlug: 'my-analysis-api',

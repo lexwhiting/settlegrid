@@ -162,7 +162,7 @@ const SECTIONS = [
     id: 'pricing-models',
     heading: 'What Pricing Models Are Available?',
     paragraphs: [
-      'SettleGrid supports six pricing models for MCP tools. Per-call billing charges a fixed amount for each successful invocation (e.g., 5 cents per call). Per-token billing charges based on the number of tokens processed (useful for NLP and text analysis tools). Per-byte billing charges based on data volume (useful for file processing and data transfer tools).',
+      'SettleGrid supports six pricing models for MCP tools. Per-call billing charges a fixed amount for each successful invocation (e.g., 5 cents per call; this model is named per-invocation in the dashboard and publish API). Per-token billing charges based on the number of tokens processed (useful for NLP and text analysis tools). Per-byte billing charges based on data volume (useful for file processing and data transfer tools).',
       'Per-second billing charges based on execution time (useful for compute-intensive tools like image generation). Tiered billing allows different prices for different methods within the same tool (e.g., a search method at 2 cents and an analyze method at 10 cents). Outcome-based billing charges only when a specific success condition is met (e.g., only charge for data enrichment when a match is found).',
       'Most MCP tool developers start with per-call billing because it is the simplest model to implement, the easiest for consumers to understand, and the most predictable for both parties. The median per-call price across the MCP ecosystem is 5 to 10 cents, though prices range from 0.5 cents for simple lookups to $5 for complex security analysis tools.',
     ],

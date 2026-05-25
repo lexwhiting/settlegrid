@@ -108,7 +108,7 @@ Each template includes a complete project structure: source code, tests, Dockerf
       },
       {
         heading: 'Configure Environment Variables',
-        content: `Every SettleGrid deployment requires three environment variables: \`SETTLEGRID_API_KEY\` (your publisher API key), \`SETTLEGRID_TOOL_ID\` (your tool's unique identifier, assigned when you register), and \`STRIPE_CONNECT_ACCOUNT_ID\` (your Stripe Connected Account ID for payouts). All three are available in the SettleGrid dashboard under Settings > API Keys.
+        content: `Every SettleGrid deployment requires one environment variable: \`SETTLEGRID_API_KEY\` — your publisher API key, available in the SettleGrid dashboard under Settings > API Keys. Your tool is identified by the \`toolSlug\` you pass to \`settlegrid.init()\`, not by an environment variable, and payouts are configured once in the dashboard (Settings > Payouts) rather than per-deployment.
 
 If your tool calls external APIs, add those credentials as environment variables too. Never hardcode secrets in your source code — the templates use \`process.env\` for all configuration and include a \`.env.example\` file documenting every required variable. For local development, copy \`.env.example\` to \`.env.local\` and fill in your values.
 
@@ -126,7 +126,7 @@ For production workloads, configure auto-scaling. The SettleGrid SDK is stateles
         heading: 'Connect Stripe for Payouts',
         content: `SettleGrid uses Stripe Connect to pay tool publishers. If you do not already have a Stripe account, create one at stripe.com and complete identity verification. Then, in the SettleGrid dashboard, go to Settings > Payouts and click "Connect Stripe." This initiates the Stripe Connect onboarding flow, which takes about 5 minutes and requires your bank account details.
 
-Once connected, SettleGrid automatically transfers your earnings to your Stripe balance on a rolling 7-day schedule. You can view pending payouts, completed transfers, and revenue breakdowns in both the SettleGrid dashboard and the Stripe dashboard. SettleGrid uses a progressive take rate: 0% on your first $1K/mo of revenue, 2% on $1K-$10K, 2.5% on $10K-$50K, and 5% above $50K. Most developers pay 0%.
+Once connected, SettleGrid automatically transfers your earnings to your Stripe balance — the payout job runs daily — and Stripe then deposits to your bank account on its standard schedule. You can view pending payouts, completed transfers, and revenue breakdowns in both the SettleGrid dashboard and the Stripe dashboard. SettleGrid uses a progressive take rate: 0% on your first $1K/mo of revenue, 2% on $1K-$10K, 2.5% on $10K-$50K, and 5% above $50K. Most developers pay 0%.
 
 Test the payment flow end-to-end before going live. Use Stripe test mode to simulate payouts, verify that metering events are recorded, and confirm that settlement amounts are correct. Stripe test mode produces test webhook events that you can inspect in the Stripe dashboard under Developers > Webhooks. Verify that the amounts, descriptions, and metadata match your expectations.`,
       },
@@ -204,7 +204,7 @@ Configure tiers in the \`pricing\` option you pass to \`settlegrid.init()\`, usi
 
 Simulate high-volume scenarios to ensure your pricing scales correctly: send many calls in rapid succession in a test and verify that every call is metered individually, no events are dropped, and the total billing matches your expected revenue. This is especially important for per-token and per-byte models where the metered amount varies per call.
 
-Run an A/B test before launch if possible. SettleGrid supports price experiments: set two prices for the same tool and the platform randomly assigns consumers to each group. After 48 hours, compare conversion rates and revenue per consumer. This data-driven approach removes guesswork and lets you launch with confidence that your price is in the right range.`,
+Validate your price against real demand after launch rather than agonizing over it beforehand. You can change your price at any time from the dashboard, so start at your best estimate, give each price a few days, and compare conversion rates and revenue per consumer before adjusting. This data-driven approach removes guesswork and lets you converge on the price that is right for your tool.`,
       },
       {
         heading: 'Monitor and Optimize',
@@ -312,7 +312,7 @@ Segment your consumers. Not all agents are equal: some make 10 calls per day, ot
       },
       {
         heading: 'Optimize Pricing for Growth',
-        content: `Once you have baseline metrics, run pricing experiments. The SettleGrid platform supports A/B testing: set two prices and measure conversion and revenue for each group over 48-72 hours. The goal is to find the price that maximizes total revenue (price times volume), not the price that maximizes either metric alone.
+        content: `Once you have baseline metrics, optimize your pricing iteratively. Adjust your price from the dashboard, give the new price about a week, and measure the change in conversion and revenue. The goal is to find the price that maximizes total revenue (price times volume), not the price that maximizes either metric alone.
 
 Consider introducing volume discounts. A graduated pricing model (first 1,000 calls at full price, next 10,000 at 20% off, 100,000+ at 40% off) encourages consumers to consolidate their usage on your tool rather than spreading it across competitors. The lower per-call revenue at high volumes is more than offset by increased volume and consumer lock-in.
 
