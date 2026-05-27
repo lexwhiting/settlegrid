@@ -1,7 +1,7 @@
 /**
  * P4.1 — `cli_install_started` postinstall hook.
  *
- * Runs once per `npm install -g @settlegrid/cli` (and once per local
+ * Runs once per `npm install -g settlegrid` (and once per local
  * `npm install` if the consumer adds the CLI as a devDependency).
  * Captures the canonical `cli_install_started` event with the user's
  * Node version + OS for funnel analysis.

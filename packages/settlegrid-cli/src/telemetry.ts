@@ -76,7 +76,7 @@ export type ScaffoldErrorCode =
  * to a truthy value by every major CI platform (GitHub Actions,
  * GitLab, CircleCI, Travis, Buildkite, etc.), and `CONTINUOUS_
  * INTEGRATION` covers a few older systems. Without this opt-out,
- * every `npm install @settlegrid/cli` triggered by a developer's CI
+ * every `npm install settlegrid` triggered by a developer's CI
  * pipeline would fire `cli_install_started` — silently inflating the
  * funnel's CLI-install count with bot traffic and depressing the
  * downstream conversion rate. The CI opt-out is implicit (no user

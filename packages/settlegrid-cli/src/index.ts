@@ -26,7 +26,7 @@ addCommand(program)
 /**
  * True only when this file is the Node entrypoint — i.e. invoked directly
  * as `node dist/index.js` or via the `settlegrid` bin shim. Returns false
- * for `require('@settlegrid/cli')` / `import '@settlegrid/cli'`, so library
+ * for `require('settlegrid')` / `import 'settlegrid'`, so library
  * consumers don't accidentally trigger CLI parsing + process.exit as a
  * side effect of loading the module.
  *
