@@ -235,7 +235,7 @@ async function check1_cliInstallable(): Promise<CheckResult> {
   // (the package builds both .js (ESM) and .cjs; spec wants .js).
   const distEntry = repoFile('packages', 'settlegrid-cli', 'dist', 'index.js')
   if (!fileExists(distEntry)) {
-    return defer(1, label, `dist not built at ${distEntry}; run npm --workspace @settlegrid/cli run build`)
+    return defer(1, label, `dist not built at ${distEntry}; run npm --workspace settlegrid run build`)
   }
   const versionRun = runSync('node', [distEntry, '--version'], { timeoutMs: 15_000 })
   if (versionRun.status !== 0) {
@@ -252,7 +252,7 @@ async function check1_cliInstallable(): Promise<CheckResult> {
   if (SKIP_TESTS) {
     return defer(1, label, `--version OK (${versionRun.stdout.trim()}); smoke skipped via --skip-tests`)
   }
-  const smoke = runSync('npm', ['--workspace', '@settlegrid/cli', 'run', 'smoke'], {
+  const smoke = runSync('npm', ['--workspace', 'settlegrid', 'run', 'smoke'], {
     timeoutMs: 300_000,
   })
   if (smoke.status !== 0) {

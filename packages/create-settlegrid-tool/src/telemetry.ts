@@ -14,7 +14,7 @@
  * This module is a deliberate mirror of
  * `packages/settlegrid-cli/src/telemetry.ts`. The two packages share
  * the SAME persistent distinct_id file (`~/.settlegrid/telemetry-id`)
- * on purpose: a developer who runs both `@settlegrid/cli` and
+ * on purpose: a developer who runs both `settlegrid` and
  * `create-settlegrid-tool` stays a single person in PostHog.
  *
  * ## distinct_id resolution
@@ -63,7 +63,7 @@ export type CliEventName =
 /**
  * Scaffold-failure error codes for `create-settlegrid-tool`.
  *
- * These differ from `@settlegrid/cli`'s codes (`unknown_repo_type`,
+ * These differ from `settlegrid`'s codes (`unknown_repo_type`,
  * `transform_error`, …) because the failure surface is different:
  * this package DOWNLOADS a gallery template rather than codemod-
  * wrapping an existing repo. The telemetry proxy only allow-lists
@@ -132,7 +132,7 @@ export function getProxyBase(): string {
  * with no home set) so we never surface an unwritable-directory
  * exception.
  *
- * The path is intentionally identical to `@settlegrid/cli`'s — the
+ * The path is intentionally identical to `settlegrid`'s — the
  * two packages share one machine identity in PostHog.
  */
 export function telemetryIdPath(): string {
