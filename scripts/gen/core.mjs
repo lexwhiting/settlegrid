@@ -336,7 +336,7 @@ function renderPackageJson(s) {
     description: `MCP server for ${s.title} with SettleGrid billing. ${s.desc}`,
     type: 'module',
     scripts: { dev: 'tsx src/server.ts', build: 'tsc', start: 'node dist/server.js' },
-    dependencies: { '@settlegrid/mcp': '^0.1.1' },
+    dependencies: { '@settlegrid/mcp': '^0.2.0' },
     devDependencies: { tsx: '^4.0.0', typescript: '^5.0.0' },
     keywords: ['settlegrid', 'mcp', 'ai', ...s.keywords],
     license: 'MIT',
