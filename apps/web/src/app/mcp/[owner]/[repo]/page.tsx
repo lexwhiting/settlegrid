@@ -87,7 +87,7 @@ export default async function ShadowDetailPage({
   if (!entry) notFound()
 
   const tags = (entry.tags as string[] | null) ?? []
-  const npxCommand = `npx @settlegrid/cli add github:${owner}/${repo}`
+  const npxCommand = `npx settlegrid add github:${owner}/${repo}`
 
   // Check if a polished gallery template exists for this repo
   let matchedTemplateSlug: string | null = null

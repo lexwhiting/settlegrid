@@ -24,7 +24,7 @@ interface CopyInstallCommandProps {
  *
  * `--template <slug>` downloads the already-monetized gallery repo
  * (github.com/settlegrid/settlegrid-<slug>). This is the correct verb for the
- * gallery flow — unlike `@settlegrid/cli add`, which is a codemod for
+ * gallery flow — unlike `settlegrid add`, which is a codemod for
  * wrapping an UN-monetized repo and (correctly) reports an already-wrapped
  * gallery template as an unknown repo type.
  *

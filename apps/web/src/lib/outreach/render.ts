@@ -86,9 +86,9 @@ export const TIER_LINES: Record<TargetTier, (target: Target) => string> = {
       // Extract `owner/name` from the repo URL for compactness.
       const match = repo.match(/github\.com\/([^/]+)\/([^/?#]+)/)
       const slug = match ? `${match[1]}/${match[2]}` : repo
-      return `Or, since you forked ${slug}, run \`npx @settlegrid/cli add github:your-fork --dry-run\` and tell me what the codemod did.`
+      return `Or, since you forked ${slug}, run \`npx settlegrid add github:your-fork --dry-run\` and tell me what the codemod did.`
     }
-    return `Or run \`npx @settlegrid/cli add github:your-mcp-server --dry-run\` and tell me what the codemod did.`
+    return `Or run \`npx settlegrid add github:your-mcp-server --dry-run\` and tell me what the codemod did.`
   },
   warm: () =>
     `Or, if you maintain a list or registry of MCP servers, I'd value 60 seconds of "this would land better if…" feedback.`,
