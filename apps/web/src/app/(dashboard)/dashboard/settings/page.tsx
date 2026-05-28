@@ -45,7 +45,17 @@ interface DeveloperProfile {
   createdAt: string
 }
 
-type SectionId = 'profile' | 'payouts' | 'notifications' | 'security' | 'plan' | 'data-privacy'
+interface PublisherApiKey {
+  id: string
+  keyPrefix: string
+  label: string | null
+  status: string
+  lastUsedAt: string | null
+  createdAt: string
+  revokedAt: string | null
+}
+
+type SectionId = 'profile' | 'payouts' | 'notifications' | 'security' | 'api-keys' | 'plan' | 'data-privacy'
 
 interface NavItem {
   id: SectionId
@@ -166,6 +176,14 @@ function ShieldIcon({ className }: { className?: string }) {
   )
 }
 
+function KeyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+    </svg>
+  )
+}
+
 function CreditCardIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -213,6 +231,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'payouts', label: 'Payouts', icon: <BanknotesIcon className="w-4 h-4" /> },
   { id: 'notifications', label: 'Notifications', icon: <BellIcon className="w-4 h-4" /> },
   { id: 'security', label: 'Security', icon: <ShieldIcon className="w-4 h-4" /> },
+  { id: 'api-keys', label: 'API Keys', icon: <KeyIcon className="w-4 h-4" /> },
   { id: 'plan', label: 'Plan & Billing', icon: <CreditCardIcon className="w-4 h-4" /> },
   { id: 'data-privacy', label: 'Data & Privacy', icon: <ArchiveIcon className="w-4 h-4" /> },
 ]
@@ -311,6 +330,14 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingSecurity, setSavingSecurity] = useState(false)
   const [authProvider, setAuthProvider] = useState<string | null>(null) // 'email' | 'google' | 'github' etc.
+
+  // Publisher API keys state
+  const [apiKeys, setApiKeys] = useState<PublisherApiKey[]>([])
+  const [apiKeysLoading, setApiKeysLoading] = useState(true)
+  const [keyLabel, setKeyLabel] = useState('')
+  const [creatingKey, setCreatingKey] = useState(false)
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
+  const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null)
 
   // MFA state
   const [mfaEnrolled, setMfaEnrolled] = useState(false)
@@ -484,6 +511,66 @@ export default function SettingsPage() {
 
     return () => observer.disconnect()
   }, [loading])
+
+  // ─── Publisher API keys ───────────────────────────────────────────────────────
+
+  const loadApiKeys = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard/developer/api-keys')
+      if (!res.ok) throw new Error('Failed to load API keys')
+      const data = await res.json()
+      setApiKeys(data.keys ?? [])
+    } catch {
+      // Non-fatal — the section shows an empty state if this fails.
+    } finally {
+      setApiKeysLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadApiKeys()
+  }, [loadApiKeys])
+
+  async function createApiKey() {
+    setCreatingKey(true)
+    try {
+      const res = await fetch('/api/dashboard/developer/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: keyLabel.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast(data.error ?? 'Failed to create API key', 'error')
+        return
+      }
+      setNewlyCreatedKey(data.key)
+      setKeyLabel('')
+      await loadApiKeys()
+    } catch {
+      toast('Failed to create API key', 'error')
+    } finally {
+      setCreatingKey(false)
+    }
+  }
+
+  async function revokeApiKey(keyId: string) {
+    setRevokingKeyId(keyId)
+    try {
+      const res = await fetch(`/api/dashboard/developer/api-keys/${keyId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(data.error ?? 'Failed to revoke API key', 'error')
+        return
+      }
+      toast('API key revoked.', 'success')
+      await loadApiKeys()
+    } catch {
+      toast('Failed to revoke API key', 'error')
+    } finally {
+      setRevokingKeyId(null)
+    }
+  }
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
@@ -1555,6 +1642,111 @@ export default function SettingsPage() {
                   >
                     View Login History &rarr;
                   </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* ═══ Section: API Keys ════════════════════════════════════ */}
+          <section id="api-keys">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">API Keys</CardTitle>
+                <CardDescription>
+                  Publisher API keys authenticate programmatic tool publishing via{' '}
+                  <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded font-mono">PUT /api/tools/publish</code>.
+                  The dashboard publish flow uses your session and needs no key; only the HTTP API path does.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {newlyCreatedKey && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">
+                      API key created. Copy it now -- it will not be shown again.
+                    </p>
+                    <code className="block text-xs font-mono break-all text-amber-900 dark:text-amber-200 bg-amber-100/60 dark:bg-amber-900/30 rounded px-2 py-1.5 mb-2">
+                      {newlyCreatedKey}
+                    </code>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newlyCreatedKey)
+                        setNewlyCreatedKey(null)
+                      }}
+                    >
+                      Copy &amp; Dismiss
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                  <div className="flex-1">
+                    <label htmlFor="api-key-label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Label <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <Input
+                      id="api-key-label"
+                      value={keyLabel}
+                      onChange={(e) => setKeyLabel(e.target.value)}
+                      maxLength={100}
+                      placeholder="e.g. CI pipeline"
+                    />
+                  </div>
+                  <Button onClick={createApiKey} disabled={creatingKey}>
+                    {creatingKey ? 'Generating...' : 'Generate API Key'}
+                  </Button>
+                </div>
+
+                <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
+                  {apiKeysLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-12 w-full rounded-md" />
+                      <Skeleton className="h-12 w-full rounded-md" />
+                    </div>
+                  ) : apiKeys.length === 0 ? (
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      No API keys yet. Generate one above to publish tools programmatically.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {apiKeys.map((key) => {
+                        const revoked = key.status === 'revoked'
+                        return (
+                          <li
+                            key={key.id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 dark:border-[#2A2D3E] px-3 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <code className="bg-gray-100 dark:bg-[#252836] px-2 py-1 rounded text-xs font-mono">{key.keyPrefix}...</code>
+                                {key.label && (
+                                  <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{key.label}</span>
+                                )}
+                                <Badge variant={revoked ? 'secondary' : 'default'}>
+                                  {revoked ? 'Revoked' : 'Active'}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Created {new Date(key.createdAt).toLocaleDateString()}
+                                {key.lastUsedAt ? `, last used ${new Date(key.lastUsedAt).toLocaleDateString()}` : ', never used'}
+                              </p>
+                            </div>
+                            {!revoked && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => revokeApiKey(key.id)}
+                                disabled={revokingKeyId === key.id}
+                                aria-label={`Revoke API key ${key.keyPrefix}`}
+                              >
+                                {revokingKeyId === key.id ? 'Revoking...' : 'Revoke'}
+                              </Button>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
                 </div>
               </CardContent>
             </Card>
