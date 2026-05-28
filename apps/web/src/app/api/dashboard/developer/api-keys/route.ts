@@ -11,6 +11,9 @@ import { writeAuditLog } from '@/lib/audit'
 import { publisherApiKeyCreatedEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
 
+// Known deferred hardening for this surface (rate-limit resilience/identifier,
+// active-key-cap race, key hashing) is tracked in
+// docs/tech-debt/publisher-api-keys-audit-2026-05-28.md — read before extending.
 export const maxDuration = 60
 
 // Cap on active (non-revoked) publisher keys per developer. Soft guard against
