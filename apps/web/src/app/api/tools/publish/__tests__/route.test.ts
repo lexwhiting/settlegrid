@@ -22,6 +22,10 @@ const { mockDb, mockValidate } = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     innerJoin: vi.fn().mockReturnThis(),
+    // The new publish-auth path fires a non-awaited lastUsedAt update:
+    //   db.update(...).set(...).where(...).then().catch()
+    then: vi.fn((resolve?: () => void) => { resolve?.(); return mockDb }),
+    catch: vi.fn().mockReturnThis(),
   }
   return {
     mockDb,
@@ -50,7 +54,13 @@ vi.mock('@/lib/db/schema', () => ({
   developers: {
     id: 'id',
     email: 'email',
-    apiKeyHash: 'api_key_hash',
+  },
+  developerApiKeys: {
+    id: 'id',
+    developerId: 'developer_id',
+    keyHash: 'key_hash',
+    status: 'status',
+    lastUsedAt: 'last_used_at',
   },
 }))
 
@@ -105,13 +115,14 @@ function makeRequest(body: unknown = VALID_BODY): NextRequest {
 
 /**
  * The route's `authenticateDeveloperByApiKey` helper is defined in the
- * same file (not importable to mock directly). It issues a SELECT on
- * developers.apiKeyHash; we satisfy it by making the first mockDb.limit
- * call resolve to a developer row. Each test is responsible for its
+ * same file (not importable to mock directly). It issues a SELECT joining
+ * developer_api_keys → developers (status='active'); we satisfy it by making
+ * the first mockDb.limit call resolve to a row carrying the developer
+ * id/email plus the matched keyId. Each test is responsible for its
  * subsequent mockDb.limit mocks.
  */
 function mockAuth(): void {
-  mockDb.limit.mockResolvedValueOnce([{ id: 'dev-123', email: 'dev@example.com' }])
+  mockDb.limit.mockResolvedValueOnce([{ id: 'dev-123', email: 'dev@example.com', keyId: 'key-123' }])
 }
 
 beforeEach(() => {
