@@ -6,6 +6,7 @@ import {
   tools,
   invocations,
   apiKeys,
+  developerApiKeys,
   payouts,
   webhookEndpoints,
   referrals,
@@ -219,7 +220,7 @@ export async function collectDeveloperData(
   if (resultMap.has('profile')) {
     const profileRows = resultMap.get('profile') as typeof developers.$inferSelect[]
     output.profile = profileRows[0]
-      ? { ...profileRows[0], passwordHash: undefined, apiKeyHash: undefined }
+      ? { ...profileRows[0], passwordHash: undefined }
       : null
   }
   if (resultMap.has('tools')) {
@@ -392,7 +393,6 @@ export async function processDataDeletion(
           publicBio: null,
           avatarUrl: null,
           passwordHash: null,
-          apiKeyHash: null,
           supabaseUserId: null,
           slug: null,
           stripeConnectId: null,
@@ -403,6 +403,15 @@ export async function processDataDeletion(
           updatedAt: new Date(),
         })
         .where(eq(developers.id, developerId))
+
+      // ── 1b. Erase this developer's publisher API keys ──────────────
+      // The developer row is anonymized (not deleted), so the ON DELETE
+      // CASCADE on developer_api_keys never fires. Delete the credentials
+      // explicitly — a "deleted" developer's publisher keys must not
+      // remain able to authenticate PUT /api/tools/publish.
+      await tx
+        .delete(developerApiKeys)
+        .where(eq(developerApiKeys.developerId, developerId))
 
       // ── 2. Anonymize consumer record with the same email (if any) ──
       const [consumerRecord] = await tx
@@ -479,6 +488,7 @@ export async function processDataDeletion(
           resultUrl: JSON.stringify({
             anonymized: [
               'developers',
+              'developer_api_keys',
               ...(consumerRecord ? ['consumers'] : []),
               ...(toolIds.length > 0 ? ['api_keys', 'invocations.metadata'] : []),
               'audit_logs.ip_address',

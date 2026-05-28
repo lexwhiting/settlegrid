@@ -29,7 +29,6 @@ export const developers = pgTable('developers', {
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),
   stripeCustomerId: text('stripe_customer_id'), // Stripe Customer for subscription billing
   stripeSubscriptionId: text('stripe_subscription_id'), // Plan subscription
-  apiKeyHash: text('api_key_hash'),
   balanceCents: integer('balance_cents').notNull().default(0),
   payoutSchedule: text('payout_schedule').notNull().default('monthly'),
   payoutMinimumCents: integer('payout_minimum_cents').notNull().default(2500), // $25 default; Stripe per-payout fees (≈$0.25 + 0.25%) erode small amounts. Per-dev tunable down to $1.
@@ -81,6 +80,7 @@ export const developersRelations = relations(developers, ({ many }) => ({
   webhookEndpoints: many(webhookEndpoints),
   auditLogs: many(auditLogs),
   achievements: many(achievements),
+  developerApiKeys: many(developerApiKeys),
 }))
 
 // ─── Tools ─────────────────────────────────────────────────────────────────────
@@ -275,6 +275,40 @@ export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
     references: [tools.id],
   }),
   invocations: many(invocations),
+}))
+
+// ─── Developer API Keys ──────────────────────────────────────────────────────
+// Publisher-side API keys for programmatic tool publishing via
+// PUT /api/tools/publish. Mirrors the consumer `apiKeys` table but keyed to a
+// developer (multiple keys per developer, soft-revoke, prefix + last-used
+// metadata). Replaces the unused single `developers.apiKeyHash` column.
+
+export const developerApiKeys = pgTable(
+  'developer_api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    developerId: uuid('developer_id')
+      .notNull()
+      .references(() => developers.id, { onDelete: 'cascade' }),
+    keyHash: text('key_hash').notNull(),
+    keyPrefix: varchar('key_prefix', { length: 12 }).notNull(),
+    label: text('label'), // optional user-supplied name
+    status: text('status').notNull().default('active'), // 'active' | 'revoked'
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('developer_api_keys_developer_id_idx').on(table.developerId),
+    uniqueIndex('developer_api_keys_key_hash_idx').on(table.keyHash),
+  ]
+)
+
+export const developerApiKeysRelations = relations(developerApiKeys, ({ one }) => ({
+  developer: one(developers, {
+    fields: [developerApiKeys.developerId],
+    references: [developers.id],
+  }),
 }))
 
 // ─── Invocations ───────────────────────────────────────────────────────────────
