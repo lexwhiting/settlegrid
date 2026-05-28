@@ -1,4 +1,4 @@
--- Bootstrap drizzle.__drizzle_migrations for migrations 0000-0012 that
+-- Bootstrap drizzle.__drizzle_migrations for migrations 0000-0013 that
 -- have already been applied to prod manually via the Supabase SQL Editor.
 --
 -- WHY this exists:
@@ -23,7 +23,7 @@
 --   For migrations present in _journal.json (0000, 0001, 0008) the `when`
 --   value from the journal is used — this matches what drizzle-orm would have
 --   inserted if drizzle-kit migrate had originally been run.
---   For migrations not in the journal (0002-0007, 0009-0012, hand-written and
+--   For migrations not in the journal (0002-0007, 0009-0013, hand-written and
 --   applied via the SQL Editor), the file mtime in epoch ms is used.
 --   Note: only MAX(created_at) is consulted by drizzle-kit migrate's skip
 --   logic; per-row ordering of older entries is not consulted.
@@ -103,6 +103,11 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
 SELECT '3252f1e36f114cf26ea8417657d90a3257ea10afd56ddff6b556a39a4d1543c2', 1778432670441
 WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '3252f1e36f114cf26ea8417657d90a3257ea10afd56ddff6b556a39a4d1543c2');
 
+-- 0013_developer_api_keys  (hand-written, not in journal; ships 2026-05-28 — apply the .sql via SQL Editor alongside seeding this row)
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+SELECT 'dabd3540ed03fff9bc3f90ef12747b5b7e25597ef831d7f96b17654996b7732a', 1779993698000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'dabd3540ed03fff9bc3f90ef12747b5b7e25597ef831d7f96b17654996b7732a');
+
 COMMIT;
 
 -- POST-RUN VERIFICATION (run separately after the bootstrap):
@@ -110,6 +115,6 @@ COMMIT;
 --   FROM "drizzle"."__drizzle_migrations"
 --   ORDER BY created_at;
 --
--- Expected: 13 rows. MAX(created_at) = 1778432670441 (0012_kernel_telemetry).
+-- Expected: 14 rows. MAX(created_at) = 1779993698000 (0013_developer_api_keys).
 -- All three journal folderMillis (1773459112883, 1776513600000, 1777737600000)
 -- are < MAX, so drizzle-kit migrate will correctly skip them.
