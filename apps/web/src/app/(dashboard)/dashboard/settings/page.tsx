@@ -338,6 +338,7 @@ export default function SettingsPage() {
   const [creatingKey, setCreatingKey] = useState(false)
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
   const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null)
+  const [apiKeysError, setApiKeysError] = useState(false)
 
   // MFA state
   const [mfaEnrolled, setMfaEnrolled] = useState(false)
@@ -520,8 +521,11 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error('Failed to load API keys')
       const data = await res.json()
       setApiKeys(data.keys ?? [])
+      setApiKeysError(false)
     } catch {
-      // Non-fatal — the section shows an empty state if this fails.
+      // Surface load failures distinctly — an empty list must never
+      // masquerade as "you have no keys" on a transient error.
+      setApiKeysError(true)
     } finally {
       setApiKeysLoading(false)
     }
@@ -564,6 +568,13 @@ export default function SettingsPage() {
         return
       }
       toast('API key revoked.', 'success')
+      // Optimistic: reflect the revocation locally so the row updates even if
+      // the refetch below fails.
+      setApiKeys((prev) =>
+        prev.map((k) =>
+          k.id === keyId ? { ...k, status: 'revoked', revokedAt: new Date().toISOString() } : k
+        )
+      )
       await loadApiKeys()
     } catch {
       toast('Failed to revoke API key', 'error')
@@ -1660,22 +1671,34 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-5">
                 {newlyCreatedKey && (
-                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
+                  <div role="status" className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
                     <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">
                       API key created. Copy it now -- it will not be shown again.
                     </p>
                     <code className="block text-xs font-mono break-all text-amber-900 dark:text-amber-200 bg-amber-100/60 dark:bg-amber-900/30 rounded px-2 py-1.5 mb-2">
                       {newlyCreatedKey}
                     </code>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newlyCreatedKey)
-                        setNewlyCreatedKey(null)
-                      }}
-                    >
-                      Copy &amp; Dismiss
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(newlyCreatedKey)
+                            toast('API key copied to clipboard.', 'success')
+                            setNewlyCreatedKey(null)
+                          } catch {
+                            // The key is shown only once and cannot be recovered — never
+                            // dismiss it on a failed copy; let the user copy it manually.
+                            toast('Could not copy automatically. Select the key above and copy it before dismissing.', 'error')
+                          }
+                        }}
+                      >
+                        Copy &amp; Dismiss
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setNewlyCreatedKey(null)}>
+                        Dismiss
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -1692,7 +1715,11 @@ export default function SettingsPage() {
                       placeholder="e.g. CI pipeline"
                     />
                   </div>
-                  <Button onClick={createApiKey} disabled={creatingKey}>
+                  <Button
+                    onClick={createApiKey}
+                    disabled={creatingKey || newlyCreatedKey !== null}
+                    title={newlyCreatedKey ? 'Copy and dismiss your new key before creating another' : undefined}
+                  >
                     {creatingKey ? 'Generating...' : 'Generate API Key'}
                   </Button>
                 </div>
@@ -1702,6 +1729,16 @@ export default function SettingsPage() {
                     <div className="space-y-2">
                       <Skeleton className="h-12 w-full rounded-md" />
                       <Skeleton className="h-12 w-full rounded-md" />
+                    </div>
+                  ) : apiKeysError ? (
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Couldn&apos;t load your API keys.{' '}
+                      <button
+                        onClick={() => { setApiKeysLoading(true); loadApiKeys() }}
+                        className="text-brand hover:text-brand-dark font-medium underline"
+                      >
+                        Retry
+                      </button>
                     </div>
                   ) : apiKeys.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 text-sm">

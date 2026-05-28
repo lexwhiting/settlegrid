@@ -263,3 +263,19 @@ describe('PUT /api/tools/publish — regression guard: UPDATE preserves existing
     expect(mockValidate).not.toHaveBeenCalled()
   })
 })
+
+describe('PUT /api/tools/publish — auth via developer_api_keys', () => {
+  it('rejects a revoked or unknown key with 401 (auth matches active keys only)', async () => {
+    // The auth join (developer_api_keys status=active ⨝ developers) returns no
+    // row — i.e. the key is revoked or unknown. Must fail closed with 401 and
+    // never reach the publish / quality-gate logic.
+    mockDb.limit.mockResolvedValueOnce([])
+
+    const res = await PUT(makeRequest())
+    const data = await res.json()
+
+    expect(res.status).toBe(401)
+    expect(data.code).toBe('UNAUTHORIZED')
+    expect(mockValidate).not.toHaveBeenCalled()
+  })
+})
