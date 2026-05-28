@@ -37,7 +37,7 @@
   "homepage": "https://settlegrid.ai",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lexwhiting/settlegrid.git",
+    "url": "git+https://github.com/lexwhiting/settlegrid.git",
     "directory": "packages/mcp"
   },
   "bugs": {
