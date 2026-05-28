@@ -34,8 +34,13 @@ describe('demo configuration constants', () => {
     expect(DEMO_TOOL_SECRET).toBe('demo-sandbox-secret')
   })
 
-  it('lists the kernel-dispatched protocols (mcp, x402, mpp)', () => {
-    expect([...KERNEL_DISPATCHED_PROTOCOLS]).toEqual(['mcp', 'x402', 'mpp'])
+  it('lists the kernel-dispatched protocols (mcp, x402, mpp, ap2)', () => {
+    expect([...KERNEL_DISPATCHED_PROTOCOLS]).toEqual([
+      'mcp',
+      'x402',
+      'mpp',
+      'ap2',
+    ])
   })
 })
 
@@ -92,7 +97,7 @@ describe('adapterSourceUrl', () => {
 describe('listAdapters', () => {
   const adapters = listAdapters()
 
-  it('returns at least the 3 kernel-dispatched protocols', () => {
+  it('returns at least the kernel-dispatched protocols', () => {
     const names = adapters.map((a) => a.name)
     for (const p of KERNEL_DISPATCHED_PROTOCOLS) {
       expect(names).toContain(p)
@@ -103,7 +108,7 @@ describe('listAdapters', () => {
     expect(adapters.length).toBeGreaterThanOrEqual(14)
   })
 
-  it('marks mcp/x402/mpp as settled and the rest as 402-manifest', () => {
+  it('marks kernel-dispatched protocols as settled and the rest as 402-manifest', () => {
     for (const a of adapters) {
       const isDispatched = (
         KERNEL_DISPATCHED_PROTOCOLS as readonly string[]
@@ -227,28 +232,22 @@ describe('buildDemoSg / buildDemoKernel', () => {
   })
 })
 
-describe('inspectRouting — Phase-2 protocols return 402-manifest', () => {
-  it('detects ap2 but routes to 402-manifest (not yet kernel-dispatched)', () => {
+describe('inspectRouting — AP2 now routes through the facilitator pipeline (P5)', () => {
+  it('detects ap2 (x-settlegrid-protocol: ap2) and routes to facilitator', () => {
     const req = new Request('https://example.com/x', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-ap2-envelope': 'demo-envelope',
+        'x-settlegrid-protocol': 'ap2',
       },
       body: JSON.stringify({ method: 'demo.invocation' }),
     })
     const decision = inspectRouting(req)
-    if (decision.detected.protocol !== null) {
-      // If detection succeeded, it must be a Phase-2 protocol going
-      // to 402-manifest. We don't pin the exact name here because
-      // the AP2 adapter's canHandle may evolve — what we pin is that
-      // a non-Phase-1 protocol routes correctly.
-      const isPhase1 = (
-        KERNEL_DISPATCHED_PROTOCOLS as readonly string[]
-      ).includes(decision.detected.protocol)
-      if (!isPhase1) {
-        expect(decision.dispatchPath).toBe('402-manifest')
-      }
-    }
+    expect(decision.detected.protocol).toBe('ap2')
+    expect(decision.dispatchPath).toBe('facilitator')
+    // Detection succeeds; the verify/authorize/handler/settle steps are
+    // pending (the live kernel call fills them in).
+    expect(decision.steps[0].state).toBe('success')
+    expect(decision.steps.some((s) => s.state === 'pending')).toBe(true)
   })
 })

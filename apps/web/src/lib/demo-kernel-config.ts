@@ -171,17 +171,18 @@ export async function demoHandler(ctx: {
  * Deferred work that grows this list:
  *   docs/phase-reports/P5-kernel-dispatch-expansion-deferred.md
  *
- * When the kernel side adds an adapter (e.g. AP2 from Tier 1):
+ * When the kernel side adds the next adapter (e.g. ACP from Tier 1):
  *   1. Add the protocol name here.
  *   2. The /demo/kernel page automatically reclassifies that adapter
  *      from "402-manifest only" to "settled end-to-end" on next build.
  *   3. The compare-nevermined narrative copy may need an update
- *      ("3 settled / 11 detected" → "4 settled / 10 detected").
+ *      ("4 settled / 10 detected" → "5 settled / 9 detected").
  */
 export const KERNEL_DISPATCHED_PROTOCOLS: readonly ProtocolName[] = [
   'mcp',
   'x402',
   'mpp',
+  'ap2',
 ] as const
 
 /**
@@ -323,7 +324,8 @@ function computeDispatchPath(
   protocol: ProtocolName,
 ): RoutingDecision['dispatchPath'] {
   if (protocol === 'mcp') return 'sg-balance'
-  if (protocol === 'x402' || protocol === 'mpp') return 'facilitator'
+  if (protocol === 'x402' || protocol === 'mpp' || protocol === 'ap2')
+    return 'facilitator'
   return '402-manifest'
 }
 

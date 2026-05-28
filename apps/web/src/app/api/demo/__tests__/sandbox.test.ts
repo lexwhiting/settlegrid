@@ -97,8 +97,8 @@ describe('sandbox /api/sdk/meter', () => {
   })
 })
 
-describe('sandbox /api/x402/verify and /api/mpp/verify', () => {
-  it.each(['x402', 'mpp'])(
+describe('sandbox /api/{x402,mpp,ap2}/verify', () => {
+  it.each(['x402', 'mpp', 'ap2'])(
     '%s verify returns valid=true when toolSecret matches',
     async (protocol) => {
       const res = await POST(
@@ -139,8 +139,8 @@ describe('sandbox /api/x402/verify and /api/mpp/verify', () => {
   )
 })
 
-describe('sandbox /api/x402/settle and /api/mpp/settle', () => {
-  it.each(['x402', 'mpp'])(
+describe('sandbox /api/{x402,mpp,ap2}/settle', () => {
+  it.each(['x402', 'mpp', 'ap2'])(
     '%s settle returns a SettlementResult with the right metadata.protocol',
     async (protocol) => {
       const res = await POST(

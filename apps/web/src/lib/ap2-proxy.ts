@@ -8,6 +8,7 @@ import {
   AP2Adapter,
   isAp2Request as isAp2RequestCore,
   validateAp2Payment as validateAp2PaymentCore,
+  validateAp2CredentialString as validateAp2CredentialStringCore,
   generateAp2_402Response as generateAp2_402ResponseCore,
 } from '@settlegrid/mcp'
 import type { Ap2PaymentResult, Ap2ToolConfig, Ap2ErrorCode, AdapterLogger } from '@settlegrid/mcp'
@@ -32,6 +33,25 @@ export async function validateAp2Payment(
   toolConfig: Ap2ToolConfig,
 ): Promise<Ap2PaymentResult> {
   return validateAp2PaymentCore(request, {
+    enabled: isAp2Enabled(),
+    toolConfig,
+    signingSecret: getAp2SigningSecret(),
+    logger: appLogger,
+  })
+}
+
+/**
+ * P5 — credential-string variant of {@link validateAp2Payment} for the
+ * kernel facilitator verify/settle routes (`/api/ap2/{verify,settle}`),
+ * which receive the VDC in `paymentContext.payment.proof` rather than in
+ * request headers. Injects the same env-derived secret + enablement +
+ * logger as the request-based wrapper, so both paths validate identically.
+ */
+export async function validateAp2CredentialString(
+  credential: string | null,
+  toolConfig: Ap2ToolConfig,
+): Promise<Ap2PaymentResult> {
+  return validateAp2CredentialStringCore(credential, {
     enabled: isAp2Enabled(),
     toolConfig,
     signingSecret: getAp2SigningSecret(),

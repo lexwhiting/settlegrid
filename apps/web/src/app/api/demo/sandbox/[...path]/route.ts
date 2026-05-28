@@ -125,6 +125,7 @@ export async function POST(
 
     case '/api/x402/verify':
     case '/api/mpp/verify':
+    case '/api/ap2/verify':
       // The kernel reads the toolSecret on the verify path; mirror
       // the auth check here to catch misconfiguration loudly.
       if (!authHeaderMatchesDemoSecret(req)) {
@@ -141,6 +142,7 @@ export async function POST(
 
     case '/api/x402/settle':
     case '/api/mpp/settle':
+    case '/api/ap2/settle':
       if (!authHeaderMatchesDemoSecret(req)) {
         return NextResponse.json(
           { error: 'sandbox-auth-mismatch', code: 'SANDBOX_AUTH' },
@@ -161,6 +163,8 @@ export async function POST(
             '/api/x402/settle',
             '/api/mpp/verify',
             '/api/mpp/settle',
+            '/api/ap2/verify',
+            '/api/ap2/settle',
           ],
         },
         { status: 404 },
@@ -220,9 +224,11 @@ function verifyStub(): Response {
  * but not what the happy-path demo wants to show.
  */
 function settleStub(route: string, body: Record<string, unknown>): Response {
-  const protocol: 'x402' | 'mpp' = route.startsWith('/api/x402')
+  const protocol: 'x402' | 'mpp' | 'ap2' = route.startsWith('/api/x402')
     ? 'x402'
-    : 'mpp'
+    : route.startsWith('/api/ap2')
+      ? 'ap2'
+      : 'mpp'
   const method =
     typeof body.method === 'string' ? body.method : 'demo.invocation'
   return NextResponse.json({
