@@ -195,22 +195,27 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
  */
 /**
  * Protocols the Phase 1 kernel advertises in its 402 manifest and
- * knows how to dispatch internally. Phase 2 protocols (ap2, visa-tap,
- * ucp, acp, mastercard-vi, circle-nano) are NOT included here: the
- * kernel has no implementation for them yet, so advertising them in a
- * 402 manifest would be misleading. Consumers who want to also accept
- * those protocols should call `buildMultiProtocol402` directly.
+ * knows how to dispatch internally. The remaining Phase 2 protocols
+ * (visa-tap, ucp, acp, mastercard-vi, circle-nano) are NOT included
+ * here: the kernel has no implementation for them yet, so advertising
+ * them in a 402 manifest would be misleading. Consumers who want to
+ * also accept those protocols should call `buildMultiProtocol402`
+ * directly.
+ *
+ * AP2 (P5, Tier 1) IS wired: it routes through
+ * `handleFacilitatorProtocol` — HMAC VDC verify + settle via
+ * `/api/ap2/{verify,settle}`, the same pipeline as x402/mpp.
  *
  * @see docs/phase-reports/P5-kernel-dispatch-expansion-deferred.md
- *   for the deferred work that grows this list. AP2, ACP, UCP, and
- *   Circle Nano are Tier 1 (code-only); L402 and the rest are
+ *   for the deferred work that grows this list. ACP, UCP, and Circle
+ *   Nano are the remaining Tier 1 (code-only); L402 and the rest are
  *   Tier 2/3 (partner sandbox or real-world infra). When extending
  *   this list, also update `KERNEL_DISPATCHED_PROTOCOLS` in
  *   `apps/web/src/lib/demo-kernel-config.ts` so the /demo/kernel
  *   page reclassifies the new adapter from "402-manifest only"
  *   to "settled end-to-end."
  */
-const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp']
+const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp', 'ap2']
 
 /**
  * P5.K1 — convert an optional bigint (PaymentContext.payment.amount.value)
@@ -387,7 +392,11 @@ export function createDispatchKernel(
               onAuthorize,
               emitter,
             )
-          } else if (ctx.protocol === 'x402' || ctx.protocol === 'mpp') {
+          } else if (
+            ctx.protocol === 'x402' ||
+            ctx.protocol === 'mpp' ||
+            ctx.protocol === 'ap2'
+          ) {
             response = await handleFacilitatorProtocol(
               ctx,
               adapter,
@@ -400,7 +409,7 @@ export function createDispatchKernel(
             )
           } else {
             // Protocol is recognized by the registry but not wired
-            // into the Phase 1 kernel (ap2, visa-tap, ucp, acp,
+            // into the Phase 1 kernel (visa-tap, ucp, acp,
             // mastercard-vi, circle-nano). Fall through to the 402
             // manifest (with the method from ctx so the advertised
             // price is method-specific) rather than silently accepting

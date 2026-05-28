@@ -446,6 +446,113 @@ describe('createDispatchKernel', () => {
     })
   })
 
+  // ─── AP2 protocol (P5 — Tier 1 facilitator dispatch) ──────────────────
+
+  describe('ap2 protocol', () => {
+    function buildKernel(toolSecret = 'tool_secret_ap2'): DispatchKernel {
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret,
+      })
+      return createDispatchKernel(sg)
+    }
+
+    // AP2 is detected via `x-settlegrid-protocol: ap2`; the VDC credential
+    // (captured into payment.proof by extractPaymentContext) rides along in
+    // the facilitator verify/settle body.
+    function ap2Request(extraHeaders: Record<string, string> = {}): Request {
+      return new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: {
+          'x-settlegrid-protocol': 'ap2',
+          'x-ap2-credential': 'vdc.header.sig',
+          ...extraHeaders,
+        },
+        body: JSON.stringify({ skill: 'demo.invocation' }),
+      })
+    }
+
+    it('happy path: verify + runHandler + settle + 200 response', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/ap2/verify')) return jsonResponse({ valid: true })
+        if (url.endsWith('/api/ap2/settle')) return facilitatorSettleResponse('ap2')
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel()
+      const handler = vi.fn().mockResolvedValue({ ok: true })
+      const response = await kernel.handle(ap2Request(), handler)
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalledTimes(1)
+      // AP2 adapter stamps its protocol header on the formatted response.
+      expect(response.headers.get('X-SettleGrid-Protocol')).toBe('ap2')
+
+      const verifyCall = fetchCalls.find((c) => c.url.endsWith('/api/ap2/verify'))
+      const settleCall = fetchCalls.find((c) => c.url.endsWith('/api/ap2/settle'))
+      expect(verifyCall).toBeDefined()
+      expect(settleCall).toBeDefined()
+      expect(verifyCall?.method).toBe('POST')
+      expect(settleCall?.method).toBe('POST')
+    })
+
+    it('forwards the VDC credential (payment.proof) in the facilitator verify body', async () => {
+      let verifyBody: { paymentContext?: { payment?: { proof?: string } } } = {}
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/ap2/verify')) {
+          verifyBody = JSON.parse(init.body as string)
+          return jsonResponse({ valid: true })
+        }
+        if (url.endsWith('/api/ap2/settle')) return facilitatorSettleResponse('ap2')
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel()
+      await kernel.handle(ap2Request(), vi.fn().mockResolvedValue({}))
+
+      expect(verifyBody.paymentContext?.payment?.proof).toBe('vdc.header.sig')
+    })
+
+    it('handler NOT called when facilitator verify returns { valid: false }', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/ap2/verify')) {
+          return jsonResponse({ valid: false, error: 'AP2 credential invalid' })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel()
+      const handler = vi.fn()
+      const response = await kernel.handle(ap2Request(), handler)
+
+      expect(handler).not.toHaveBeenCalled()
+      // AP2 adapter.formatError maps 'invalid' to a 402 payment error.
+      expect(response.status).toBe(402)
+      expect(
+        fetchCalls.find((c) => c.url.endsWith('/api/ap2/settle')),
+      ).toBeUndefined()
+    })
+
+    it('uses toolSecret for the facilitator Authorization header', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/ap2/verify')) return jsonResponse({ valid: true })
+        if (url.endsWith('/api/ap2/settle')) return facilitatorSettleResponse('ap2')
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel('tool_secret_ap2')
+      await kernel.handle(ap2Request(), vi.fn().mockResolvedValue({}))
+
+      const verifyCall = fetchCalls.find((c) => c.url.endsWith('/api/ap2/verify'))
+      expect(verifyCall?.headers['Authorization']).toBe('Bearer tool_secret_ap2')
+    })
+  })
+
   // ─── MPP protocol ─────────────────────────────────────────────────────
 
   describe('mpp protocol', () => {
@@ -524,7 +631,7 @@ describe('createDispatchKernel', () => {
       // the RFC-style WWW-Authenticate challenge + the X-SettleGrid-
       // Protocol-Negotiation marker.
       expect(response.headers.get('WWW-Authenticate')).toBe(
-        'Payment realm="settlegrid", scheme="sg-balance, exact, mpp"',
+        'Payment realm="settlegrid", scheme="sg-balance, exact, mpp, ap2"',
       )
       expect(response.headers.get('X-SettleGrid-Protocol-Negotiation')).toBe('v1')
       expect(handler).not.toHaveBeenCalled()
@@ -547,11 +654,12 @@ describe('createDispatchKernel', () => {
       expect(body.x402Version).toBe(2)
       expect(body.error).toBe('payment_required')
       expect(body.resource).toEqual({ url: 'http://localhost/api/tool/run' })
-      expect(body.accepts).toHaveLength(3)
+      expect(body.accepts).toHaveLength(4)
       expect(body.accepts.map((e: { scheme: string }) => e.scheme)).toEqual([
         'sg-balance',
         'exact',
         'mpp',
+        'ap2',
       ])
       // The sg-balance entry carries the SettleGrid top-up URL
       expect(body.accepts[0]).toMatchObject({
@@ -562,14 +670,16 @@ describe('createDispatchKernel', () => {
     })
 
     it('falls through to 402 when the matched adapter is not wired into Phase 1', async () => {
-      // AP2 IS detected by the registry (has adapter) but is NOT wired
-      // into the Phase 1 kernel. Should fall through to the 402 manifest
-      // WITH the ctx.operation.method from AP2's extractPaymentContext.
+      // ACP IS detected by the registry (has an adapter) but is NOT wired
+      // into the Phase 1 kernel (AP2 graduated in P5; ACP is the next
+      // Tier-1 candidate — repoint this to the next still-unwired protocol
+      // when ACP lands). Should fall through to the 402 manifest WITH the
+      // ctx.operation.method from ACP's extractPaymentContext.
       const sg = settlegrid.init({
         toolSlug: 'test-tool',
         pricing: {
           defaultCostCents: 5,
-          methods: { 'ap2-method': { costCents: 42 } },
+          methods: { 'acp-method': { costCents: 42 } },
         },
       })
       const kernel = createDispatchKernel(sg)
@@ -577,18 +687,18 @@ describe('createDispatchKernel', () => {
       const req = new Request('http://localhost/api/tool/run', {
         method: 'POST',
         headers: {
-          'x-settlegrid-protocol': 'ap2',
+          'x-settlegrid-protocol': 'acp',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ skill: 'ap2-method' }),
+        body: JSON.stringify({ method: 'acp-method' }),
       })
       const handler = vi.fn()
       const response = await kernel.handle(req, handler)
 
       expect(response.status).toBe(402)
       expect(handler).not.toHaveBeenCalled()
-      // The 402 carries the ap2-method-specific cost (42) because
-      // the kernel passed the extracted method through to the builder
+      // The 402 carries the acp-method-specific cost (42) because the
+      // kernel passed the extracted method through to the builder.
       const body = await response.json()
       expect(body.accepts[0]).toMatchObject({
         scheme: 'sg-balance',

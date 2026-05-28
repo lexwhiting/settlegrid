@@ -687,6 +687,7 @@ export {
   AP2Adapter,
   isAp2Request,
   validateAp2Payment,
+  validateAp2CredentialString,
   generateAp2_402Response,
 } from './adapters/ap2'
 export type {

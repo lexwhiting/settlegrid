@@ -40,7 +40,7 @@ export class AP2Adapter implements ProtocolAdapter {
     let consumerId = ''
     let method = 'default'
     const service = 'ap2-credentials-provider'
-    let proof: string | undefined
+    let mandateRef: string | undefined
 
     try {
       const clone = request.clone()
@@ -61,13 +61,24 @@ export class AP2Adapter implements ProtocolAdapter {
         mandateType = String(body.params.mandate.type)
       }
 
-      // Extract VDC or mandate ref as proof
+      // Mandate ref is a reference, NOT the cryptographic credential.
       if (body?.mandateRef) {
-        proof = String(body.mandateRef)
+        mandateRef = String(body.mandateRef)
       }
     } catch {
       // Body may not be JSON
     }
+
+    // The VDC JWT credential lives in request headers (x-ap2-credential or
+    // `Authorization: Bearer ap2_<jwt>`). Capture it into `payment.proof`
+    // — the field is typed for exactly this ("EIP-712 signature, JWT,
+    // etc.") — so the credential survives the kernel→facilitator hop, which
+    // forwards only the serialized `paymentContext`, not the raw headers
+    // (see kernel.ts handleFacilitatorProtocol). Fall back to the mandate
+    // ref so prior behavior (proof = mandateRef) holds when no credential
+    // is present; mandateRef is also preserved in identity.metadata.
+    const credential = extractAp2Credential(request)
+    const proof = credential ?? mandateRef
 
     // Determine payment type from mandate
     const paymentType = mandateType.includes('Payment') ? 'vdc' as const : 'credit-balance' as const
@@ -77,7 +88,10 @@ export class AP2Adapter implements ProtocolAdapter {
       identity: {
         type: 'jwt',
         value: consumerId || request.headers.get('x-ap2-consumer-id') || 'anonymous',
-        metadata: { mandateType },
+        metadata: {
+          mandateType,
+          ...(mandateRef !== undefined ? { mandateRef } : {}),
+        },
       },
       operation: {
         service,
@@ -312,6 +326,29 @@ export async function validateAp2Payment(
   request: Request,
   options: Ap2ValidateOptions,
 ): Promise<Ap2PaymentResult> {
+  // Extract the VDC credential from the request headers, then delegate to
+  // the credential-string core. The kernel→facilitator verify path (which
+  // only has the serialized PaymentContext, not the raw request) instead
+  // calls `validateAp2CredentialString` directly with
+  // `paymentContext.payment.proof`.
+  const credential = extractAp2Credential(request)
+  return validateAp2CredentialString(credential, options)
+}
+
+/**
+ * P5 — credential-string core of AP2 validation, split out of
+ * {@link validateAp2Payment} so the kernel facilitator verify route
+ * (`apps/web/src/app/api/ap2/verify`) can validate a VDC carried in
+ * `PaymentContext.payment.proof` without reconstructing a `Request`.
+ *
+ * `credential` is `string | null` so the "no credential present" branch
+ * (AP2_CREDENTIAL_MISSING) lives here in one place — both the
+ * header-extracting wrapper and the route get identical semantics.
+ */
+export async function validateAp2CredentialString(
+  credential: string | null,
+  options: Ap2ValidateOptions,
+): Promise<Ap2PaymentResult> {
   const { enabled, toolConfig, signingSecret } = options
   const expectedIssuer = options.expectedIssuer ?? 'settlegrid.ai'
   const logger = options.logger ?? NOOP_LOGGER
@@ -326,7 +363,6 @@ export async function validateAp2Payment(
     }
   }
 
-  const credential = extractAp2Credential(request)
   if (!credential) {
     return {
       valid: false,
