@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-import { tools, developers } from '@/lib/db/schema'
+import { tools, developers, developerApiKeys } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
@@ -143,7 +143,8 @@ const publishSchema = z.object({
 
 /**
  * Authenticates a developer via x-api-key header.
- * Hashes the raw key with SHA-256 and matches against developers.apiKeyHash.
+ * Hashes the raw key with SHA-256 and matches an active row in the
+ * developer_api_keys table (issued from Dashboard → Settings → API Keys).
  */
 async function authenticateDeveloperByApiKey(
   request: NextRequest
@@ -160,17 +161,26 @@ async function authenticateDeveloperByApiKey(
 
   const keyHash = createHash('sha256').update(rawKey).digest('hex')
 
-  const [developer] = await db
-    .select({ id: developers.id, email: developers.email })
-    .from(developers)
-    .where(eq(developers.apiKeyHash, keyHash))
+  const [row] = await db
+    .select({ id: developers.id, email: developers.email, keyId: developerApiKeys.id })
+    .from(developerApiKeys)
+    .innerJoin(developers, eq(developerApiKeys.developerId, developers.id))
+    .where(and(eq(developerApiKeys.keyHash, keyHash), eq(developerApiKeys.status, 'active')))
     .limit(1)
 
-  if (!developer) {
+  if (!row) {
     throw new AuthError('Invalid API key.')
   }
 
-  return { id: developer.id, email: developer.email }
+  // Update last-used timestamp for analytics — fire-and-forget so a failed
+  // write never blocks the publish.
+  db.update(developerApiKeys)
+    .set({ lastUsedAt: new Date() })
+    .where(eq(developerApiKeys.id, row.keyId))
+    .then(() => {})
+    .catch(() => {})
+
+  return { id: row.id, email: row.email }
 }
 
 class AuthError extends Error {
