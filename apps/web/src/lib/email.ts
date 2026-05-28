@@ -559,6 +559,71 @@ ${ctaButton('Manage API Keys', 'https://settlegrid.ai/consumer')}
   }
 }
 
+export function publisherApiKeyCreatedEmail(
+  email: string,
+  keyPrefix: string,
+  options?: { preheader?: string; label?: string; ip?: string; userAgent?: string }
+): EmailTemplate {
+  const labelLine = options?.label
+    ? `<p class="sg-text" style="color:#374151;margin:8px 0 0;font-size:14px"><strong>Label:</strong> ${escapeHtml(options.label)}</p>`
+    : ''
+  const securityContext =
+    options?.ip || options?.userAgent
+      ? `${dividerLine()}
+<p class="sg-text" style="color:#6b7280;font-size:13px;margin:0 0 4px"><strong>Security context:</strong></p>
+${options.ip ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:0 0 2px">IP address: <code class="sg-code" style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px;font-family:${CODE_FONT}">${escapeHtml(options.ip)}</code></p>` : ''}
+${options.userAgent ? `<p class="sg-text" style="color:#6b7280;font-size:13px;margin:0">User agent: ${escapeHtml(options.userAgent.slice(0, 120))}</p>` : ''}`
+      : ''
+
+  return {
+    subject: sanitizeSubject('New publisher API key created'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Publisher API Key Created</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A new publisher API key was created on your SettleGrid account. Use it to publish tools programmatically via <code class="sg-code" style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">PUT /api/tools/publish</code>.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>Key prefix:</strong> <code class="sg-code" style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(keyPrefix)}...</code></p>
+${labelLine}
+</td></tr>
+</table>
+${securityContext}
+<p class="sg-text" style="color:#4b5563;line-height:1.6">If you didn't create this key, revoke it immediately from your dashboard.</p>
+${ctaButton('Manage API Keys', 'https://settlegrid.ai/dashboard/settings#api-keys')}
+`,
+      { preheader: options?.preheader ?? `A new publisher API key (${keyPrefix}...) was created on your account.` }
+    ),
+  }
+}
+
+export function publisherApiKeyRevokedEmail(
+  email: string,
+  keyPrefix: string,
+  options?: { preheader?: string; label?: string }
+): EmailTemplate {
+  const labelLine = options?.label
+    ? `<p class="sg-text" style="color:#92400e;margin:8px 0 0;font-size:14px"><strong>Label:</strong> ${escapeHtml(options.label)}</p>`
+    : ''
+  return {
+    subject: sanitizeSubject('Publisher API key revoked'),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Publisher API Key Revoked</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A publisher API key on your SettleGrid account has been revoked and will no longer authenticate tool publishing.</p>
+<table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef3c7;border:1px solid #fde68a;border-radius:8px;margin:16px 0">
+<tr><td style="padding:12px 16px">
+<p class="sg-text" style="color:#92400e;margin:0;font-size:14px"><strong>Key prefix:</strong> <code class="sg-code" style="background:#fde68a;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(keyPrefix)}...</code></p>
+${labelLine}
+</td></tr>
+</table>
+<p class="sg-text" style="color:#4b5563;line-height:1.6">Any CI pipelines or scripts using this key will need to be updated with a new one.</p>
+${ctaButton('Manage API Keys', 'https://settlegrid.ai/dashboard/settings#api-keys')}
+`,
+      { preheader: options?.preheader ?? `Publisher API key ${keyPrefix}... has been revoked.` }
+    ),
+  }
+}
+
 export function webhookFailureEmail(
   email: string,
   endpointUrl: string,
