@@ -196,26 +196,36 @@ function extractKernelInternals(sg: SettleGridInstance): KernelInternals {
 /**
  * Protocols the Phase 1 kernel advertises in its 402 manifest and
  * knows how to dispatch internally. The remaining Phase 2 protocols
- * (visa-tap, ucp, acp, mastercard-vi, circle-nano) are NOT included
- * here: the kernel has no implementation for them yet, so advertising
- * them in a 402 manifest would be misleading. Consumers who want to
+ * (visa-tap, ucp, acp, mastercard-vi) are NOT included here: the
+ * kernel has no implementation for them yet, so advertising them in a
+ * 402 manifest would be misleading. Consumers who want to
  * also accept those protocols should call `buildMultiProtocol402`
  * directly.
  *
- * AP2 (P5, Tier 1) IS wired: it routes through
- * `handleFacilitatorProtocol` — HMAC VDC verify + settle via
- * `/api/ap2/{verify,settle}`, the same pipeline as x402/mpp.
+ * AP2 + Circle Nano (P5, Tier 1) ARE wired: they route through
+ * `handleFacilitatorProtocol` — AP2 via offline HMAC VDC verify, Circle
+ * Nano via offline EIP-712 (EIP-3009 transferWithAuthorization) signature
+ * verify — and settle via `/api/{ap2,circle-nano}/{verify,settle}`, the
+ * same pipeline as x402/mpp.
  *
  * @see docs/phase-reports/P5-kernel-dispatch-expansion-deferred.md
- *   for the deferred work that grows this list. ACP, UCP, and Circle
- *   Nano are the remaining Tier 1 (code-only); L402 and the rest are
- *   Tier 2/3 (partner sandbox or real-world infra). When extending
+ *   for the deferred work that grows this list. ACP and UCP are the
+ *   remaining nominal Tier-1 candidates but neither is cleanly wireable
+ *   today (ACP is gated behind OpenAI ChatGPT-merchant onboarding +
+ *   catalog-feed model; UCP's verify is a no-op stub); L402 and the rest
+ *   are Tier 2/3 (partner sandbox or real-world infra). When extending
  *   this list, also update `KERNEL_DISPATCHED_PROTOCOLS` in
  *   `apps/web/src/lib/demo-kernel-config.ts` so the /demo/kernel
  *   page reclassifies the new adapter from "402-manifest only"
  *   to "settled end-to-end."
  */
-const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = ['mcp', 'x402', 'mpp', 'ap2']
+const PHASE_1_KERNEL_PROTOCOLS: ProtocolName[] = [
+  'mcp',
+  'x402',
+  'mpp',
+  'ap2',
+  'circle-nano',
+]
 
 /**
  * P5.K1 — convert an optional bigint (PaymentContext.payment.amount.value)
@@ -395,7 +405,8 @@ export function createDispatchKernel(
           } else if (
             ctx.protocol === 'x402' ||
             ctx.protocol === 'mpp' ||
-            ctx.protocol === 'ap2'
+            ctx.protocol === 'ap2' ||
+            ctx.protocol === 'circle-nano'
           ) {
             response = await handleFacilitatorProtocol(
               ctx,
@@ -410,10 +421,10 @@ export function createDispatchKernel(
           } else {
             // Protocol is recognized by the registry but not wired
             // into the Phase 1 kernel (visa-tap, ucp, acp,
-            // mastercard-vi, circle-nano). Fall through to the 402
-            // manifest (with the method from ctx so the advertised
-            // price is method-specific) rather than silently accepting
-            // a payment the kernel cannot actually settle.
+            // mastercard-vi). Fall through to the 402 manifest (with
+            // the method from ctx so the advertised price is
+            // method-specific) rather than silently accepting a
+            // payment the kernel cannot actually settle.
             response = build402(request, ctx.operation.method)
           }
 

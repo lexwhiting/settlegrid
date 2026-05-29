@@ -25,7 +25,7 @@ import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } 
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
 import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
 import { isMastercardRequest, isMastercardEnabled, mastercardAdapter, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
-import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoPayment, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
+import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoCredentialString, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
 import { isL402Request, isL402Enabled, validateL402Payment, generateL402_402Response } from '@/lib/l402-proxy'
 import { isAlipayRequest, isAlipayEnabled, validateAlipayPayment, generateAlipay402Response } from '@/lib/alipay-proxy'
 import { isKyaPayRequest, isKyaPayEnabled, validateKyaPayPayment, generateKyaPay402Response } from '@/lib/kyapay-proxy'
@@ -1974,7 +1974,14 @@ async function handleProtocolProxy(
     }
     extraMeta = { mcIntentId: result.intentId ?? null }
   } else if (protocol === 'circle-nano') {
-    const result = await validateCircleNanoPayment(request, toolConfig)
+    // Route the direct-proxy path through the AUTHORITATIVE offline verifier
+    // (EIP-712 signature recovery + payee + amount) — the same gate as the
+    // kernel facilitator route, NOT the structural-only validateCircleNanoPayment.
+    // The EIP-3009 authorization rides in the x-circle-nano-auth header.
+    const result = await validateCircleNanoCredentialString(
+      request.headers.get('x-circle-nano-auth'),
+      toolConfig,
+    )
     valid = result.valid
     paymentId = result.confirmationId
     payerIdentifier = result.payerAddress

@@ -97,8 +97,8 @@ describe('sandbox /api/sdk/meter', () => {
   })
 })
 
-describe('sandbox /api/{x402,mpp,ap2}/verify', () => {
-  it.each(['x402', 'mpp', 'ap2'])(
+describe('sandbox /api/{x402,mpp,ap2,circle-nano}/verify', () => {
+  it.each(['x402', 'mpp', 'ap2', 'circle-nano'])(
     '%s verify returns valid=true when toolSecret matches',
     async (protocol) => {
       const res = await POST(
@@ -139,8 +139,8 @@ describe('sandbox /api/{x402,mpp,ap2}/verify', () => {
   )
 })
 
-describe('sandbox /api/{x402,mpp,ap2}/settle', () => {
-  it.each(['x402', 'mpp', 'ap2'])(
+describe('sandbox /api/{x402,mpp,ap2,circle-nano}/settle', () => {
+  it.each(['x402', 'mpp', 'ap2', 'circle-nano'])(
     '%s settle returns a SettlementResult with the right metadata.protocol',
     async (protocol) => {
       const res = await POST(
@@ -157,7 +157,10 @@ describe('sandbox /api/{x402,mpp,ap2}/settle', () => {
       expect(json.operationId).toMatch(/^demo-op-/)
       expect(json.costCents).toBe(5)
       expect(json.metadata.protocol).toBe(protocol)
-      expect(json.metadata.settlementType).toBe('real-time')
+      // circle-nano settles via deferred on-chain batch; the rest are real-time.
+      expect(json.metadata.settlementType).toBe(
+        protocol === 'circle-nano' ? 'batched' : 'real-time',
+      )
       expect(json.metadata.toolSlug).toBe('demo-sandbox-tool')
     },
   )

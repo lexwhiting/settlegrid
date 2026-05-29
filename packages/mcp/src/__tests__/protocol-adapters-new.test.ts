@@ -347,8 +347,10 @@ describe('CircleNanoAdapter', () => {
   })
 
   describe('formatResponse', () => {
-    it('returns 200 with correct structure', async () => {
-      const result = makeResult('circle-nano')
+    it('returns 200 with correct structure; on-chain only when a tx hash is present', async () => {
+      // P5: settlementStatus is derived from result.txHash, not status —
+      // a settled result WITH an on-chain batch tx reports 'on-chain'.
+      const result = makeResult('circle-nano', { txHash: '0xbatchtxhash' })
       const req = new Request('http://localhost')
       const res = adapter.formatResponse(result, req)
       expect(res.status).toBe(200)
@@ -356,7 +358,22 @@ describe('CircleNanoAdapter', () => {
       const body = await res.json()
       expect(body.success).toBe(true)
       expect(body.operationId).toBe('op-circle-nano-001')
+      expect(body.batchId).toBe('0xbatchtxhash')
       expect(body.settlementStatus).toBe('on-chain')
+      expect(body.metadata.protocol).toBe('circle-nano')
+    })
+
+    it('reports off-chain-confirmed for a settled result with no on-chain tx (v1 kernel dispatch)', async () => {
+      // The v1 kernel facilitator settle is verify-and-record: status
+      // 'settled' but no txHash yet (on-chain batch deferred to P3.K4).
+      // settlementStatus must NOT claim 'on-chain' in that state.
+      const result = makeResult('circle-nano')
+      const req = new Request('http://localhost')
+      const res = adapter.formatResponse(result, req)
+      const body = await res.json()
+      expect(body.success).toBe(true)
+      expect(body.batchId).toBeNull()
+      expect(body.settlementStatus).toBe('off-chain-confirmed')
       expect(body.metadata.protocol).toBe('circle-nano')
     })
 

@@ -171,18 +171,20 @@ export async function demoHandler(ctx: {
  * Deferred work that grows this list:
  *   docs/phase-reports/P5-kernel-dispatch-expansion-deferred.md
  *
- * When the kernel side adds the next adapter (e.g. ACP from Tier 1):
+ * When the kernel side adds the next adapter (Circle Nano landed in P5 via
+ * offline EIP-3009 verify; the next offline-verifiable candidate follows):
  *   1. Add the protocol name here.
  *   2. The /demo/kernel page automatically reclassifies that adapter
  *      from "402-manifest only" to "settled end-to-end" on next build.
  *   3. The compare-nevermined narrative copy may need an update
- *      ("4 settled / 10 detected" → "5 settled / 9 detected").
+ *      (5 settled of 14 detected → 6 settled of 14).
  */
 export const KERNEL_DISPATCHED_PROTOCOLS: readonly ProtocolName[] = [
   'mcp',
   'x402',
   'mpp',
   'ap2',
+  'circle-nano',
 ] as const
 
 /**
@@ -210,8 +212,8 @@ export interface RoutingDecision {
   }
   /**
    * Which path the kernel will run. `'sg-balance'` for MCP,
-   * `'facilitator'` for x402/MPP, `'402-manifest'` for everything
-   * else (including the no-adapter-matched case).
+   * `'facilitator'` for x402/MPP/AP2/Circle-Nano, `'402-manifest'`
+   * for everything else (including the no-adapter-matched case).
    */
   dispatchPath: 'sg-balance' | 'facilitator' | '402-manifest'
   steps: RoutingDecisionStep[]
@@ -324,7 +326,12 @@ function computeDispatchPath(
   protocol: ProtocolName,
 ): RoutingDecision['dispatchPath'] {
   if (protocol === 'mcp') return 'sg-balance'
-  if (protocol === 'x402' || protocol === 'mpp' || protocol === 'ap2')
+  if (
+    protocol === 'x402' ||
+    protocol === 'mpp' ||
+    protocol === 'ap2' ||
+    protocol === 'circle-nano'
+  )
     return 'facilitator'
   return '402-manifest'
 }

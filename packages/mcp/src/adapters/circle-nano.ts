@@ -3,8 +3,10 @@
  *
  * Extracts payment context from Circle Nanopayment requests.
  * Gas-free micropayments as small as $0.000001 using USDC.
- * Off-chain immediate confirmation with periodic on-chain batch settlement.
- * x402-compatible.
+ * Off-chain immediate confirmation; periodic on-chain batch settlement is the
+ * protocol's design target but is NOT yet implemented in the kernel rail —
+ * today's flow is offline EIP-3009 verify + record-only (see
+ * docs/tech-debt/circle-nano-kernel-dispatch-*.md). x402-compatible.
  *
  * Detects requests via:
  *   1. x-circle-nano-auth header (EIP-3009 authorization)
@@ -100,12 +102,24 @@ export class CircleNanoAdapter implements ProtocolAdapter {
 
     return new Response(
       JSON.stringify({
+        // INTENTIONAL divergence from x402/mpp/ap2 (which treat only 'settled'
+        // as success): under Circle Nano's off-chain-immediate-confirm model a
+        // 'pending' settlement means "confirmed off-chain, on-chain batch
+        // deferred" — a success from the consumer's view. The kernel
+        // facilitator IS SettleGrid's own settle route, so 'pending' here is
+        // first-party, not an untrusted third-party signal.
         success: result.status === 'settled' || result.status === 'pending',
         operationId: result.operationId,
         costCents: result.costCents,
         receipt: result.receipt ?? null,
         batchId: result.txHash ?? null,
-        settlementStatus: result.status === 'settled' ? 'on-chain' : 'off-chain-confirmed',
+        // Honest derivation: report 'on-chain' only when a real settlement
+        // transaction exists (result.txHash). The v1 kernel-dispatch settle
+        // path is verify-and-record (no on-chain submission yet — see
+        // docs/tech-debt/circle-nano-kernel-dispatch-*.md), so it correctly
+        // reports 'off-chain-confirmed'. When P3.K4 adds on-chain batch
+        // settlement and populates txHash, this flips to 'on-chain'.
+        settlementStatus: result.txHash ? 'on-chain' : 'off-chain-confirmed',
         metadata: {
           protocol: result.metadata.protocol,
           latencyMs: result.metadata.latencyMs,
@@ -230,6 +244,11 @@ export type CircleNanoErrorCode =
   | 'CIRCLE_NANO_NOT_CONFIGURED'
   | 'CIRCLE_NANO_AUTH_MISSING'
   | 'CIRCLE_NANO_AUTH_INVALID'
+  | 'CIRCLE_NANO_NETWORK_UNSUPPORTED'
+  | 'CIRCLE_NANO_WRONG_RECIPIENT'
+  | 'CIRCLE_NANO_NOT_YET_VALID'
+  | 'CIRCLE_NANO_EXPIRED'
+  | 'CIRCLE_NANO_AMOUNT_MISMATCH'
   | 'CIRCLE_NANO_INSUFFICIENT_FUNDS'
   | 'CIRCLE_NANO_API_ERROR'
 
@@ -265,10 +284,112 @@ export function isCircleNanoRequest(request: Request): boolean {
   return false
 }
 
-export async function validateCircleNanoPayment(
-  request: Request,
+/**
+ * Networks the circle-nano kernel rail verifies EIP-3009 authorizations
+ * against — Base mainnet + Base Sepolia, matching the USDC deployments the
+ * web-app verifier knows the EIP-712 domain for. Kept narrow on purpose: a
+ * network we can't pin the USDC contract + domain for must fail closed.
+ */
+export const CIRCLE_NANO_SUPPORTED_NETWORKS = [
+  'eip155:8453',
+  'eip155:84532',
+] as const
+
+/** 1 US cent = 10,000 USDC base units (USDC has 6 decimals). */
+const CIRCLE_NANO_BASE_UNITS_PER_CENT = 10_000n
+
+/** The EIP-3009 `transferWithAuthorization` message fields the payer signs. */
+export interface CircleNanoAuthorization {
+  from: string
+  to: string
+  /** Authorized amount in USDC base units (6 decimals), as a decimal string. */
+  value: string
+  /** Unix-seconds lower bound, as a decimal string. */
+  validAfter: string
+  /** Unix-seconds upper bound, as a decimal string. */
+  validBefore: string
+  /** 0x-prefixed bytes32 EIP-3009 nonce. */
+  nonce: string
+}
+
+/**
+ * The serialized payment proof carried in the `x-circle-nano-auth` header
+ * and forwarded as `PaymentContext.payment.proof` across the kernel→
+ * facilitator hop. A self-contained EIP-3009 authorization + its EIP-712
+ * signature + the CAIP-2 network, so the server can verify it offline
+ * (no Circle account or API key required).
+ */
+export interface CircleNanoProof {
+  /** CAIP-2 network id, e.g. 'eip155:8453'. */
+  network: string
+  authorization: CircleNanoAuthorization
+  /** 0x-prefixed 65-byte EIP-712 signature over the authorization. */
+  signature: string
+}
+
+/**
+ * Decode + shape-validate the serialized EIP-3009 proof. Accepts base64(JSON)
+ * or raw JSON (mirrors the x402 X-Payment header decode). Returns null on any
+ * structural defect. This is the single decode surface shared by the SDK
+ * structural check and the web-app's viem signature verifier, so both agree
+ * on what a well-formed proof is.
+ */
+export function parseCircleNanoProof(proof: string): CircleNanoProof | null {
+  const tryParse = (s: string): unknown => {
+    try {
+      return JSON.parse(s)
+    } catch {
+      return undefined
+    }
+  }
+  // base64-first (the wire default), then raw-JSON fallback.
+  let obj = tryParse(Buffer.from(proof, 'base64').toString('utf-8'))
+  if (obj === undefined) obj = tryParse(proof)
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null
+
+  const o = obj as Record<string, unknown>
+  if (typeof o.network !== 'string' || typeof o.signature !== 'string') return null
+
+  const auth = o.authorization
+  if (auth === null || typeof auth !== 'object' || Array.isArray(auth)) return null
+  const a = auth as Record<string, unknown>
+  const fields = ['from', 'to', 'value', 'validAfter', 'validBefore', 'nonce'] as const
+  for (const f of fields) {
+    if (typeof a[f] !== 'string') return null
+  }
+
+  return {
+    network: o.network,
+    signature: o.signature,
+    authorization: {
+      from: a.from as string,
+      to: a.to as string,
+      value: a.value as string,
+      validAfter: a.validAfter as string,
+      validBefore: a.validBefore as string,
+      nonce: a.nonce as string,
+    },
+  }
+}
+
+/**
+ * Structural (NON-cryptographic) validation of a circle-nano EIP-3009 proof.
+ *
+ * IMPORTANT: this does NOT verify the EIP-712 signature, nor that the payee
+ * (`authorization.to`) is SettleGrid. Signature recovery requires
+ * secp256k1/EIP-712 (viem), which lives in the web app
+ * (`apps/web/src/lib/settlement/circle-nano/verify.ts`) because
+ * `@settlegrid/mcp` is a zero-crypto-dependency package. The AUTHORITATIVE
+ * signature + recipient check runs server-side on the kernel facilitator
+ * route. This check validates shape, supported network, the time window, and
+ * the authorized amount so a direct SDK consumer of `adapter.verify()` gets
+ * fast structural feedback — it must NOT be treated as proof the payment is
+ * authentic.
+ */
+export function validateCircleNanoProofString(
+  proof: string | null,
   options: CircleNanoValidateOptions,
-): Promise<CircleNanoPaymentResult> {
+): CircleNanoPaymentResult {
   const { enabled, toolConfig } = options
   const logger = options.logger ?? NOOP_LOGGER
 
@@ -282,50 +403,112 @@ export async function validateCircleNanoPayment(
     }
   }
 
-  const authHeader = request.headers.get(CIRCLE_NANO_HTTP_HEADERS.AUTH)
-  if (!authHeader) {
+  if (!proof) {
     return {
       valid: false,
       error: {
         code: 'CIRCLE_NANO_AUTH_MISSING',
         message:
-          'No Circle Nanopayment authorization found in request. Provide x-circle-nano-auth header with an EIP-3009 authorization.',
+          'No Circle Nanopayment authorization found. Provide x-circle-nano-auth with an EIP-3009 authorization.',
       },
     }
   }
 
-  const walletAddress = request.headers.get(CIRCLE_NANO_HTTP_HEADERS.WALLET) ?? undefined
-
-  try {
-    // TODO: Verify EIP-3009 authorization payload
-    // TODO: Submit to Circle Nanopayments API for off-chain confirmation
-    const confirmationId = randomUUID()
-
-    logger.info('circle_nano.payment_accepted_stub', {
-      toolSlug: toolConfig.slug,
-      walletAddress,
-      confirmationId,
-      note: 'Circle Nano validation is stub; accepted based on structural validation.',
-    })
-
-    return {
-      valid: true,
-      confirmationId,
-      payerAddress: walletAddress,
-    }
-  } catch (err) {
-    logger.error('circle_nano.validation_error', { toolSlug: toolConfig.slug }, err)
+  const parsed = parseCircleNanoProof(proof)
+  if (!parsed) {
     return {
       valid: false,
       error: {
-        code: 'CIRCLE_NANO_API_ERROR',
+        code: 'CIRCLE_NANO_AUTH_INVALID',
         message:
-          err instanceof Error
-            ? err.message
-            : 'Unexpected error during Circle Nanopayment validation.',
+          'Malformed circle-nano authorization: expected base64/JSON { network, authorization{from,to,value,validAfter,validBefore,nonce}, signature }.',
       },
     }
   }
+
+  if (!(CIRCLE_NANO_SUPPORTED_NETWORKS as readonly string[]).includes(parsed.network)) {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_NETWORK_UNSUPPORTED',
+        message: `Unsupported network: ${parsed.network}. Supported: ${CIRCLE_NANO_SUPPORTED_NETWORKS.join(', ')}.`,
+      },
+    }
+  }
+
+  // Time window. Best-effort here; the server re-checks authoritatively.
+  const now = Math.floor(Date.now() / 1000)
+  const validAfter = Number(parsed.authorization.validAfter)
+  const validBefore = Number(parsed.authorization.validBefore)
+  if (Number.isFinite(validAfter) && now < validAfter) {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_NOT_YET_VALID',
+        message: `Authorization not yet valid: becomes valid in ${validAfter - now}s (validAfter=${validAfter}, now=${now}).`,
+      },
+    }
+  }
+  if (Number.isFinite(validBefore) && now > validBefore) {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_EXPIRED',
+        message: `Authorization expired ${now - validBefore}s ago (validBefore=${validBefore}, now=${now}).`,
+      },
+    }
+  }
+
+  // Authorized amount must cover the tool's registered cost.
+  let authorized: bigint
+  try {
+    authorized = BigInt(parsed.authorization.value)
+  } catch {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_AUTH_INVALID',
+        message: `Authorization value is not an integer base-unit string: "${parsed.authorization.value}".`,
+      },
+    }
+  }
+  const required =
+    BigInt(Math.max(0, Math.floor(toolConfig.costCents))) * CIRCLE_NANO_BASE_UNITS_PER_CENT
+  if (authorized < required) {
+    return {
+      valid: false,
+      error: {
+        code: 'CIRCLE_NANO_AMOUNT_MISMATCH',
+        message: `Authorization covers ${authorized} USDC base units but tool costs ${required} (${toolConfig.costCents}¢).`,
+      },
+    }
+  }
+
+  logger.info('circle_nano.proof_structurally_valid', {
+    toolSlug: toolConfig.slug,
+    payer: parsed.authorization.from,
+    amountBaseUnits: parsed.authorization.value,
+  })
+
+  return {
+    valid: true,
+    payerAddress: parsed.authorization.from,
+    amountUsdc: parsed.authorization.value,
+  }
+}
+
+/**
+ * SDK-side validation entrypoint (the P2.K2 `verify()` delegate). Reads the
+ * `x-circle-nano-auth` header and runs {@link validateCircleNanoProofString}.
+ * See that function's note: this is STRUCTURAL only — the authoritative
+ * EIP-712 signature + recipient check is server-side.
+ */
+export async function validateCircleNanoPayment(
+  request: Request,
+  options: CircleNanoValidateOptions,
+): Promise<CircleNanoPaymentResult> {
+  const proof = request.headers.get(CIRCLE_NANO_HTTP_HEADERS.AUTH)
+  return validateCircleNanoProofString(proof, options)
 }
 
 export function generateCircleNano402Response(options: CircleNano402Options): Response {

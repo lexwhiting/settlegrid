@@ -553,6 +553,116 @@ describe('createDispatchKernel', () => {
     })
   })
 
+  // ─── Circle Nano protocol (P5 — Tier 1 offline EIP-3009 dispatch) ─────
+
+  describe('circle-nano protocol', () => {
+    function buildKernel(toolSecret = 'tool_secret_cnano'): DispatchKernel {
+      const sg = settlegrid.init({
+        toolSlug: 'test-tool',
+        pricing: { defaultCostCents: 5 },
+        toolSecret,
+      })
+      return createDispatchKernel(sg)
+    }
+
+    // circle-nano is detected via `x-settlegrid-protocol: circle-nano`; the
+    // EIP-3009 authorization (captured into payment.proof by
+    // extractPaymentContext) rides along in the facilitator verify/settle body.
+    function circleNanoRequest(extraHeaders: Record<string, string> = {}): Request {
+      return new Request('http://localhost/api/tool/run', {
+        method: 'POST',
+        headers: {
+          'x-settlegrid-protocol': 'circle-nano',
+          'x-circle-nano-auth': 'cnano-proof-blob',
+          ...extraHeaders,
+        },
+        body: JSON.stringify({ method: 'demo.invocation' }),
+      })
+    }
+
+    it('happy path: verify + runHandler + settle + 200 response', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/circle-nano/verify')) return jsonResponse({ valid: true })
+        if (url.endsWith('/api/circle-nano/settle'))
+          return facilitatorSettleResponse('circle-nano')
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel()
+      const handler = vi.fn().mockResolvedValue({ ok: true })
+      const response = await kernel.handle(circleNanoRequest(), handler)
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(response.headers.get('X-SettleGrid-Protocol')).toBe('circle-nano')
+      expect(
+        fetchCalls.find((c) => c.url.endsWith('/api/circle-nano/verify')),
+      ).toBeDefined()
+      expect(
+        fetchCalls.find((c) => c.url.endsWith('/api/circle-nano/settle')),
+      ).toBeDefined()
+    })
+
+    it('forwards the EIP-3009 authorization (payment.proof) in the facilitator verify body', async () => {
+      let verifyBody: { paymentContext?: { payment?: { proof?: string } } } = {}
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/circle-nano/verify')) {
+          verifyBody = JSON.parse(init.body as string)
+          return jsonResponse({ valid: true })
+        }
+        if (url.endsWith('/api/circle-nano/settle'))
+          return facilitatorSettleResponse('circle-nano')
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel()
+      await kernel.handle(circleNanoRequest(), vi.fn().mockResolvedValue({}))
+
+      expect(verifyBody.paymentContext?.payment?.proof).toBe('cnano-proof-blob')
+    })
+
+    it('handler NOT called when facilitator verify returns { valid: false }', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/circle-nano/verify')) {
+          return jsonResponse({ valid: false, error: 'authorization signature invalid' })
+        }
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel()
+      const handler = vi.fn()
+      const response = await kernel.handle(circleNanoRequest(), handler)
+
+      expect(handler).not.toHaveBeenCalled()
+      // circle-nano adapter.formatError maps an 'invalid'/'auth' message to 401.
+      expect(response.status).toBe(401)
+      expect(
+        fetchCalls.find((c) => c.url.endsWith('/api/circle-nano/settle')),
+      ).toBeUndefined()
+    })
+
+    it('uses toolSecret for the facilitator Authorization header', async () => {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        fetchCalls.push(recordCall(url, init))
+        if (url.endsWith('/api/circle-nano/verify')) return jsonResponse({ valid: true })
+        if (url.endsWith('/api/circle-nano/settle'))
+          return facilitatorSettleResponse('circle-nano')
+        return new Response('{}', { status: 404 })
+      })
+
+      const kernel = buildKernel('tool_secret_cnano')
+      await kernel.handle(circleNanoRequest(), vi.fn().mockResolvedValue({}))
+
+      const verifyCall = fetchCalls.find((c) =>
+        c.url.endsWith('/api/circle-nano/verify'),
+      )
+      expect(verifyCall?.headers['Authorization']).toBe('Bearer tool_secret_cnano')
+    })
+  })
+
   // ─── MPP protocol ─────────────────────────────────────────────────────
 
   describe('mpp protocol', () => {
@@ -631,7 +741,7 @@ describe('createDispatchKernel', () => {
       // the RFC-style WWW-Authenticate challenge + the X-SettleGrid-
       // Protocol-Negotiation marker.
       expect(response.headers.get('WWW-Authenticate')).toBe(
-        'Payment realm="settlegrid", scheme="sg-balance, exact, mpp, ap2"',
+        'Payment realm="settlegrid", scheme="sg-balance, exact, mpp, ap2, circle-nano"',
       )
       expect(response.headers.get('X-SettleGrid-Protocol-Negotiation')).toBe('v1')
       expect(handler).not.toHaveBeenCalled()
@@ -654,12 +764,13 @@ describe('createDispatchKernel', () => {
       expect(body.x402Version).toBe(2)
       expect(body.error).toBe('payment_required')
       expect(body.resource).toEqual({ url: 'http://localhost/api/tool/run' })
-      expect(body.accepts).toHaveLength(4)
+      expect(body.accepts).toHaveLength(5)
       expect(body.accepts.map((e: { scheme: string }) => e.scheme)).toEqual([
         'sg-balance',
         'exact',
         'mpp',
         'ap2',
+        'circle-nano',
       ])
       // The sg-balance entry carries the SettleGrid top-up URL
       expect(body.accepts[0]).toMatchObject({
@@ -671,10 +782,12 @@ describe('createDispatchKernel', () => {
 
     it('falls through to 402 when the matched adapter is not wired into Phase 1', async () => {
       // ACP IS detected by the registry (has an adapter) but is NOT wired
-      // into the Phase 1 kernel (AP2 graduated in P5; ACP is the next
-      // Tier-1 candidate — repoint this to the next still-unwired protocol
-      // when ACP lands). Should fall through to the 402 manifest WITH the
-      // ctx.operation.method from ACP's extractPaymentContext.
+      // into the Phase 1 kernel. AP2 graduated in P5; Circle Nano graduated
+      // next (offline EIP-3009 verify). ACP stays the example here because
+      // it is genuinely unsettleable today — gated behind OpenAI ChatGPT-
+      // merchant onboarding + a product-catalog model, not env-derivable
+      // like the wired rails. Should fall through to the 402 manifest WITH
+      // the ctx.operation.method from ACP's extractPaymentContext.
       const sg = settlegrid.init({
         toolSlug: 'test-tool',
         pricing: {

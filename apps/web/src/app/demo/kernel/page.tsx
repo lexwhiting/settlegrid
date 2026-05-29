@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Cross-Protocol Kernel Demo · SettleGrid',
     description:
-      'Live demo of the SettleGrid kernel. 14 protocols detected, 4 settled end-to-end, sandbox-isolated.',
+      'Live demo of the SettleGrid kernel. 14 protocols detected, 5 settled end-to-end, sandbox-isolated.',
     type: 'article',
     siteName: 'SettleGrid',
     url: 'https://settlegrid.ai/demo/kernel',
