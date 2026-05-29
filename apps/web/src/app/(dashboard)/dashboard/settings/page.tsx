@@ -22,6 +22,7 @@ interface RailDisplayMeta {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { useToast } from '@/components/ui/toast'
+import { ApiKeyRevealDialog } from '@/components/api-key-reveal-dialog'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -337,6 +338,7 @@ export default function SettingsPage() {
   const [keyLabel, setKeyLabel] = useState('')
   const [creatingKey, setCreatingKey] = useState(false)
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
+  const [newlyCreatedKeyLabel, setNewlyCreatedKeyLabel] = useState('')
   const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null)
   const [apiKeysError, setApiKeysError] = useState(false)
 
@@ -549,6 +551,7 @@ export default function SettingsPage() {
         return
       }
       setNewlyCreatedKey(data.key)
+      setNewlyCreatedKeyLabel(keyLabel.trim())
       setKeyLabel('')
       await loadApiKeys()
     } catch {
@@ -1670,37 +1673,11 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {newlyCreatedKey && (
-                  <div role="status" className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
-                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">
-                      API key created. Copy it now -- it will not be shown again.
-                    </p>
-                    <code className="block text-xs font-mono break-all text-amber-900 dark:text-amber-200 bg-amber-100/60 dark:bg-amber-900/30 rounded px-2 py-1.5 mb-2">
-                      {newlyCreatedKey}
-                    </code>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(newlyCreatedKey)
-                            toast('API key copied to clipboard.', 'success')
-                            setNewlyCreatedKey(null)
-                          } catch {
-                            // The key is shown only once and cannot be recovered — never
-                            // dismiss it on a failed copy; let the user copy it manually.
-                            toast('Could not copy automatically. Select the key above and copy it before dismissing.', 'error')
-                          }
-                        }}
-                      >
-                        Copy &amp; Dismiss
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setNewlyCreatedKey(null)}>
-                        Dismiss
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <ApiKeyRevealDialog
+                  apiKey={newlyCreatedKey}
+                  keyLabel={newlyCreatedKeyLabel}
+                  onClose={() => setNewlyCreatedKey(null)}
+                />
 
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
                   <div className="flex-1">
@@ -1715,11 +1692,7 @@ export default function SettingsPage() {
                       placeholder="e.g. CI pipeline"
                     />
                   </div>
-                  <Button
-                    onClick={createApiKey}
-                    disabled={creatingKey || newlyCreatedKey !== null}
-                    title={newlyCreatedKey ? 'Copy and dismiss your new key before creating another' : undefined}
-                  >
+                  <Button onClick={createApiKey} disabled={creatingKey}>
                     {creatingKey ? 'Generating...' : 'Generate API Key'}
                   </Button>
                 </div>
