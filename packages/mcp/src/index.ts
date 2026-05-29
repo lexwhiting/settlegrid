@@ -758,6 +758,9 @@ export {
   CircleNanoAdapter,
   isCircleNanoRequest,
   validateCircleNanoPayment,
+  validateCircleNanoProofString,
+  parseCircleNanoProof,
+  CIRCLE_NANO_SUPPORTED_NETWORKS,
   generateCircleNano402Response,
 } from './adapters/circle-nano'
 export type {
@@ -766,6 +769,8 @@ export type {
   CircleNanoToolConfig,
   CircleNanoValidateOptions,
   CircleNano402Options,
+  CircleNanoProof,
+  CircleNanoAuthorization,
 } from './adapters/circle-nano'
 
 export { MCPAdapter } from './adapters/mcp'

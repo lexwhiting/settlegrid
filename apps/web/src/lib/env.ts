@@ -182,6 +182,20 @@ export function getAcpStripeKey(): string | undefined {
   return process.env.ACP_STRIPE_KEY
 }
 
+// Circle Nano (USDC EIP-3009 nanopayments) — kernel rail. The offline
+// verifier needs only the platform USDC address that EIP-3009 authorizations
+// must pay (`authorization.to`); NO Circle account or API key is required to
+// verify + record. The legacy direct-proxy `isCircleNanoEnabled` in
+// circle-nano-proxy.ts still gates on CIRCLE_NANO_API_KEY — a separate,
+// untouched surface.
+export function getCircleNanoRecipient(): string | undefined {
+  return process.env.SETTLEGRID_USDC_RECIPIENT
+}
+
+export function isCircleNanoKernelEnabled(): boolean {
+  return !!process.env.SETTLEGRID_USDC_RECIPIENT
+}
+
 // L402 (Bitcoin Lightning)
 export function isL402Enabled(): boolean {
   return process.env.L402_ENABLED === 'true' || !!process.env.LND_REST_URL

@@ -34,12 +34,13 @@ describe('demo configuration constants', () => {
     expect(DEMO_TOOL_SECRET).toBe('demo-sandbox-secret')
   })
 
-  it('lists the kernel-dispatched protocols (mcp, x402, mpp, ap2)', () => {
+  it('lists the kernel-dispatched protocols (mcp, x402, mpp, ap2, circle-nano)', () => {
     expect([...KERNEL_DISPATCHED_PROTOCOLS]).toEqual([
       'mcp',
       'x402',
       'mpp',
       'ap2',
+      'circle-nano',
     ])
   })
 })
