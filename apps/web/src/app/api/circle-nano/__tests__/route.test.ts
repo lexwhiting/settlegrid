@@ -18,6 +18,7 @@ const {
   mockCheckRateLimit,
   mockIsCircleNanoKernelEnabled,
   mockValidate,
+  mockRecordSettlement,
 } = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockCheckRateLimit: vi.fn(),
   mockIsCircleNanoKernelEnabled: vi.fn(),
   mockValidate: vi.fn(),
+  mockRecordSettlement: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
@@ -37,6 +39,7 @@ vi.mock('@/lib/db/schema', () => ({
     slug: 'slug',
     status: 'status',
     pricingConfig: 'pricing_config',
+    developerId: 'developer_id',
   },
 }))
 vi.mock('@/lib/rate-limit', () => ({
@@ -48,6 +51,9 @@ vi.mock('@/lib/env', () => ({
 }))
 vi.mock('@/lib/circle-nano-proxy', () => ({
   validateCircleNanoCredentialString: mockValidate,
+}))
+vi.mock('@/lib/settlement/ledger', () => ({
+  recordSettlementEntryAsync: mockRecordSettlement,
 }))
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a: unknown, b: unknown) => ({ a, b })),
@@ -61,6 +67,7 @@ const ACTIVE_TOOL = {
   slug: 'demo',
   status: 'active',
   pricingConfig: { defaultCostCents: 50 },
+  developerId: 'dev-uuid-1',
 }
 
 function setTool(row: unknown | null) {
@@ -197,5 +204,90 @@ describe('POST /api/circle-nano/settle', () => {
     setTool(null)
     const res = await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ENVELOPE))
     expect(res.status).toBe(404)
+  })
+
+  // ─── P3.K4 (A1) unified-ledger write ──────────────────────────────────
+  it("records a 'pending' ledger entry keyed by a stable network:from:nonce id", async () => {
+    const proof = Buffer.from(
+      JSON.stringify({
+        network: 'eip155:8453',
+        authorization: {
+          from: '0xAbCdEf0000000000000000000000000000000001',
+          to: '0xRecipient',
+          value: '500000',
+          validAfter: '0',
+          validBefore: '9999999999',
+          nonce: '0xNoNcE',
+        },
+        signature: '0x' + 'ab'.repeat(65),
+      }),
+    ).toString('base64')
+    mockValidate.mockResolvedValue({
+      valid: true,
+      payerAddress: '0xAbCdEf0000000000000000000000000000000001',
+      amountUsdc: '500000',
+    })
+
+    const res = await settlePOST(
+      makeReq('/api/circle-nano/settle', {
+        ...SETTLE_ENVELOPE,
+        paymentContext: {
+          protocol: 'circle-nano',
+          payment: { type: 'nanopayment', proof },
+        },
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockRecordSettlement).toHaveBeenCalledTimes(1)
+    expect(mockRecordSettlement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // from + nonce lowercased; NOT the random SettlementResult.operationId
+        invocationId:
+          'circle-nano:eip155:8453:0xabcdef0000000000000000000000000000000001:0xnonce',
+        rail: 'circle-nano',
+        protocol: 'circle-nano',
+        amountCents: 50,
+        currency: 'USDC',
+        takeBps: 0,
+        status: 'pending',
+        externalRef: null,
+        accountId: 'dev-uuid-1',
+      }),
+    )
+  })
+
+  it('does NOT write the ledger when costCents resolves to 0', async () => {
+    setTool({ ...ACTIVE_TOOL, pricingConfig: null })
+    mockValidate.mockResolvedValue({ valid: true, payerAddress: '0xabc', amountUsdc: '0' })
+    const res = await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ENVELOPE))
+    expect(res.status).toBe(200)
+    expect(mockRecordSettlement).not.toHaveBeenCalled()
+  })
+
+  it('does NOT write the ledger when settle-time re-verification fails', async () => {
+    mockValidate.mockResolvedValue({
+      valid: false,
+      error: { code: 'CIRCLE_NANO_EXPIRED', message: 'expired' },
+    })
+    await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ENVELOPE))
+    expect(mockRecordSettlement).not.toHaveBeenCalled()
+  })
+
+  it('does NOT write the ledger when the proof is unparseable (defensive skip)', async () => {
+    // verification passes (mocked) but the proof can't be parsed into a
+    // network:from:nonce key — skip the write rather than throw on the hot path.
+    mockValidate.mockResolvedValue({ valid: true, payerAddress: '0xabc', amountUsdc: '500000' })
+    const res = await settlePOST(
+      makeReq('/api/circle-nano/settle', {
+        ...SETTLE_ENVELOPE,
+        paymentContext: {
+          protocol: 'circle-nano',
+          payment: { type: 'nanopayment', proof: 'not-a-valid-proof-blob' },
+        },
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(mockRecordSettlement).not.toHaveBeenCalled()
   })
 })

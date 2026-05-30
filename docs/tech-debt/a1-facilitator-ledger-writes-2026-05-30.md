@@ -1,0 +1,129 @@
+# P3.K4 — A1: Facilitator unified-ledger writes (2026-05-30)
+
+**Chunk:** P3.K4 step **A1** — make the offline facilitator settle routes (`ap2`,
+`circle-nano`) write a row to the unified `ledger_entries` table on settlement.
+This is the "record" half of "make the rails actually settle + record"; the
+"settle" half (real on-chain submission for circle-nano + the prod env flip) is
+**A2**, deferred.
+
+**Files touched (6):**
+- `apps/web/src/app/api/ap2/settle/route.ts` — ledger write (status `settled`).
+- `apps/web/src/app/api/circle-nano/settle/route.ts` — ledger write (status `pending`).
+- `apps/web/src/lib/settlement/ledger.ts` — writer idempotency fix (see below).
+- `apps/web/src/lib/__tests__/ledger.test.ts` — `recordSettlementEntry` conformance + idempotency tests (first coverage of this function).
+- `apps/web/src/app/api/{ap2,circle-nano}/__tests__/route.test.ts` — ledger-write assertions + skip-condition + fallback tests.
+
+---
+
+## Decisions made (with rationale)
+
+### 1. `accountId` = `tool.developerId` (NOT a real provider account)
+`recordSettlementEntry` requires a non-null `accountId` (populates the legacy
+`ledger_entries.account_id NOT NULL` column). The handoff assumed this resolves
+to a provider account via `accounts (type='provider', entityId=developerId)` —
+but **the `accounts` table has NO provisioning path anywhere in the codebase**
+(zero `insert(accounts)` / `INSERT INTO accounts` / `entityId:` writes in app
+code, SQL, scripts, or packages). The double-entry balance system is built but
+unpopulated. So resolving a provider account would find nothing → A1 would
+record nothing (inert).
+
+**Decision (founder-approved 2026-05-30):** attribute settlement rows to
+`tool.developerId`. `ledger_entries.account_id` has **no FK** (schema explicitly
+notes this), and a settlement row is a single inert `credit` row that does **not**
+touch balances (`recordSettlementEntry` only INSERTs; it never calls the
+balance-updating `postLedgerEntry`), so `developerId` is a coherent attribution
+tag. Functional now; reversible later.
+
+> **DEBT (LOW):** when account provisioning is eventually built, settlement-row
+> `account_id` should be remapped/backfilled from `developerId` → the real
+> `accounts.id`. Reconciliation tooling (P3.RAIL2) must, until then, treat
+> settlement-row `account_id` as a **developer id**, not an account id.
+
+### 2. Honest per-rail status
+- **ap2 → `settled`**: the AP2 VDC *is* the payment authorization (no external
+  rail); settlement is final at validation. A `settled` row **MUST** carry
+  `settledAt` (canonical validator throws `RangeError` otherwise; DB
+  `ledger_entries_settled_at_shape` check backs it) — the route sets
+  `settledAt: new Date().toISOString()`.
+- **circle-nano → `pending`**: verified offline, but the USDC has **not** moved
+  on-chain yet (that's A2). `pending` is the honest financial state.
+
+### 3. Stable, invocation-rooted idempotency (shared writer fix)
+The unified writer documented (and the `LedgerWriter` type contract requires)
+idempotency on `entry.id`, but the implementation assigned a **random PK** and
+did a plain INSERT with no `ON CONFLICT` — so a settle **retry wrote a duplicate
+row**. Because `ap2` is **LIVE in prod** (`AP2_SIGNING_SECRET` set), this was a
+real reconciliation-over-count defect introduced by A1 (caught by independent
+audit).
+
+**Fix:** `recordSettlementEntry` now derives a deterministic v5-format UUID from
+`invocationId` (`settlementEntryId()`, sha256-based) and the INSERT uses
+`.onConflictDoNothing()`. Same `invocationId` → same PK → exactly-once row.
+- `ap2` keys on `invocationId = operationId` (= the VDC `transactionId` when present).
+- `circle-nano` keys on `invocationId = circle-nano:<network>:<from>:<nonce>` (the
+  stable authorization identity, NOT the random `SettlementResult.operationId`).
+- **Safe for `recordHop`** (the other caller): its `invocationId = hopId`
+  (random per hop) → unique derived id → conflict-guard never triggers → behavior
+  unchanged.
+
+> **`onConflictDoNothing` is FIRST-WRITE-WINS, not update-in-place.** A2 must flip
+> a circle-nano `pending` row to `settled` (+ on-chain `txHash`) via an explicit
+> `UPDATE` keyed on the deterministic id / `invocation_id`, **not** a re-insert
+> (which the conflict-guard would skip).
+
+---
+
+## Carried-forward DEBT (non-blocking)
+
+1. **(LOW) ap2 dedup gap when a VDC carries no `transactionId`.** The route's
+   `operationId = verification.transactionId ?? randomUUID()`; with the random
+   fallback, two settles of the same credential get different ids and don't
+   dedupe. Inherent — no stable key exists for such a VDC. Unchanged by the
+   idempotency fix (which is correct when a `transactionId` is present).
+2. **(LOW) `takeBps: 0`.** No platform-take computation in the facilitator settle
+   path; settlement rows record `takeBps=0`/`takeCents=0`. Real take computation
+   is out of A1 scope.
+3. **(LOW–MED, shared) Fire-and-forget without `waitUntil`/`after()`.** The
+   ledger write is best-effort (`recordSettlementEntryAsync`, not awaited) — on a
+   serverless freeze immediately after the response, the write can be dropped.
+   At parity with `recordHop` / `postLedgerEntryAsync`. Consider Vercel `after()`
+   for durable best-effort writes repo-wide.
+4. **(LOW) `accountId` = `developerId` stand-in** — see Decision 1; backfill when
+   account provisioning exists.
+
+## Deferred to A2 / later (NOT in A1)
+- **circle-nano real on-chain settlement** — submit `transferWithAuthorization`
+  via the gas wallet (mirror `x402/settle.ts`), set **`SETTLEGRID_USDC_RECIPIENT`
+  in Vercel prod** (founder-greenlit, bound to A2), flip `pending`→`settled` via
+  UPDATE, dedup on `(from, nonce)`. circle-nano stays DARK in prod until then.
+- **x402 ledger write** — x402 already submits on-chain (gas wallet) but has a
+  *different* settle contract (raw `paymentPayload`, returns `{success, txHash}`)
+  and no `toolSlug`/cost in the kernel-body shape; its ledger write belongs with
+  the on-chain/real-money work (A2-grouped, with `externalRef = txHash`).
+- **mpp ledger write** — no real `/api/mpp/settle` route exists (demo stub only);
+  needs a route first.
+
+---
+
+## Audit-round record (the protocol earned its cost)
+
+The L0/L1 gates were green (tsc, vitest, eslint, next build) AND the author's own
+hostile pass found nothing — yet **3 independent fresh-context review rounds**
+caught real defects the green suite masked:
+- **R1** found **two BLOCKERS**: (a) ap2 `settled` without `settledAt` → the
+  canonical validator throws → *every* ap2 write silently failed (zero rows);
+  (b) the "idempotent by invocationId" comment was false (random PK + no
+  `onConflict`). Both slipped because the route tests **mocked**
+  `recordSettlementEntryAsync`, so the real validator never ran.
+- **R2** confirmed the fixes AND surfaced a **FIX-NOW**: `ap2` is LIVE in prod
+  (`AP2_SIGNING_SECRET` set), so the non-idempotent write was a real over-count —
+  the "dark in prod" safety net only covered circle-nano. Fixed at root cause in
+  the shared writer.
+- **R3** (focused) verified the writer fix: PASS — dedupe path correct,
+  `settlementEntryId` format/determinism/collision-safe, `recordHop` unaffected,
+  only the PK unique-constraint on `ledger_entries`.
+
+**Lesson reinforced:** for a unified-ledger write, a route test that mocks the
+writer is insufficient — exercise the **real** `recordLedgerEntry` validator
+against the exact input shape (now done in `ledger.test.ts`). cf.
+`feedback-ke2-independent-audit-mandatory`.

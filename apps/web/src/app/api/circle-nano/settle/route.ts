@@ -25,7 +25,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
-import { resolveOperationCost } from '@settlegrid/mcp'
+import { resolveOperationCost, parseCircleNanoProof } from '@settlegrid/mcp'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
@@ -34,6 +34,7 @@ import { validateCircleNanoCredentialString } from '@/lib/circle-nano-proxy'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import { recordSettlementEntryAsync } from '@/lib/settlement/ledger'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -99,6 +100,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
         slug: tools.slug,
         status: tools.status,
         pricingConfig: tools.pricingConfig,
+        developerId: tools.developerId,
       })
       .from(tools)
       .where(eq(tools.slug, toolSlug))
@@ -156,6 +158,43 @@ export const POST = withCors(async function POST(request: NextRequest) {
       operationId: settlement.operationId,
       costCents,
     })
+
+    // P3.K4 (A1) — record the settlement to the unified ledger. circle-nano is
+    // verify-and-record today (on-chain submission is deferred to A2), so the
+    // row is honestly 'pending' — the USDC has NOT moved on-chain yet. The
+    // invocationId is the STABLE network:from:nonce identifier (NOT the random
+    // SettlementResult.operationId): it names the AUTHORIZATION, not the call,
+    // so the writer's deterministic-id + ON CONFLICT DO NOTHING makes a re-settle
+    // idempotent (exactly one row per authorization). A2 flips this row to
+    // 'settled' + the on-chain txHash via an explicit UPDATE (NOT a re-insert,
+    // which the conflict-guard would skip). circle-nano is also gated DARK in
+    // prod (SETTLEGRID_USDC_RECIPIENT unset → 503 above) until A2. accountId =
+    // the tool's owning developer. See
+    // docs/tech-debt/a1-facilitator-ledger-writes-2026-05-30.md.
+    if (costCents > 0 && toolRow.developerId) {
+      const parsedProof = proof ? parseCircleNanoProof(proof) : null
+      if (parsedProof) {
+        const { network, authorization } = parsedProof
+        recordSettlementEntryAsync({
+          invocationId: `circle-nano:${network}:${authorization.from.toLowerCase()}:${authorization.nonce.toLowerCase()}`,
+          rail: 'circle-nano',
+          protocol: 'circle-nano',
+          amountCents: costCents,
+          currency: 'USDC',
+          takeBps: 0,
+          status: 'pending',
+          externalRef: null,
+          accountId: toolRow.developerId,
+          metadata: {
+            method,
+            settlementType: 'batched',
+            network,
+            payer: authorization.from,
+          },
+          description: `circle-nano settlement for tool ${toolRow.slug} (${method})`,
+        })
+      }
+    }
 
     return successResponse(settlement)
   } catch (error) {

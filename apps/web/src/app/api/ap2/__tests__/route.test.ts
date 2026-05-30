@@ -12,18 +12,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockCheckRateLimit, mockIsAp2Enabled, mockValidate } =
-  vi.hoisted(() => ({
-    mockDb: {
-      select: vi.fn(),
-      from: vi.fn(),
-      where: vi.fn(),
-      limit: vi.fn(),
-    },
-    mockCheckRateLimit: vi.fn(),
-    mockIsAp2Enabled: vi.fn(),
-    mockValidate: vi.fn(),
-  }))
+const {
+  mockDb,
+  mockCheckRateLimit,
+  mockIsAp2Enabled,
+  mockValidate,
+  mockRecordSettlement,
+} = vi.hoisted(() => ({
+  mockDb: {
+    select: vi.fn(),
+    from: vi.fn(),
+    where: vi.fn(),
+    limit: vi.fn(),
+  },
+  mockCheckRateLimit: vi.fn(),
+  mockIsAp2Enabled: vi.fn(),
+  mockValidate: vi.fn(),
+  mockRecordSettlement: vi.fn(),
+}))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('@/lib/db/schema', () => ({
@@ -32,6 +38,7 @@ vi.mock('@/lib/db/schema', () => ({
     slug: 'slug',
     status: 'status',
     pricingConfig: 'pricing_config',
+    developerId: 'developer_id',
   },
 }))
 vi.mock('@/lib/rate-limit', () => ({
@@ -41,6 +48,9 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('@/lib/env', () => ({ isAp2Enabled: mockIsAp2Enabled }))
 vi.mock('@/lib/ap2-proxy', () => ({
   validateAp2CredentialString: mockValidate,
+}))
+vi.mock('@/lib/settlement/ledger', () => ({
+  recordSettlementEntryAsync: mockRecordSettlement,
 }))
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a: unknown, b: unknown) => ({ a, b })),
@@ -54,6 +64,7 @@ const ACTIVE_TOOL = {
   slug: 'demo',
   status: 'active',
   pricingConfig: { defaultCostCents: 50 },
+  developerId: 'dev-uuid-1',
 }
 
 /** Configure the mocked drizzle chain to resolve a given tool row (or none). */
@@ -202,5 +213,51 @@ describe('POST /api/ap2/settle', () => {
     setTool(null)
     const res = await settlePOST(makeReq('/api/ap2/settle', SETTLE_ENVELOPE))
     expect(res.status).toBe(404)
+  })
+
+  // ─── P3.K4 (A1) unified-ledger write ──────────────────────────────────
+  it("records a 'settled' ledger entry keyed by the VDC operationId on success", async () => {
+    mockValidate.mockResolvedValue({ valid: true, transactionId: 'tx-9' })
+    const res = await settlePOST(makeReq('/api/ap2/settle', SETTLE_ENVELOPE))
+    expect(res.status).toBe(200)
+    expect(mockRecordSettlement).toHaveBeenCalledTimes(1)
+    expect(mockRecordSettlement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invocationId: 'tx-9',
+        rail: 'ap2',
+        protocol: 'ap2',
+        amountCents: 50,
+        currency: 'USD',
+        takeBps: 0,
+        status: 'settled',
+        accountId: 'dev-uuid-1',
+      }),
+    )
+  })
+
+  it('does NOT write the ledger when costCents resolves to 0', async () => {
+    setTool({ ...ACTIVE_TOOL, pricingConfig: null })
+    mockValidate.mockResolvedValue({ valid: true, transactionId: 'tx-0' })
+    const res = await settlePOST(makeReq('/api/ap2/settle', SETTLE_ENVELOPE))
+    expect(res.status).toBe(200)
+    expect(mockRecordSettlement).not.toHaveBeenCalled()
+  })
+
+  it('does NOT write the ledger when settle-time re-verification fails', async () => {
+    mockValidate.mockResolvedValue({
+      valid: false,
+      error: { code: 'AP2_CREDENTIAL_EXPIRED', message: 'expired' },
+    })
+    await settlePOST(makeReq('/api/ap2/settle', SETTLE_ENVELOPE))
+    expect(mockRecordSettlement).not.toHaveBeenCalled()
+  })
+
+  it('mints a UUID ledger key when the validator returns no transactionId', async () => {
+    mockValidate.mockResolvedValue({ valid: true })
+    await settlePOST(makeReq('/api/ap2/settle', SETTLE_ENVELOPE))
+    const arg = mockRecordSettlement.mock.calls[0]?.[0]
+    expect(arg.invocationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )
   })
 })
