@@ -135,11 +135,29 @@ mutation-tested the "unconfirmed never settled" invariant (RED→restored).
 
 ---
 
-## Sub-part 2 — x402 ledger write — **PENDING (next commit in this A2 chunk)**
-x402 already submits on-chain (gas wallet) but writes NO ledger row, and its
-settle route uses a different raw `{paymentPayload}` contract. A2 sub-part 2 adds a
-`recordSettlementEntry` call (`rail`/`protocol` `x402`, `currency` USDC,
-`status:'settled'`, `settledAt`, `externalRef = txHash`, `accountId = developerId`).
-Open question to resolve there: whether `toolSlug`/cost/`developerId` are resolvable
-at the x402 facilitator settle route (`api/x402/facilitator/v1/settle/route.ts`); if
-not cleanly, defer with a flagged DEBT entry here.
+## Sub-part 2 — x402 ledger write — **PENDING (fresh session recommended)**
+
+**Corrected finding (the handoff's "x402 settle route" framing was imprecise):**
+x402 is internally called **`ln`** in this codebase. There are TWO x402 surfaces:
+- **`/api/x402/settle` + `/api/x402/facilitator/v1/settle`** — generic, PUBLIC
+  facilitator endpoints. They take a raw `{paymentPayload}` and have **NO tool /
+  developer / cost context** (no DB lookup). A unified-ledger settlement row does
+  **NOT** belong here — there is nothing to attribute it to (no `accountId`), and
+  these settle arbitrary third-party x402 payments, not necessarily SettleGrid
+  tool revenue.
+- **`handleX402Proxy`** in `apps/web/src/app/api/proxy/[slug]/route.ts` (~line 1709)
+  — the REAL per-invocation x402 tool settlement path. It HAS full tool context
+  (`toolRow` incl. `developerId`, `costCents`, `slug`) and the settle result
+  (`lnResult.txHash` / `payerAddress` / `network`), and currently writes **NO**
+  `recordSettlementEntry` row. **This is where sub-part 2's ledger write belongs.**
+
+**Sub-part 2 = add a `recordSettlementEntry` call in `handleX402Proxy`** mirroring
+A1's circle-nano pattern: `rail`/`protocol` `'x402'`, `currency:'USDC'`,
+`status:'settled'`, `settledAt`, `externalRef = lnResult.txHash`,
+`accountId = toolRow.developerId`, `amountCents = costCents`, and a stable
+`invocationId` keyed on the x402 authorization `(network, from, nonce)` —
+**confirm `lnResult` / the validated request exposes the nonce** for the dedup key
+(if only `txHash` is available, key on `x402:<network>:<txHash>` instead, but
+`(from,nonce)` is preferable for parity with circle-nano). Lighter audit than
+sub-part 1 (it records a payment that ALREADY settled on-chain — no new money
+movement). `'settled'` rows MUST carry `settledAt` (validator throws otherwise).
