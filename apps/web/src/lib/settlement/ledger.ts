@@ -482,3 +482,139 @@ export function recordSettlementEntryAsync(input: RailSettlementRow): void {
     )
   })
 }
+
+// ─── P3.K4 A2 — on-chain settlement state transitions ───────────────────────
+//
+// A2 makes circle-nano actually settle USDC on-chain. The row recordSettlementEntry
+// wrote as 'pending' (a write-ahead INTENT record) is flipped to its terminal
+// state by an explicit UPDATE keyed on the stable `operation_id` + `rail` —
+// NOT by re-calling recordSettlementEntry (whose ON CONFLICT DO NOTHING is
+// FIRST-WRITE-WINS and would SILENTLY SKIP a re-insert, so you'd think you
+// settled and you didn't).
+//
+// Every flip is guarded `WHERE settlement_status = 'pending'`, which makes
+// 'settled' terminal (no double-flip) and prevents a concurrent loser from
+// clobbering a winner. Each returns whether a pending row was actually matched
+// so the caller can react to a no-op (already settled / failed / absent).
+//
+// DB CHECK `ledger_entries_settled_at_shape` requires: settled ⟹ settled_at NOT
+// NULL; any non-settled status ⟹ settled_at NULL. So markSettlementSettled sets
+// settled_at and the others MUST NOT (they keep the row non-settled).
+
+export interface SettlementRowState {
+  id: string
+  settlementStatus: string | null
+  externalRef: string | null
+}
+
+/**
+ * Read a settlement row by its stable `operation_id` + `rail`. Used for
+ * idempotency (already-settled → return the recorded txHash) and crash/timeout
+ * recovery (a 'pending' row carrying a broadcast txHash in external_ref).
+ */
+export async function findSettlementRow(
+  operationId: string,
+  rail: string,
+): Promise<SettlementRowState | null> {
+  const [row] = await db
+    .select({
+      id: ledgerEntries.id,
+      settlementStatus: ledgerEntries.settlementStatus,
+      externalRef: ledgerEntries.externalRef,
+    })
+    .from(ledgerEntries)
+    .where(
+      and(eq(ledgerEntries.operationId, operationId), eq(ledgerEntries.rail, rail)),
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * Flip a 'pending' settlement row to 'settled' + the confirmed on-chain txHash.
+ * Sets settled_at (required by the settled_at_shape CHECK). Guarded
+ * `WHERE settlement_status='pending'` so 'settled' is terminal. Returns true iff
+ * a row was flipped (false ⇒ no pending row matched — already terminal/absent).
+ */
+export async function markSettlementSettled(
+  operationId: string,
+  rail: string,
+  txHash: string,
+): Promise<boolean> {
+  const updated = await db
+    .update(ledgerEntries)
+    .set({
+      settlementStatus: 'settled',
+      settledAt: new Date(),
+      externalRef: txHash,
+    })
+    .where(
+      and(
+        eq(ledgerEntries.operationId, operationId),
+        eq(ledgerEntries.rail, rail),
+        eq(ledgerEntries.settlementStatus, 'pending'),
+      ),
+    )
+    .returning({ id: ledgerEntries.id })
+  return updated.length > 0
+}
+
+/**
+ * Mark a 'pending' settlement row 'failed' — a CONFIRMED on-chain revert with
+ * the EIP-3009 nonce still free, i.e. the USDC did NOT move. Keeps settled_at
+ * NULL (CHECK-safe) and stores the reverted txHash as forensic evidence.
+ * Guarded `WHERE settlement_status='pending'`.
+ *
+ * NOTE: callers must NOT use this when a revert is accompanied by the nonce
+ * already being consumed on-chain (a concurrent settler moved the funds) — that
+ * is NOT a failure; use markSettlementBroadcast to leave it 'pending' for
+ * reconciliation instead.
+ */
+export async function markSettlementFailed(
+  operationId: string,
+  rail: string,
+  txHash?: string,
+): Promise<boolean> {
+  const updated = await db
+    .update(ledgerEntries)
+    .set({
+      settlementStatus: 'failed',
+      ...(txHash ? { externalRef: txHash } : {}),
+    })
+    .where(
+      and(
+        eq(ledgerEntries.operationId, operationId),
+        eq(ledgerEntries.rail, rail),
+        eq(ledgerEntries.settlementStatus, 'pending'),
+      ),
+    )
+    .returning({ id: ledgerEntries.id })
+  return updated.length > 0
+}
+
+/**
+ * Persist the broadcast txHash onto a still-'pending' row WITHOUT changing
+ * status (timeout, RPC error after broadcast, or revert-with-nonce-consumed),
+ * so the tx is never lost and a retry/reconciler can re-wait on it. Status stays
+ * 'pending' (settled_at stays NULL — CHECK-safe). A pending row carrying an
+ * external_ref is the signal "broadcast on-chain, confirmation outstanding."
+ * Guarded `WHERE settlement_status='pending'`.
+ */
+export async function markSettlementBroadcast(
+  operationId: string,
+  rail: string,
+  txHash: string,
+): Promise<boolean> {
+  const updated = await db
+    .update(ledgerEntries)
+    .set({ externalRef: txHash })
+    .where(
+      and(
+        eq(ledgerEntries.operationId, operationId),
+        eq(ledgerEntries.rail, rail),
+        eq(ledgerEntries.settlementStatus, 'pending'),
+      ),
+    )
+    .returning({ id: ledgerEntries.id })
+  return updated.length > 0
+}

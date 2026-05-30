@@ -317,7 +317,7 @@ describe('coverage — 402 body field shapes', () => {
     expect(credReqs.signature_algorithm).toBe('ES256')
   })
 
-  it('Circle Nano body includes amount_usdc_base_units + settlement off-chain-immediate', async () => {
+  it('Circle Nano body includes amount_usdc_base_units + on-chain settlement', async () => {
     const res = generateCircleNano402Response({
       toolSlug: 'my-tool',
       costCents: 5,
@@ -328,7 +328,7 @@ describe('coverage — 402 body field shapes', () => {
     expect(body.amount_usdc_base_units).toBe('50000')
     expect(body.accepted_payments).toEqual(['eip3009-nanopayment'])
     const settlement = body.settlement as Record<string, unknown>
-    expect(settlement.type).toBe('off-chain-immediate')
+    expect(settlement.type).toBe('on-chain')
   })
 
   it('L402 body includes macaroon, invoice, r_hash, expires_in_seconds', async () => {

@@ -7,19 +7,21 @@
  * and expects a RAW SettlementResult body (status / operationId / costCents /
  * metadata) — see packages/mcp/src/kernel.ts `validateSettlementResult`.
  *
- * v1 is VERIFY-AND-RECORD: re-verify the EIP-3009 authorization offline
- * (verify-first, mirroring /api/{x402,ap2}/settle) and return the canonical
- * SettlementResult the adapter formats for the consumer. It does NOT submit
- * the transferWithAuthorization on-chain and does NOT write the unified ledger
- * — the SAME gap x402/mpp/ap2 settlement already have through the kernel
- * (deferred to P3.K4 router-wiring; circle-nano additionally defers on-chain
- * batch execution + nonce/balance enforcement). settlementType is 'batched'
- * to reflect the deferred on-chain batch; no txHash is set, so the adapter
- * reports settlementStatus 'off-chain-confirmed'. (Tracked as DEBT in
- * docs/tech-debt/circle-nano-kernel-dispatch-*.md.)
+ * P3.K4 A2 — this route now SETTLES REAL MONEY. It re-verifies the EIP-3009
+ * authorization offline (verify-first, mirroring /api/{x402,ap2}/settle), then —
+ * when the tool has a positive cost, an owning developer, and a parseable proof —
+ * submits the transferWithAuthorization on-chain via the gas wallet, waits for a
+ * CONFIRMED receipt, and flips the write-ahead 'pending' ledger row to its
+ * terminal state (see lib/settlement/circle-nano/settle.ts). A settled on-chain
+ * payment returns settlementType 'real-time' + the txHash (so the adapter reports
+ * settlementStatus 'on-chain'); a reverted/unconfirmed tx returns a structured
+ * HTTP error and is NEVER reported settled. Free / unattributable calls keep the
+ * verify-and-record-only path (settled, no txHash). circle-nano stays DARK in
+ * prod (SETTLEGRID_USDC_RECIPIENT unset → 503 above) until founder go-live. See
+ * docs/tech-debt/a2-circle-nano-onchain-settlement-2026-05-30.md.
  *
- * Money-safety: identical to the verify route — the demo reaches the
- * /api/demo/sandbox stub, never this route.
+ * Money-safety: the demo reaches the /api/demo/sandbox stub, never this route —
+ * so the demo never moves on-chain funds.
  */
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -34,7 +36,7 @@ import { validateCircleNanoCredentialString } from '@/lib/circle-nano-proxy'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
-import { recordSettlementEntryAsync } from '@/lib/settlement/ledger'
+import { executeCircleNanoSettlement } from '@/lib/settlement/circle-nano/settle'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -138,6 +140,68 @@ export const POST = withCors(async function POST(request: NextRequest) {
       )
     }
 
+    // P3.K4 (A2) — REAL ON-CHAIN SETTLEMENT. When the tool has a positive cost,
+    // an owning developer, and a parseable proof, submit the EIP-3009
+    // transferWithAuthorization on-chain (gas wallet), wait for a CONFIRMED
+    // receipt, and flip the write-ahead 'pending' ledger row to its terminal
+    // state. A reverted or unconfirmed tx is NEVER reported as settled — it
+    // surfaces as a structured HTTP error so the kernel routes through
+    // formatError and the consumer is not told 'paid'. The orchestrator owns
+    // idempotency (stable network:from:nonce key in operation_id), a write-ahead
+    // pending INTENT row, a per-authorization lock, and the flip. See
+    // lib/settlement/circle-nano/settle.ts +
+    // docs/tech-debt/a2-circle-nano-onchain-settlement-2026-05-30.md.
+    const parsedProof = proof ? parseCircleNanoProof(proof) : null
+
+    if (costCents > 0 && toolRow.developerId && parsedProof) {
+      const outcome = await executeCircleNanoSettlement({
+        proof: parsedProof,
+        costCents,
+        accountId: toolRow.developerId,
+        toolSlug: toolRow.slug,
+        method,
+        latencyMs,
+      })
+
+      if (outcome.status !== 'settled') {
+        // failed | pending — the USDC did not (confirmably) move. Surface a
+        // structured error; never a 'settled' SettlementResult.
+        logger.info('circle_nano.settle_not_settled', {
+          toolSlug,
+          method,
+          outcomeStatus: outcome.status,
+          code: outcome.code,
+        })
+        return errorResponse(outcome.reason, outcome.httpStatus, outcome.code)
+      }
+
+      const settlement = {
+        status: 'settled' as const,
+        operationId: randomUUID(),
+        costCents,
+        // Real on-chain settlement → the adapter's formatResponse derives
+        // settlementStatus 'on-chain' from this txHash.
+        txHash: outcome.txHash,
+        metadata: {
+          protocol: 'circle-nano' as const,
+          latencyMs,
+          // A2: synchronous on-chain settlement (was deferred 'batched').
+          settlementType: 'real-time' as const,
+        },
+      }
+      logger.info('circle_nano.settle_success', {
+        toolSlug,
+        method,
+        operationId: settlement.operationId,
+        costCents,
+        txHash: outcome.txHash,
+      })
+      return successResponse(settlement)
+    }
+
+    // Free op (costCents <= 0) or unattributable (no owning developer / no
+    // parseable proof): no USDC moves on-chain. Return an honest settled result
+    // with NO txHash — the adapter reports settlementStatus 'off-chain-confirmed'.
     const settlement = {
       status: 'settled' as const,
       operationId: randomUUID(),
@@ -145,59 +209,15 @@ export const POST = withCors(async function POST(request: NextRequest) {
       metadata: {
         protocol: 'circle-nano' as const,
         latencyMs,
-        // 'batched': on-chain batch settlement is deferred (P3.K4). No txHash
-        // is set, so the adapter's formatResponse reports the honest
-        // 'off-chain-confirmed' rather than claiming an on-chain transfer.
-        settlementType: 'batched' as const,
+        settlementType: 'real-time' as const,
       },
     }
-
-    logger.info('circle_nano.settle_success', {
+    logger.info('circle_nano.settle_success_free', {
       toolSlug,
       method,
       operationId: settlement.operationId,
       costCents,
     })
-
-    // P3.K4 (A1) — record the settlement to the unified ledger. circle-nano is
-    // verify-and-record today (on-chain submission is deferred to A2), so the
-    // row is honestly 'pending' — the USDC has NOT moved on-chain yet. The
-    // invocationId is the STABLE network:from:nonce identifier (NOT the random
-    // SettlementResult.operationId): it names the AUTHORIZATION, not the call,
-    // so the writer's deterministic-id + ON CONFLICT DO NOTHING makes a re-settle
-    // idempotent (exactly one row per authorization). A2 flips this row to
-    // 'settled' + the on-chain txHash via an explicit UPDATE matched on the
-    // operation_id column (where this stable key is stored; there is no
-    // invocation_id column) + rail (NOT a re-insert, which the conflict-guard
-    // would skip). circle-nano is also gated DARK in
-    // prod (SETTLEGRID_USDC_RECIPIENT unset → 503 above) until A2. accountId =
-    // the tool's owning developer. See
-    // docs/tech-debt/a1-facilitator-ledger-writes-2026-05-30.md.
-    if (costCents > 0 && toolRow.developerId) {
-      const parsedProof = proof ? parseCircleNanoProof(proof) : null
-      if (parsedProof) {
-        const { network, authorization } = parsedProof
-        recordSettlementEntryAsync({
-          invocationId: `circle-nano:${network}:${authorization.from.toLowerCase()}:${authorization.nonce.toLowerCase()}`,
-          rail: 'circle-nano',
-          protocol: 'circle-nano',
-          amountCents: costCents,
-          currency: 'USDC',
-          takeBps: 0,
-          status: 'pending',
-          externalRef: null,
-          accountId: toolRow.developerId,
-          metadata: {
-            method,
-            settlementType: 'batched',
-            network,
-            payer: authorization.from,
-          },
-          description: `circle-nano settlement for tool ${toolRow.slug} (${method})`,
-        })
-      }
-    }
-
     return successResponse(settlement)
   } catch (error) {
     return internalErrorResponse(error)

@@ -11,16 +11,15 @@
  * required to verify (matching x402's `USDC_ADDRESSES` table for the contract
  * the signature is domain-bound to).
  *
- * What this DOES NOT do (deferred to real on-chain batch settlement, P3.K4 —
- * tracked in docs/tech-debt/circle-nano-kernel-dispatch-*.md):
- *   - submit the `transferWithAuthorization` on-chain (no funds actually move
- *     in v1; settle is verify-and-record, the same parity as the AP2 rail);
+ * What this verifier intentionally DOES NOT do (it stays OFFLINE by design):
+ *   - submit the `transferWithAuthorization` on-chain;
  *   - check the EIP-3009 nonce hasn't already been consumed on-chain
- *     (`authorizationState`) — so a still-valid authorization can be replayed
- *     within its time window, exactly as a still-valid AP2 VDC can;
+ *     (`authorizationState`);
  *   - check the payer's on-chain USDC balance.
- * These require an RPC client + a relayer/gas wallet and land with the
- * on-chain settlement work.
+ * As of P3.K4 A2 these all run in the on-chain SETTLE path — the gas-wallet
+ * submit + the pre-submit nonce/balance guards + the confirmed-receipt wait live
+ * in lib/settlement/circle-nano/settle-engine.ts. This offline verifier is still
+ * the fast, RPC-free gate used by /verify and the pre-submit re-verify on /settle.
  */
 
 import { recoverTypedDataAddress, type Address, type Hex } from 'viem'
@@ -36,7 +35,7 @@ import type { CircleNanoProof, CircleNanoErrorCode } from '@settlegrid/mcp'
  * than mis-accepting. If a new network is added, read its USDC name/version
  * on-chain — do not assume "USD Coin"/"2".
  */
-const USDC_EIP712_DOMAINS: Record<
+export const USDC_EIP712_DOMAINS: Record<
   string,
   { name: string; version: string; chainId: number }
 > = {
