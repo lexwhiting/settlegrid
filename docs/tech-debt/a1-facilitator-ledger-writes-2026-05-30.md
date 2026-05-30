@@ -3,7 +3,7 @@
 > ## ⚠️ FUTURE AGENTS — READ THIS BEFORE TOUCHING THE LEDGER OR BUILDING A2
 >
 > **A2 traps — do NOT get these wrong:**
-> 1. **The shared writer's `ON CONFLICT DO NOTHING` is FIRST-WRITE-WINS, not an upsert.** To flip a circle-nano row `pending`→`settled` (+ on-chain `txHash`), A2 **MUST issue an explicit `UPDATE`** (keyed on the deterministic id / `invocation_id`). Calling `recordSettlementEntry` again would be **SILENTLY SKIPPED** — you'd think you settled it and you didn't.
+> 1. **The shared writer's `ON CONFLICT DO NOTHING` is FIRST-WRITE-WINS, not an upsert.** To flip a circle-nano row `pending`→`settled` (+ on-chain `txHash`), A2 **MUST issue an explicit `UPDATE`** — matched on the **`operation_id` column** (which stores the stable `circle-nano:<network>:<from>:<nonce>` key) **+ `rail='circle-nano'`**. There is **NO `invocation_id` column** (the key lands in `operation_id`), and the PK-deriving `settlementEntryId()` is **module-private** — so match on `operation_id`, don't try to recompute the PK. Calling `recordSettlementEntry` again would be **SILENTLY SKIPPED** — you'd think you settled it and you didn't.
 > 2. **A2 owns the prod env flip:** set **`SETTLEGRID_USDC_RECIPIENT`** in Vercel prod as part of real settlement. circle-nano is intentionally **DARK in prod** until then (record-only; must not accept payments it can't collect). Also flagged in `MEMORY.md`.
 > 3. On-chain settle must **dedup on `(from, nonce)`**, NEVER signature bytes (EIP-3009 sigs are malleable).
 >
@@ -81,8 +81,10 @@ audit).
 
 > **`onConflictDoNothing` is FIRST-WRITE-WINS, not update-in-place.** A2 must flip
 > a circle-nano `pending` row to `settled` (+ on-chain `txHash`) via an explicit
-> `UPDATE` keyed on the deterministic id / `invocation_id`, **not** a re-insert
-> (which the conflict-guard would skip).
+> `UPDATE` matched on the **`operation_id`** column (the stable key, stored there
+> by the writer — there is no `invocation_id` column) **+ `rail`**, **not** a
+> re-insert (which the conflict-guard would skip). Separately, the on-chain
+> submitter dedups on `(from, nonce)` — USDC rejects nonce-reuse per signer.
 
 ---
 

@@ -166,8 +166,10 @@ export const POST = withCors(async function POST(request: NextRequest) {
     // SettlementResult.operationId): it names the AUTHORIZATION, not the call,
     // so the writer's deterministic-id + ON CONFLICT DO NOTHING makes a re-settle
     // idempotent (exactly one row per authorization). A2 flips this row to
-    // 'settled' + the on-chain txHash via an explicit UPDATE (NOT a re-insert,
-    // which the conflict-guard would skip). circle-nano is also gated DARK in
+    // 'settled' + the on-chain txHash via an explicit UPDATE matched on the
+    // operation_id column (where this stable key is stored; there is no
+    // invocation_id column) + rail (NOT a re-insert, which the conflict-guard
+    // would skip). circle-nano is also gated DARK in
     // prod (SETTLEGRID_USDC_RECIPIENT unset → 503 above) until A2. accountId =
     // the tool's owning developer. See
     // docs/tech-debt/a1-facilitator-ledger-writes-2026-05-30.md.
