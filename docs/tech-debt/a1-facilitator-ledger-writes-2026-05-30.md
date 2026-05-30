@@ -1,5 +1,18 @@
 # P3.K4 — A1: Facilitator unified-ledger writes (2026-05-30)
 
+> ## ⚠️ FUTURE AGENTS — READ THIS BEFORE TOUCHING THE LEDGER OR BUILDING A2
+>
+> **A2 traps — do NOT get these wrong:**
+> 1. **The shared writer's `ON CONFLICT DO NOTHING` is FIRST-WRITE-WINS, not an upsert.** To flip a circle-nano row `pending`→`settled` (+ on-chain `txHash`), A2 **MUST issue an explicit `UPDATE`** (keyed on the deterministic id / `invocation_id`). Calling `recordSettlementEntry` again would be **SILENTLY SKIPPED** — you'd think you settled it and you didn't.
+> 2. **A2 owns the prod env flip:** set **`SETTLEGRID_USDC_RECIPIENT`** in Vercel prod as part of real settlement. circle-nano is intentionally **DARK in prod** until then (record-only; must not accept payments it can't collect). Also flagged in `MEMORY.md`.
+> 3. On-chain settle must **dedup on `(from, nonce)`**, NEVER signature bytes (EIP-3009 sigs are malleable).
+>
+> **Carried A1 DEBT — non-blocking but LIVE (full detail in "Carried-forward DEBT" below):**
+> - `accountId = tool.developerId` is a **STAND-IN** (the `accounts` table has no provisioning path). Backfill to real `accounts.id` when account provisioning lands; reconciliation must treat settlement-row `account_id` as a **developer id** until then.
+> - `takeBps: 0` — platform take is **NOT computed** in the settle path yet.
+> - The ledger write is **FIRE-AND-FORGET** (no `waitUntil`/`after`) — can be dropped on a serverless freeze. Shared with `recordHop`/`postLedgerEntryAsync`.
+> - ap2 cannot dedupe a VDC with no `transactionId` (inherent — no stable key exists).
+
 **Chunk:** P3.K4 step **A1** — make the offline facilitator settle routes (`ap2`,
 `circle-nano`) write a row to the unified `ledger_entries` table on settlement.
 This is the "record" half of "make the rails actually settle + record"; the
