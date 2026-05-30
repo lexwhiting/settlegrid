@@ -210,7 +210,7 @@ export default function IntegrationsHubPage() {
                 Protocol Guides
               </h3>
               <p className="text-sm text-gray-400">
-                Deep dives into all 10 AI payment protocols SettleGrid supports.
+                Deep dives into all 14 AI payment protocols SettleGrid supports.
               </p>
             </Link>
             <Link
