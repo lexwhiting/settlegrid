@@ -2,11 +2,9 @@
  * Circle Nanopayments Adapter
  *
  * Extracts payment context from Circle Nanopayment requests.
- * Gas-free micropayments as small as $0.000001 using USDC.
- * Off-chain immediate confirmation; periodic on-chain batch settlement is the
- * protocol's design target but is NOT yet implemented in the kernel rail —
- * today's flow is offline EIP-3009 verify + record-only (see
- * docs/tech-debt/circle-nano-kernel-dispatch-*.md). x402-compatible.
+ * Gas-free (for the payer) micropayments as small as $0.000001 using USDC: the
+ * payer signs an EIP-3009 authorization, SettleGrid verifies it offline and (as
+ * of P3.K4 A2) settles it on-chain from its own gas wallet. x402-compatible.
  *
  * Detects requests via:
  *   1. x-circle-nano-auth header (EIP-3009 authorization)
@@ -102,23 +100,22 @@ export class CircleNanoAdapter implements ProtocolAdapter {
 
     return new Response(
       JSON.stringify({
-        // INTENTIONAL divergence from x402/mpp/ap2 (which treat only 'settled'
-        // as success): under Circle Nano's off-chain-immediate-confirm model a
-        // 'pending' settlement means "confirmed off-chain, on-chain batch
-        // deferred" — a success from the consumer's view. The kernel
-        // facilitator IS SettleGrid's own settle route, so 'pending' here is
-        // first-party, not an untrusted third-party signal.
+        // Legacy defensive branch. P3.K4 A2 made the settle route on-chain — it
+        // now returns 'settled' (with a txHash) or a structured HTTP error,
+        // never a 'pending' SettlementResult. We still treat a first-party
+        // 'pending' as a consumer-success for backward compatibility (the kernel
+        // facilitator IS SettleGrid's own settle route, not an untrusted third
+        // party).
         success: result.status === 'settled' || result.status === 'pending',
         operationId: result.operationId,
         costCents: result.costCents,
         receipt: result.receipt ?? null,
         batchId: result.txHash ?? null,
         // Honest derivation: report 'on-chain' only when a real settlement
-        // transaction exists (result.txHash). The v1 kernel-dispatch settle
-        // path is verify-and-record (no on-chain submission yet — see
-        // docs/tech-debt/circle-nano-kernel-dispatch-*.md), so it correctly
-        // reports 'off-chain-confirmed'. When P3.K4 adds on-chain batch
-        // settlement and populates txHash, this flips to 'on-chain'.
+        // transaction exists (result.txHash). P3.K4 A2 submits the EIP-3009
+        // transferWithAuthorization on-chain and populates txHash, so a settled
+        // on-chain payment reports 'on-chain'; free / unattributable settlements
+        // (no txHash) still report 'off-chain-confirmed'.
         settlementStatus: result.txHash ? 'on-chain' : 'off-chain-confirmed',
         metadata: {
           protocol: result.metadata.protocol,
@@ -530,8 +527,8 @@ export function generateCircleNano402Response(options: CircleNano402Options): Re
     payment_endpoint: paymentEndpoint,
     accepted_payments: ['eip3009-nanopayment'],
     settlement: {
-      type: 'off-chain-immediate',
-      batch_settlement: 'periodic-on-chain',
+      type: 'on-chain',
+      batch_settlement: 'none',
       network: 'eip155:8453',
       asset: 'USDC',
     },

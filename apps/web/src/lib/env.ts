@@ -196,6 +196,36 @@ export function isCircleNanoKernelEnabled(): boolean {
   return !!process.env.SETTLEGRID_USDC_RECIPIENT
 }
 
+/**
+ * Optional dedicated Base RPC endpoint for circle-nano on-chain settlement
+ * (pre-submit reads + writeContract + receipt polling), per CAIP-2 network.
+ * Returns undefined for an unset var or unknown network, so the caller falls
+ * back to viem's default public RPC (`http()` with no URL).
+ *
+ * RPC flakiness is a LIVENESS risk, not a funds-safety risk here: a failed read
+ * fails fast BEFORE any money moves, and a failed receipt-poll degrades to the
+ * timeout path (a recoverable 'pending' row). The default public RPC is fine
+ * for Base Sepolia testing and low volume, but it is rate-limited and not
+ * SLA-backed.
+ *
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │ DEFERRED → A2 GO-LIVE: set SETTLEGRID_BASE_RPC_URL in Vercel prod to a     │
+ * │ dedicated mainnet provider (Alchemy / QuickNode / Coinbase) BEFORE flipping│
+ * │ circle-nano live. Recommended, not required (public fallback works). See   │
+ * │ docs/tech-debt/a2-circle-nano-onchain-settlement-2026-05-30.md.            │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ */
+export function getBaseRpcUrl(network: string): string | undefined {
+  switch (network) {
+    case 'eip155:8453':
+      return process.env.SETTLEGRID_BASE_RPC_URL || undefined
+    case 'eip155:84532':
+      return process.env.SETTLEGRID_BASE_SEPOLIA_RPC_URL || undefined
+    default:
+      return undefined
+  }
+}
+
 // L402 (Bitcoin Lightning)
 export function isL402Enabled(): boolean {
   return process.env.L402_ENABLED === 'true' || !!process.env.LND_REST_URL

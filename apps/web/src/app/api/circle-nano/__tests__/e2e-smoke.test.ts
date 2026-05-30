@@ -137,6 +137,10 @@ describe('Level A — real route + real verifier (no verifier mock)', () => {
   })
 
   it('settle returns a real SettlementResult for a genuinely-signed proof', async () => {
+    // The mocked tool row has no developerId, so settle takes the free/
+    // unattributed path: real verifier passes, then settled with NO on-chain
+    // submit (no gas wallet / network needed here). The REAL on-chain settlement
+    // path is exercised in lib/settlement/circle-nano/__tests__/settle*.test.ts.
     const proof = await signedProofBlob()
     const res = await settlePOST(
       makeReq('/api/circle-nano/settle', { ...envelope(proof), latencyMs: 7 }),
@@ -145,7 +149,8 @@ describe('Level A — real route + real verifier (no verifier mock)', () => {
     const json = await res.json()
     expect(json.status).toBe('settled')
     expect(json.metadata.protocol).toBe('circle-nano')
-    expect(json.metadata.settlementType).toBe('batched')
+    expect(json.metadata.settlementType).toBe('real-time')
+    expect(json.txHash).toBeUndefined()
   })
 })
 
