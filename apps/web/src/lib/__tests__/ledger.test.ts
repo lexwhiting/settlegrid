@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockTransaction } = vi.hoisted(() => ({
+const { mockTransaction, mockInsert } = vi.hoisted(() => ({
   mockTransaction: vi.fn(),
+  mockInsert: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
   db: {
     transaction: mockTransaction,
     select: vi.fn(),
-    insert: vi.fn(),
+    insert: mockInsert,
     update: vi.fn(),
   },
 }))
@@ -36,7 +37,11 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
-import { postLedgerEntry, postLedgerEntryAsync } from '@/lib/settlement/ledger'
+import {
+  postLedgerEntry,
+  postLedgerEntryAsync,
+  recordSettlementEntry,
+} from '@/lib/settlement/ledger'
 import { logger } from '@/lib/logger'
 
 describe('postLedgerEntry', () => {
@@ -515,5 +520,151 @@ describe('postLedgerEntryAsync', () => {
       }),
       expect.any(Error)
     )
+  })
+})
+
+// P3.K4 (A1) — recordSettlementEntry runs the REAL canonical recordLedgerEntry
+// validator + the real Drizzle row mapping against a captured db.insert. The
+// facilitator route tests mock recordSettlementEntryAsync, so THESE are the
+// only tests that exercise the validator the routes' inputs must satisfy — in
+// particular the 'settled' ⇒ settledAt contract that a mock-only assertion
+// cannot catch.
+describe('recordSettlementEntry (facilitator-rail settlement rows)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  /** Capture rows handed to db.insert(...).values(...).onConflictDoNothing(). */
+  function captureInsert(): {
+    rows: Record<string, unknown>[]
+    onConflictDoNothing: ReturnType<typeof vi.fn>
+  } {
+    const rows: Record<string, unknown>[] = []
+    const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
+    mockInsert.mockReturnValue({
+      values: vi.fn().mockImplementation((vals: Record<string, unknown>) => {
+        rows.push(vals)
+        return { onConflictDoNothing }
+      }),
+    })
+    return { rows, onConflictDoNothing }
+  }
+
+  it("accepts the ap2 'settled' shape (with settledAt) and writes a settled row", async () => {
+    const { rows } = captureInsert()
+    await recordSettlementEntry({
+      invocationId: 'tx-9',
+      rail: 'ap2',
+      protocol: 'ap2',
+      amountCents: 50,
+      currency: 'USD',
+      takeBps: 0,
+      status: 'settled',
+      settledAt: '2026-05-30T16:00:00.000Z',
+      accountId: 'dev-uuid-1',
+      metadata: { method: 'demo.invocation', settlementType: 'real-time' },
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].settlementStatus).toBe('settled')
+    expect(rows[0].settledAt).toBeInstanceOf(Date)
+    expect(rows[0].rail).toBe('ap2')
+    expect(rows[0].accountId).toBe('dev-uuid-1')
+  })
+
+  it("REJECTS a 'settled' row missing settledAt (the contract the ap2 route must satisfy)", async () => {
+    captureInsert()
+    await expect(
+      recordSettlementEntry({
+        invocationId: 'tx-9',
+        rail: 'ap2',
+        protocol: 'ap2',
+        amountCents: 50,
+        currency: 'USD',
+        takeBps: 0,
+        status: 'settled',
+        // settledAt deliberately omitted — must throw, not silently no-op.
+        accountId: 'dev-uuid-1',
+      }),
+    ).rejects.toThrow(/settledAt/)
+  })
+
+  it("accepts the circle-nano 'pending' shape (settledAt null; USDC → legacy USD)", async () => {
+    const { rows } = captureInsert()
+    await recordSettlementEntry({
+      invocationId: 'circle-nano:eip155:8453:0xabc:0xdef',
+      rail: 'circle-nano',
+      protocol: 'circle-nano',
+      amountCents: 50,
+      currency: 'USDC',
+      takeBps: 0,
+      status: 'pending',
+      externalRef: null,
+      accountId: 'dev-uuid-1',
+      metadata: { method: 'demo.invocation', settlementType: 'batched' },
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].settlementStatus).toBe('pending')
+    expect(rows[0].settledAt).toBeNull()
+    expect(rows[0].rail).toBe('circle-nano')
+    // legacy varchar(3) currency_code: 'USDC' → 'USD'
+    expect(rows[0].currencyCode).toBe('USD')
+  })
+
+  it('REJECTS a zero amount (the cost>0 guard the routes apply mirrors this)', async () => {
+    captureInsert()
+    await expect(
+      recordSettlementEntry({
+        invocationId: 'tx-0',
+        rail: 'ap2',
+        protocol: 'ap2',
+        amountCents: 0,
+        currency: 'USD',
+        takeBps: 0,
+        status: 'settled',
+        settledAt: '2026-05-30T16:00:00.000Z',
+        accountId: 'dev-uuid-1',
+      }),
+    ).rejects.toThrow(/amountCents/)
+  })
+
+  it('derives a STABLE deterministic id from invocationId so re-settles dedupe', async () => {
+    const { rows, onConflictDoNothing } = captureInsert()
+    const input = {
+      invocationId: 'circle-nano:eip155:8453:0xabc:0xdef',
+      rail: 'circle-nano',
+      protocol: 'circle-nano',
+      amountCents: 50,
+      currency: 'USDC',
+      takeBps: 0,
+      status: 'pending' as const,
+      externalRef: null,
+      accountId: 'dev-uuid-1',
+    }
+    await recordSettlementEntry(input)
+    await recordSettlementEntry(input)
+    expect(rows).toHaveLength(2)
+    // Same invocationId ⇒ same PK ⇒ Postgres ON CONFLICT DO NOTHING dedupes.
+    expect(rows[0].id).toBe(rows[1].id)
+    expect(rows[0].id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )
+    expect(onConflictDoNothing).toHaveBeenCalledTimes(2)
+  })
+
+  it('derives DIFFERENT ids for different invocationIds', async () => {
+    const { rows } = captureInsert()
+    const base = {
+      rail: 'ap2',
+      protocol: 'ap2',
+      amountCents: 50,
+      currency: 'USD',
+      takeBps: 0,
+      status: 'settled' as const,
+      settledAt: '2026-05-30T16:00:00.000Z',
+      accountId: 'dev-uuid-1',
+    }
+    await recordSettlementEntry({ ...base, invocationId: 'tx-A' })
+    await recordSettlementEntry({ ...base, invocationId: 'tx-B' })
+    expect(rows[0].id).not.toBe(rows[1].id)
   })
 })

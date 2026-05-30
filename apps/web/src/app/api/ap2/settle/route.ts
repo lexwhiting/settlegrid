@@ -31,6 +31,7 @@ import { validateAp2CredentialString } from '@/lib/ap2-proxy'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import { recordSettlementEntryAsync } from '@/lib/settlement/ledger'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -97,6 +98,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
         slug: tools.slug,
         status: tools.status,
         pricingConfig: tools.pricingConfig,
+        developerId: tools.developerId,
       })
       .from(tools)
       .where(eq(tools.slug, toolSlug))
@@ -151,6 +153,36 @@ export const POST = withCors(async function POST(request: NextRequest) {
       operationId: settlement.operationId,
       costCents,
     })
+
+    // P3.K4 (A1) — record the settlement to the unified ledger. AP2's VDC IS
+    // the payment authorization (no external rail), so the row is honestly
+    // 'settled' at validation. Fire-and-forget + guarded: a ledger hiccup or a
+    // zero-cost call never breaks the SettlementResult the kernel needs. The
+    // write is idempotent by invocationId (= operationId = the VDC transactionId
+    // when present) via the writer's deterministic-id + ON CONFLICT DO NOTHING,
+    // so a settle retry for the same VDC does not double-record. accountId = the
+    // tool's owning developer — `ledger_entries.account_id` has no FK and the
+    // `accounts` table has no provisioning path to resolve a provider account
+    // from (see docs/tech-debt/a1-facilitator-ledger-writes-2026-05-30.md).
+    if (costCents > 0 && toolRow.developerId) {
+      recordSettlementEntryAsync({
+        invocationId: settlement.operationId,
+        rail: 'ap2',
+        protocol: 'ap2',
+        amountCents: costCents,
+        currency: 'USD',
+        takeBps: 0,
+        status: 'settled',
+        // A 'settled' row MUST carry settledAt — the canonical validator
+        // (packages/mcp/src/ledger.ts) throws RangeError without it, backed by
+        // the DB `ledger_entries_settled_at_shape` check. AP2 settles AT
+        // validation (the VDC IS the payment), so "now" is the settlement time.
+        settledAt: new Date().toISOString(),
+        accountId: toolRow.developerId,
+        metadata: { method, settlementType: 'real-time' },
+        description: `ap2 settlement for tool ${toolRow.slug} (${method})`,
+      })
+    }
 
     return successResponse(settlement)
   } catch (error) {

@@ -14,6 +14,7 @@
  * LedgerEntry type + validator.
  */
 
+import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { accounts, ledgerEntries } from '@/lib/db/schema'
 import { eq, and, sql } from 'drizzle-orm'
@@ -316,11 +317,16 @@ export async function verifyLedgerIntegrity(): Promise<LedgerIntegrityResult> {
 // `settlement_status IS NOT NULL` to isolate settlement rows from
 // balance rows).
 //
-// The writer is idempotent by `entry.id` — a retry with the same id
-// updates in place (leaving any already-settled columns untouched
-// IF the new row would overwrite with a regression, e.g., going
-// from `settled` back to `pending`). Adapters that produce a stable
-// invocation-rooted id do not need to implement their own dedup.
+// The writer is idempotent by the settlement `id`, DERIVED
+// deterministically from `invocationId` (see settlementEntryId): a
+// retry with the same invocationId maps to the same primary key and
+// the INSERT uses ON CONFLICT DO NOTHING, so the second write is a
+// no-op (FIRST-WRITE-WINS — it does NOT update in place). Adapters
+// that produce a stable invocation-rooted id (e.g. circle-nano's
+// network:from:nonce, AP2's VDC transactionId) therefore get
+// exactly-once ledger rows; a caller needing to MUTATE a row (flip
+// `pending`→`settled` on on-chain confirmation) must issue an explicit
+// UPDATE, not re-call this writer (the conflict-guard would skip it).
 
 export interface RailSettlementRow {
   invocationId: string
@@ -372,6 +378,21 @@ export interface RailSettlementRow {
 }
 
 /**
+ * Deterministic UUID (v5-format) derived from the invocation-rooted
+ * settlement key, so a re-settled authorization (same invocationId)
+ * maps to the SAME primary key and the writer's ON CONFLICT DO NOTHING
+ * yields exactly-once ledger rows (honoring the LedgerWriter idempotency
+ * contract). A per-call random invocationId (e.g. recordHop's hopId)
+ * derives a unique id and is never deduped — correct, since each such
+ * call is a distinct event.
+ */
+function settlementEntryId(invocationId: string): string {
+  const h = createHash('sha256').update(`settlement:${invocationId}`).digest('hex')
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16)
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+/**
  * Insert a unified-ledger settlement row. Delegates field
  * validation to the canonical recordLedgerEntry helper from
  * @settlegrid/mcp, then writes the resulting entry to Postgres
@@ -392,6 +413,8 @@ export async function recordSettlementEntry(
   return canonicalRecordLedgerEntry(
     {
       invocationId: input.invocationId,
+      // Deterministic, invocation-rooted PK → idempotent writes (see above).
+      id: settlementEntryId(input.invocationId),
       sessionId: input.sessionId ?? null,
       rail: input.rail,
       protocol: input.protocol,
@@ -435,7 +458,7 @@ export async function recordSettlementEntry(
         authorizationSignals: entry.authorizationSignals,
         authorizationArtifact: entry.authorizationArtifact,
         createdAt: new Date(entry.createdAt),
-      })
+      }).onConflictDoNothing()
     },
   )
 }
