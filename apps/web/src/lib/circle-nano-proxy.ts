@@ -17,7 +17,8 @@ import type {
   CircleNanoErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isAddress } from 'viem'
 import { getAppUrl, getCircleNanoRecipient } from './env'
-import { verifyCircleNanoAuthorization } from './settlement/circle-nano/verify'
+import { verifyCircleNanoAuthorization, USDC_EIP712_DOMAINS } from './settlement/circle-nano/verify'
+import { USDC_ADDRESSES } from './settlement/x402/types'
 import { logger } from './logger'
 
 /** 1 US cent = 10,000 USDC base units (USDC has 6 decimals). */
@@ -138,16 +139,41 @@ export async function validateCircleNanoCredentialString(
   }
 }
 
+/**
+ * The CAIP-2 network the circle-nano rail advertises + settles on (Base mainnet).
+ * Single source for the 402's network → keeps `pay_to`, `asset_address`, and the
+ * `eip712_domain` mutually consistent (all derived from this one constant).
+ */
+const CIRCLE_NANO_402_NETWORK = 'eip155:8453'
+
 export function generateCircleNano402Response(
   toolSlug: string,
   costCents: number,
   toolName?: string,
 ): Response {
+  // B1.1 — surface the payee + USDC token contract + EIP-712 domain so an external
+  // payer can construct a valid authorization from the 402 alone. The asset +
+  // domain come from the SAME pinned constants the verifier binds to (advertised
+  // == verified by construction). Only advertise a payee that is actually a valid
+  // address — the verifier fails closed on a set-but-invalid recipient, so we must
+  // not advertise one (and when the recipient env is unset, circle-nano is dark
+  // and the discovery fields are simply omitted).
+  const network = CIRCLE_NANO_402_NETWORK
+  const rawRecipient = getCircleNanoRecipient()
+  const recipient =
+    rawRecipient && isAddress(rawRecipient, { strict: false }) ? rawRecipient : undefined
+  const domain = USDC_EIP712_DOMAINS[network]
   return generateCircleNano402ResponseCore({
     toolSlug,
     costCents,
     toolName,
     appUrl: getAppUrl(),
+    network,
+    recipient,
+    assetAddress: USDC_ADDRESSES[network],
+    assetDomain: domain
+      ? { name: domain.name, version: domain.version, chainId: domain.chainId }
+      : undefined,
   })
 }
 

@@ -189,11 +189,19 @@ export function getAcpStripeKey(): string | undefined {
 // circle-nano-proxy.ts still gates on CIRCLE_NANO_API_KEY — a separate,
 // untouched surface.
 export function getCircleNanoRecipient(): string | undefined {
-  return process.env.SETTLEGRID_USDC_RECIPIENT
+  // Trim defensively: the recipient is set via the Vercel dashboard/CLI and a
+  // stray trailing newline (a known hazard for this deployment — the gas-wallet
+  // key carries one) would otherwise fail the `isAddress` guard and silently
+  // dark the rail. B1.1 now ADVERTISES this value in the 402, so a newline would
+  // also silently drop `pay_to`. Normalizing here keeps the 402 advertise path
+  // and the verifier (both read this getter) consistent. Empty → undefined.
+  return process.env.SETTLEGRID_USDC_RECIPIENT?.trim() || undefined
 }
 
 export function isCircleNanoKernelEnabled(): boolean {
-  return !!process.env.SETTLEGRID_USDC_RECIPIENT
+  // Derive from the normalized getter so a whitespace-only value can't report
+  // "enabled" while the recipient resolves empty (which would 503 inconsistently).
+  return !!getCircleNanoRecipient()
 }
 
 /**
