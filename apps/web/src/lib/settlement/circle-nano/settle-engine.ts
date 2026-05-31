@@ -72,6 +72,16 @@ function getGasWallet() {
   return privateKeyToAccount(privateKey as `0x${string}`)
 }
 
+/**
+ * The gas wallet's public address (read-only), or null if the key is unset.
+ * Reuses {@link getGasWallet}'s key normalization so the B1.3 gas-balance
+ * monitor reads the SAME address the settler signs from — without exposing the
+ * signing account.
+ */
+export function getGasWalletAddress(): `0x${string}` | null {
+  return getGasWallet()?.address ?? null
+}
+
 /** Split a 65-byte EIP-3009 signature into (v, r, s). The verifier already enforced canonical low-s, v∈{27,28}. */
 function splitSignature(signature: string): { v: number; r: Hex; s: Hex } {
   const sig = signature.slice(2)
