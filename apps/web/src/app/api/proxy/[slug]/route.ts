@@ -20,6 +20,8 @@ import {
 } from '@/lib/failover'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
+import { recordSettlementEntryAsync } from '@/lib/settlement/ledger'
+import { buildX402SettlementRow } from '@/lib/settlement/x402-ledger'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
@@ -1739,6 +1741,21 @@ async function handleX402Proxy(
     if (requestId) headers.set('x-request-id', requestId)
     return new NextResponse(body, { status: 402, headers })
   }
+
+  // B1.2 — record the x402 on-chain settlement to the unified ledger as
+  // 'pending' (the broadcast txHash is not yet a confirmed receipt; the B1.4
+  // reconciler flips it to settled/failed — see buildX402SettlementRow). Record
+  // it ahead of forwardAndBill so a forward error never loses the record. Fire-
+  // and-forget + guarded (mirrors ap2): a ledger hiccup, a structural-only
+  // accept (no txHash), a zero-cost call, or a missing developer never breaks
+  // the proxied response. Idempotent + reconciler-keyed by x402:<network>:<txHash>.
+  const x402SettlementRow = buildX402SettlementRow(
+    x402Result,
+    toolRow.slug,
+    toolRow.developerId,
+    costCents,
+  )
+  if (x402SettlementRow) recordSettlementEntryAsync(x402SettlementRow)
 
   return forwardAndBill(
     request, toolRow, 'x402', costCents, slug, requestId, startTime,
