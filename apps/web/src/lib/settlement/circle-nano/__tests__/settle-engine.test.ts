@@ -10,17 +10,22 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockReadContract, mockWaitForReceipt, mockWriteContract } = vi.hoisted(() => ({
+const { mockReadContract, mockWaitForReceipt, mockWriteContract, mockGetReceipt } = vi.hoisted(() => ({
   mockReadContract: vi.fn(),
   mockWaitForReceipt: vi.fn(),
   mockWriteContract: vi.fn(),
+  mockGetReceipt: vi.fn(),
 }))
 
 vi.mock('viem', async (importOriginal) => {
   const actual = await importOriginal<typeof import('viem')>()
   return {
     ...actual,
-    createPublicClient: () => ({ readContract: mockReadContract, waitForTransactionReceipt: mockWaitForReceipt }),
+    createPublicClient: () => ({
+      readContract: mockReadContract,
+      waitForTransactionReceipt: mockWaitForReceipt,
+      getTransactionReceipt: mockGetReceipt,
+    }),
     createWalletClient: () => ({ writeContract: mockWriteContract }),
   }
 })
@@ -29,7 +34,7 @@ vi.mock('viem/accounts', () => ({
 }))
 
 import { WaitForTransactionReceiptTimeoutError } from 'viem'
-import { submitCircleNanoOnChain } from '../settle-engine'
+import { submitCircleNanoOnChain, confirmSettlementTx } from '../settle-engine'
 import type { CircleNanoProof } from '@settlegrid/mcp'
 
 const PROOF: CircleNanoProof = {
@@ -65,6 +70,69 @@ beforeEach(() => {
   setupChain()
   mockWriteContract.mockResolvedValue('0xTX')
   mockWaitForReceipt.mockResolvedValue({ status: 'success' })
+})
+
+describe('confirmSettlementTx — immediate reconciliation receipt check (B1.4)', () => {
+  const TXH = ('0x' + 'ab'.repeat(32)) as `0x${string}`
+  const FROM = '0xAbCdEf0000000000000000000000000000000001' as `0x${string}`
+  const NONCE = ('0x' + 'cd'.repeat(32)) as `0x${string}`
+
+  it('success receipt → settled', async () => {
+    mockGetReceipt.mockResolvedValue({ status: 'success' })
+    expect(await confirmSettlementTx('eip155:84532', TXH)).toEqual({ kind: 'settled', txHash: TXH })
+    // immediate check, not a 30s wait
+    expect(mockWaitForReceipt).not.toHaveBeenCalled()
+  })
+
+  it('reverted + nonce FREE (circle-nano) → reverted{nonceConsumed:false}', async () => {
+    mockGetReceipt.mockResolvedValue({ status: 'reverted' })
+    mockReadContract.mockResolvedValue(false) // authorizationState
+    expect(await confirmSettlementTx('eip155:84532', TXH, { from: FROM, nonce: NONCE })).toEqual({
+      kind: 'reverted',
+      txHash: TXH,
+      nonceConsumed: false,
+    })
+  })
+
+  it('reverted + nonce CONSUMED (concurrent settle) → reverted{nonceConsumed:true}', async () => {
+    mockGetReceipt.mockResolvedValue({ status: 'reverted' })
+    mockReadContract.mockResolvedValue(true)
+    expect(await confirmSettlementTx('eip155:84532', TXH, { from: FROM, nonce: NONCE })).toEqual({
+      kind: 'reverted',
+      txHash: TXH,
+      nonceConsumed: true,
+    })
+  })
+
+  it('reverted WITHOUT eip3009 (x402) → nonceConsumed:false, never reads the nonce', async () => {
+    mockGetReceipt.mockResolvedValue({ status: 'reverted' })
+    mockReadContract.mockClear()
+    const r = await confirmSettlementTx('eip155:8453', TXH)
+    expect(r).toEqual({ kind: 'reverted', txHash: TXH, nonceConsumed: false })
+    expect(mockReadContract).not.toHaveBeenCalled()
+  })
+
+  it('receipt not found / RPC error → unconfirmed (leave pending, retry next run)', async () => {
+    mockGetReceipt.mockRejectedValue(new Error('TransactionReceiptNotFoundError'))
+    expect(await confirmSettlementTx('eip155:84532', TXH)).toEqual({ kind: 'unconfirmed', txHash: TXH })
+  })
+
+  it('reverted but the nonce-recheck RPC throws → treated as not-consumed (failure side)', async () => {
+    mockGetReceipt.mockResolvedValue({ status: 'reverted' })
+    mockReadContract.mockRejectedValue(new Error('rpc down'))
+    expect(await confirmSettlementTx('eip155:84532', TXH, { from: FROM, nonce: NONCE })).toEqual({
+      kind: 'reverted',
+      txHash: TXH,
+      nonceConsumed: false,
+    })
+  })
+
+  it('unsupported network (e.g. eip155:1) → unsupported-network, never touches the chain', async () => {
+    mockGetReceipt.mockClear()
+    const r = await confirmSettlementTx('eip155:1', TXH)
+    expect(r).toEqual({ kind: 'unsupported-network' })
+    expect(mockGetReceipt).not.toHaveBeenCalled()
+  })
 })
 
 describe('submitCircleNanoOnChain — pre-submit guards (no gas burned)', () => {

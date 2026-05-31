@@ -229,6 +229,64 @@ export async function confirmCircleNanoTx(
   )
 }
 
+/** Result of an IMMEDIATE reconciliation receipt check (no wait). */
+export type SettlementTxConfirmation =
+  | { kind: 'settled'; txHash: Hex }
+  /** Confirmed revert. `nonceConsumed` (circle-nano only): a concurrent tx spent the EIP-3009 nonce → NOT a failure. */
+  | { kind: 'reverted'; txHash: Hex; nonceConsumed: boolean }
+  /** Not mined yet / dropped / RPC error — leave the row 'pending' and retry next run. */
+  | { kind: 'unconfirmed'; txHash: Hex }
+  | { kind: 'unsupported-network' }
+
+/**
+ * Reconciler confirm for an ALREADY-broadcast settlement tx — an IMMEDIATE
+ * receipt check (`getTransactionReceipt`, NOT `waitForTransactionReceipt`):
+ * the tx was broadcast minutes ago, so we ask "is it mined NOW?" and never
+ * block (so one stuck tx can't starve the rest of the batch).
+ *
+ * For circle-nano, pass `eip3009 = {from, nonce}` so a reverted tx triggers the
+ * SAME audited authorizationState recheck `interpretReceipt` uses (a concurrent
+ * tx may have spent the nonce → not a failure). x402 carries no nonce on this
+ * path → omit `eip3009`, and a revert is a plain failure. Read-only.
+ */
+export async function confirmSettlementTx(
+  network: string,
+  txHash: Hex,
+  eip3009?: { from: Address; nonce: Hex },
+): Promise<SettlementTxConfirmation> {
+  const chain = SUPPORTED_CHAINS[network as SupportedNetwork]
+  const usdcAddress = USDC_ADDRESSES[network]
+  if (!chain || !usdcAddress) return { kind: 'unsupported-network' }
+  const publicClient = publicClientFor(network as SupportedNetwork)
+
+  let receipt
+  try {
+    receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+  } catch {
+    // Not mined yet / dropped / RPC error — cannot confirm now; leave pending.
+    return { kind: 'unconfirmed', txHash }
+  }
+  if (receipt.status === 'success') return { kind: 'settled', txHash }
+
+  // Reverted: THIS tx moved no funds. For circle-nano, recheck whether the nonce
+  // is nonetheless consumed (a concurrent settler moved the USDC) — same logic
+  // as interpretReceipt; unknown → false (the failure side).
+  let nonceConsumed = false
+  if (eip3009) {
+    try {
+      nonceConsumed = (await publicClient.readContract({
+        address: usdcAddress,
+        abi: EIP3009_ABI,
+        functionName: 'authorizationState',
+        args: [eip3009.from, eip3009.nonce],
+      })) as boolean
+    } catch {
+      /* leave false — treat unknown as the failure side */
+    }
+  }
+  return { kind: 'reverted', txHash, nonceConsumed }
+}
+
 /** Shared receipt interpretation: success / reverted(+nonce recheck) / unconfirmed. */
 async function interpretReceipt(
   publicClient: ReturnType<typeof publicClientFor>,
