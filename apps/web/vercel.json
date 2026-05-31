@@ -70,6 +70,10 @@
     {
       "path": "/api/cron/gas-balance-check",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/settlement-reconcile",
+      "schedule": "*/15 * * * *"
     }
   ],
   "rewrites": [
