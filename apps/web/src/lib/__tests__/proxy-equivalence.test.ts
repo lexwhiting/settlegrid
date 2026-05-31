@@ -264,6 +264,14 @@ beforeEach(() => {
   vi.stubEnv('UCP_API_KEY', 'ucp-test')
   vi.stubEnv('MASTERCARD_API_KEY', 'mc-test')
   vi.stubEnv('CIRCLE_NANO_API_KEY', 'cnano-test')
+  // B1.1: the circle-nano legacy wrapper now enriches its 402 with discovery
+  // fields (pay_to / asset_address / eip712_domain) when SETTLEGRID_USDC_RECIPIENT
+  // is set, going BEYOND the bare adapter's build402Response. This byte-for-byte
+  // equivalence battery exercises the dark (no-recipient) state where the two are
+  // identical; pin the recipient empty so an ambient env value can't make the
+  // wrapper diverge from the adapter and flake this test. (The wrapper's enriched
+  // path is covered by circle-nano-402-discovery.test.ts.)
+  vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '')
   vi.stubEnv('L402_ENABLED', 'true')
   vi.stubEnv('ALIPAY_APP_ID', 'alipay-test')
   vi.stubEnv('KYAPAY_VERIFICATION_KEY', 'kya-test')

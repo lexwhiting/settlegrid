@@ -331,6 +331,67 @@ describe('coverage — 402 body field shapes', () => {
     expect(settlement.type).toBe('on-chain')
   })
 
+  it('Circle Nano body OMITS discovery fields + names no payee when none supplied (B1.1 backward-compat)', async () => {
+    const res = generateCircleNano402Response({
+      toolSlug: 'my-tool',
+      costCents: 5,
+      appUrl: APP_URL,
+    })
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.pay_to).toBeUndefined()
+    const settlement = body.settlement as Record<string, unknown>
+    expect(settlement.asset_address).toBeUndefined()
+    expect(settlement.eip712_domain).toBeUndefined()
+    // Must not advertise a payee/contract it can't honor.
+    expect(String(body.instructions)).not.toMatch(/0x[0-9a-fA-F]{40}/)
+  })
+
+  it('Circle Nano body surfaces pay_to + asset_address + eip712_domain when discovery supplied (B1.1)', async () => {
+    const recipient = '0x0859cF704798619133241A385220D6797C635c95'
+    const assetAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+    const res = generateCircleNano402Response({
+      toolSlug: 'my-tool',
+      costCents: 5,
+      appUrl: APP_URL,
+      network: 'eip155:8453',
+      recipient,
+      assetAddress,
+      assetDomain: { name: 'USD Coin', version: '2', chainId: 8453 },
+    })
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.pay_to).toBe(recipient)
+    const settlement = body.settlement as Record<string, unknown>
+    expect(settlement.network).toBe('eip155:8453')
+    expect(settlement.asset_address).toBe(assetAddress)
+    expect(settlement.eip712_domain).toEqual({
+      name: 'USD Coin',
+      version: '2',
+      chain_id: 8453,
+      verifying_contract: assetAddress,
+    })
+    // verifying_contract MUST equal asset_address (same source constant — no drift).
+    const domain = settlement.eip712_domain as Record<string, unknown>
+    expect(domain.verifying_contract).toBe(settlement.asset_address)
+    // Instructions name the payee + token so a payer can follow them directly.
+    expect(String(body.instructions)).toContain(recipient)
+    expect(String(body.instructions)).toContain(assetAddress)
+  })
+
+  it('Circle Nano discovery is all-or-nothing — a recipient without the asset/domain advertises nothing (B1.1)', async () => {
+    const res = generateCircleNano402Response({
+      toolSlug: 'my-tool',
+      costCents: 5,
+      appUrl: APP_URL,
+      recipient: '0x0859cF704798619133241A385220D6797C635c95',
+      // assetAddress + assetDomain intentionally omitted
+    })
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.pay_to).toBeUndefined()
+    const settlement = body.settlement as Record<string, unknown>
+    expect(settlement.asset_address).toBeUndefined()
+    expect(settlement.eip712_domain).toBeUndefined()
+  })
+
   it('L402 body includes macaroon, invoice, r_hash, expires_in_seconds', async () => {
     const res = await generateL402_402Response({
       toolSlug: 'my-tool',

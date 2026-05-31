@@ -213,7 +213,20 @@ export class CircleNanoAdapter implements ProtocolAdapter {
     return validateCircleNanoPayment(request, options)
   }
 
-  /** P2.K2 — generate a full Circle Nano 402 Payment Required response. */
+  /**
+   * P2.K2 — generate a full Circle Nano 402 Payment Required response.
+   *
+   * NOTE on payment discovery (B1.1): the `recipient` / `assetAddress` /
+   * `assetDomain` fields that make the 402 payable are NOT sourced here. This
+   * package is intentionally crypto-constant-free — duplicating the USDC
+   * address + EIP-712 domain into packages/mcp would reintroduce exactly the
+   * drift class that shipped the A2 Base-Sepolia domain bug. The app layer is
+   * the canonical injector: `apps/web/src/lib/circle-nano-proxy.ts` passes them
+   * from the pinned constants the verifier binds to. Called WITHOUT them (e.g.
+   * the bare adapter / kernel manifest teaser) this emits a discovery-less,
+   * unpayable 402 BY DESIGN. Any production path that must serve a payable
+   * circle-nano 402 MUST inject discovery the way that wrapper does.
+   */
   build402Response(options: CircleNano402Options): Response {
     return generateCircleNano402Response(options)
   }
@@ -266,6 +279,28 @@ export interface CircleNano402Options {
   costCents: number
   toolName?: string
   appUrl: string
+  /**
+   * B1.1 — payment-discovery fields a payer needs to construct a valid EIP-3009
+   * `transferWithAuthorization` from the 402 alone. The app wrapper sources these
+   * from the pinned on-chain constants in apps/web (`USDC_ADDRESSES` +
+   * `USDC_EIP712_DOMAINS`) — the SAME single source the verifier binds signatures
+   * to — so the advertised payee/token/domain match what the verifier enforces
+   * BY CONSTRUCTION. The core stays crypto-constant-free (no duplication, no
+   * drift — the exact class of bug that shipped the A2 Sepolia domain-name issue).
+   *
+   * Emitted as a coherent all-or-nothing set: the body advertises `pay_to` +
+   * `asset_address` + `eip712_domain` only when the wrapper supplies a recipient
+   * AND the network's pinned asset + domain; otherwise they are omitted rather
+   * than advertise a payee/contract the rail can't honor.
+   */
+  /** `authorization.to` the verifier requires (a 0x address). */
+  recipient?: string
+  /** CAIP-2 settlement network advertised in the body. Defaults to `eip155:8453`. */
+  network?: string
+  /** USDC token contract for {@link network} (the EIP-712 `verifyingContract`). */
+  assetAddress?: string
+  /** USDC EIP-712 domain identity for {@link network} (`name`/`version`/`chainId`). */
+  assetDomain?: { name: string; version: string; chainId: number }
 }
 
 export function isCircleNanoRequest(request: Request): boolean {
@@ -509,31 +544,71 @@ export async function validateCircleNanoPayment(
 }
 
 export function generateCircleNano402Response(options: CircleNano402Options): Response {
-  const { toolSlug, costCents, toolName, appUrl } = options
+  const { toolSlug, costCents, toolName, appUrl, recipient, assetAddress, assetDomain } = options
+  const network = options.network ?? 'eip155:8453'
   const paymentEndpoint = `${appUrl}/api/proxy/${toolSlug}`
   const description = `${toolName ?? toolSlug} via SettleGrid`
-  const amountBaseUnits = String(costCents * 10_000)
+  // Mirror the verifier's amount math (it floors + clamps costCents to a
+  // non-negative integer before computing required base units) so the
+  // advertised amount can NEVER diverge from what the verifier requires — even
+  // if a future caller passes an unfloored / negative / non-finite cost. The
+  // sole production caller already floors at source; this keeps the core
+  // self-consistent on its own rather than relying on the caller.
+  const safeCents = Number.isFinite(costCents) ? Math.max(0, Math.floor(costCents)) : 0
+  const amountBaseUnits = String(safeCents * 10_000)
+
+  // B1.1 — payment discovery. Surface the payee + token contract + EIP-712 domain
+  // so an external payer can build a valid authorization from this response alone.
+  // All-or-nothing: only advertise when we have a recipient AND the network's
+  // pinned asset + domain (the wrapper supplies the same constants the verifier
+  // binds to). Narrowed via one object so property access can't leak `undefined`.
+  const discovery =
+    recipient && assetAddress && assetDomain
+      ? {
+          payTo: recipient,
+          assetAddress,
+          eip712Domain: {
+            name: assetDomain.name,
+            version: assetDomain.version,
+            chain_id: assetDomain.chainId,
+            verifying_contract: assetAddress,
+          },
+        }
+      : null
+
+  const settlement = {
+    type: 'on-chain',
+    batch_settlement: 'none',
+    network,
+    asset: 'USDC',
+    ...(discovery
+      ? { asset_address: discovery.assetAddress, eip712_domain: discovery.eip712Domain }
+      : {}),
+  }
+
+  // Tell the payer to sign for the EXACT advertised amount: EIP-3009 transfers
+  // the precise signed `value`, so "at least" would induce overpayment (the
+  // verifier accepts value >= required, but the payer should sign exactly this).
+  const instructions = discovery
+    ? `To pay, sign an EIP-3009 transferWithAuthorization for ${amountBaseUnits} USDC base units of token ${discovery.assetAddress} to ${discovery.payTo} on Base (${network}), signed with the eip712_domain in this response, then re-send the request with the signed authorization in the x-circle-nano-auth header.`
+    : `To pay, sign an EIP-3009 transferWithAuthorization for ${amountBaseUnits} USDC base units, then re-send the request with the x-circle-nano-auth header.`
 
   const body = {
     error: 'payment_required',
     protocol: 'circle-nano',
     version: CIRCLE_NANO_PROTOCOL_VERSION,
-    amount_cents: costCents,
+    amount_cents: safeCents,
     amount_usdc_base_units: amountBaseUnits,
     currency: 'usdc',
     description,
     tool: toolSlug,
     pricing_model: 'per-call',
+    ...(discovery ? { pay_to: discovery.payTo } : {}),
     payment_endpoint: paymentEndpoint,
     accepted_payments: ['eip3009-nanopayment'],
-    settlement: {
-      type: 'on-chain',
-      batch_settlement: 'none',
-      network: 'eip155:8453',
-      asset: 'USDC',
-    },
+    settlement,
     directory_url: `${appUrl}/api/v1/discover`,
-    instructions: `To pay, create an EIP-3009 transferWithAuthorization for at least ${amountBaseUnits} USDC base units, then re-send the request with x-circle-nano-auth header.`,
+    instructions,
   }
 
   const headers = new Headers({
