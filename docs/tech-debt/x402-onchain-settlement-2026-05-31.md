@@ -21,7 +21,7 @@
 
 **Part 2 — public facilitator honesty (safe half):**
 - `lib/settlement/x402/settle.ts` — `settleExactPayment` now waits for a CONFIRMED receipt (`waitForTransactionReceipt`, `status==='success'`) before reporting success; a revert/timeout is a FAILURE and is NOT cached. Matches the canonical x402 V2 facilitator. (Makes Part 3's "confirms" prose true.)
-- **HELD for founder input:** the facilitator's pre-existing gas-griefing exposure (free, no-auth public relay on the shared hot gas wallet) is NOT addressed here — payee-binding would break its general-purpose marketing. Decision pending (keep + per-window gas-budget circuit-breaker [recommended] / gate-auth / retire). See "Deferred".
+- **Facilitator gas-wallet ISOLATION shipped (founder-greenlit, Part 2b).** `settleExactPayment`'s `getGasWallet` now prefers a DEDICATED `SETTLEGRID_FACILITATOR_GAS_WALLET_KEY` (falls back to the shared `SETTLEGRID_GAS_WALLET_KEY` until funded), so a gas-griefing drain of the free public facilitator can never starve the settlement wallet the revenue rails (proxy x402 + circle-nano) depend on. Payee-binding was correctly NOT done — it is a general-purpose relay. ACTIVATION (founder): provision + fund a dedicated wallet, set `SETTLEGRID_FACILITATOR_GAS_WALLET_KEY` in prod, extend the B1.3 gas monitor to watch it. Fast-follow: a per-window gas-budget circuit-breaker if public-facilitator volume grows.
 
 **Part 3 — honesty / `upto`-drop (proxy-scoped):**
 - `packages/mcp/src/adapters/x402.ts` — `generateX402_402Response` advertises EXACT only (dropped the `upto` accept entry + fixed instructions to "exactly"); `validateX402Payment` rejects non-exact (removed the upto branch). SDK rebuilt.
@@ -44,7 +44,7 @@
 - **Tests + verification:** gates above; the green suite alone would NOT have caught the trim divergence — the panel did (consistent with feedback-ke2-independent-audit-mandatory).
 
 ## Carried / new DEBT + deferred (none blocking the code; some gate go-live)
-1. **Facilitator gas-griefing (pre-existing, HELD for founder):** the public `facilitator.settlegrid.ai` relays any valid authorization for free with no auth on the shared hot gas wallet → ETH-drain/abuse. Fix is a product decision (keep + per-window gas-budget circuit-breaker [recommended] / gate-auth / retire). Not introduced here.
+1. **Facilitator gas-griefing — MITIGATED via wallet isolation (founder-greenlit).** The public `facilitator.settlegrid.ai` relays any valid authorization for free with no auth → ETH-drain. It now uses a DEDICATED gas wallet (`SETTLEGRID_FACILITATOR_GAS_WALLET_KEY`, fallback to the shared key) so a drain can't starve the revenue rails. **Founder activation:** fund + set that env in prod + extend the B1.3 monitor to it. **Fast-follow:** a per-window gas-budget circuit-breaker on the isolated wallet (if/when public-facilitator volume grows) + B1.3 facilitator-wallet alerting.
 2. **Base-Sepolia e2e — OWED before go-live:** a real signed EIP-3009 on Sepolia → proxy → confirmed settle + ledger row (the empirical gate the mocked tests can't cover; A2 did the circle-nano equivalent). Throwaway payer key at `/Users/lex/.sg-sepolia-test/payer.key`.
 3. **Standalone facilitator `upto` surface** — left as honest verify-beta; full teardown deferred.
 4. **settle.ts facilitator path writes no write-ahead ledger row** → a broadcast-then-timeout there is invisible to the B1.4 reconciler (pre-existing facilitator-surface debt; the proxy path is fully covered).
