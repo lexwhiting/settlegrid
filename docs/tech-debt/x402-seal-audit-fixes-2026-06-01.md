@@ -120,8 +120,17 @@ When `/api/settlement/reconcile` (or `verifyLedgerIntegrity`) reports `balanced:
   changes the reconciler (off the live settle path); F3 adds alerts + billing-error surfacing. The
   proxy/reconciler layers that changed are covered by the new mocked integration + unit tests, which
   is the correct gate here (the orchestrator's money mechanics were already Sepolia-proven 2026-06-01).
-- **Mandatory re-audit:** the 3-part chain + an independent fresh-context funds-safety panel must
-  pass before the seal is re-attempted (the green suite missed all of F1–F6).
+- **Mandatory re-audit — ✅ PASSED (verdict SEAL, 2026-06-01).** Independent fresh-context multi-agent
+  re-audit (4 dimension finders × 2-lens adversarial verify × guarded synthesis): **0 blocking findings**
+  (no HIGH+/fix-before-go-live defect survived). It independently re-derived the exactly-once-credit
+  invariant (`markSettlementSettled` is the sole guarded `'settled'` writer → exactly one flip-winner;
+  proxy credits iff `!alreadySettled`, reconciler iff it flipped; they can never both credit; credit
+  implies a confirmed receipt). Accepted tradeoffs (documented above): replay service-amplification;
+  non-atomic reconciler credit (loudly alerted); F6 reporting artifact; gross-credit/`takeBps:0`.
+  Deferred (non-gating): **circle-nano F1/F3/F4 own-chunk re-review** (LIVE on mainnet, shares the code);
+  the pre-existing reverted+nonce-consumed dropped-credit edge (byte-identical in `HEAD~1`); a reconciler
+  `totalInvocations` metric gap. Its one recommended hardening — a direct unit test of the F2 prod
+  hard-pin — was applied (`env.test.ts`: prod + flag-ON → testnet REJECTED).
 
 ## Carried / deferred (NOT in this chunk)
 - **circle-nano shares `forwardAndBill` + the reconciler** → the F1 (replay double-credit) and F3

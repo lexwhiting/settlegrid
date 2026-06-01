@@ -164,4 +164,33 @@ describe('env module', () => {
       expect(useUnifiedAdapters()).toBe(true)
     })
   })
+
+  // F2 — the load-bearing testnet-USDC-on-mainnet guard. The proxy rejects a
+  // non-mainnet x402 payload unless isX402TestnetSettlementAllowed() is true, so
+  // the prod HARD-PIN (false even with the flag ON) is what prevents free testnet
+  // USDC from minting real, withdrawable developer credit on a mainnet deploy.
+  describe('x402 production network-pin (F2)', () => {
+    it('X402_MAINNET_NETWORK is Base mainnet eip155:8453', async () => {
+      const { X402_MAINNET_NETWORK } = await import('@/lib/env')
+      expect(X402_MAINNET_NETWORK).toBe('eip155:8453')
+    })
+
+    it.each([
+      // [NODE_ENV, SETTLEGRID_X402_ALLOW_TESTNET, expected]
+      ['production', 'true', false], // HARD-PIN: prod rejects testnet even with the flag ON
+      ['production', 'false', false], // prod, explicit off
+      ['production', undefined, false], // prod, no flag → mainnet only
+      ['development', 'true', true], // non-prod + explicit opt-in → testnet allowed
+      ['test', 'true', true], // non-prod + explicit opt-in → testnet allowed
+      ['development', undefined, false], // non-prod default is mainnet-only too
+      ['development', '1', false], // only the literal 'true' opts in
+    ])('NODE_ENV=%j flag=%j → isX402TestnetSettlementAllowed=%j', async (nodeEnv, flag, expected) => {
+      // NODE_ENV is typed read-only; cast for the test (afterEach restores process.env).
+      ;(process.env as Record<string, string | undefined>).NODE_ENV = nodeEnv
+      if (flag === undefined) delete process.env.SETTLEGRID_X402_ALLOW_TESTNET
+      else process.env.SETTLEGRID_X402_ALLOW_TESTNET = flag
+      const { isX402TestnetSettlementAllowed } = await import('@/lib/env')
+      expect(isX402TestnetSettlementAllowed()).toBe(expected)
+    })
+  })
 })
