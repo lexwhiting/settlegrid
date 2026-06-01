@@ -72,20 +72,37 @@
 7. **`maxDuration=90`** assumes a Pro plan (exceeds the 60s Hobby cap) — confirm the deploy plan.
 8. **Adapter detection-path `upto` branches** (extractPaymentContext classification) left intact — detection ≠ acceptance; harmless.
 
-## Go-live (founder-gated — real money) — SAFE ORDER (corrected 2026-06-01)
+## Go-live (founder-gated — real money) — ⛔ BLOCKED by SEAL-AUDIT (2026-06-01)
 
-> ⚠️ ORDER IS FUNDS-SAFETY-CRITICAL. **Push FIRST** (deploys the dark-gate + the
-> on-chain settle code), **THEN** set `SETTLEGRID_PAYMENT_ADDRESS`. Setting the env
-> BEFORE the push would, against the OLD deployed code (which has NO dark-gate),
-> advertise a real `payTo` and re-open the structural-accept free-credit hole.
-> (This SUPERSEDES the prior set-then-push ordering, which was unsafe.)
+> ⛔ **DO-NOT-SEAL** (independent seal-audit, 2026-06-01). Two CRITICAL funds-safety
+> holes live in the un-e2e'd proxy wrapper (replay double-credit; testnet-USDC settles
+> on a mainnet deploy) + HIGH issues. **Do NOT push and do NOT set
+> `SETTLEGRID_PAYMENT_ADDRESS` until the fixes land + a re-audit passes.** Findings +
+> action classes: see "Seal-audit findings (2026-06-01)" at the bottom of this doc.
 
-1. Base-Sepolia e2e — ✅ DONE (DEBT #2 above).
-2. Founder reviews the local commits (`git log origin/main..HEAD`, the diff, this doc).
-3. **Push `main`** → x402 deploys DARK (`SETTLEGRID_PAYMENT_ADDRESS` unset → 503; strictly safer than today). Also lands the facilitator honesty fix + the `upto` drop; circle-nano untouched.
-4. Verify the Vercel deploy is healthy (the repo's required "Vercel" status check may need bypass-on-push).
-5. Confirm `SETTLEGRID_USDC_RECIPIENT` + `SETTLEGRID_BASE_RPC_URL` set in prod; gas wallet funded on Base MAINNET.
-6. **THEN** set `SETTLEGRID_PAYMENT_ADDRESS` in Vercel prod = the platform payee (recommend the SAME wallet as `SETTLEGRID_USDC_RECIPIENT`; move both off the hot gas wallet per carried B1 debt) → flips x402 LIVE.
+> ⚠️ **CORRECTED CAUSALITY** (supersedes the earlier "setting the env re-opens the
+> hole" framing, which was factually WRONG — verified against `cdd2d73a`): the
+> structural-accept free-credit/free-service path is **ALREADY LIVE in current prod**,
+> gated by `SETTLEGRID_GAS_WALLET_KEY` (set in prod), **independent of
+> `SETTLEGRID_PAYMENT_ADDRESS`**. OLD `validateX402Payment` with no facilitator returns
+> `valid:true` on a *structurally-valid (NOT on-chain-verified)* payload →
+> `forwardAndBill` credits the developer balance with **no USDC received**.
+> `PAYMENT_ADDRESS` in the OLD code only sets the advertised 402 `payTo` and is NOT
+> checked on accept. So the **PUSH is what CLOSES the hole** (it adds the dark-gate +
+> real on-chain settlement) — a STRICT security improvement. Order stays push-FIRST,
+> but because the push is the FIX, not because the env "re-opens" anything. (Prior
+> session's prod query found 0 historical x402 invocations → unexploited; the founder
+> should still confirm no developer balances were credited via structural-accept x402
+> before enabling payouts.)
+
+Safe order (only AFTER the seal-audit fixes land + a re-audit passes):
+1. Base-Sepolia orchestrator e2e — ✅ DONE (DEBT #2 above).
+2. Land the seal-audit fixes (replay-idempotency, prod network-pin, reconciler-credit) + the owed proxy-level integration test, then re-audit.
+3. Founder reviews the local commits (`git log origin/main..HEAD`, the diff, this doc).
+4. **Push `main`** → CLOSES the live structural-accept hole + deploys the dark-gate (`SETTLEGRID_PAYMENT_ADDRESS` unset → 503) + real on-chain settlement. Lands the facilitator honesty fix + `upto` drop; circle-nano untouched.
+5. Verify the Vercel deploy is healthy (the required "Vercel" status check may need bypass-on-push).
+6. Confirm `SETTLEGRID_USDC_RECIPIENT` + `SETTLEGRID_BASE_RPC_URL` set in prod; gas wallet funded on Base MAINNET.
+7. **THEN** set `SETTLEGRID_PAYMENT_ADDRESS` in Vercel prod = the platform payee (recommend the SAME wallet as `SETTLEGRID_USDC_RECIPIENT`; move both off the hot gas wallet per carried B1 debt) → flips x402 LIVE.
 
 ## Base-Sepolia e2e — reproduction recipe (2026-06-01)
 
@@ -122,3 +139,32 @@ actually settles. To re-run this empirical gate (e.g. before the MAINNET cutover
    `authorizationState`) in retry-until-consistent. Query the scratch ledger row
    for `settled` + the txHash. Run the negatives (wrong amount/payee/network) —
    they reject offline (no submit, no gas).
+
+## Seal-audit findings (2026-06-01) — verdict: ⛔ DO-NOT-SEAL
+
+Independent multi-agent seal-audit (4 fresh-context finders × adversarial verify ×
+synthesis) of the production proxy/billing surface the orchestrator-level e2e did NOT
+exercise. Verdict driven by two reproduced CRITICAL funds-safety holes; the rest are
+HIGH/MED/doc. Each was re-verified against the actual code. **Fix the must-fix items +
+re-audit before any push.** (Detailed surgical fix specs are in the fix-handoff for the
+next session.)
+
+| # | Finding | Sev | Action |
+|---|---|---|---|
+| 1 | **Replay double-credit** — a replayed x402 authorization hits the orchestrator's idempotent-hit (returns `settled`, no 2nd on-chain charge) but `handleX402Proxy` still re-runs `forwardAndBill` → re-credits `developers.balanceCents` (payout source) + re-delivers. No proxy-layer dedup. Trivially triggered by an SDK auto-retry. | CRITICAL | **fix-before-go-live** — make the credit idempotent on the on-chain settlement identity (operationId), NOT on `outcome.status`. Surgical: orchestrator's idempotent-hit returns a distinguishable `alreadySettled` flag; proxy still forwards but SKIPS the credit + tags a non-billed replay. Additive; proven settle path byte-unchanged. |
+| 2 | **Testnet-USDC settles on a mainnet deploy** — `SUPPORTED_CHAINS`/`USDC_EIP712_DOMAINS`/`USDC_ADDRESSES` include Base Sepolia (`eip155:84532`); the proxy path has NO mainnet gate (dark-gate is network-agnostic). Free testnet USDC → real withdrawable credit. (402 advertises only `eip155:8453` — advertised ≠ enforced.) | HIGH | **fix-before-go-live** — env-driven network allowlist gate in `handleX402Proxy` after parse, before settle: reject `network !== 'eip155:8453'` in prod (testnet behind an explicit OFF-in-prod flag). Additive. |
+| 3 | **Settle-then-upstream-fail / swallowed billing error** — on-chain USDC settles (`settled` row) but if upstream returns non-2xx (or the billing UPDATE throws, currently swallowed) the dev is credited 0, no refund, no compensating entry. Asymmetric to the prepaid rails (can't un-charge on-chain). Shared with circle-nano. | HIGH | **document-as-accepted-tradeoff** — standard x402 settle-final / refund-out-of-band. Disclose as accepted-risk DEBT + manual refund runbook (keyed by `external_ref` txHash + payer); emit an alertable signal on the loss branches; stop swallowing the billing-UPDATE error. NO auto-refund (new irreversible money path — own audit). |
+| 4 | **Reconciler-confirmed settles never credit the dev** — `reconcile.ts` flips `pending→settled` but never writes `developers.balanceCents`/`tools.totalRevenueCents`; the proxy already returned `pending` (no `forwardAndBill`). Async-confirmed (broadcast-then-timeout) settlements → USDC collected, dev permanently uncredited. | HIGH | **fix-before-go-live** (med regr.) — in `reconcileOneRow`'s settled case, when `markSettlementSettled` returns `flipped===true` (race-safe via the `WHERE pending` guard), credit the dev + tool revenue in-txn by `amountCents`. Requires storing `toolId` in the settlement-row metadata at `ensurePendingRow`. Decide+document the undelivered sub-case. |
+| 5 | **Go-live doc causality was factually wrong** — see the CORRECTED CAUSALITY banner above. The structural-accept hole is live now (gas-key-gated, PAYMENT_ADDRESS-independent); the push CLOSES it. | HIGH | **✅ FIXED 2026-06-01 (doc-only, this commit)** — banner rewritten + this section added. Founder action: confirm no dev balances were credited via structural-accept x402 before enabling payouts (prior prod query: 0 historical x402 rows → likely none). |
+| 6 | **No dev-balance reconciliation control** — `verifyLedgerIntegrity` audits the `accounts` table, not `developers.balanceCents`; will mis-report once single-sided settlement rows exist. | MED | **defer-post-go-live** — add a per-developer balance ⇄ settled-inflow detective job + alert, OR document as accepted go-live debt with an operator runbook. |
+
+**Residual risks still uncovered** (carry into the fix session): the proxy wrapper on a
+*settled* outcome is exercised by NO running test — a route-level integration test
+(settled→single gross credit+txHash header; non-settled→no forward/credit; 5xx upstream→no
+credit; **replayed header→exactly one credit**) is owed. Mainnet USDC constants ("USD Coin"/
+"2"/`DOMAIN_SEPARATOR`) NOT re-ground-truthed against the live mainnet contract this session
+(only Sepolia). On-chain REVERT + broadcast-then-timeout branches NOT exercised empirically.
+circle-nano shares `forwardAndBill` → the same double-credit / no-refund / reconciler-no-credit
+gaps very likely exist there too (re-review before its own mainnet cutover). `maxDuration=90`
+assumes a Vercel Pro plan (DEBT #7) — if Hobby, in-path receipt waits truncate and push more
+settlements into the un-credited reconciler path.
