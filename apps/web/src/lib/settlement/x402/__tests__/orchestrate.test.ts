@@ -95,6 +95,7 @@ const PARAMS = {
   payload: PAYLOAD,
   costCents: 50,
   accountId: 'dev-1',
+  toolId: 'tool-1',
   toolSlug: 'demo',
   method: 'proxy:POST',
   recipient: RECIPIENT,
@@ -173,6 +174,8 @@ describe('executeX402Settlement — happy path', () => {
         status: 'pending',
         externalRef: null,
         accountId: 'dev-1',
+        // F4: the owning tool id is recorded so the reconciler can credit tool revenue.
+        metadata: expect.objectContaining({ toolId: 'tool-1' }),
       }),
     )
     expect(mockRecord.mock.invocationCallOrder[0]).toBeLessThan(mockSubmit.mock.invocationCallOrder[0])
@@ -222,12 +225,28 @@ describe('executeX402Settlement — a reverted/unconfirmed tx is NEVER settled',
 })
 
 describe('executeX402Settlement — idempotency & locking (no double-charge)', () => {
-  it('already-settled row → returns the recorded txHash, NEVER re-submits', async () => {
+  it('already-settled row → returns the recorded txHash + alreadySettled, NEVER re-submits (F1: proxy must not re-credit)', async () => {
     mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'settled', externalRef: '0xPREV' })
     const outcome = await executeX402Settlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xPREV' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPREV', alreadySettled: true })
     expect(mockSubmit).not.toHaveBeenCalled()
     expect(mockRecord).not.toHaveBeenCalled()
+  })
+
+  it('lost the pending→settled flip (concurrent winner) → settled + alreadySettled, NOT a fresh credit (F1)', async () => {
+    // We submit + confirm, but a concurrent invocation already flipped the row:
+    // markSettlementSettled returns false. That winner owns the credit, so we must
+    // surface alreadySettled so the proxy forwards WITHOUT re-crediting.
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xMINE' })
+    mockSettled.mockResolvedValue(false) // lost the guarded WHERE pending flip
+    // 1st findRow (idempotency check) → null (proceed to submit);
+    // 2nd findRow (inside the !flipped branch) → the winner's recorded row.
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'settled', externalRef: '0xWINNER' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
+    expect(mockSubmit).toHaveBeenCalledTimes(1)
   })
 
   it("previously-failed row → terminal 'failed', no re-submit", async () => {

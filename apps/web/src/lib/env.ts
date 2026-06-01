@@ -180,6 +180,29 @@ export function isX402SettlementEnabled(): boolean {
   return !!process.env.SETTLEGRID_GAS_WALLET_KEY && !!getX402PaymentAddress()
 }
 
+/**
+ * The ONLY x402 network whose settlements are accepted in production: Base
+ * mainnet. Real money settles here. A testnet network (e.g. Base Sepolia
+ * eip155:84532) moves FREE testnet USDC, so accepting one on a mainnet deploy
+ * would mint a real, withdrawable developer-balance credit for $0 (seal-audit
+ * F2). The proxy hard-pins to this in production.
+ */
+export const X402_MAINNET_NETWORK = 'eip155:8453' as const
+
+/**
+ * Whether the x402 proxy may settle a NON-mainnet (testnet) network. FALSE in
+ * production unconditionally — even if SETTLEGRID_X402_ALLOW_TESTNET is set, a
+ * production deploy is hard-pinned to {@link X402_MAINNET_NETWORK}, so a stray
+ * flag can never re-open the free-testnet-USDC → real-credit hole (F2). In
+ * non-production (local dev / a dedicated staging) testnet is allowed ONLY when
+ * SETTLEGRID_X402_ALLOW_TESTNET === 'true' (explicit opt-in); otherwise non-prod
+ * also defaults to mainnet-only. The Base-Sepolia e2e is unaffected — it drives
+ * executeX402Settlement (the orchestrator) directly, not this proxy gate.
+ */
+export function isX402TestnetSettlementAllowed(): boolean {
+  return process.env.SETTLEGRID_X402_ALLOW_TESTNET === 'true' && !isProduction()
+}
+
 // AP2: enabled when the signing secret or verification key is configured
 export function isAp2Enabled(): boolean {
   return !!process.env.AP2_PROVIDER_KEY || !!process.env.AP2_SIGNING_SECRET || !!process.env.AP2_VERIFICATION_KEY
