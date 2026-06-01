@@ -56,10 +56,27 @@ function idempotencyKey(hash: string): string {
   return `x402:settle:${hash}`
 }
 
-/** Get gas wallet account from env */
+/**
+ * Gas wallet for the PUBLIC facilitator (this module backs the standalone
+ * `/api/x402/{settle,facilitator/v1/settle}` routes — a free, no-auth, general
+ * relay that pays gas for THIRD-PARTY settlements).
+ *
+ * It uses a DEDICATED, separately-funded wallet (`SETTLEGRID_FACILITATOR_GAS_WALLET_KEY`)
+ * so that a gas-griefing drain of this public surface can NEVER starve the
+ * settlement gas wallet (`SETTLEGRID_GAS_WALLET_KEY`) that the revenue rails —
+ * the x402 proxy + circle-nano — depend on (those use a separate getGasWallet in
+ * circle-nano/settle-engine.ts; this isolates the blast radius). Falls back to
+ * the settlement key when the dedicated one isn't funded yet, so behavior is
+ * unchanged until the founder provisions + sets the facilitator wallet.
+ */
 function getGasWallet() {
-  const rawKey = process.env.SETTLEGRID_GAS_WALLET_KEY
-  if (!rawKey) throw new Error('SETTLEGRID_GAS_WALLET_KEY not configured')
+  const rawKey =
+    process.env.SETTLEGRID_FACILITATOR_GAS_WALLET_KEY || process.env.SETTLEGRID_GAS_WALLET_KEY
+  if (!rawKey) {
+    throw new Error(
+      'No facilitator gas wallet configured (set SETTLEGRID_FACILITATOR_GAS_WALLET_KEY, or SETTLEGRID_GAS_WALLET_KEY as fallback).',
+    )
+  }
   // Trim whitespace/quotes that env var injection may add
   const privateKey = rawKey.trim().replace(/^["']|["']$/g, '')
   return privateKeyToAccount(privateKey as `0x${string}`)
