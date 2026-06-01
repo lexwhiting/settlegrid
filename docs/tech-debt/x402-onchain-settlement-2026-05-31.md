@@ -45,7 +45,26 @@
 
 ## Carried / new DEBT + deferred (none blocking the code; some gate go-live)
 1. **Facilitator gas-griefing — MITIGATED via wallet isolation (founder-greenlit).** The public `facilitator.settlegrid.ai` relays any valid authorization for free with no auth → ETH-drain. It now uses a DEDICATED gas wallet (`SETTLEGRID_FACILITATOR_GAS_WALLET_KEY`, fallback to the shared key) so a drain can't starve the revenue rails. **Founder activation:** fund + set that env in prod + extend the B1.3 monitor to it. **Fast-follow:** a per-window gas-budget circuit-breaker on the isolated wallet (if/when public-facilitator volume grows) + B1.3 facilitator-wallet alerting.
-2. **Base-Sepolia e2e — OWED before go-live:** a real signed EIP-3009 on Sepolia → proxy → confirmed settle + ledger row (the empirical gate the mocked tests can't cover; A2 did the circle-nano equivalent). Throwaway payer key at `/Users/lex/.sg-sepolia-test/payer.key`.
+2. **Base-Sepolia e2e — ✅ DONE 2026-06-01 (was OWED before go-live).** A real
+   viem-signed EIP-3009 `exact` authorization on Base Sepolia (eip155:84532) was
+   driven through the UNMOCKED `executeX402Settlement` (real offline verifier +
+   real SHARED circle-nano engine + real public Sepolia RPC + real gas wallet +
+   real ledger write to an ISOLATED scratch Postgres — never prod) → returned
+   `{status:'settled', txHash}`; the USDC moved payer→recipient on-chain
+   (confirmed-receipt `Transfer` log + block-boundary balance Δ = 10000 base units
+   + `authorizationState(from,nonce)=true`); the unified-ledger row read
+   `settlement_status='settled'` + `external_ref=txHash`. Idempotent replay
+   returned the SAME txHash with no second charge. Negatives NEVER settled:
+   value≠cost → `X402_AMOUNT_MISMATCH`, wrong payee → `X402_WRONG_RECIPIENT`,
+   non-Base → `X402_NETWORK_UNSUPPORTED` (all rejected OFFLINE — no submit, no
+   ledger row, nonce unconsumed → no gas). On-chain constants were re-ground-
+   truthed against the LIVE Sepolia USDC contract that day (name "USDC" / version
+   "2" / recomputed EIP-712 domain separator == on-chain `DOMAIN_SEPARATOR()`).
+   Settled txs (Base Sepolia): `0xcc78bf28…8cb6`, `0x9d7db3de…b3bf`,
+   `0x290f4ea0…2a42`. Scope note: the e2e exercised the ORCHESTRATOR path (the
+   money mechanics); `handleX402Proxy`'s thin forward-and-bill wrapper around it
+   stays mock-covered. Throwaway payer key: `/Users/lex/.sg-sepolia-test/payer.key`.
+   Reproduction recipe at the bottom of this doc.
 3. **Standalone facilitator `upto` surface** — left as honest verify-beta; full teardown deferred.
 4. **settle.ts facilitator path writes no write-ahead ledger row** → a broadcast-then-timeout there is invisible to the B1.4 reconciler (pre-existing facilitator-surface debt; the proxy path is fully covered).
 5. **`getPublicClientForSettle` uses the default public RPC** (consistent with the file's existing `getWalletClient`; a reliability nit on the facilitator surface, not the proxy).
@@ -53,9 +72,53 @@
 7. **`maxDuration=90`** assumes a Pro plan (exceeds the 60s Hobby cap) — confirm the deploy plan.
 8. **Adapter detection-path `upto` branches** (extractPaymentContext classification) left intact — detection ≠ acceptance; harmless.
 
-## Go-live (founder-gated — real money)
-1. Review the local commit(s).
-2. Set `SETTLEGRID_PAYMENT_ADDRESS` in Vercel prod = the platform payee (recommend the SAME wallet as `SETTLEGRID_USDC_RECIPIENT`; move both off the hot gas wallet per carried B1 debt). Until set, x402 stays DARK.
-3. Confirm `SETTLEGRID_BASE_RPC_URL` (+ Sepolia) set; gas wallet funded on Base mainnet.
-4. Run the Base-Sepolia e2e (DEBT #2).
-5. Push `main` (the go-live).
+## Go-live (founder-gated — real money) — SAFE ORDER (corrected 2026-06-01)
+
+> ⚠️ ORDER IS FUNDS-SAFETY-CRITICAL. **Push FIRST** (deploys the dark-gate + the
+> on-chain settle code), **THEN** set `SETTLEGRID_PAYMENT_ADDRESS`. Setting the env
+> BEFORE the push would, against the OLD deployed code (which has NO dark-gate),
+> advertise a real `payTo` and re-open the structural-accept free-credit hole.
+> (This SUPERSEDES the prior set-then-push ordering, which was unsafe.)
+
+1. Base-Sepolia e2e — ✅ DONE (DEBT #2 above).
+2. Founder reviews the local commits (`git log origin/main..HEAD`, the diff, this doc).
+3. **Push `main`** → x402 deploys DARK (`SETTLEGRID_PAYMENT_ADDRESS` unset → 503; strictly safer than today). Also lands the facilitator honesty fix + the `upto` drop; circle-nano untouched.
+4. Verify the Vercel deploy is healthy (the repo's required "Vercel" status check may need bypass-on-push).
+5. Confirm `SETTLEGRID_USDC_RECIPIENT` + `SETTLEGRID_BASE_RPC_URL` set in prod; gas wallet funded on Base MAINNET.
+6. **THEN** set `SETTLEGRID_PAYMENT_ADDRESS` in Vercel prod = the platform payee (recommend the SAME wallet as `SETTLEGRID_USDC_RECIPIENT`; move both off the hot gas wallet per carried B1 debt) → flips x402 LIVE.
+
+## Base-Sepolia e2e — reproduction recipe (2026-06-01)
+
+The mocked suite covers the branching; it cannot prove a real signed payment
+actually settles. To re-run this empirical gate (e.g. before the MAINNET cutover):
+
+1. **Scratch ledger DB (NEVER prod).** The app `db` module hardcodes TLS
+   (`ssl:{rejectUnauthorized:false}`), so a plain local Postgres is rejected
+   ("server does not support SSL"). Run an ephemeral Postgres with SSL enabled
+   (self-signed cert + `ALTER SYSTEM SET ssl='on'`), apply BOTH
+   `drizzle/0005_unified_ledger.sql` AND `drizzle/0006_ledger_authorization_fields.sql`
+   (together they create `ledger_entries` + every column the insert writes —
+   `authorization_signals`/`authorization_artifact` come from 0006; 0005 alone
+   throws `column "authorization_signals" does not exist`), then point
+   `DATABASE_URL` at it. `account_id` has NO FK, so any uuid sentinel works.
+2. **Ground-truth** the live Sepolia USDC (`0x036CbD…3dCF7e`): assert
+   `name()=="USDC"`, `version()=="2"`, and recomputed EIP-712 domain separator ==
+   the on-chain `DOMAIN_SEPARATOR()`. Verify payer test-USDC + gas-wallet
+   Sepolia-ETH balances (payer needs no ETH — the gas wallet submits).
+3. **Sign** a `TransferWithAuthorization` (viem `signTypedData`, Sepolia domain
+   {name:"USDC",version:"2",chainId:84532,verifyingContract:USDC}) with
+   `value == costCents*10000`, `to == SETTLEGRID_PAYMENT_ADDRESS`, a random nonce;
+   build the `X402ExactPayload`; set env (`DATABASE_URL`=scratch,
+   `SETTLEGRID_GAS_WALLET_KEY`, `SETTLEGRID_PAYMENT_ADDRESS`); call
+   `executeX402Settlement` from a vitest `*.e2e.ts` (alias `@`→`src`, node env)
+   run via a DEDICATED config so it stays OUT of the default suite (whose
+   `include` is `src/**/*.test.ts`). Redis can be left unset — `tryRedis` degrades
+   to "proceed unlocked".
+4. **Assert from the confirmed receipt** (lag-immune): `status==='success'` + the
+   USDC `Transfer(payer→recipient, value)` log. The public Base Sepolia RPC
+   (`https://sepolia.base.org`) is load-balanced + eventually-consistent — a
+   just-mined block or `balanceOf("latest")` can read stale ("block not found" /
+   zero delta), so wrap any post-tx chain read (block-boundary balances,
+   `authorizationState`) in retry-until-consistent. Query the scratch ledger row
+   for `settled` + the txHash. Run the negatives (wrong amount/payee/network) —
+   they reject offline (no submit, no gas).
