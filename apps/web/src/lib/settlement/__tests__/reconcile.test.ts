@@ -6,17 +6,32 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockDb, mockConfirm, mockSettled, mockFailed } = vi.hoisted(() => ({
+const {
+  mockDb,
+  mockConfirm,
+  mockSettled,
+  mockFailed,
+  mockTx,
+  mockSql,
+  mockDevelopers,
+  mockTools,
+} = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
     from: vi.fn(),
     where: vi.fn(),
     orderBy: vi.fn(),
     limit: vi.fn(),
+    transaction: vi.fn(),
   },
   mockConfirm: vi.fn(),
   mockSettled: vi.fn(),
   mockFailed: vi.fn(),
+  // F4 credit txn: tx.update(table).set({...}).where(...) — update/set chain; where resolves.
+  mockTx: { update: vi.fn(), set: vi.fn(), where: vi.fn() },
+  mockSql: vi.fn((strings: TemplateStringsArray, ...vals: unknown[]) => ({ __sql: strings, vals })),
+  mockDevelopers: { id: 'developers.id', balanceCents: 'developers.balanceCents' },
+  mockTools: { id: 'tools.id', totalRevenueCents: 'tools.totalRevenueCents' },
 }))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
@@ -27,7 +42,12 @@ vi.mock('@/lib/db/schema', () => ({
     externalRef: 'external_ref',
     settlementStatus: 'settlement_status',
     createdAt: 'created_at',
+    amountCents: 'amount_cents',
+    accountId: 'account_id',
+    metadata: 'metadata',
   },
+  developers: mockDevelopers,
+  tools: mockTools,
 }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...a: unknown[]) => ({ and: a })),
@@ -36,6 +56,7 @@ vi.mock('drizzle-orm', () => ({
   lt: vi.fn((a: unknown, b: unknown) => ({ lt: [a, b] })),
   asc: vi.fn((a: unknown) => ({ asc: a })),
   isNotNull: vi.fn((a: unknown) => ({ isNotNull: a })),
+  sql: mockSql,
 }))
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('../circle-nano/settle-engine', () => ({ confirmSettlementTx: mockConfirm }))
@@ -67,6 +88,11 @@ beforeEach(() => {
   mockDb.where.mockReturnValue(mockDb)
   mockDb.orderBy.mockReturnValue(mockDb)
   mockDb.limit.mockResolvedValue([])
+  // F4 credit txn plumbing.
+  mockDb.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockTx))
+  mockTx.update.mockReturnValue(mockTx)
+  mockTx.set.mockReturnValue(mockTx)
+  mockTx.where.mockResolvedValue(undefined)
 })
 
 describe('parseSettlementOperationId', () => {
@@ -141,6 +167,71 @@ describe('reconcileOneRow — flips on confirmed on-chain state', () => {
     mockConfirm.mockClear()
     await reconcileOneRow({ operationId: X402_OPID, rail: 'x402', externalRef: TX })
     expect(mockConfirm).toHaveBeenCalledWith('eip155:8453', TX, { from: FROM, nonce: NONCE })
+  })
+})
+
+describe('reconcileOneRow — F4 credit-on-flip (x402 only, exactly once)', () => {
+  const X402_ROW = {
+    operationId: X402_OPID,
+    rail: 'x402',
+    externalRef: TX,
+    amountCents: 50,
+    accountId: 'dev-7',
+    metadata: { toolId: 'tool-9' },
+  }
+
+  it('x402 settled + flipped → credits dev balance THEN tool revenue in ONE txn, by amountCents', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    const out = await reconcileOneRow(X402_ROW)
+    expect(out).toBe('settled')
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    expect(mockTx.update).toHaveBeenNthCalledWith(1, mockDevelopers)
+    expect(mockTx.update).toHaveBeenNthCalledWith(2, mockTools)
+    expect(mockTx.update).toHaveBeenCalledTimes(2)
+    // the increment amount (50) flows into BOTH sql interpolations.
+    const sqlAmounts = mockSql.mock.calls.flatMap((c) => c.slice(1))
+    expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
+  })
+
+  it('x402 settled but flip LOST (flipped===false) → NO credit (another actor owns the credit)', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(false)
+    const out = await reconcileOneRow(X402_ROW)
+    expect(out).toBe('settled')
+    expect(mockDb.transaction).not.toHaveBeenCalled()
+  })
+
+  it('circle-nano settled + flipped → NO credit here (shared reconciler is x402-scoped; circle-nano F4 deferred)', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    const out = await reconcileOneRow({
+      operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX,
+      amountCents: 50, accountId: 'dev-7', metadata: { toolId: 'tool-9' },
+    })
+    expect(out).toBe('settled')
+    expect(mockDb.transaction).not.toHaveBeenCalled()
+  })
+
+  it('x402 settled + flipped but MISSING accountId → NO db credit (dev balance not silently lost — flagged)', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    const out = await reconcileOneRow({ operationId: X402_OPID, rail: 'x402', externalRef: TX })
+    expect(out).toBe('settled')
+    expect(mockDb.transaction).not.toHaveBeenCalled()
+  })
+
+  it('x402 settled + flipped but NO toolId → still credits the dev balance (payout source), skips the tool stat', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    const out = await reconcileOneRow({
+      operationId: X402_OPID, rail: 'x402', externalRef: TX,
+      amountCents: 50, accountId: 'dev-7', metadata: {},
+    })
+    expect(out).toBe('settled')
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    expect(mockTx.update).toHaveBeenCalledTimes(1)
+    expect(mockTx.update).toHaveBeenCalledWith(mockDevelopers)
   })
 })
 

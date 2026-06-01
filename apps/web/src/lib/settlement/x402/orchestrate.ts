@@ -50,6 +50,13 @@ export interface ExecuteX402SettlementParams {
   costCents: number
   /** Owning developer id (A1 stand-in for accountId — parity with circle-nano). */
   accountId: string
+  /**
+   * The owning tool's id — recorded in the pending-row metadata so the B1.4
+   * reconciler can credit tools.totalRevenueCents when it confirms an async
+   * settlement the in-request proxy path never billed (F4). The live proxy path
+   * credits via forwardAndBill using toolRow.id directly.
+   */
+  toolId: string
   toolSlug: string
   method: string
   /** Platform payee (SETTLEGRID_PAYMENT_ADDRESS) — caller has validated it is set + a valid address. */
@@ -63,9 +70,18 @@ export interface ExecuteX402SettlementParams {
  *   - pending → broadcast/in-progress/unconfirmed; HTTP error, NO forward, NO bill
  *               (NEVER claim settled). Safe to retry — idempotency + on-chain nonce
  *               prevent a double-charge; the B1.4 reconciler confirms it later.
+ *
+ * `alreadySettled` (settled only) — this invocation did NOT perform the
+ * pending→settled flip: the on-chain payment was settled by a PRIOR request
+ * (idempotent replay) or a concurrent winner. The proxy MUST still forward (the
+ * buyer paid exactly once) but MUST NOT re-credit the developer balance. Credit
+ * fires exactly once — for the single invocation that flips the row (the same
+ * "credit iff you flipped" invariant the B1.4 reconciler uses, so the live path
+ * and the reconciler can never both credit). Omitted ⇒ this invocation is the
+ * flip winner ⇒ the proxy credits.
  */
 export type X402SettlementOutcome =
-  | { status: 'settled'; txHash: string }
+  | { status: 'settled'; txHash: string; alreadySettled?: true }
   | { status: 'failed'; code: string; httpStatus: number; reason: string }
   | { status: 'pending'; code: string; httpStatus: number; reason: string; txHash?: string }
 
@@ -114,7 +130,7 @@ async function ensurePendingRow(
   proof: Eip3009SettleProof,
   params: ExecuteX402SettlementParams & { operationId: string },
 ): Promise<void> {
-  const { operationId, costCents, accountId, toolSlug, method } = params
+  const { operationId, costCents, accountId, toolId, toolSlug, method } = params
   // Idempotent (deterministic id from operationId + ON CONFLICT DO NOTHING): a
   // pre-existing pending row is left intact (incl. any broadcast txHash).
   await recordSettlementEntry({
@@ -133,6 +149,10 @@ async function ensurePendingRow(
       scheme: 'exact',
       network: proof.network,
       payer: proof.authorization.from,
+      // The owning tool — lets the B1.4 reconciler credit tools.totalRevenueCents
+      // when it confirms an async settlement the in-request path didn't bill (F4).
+      // (developers.balanceCents is keyed by the row's accountId column.)
+      toolId,
       // For the x402 exact scheme this equals the tool cost (verifier enforces
       // value === required), but recorded explicitly for audit parity.
       authorizedValueBaseUnits: proof.authorization.value,
@@ -150,9 +170,11 @@ async function applyOutcome(
     case 'settled': {
       const flipped = await markSettlementSettled(operationId, RAIL, result.txHash)
       if (!flipped) {
-        // A concurrent winner already settled it; return the recorded txHash.
+        // A concurrent winner already flipped the row → IT owns the credit, not
+        // us. Return the recorded txHash + alreadySettled so the proxy forwards
+        // WITHOUT re-crediting (credit fires only for the flip winner).
         const row = await findSettlementRow(operationId, RAIL)
-        return { status: 'settled', txHash: row?.externalRef ?? result.txHash }
+        return { status: 'settled', txHash: row?.externalRef ?? result.txHash, alreadySettled: true }
       }
       logger.info('x402.settle_onchain_success', { operationId, txHash: result.txHash })
       return { status: 'settled', txHash: result.txHash }
@@ -265,8 +287,11 @@ export async function executeX402Settlement(
   // 2. Idempotency — a prior settle for this exact authorization already landed.
   const existing = await findSettlementRow(operationId, RAIL)
   if (existing?.settlementStatus === 'settled') {
+    // Idempotent replay: a prior request already settled this exact authorization
+    // on-chain. alreadySettled tells the proxy to forward (the buyer paid once)
+    // but NOT re-credit — the original settling request already credited.
     logger.info('x402.settle_idempotent_hit', { operationId, txHash: existing.externalRef })
-    return { status: 'settled', txHash: existing.externalRef ?? '' }
+    return { status: 'settled', txHash: existing.externalRef ?? '', alreadySettled: true }
   }
   if (existing?.settlementStatus === 'failed') {
     return {

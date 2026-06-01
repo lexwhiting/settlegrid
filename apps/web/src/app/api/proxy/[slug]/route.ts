@@ -39,7 +39,9 @@ import {
   getMppRecipientId,
   isX402Enabled,
   isX402SettlementEnabled,
+  isX402TestnetSettlementAllowed,
   getX402PaymentAddress,
+  X402_MAINNET_NETWORK,
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
@@ -1584,7 +1586,28 @@ async function forwardAndBill(
   paymentId: string | undefined,
   payerIdentifier: string | undefined,
   extraHeaders: Record<string, string>,
-  extraMetadata?: Record<string, unknown>
+  extraMetadata?: Record<string, unknown>,
+  options?: {
+    /**
+     * Skip the developer-balance / tool-revenue credit (F1). Set ONLY for an
+     * x402 idempotent replay or concurrent-flip-loser: the buyer paid once and
+     * was already credited by the flip winner, so re-delivering must NOT
+     * re-credit. The request is still forwarded; the invocation is recorded as a
+     * non-billed replay (costCents 0).
+     */
+    skipCredit?: boolean
+    /**
+     * F3: the payment already settled IRREVERSIBLY on-chain BEFORE this forward
+     * (x402 exact / EIP-3009). Enables an actionable funds-loss alert on the
+     * branches where the buyer is charged but the dev is credited 0 and no refund
+     * is possible: (a) upstream fails to deliver (fetch throw / non-2xx), (b) the
+     * billing UPDATE throws. Reversible/prepaid rails leave this false — an
+     * upstream failure there costs nothing (actualCost 0, nothing charged). NO
+     * auto-refund (a new irreversible money path needs its own audit); the alert
+     * drives a manual off-band refund runbook keyed by txHash + payer.
+     */
+    irreversibleOnChain?: boolean
+  }
 ): Promise<NextResponse> {
   const upstreamHeaders = buildUpstreamHeaders(request)
   const controller = new AbortController()
@@ -1617,6 +1640,20 @@ async function forwardAndBill(
       requestId,
     })
 
+    if (options?.irreversibleOnChain) {
+      // F3: the on-chain payment already settled (irreversible) but the upstream
+      // tool was NOT delivered (unreachable / timeout) → buyer charged, dev
+      // credited 0, NO auto-refund. Distinct, alertable signal for the off-band
+      // refund runbook (keyed by txHash + payer). The buyer's idempotent retry
+      // can still deliver (F1 forwards a now-settled replay without re-charging).
+      logger.error('proxy.onchain_settled_upstream_failed', {
+        slug, requestId, paymentMethod,
+        txHash: paymentId, payer: payerIdentifier, costCents,
+        upstreamStatus: null, reason: 'upstream_unreachable',
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+
     recordProtocolInvocation({
       toolId: toolRow.id,
       developerId: toolRow.developerId,
@@ -1642,9 +1679,12 @@ async function forwardAndBill(
   const latencyMs = Date.now() - startTime
   const upstreamStatus = upstreamResponse.status
   const upstreamOk = upstreamStatus >= 200 && upstreamStatus < 300
-  const actualCost = upstreamOk ? costCents : 0
+  // F1: a non-billed replay re-delivers but is NEVER credited (the flip winner
+  // already credited the single on-chain payment) → its recorded cost is 0.
+  const skipCredit = options?.skipCredit === true
+  const actualCost = upstreamOk && !skipCredit ? costCents : 0
 
-  if (upstreamOk) {
+  if (upstreamOk && !skipCredit) {
     // Awaited — see proxy.billing_update_error rationale above.
     try {
       await Promise.all([
@@ -1660,7 +1700,28 @@ async function forwardAndBill(
       ])
     } catch (err) {
       logger.error(`proxy.${paymentMethod}_billing_update_error`, { slug, requestId }, err)
+      if (options?.irreversibleOnChain) {
+        // F3: STOP SWALLOWING. The credit is the payout source of truth and the
+        // on-chain charge is irreversible — a lost credit here means the buyer
+        // paid + WAS served but the dev was never credited. Distinct, alertable
+        // signal so an operator credits manually (keyed by txHash + payer).
+        logger.error('proxy.onchain_credit_lost_after_settle', {
+          slug, requestId, paymentMethod,
+          txHash: paymentId, payer: payerIdentifier, costCents, upstreamStatus,
+        })
+      }
     }
+  } else if (!upstreamOk && options?.irreversibleOnChain && !skipCredit) {
+    // F3: settled on-chain (irreversible) but upstream returned non-2xx → buyer
+    // charged, nothing delivered, dev credited 0, NO auto-refund. Distinct,
+    // alertable signal for the off-band refund runbook (keyed by txHash + payer).
+    // The buyer's idempotent retry can still deliver (F1 forwards a now-settled
+    // replay without re-charging).
+    logger.error('proxy.onchain_settled_upstream_failed', {
+      slug, requestId, paymentMethod,
+      txHash: paymentId, payer: payerIdentifier, costCents, upstreamStatus,
+      reason: 'upstream_non_2xx',
+    })
   }
 
   recordProtocolInvocation({
@@ -1799,6 +1860,20 @@ async function handleX402Proxy(
     return x402Error('X402_SCHEME_UNSUPPORTED', 'Only the x402 exact scheme (EIP-3009) is settled. Re-send an exact-scheme payment.', 402)
   }
 
+  // F2: production network-pin. The orchestrator's offline verifier accepts ANY
+  // network present in USDC_EIP712_DOMAINS (Base mainnet AND Base Sepolia), so on
+  // a mainnet deploy a Sepolia-network payload would settle with FREE testnet USDC
+  // yet credit a real, withdrawable developer balance. Hard-pin production to Base
+  // mainnet; testnet is accepted only in non-prod behind SETTLEGRID_X402_ALLOW_TESTNET.
+  if (exactPayload.network !== X402_MAINNET_NETWORK && !isX402TestnetSettlementAllowed()) {
+    logger.warn('proxy.x402_network_unsupported', { slug, network: exactPayload.network, requestId })
+    return x402Error(
+      'X402_NETWORK_UNSUPPORTED',
+      `x402 settlement requires the Base mainnet network (${X402_MAINNET_NETWORK}).`,
+      402
+    )
+  }
+
   // REAL ON-CHAIN SETTLEMENT — confirm-before-deliver (mirrors circle-nano A2 +
   // the canonical x402 facilitator). The orchestrator verifies (recover signer +
   // payee-bind + EXACT amount + Base-only), settles via the gas wallet, waits for
@@ -1809,6 +1884,7 @@ async function handleX402Proxy(
     payload: exactPayload,
     costCents,
     accountId: toolRow.developerId,
+    toolId: toolRow.id,
     toolSlug: toolRow.slug,
     method: `proxy:${request.method}`,
     recipient,
@@ -1819,12 +1895,28 @@ async function handleX402Proxy(
     return x402Error(outcome.code, outcome.reason, outcome.httpStatus)
   }
 
+  // F1: a replayed / concurrent-loser authorization settled in a PRIOR invocation
+  // (alreadySettled) — the buyer paid exactly once and was already credited by the
+  // flip winner. Still forward (honor the paid request) but SKIP the credit and tag
+  // a non-billed replay; otherwise an SDK auto-retry would re-credit the payout
+  // balance for one on-chain receipt.
+  const isReplay = outcome.alreadySettled === true
+  if (isReplay) {
+    logger.info('proxy.x402_replay_no_recredit', { slug, txHash: outcome.txHash, requestId })
+  }
+
   return forwardAndBill(
     request, toolRow, 'x402', costCents, slug, requestId, startTime,
     outcome.txHash,
     exactPayload.payload.authorization.from,
     { 'X-SettleGrid-Tx-Hash': outcome.txHash },
-    { network: exactPayload.network, scheme: 'exact', amountUsdc: exactPayload.payload.authorization.value }
+    {
+      network: exactPayload.network,
+      scheme: 'exact',
+      amountUsdc: exactPayload.payload.authorization.value,
+      ...(isReplay ? { replay: true } : {}),
+    },
+    isReplay ? { skipCredit: true } : { irreversibleOnChain: true }
   )
 }
 

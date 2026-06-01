@@ -140,7 +140,15 @@ actually settles. To re-run this empirical gate (e.g. before the MAINNET cutover
    for `settled` + the txHash. Run the negatives (wrong amount/payee/network) —
    they reject offline (no submit, no gas).
 
-## Seal-audit findings (2026-06-01) — verdict: ⛔ DO-NOT-SEAL
+## Seal-audit findings (2026-06-01) — verdict: ⛔ DO-NOT-SEAL → 🔧 FIXES APPLIED (re-audit pending)
+
+> **FIXES APPLIED 2026-06-01** — F1 (replay double-credit), F2 (prod network-pin),
+> F4 (reconciler credit-on-flip) FIXED; F3 (loss alerts + stop-swallowing, NO
+> auto-refund) FIXED; F6 DOCUMENTED (deferred). Owed proxy-level integration test
+> added (8 cases). Full record + file:line anchors + runbooks:
+> `docs/tech-debt/x402-seal-audit-fixes-2026-06-01.md`. **The mandatory re-audit
+> (3-part chain + independent funds-safety panel) must pass before the seal is
+> re-attempted / any push.** The findings below are the ORIGINAL audit.
 
 Independent multi-agent seal-audit (4 fresh-context finders × adversarial verify ×
 synthesis) of the production proxy/billing surface the orchestrator-level e2e did NOT
