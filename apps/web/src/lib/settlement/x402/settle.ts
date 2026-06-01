@@ -11,7 +11,7 @@
  *   - Receipt validation (signature recovery)
  */
 
-import { createWalletClient, http, type Address, verifyMessage } from 'viem'
+import { createWalletClient, createPublicClient, http, type Address, verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { base, baseSepolia } from 'viem/chains'
 import type {
@@ -75,6 +75,21 @@ function getWalletClient(network: X402Network) {
       return createWalletClient({ account, chain: baseSepolia, transport: http() })
     default:
       throw new Error(`Settlement not supported on network: ${network}. Only Base mainnet (eip155:8453) and Base Sepolia (eip155:84532) are supported.`)
+  }
+}
+
+/** Receipt-wait timeout (ms) for the broadcast-then-confirm gate (Base ~2s blocks). */
+const SETTLE_RECEIPT_TIMEOUT_MS = 30_000
+
+/** Public client for the receipt-wait — broadcast is NOT settlement. */
+function getPublicClientForSettle(network: X402Network) {
+  switch (network) {
+    case 'eip155:8453':
+      return createPublicClient({ chain: base, transport: http() })
+    case 'eip155:84532':
+      return createPublicClient({ chain: baseSepolia, transport: http() })
+    default:
+      throw new Error(`Settlement not supported on network: ${network}.`)
   }
 }
 
@@ -200,6 +215,38 @@ export async function settleExactPayment(
       ],
     })
 
+    // Broadcast is NOT settlement. Wait for a CONFIRMED receipt before reporting
+    // success (matches the canonical x402 facilitator + circle-nano A2). A revert
+    // or an unconfirmed timeout is surfaced as a FAILURE and is NOT cached, so the
+    // facilitator never reports 'settled' for a tx that did not confirm.
+    let receipt
+    try {
+      receipt = await getPublicClientForSettle(network).waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 1,
+        timeout: SETTLE_RECEIPT_TIMEOUT_MS,
+      })
+    } catch {
+      logger.warn('x402.settle_exact_unconfirmed', { txHash, network, payloadHash })
+      return {
+        success: false,
+        errorReason: `Settlement broadcast on ${network} (tx ${txHash}) but not confirmed within ${SETTLE_RECEIPT_TIMEOUT_MS}ms; it may still confirm on-chain.`,
+        errorCode: 'SETTLEMENT_TX_TIMEOUT',
+        txHash,
+        network,
+      }
+    }
+    if (receipt.status !== 'success') {
+      logger.warn('x402.settle_exact_reverted', { txHash, network, payloadHash })
+      return {
+        success: false,
+        errorReason: `Settlement transaction reverted on ${network} (tx ${txHash}); no funds moved.`,
+        errorCode: 'SETTLEMENT_TX_REVERTED',
+        txHash,
+        network,
+      }
+    }
+
     logger.info('x402.settle_exact_success', {
       txHash,
       network,
@@ -209,9 +256,8 @@ export async function settleExactPayment(
       payloadHash,
     })
 
+    // Cache ONLY confirmed settlements (a revert / timeout above already returned).
     const result: X402SettleResponse = { success: true, txHash, network, gasEstimate }
-
-    // Store in idempotency cache
     await storeIdempotency(payloadHash, result)
 
     return result

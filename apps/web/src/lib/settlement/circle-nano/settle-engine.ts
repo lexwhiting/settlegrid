@@ -30,7 +30,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { base, baseSepolia } from 'viem/chains'
 import { EIP3009_ABI } from '../x402/verify'
 import { USDC_ADDRESSES } from '../x402/types'
-import type { CircleNanoProof } from '@settlegrid/mcp'
+import type { Eip3009SettleProof } from '../eip3009/types'
 import { getBaseRpcUrl } from '@/lib/env'
 
 /** The only networks we pin USDC + the EIP-712 domain for; anything else fails closed. */
@@ -102,7 +102,7 @@ function publicClientFor(network: SupportedNetwork) {
  * already proven the signature, payee, time-window, amount, and canonical sig.
  */
 export async function submitCircleNanoOnChain(
-  proof: CircleNanoProof,
+  proof: Eip3009SettleProof,
   opts?: {
     /**
      * Invoked with the tx hash the instant the tx is broadcast, BEFORE the
@@ -210,7 +210,7 @@ export async function submitCircleNanoOnChain(
  * without re-submitting. Same confirmed-receipt semantics as a fresh submit.
  */
 export async function confirmCircleNanoTx(
-  proof: CircleNanoProof,
+  proof: Eip3009SettleProof,
   txHash: Hex,
 ): Promise<CircleNanoOnChainResult> {
   const network = proof.network as SupportedNetwork

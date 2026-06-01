@@ -403,13 +403,18 @@ export async function validateX402Payment(
   }
 
   try {
+    // v1 settles the EXACT scheme only (EIP-3009). The proxy on-chain settlement
+    // path reuses the audited circle-nano EIP-3009 engine; `upto` (Permit2) needs
+    // a separate settlement engine and is NOT advertised/accepted on the proxy
+    // (the standalone public facilitator still offers upto-verify in beta — a
+    // separate surface). Reject non-exact at the proxy gate.
     const scheme = (payload.scheme as string) ?? 'exact'
-    if (scheme !== 'exact' && scheme !== 'upto') {
+    if (scheme !== 'exact') {
       return {
         valid: false,
         error: {
           code: 'X402_PAYLOAD_INVALID',
-          message: `Unsupported x402 scheme: ${scheme}. Supported: exact, upto.`,
+          message: `Unsupported x402 scheme: ${scheme}. Only the exact scheme (EIP-3009 transferWithAuthorization) is supported for settlement.`,
         },
       }
     }
@@ -465,27 +470,6 @@ export async function validateX402Payment(
             error: {
               code: 'X402_EXPIRED',
               message: `Payment authorization expired ${now - validBefore}s ago.`,
-            },
-          }
-        }
-      }
-    } else if (scheme === 'upto' && innerPayload) {
-      const witness = innerPayload.witness as Record<string, unknown> | undefined
-      const permit = innerPayload.permit as Record<string, unknown> | undefined
-      if (witness) {
-        payerAddress = (witness.recipient as string) ?? ''
-        paymentAmountBaseUnits = (witness.amount as string) ?? '0'
-      }
-
-      if (permit) {
-        const deadline = parseInt(String(permit.deadline ?? '0'), 10)
-        const now = Math.floor(Date.now() / 1000)
-        if (Number.isFinite(deadline) && deadline > 0 && now > deadline) {
-          return {
-            valid: false,
-            error: {
-              code: 'X402_EXPIRED',
-              message: `Permit2 deadline expired ${now - deadline}s ago.`,
             },
           }
         }
@@ -610,20 +594,12 @@ export function generateX402_402Response(options: X402_402Options): Response {
         payTo: effectiveRecipient,
         maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
       },
-      {
-        scheme: 'upto',
-        network: DEFAULT_X402_NETWORK,
-        amount: amountBaseUnits,
-        asset: USDC_ADDRESSES[DEFAULT_X402_NETWORK],
-        payTo: effectiveRecipient,
-        maxTimeoutSeconds: X402_MAX_TIMEOUT_SECONDS,
-      },
     ],
     tool: toolSlug,
     pricing_model: 'per-call',
     cost_cents: costCents,
     directory_url: `${appUrl}/api/v1/discover`,
-    instructions: `To pay, re-send the request with X-Payment header containing a base64-encoded x402 payment payload (EIP-3009 or Permit2) authorizing at least ${amountBaseUnits} USDC base units (${costCents} cents).`,
+    instructions: `To pay, re-send the request with an X-Payment header containing a base64-encoded x402 EXACT-scheme payment payload (EIP-3009 transferWithAuthorization) authorizing exactly ${amountBaseUnits} USDC base units (${costCents} cents).`,
   }
 
   const headers = new Headers({

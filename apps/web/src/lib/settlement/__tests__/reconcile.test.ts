@@ -54,7 +54,9 @@ const FROM = `0x${'a'.repeat(40)}`
 const NONCE = `0x${'b'.repeat(64)}`
 const TX = `0x${'c'.repeat(64)}`
 const CNANO_OPID = `circle-nano:eip155:8453:${FROM}:${NONCE}`
-const X402_OPID = `x402:eip155:8453:${TX}`
+// x402 now keys on the EIP-3009 (from,nonce) — parity with circle-nano (the proxy
+// settles on-chain in-process, so it surfaces them). Was x402:<network>:<txHash>.
+const X402_OPID = `x402:eip155:8453:${FROM}:${NONCE}`
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -75,8 +77,11 @@ describe('parseSettlementOperationId', () => {
     })
   })
 
-  it('parses x402 op id into network only (no nonce)', () => {
-    expect(parseSettlementOperationId(X402_OPID, 'x402')).toEqual({ network: 'eip155:8453' })
+  it('parses x402 op id into network + from/nonce (now keyed on (from,nonce), circle-nano parity)', () => {
+    expect(parseSettlementOperationId(X402_OPID, 'x402')).toEqual({
+      network: 'eip155:8453',
+      eip3009: { from: FROM, nonce: NONCE },
+    })
   })
 
   it('returns null for a malformed / wrong-rail / unknown-rail op id', () => {
@@ -128,14 +133,14 @@ describe('reconcileOneRow — flips on confirmed on-chain state', () => {
     expect(mockFailed).not.toHaveBeenCalled()
   })
 
-  it('passes the EIP-3009 nonce recheck context for circle-nano, none for x402', async () => {
+  it('passes the EIP-3009 nonce recheck context for BOTH circle-nano and x402 (x402 now keys on (from,nonce))', async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     await reconcileOneRow({ operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX })
     expect(mockConfirm).toHaveBeenCalledWith('eip155:8453', TX, { from: FROM, nonce: NONCE })
 
     mockConfirm.mockClear()
     await reconcileOneRow({ operationId: X402_OPID, rail: 'x402', externalRef: TX })
-    expect(mockConfirm).toHaveBeenCalledWith('eip155:8453', TX, undefined)
+    expect(mockConfirm).toHaveBeenCalledWith('eip155:8453', TX, { from: FROM, nonce: NONCE })
   })
 })
 
