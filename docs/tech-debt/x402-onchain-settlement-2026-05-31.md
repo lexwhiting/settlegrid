@@ -147,8 +147,9 @@ actually settles. To re-run this empirical gate (e.g. before the MAINNET cutover
 > auto-refund) FIXED; F6 DOCUMENTED (deferred). Owed proxy-level integration test
 > added (8 cases). Full record + file:line anchors + runbooks:
 > `docs/tech-debt/x402-seal-audit-fixes-2026-06-01.md`. **The mandatory re-audit
-> (3-part chain + independent funds-safety panel) must pass before the seal is
-> re-attempted / any push.** The findings below are the ORIGINAL audit.
+> (3-part chain + independent funds-safety panel) ✅ PASSED 2026-06-01 → verdict
+> SEAL (0 blocking findings); clear to go-live after founder review + push.** The
+> findings below are the ORIGINAL audit.
 
 Independent multi-agent seal-audit (4 fresh-context finders × adversarial verify ×
 synthesis) of the production proxy/billing surface the orchestrator-level e2e did NOT
