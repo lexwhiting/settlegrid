@@ -226,7 +226,7 @@ describe('coverage — 402 body field shapes', () => {
     expect(res.headers.get('X-Payment-Amount')).toBe('100')
   })
 
-  it('x402 body includes x402Version=2, accepts array with exact+upto schemes', async () => {
+  it('x402 body includes x402Version=2, accepts array with the EXACT scheme only (v1: upto not advertised)', async () => {
     const res = generateX402_402Response({
       toolSlug: 'my-tool',
       costCents: 50,
@@ -236,9 +236,11 @@ describe('coverage — 402 body field shapes', () => {
     expect(body.x402Version).toBe(2)
     expect(body.error).toBe('payment_required')
     const accepts = body.accepts as Array<Record<string, unknown>>
-    expect(accepts).toHaveLength(2)
+    // v1 advertises EXACT only — the proxy settles exact (EIP-3009) on-chain and
+    // rejects upto (Permit2 needs a separate engine). See generateX402_402Response.
+    expect(accepts).toHaveLength(1)
     expect(accepts[0].scheme).toBe('exact')
-    expect(accepts[1].scheme).toBe('upto')
+    expect(accepts.some((a) => a.scheme === 'upto')).toBe(false)
     // Amount = 50 cents * 10_000 = 500_000 USDC base units
     expect(accepts[0].amount).toBe('500000')
     expect(accepts[0].maxTimeoutSeconds).toBe(300)

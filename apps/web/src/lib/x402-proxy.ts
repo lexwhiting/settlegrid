@@ -18,7 +18,7 @@ import type {
   X402ProxyPaymentResult,
   X402ToolConfig,
   X402ProxyErrorCode, AdapterLogger } from '@settlegrid/mcp'
-import { isX402Enabled, getX402FacilitatorUrl, getAppUrl } from './env'
+import { isX402Enabled, getAppUrl, getX402PaymentAddress } from './env'
 import { logger } from './logger'
 
 const x402Adapter = new X402Adapter()
@@ -41,7 +41,12 @@ export async function validateX402Payment(
   return validateX402PaymentCore(request, {
     enabled: isX402Enabled(),
     toolConfig,
-    facilitatorUrl: getX402FacilitatorUrl(),
+    // D1: the proxy settles x402 IN-PROCESS via executeX402Settlement (the shared
+    // EIP-3009 engine), never via an external facilitator round-trip — so this
+    // structural gate must NOT settle. Omitting facilitatorUrl keeps it a pure
+    // structural accept (valid, NO txHash, no on-chain side effect), making the
+    // orchestrator the sole settle path. The standalone public facilitator routes
+    // (/api/x402/{settle,facilitator/...}) are a separate surface.
     logger: appLogger,
   })
 }
@@ -58,7 +63,11 @@ export function generateX402_402Response(
     toolName,
     recipientAddress,
     appUrl: getAppUrl(),
-    fallbackPaymentAddress: process.env.SETTLEGRID_PAYMENT_ADDRESS,
+    // Advertise the SAME trimmed value the proxy settlement verifier ENFORCES as
+    // the payee (getX402PaymentAddress), so a trailing-newline env can't make the
+    // 402's payTo diverge from the bound recipient (which would reject a
+    // spec-conformant payer as WRONG_RECIPIENT — a self-inflicted 402 loop).
+    fallbackPaymentAddress: getX402PaymentAddress(),
   })
 }
 

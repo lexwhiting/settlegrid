@@ -24,7 +24,8 @@
 
 import { recoverTypedDataAddress, type Address, type Hex } from 'viem'
 import { USDC_ADDRESSES } from '../x402/types'
-import type { CircleNanoProof, CircleNanoErrorCode } from '@settlegrid/mcp'
+import type { CircleNanoErrorCode } from '@settlegrid/mcp'
+import type { Eip3009SettleProof } from '../eip3009/types'
 
 /**
  * The EIP-712 domain identity of each supported USDC deployment — pinned from
@@ -97,6 +98,15 @@ export interface CircleNanoVerifyParams {
   requiredBaseUnits: bigint
   /** Injectable clock (unix seconds) for deterministic tests. */
   now?: number
+  /**
+   * Amount policy. `false`/undefined (circle-nano default): the authorized
+   * `value` need only be >= `requiredBaseUnits` (over-authorization tolerated).
+   * `true` (x402 `exact` scheme): `value` must EQUAL `requiredBaseUnits` — the
+   * canonical x402 V2 facilitator rejects `value !== amount` (ground-truthed
+   * against coinbase/x402 `main`), and exact equality also removes any
+   * over-collection of the payer.
+   */
+  exactAmount?: boolean
 }
 
 export interface CircleNanoVerifyResult {
@@ -116,8 +126,8 @@ export interface CircleNanoVerifyResult {
  * a signature that recovers to `authorization.from` over the exact fields
  * checked, so the structural checks can't be spoofed past the crypto gate.
  */
-export async function verifyCircleNanoAuthorization(
-  proof: CircleNanoProof,
+export async function verifyEip3009Authorization(
+  proof: Eip3009SettleProof,
   params: CircleNanoVerifyParams,
 ): Promise<CircleNanoVerifyResult> {
   const { recipient, requiredBaseUnits } = params
@@ -176,11 +186,14 @@ export async function verifyCircleNanoAuthorization(
     }
   }
 
-  if (value < requiredBaseUnits) {
+  const amountOk = params.exactAmount ? value === requiredBaseUnits : value >= requiredBaseUnits
+  if (!amountOk) {
     return {
       valid: false,
       errorCode: 'CIRCLE_NANO_AMOUNT_MISMATCH',
-      invalidReason: `Authorization covers ${value} USDC base units but tool requires ${requiredBaseUnits}.`,
+      invalidReason: params.exactAmount
+        ? `Authorization value ${value} must EXACTLY equal the required ${requiredBaseUnits} USDC base units (x402 exact scheme).`
+        : `Authorization covers ${value} USDC base units but tool requires ${requiredBaseUnits}.`,
     }
   }
 
@@ -241,3 +254,12 @@ export async function verifyCircleNanoAuthorization(
     amountBaseUnits: value.toString(),
   }
 }
+
+/**
+ * Back-compat alias. This offline EIP-3009 verifier is RAIL-AGNOSTIC — it is the
+ * single audited recover-and-policy-check used by BOTH circle-nano (default:
+ * `value >= required`) and the x402 exact-scheme settlement orchestrator
+ * (`exactAmount: true` → `value === required`). It lives under `circle-nano/`
+ * for historical reasons; circle-nano callers + their tests import this name.
+ */
+export { verifyEip3009Authorization as verifyCircleNanoAuthorization }

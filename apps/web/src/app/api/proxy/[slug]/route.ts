@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isAddress } from 'viem'
 import { eq, and, sql } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
@@ -20,8 +21,8 @@ import {
 } from '@/lib/failover'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
-import { recordSettlementEntryAsync } from '@/lib/settlement/ledger'
-import { buildX402SettlementRow } from '@/lib/settlement/x402-ledger'
+import { extractX402PaymentHeader, parseX402ExactPayload } from '@/lib/settlement/x402/parse'
+import { executeX402Settlement } from '@/lib/settlement/x402/orchestrate'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
@@ -37,6 +38,8 @@ import {
   isMppEnabled,
   getMppRecipientId,
   isX402Enabled,
+  isX402SettlementEnabled,
+  getX402PaymentAddress,
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
@@ -44,7 +47,11 @@ import {
 } from '@/lib/env'
 import { decideUnifiedDispatch, shouldDispatchUnified, type EnabledMap } from './_unified-dispatch'
 
-export const maxDuration = 60
+// 90s budget: on the x402 path, confirm-before-deliver adds an on-chain
+// settlement receipt wait (<= RECEIPT_TIMEOUT_MS = 30s) ahead of the upstream
+// forward (<= UPSTREAM_TIMEOUT_MS = 30s). Other payment methods return well
+// within this.
+export const maxDuration = 90
 
 const UPSTREAM_TIMEOUT_MS = 30_000
 const DEFAULT_CACHE_TTL_SECONDS = 60
@@ -1720,11 +1727,39 @@ async function handleX402Proxy(
 
   const costCents = getCostCents(toolRow.pricingConfig)
 
+  // Consistent x402 JSON error envelope (+ request id).
+  const x402Error = (code: string, message: string, status: number): NextResponse => {
+    const headers = new Headers({ 'Content-Type': 'application/json' })
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(JSON.stringify({ error: { code, message } }), { status, headers })
+  }
+
+  // Dark-gate: x402 settles on-chain ONLY when the gas wallet + platform payee
+  // are both configured. Until then x402 is NOT accepted — we must not
+  // structural-accept + credit a developer balance for a payment that never
+  // settles on-chain (payouts draw on that balance), nor advertise a payable 402
+  // with a ZERO_ADDRESS payTo. See isX402SettlementEnabled.
+  if (!isX402SettlementEnabled()) {
+    logger.info('proxy.x402_not_configured', { slug, requestId })
+    return x402Error('X402_NOT_CONFIGURED', 'x402 settlement is not currently available on this SettleGrid instance.', 503)
+  }
+  const recipient = getX402PaymentAddress()
+  if (!recipient || !isAddress(recipient, { strict: false })) {
+    // Set-but-invalid: fail closed LOUDLY (mirrors circle-nano) so a
+    // misconfigured deploy is diagnosable rather than mis-paying.
+    logger.warn('proxy.x402_recipient_misconfigured', { slug, requestId })
+    return x402Error('X402_NOT_CONFIGURED', 'x402 settlement recipient is misconfigured.', 503)
+  }
+
+  // Structural gate: is a plausibly-valid x402 payment present? Missing /
+  // expired / underpaid → 402 challenge so the client knows to pay. Structural
+  // ONLY (the app wrapper omits a facilitator) — the orchestrator below is the
+  // sole settle path.
   const x402Result = await validateX402Payment(request, {
     slug: toolRow.slug,
     costCents,
     displayName: toolRow.name,
-    recipientAddress: process.env.SETTLEGRID_PAYMENT_ADDRESS,
+    recipientAddress: recipient,
   })
 
   if (!x402Result.valid) {
@@ -1742,33 +1777,54 @@ async function handleX402Proxy(
     return new NextResponse(body, { status: 402, headers })
   }
 
-  // B1.2 — record the x402 on-chain settlement to the unified ledger as
-  // 'pending' (the broadcast txHash is not yet a confirmed receipt; the B1.4
-  // reconciler flips it to settled/failed — see buildX402SettlementRow). Record
-  // it ahead of forwardAndBill so a forward error never loses the record. Fire-
-  // and-forget + guarded (mirrors ap2): a ledger hiccup, a structural-only
-  // accept (no txHash), a zero-cost call, or a missing developer never breaks
-  // the proxied response. Idempotent + reconciler-keyed by x402:<network>:<txHash>.
-  const x402SettlementRow = buildX402SettlementRow(
-    x402Result,
-    toolRow.slug,
-    toolRow.developerId,
+  // Free op (cost <= 0): no USDC moves; forward without settlement (parity with
+  // circle-nano's free-call path). A tool always has an owning developer.
+  if (costCents <= 0) {
+    return forwardAndBill(
+      request, toolRow, 'x402', costCents, slug, requestId, startTime,
+      undefined,
+      x402Result.payerAddress,
+      {},
+      { network: x402Result.network ?? null, scheme: 'exact', amountUsdc: x402Result.amountUsdc ?? null }
+    )
+  }
+
+  // Decode the FULL exact authorization for the on-chain settle (the SDK result
+  // does not surface signature / nonce / to). v1 settles the EXACT scheme only;
+  // a non-exact or malformed payload that slipped the structural gate → 402.
+  const headerValue = extractX402PaymentHeader(request)
+  const exactPayload = headerValue ? parseX402ExactPayload(headerValue) : null
+  if (!exactPayload) {
+    logger.info('proxy.x402_scheme_unsupported', { slug, scheme: x402Result.scheme, requestId })
+    return x402Error('X402_SCHEME_UNSUPPORTED', 'Only the x402 exact scheme (EIP-3009) is settled. Re-send an exact-scheme payment.', 402)
+  }
+
+  // REAL ON-CHAIN SETTLEMENT — confirm-before-deliver (mirrors circle-nano A2 +
+  // the canonical x402 facilitator). The orchestrator verifies (recover signer +
+  // payee-bind + EXACT amount + Base-only), settles via the gas wallet, waits for
+  // a CONFIRMED receipt, and records the unified-ledger row. Forward + bill ONLY
+  // on a confirmed settle; a reverted / unconfirmed / in-progress settle is NEVER
+  // delivered or billed.
+  const outcome = await executeX402Settlement({
+    payload: exactPayload,
     costCents,
-  )
-  if (x402SettlementRow) recordSettlementEntryAsync(x402SettlementRow)
+    accountId: toolRow.developerId,
+    toolSlug: toolRow.slug,
+    method: `proxy:${request.method}`,
+    recipient,
+  })
+
+  if (outcome.status !== 'settled') {
+    logger.info('proxy.x402_not_settled', { slug, outcomeStatus: outcome.status, code: outcome.code, requestId })
+    return x402Error(outcome.code, outcome.reason, outcome.httpStatus)
+  }
 
   return forwardAndBill(
     request, toolRow, 'x402', costCents, slug, requestId, startTime,
-    x402Result.txHash,
-    x402Result.payerAddress,
-    {
-      ...(x402Result.txHash ? { 'X-SettleGrid-Tx-Hash': x402Result.txHash } : {}),
-    },
-    {
-      network: x402Result.network ?? null,
-      scheme: x402Result.scheme ?? null,
-      amountUsdc: x402Result.amountUsdc ?? null,
-    }
+    outcome.txHash,
+    exactPayload.payload.authorization.from,
+    { 'X-SettleGrid-Tx-Hash': outcome.txHash },
+    { network: exactPayload.network, scheme: 'exact', amountUsdc: exactPayload.payload.authorization.value }
   )
 }
 

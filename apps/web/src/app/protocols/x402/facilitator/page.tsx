@@ -207,7 +207,7 @@ export default function X402FacilitatorPage() {
           turns HTTP 402 Payment Required into a real settlement primitive: a
           tool returns 402 with a payment offer, the buyer&apos;s client signs an
           EIP-3009 authorization, and a <em>facilitator</em> verifies the
-          signature and broadcasts the on-chain transfer. SettleGrid runs one
+          signature and settles the on-chain transfer, waiting for a confirmed receipt before reporting success. SettleGrid runs one
           of these facilitators publicly — anyone can point their tool at{' '}
           <code className="rounded bg-zinc-800/60 px-1.5 py-0.5 text-sm text-zinc-200">
             {FACILITATOR_BASE}

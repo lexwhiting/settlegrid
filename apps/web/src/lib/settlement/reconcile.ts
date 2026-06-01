@@ -50,10 +50,11 @@ interface ParsedOpId {
 }
 
 // operation_id shapes: `circle-nano:<network>:<from>:<nonce>` and
-// `x402:<network>:<txHash>`, where <network> is CAIP-2 `eip155:<id>` (embedded
-// colon — hence the explicit grouping rather than a naive split).
+// `x402:<network>:<from>:<nonce>` — BOTH key on the EIP-3009 (from,nonce) now
+// (x402 settles on-chain in-process, so the proxy has them). <network> is CAIP-2
+// `eip155:<id>` (embedded colon — hence the explicit grouping, not a naive split).
 const CIRCLE_NANO_OPID = /^circle-nano:(eip155:\d+):(0x[0-9a-fA-F]{40}):(0x[0-9a-fA-F]{64})$/
-const X402_OPID = /^x402:(eip155:\d+):(0x[0-9a-fA-F]+)$/
+const X402_OPID = /^x402:(eip155:\d+):(0x[0-9a-fA-F]{40}):(0x[0-9a-fA-F]{64})$/
 
 /**
  * Parse the network (+ circle-nano from/nonce) out of a settlement operation_id.
@@ -68,7 +69,10 @@ export function parseSettlementOperationId(operationId: string, rail: string): P
   if (rail === 'x402') {
     const m = X402_OPID.exec(operationId)
     if (!m) return null
-    return { network: m[1] }
+    // x402 now keys on (from,nonce) like circle-nano (the proxy settles on-chain
+    // itself, so it surfaces them), enabling the SAME reverted-but-nonce-consumed
+    // recheck: a concurrent tx that spent the nonce settled the authorization.
+    return { network: m[1], eip3009: { from: m[2] as `0x${string}`, nonce: m[3] as `0x${string}` } }
   }
   return null
 }

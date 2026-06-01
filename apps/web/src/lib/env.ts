@@ -155,6 +155,31 @@ export function getX402FacilitatorUrl(): string | undefined {
   return process.env.X402_FACILITATOR_URL
 }
 
+/**
+ * The platform USDC payee an x402 EIP-3009 authorization MUST pay
+ * (`authorization.to`) — advertised as `payTo` in the x402 402 challenge and
+ * ENFORCED by the proxy settlement verifier. Trimmed defensively (same
+ * newline-in-env hazard as the gas key / circle-nano recipient); empty →
+ * undefined. Should hold the SAME address as SETTLEGRID_USDC_RECIPIENT
+ * (circle-nano's recipient) — one platform wallet for both EIP-3009 rails.
+ */
+export function getX402PaymentAddress(): string | undefined {
+  return process.env.SETTLEGRID_PAYMENT_ADDRESS?.trim() || undefined
+}
+
+/**
+ * x402 ON-CHAIN SETTLEMENT enable gate — distinct from {@link isX402Enabled}
+ * (which only signals the legacy structural-accept path). The proxy settles
+ * x402 on-chain only when BOTH the gas wallet key AND the platform payee are
+ * configured (mirrors isCircleNanoKernelEnabled). Until the payee is set, x402
+ * stays DARK (the proxy returns 402 not-configured) rather than
+ * structural-accepting + crediting a developer balance for a payment that
+ * never settles on-chain.
+ */
+export function isX402SettlementEnabled(): boolean {
+  return !!process.env.SETTLEGRID_GAS_WALLET_KEY && !!getX402PaymentAddress()
+}
+
 // AP2: enabled when the signing secret or verification key is configured
 export function isAp2Enabled(): boolean {
   return !!process.env.AP2_PROVIDER_KEY || !!process.env.AP2_SIGNING_SECRET || !!process.env.AP2_VERIFICATION_KEY

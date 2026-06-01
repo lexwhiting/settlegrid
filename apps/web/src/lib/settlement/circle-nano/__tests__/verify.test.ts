@@ -126,6 +126,33 @@ describe('verifyCircleNanoAuthorization — accepts a genuine signature', () => 
   })
 })
 
+describe('verifyEip3009Authorization — exactAmount (the x402 exact-scheme value===cost rule)', () => {
+  it('exactAmount:true ACCEPTS value === required', async () => {
+    const proof = await signedProof({ value: '10000' })
+    const result = await verifyCircleNanoAuthorization(proof, { ...PARAMS, exactAmount: true })
+    expect(result.valid).toBe(true)
+  })
+
+  it('exactAmount:true REJECTS an over-payment (value > required) — the case the default >= path ACCEPTS', async () => {
+    // The default (circle-nano) path accepts value=50000 vs required=10000 (see
+    // "accepts an over-payment" above). exactAmount=true (x402 exact) must REJECT
+    // it — prevents over-collection + matches the canonical x402 V2 facilitator's
+    // strict value===amount rule. This guards against the flag being ignored
+    // (a mutation to always-`>=` would pass every other test but fail this one).
+    const proof = await signedProof({ value: '50000' })
+    const result = await verifyCircleNanoAuthorization(proof, { ...PARAMS, exactAmount: true })
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('CIRCLE_NANO_AMOUNT_MISMATCH')
+  })
+
+  it('exactAmount:true REJECTS an under-payment (value < required)', async () => {
+    const proof = await signedProof({ value: '9999' })
+    const result = await verifyCircleNanoAuthorization(proof, { ...PARAMS, exactAmount: true })
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('CIRCLE_NANO_AMOUNT_MISMATCH')
+  })
+})
+
 describe('verifyCircleNanoAuthorization — rejects every tampering / policy failure', () => {
   it('rejects a tampered signature (flipped last byte)', async () => {
     const proof = await signedProof()
