@@ -23,6 +23,8 @@ import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
 import { extractX402PaymentHeader, parseX402ExactPayload } from '@/lib/settlement/x402/parse'
 import { executeX402Settlement } from '@/lib/settlement/x402/orchestrate'
+import { executeCircleNanoSettlement } from '@/lib/settlement/circle-nano/settle'
+import { parseCircleNanoProof } from '@settlegrid/mcp'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
@@ -42,6 +44,7 @@ import {
   isX402TestnetSettlementAllowed,
   getX402PaymentAddress,
   X402_MAINNET_NETWORK,
+  isCircleNanoKernelEnabled,
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
@@ -384,7 +387,7 @@ async function tryUnifiedAdapterDispatch(
     case 'mastercard-vi':
       return handleProtocolProxy(request, slug, requestId, startTime, 'mastercard-vi')
     case 'circle-nano':
-      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+      return handleCircleNanoProxy(request, slug, requestId, startTime)
     // P2.K2 — five emerging protocols. L402 has its own handler (the
     // 402 response is async because it mints a Lightning invoice); the
     // other four route through the generic handleProtocolProxy switch.
@@ -472,7 +475,7 @@ async function handleProxy(
 
     // 2. Circle Nanopayments (x402-compatible, more specific headers win)
     if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
-      return handleProtocolProxy(request, slug, requestId, startTime, 'circle-nano')
+      return handleCircleNanoProxy(request, slug, requestId, startTime)
     }
 
     // 3. x402 (Coinbase — USDC on Base blockchain)
@@ -1920,6 +1923,143 @@ async function handleX402Proxy(
   )
 }
 
+// ─── Circle Nanopayments Proxy Handler ───────────────────────────────────────
+// Direct-proxy circle-nano (x-circle-nano-auth header, EIP-3009). Mirrors
+// handleX402Proxy: SETTLE the authorization ON-CHAIN in-path (confirm-before-
+// deliver), then forward + credit ONLY on a confirmed settle — so the proxy never
+// credits a withdrawable developer balance for USDC it never collected (the
+// funds-safety fix; payouts draw on that balance). Isolated from the generic
+// handleProtocolProxy (the 6 forward-only rails) so the money path mirrors the
+// proven+sealed x402 handler. The exactly-once credit gate is the orchestrator's
+// single WHERE-pending flip (alreadySettled ⇒ skipCredit).
+async function handleCircleNanoProxy(
+  request: NextRequest,
+  slug: string,
+  requestId: string,
+  startTime: number
+): Promise<NextResponse> {
+  const lookup = await lookupToolBySlug(slug, requestId)
+  if (!lookup.ok) return lookup.error
+  const { toolRow } = lookup
+
+  const costCents = getCostCents(toolRow.pricingConfig)
+  const toolConfig = { slug: toolRow.slug, costCents, displayName: toolRow.name }
+
+  // Dark-gate (the money boundary): circle-nano settles on-chain ONLY when the gas
+  // wallet + platform payee (SETTLEGRID_USDC_RECIPIENT) are configured. Until then
+  // do NOT accept it — we must never credit a developer balance (payouts draw on it)
+  // for a payment that cannot settle. This closes the phantom-credit hole regardless
+  // of the dispatch enable-gate.
+  if (!isCircleNanoKernelEnabled()) {
+    logger.info('proxy.circle_nano_not_configured', { slug, requestId })
+    return errorResponse(
+      'Circle Nanopayment settlement is not currently available on this SettleGrid instance.',
+      503,
+      'CIRCLE_NANO_NOT_CONFIGURED',
+      requestId,
+    )
+  }
+
+  // Authoritative offline verification (EIP-712 signature recovery + payee + amount
+  // + time window) — the SAME gate as the kernel facilitator route. The EIP-3009
+  // authorization rides in the x-circle-nano-auth header. Missing / invalid → 402.
+  const header = request.headers.get('x-circle-nano-auth')
+  const validation = await validateCircleNanoCredentialString(header, toolConfig)
+  if (!validation.valid) {
+    logger.info('proxy.circle_nano_payment_required', {
+      slug,
+      costCents,
+      errorCode: validation.error?.code,
+      requestId,
+    })
+    const resp402 = generateCircleNano402Response(toolRow.slug, costCents, toolRow.name)
+    const body = await resp402.text()
+    const headers = new Headers(resp402.headers)
+    if (requestId) headers.set('x-request-id', requestId)
+    return new NextResponse(body, { status: 402, headers })
+  }
+
+  // Free op (cost <= 0): no USDC moves; forward without settlement (parity with the
+  // x402 free-call path). A tool always has an owning developer.
+  if (costCents <= 0) {
+    return forwardAndBill(
+      request, toolRow, 'circle-nano', costCents, slug, requestId, startTime,
+      undefined,
+      validation.payerAddress,
+      {},
+      { circleNanoConfirmationId: validation.confirmationId ?? null, payerAddress: validation.payerAddress ?? null }
+    )
+  }
+
+  // Decode the full EIP-3009 proof for the on-chain settle (signature / nonce / to).
+  const proof = header ? parseCircleNanoProof(header) : null
+  if (!proof) {
+    logger.info('proxy.circle_nano_auth_unparseable', { slug, requestId })
+    return errorResponse(
+      'The Circle Nanopayment authorization could not be parsed. Re-send a valid x-circle-nano-auth header.',
+      402, 'CIRCLE_NANO_AUTH_INVALID', requestId,
+    )
+  }
+
+  // F2: production network-pin (mirror handleX402Proxy). The verifier accepts ANY
+  // network in USDC_EIP712_DOMAINS (Base mainnet AND Sepolia), so on a mainnet deploy
+  // a Sepolia payload would settle FREE testnet USDC yet credit a real, withdrawable
+  // balance. Hard-pin prod to Base mainnet; testnet only in non-prod behind the flag
+  // (which bakes in !isProduction()). Reuses x402's pin — both rails are Base USDC.
+  if (proof.network !== X402_MAINNET_NETWORK && !isX402TestnetSettlementAllowed()) {
+    logger.warn('proxy.circle_nano_network_unsupported', { slug, network: proof.network, requestId })
+    return errorResponse(
+      `Circle Nanopayment settlement requires the Base mainnet network (${X402_MAINNET_NETWORK}).`,
+      402, 'CIRCLE_NANO_NETWORK_UNSUPPORTED', requestId,
+    )
+  }
+
+  // REAL ON-CHAIN SETTLEMENT — confirm-before-deliver (mirror handleX402Proxy + the
+  // kernel /settle route). The orchestrator owns idempotency (stable
+  // network:from:nonce operation_id), a write-ahead pending row, a per-authorization
+  // lock, and the guarded flip; it submits via the gas wallet and waits for a
+  // CONFIRMED receipt. Forward + bill ONLY on a confirmed settle.
+  const outcome = await executeCircleNanoSettlement({
+    proof,
+    costCents,
+    accountId: toolRow.developerId,
+    toolId: toolRow.id,
+    toolSlug: toolRow.slug,
+    method: `proxy:${request.method}`,
+    latencyMs: Date.now() - startTime,
+  })
+
+  if (outcome.status !== 'settled') {
+    // failed | pending — the USDC did not (confirmably) move. Surface the structured
+    // error; never forward or credit.
+    logger.info('proxy.circle_nano_not_settled', { slug, outcomeStatus: outcome.status, code: outcome.code, requestId })
+    return errorResponse(outcome.reason, outcome.httpStatus, outcome.code, requestId)
+  }
+
+  // F1: a replayed / concurrent-loser authorization settled in a PRIOR invocation
+  // (alreadySettled) — the buyer paid exactly once and was already credited by the
+  // flip winner. Still forward (honor the paid request) but SKIP the credit so an SDK
+  // auto-retry can't re-credit the payout balance for one on-chain receipt.
+  const isReplay = outcome.alreadySettled === true
+  if (isReplay) {
+    logger.info('proxy.circle_nano_replay_no_recredit', { slug, txHash: outcome.txHash, requestId })
+  }
+
+  return forwardAndBill(
+    request, toolRow, 'circle-nano', costCents, slug, requestId, startTime,
+    outcome.txHash,
+    proof.authorization.from,
+    { 'X-SettleGrid-Tx-Hash': outcome.txHash },
+    {
+      network: proof.network,
+      payer: proof.authorization.from,
+      amountUsdc: proof.authorization.value,
+      ...(isReplay ? { replay: true } : {}),
+    },
+    isReplay ? { skipCredit: true } : { irreversibleOnChain: true }
+  )
+}
+
 // ─── AP2 Proxy Handler ──────────────────────────────────────────────────────
 
 async function handleAp2Proxy(
@@ -2081,7 +2221,7 @@ async function handleProtocolProxy(
   slug: string,
   requestId: string,
   startTime: number,
-  protocol: 'ucp' | 'mastercard-vi' | 'circle-nano' | 'alipay' | 'kyapay' | 'emvco' | 'drain'
+  protocol: 'ucp' | 'mastercard-vi' | 'alipay' | 'kyapay' | 'emvco' | 'drain'
 ): Promise<NextResponse> {
   const lookup = await lookupToolBySlug(slug, requestId)
   if (!lookup.ok) return lookup.error
@@ -2138,46 +2278,6 @@ async function handleProtocolProxy(
       return new NextResponse(body, { status: 402, headers })
     }
     extraMeta = { mcIntentId: result.intentId ?? null }
-  } else if (protocol === 'circle-nano') {
-    // Route the direct-proxy path through the AUTHORITATIVE offline verifier
-    // (EIP-712 signature recovery + payee + amount) — the same gate as the
-    // kernel facilitator route, NOT the structural-only validateCircleNanoPayment.
-    // The EIP-3009 authorization rides in the x-circle-nano-auth header.
-    const result = await validateCircleNanoCredentialString(
-      request.headers.get('x-circle-nano-auth'),
-      toolConfig,
-    )
-    valid = result.valid
-    paymentId = result.confirmationId
-    payerIdentifier = result.payerAddress
-    if (!valid) {
-      const resp402 = generateCircleNano402Response(toolRow.slug, costCents, toolRow.name)
-      const body = await resp402.text()
-      const headers = new Headers(resp402.headers)
-      if (requestId) headers.set('x-request-id', requestId)
-      return new NextResponse(body, { status: 402, headers })
-    }
-    // ── DARK-GATE (funds-safety 2026-06-01, Phase 1) ──────────────────────────
-    // The direct-proxy circle-nano path verifies the EIP-3009 authorization OFFLINE
-    // (signature + payee + amount) but does NOT settle it on-chain, so crediting here
-    // via the shared forwardAndBill below would credit a withdrawable developer balance
-    // (payouts draw on it) for USDC that is NEVER collected — a phantom credit. Reject
-    // PAID circle-nano on the direct proxy until it settles in-path (Phase 2). The 503
-    // leaves the EIP-3009 nonce unspent (offline-verify only — nothing is submitted), so
-    // the consumer can pay via the SettleGrid SDK kernel, which DOES settle on-chain.
-    // Free calls (costCents <= 0) move no money and pass through unchanged. PROXY-ONLY —
-    // the kernel /api/circle-nano/settle path is unaffected. See
-    // docs/tech-debt/circle-nano-funds-safety-build-plan-2026-06-01.md.
-    if (costCents > 0) {
-      logger.warn('proxy.circle_nano_proxy_settlement_unavailable', { slug, requestId })
-      return errorResponse(
-        'Circle Nanopayment settlement is not available on the direct proxy. Use the SettleGrid SDK kernel, which settles on-chain.',
-        503,
-        'CIRCLE_NANO_PROXY_SETTLEMENT_UNAVAILABLE',
-        requestId,
-      )
-    }
-    extraMeta = { circleNanoConfirmationId: result.confirmationId ?? null, payerAddress: result.payerAddress ?? null }
   } else if (protocol === 'alipay') {
     const result = await validateAlipayPayment(request, toolConfig)
     valid = result.valid

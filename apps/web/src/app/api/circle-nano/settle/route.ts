@@ -31,12 +31,13 @@ import { resolveOperationCost, parseCircleNanoProof } from '@settlegrid/mcp'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
-import { isCircleNanoKernelEnabled } from '@/lib/env'
+import { isCircleNanoKernelEnabled, X402_MAINNET_NETWORK, isX402TestnetSettlementAllowed } from '@/lib/env'
 import { validateCircleNanoCredentialString } from '@/lib/circle-nano-proxy'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
-import { executeCircleNanoSettlement } from '@/lib/settlement/circle-nano/settle'
+import { executeCircleNanoSettlement, circleNanoOperationId } from '@/lib/settlement/circle-nano/settle'
+import { creditSettlement } from '@/lib/settlement/reconcile'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -98,6 +99,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
 
     const [toolRow] = await db
       .select({
+        id: tools.id,
         name: tools.name,
         slug: tools.slug,
         status: tools.status,
@@ -154,10 +156,27 @@ export const POST = withCors(async function POST(request: NextRequest) {
     const parsedProof = proof ? parseCircleNanoProof(proof) : null
 
     if (costCents > 0 && toolRow.developerId && parsedProof) {
+      // F2 — production network-pin (mirror handleX402Proxy). The offline verifier
+      // accepts ANY network in USDC_EIP712_DOMAINS (Base mainnet AND Sepolia), so on
+      // a mainnet deploy a Sepolia payload would settle FREE testnet USDC yet credit
+      // a real, withdrawable developer balance below. Hard-pin prod to Base mainnet;
+      // testnet is accepted only in non-prod behind SETTLEGRID_X402_ALLOW_TESTNET
+      // (the helper bakes in !isProduction(), so prod can never be re-opened by a
+      // stray flag). Reuses x402's pin — both rails are Base USDC.
+      if (parsedProof.network !== X402_MAINNET_NETWORK && !isX402TestnetSettlementAllowed()) {
+        logger.warn('circle_nano.settle_network_unsupported', { toolSlug, network: parsedProof.network })
+        return errorResponse(
+          `Circle Nanopayment settlement requires the Base mainnet network (${X402_MAINNET_NETWORK}).`,
+          402,
+          'CIRCLE_NANO_NETWORK_UNSUPPORTED',
+        )
+      }
+
       const outcome = await executeCircleNanoSettlement({
         proof: parsedProof,
         costCents,
         accountId: toolRow.developerId,
+        toolId: toolRow.id,
         toolSlug: toolRow.slug,
         method,
         latencyMs,
@@ -173,6 +192,22 @@ export const POST = withCors(async function POST(request: NextRequest) {
           code: outcome.code,
         })
         return errorResponse(outcome.reason, outcome.httpStatus, outcome.code)
+      }
+
+      // Credit the developer (the payout source of truth) + tool revenue for the
+      // USDC just collected on-chain — EXACTLY ONCE, only on a FRESH flip. An
+      // idempotent-hit / concurrent-loser (alreadySettled) was already credited by
+      // the flip winner, and the async tail is credited by the reconciler; all three
+      // gate on the single WHERE-pending flip, so one authorization credits once.
+      // Keyed by the STABLE operation_id (NOT the response's randomUUID) so a
+      // credit_failed/missing_toolid alert reconciles against the ledger row.
+      if (outcome.alreadySettled !== true) {
+        await creditSettlement({
+          developerId: toolRow.developerId,
+          toolId: toolRow.id,
+          amountCents: costCents,
+          operationId: circleNanoOperationId(parsedProof),
+        })
       }
 
       const settlement = {
