@@ -45,6 +45,7 @@ export interface ExecuteCircleNanoSettlementParams {
   proof: CircleNanoProof
   costCents: number
   accountId: string
+  toolId: string
   toolSlug: string
   method: string
   latencyMs: number
@@ -58,7 +59,10 @@ export interface ExecuteCircleNanoSettlementParams {
  *               safe to retry — idempotency + on-chain nonce prevent a double-charge.
  */
 export type CircleNanoSettlementOutcome =
-  | { status: 'settled'; txHash: string }
+  // `alreadySettled` marks a settled outcome this call did NOT freshly flip
+  // pending→settled (an idempotent-hit or a concurrent-flip-loser) → the caller
+  // must NOT credit (the flip winner already did). Mirrors x402's orchestrator.
+  | { status: 'settled'; txHash: string; alreadySettled?: true }
   | { status: 'failed'; code: string; httpStatus: number; reason: string }
   | { status: 'pending'; code: string; httpStatus: number; reason: string; txHash?: string }
 
@@ -75,7 +79,7 @@ function settleLockKey(operationId: string): string {
 async function ensurePendingRow(
   params: ExecuteCircleNanoSettlementParams & { operationId: string },
 ): Promise<void> {
-  const { proof, operationId, costCents, accountId, toolSlug, method, latencyMs } = params
+  const { proof, operationId, costCents, accountId, toolId, toolSlug, method, latencyMs } = params
   // Idempotent (deterministic id from operationId + ON CONFLICT DO NOTHING): a
   // pre-existing pending row is left intact.
   await recordSettlementEntry({
@@ -95,6 +99,10 @@ async function ensurePendingRow(
       settlementType: 'real-time',
       network: proof.network,
       payer: proof.authorization.from,
+      // The owning tool — read by the reconciler tail to credit
+      // tools.totalRevenueCents on an async-confirmed flip (mirrors x402's F4
+      // toolId-in-metadata; JSONB, no schema migration).
+      toolId,
       // Honesty: the FULL authorized value that moves on-chain (may exceed the
       // tool cost the verifier requires it to cover).
       authorizedValueBaseUnits: proof.authorization.value,
@@ -115,7 +123,9 @@ async function applyOutcome(
         // Row wasn't 'pending' — a concurrent winner already settled it. Return
         // the recorded txHash so the response is consistent.
         const row = await findSettlementRow(operationId, RAIL)
-        return { status: 'settled', txHash: row?.externalRef ?? result.txHash }
+        // Concurrent-flip-loser: a winner already flipped + credited this row → mark
+        // alreadySettled so the caller does NOT re-credit.
+        return { status: 'settled', txHash: row?.externalRef ?? result.txHash, alreadySettled: true }
       }
       logger.info('circle_nano.settle_onchain_success', { operationId, txHash: result.txHash })
       return { status: 'settled', txHash: result.txHash }
@@ -185,7 +195,9 @@ export async function executeCircleNanoSettlement(
       logger.warn('circle_nano.settle_settled_missing_txhash', { operationId })
     }
     logger.info('circle_nano.settle_idempotent_hit', { operationId, txHash: existing.externalRef })
-    return { status: 'settled', txHash: existing.externalRef ?? '' }
+    // Idempotent-hit: a prior settle already flipped + credited this authorization
+    // → mark alreadySettled so the caller does NOT re-credit.
+    return { status: 'settled', txHash: existing.externalRef ?? '', alreadySettled: true }
   }
   if (existing?.settlementStatus === 'failed') {
     return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_PREVIOUSLY_FAILED', httpStatus: 402, reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.' }

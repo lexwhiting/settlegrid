@@ -74,7 +74,7 @@ const PROOF: CircleNanoProof = {
 }
 const OP_ID = circleNanoOperationId(PROOF)
 const LOCK_KEY = `circle-nano:settle:lock:${OP_ID}`
-const PARAMS = { proof: PROOF, costCents: 50, accountId: 'dev-1', toolSlug: 'demo', method: 'm', latencyMs: 7 }
+const PARAMS = { proof: PROOF, costCents: 50, accountId: 'dev-1', toolId: 'tool-1', toolSlug: 'demo', method: 'm', latencyMs: 7 }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -119,6 +119,8 @@ describe('executeCircleNanoSettlement — happy path', () => {
         status: 'pending',
         externalRef: null,
         accountId: 'dev-1',
+        // Part B: the owning tool rides in metadata (JSONB) for the reconciler tail.
+        metadata: expect.objectContaining({ toolId: 'tool-1' }),
       }),
     )
     // Ordering: the pending row is durable before the irreversible on-chain submit.
@@ -184,7 +186,7 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
   it('already-settled row → returns the recorded txHash, NEVER re-submits', async () => {
     mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'settled', externalRef: '0xPREV' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xPREV' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPREV', alreadySettled: true })
     expect(mockSubmit).not.toHaveBeenCalled()
     expect(mockRecord).not.toHaveBeenCalled()
     expect(mockRedisSet).not.toHaveBeenCalled()
@@ -221,7 +223,7 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xLOSER' })
     mockSettled.mockResolvedValue(false) // row was no longer 'pending'
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
   })
 })
 

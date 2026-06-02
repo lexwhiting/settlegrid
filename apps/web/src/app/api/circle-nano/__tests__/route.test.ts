@@ -17,8 +17,10 @@ const {
   mockDb,
   mockCheckRateLimit,
   mockIsCircleNanoKernelEnabled,
+  mockIsX402TestnetAllowed,
   mockValidate,
   mockExecute,
+  mockCredit,
 } = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
@@ -28,13 +30,16 @@ const {
   },
   mockCheckRateLimit: vi.fn(),
   mockIsCircleNanoKernelEnabled: vi.fn(),
+  mockIsX402TestnetAllowed: vi.fn(),
   mockValidate: vi.fn(),
   mockExecute: vi.fn(),
+  mockCredit: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('@/lib/db/schema', () => ({
   tools: {
+    id: 'id',
     name: 'name',
     slug: 'slug',
     status: 'status',
@@ -48,12 +53,20 @@ vi.mock('@/lib/rate-limit', () => ({
 }))
 vi.mock('@/lib/env', () => ({
   isCircleNanoKernelEnabled: mockIsCircleNanoKernelEnabled,
+  X402_MAINNET_NETWORK: 'eip155:8453',
+  isX402TestnetSettlementAllowed: mockIsX402TestnetAllowed,
 }))
 vi.mock('@/lib/circle-nano-proxy', () => ({
   validateCircleNanoCredentialString: mockValidate,
 }))
 vi.mock('@/lib/settlement/circle-nano/settle', () => ({
   executeCircleNanoSettlement: mockExecute,
+  // pure helper — the route keys the credit by the stable operation_id; mirror it.
+  circleNanoOperationId: (proof: { network: string; authorization: { from: string; nonce: string } }) =>
+    `circle-nano:${proof.network}:${proof.authorization.from.toLowerCase()}:${proof.authorization.nonce.toLowerCase()}`,
+}))
+vi.mock('@/lib/settlement/reconcile', () => ({
+  creditSettlement: mockCredit,
 }))
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a: unknown, b: unknown) => ({ a, b })),
@@ -63,6 +76,7 @@ import { POST as verifyPOST } from '@/app/api/circle-nano/verify/route'
 import { POST as settlePOST } from '@/app/api/circle-nano/settle/route'
 
 const ACTIVE_TOOL = {
+  id: 'tool-uuid-1',
   name: 'Demo Tool',
   slug: 'demo',
   status: 'active',
@@ -136,8 +150,10 @@ beforeEach(() => {
     reset: 0,
   })
   mockIsCircleNanoKernelEnabled.mockReturnValue(true)
+  mockIsX402TestnetAllowed.mockReturnValue(false)
   mockValidate.mockResolvedValue({ valid: true, payerAddress: '0xabc', amountUsdc: '500000' })
   mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX' })
+  mockCredit.mockResolvedValue(undefined)
   setTool(ACTIVE_TOOL)
 })
 
@@ -210,17 +226,67 @@ describe('POST /api/circle-nano/settle', () => {
     expect(mockExecute).toHaveBeenCalledTimes(1)
   })
 
-  it('delegates to executeCircleNanoSettlement with the resolved cost, account, and parsed proof', async () => {
+  it('delegates to executeCircleNanoSettlement with the resolved cost, account, tool, and parsed proof', async () => {
     await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ONCHAIN))
     expect(mockExecute).toHaveBeenCalledWith(
       expect.objectContaining({
         costCents: 50,
         accountId: 'dev-uuid-1',
+        toolId: 'tool-uuid-1',
         toolSlug: 'demo',
         method: 'demo.invocation',
         proof: expect.objectContaining({ network: 'eip155:8453' }),
       }),
     )
+  })
+
+  it('on a FRESH on-chain settle → credits the developer + tool exactly once, keyed by the stable operation_id (Part C)', async () => {
+    mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX' })
+    await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ONCHAIN))
+    expect(mockCredit).toHaveBeenCalledTimes(1)
+    expect(mockCredit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        developerId: 'dev-uuid-1',
+        toolId: 'tool-uuid-1',
+        amountCents: 50,
+        operationId: expect.stringContaining('circle-nano:eip155:8453:'),
+      }),
+    )
+  })
+
+  it('a replay / concurrent-loser (alreadySettled) → settles 200 but does NOT re-credit (exactly-once)', async () => {
+    mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX', alreadySettled: true })
+    const res = await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ONCHAIN))
+    expect(res.status).toBe(200)
+    expect(mockCredit).not.toHaveBeenCalled()
+  })
+
+  it('F2: a Base SEPOLIA payload on a mainnet deploy → 402 NETWORK_UNSUPPORTED, never settles or credits', async () => {
+    const sepoliaProof = Buffer.from(
+      JSON.stringify({
+        network: 'eip155:84532',
+        authorization: {
+          from: '0xAbCdEf0000000000000000000000000000000001',
+          to: '0xReCiPiEnT000000000000000000000000000000002',
+          value: '500000',
+          validAfter: '0',
+          validBefore: '9999999999',
+          nonce: '0x' + 'cd'.repeat(32),
+        },
+        signature: '0x' + 'ab'.repeat(65),
+      }),
+    ).toString('base64')
+    const res = await settlePOST(
+      makeReq('/api/circle-nano/settle', {
+        ...SETTLE_ONCHAIN,
+        paymentContext: { protocol: 'circle-nano', payment: { type: 'nanopayment', proof: sepoliaProof } },
+      }),
+    )
+    expect(res.status).toBe(402)
+    const json = await res.json()
+    expect(json.code).toBe('CIRCLE_NANO_NETWORK_UNSUPPORTED')
+    expect(mockExecute).not.toHaveBeenCalled()
+    expect(mockCredit).not.toHaveBeenCalled()
   })
 
   it('reverted on-chain → 402 settlement error, NOT a settled result', async () => {

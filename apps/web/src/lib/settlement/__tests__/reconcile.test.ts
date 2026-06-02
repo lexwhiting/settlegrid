@@ -170,7 +170,7 @@ describe('reconcileOneRow — flips on confirmed on-chain state', () => {
   })
 })
 
-describe('reconcileOneRow — F4 credit-on-flip (x402 only, exactly once)', () => {
+describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)', () => {
   const X402_ROW = {
     operationId: X402_OPID,
     rail: 'x402',
@@ -202,9 +202,26 @@ describe('reconcileOneRow — F4 credit-on-flip (x402 only, exactly once)', () =
     expect(mockDb.transaction).not.toHaveBeenCalled()
   })
 
-  it('circle-nano settled + flipped → NO credit here (shared reconciler is x402-scoped; circle-nano F4 deferred)', async () => {
+  it('circle-nano settled + flipped → credits dev balance THEN tool revenue in ONE txn (Part C2 rail-agnostic widen)', async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(true)
+    const out = await reconcileOneRow({
+      operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX,
+      amountCents: 50, accountId: 'dev-7', metadata: { toolId: 'tool-9' },
+    })
+    expect(out).toBe('settled')
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    expect(mockTx.update).toHaveBeenNthCalledWith(1, mockDevelopers)
+    expect(mockTx.update).toHaveBeenNthCalledWith(2, mockTools)
+    expect(mockTx.update).toHaveBeenCalledTimes(2)
+    // the increment amount (50) flows into BOTH sql interpolations.
+    const sqlAmounts = mockSql.mock.calls.flatMap((c) => c.slice(1))
+    expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
+  })
+
+  it('circle-nano settled but flip LOST (flipped===false) → NO credit (exactly-once holds across the widen)', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(false)
     const out = await reconcileOneRow({
       operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX,
       amountCents: 50, accountId: 'dev-7', metadata: { toolId: 'tool-9' },
