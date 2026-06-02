@@ -2157,6 +2157,26 @@ async function handleProtocolProxy(
       if (requestId) headers.set('x-request-id', requestId)
       return new NextResponse(body, { status: 402, headers })
     }
+    // ── DARK-GATE (funds-safety 2026-06-01, Phase 1) ──────────────────────────
+    // The direct-proxy circle-nano path verifies the EIP-3009 authorization OFFLINE
+    // (signature + payee + amount) but does NOT settle it on-chain, so crediting here
+    // via the shared forwardAndBill below would credit a withdrawable developer balance
+    // (payouts draw on it) for USDC that is NEVER collected — a phantom credit. Reject
+    // PAID circle-nano on the direct proxy until it settles in-path (Phase 2). The 503
+    // leaves the EIP-3009 nonce unspent (offline-verify only — nothing is submitted), so
+    // the consumer can pay via the SettleGrid SDK kernel, which DOES settle on-chain.
+    // Free calls (costCents <= 0) move no money and pass through unchanged. PROXY-ONLY —
+    // the kernel /api/circle-nano/settle path is unaffected. See
+    // docs/tech-debt/circle-nano-funds-safety-build-plan-2026-06-01.md.
+    if (costCents > 0) {
+      logger.warn('proxy.circle_nano_proxy_settlement_unavailable', { slug, requestId })
+      return errorResponse(
+        'Circle Nanopayment settlement is not available on the direct proxy. Use the SettleGrid SDK kernel, which settles on-chain.',
+        503,
+        'CIRCLE_NANO_PROXY_SETTLEMENT_UNAVAILABLE',
+        requestId,
+      )
+    }
     extraMeta = { circleNanoConfirmationId: result.confirmationId ?? null, payerAddress: result.payerAddress ?? null }
   } else if (protocol === 'alipay') {
     const result = await validateAlipayPayment(request, toolConfig)
