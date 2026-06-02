@@ -17,15 +17,24 @@ one, and the pre-chunk reconciler credited only x402 — so EVERY circle-nano `s
 before the Phase-2 deploy is uncredited.
 
 ## Sequencing
-Run AFTER: (1) prod env confirmed, (2) Phase-2 deployed. Use the **deploy timestamp (UTC)** as the
-cutoff so post-deploy settles (which now credit in-request) are excluded — no double-credit.
+Run AFTER: (1) prod env confirmed ✅ (2026-06-02: recipient SET → kernel `/settle` was live; API key
+unset → proxy was dark), (2) Phase-2 deployed + Ready in production.
+
+**Cutoff = `settled_at` < the production-live timestamp (UTC), NOT `created_at`.** Why: a row *created*
+pre-deploy that only *flips to settled* post-deploy is credited by the new code (in-request or the
+reconciler tail), so a `created_at` cutoff would double-credit it. `markSettlementSettled` stamps
+`settled_at` on every flip, so `settled_at < deploy_live` selects exactly the rows that reached terminal
+`settled` BEFORE the new crediting code existed — the only ones that are (and stay) uncredited. A
+boundary row settled right at the cutoff is excluded (errs toward under-credit = safe; inspect any
+`settled_at` near the cutoff by hand). Get the production-live timestamp from the Vercel dashboard
+(the production deployment's "Ready"/promoted time).
 
 ## Step 1 — inspect a sample (confirm row shape)
 ```sql
-SELECT id, account_id, amount_cents, operation_id, settlement_status, created_at, metadata
+SELECT id, account_id, amount_cents, operation_id, settlement_status, settled_at, created_at, metadata
 FROM ledger_entries
 WHERE rail = 'circle-nano' AND settlement_status = 'settled'
-ORDER BY created_at
+ORDER BY settled_at
 LIMIT 10;
 ```
 
@@ -35,13 +44,13 @@ SELECT
   account_id              AS developer_id,
   COUNT(*)                AS settled_rows,
   SUM(amount_cents)       AS uncredited_cents,
-  MIN(created_at)         AS earliest,
-  MAX(created_at)         AS latest
+  MIN(settled_at)         AS earliest_settled,
+  MAX(settled_at)         AS latest_settled
 FROM ledger_entries
 WHERE rail = 'circle-nano'
   AND settlement_status = 'settled'
   AND amount_cents > 0
-  AND created_at < '<PHASE2_DEPLOY_TS_UTC>'   -- e.g. '2026-06-02 21:00:00+00'
+  AND settled_at < '<PROD_LIVE_TS_UTC>'   -- the Vercel production-live time, e.g. '2026-06-02 21:00:00+00'
 GROUP BY account_id
 ORDER BY uncredited_cents DESC;
 ```
@@ -64,7 +73,7 @@ FROM (
   WHERE rail = 'circle-nano'
     AND settlement_status = 'settled'
     AND amount_cents > 0
-    AND created_at < '<PHASE2_DEPLOY_TS_UTC>'   -- SAME cutoff as Step 2
+    AND settled_at < '<PROD_LIVE_TS_UTC>'   -- SAME cutoff as Step 2
   GROUP BY account_id
 ) agg
 WHERE d.id = agg.account_id;
