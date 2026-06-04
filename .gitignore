@@ -97,6 +97,11 @@ scripts/.outreach/
 
 # Internal docs directories — blanket-ignore with explicit exceptions for
 # .gitkeep markers (so the directory structure persists locally)
+# /.audit/ — local pre-build/post-build audit-panel scripts + verdicts
+# (SEAL records, certification outputs). Internal-only; was untracked but
+# unignored, so a blanket `git add -A` would have swept it public
+# (certification-panel finding, 2026-06-04).
+/.audit/
 docs/launch/
 docs/master-plan/
 docs/memos/
