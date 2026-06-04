@@ -169,6 +169,20 @@ against the actual code and resolved/dispositioned them:
   when provisioning lands; reconciliation must keep treating it as a developer id until then.
 - **ap2 dedup gap (no `transactionId`) → STILL DEFERRED (inherent).** No stable key exists.
 
+## UPDATE — ACP-claims chunk Step-0 (2026-06-04): B4 queued + a latent recordHop finding
+
+- **`accountId = developerId` stand-in → QUEUED as the leading next real-settlement
+  chunk** ("B4": accounts provisioning + settlement-row backfill + reconciliation-tooling
+  update). Founder-ranked ahead of ACP-dark wiring. Own Step-0 + full audit chain.
+- **Discovered (non-money, latent):** `recordHop`'s unified-ledger write
+  (`sessions.ts:469`) is UNREACHABLE from prod — the only prod caller
+  (`api/sessions/[id]/hop/route.ts`) has a zod schema that never accepts
+  `rail`/`protocol`/`accountId`, so the P3.K4 per-hop settlement-row trail never fires.
+  The "fire-and-forget durability" debt above is therefore moot for live traffic (every
+  LIVE settlement write is durable: x402 + circle-nano await inline, ap2 uses `after()`).
+  Fix when multi-hop ledger attribution is wanted = extend the hop route schema (and
+  wrap the write durably then). JSONB budget accounting is authoritative + unaffected.
+
 Also closed (not an A1 debt, but adjacent): **circle-nano over-collection** — the rail now
 enforces `value === cost` (parity with x402) at the verify choke point, so an over-authorized
 payment is rejected before any on-chain submit (was: full value collected, dev credited cost,

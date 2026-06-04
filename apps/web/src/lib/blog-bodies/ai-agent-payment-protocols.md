@@ -2,6 +2,8 @@
 
 > **April 2, 2026 update.** The agent payments landscape changed materially in early April. The **x402 Foundation** launched under the Linux Foundation with founding members including **Visa, Mastercard, American Express, Stripe, Coinbase, Cloudflare, Google, Microsoft, AWS, Adyen, Fiserv, Shopify, and KakaoPay**. Coinbase contributed the x402 protocol — originally created in-house — to neutral foundation governance. With 23+ companies coalescing around a single open standard, x402 is now the most credible candidate for the de facto "agentic payments protocol" of 2026. We've updated the x402 section below to reflect this. Older sections of this post still describe the pre-Foundation landscape and are kept for historical context.
 
+> **June 4, 2026 update.** Updated the ACP entries below with the full arc. This post's original read — in-chat traction stalled at roughly a dozen merchants — held: OpenAI sunset Instant Checkout on March 24, 2026, pivoting to a discovery-first model where merchants keep their own checkout under ACP. The spec itself, however, is alive and broadening — PayPal had signed on as an ACP-compliant payment provider, additional processors are implementing it, and the spec gained cart, feed, order, and MCP capabilities in April 2026. The ACP table row and section now reflect both halves.
+
 In March 2026 alone, three major payment infrastructure players launched agent payment products: Stripe (the Machine Payments Protocol, or MPP), Visa (Transaction Approval Protocol), and Mastercard (Agent Suite — of which Verifiable Intent is the specific payment rail — with the first live agent payment in Europe). Add Coinbase x402, OpenAI ACP, Google A2A, and several emerging standards, and the landscape has gone from zero to more than a dozen competing protocols in under a year.
 
 This fragmentation creates a real problem for tool developers: which protocols should you support? Supporting every major protocol means reaching every possible agent, but implementing a dozen payment integrations is impractical. Supporting just one means missing agents that use other protocols.
@@ -21,7 +23,7 @@ Each protocol takes a different approach to agent payments. Some are HTTP-native
 | AP2 | Community | Protocol-agnostic | Emerging | Agent-to-agent delegation |
 | Visa TAP | Visa | Card networks | Pilot phase | Enterprise, regulated industries |
 | UCP | Community | HTTP-native | Emerging | Simple REST-based payments |
-| ACP | OpenAI | Shopify Commerce | 12 merchants | ChatGPT plugin commerce |
+| ACP | OpenAI + Stripe | Stripe SPTs, opening to more PSPs | In-chat checkout sunset Mar 2026; spec live, multi-PSP | ChatGPT consumer commerce (discovery-first) |
 | Mastercard Verifiable Intent | Mastercard | Card networks | First live transaction in Hong Kong, expanding to ASEAN | Enterprise, cross-border |
 | Circle Nanopayments | Circle | USDC stablecoin | Emerging | Sub-cent micropayments |
 
@@ -65,7 +67,7 @@ Google A2A (Agent-to-Agent) focuses on multi-agent orchestration rather than pay
 
 Visa TAP (Transaction Approval Protocol) brings card network infrastructure to agent payments. Visa is positioning TAP for enterprise and regulated industries where compliance, audit trails, and consumer protection are non-negotiable. The protocol is in pilot phase with a focus on cross-border transactions.
 
-OpenAI ACP (Agentic Commerce Protocol) launched with Shopify integration but has scaled back to just 12 merchants. The limited adoption suggests demand is not materializing through the ChatGPT-native commerce path. ACP may evolve or be absorbed into other standards.
+OpenAI ACP (Agentic Commerce Protocol, co-developed with Stripe) is the commerce standard behind ChatGPT shopping — and 2026's most instructive case study in agentic commerce. Instant Checkout launched in September 2025 with Etsy, and OpenAI announced an ambitious expansion in February 2026: over 1 million Shopify merchants slated to come online. (PayPal had already signed on in October 2025 as an ACP-compliant payment provider.) Merchant activation never caught up with the announcements — only a few dozen merchants went live — and on March 24, 2026 OpenAI sunset in-chat Instant Checkout, pivoting to a discovery-first model where ChatGPT handles product research and intent and merchants retain their own checkout under ACP. The protocol itself continues to broaden: April 2026 spec updates added cart, feed, order, and MCP capabilities, and multiple payment processors beyond Stripe are implementing it. The takeaway for tool developers is twofold: ACP is consumer retail commerce at the discovery/checkout layer — not a machine-to-machine micropayments rail for API and tool calls — and even ChatGPT-scale distribution could not force merchant-side activation, which is why per-call machine payments are consolidating on the protocols agents already speak (x402, MPP).
 
 Mastercard Agent Suite completed the first live agent payment in Europe in March 2026. Like Visa TAP, it targets enterprise use cases with strong compliance and audit capabilities.
 
@@ -95,7 +97,7 @@ If you are building protocol support yourself, the priority order has shifted po
 
 - **For everyone**: **MCP + x402**. Post-Foundation x402 is the most credible candidate to become the dominant agent payments standard. Visa, Mastercard, Stripe, Coinbase, Google, AWS, Microsoft, and 15+ other founding members are all building tooling against it. If you can only support one payment protocol on top of MCP, support x402.
 - **For enterprise tools that need card-network compliance**: MCP + x402 + Visa TAP. Visa TAP adds enterprise procurement, compliance, and audit trail features that x402 alone does not provide. This combination covers the largest agent audience and the most demanding enterprise buyers.
-- **For ChatGPT-native commerce**: MCP + x402 + ACP. If your target consumer is ChatGPT users, ACP gives you native distribution into the ChatGPT plugin marketplace. x402 still covers the broader agent ecosystem.
+- **For ChatGPT-native commerce**: MCP + x402 + ACP. If your target consumer is ChatGPT users, ACP gives you distribution into ChatGPT's commerce surface (discovery-first since the March 2026 in-chat checkout sunset). x402 still covers the broader agent ecosystem.
 - **For Stripe-native tools**: MCP + x402 + Stripe MPP. Stripe MPP gives you native Stripe distribution and existing-Stripe-account ergonomics. x402 covers everything else.
 
 The agent payment landscape is consolidating fast. Pre-April 2026 the consensus answer was "support multiple protocols and hedge". Post-Foundation, the consensus answer is "support x402 first, layer others as your audience requires". Within 6 to 12 months, supporting x402 may be table stakes for any monetized MCP tool — much like supporting HTTPS is table stakes for any web service.
