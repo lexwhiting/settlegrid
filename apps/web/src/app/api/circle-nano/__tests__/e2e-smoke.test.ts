@@ -152,6 +152,34 @@ describe('Level A — real route + real verifier (no verifier mock)', () => {
     expect(json.metadata.settlementType).toBe('real-time')
     expect(json.txHash).toBeUndefined()
   })
+
+  // Enforce-exact (parity with x402): circle-nano now requires value === cost.
+  // An over-authorized proof (value > required) was previously TOLERATED and
+  // over-collected the payer (the full value moves on-chain; the dev is credited
+  // only cost; the excess was silently retained). It is now rejected at the shared
+  // verify gate (validateCircleNanoCredentialString → verifyEip3009Authorization
+  // exactAmount:true), which gates BOTH the kernel /verify + /settle routes AND the
+  // direct proxy. These two cases drive the REAL verifier (no mock) — the A1 lesson.
+  it('verify REJECTS an over-authorized proof (enforce-exact: value > cost)', async () => {
+    // cost 1¢ = 10000 base units required; this proof authorizes 20000 (2¢).
+    const proof = await signedProofBlob(RECIPIENT, '20000')
+    const res = await verifyPOST(makeReq('/api/circle-nano/verify', envelope(proof)))
+    expect(res.status).toBe(200) // /verify returns its verdict at HTTP 200
+    const json = await res.json()
+    expect(json.valid).toBe(false)
+    expect(json.code).toBe('CIRCLE_NANO_AMOUNT_MISMATCH')
+  })
+
+  it('settle REJECTS an over-authorized proof (enforce-exact, 402) before any on-chain submit', async () => {
+    // The settle route re-verifies through the SAME gate, so an over-auth 402s
+    // BEFORE reaching executeCircleNanoSettlement — no bypass, no over-collection.
+    const proof = await signedProofBlob(RECIPIENT, '20000')
+    const res = await settlePOST(
+      makeReq('/api/circle-nano/settle', { ...envelope(proof), latencyMs: 7 }),
+    )
+    expect(res.status).toBe(402)
+    expect((await res.json()).code).toBe('CIRCLE_NANO_AMOUNT_MISMATCH')
+  })
 })
 
 describe('Level B — full kernel dispatch → real route handlers (fetch shim, real verifier)', () => {

@@ -50,7 +50,14 @@ vi.mock('@/lib/ap2-proxy', () => ({
   validateAp2CredentialString: mockValidate,
 }))
 vi.mock('@/lib/settlement/ledger', () => ({
-  recordSettlementEntryAsync: mockRecordSettlement,
+  recordSettlementEntry: mockRecordSettlement,
+}))
+// after() runs the ledger write off-response; mock it to invoke the callback
+// synchronously so the (now durable) write is exercised in-test, preserving the
+// real NextRequest export the routes import from 'next/server'.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: vi.fn((cb: () => unknown) => cb()),
 }))
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a: unknown, b: unknown) => ({ a, b })),
@@ -100,6 +107,11 @@ const SETTLE_ENVELOPE = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // The route now chains recordSettlementEntry(...).catch(...) inside after(), so
+  // the writer mock MUST resolve a Promise (a bare vi.fn() returns undefined →
+  // undefined.catch → TypeError → 500). Set globally so every write-reaching test
+  // (:175/:187 assert 200/operationId; :219/:255 assert the recorded row) is covered.
+  mockRecordSettlement.mockResolvedValue(undefined)
   mockCheckRateLimit.mockResolvedValue({
     success: true,
     limit: 1000,
