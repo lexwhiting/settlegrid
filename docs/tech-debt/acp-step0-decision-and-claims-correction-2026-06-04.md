@@ -178,6 +178,24 @@ constraints verified intact (canonical names preserved; no retired phrase introd
 - **Funds SEAL: N/A** — no settlement surface in the diff (verified by the scope lens
   + git diff). Calibration deliberate: accuracy/framing rigor replaced the funds panel
   for a content-only chunk.
+- **Post-build CERTIFICATION panel (founder-requested, 2026-06-04): ✅ CERTIFIED —
+  0 blocking / 0 fix-now / 0 notes.** Dynamic workflow `wf_67d40dda-efd` (4
+  fresh-context lenses → completeness critic → adversarial refuters, default-refuted,
+  scope-expansion auto-reject) certified the COMMITTED artifact `df9a2477` byte-exact:
+  *public-facts* (all 10 claim groups confirmed against live sources, both
+  success- and failure-framed queries; the Mar-5 leak vs Mar-24 official-rollout
+  nuance resolves in the copy's favor) · *code-claims* (all 10 internal-doc file:line
+  claims re-derived clean against source; B2-moot reasoning confirmed — after()
+  wrapping would be prod-inert AND break the request-scope-free unit tests) ·
+  *consistency-voice* (one arc across every surface; render/format clean) ·
+  *framing-scope* (commit = exactly 5 files off parent `9a9f866d`, zero
+  settlement/api/SDK paths; honest-framing 37/37; retired-phrase + whole-surface
+  completeness sweeps zero hits) · *critic* (JSON-LD valid; P5 doc correctly
+  gitignored; commit MESSAGE itself fact-checked clean). The single candidate finding
+  (`.audit/` untracked-but-not-gitignored — true, but repo-infra hygiene outside this
+  chunk) was REJECTED as scope-expansion per the guard and surfaced to the founder as
+  a separate follow-up. Full record: `.audit/acp-certification/` (local). This verdict
+  is recorded as a follow-up commit so the certified tree is unchanged.
 
 ## 8. Out of scope / deferred (durably tagged)
 
