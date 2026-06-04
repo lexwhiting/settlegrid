@@ -113,6 +113,14 @@ export async function validateCircleNanoCredentialString(
   const result = await verifyCircleNanoAuthorization(parsed, {
     recipient,
     requiredBaseUnits,
+    // Enforce-exact: circle-nano now requires value === cost (parity with x402).
+    // EIP-3009 transfers the FULL signed value atomically, so tolerating value >
+    // cost over-collected the payer (the excess was silently retained, dev credited
+    // only cost). The SDK already advertises exactly cost (adapters/circle-nano.ts),
+    // so only anomalous over-authorizations are rejected (CIRCLE_NANO_AMOUNT_MISMATCH).
+    // This one gate covers all three settling paths: kernel /verify, kernel /settle,
+    // and the direct proxy handleCircleNanoProxy.
+    exactAmount: true,
   })
 
   if (!result.valid) {

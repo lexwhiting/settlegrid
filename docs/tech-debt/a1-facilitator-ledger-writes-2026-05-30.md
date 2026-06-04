@@ -142,3 +142,34 @@ caught real defects the green suite masked:
 writer is insufficient — exercise the **real** `recordLedgerEntry` validator
 against the exact input shape (now done in `ledger.test.ts`). cf.
 `feedback-ke2-independent-audit-mandatory`.
+
+---
+
+## UPDATE — money-mechanics chunk (2026-06-04): debt resolutions
+
+The "settlement money-mechanics completion" chunk
+(`settlement-money-mechanics-seal-2026-06-04.md`, SEALED) re-grounded these debts
+against the actual code and resolved/dispositioned them:
+
+- **`takeBps: 0` → RESOLVED-AS-CORRECT (not a gap).** Monetization is already live as a
+  *progressive payout-time* take (`lib/pricing.ts:calculateTakeCents`, 0/2/2.5/5%, applied
+  at `payouts/process.ts:259-261`); the dev is credited GROSS at settle. So at the
+  settlement *event* the platform takes 0 — `take_bps=0` on a settlement row is the honest
+  record. Wiring a flat per-row take would misrepresent the progressive payout take and risk
+  a double-count. `revenueSharePct` is legacy/ignored. Per-rail settlement-time take, if ever
+  wanted, is a separate chunk (it would touch the sealed credit path + needs its own audit).
+- **Fire-and-forget ledger write (ap2) → RESOLVED.** `/api/ap2/settle` now wraps the write
+  in Vercel `after()` (`after(() => recordSettlementEntry(...).catch(...))`, Next ^15.1) so a
+  serverless freeze can't drop the audit row. NOTE the void-returning `recordSettlementEntryAsync`
+  could NOT simply be wrapped (after() would have nothing to await) — the awaited
+  `recordSettlementEntry` is returned from the callback. Repo-wide fire-and-forget
+  (`settlement/sessions.ts:469` `recordHop`, `postLedgerEntryAsync`) remains deferred.
+- **`accountId = developerId` stand-in → STILL DEFERRED.** No `accounts` provisioning path
+  exists anywhere (re-confirmed). Backfill settlement-row `account_id` → real `accounts.id`
+  when provisioning lands; reconciliation must keep treating it as a developer id until then.
+- **ap2 dedup gap (no `transactionId`) → STILL DEFERRED (inherent).** No stable key exists.
+
+Also closed (not an A1 debt, but adjacent): **circle-nano over-collection** — the rail now
+enforces `value === cost` (parity with x402) at the verify choke point, so an over-authorized
+payment is rejected before any on-chain submit (was: full value collected, dev credited cost,
+excess silently retained).
