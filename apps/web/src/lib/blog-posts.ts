@@ -324,14 +324,18 @@ export const BLOG_POSTS: BlogPost[] = [
      renders as a responsive GFM markdown table for better mobile presentation.
      Updated 2026-04-07 (later same day) with x402 Foundation launch news:
      comparison table refreshed, x402 section rewritten end-to-end,
-     recommendations section reordered to put x402 first. */
+     recommendations section reordered to put x402 first.
+     Updated 2026-06-04: ACP entries expanded with the full arc (Feb 2026
+     expansion announcements; only a few dozen merchants ever live; March
+     24, 2026 in-chat Instant Checkout sunset + discovery-first pivot;
+     the spec itself continues, multi-PSP). */
   {
     slug: 'ai-agent-payment-protocols',
     title: 'AI Agent Payment Protocols Compared (2026)',
     description:
       'Compare the major AI agent payment protocols including the new Linux Foundation x402 standard, MCP, Stripe MPP, AP2, Visa TAP, ACP, Mastercard Verifiable Intent, Circle Nanopayments, and the emerging ACTP / EMVCo agent payments / DRAIN specs. Features, adoption, and which to support.',
     datePublished: '2026-03-26',
-    dateModified: '2026-04-07',
+    dateModified: '2026-06-04',
     keywords: [
       'AI payment protocols',
       'agent payment comparison',

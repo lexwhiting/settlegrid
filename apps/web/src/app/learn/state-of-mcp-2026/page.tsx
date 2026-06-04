@@ -61,7 +61,7 @@ const jsonLdArticle = {
     },
   },
   datePublished: '2026-03-26',
-  dateModified: '2026-03-26',
+  dateModified: '2026-06-04',
   url: 'https://settlegrid.ai/learn/state-of-mcp-2026',
   mainEntityOfPage: 'https://settlegrid.ai/learn/state-of-mcp-2026',
   keywords: [
@@ -257,7 +257,7 @@ export default function StateOfMcp2026Page() {
               <tbody className="divide-y divide-[#2A2D3E]/50">
                 <tr><td className="py-3 px-4 text-gray-300">x402 (Coinbase)</td><td className="py-3 px-4 text-amber-400 font-semibold">~$28K/day</td><td className="py-3 px-4 text-gray-400">Half is gamified/artificial (CoinDesk investigation)</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Stripe MPP</td><td className="py-3 px-4 text-amber-400 font-semibold">Unknown</td><td className="py-3 px-4 text-gray-400">Launched March 18 -- 8 days old, no public data</td></tr>
-                <tr><td className="py-3 px-4 text-gray-300">OpenAI ACP</td><td className="py-3 px-4 text-amber-400 font-semibold">Negligible</td><td className="py-3 px-4 text-gray-400">Only 12 Shopify merchants activated</td></tr>
+                <tr><td className="py-3 px-4 text-gray-300">OpenAI ACP</td><td className="py-3 px-4 text-amber-400 font-semibold">Negligible</td><td className="py-3 px-4 text-gray-400">In-chat checkout sunset March 24 (~12-30 merchants live); pivot to discovery-first</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Apify Store</td><td className="py-3 px-4 text-amber-400 font-semibold">~$2K/mo top</td><td className="py-3 px-4 text-gray-400">Strongest real signal of MCP tool monetization</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">MCPize</td><td className="py-3 px-4 text-amber-400 font-semibold">Unknown</td><td className="py-3 px-4 text-gray-400">No public data</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Nevermined</td><td className="py-3 px-4 text-amber-400 font-semibold">Unknown</td><td className="py-3 px-4 text-gray-400">No public data</td></tr>
@@ -289,7 +289,7 @@ export default function StateOfMcp2026Page() {
               <tbody className="divide-y divide-[#2A2D3E]/50">
                 <tr><td className="py-3 px-4 text-gray-300">x402</td><td className="py-3 px-4 text-gray-300">Coinbase</td><td className="py-3 px-4 text-gray-400">$28K/day, half gamified</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Stripe MPP</td><td className="py-3 px-4 text-gray-300">Stripe</td><td className="py-3 px-4 text-gray-400">Launched March 18, 100+ services</td></tr>
-                <tr><td className="py-3 px-4 text-gray-300">OpenAI ACP</td><td className="py-3 px-4 text-gray-300">OpenAI</td><td className="py-3 px-4 text-gray-400">12 merchants, scaled back</td></tr>
+                <tr><td className="py-3 px-4 text-gray-300">OpenAI ACP</td><td className="py-3 px-4 text-gray-300">OpenAI + Stripe</td><td className="py-3 px-4 text-gray-400">In-chat checkout sunset March 24; spec continues (discovery-first pivot)</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Visa TAP</td><td className="py-3 px-4 text-gray-300">Visa</td><td className="py-3 px-4 text-gray-400">Pilot phase, enterprise focus</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">Mastercard Verifiable Intent</td><td className="py-3 px-4 text-gray-300">Mastercard</td><td className="py-3 px-4 text-gray-400">First live EU agent payment, March 2026</td></tr>
                 <tr><td className="py-3 px-4 text-gray-300">A2A</td><td className="py-3 px-4 text-gray-300">Google</td><td className="py-3 px-4 text-gray-400">Multi-agent orchestration focus</td></tr>
