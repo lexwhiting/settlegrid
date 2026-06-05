@@ -33,3 +33,27 @@
 - Items **1, 5, 6** are pre-existing/repo-wide — they predate or are orthogonal to this feature; listed for completeness, owned by a future cross-cutting hardening pass, not by this feature.
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
+
+## UPDATE 2026-06-05 — H1 chunk (see `h1-rate-limit-availability-resolution-2026-06-05.md`)
+
+- **DEBT #1 → PARTIALLY RESOLVED (surgical core shipped; follow-on documented).**
+  Shipped: central store-failure fail-mode in `checkRateLimit` (fail-open + operator
+  alert, founder-decided; optional `failMode:'closed'` hook) + the same guard on
+  `checkTieredRateLimit`'s creation path; shared `getClientIp` helper (single source of
+  truth); direct IP-keyed limits on the 3 genuinely-unprotected public routes
+  (`tools/serve/[slug]`, `unsubscribe`, `mcp`). TWO of this row's premises were
+  CORRECTED during grounding: (a) `ephemeralCache` is already ON by default in the
+  installed `@upstash/ratelimit` v2.0.8 (the "add ephemeralCache" sketch is moot);
+  (b) left-most XFF is NOT spoofable on Vercel — official docs: Vercel overwrites XFF
+  and does not forward external IPs precisely to prevent spoofing (the "platform-trusted
+  value" IS the left-most entry; sketch (b) as written would have been wrong).
+  REMAINING (follow-on, not started): the ~218-caller `getClientIp` consistency
+  migration + optional `auth.id` keying for authenticated routes (sketch (c)).
+- **DEBT #5 → RESOLVED.** `processDataDeletion` now: `completed` → idempotent no-op;
+  `failed` → retryable (atomicity proof in the capstone §3); `processing` → concurrency
+  guard. The perennial baseline test fail is fixed (root cause: the settlement-moat
+  schema mock omitted `developerApiKeys`, added by THIS feature's step 1b — the mock now
+  carries it plus a `tx.delete`-count pin). The row's second sub-claim ("consumer
+  cross-anonymize uses the post-rewrite developer email") was verified STALE/incorrect
+  at current code: the developer email is captured PRE-transaction and step 2 uses that
+  captured value — no fix needed.

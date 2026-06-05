@@ -6,7 +6,13 @@ vi.mock('@/lib/redis', () => ({
   }),
 }))
 
-import { getTierLimits } from '@/lib/rate-limit'
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
+
+import { getTierLimits, checkTieredRateLimit } from '@/lib/rate-limit'
+import { getRedis } from '@/lib/redis'
+import { logger } from '@/lib/logger'
 
 describe('Tiered Rate Limiting', () => {
   it('returns free tier limits', () => {
@@ -55,5 +61,25 @@ describe('Tiered Rate Limiting', () => {
     const limits = getTierLimits('Enterprise')
     expect(limits.api).toBe(1000)
     expect(limits.sdk).toBe(50000)
+  })
+})
+
+describe('checkTieredRateLimit — store-failure fail-open (H1)', () => {
+  it('fails open with an operator alert when limiter creation throws', async () => {
+    // createRateLimiter evaluates getRedis() eagerly — a missing-env throw
+    // (requireEnv) surfaces at creation, OUTSIDE checkRateLimit's guard.
+    vi.mocked(getRedis).mockImplementationOnce(() => {
+      throw new Error('REDIS_URL is not set')
+    })
+
+    // Unique raw tier string → unique tier:type cache key → the creation
+    // branch is guaranteed to run (nothing cached from other tests).
+    const result = await checkTieredRateLimit('ip-1', 'h1-creation-throw-tier', 'api')
+
+    expect(result).toEqual({ success: true, limit: 0, remaining: 0, reset: 0 })
+    expect(logger.error).toHaveBeenCalledWith(
+      'rate_limit.fail_open',
+      expect.objectContaining({ identifier: 'ip-1', error: 'REDIS_URL is not set' })
+    )
   })
 })

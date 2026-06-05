@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock @upstash/redis and @upstash/ratelimit before importing
 vi.mock('@upstash/redis', () => ({
@@ -32,8 +32,14 @@ vi.mock('@/lib/env', () => ({
   getUpstashRedisRestToken: vi.fn().mockReturnValue('test-token'),
 }))
 
-import { createRateLimiter, checkRateLimit, authLimiter, apiLimiter, sdkLimiter } from '@/lib/rate-limit'
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
+
+import type { Ratelimit } from '@upstash/ratelimit'
+import { createRateLimiter, checkRateLimit, getClientIp, authLimiter, apiLimiter, sdkLimiter } from '@/lib/rate-limit'
 import type { RateLimitResult } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 describe('createRateLimiter', () => {
   it('returns a rate limiter object', () => {
@@ -102,5 +108,84 @@ describe('pre-configured rate limiters', () => {
     expect(typeof authLimiter.limit).toBe('function')
     expect(typeof apiLimiter.limit).toBe('function')
     expect(typeof sdkLimiter.limit).toBe('function')
+  })
+})
+
+describe('checkRateLimit — store-failure fail-mode (H1)', () => {
+  beforeEach(() => {
+    vi.mocked(logger.error).mockClear()
+  })
+
+  /** A limiter whose store rejects (connection refused / DNS / 5xx). */
+  function rejectingLimiter(message: string): Ratelimit {
+    return { limit: vi.fn().mockRejectedValue(new Error(message)) } as unknown as Ratelimit
+  }
+
+  it('fails OPEN by default when the store rejects, with an operator alert', async () => {
+    const result = await checkRateLimit(rejectingLimiter('connection refused'), 'ip-1')
+
+    expect(result).toEqual({ success: true, limit: 0, remaining: 0, reset: 0 })
+    expect(logger.error).toHaveBeenCalledWith(
+      'rate_limit.fail_open',
+      expect.objectContaining({ identifier: 'ip-1', error: 'connection refused' })
+    )
+  })
+
+  it('fails CLOSED when failMode is closed', async () => {
+    const result = await checkRateLimit(rejectingLimiter('boom'), 'ip-2', { failMode: 'closed' })
+
+    expect(result).toEqual({ success: false, limit: 0, remaining: 0, reset: 0 })
+    expect(logger.error).toHaveBeenCalledWith(
+      'rate_limit.fail_closed',
+      expect.objectContaining({ identifier: 'ip-2', error: 'boom' })
+    )
+  })
+
+  it('stringifies non-Error throwables in the alert', async () => {
+    const limiter = { limit: vi.fn().mockRejectedValue('raw-string-failure') } as unknown as Ratelimit
+
+    const result = await checkRateLimit(limiter, 'ip-3')
+
+    expect(result.success).toBe(true)
+    expect(logger.error).toHaveBeenCalledWith(
+      'rate_limit.fail_open',
+      expect.objectContaining({ error: 'raw-string-failure' })
+    )
+  })
+
+  it('does not alter the result on a healthy store', async () => {
+    const limiter = createRateLimiter(100, '1 m')
+
+    const result = await checkRateLimit(limiter, 'healthy-user')
+
+    expect(result.success).toBe(true)
+    expect(result.limit).toBe(100)
+    expect(result.remaining).toBe(99)
+    expect(logger.error).not.toHaveBeenCalledWith('rate_limit.fail_open', expect.anything())
+  })
+})
+
+describe('getClientIp (H1 — shared trusted-IP helper)', () => {
+  // The 7 P4.K1 trust-model cases remain in demo-rate-limit.test.ts via the
+  // extractClientIp re-export; these are the delta cases.
+
+  it('handles IPv6 addresses', () => {
+    const headers = new Headers({ 'x-forwarded-for': '2001:db8::1, 10.0.0.1' })
+    expect(getClientIp(headers)).toBe('2001:db8::1')
+  })
+
+  it('handles a bare IPv6 loopback', () => {
+    const headers = new Headers({ 'x-forwarded-for': '::1' })
+    expect(getClientIp(headers)).toBe('::1')
+  })
+
+  it('falls back to x-real-ip when x-forwarded-for is only commas', () => {
+    const headers = new Headers({ 'x-forwarded-for': ',,,', 'x-real-ip': '198.51.100.7' })
+    expect(getClientIp(headers)).toBe('198.51.100.7')
+  })
+
+  it('trims whitespace from x-real-ip', () => {
+    const headers = new Headers({ 'x-real-ip': '  203.0.113.9  ' })
+    expect(getClientIp(headers)).toBe('203.0.113.9')
   })
 })

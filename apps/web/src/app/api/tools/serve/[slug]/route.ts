@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { handlers } from './handlers'
 import { getRedis, tryRedis } from '@/lib/redis'
+import { checkRateLimit, getClientIp, sdkLimiter } from '@/lib/rate-limit'
 
 export const maxDuration = 15
 export const dynamic = 'force-dynamic'
@@ -67,6 +68,16 @@ async function handle(request: NextRequest, ctx: RouteContext): Promise<NextResp
       tool: slug,
       timestamp: new Date().toISOString(),
     }, hasHandler ? 200 : 404)
+  }
+
+  // Rate limit (H1): public unauthenticated execution surface — handlers
+  // call external APIs / local compute. sdkLimiter (1000/min/IP, the
+  // invocation-class limiter; see the H1 build plan §6 for the
+  // MCP-shared-egress-bucket rationale). Health checks above stay
+  // limit-free.
+  const rl = await checkRateLimit(sdkLimiter, `tools-serve:${getClientIp(request.headers)}`)
+  if (!rl.success) {
+    return errorJson('Too many requests', 429)
   }
 
   // Look up handler

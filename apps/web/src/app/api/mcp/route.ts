@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { z } from 'zod'
+import { checkRateLimit, getClientIp, sdkLimiter } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -380,6 +381,22 @@ export async function DELETE(request: NextRequest) {
 }
 
 async function handleMcp(request: NextRequest): Promise<Response> {
+  // Rate limit (H1): fires BEFORE McpServer/transport construction.
+  // sdkLimiter (1000/min/IP) — MCP clients legitimately batch tool calls;
+  // internal fetch targets keep their own limits. OPTIONS (CORS preflight)
+  // and GET (static 405) deliberately stay limit-free.
+  const rl = await checkRateLimit(sdkLimiter, `mcp:${getClientIp(request.headers)}`)
+  if (!rl.success) {
+    return new Response(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Too many requests' },
+        id: null,
+      }),
+      { status: 429, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } },
+    )
+  }
+
   // Extract optional API key for billing through the Smart Proxy
   const apiKey = request.headers.get('x-api-key')
 
