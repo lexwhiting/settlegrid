@@ -846,6 +846,18 @@ export const ledgerEntries = pgTable(
   'ledger_entries',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    // Dual semantic, PERMANENT (B4, 2026-06-04):
+    //   - double-entry rows (rail IS NULL): a real accounts.id
+    //     (postLedgerEntry validates existence — see note above).
+    //   - SETTLEMENT rows (rail NOT NULL): the OWNING DEVELOPER's id,
+    //     NOT an accounts.id. The reconciler credits real money from
+    //     this value (reconcile.ts creditSettlement matches
+    //     developers.id = account_id), so a "backfill" to accounts.id
+    //     would make that UPDATE match zero rows and un-credit
+    //     genuinely-collected USDC (loud since B4 — the zero-row check
+    //     fires settlement.credit_failed — but still un-credited).
+    //     NEVER backfill settlement rows.
+    //     See docs/tech-debt/b4-account-attribution-resolution-2026-06-04.md.
     accountId: uuid('account_id').notNull(),
     entryType: text('entry_type').notNull(), // 'debit' | 'credit'
     amountCents: integer('amount_cents').notNull(),

@@ -8,7 +8,7 @@
 > 3. On-chain settle must **dedup on `(from, nonce)`**, NEVER signature bytes (EIP-3009 sigs are malleable).
 >
 > **Carried A1 DEBT — non-blocking but LIVE (full detail in "Carried-forward DEBT" below):**
-> - `accountId = tool.developerId` is a **STAND-IN** (the `accounts` table has no provisioning path). Backfill to real `accounts.id` when account provisioning lands; reconciliation must treat settlement-row `account_id` as a **developer id** until then.
+> - `accountId = tool.developerId` — **RESOLVED-BY-DESIGN (B4, 2026-06-04): this is the PERMANENT semantic, not a stand-in. NEVER backfill settlement-row `account_id` to `accounts.id`** — the reconciler credits real money from it (`creditSettlement`: `developers.id = account_id`); a backfill would zero-match that UPDATE and un-credit collected USDC. Guard-tested (`B4 SEMANTIC GUARD`). See the B4 UPDATE at the bottom + `b4-account-attribution-resolution-2026-06-04.md`.
 > - `takeBps: 0` — platform take is **NOT computed** in the settle path yet.
 > - The ledger write is **FIRE-AND-FORGET** (no `waitUntil`/`after`) — can be dropped on a serverless freeze. Shared with `recordHop`/`postLedgerEntryAsync`.
 > - ap2 cannot dedupe a VDC with no `transactionId` (inherent — no stable key exists).
@@ -187,3 +187,27 @@ Also closed (not an A1 debt, but adjacent): **circle-nano over-collection** — 
 enforces `value === cost` (parity with x402) at the verify choke point, so an over-authorized
 payment is rejected before any on-chain submit (was: full value collected, dev credited cost,
 excess silently retained).
+
+## UPDATE — B4 chunk (2026-06-04): the accountId stand-in is RESOLVED-BY-DESIGN
+
+- **Decision 1's `accountId = developerId` "stand-in" → RESOLVED-BY-DESIGN (founder Step-0,
+  option B).** "Settlement-row `account_id` IS the owning developer's id" is now the
+  **PERMANENT, documented, guard-tested semantic**. The "backfill to real `accounts.id` when
+  provisioning lands" instruction above (Decision 1 + Carried-forward DEBT #4) is **RETIRED —
+  do NOT execute it**: the reconciler credits real money from settlement-row `account_id`
+  (`reconcile.ts` `creditSettlement`: `developers.id = account_id`), so a backfill would
+  zero-match that UPDATE and un-credit genuinely-collected USDC (loud since B4 —
+  `settlement.credit_failed` — but still un-credited). `accounts` stays dormant until a real
+  double-entry requirement lands; (A)(i)'s additive `provider_account_id` column remains the
+  funds-safe shape if that day comes.
+- **Hardening shipped with it:** `creditSettlement`'s developers UPDATE now detects a zero-row
+  match (`.returning({id})` + throw-inside-txn → rollback → the existing catch logs
+  `settlement.credit_failed`) instead of committing empty and logging a FALSE
+  `settlement.credited`. Reachable via dangling developer ids (deleted dev) even without any
+  backfill.
+- **Guards:** `rg "B4 SEMANTIC GUARD"` — reconcile.test.ts (the `row.accountId → developers.id`
+  credit-linkage pin + the zero-row alert) and both proxy settlement tests (writers pass
+  `toolRow.developerId`). A code-side re-point now breaks CI, not prod.
+- Full record: `b4-account-attribution-resolution-2026-06-04.md` (capstone) +
+  `b4-account-attribution-build-plan-2026-06-04.md` (PLAN_READY R1) + the SEAL verdict
+  (`.audit/b4-postbuild/`, local).

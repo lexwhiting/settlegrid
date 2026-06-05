@@ -171,6 +171,12 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1) // forwarded only after settle
     expect(H.dbUpdate).toHaveBeenCalled() // credited (developers.balanceCents + tools.totalRevenueCents)
     expect(res.headers.get('X-SettleGrid-Tx-Hash')).toBe('0xCNTX')
+    // B4 SEMANTIC GUARD: the proxy attributes settlement rows to the OWNING
+    // DEVELOPER (toolRow.developerId) — the PERMANENT account_id semantic;
+    // see RailSettlementRow.accountId + reconcile.test.ts's reconciler pin.
+    expect(H.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'dev-1', toolId: 'tool-1' }),
+    )
   })
 
   it('settle NOT confirmed (failed) → structured error, NOT forwarded, NOT credited', async () => {

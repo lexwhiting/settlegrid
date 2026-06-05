@@ -170,6 +170,12 @@ describe('handleX402Proxy — settled path forwards + credits exactly once', () 
     expect(res.status).toBe(200)
     expect(res.headers.get('X-SettleGrid-Tx-Hash')).toBe('0xTX')
     expect(res.headers.get('X-SettleGrid-Cost-Cents')).toBe('50') // GROSS credit
+    // B4 SEMANTIC GUARD: the proxy attributes settlement rows to the OWNING
+    // DEVELOPER (toolRow.developerId) — the PERMANENT account_id semantic;
+    // see RailSettlementRow.accountId + reconcile.test.ts's reconciler pin.
+    expect(H.executeX402Settlement).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'dev-1', toolId: 'tool-1' }),
+    )
   })
 
   it('replay (alreadySettled) → still forwards but does NOT re-credit (F1); cost header 0', async () => {
