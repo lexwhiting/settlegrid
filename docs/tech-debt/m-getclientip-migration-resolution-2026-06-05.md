@@ -10,7 +10,7 @@
 **(M) The migration — all 208 inline `x-forwarded-for` rate-limit derivations** replaced with the
 single source of truth `const <var> = getClientIp(<receiver>.headers)` (rate-limit.ts:194-203, shipped
 by H1: left-most XFF → x-real-ip → `'unknown-ip'`), `getClientIp` added to each file's existing
-`@/lib/rate-limit` import. 225 single-line derivations + 9 multi-line shapes + 8 pattern classes
+`@/lib/rate-limit` import. 242 inline derivations migrated — 225 via the asserted codemod (191 uniform files) + the rest across the 17 variance files; 8 pattern classes
 (U1/U2 uniform, U3 2-line wraps, U4 split-in-identifier, U5 `req`-named, N1 proxy, N2 `firstHopIp`
 helper, N3 3-line). The 3 sentinels (`'unknown'`/`'anonymous'`/`'unknown-ip'`) are now unified to
 `'unknown-ip'` everywhere.
@@ -30,15 +30,16 @@ test, `:unknown` → `:unknown-ip`.
 ## 2. Two findings beyond the audited plan — both addressed
 
 **(a) Test-mock plan/pre-build-audit GAP (caught by the post-build suite).** 84 route test files
-`vi.mock('@/lib/rate-limit')`; the 80 whose routes now call `getClientIp` returned **500** (the mock
+`vi.mock('@/lib/rate-limit')`; only **3** exposed `getClientIp` at the chunk's parent, so the routes now calling it returned **500** (the mock
 lacked the export → `undefined(...)` → TypeError) — **892 test failures**. The pre-build audit (38
 agents, 2 rounds) verified the *identifier-pinning* census correctly but never checked that route
 **module mocks expose every newly-used export**. Fixed by injecting a real-logic `getClientIp`
 (`h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip'`) into
 each factory — NOT `importActual` (rate-limit.ts imports `@upstash/ratelimit` + `./redis` at module
 level, which those tests mock precisely to avoid). The injected impl faithfully reproduces the real
-helper, so identifier-pinning tests still pass for the right reason. 4 files already exposed it (H1's
-serve/unsubscribe/mcp + a prototype). **Lesson: future migration audits must add a "do all module mocks
+helper, so identifier-pinning tests still pass for the right reason. Net: **81** factories injected (80
+via codemod + the `listed-in-marketplace` prototype) + **3** pre-existing (H1's serve/unsubscribe/mcp) = 84.
+**Lesson: future migration audits must add a "do all module mocks
 of the changed module expose every newly-used export?" check.**
 
 **(b) Stale sentinel guard at `api-keys/route.ts:137` (caught by the post-build panel — the SOLE
@@ -55,7 +56,7 @@ the api-keys test, so no test assertion was affected.
 
 - **Gates GREEN**: apps/web `tsc` 0 · `next build` 0 · `vitest` **4250 pass / 0 failed / 179 files**
   (4248 baseline + 2 (E) cases) · `eslint` 0 errors on all changed files; `packages/mcp` 1896 / 1 skip
-  (untouched, no SDK rebuild). 2 pre-existing `no-control-regex` warnings in cron/crawl-{registry,services}
+  (untouched, no SDK rebuild). 2 pre-existing "unused eslint-disable directive" warnings (targeting a `no-control-regex` directive) in cron/crawl-{registry,services}
   are NOT from this chunk (their `eslint-disable` lines are not in any hunk) — left as-is (out of scope).
 - **Done-checks**: PRIMARY derivation-grep `rg "= (request|req)\.headers\.get('x-forwarded-for')"
   --glob '!**/__tests__/**'` = **EMPTY**. SECONDARY broad grep = **16 legitimate keepers only**
@@ -71,6 +72,12 @@ the api-keys test, so no test assertion was affected.
   settlement spine (ledger/reconcile/payouts/pricing/orchestrators) untouched; only `compliance.ts`
   among `lib/settlement/*`; both U4 residual-splits byte-identical; no drizzle migration; packages/mcp
   clean. Manual spine-line spot-check on 8 settlement-surface files confirmed only ip+import lines changed.
+- **Highest-confidence certification** (`.audit/m-certify/certify.mjs`, 7 lenses → adversarial verify →
+  completeness critic → synth, anti-overshoot spine; run `wf_4b38b978-b2a`, 20 agents): **CERTIFIED** — ZERO
+  confirmed code defects. Re-derived the diff `33d632fa..9d22fd2e` file-by-file + re-ran all gates
+  independently (tsc 0, next build 0, vitest 4250/179 run twice, eslint 0 err). The only findings were 3
+  documentation-count imprecisions in this capstone (now corrected); 4 other candidates (incl. a
+  non-recurring vitest flake) were adversarially refuted.
 
 ## 4. Scope held (settled — do NOT re-litigate)
 
