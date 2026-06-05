@@ -52,7 +52,7 @@ import {
   errorResponse,
   internalErrorResponse,
 } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   routeDeveloper,
   UnsupportedCountryError,
@@ -78,8 +78,7 @@ const eligibilitySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `eligibility:${ip}`)
     if (!rl.success) {
       return errorResponse(

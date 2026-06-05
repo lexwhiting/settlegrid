@@ -7,7 +7,7 @@ import { tools, developers, apiKeys, consumerToolBalances, consumers, invocation
 import { hashApiKey } from '@/lib/crypto'
 import { tryRedis, getRedis } from '@/lib/redis'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
-import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { isIpInAllowlist } from '@/lib/ip-validation'
@@ -431,8 +431,7 @@ async function handleProxy(
 
   try {
     // Rate limit by IP — extract first IP from x-forwarded-for (client IP)
-    const rawForwardedFor = request.headers.get('x-forwarded-for') ?? 'unknown'
-    const ip = rawForwardedFor.split(',')[0].trim()
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(sdkLimiter, `proxy:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

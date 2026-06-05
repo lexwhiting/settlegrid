@@ -45,7 +45,7 @@ import {
   internalErrorResponse,
   parseBody,
 } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 
@@ -87,7 +87,7 @@ const PostBodySchema = z.object({
  * trivially in sync if one ever evolves.
  */
 async function requireAdmin(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const ip = getClientIp(request.headers)
   const rateLimit = await checkRateLimit(apiLimiter, `admin-signup-followup:${ip}`)
   if (!rateLimit.success) {
     return {

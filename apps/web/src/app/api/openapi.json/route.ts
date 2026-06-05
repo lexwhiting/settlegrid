@@ -6,13 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { checkRateLimit, apiLimiter } from '@/lib/rate-limit'
+import { checkRateLimit, apiLimiter, getClientIp } from '@/lib/rate-limit'
 import { errorResponse } from '@/lib/api'
 
 export const maxDuration = 5
 
 export async function GET(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const ip = getClientIp(request.headers)
   const rl = await checkRateLimit(apiLimiter, `openapi:${ip}`)
   if (!rl.success) {
     return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

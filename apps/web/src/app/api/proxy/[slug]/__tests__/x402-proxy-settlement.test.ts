@@ -75,6 +75,8 @@ vi.mock('@/lib/settlement/x402/parse', () => ({
 // Importing the real rate-limit module builds an Upstash limiter at load; mock it
 // so the proxy preamble (checkRateLimit) passes deterministically.
 vi.mock('@/lib/rate-limit', () => ({
+  getClientIp: (h: Headers) =>
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
   sdkLimiter: {},
   checkRateLimit: vi.fn(async () => ({ success: true })),
 }))

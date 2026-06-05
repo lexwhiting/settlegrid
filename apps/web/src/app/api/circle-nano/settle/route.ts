@@ -29,7 +29,7 @@ import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { resolveOperationCost, parseCircleNanoProof } from '@settlegrid/mcp'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { isCircleNanoKernelEnabled, X402_MAINNET_NETWORK, isX402TestnetSettlementAllowed } from '@/lib/env'
 import { validateCircleNanoCredentialString } from '@/lib/circle-nano-proxy'
@@ -76,8 +76,7 @@ function resolveCostCents(pricingConfig: unknown, method: string): number {
 
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `circle-nano-settle:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

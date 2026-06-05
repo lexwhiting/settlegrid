@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requestDataExport, processDataExport, ALL_EXPORT_CATEGORIES } from '@/lib/settlement/compliance'
 import type { ExportCategory } from '@/lib/settlement/compliance'
 import { dataExportReadyEmail, sendEmail } from '@/lib/email'
@@ -24,7 +24,7 @@ export const maxDuration = 60
 /** POST /api/dashboard/developer/data-export — initiate and process a GDPR data export */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `data-export:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

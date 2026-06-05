@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { waitlistSignups } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { authLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   sendEmail,
   waitlistConfirmationEmail,
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     // Using the whole header as the bucket key let an attacker
     // varying later hops produce different keys and bypass the
     // limiter entirely.
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(authLimiter, `waitlist:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

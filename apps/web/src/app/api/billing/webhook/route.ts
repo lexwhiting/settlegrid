@@ -6,7 +6,7 @@ import { developers, purchases, consumerToolBalances, consumers, tools, processe
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getStripeWebhookSecret } from '@/lib/env'
-import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   creditPurchaseConfirmationEmail,
   autoRefillConfirmationEmail,
@@ -66,7 +66,7 @@ async function lookupConsumerAndTool(
 export async function POST(request: NextRequest) {
   try {
     // Light rate limiting to prevent DoS (high limit since Stripe sends bursts)
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(sdkLimiter, `billing-webhook:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

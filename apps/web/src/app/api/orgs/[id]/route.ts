@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrganization, updateOrgSettings } from '@/lib/settlement/organizations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { checkPermission } from '@/lib/settlement/rbac'
@@ -17,7 +17,7 @@ export async function GET(
   try {
     const developer = await requireDeveloper(request)
     const { id } = await params
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `orgs:get:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
@@ -55,7 +55,7 @@ export async function PATCH(
   try {
     const developer = await requireDeveloper(request)
     const { id } = await params
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `orgs:patch:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

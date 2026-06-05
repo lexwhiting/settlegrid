@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { AP2AgentCard } from '@/lib/settlement/ap2/types'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 5
 
@@ -21,7 +21,7 @@ const AGENT_CARD: AP2AgentCard = {
 }
 
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  const ip = getClientIp(req.headers)
   const rl = await checkRateLimit(apiLimiter, `a2a:card:${ip}`)
   if (!rl.success) {
     return NextResponse.json({ error: 'Rate limited' }, { status: 429 })

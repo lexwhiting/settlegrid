@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { eq, and, desc, ilike, or, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
-import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 30
@@ -343,7 +343,7 @@ const MIN_MATCH_SCORE = 3
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
 
     // Rate limit by IP
     const rl = await checkRateLimit(askLimiter, `ask:${ip}`)

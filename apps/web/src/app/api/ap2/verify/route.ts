@@ -25,7 +25,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { resolveOperationCost } from '@settlegrid/mcp'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { isAp2Enabled } from '@/lib/env'
 import { validateAp2CredentialString } from '@/lib/ap2-proxy'
@@ -77,8 +77,7 @@ function resolveCostCents(pricingConfig: unknown, method: string): number {
 
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `ap2-verify:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

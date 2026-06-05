@@ -30,7 +30,7 @@ import {
   internalErrorResponse,
   parseBody,
 } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 
@@ -45,7 +45,7 @@ const unpauseSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `chargeback-unpause:${ip.split(',')[0]?.trim() ?? 'unknown'}`)
     if (!rl.success) {
       return errorResponse(

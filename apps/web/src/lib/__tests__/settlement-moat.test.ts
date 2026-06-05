@@ -623,14 +623,67 @@ describe('processDataExport', () => {
     await expect(processDataExport('del-1')).rejects.toThrow('Not a data-export request')
   })
 
-  it('throws when export already processed', async () => {
+  it('returns completed as an idempotent no-op when already completed', async () => {
     setupSelectChain([{
       id: 'exp-2',
       requestType: 'data-export',
       status: 'completed',
+      resultUrl: 'data:application/json;base64,e30=',
     }])
 
-    await expect(processDataExport('exp-2')).rejects.toThrow('Export already processed')
+    const result = await processDataExport('exp-2')
+
+    expect(result).toEqual({ status: 'completed', resultUrl: 'data:application/json;base64,e30=' })
+    // The no-op path must not flip status to 'processing' or re-encode anything.
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      'compliance.data_export_already_completed',
+      expect.objectContaining({ exportId: 'exp-2' })
+    )
+  })
+
+  it('retries a failed export to completion', async () => {
+    // 'failed' is retryable: processDataExport performs no destructive write
+    // (collectDeveloperData is read-only), so a retry re-collects fresh and
+    // re-encodes. Drive the REAL function via the multi-select thenable rig.
+    let selectCallCount = 0
+    const exportRecord = {
+      id: 'exp-3',
+      requestType: 'data-export',
+      entityType: 'customer',
+      entityId: 'cust-3',
+      status: 'failed',
+    }
+    mockDbSelect.mockImplementation(() => {
+      selectCallCount++
+      const result = selectCallCount === 1 ? [exportRecord] : []
+      const chain: Record<string, unknown> = {}
+      const returnSelf = vi.fn(() => chain)
+      chain.from = returnSelf
+      chain.where = returnSelf
+      chain.innerJoin = returnSelf
+      chain.orderBy = returnSelf
+      chain.limit = returnSelf
+      chain.then = (resolve: (v: unknown) => void, reject?: (v: unknown) => void) =>
+        Promise.resolve(result).then(resolve, reject)
+      return chain
+    })
+    setupUpdateChain()
+
+    const result = await processDataExport('exp-3')
+
+    expect(result.status).toBe('completed')
+    expect(result.resultUrl).toContain('data:application/json;base64,')
+  })
+
+  it('throws when an export is already in progress', async () => {
+    setupSelectChain([{
+      id: 'exp-4',
+      requestType: 'data-export',
+      status: 'processing',
+    }])
+
+    await expect(processDataExport('exp-4')).rejects.toThrow('already in progress')
   })
 })
 

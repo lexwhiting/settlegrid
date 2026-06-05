@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 import { webhookEndpoints, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
 import { getTierConfig } from '@/lib/tier-config'
@@ -35,7 +35,7 @@ const createWebhookSchema = z.object({
 /** GET /api/developer/webhooks — list webhook endpoints */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `dev-webhooks:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 /** POST /api/developer/webhooks — create a webhook endpoint */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `dev-webhooks:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

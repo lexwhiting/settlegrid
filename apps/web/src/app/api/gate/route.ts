@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import { z } from 'zod'
 import { getGatePassword, getGateSecret, getGateAuthTimeoutHours, isProduction } from '@/lib/env'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { authLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -15,8 +15,7 @@ const gateSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting via Upstash Redis (consistent with other auth routes)
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(authLimiter, `gate:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many attempts. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

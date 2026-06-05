@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { consumerSchedules } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { requireConsumer } from '@/lib/middleware/auth'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 15
@@ -17,7 +17,7 @@ interface RouteContext {
 
 export async function DELETE(request: NextRequest, ctx: RouteContext) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `consumer-schedules-delete:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
@@ -64,7 +64,7 @@ export async function DELETE(request: NextRequest, ctx: RouteContext) {
 
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `consumer-schedules-patch:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

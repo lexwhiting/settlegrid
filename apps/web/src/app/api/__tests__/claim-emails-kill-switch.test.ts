@@ -9,6 +9,8 @@ const { mockCheckRateLimit, mockGetCronSecret } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
+  getClientIp: (h: Headers) =>
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
   apiLimiter: {},
   checkRateLimit: mockCheckRateLimit,
 }))

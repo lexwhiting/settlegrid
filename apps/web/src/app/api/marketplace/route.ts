@@ -3,7 +3,7 @@ import { eq, and, desc, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -44,7 +44,7 @@ const VALID_STATUSES = ['active', 'unclaimed', 'claimed'] as const
 /** GET /api/marketplace — public marketplace listing with filtering, search, and pagination */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `marketplace:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

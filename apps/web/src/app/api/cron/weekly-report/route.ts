@@ -5,7 +5,7 @@ import { tools, invocations, consumers, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail, baseEmailTemplate, escapeHtml, sanitizeSubject, dataRow, dividerLine } from '@/lib/email'
 import { hasFeature } from '@/lib/tier-config'
 import { getRedis } from '@/lib/redis'
@@ -490,7 +490,7 @@ async function sendEnhancedDevReport(
 export async function GET(request: NextRequest) {
   try {
     // Rate limit
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `cron-weekly-report:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

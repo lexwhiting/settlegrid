@@ -6,7 +6,7 @@ import { developers, processedWebhookEvents } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getStripeConnectWebhookSecret } from '@/lib/env'
-import { sdkLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getStripeClient } from '@/lib/rails'
 
 export const maxDuration = 60
@@ -29,7 +29,7 @@ export const maxDuration = 60
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(sdkLimiter, `billing-webhook-connect:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

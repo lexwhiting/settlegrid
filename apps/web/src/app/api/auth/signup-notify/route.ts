@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { developers, consumers } from '@/lib/db/schema'
 import { newSignupNotificationEmail, sendEmail } from '@/lib/email'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
@@ -28,7 +28,7 @@ const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `signup-notify:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

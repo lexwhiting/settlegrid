@@ -252,9 +252,19 @@ export async function collectDeveloperData(
 // ---- Process Data Export (GDPR Article 20) ----------------------------------
 
 /**
- * Process a pending data export request.
+ * Process a data export request.
  * Queries all developer data from the database, encodes it as a base64 data URL,
  * and stores the result in the compliance_exports record.
+ *
+ * Status machine ((E), 2026-06-05): pending → processing → completed | failed.
+ * - 'completed': re-runs are an idempotent NO-OP — returns the stored resultUrl
+ *   (symmetry with processDataDeletion; GDPR Art. 20 processors retry).
+ * - 'failed': RETRYABLE. processDataExport performs NO destructive write —
+ *   collectDeveloperData is read-only and the only state is this export's own
+ *   status row — so 'failed' implies nothing was persisted and a retry re-collects
+ *   fresh. NB: unlike processDataDeletion there is NO db.transaction here; the
+ *   retry-safety proof rests on read-only collection, not transactional atomicity.
+ * - 'processing': guarded (throws) — another run is, or appears to be, in flight.
  */
 export async function processDataExport(
   exportId: string,
@@ -275,9 +285,23 @@ export async function processDataExport(
     throw new Error(`Not a data-export request: ${record.requestType}`)
   }
 
-  if (record.status !== 'pending') {
-    throw new Error(`Export already processed: status=${record.status}`)
+  if (record.status === 'completed') {
+    // (E) idempotent no-op — the export already ran to completion. Re-runs
+    // must not throw (symmetry with processDataDeletion). Returns the stored URL.
+    logger.info('compliance.data_export_already_completed', { exportId })
+    return { status: 'completed', resultUrl: record.resultUrl ?? null }
   }
+
+  if (record.status === 'processing') {
+    // Concurrency guard: another run is (or appears to be) in flight.
+    throw new Error(`Export already in progress: ${exportId}`)
+  }
+
+  // 'pending' (first run) and 'failed' (retry) both proceed. Retry safety:
+  // processDataExport performs NO destructive write — collectDeveloperData is
+  // read-only and the only state is this export's own status row — so 'failed'
+  // implies nothing was persisted and a retry re-collects fresh. (No db.transaction;
+  // proof differs from processDataDeletion's atomicity proof — see build plan §1.6.)
 
   // Mark as processing
   await db

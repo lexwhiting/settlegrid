@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { eq, and, gt, gte, ilike, or, desc, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { mapToolToServerDetail } from '@/lib/mcp-registry/mapper'
 import { RATE_LIMIT_PREFIX } from '@/lib/mcp-registry/constants'
 import {
@@ -37,7 +37,7 @@ export const maxDuration = 60
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `${RATE_LIMIT_PREFIX}:servers:${ip}`)
     if (!rl.success) {
       return mcpErrorResponse('Too many requests', 429, 'RATE_LIMIT_EXCEEDED')

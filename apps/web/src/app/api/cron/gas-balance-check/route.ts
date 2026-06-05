@@ -17,7 +17,7 @@ import { NextRequest } from 'next/server'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail, gasWalletLowEmail } from '@/lib/email'
 import { readGasWalletBalanceEth, classifyGasBalance } from '@/lib/settlement/gas-wallet-monitor'
 
@@ -37,7 +37,7 @@ const CRITICAL_ETH = 0.0015
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `cron-gas-balance:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

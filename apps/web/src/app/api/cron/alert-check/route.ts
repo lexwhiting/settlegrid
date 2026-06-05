@@ -6,7 +6,7 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { logger } from '@/lib/logger'
 import { sendAlertEmail } from '@/lib/alert-email'
 import { getCronSecret } from '@/lib/env'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -24,7 +24,7 @@ const COOLDOWN_MS = 60 * 60 * 1000 // 1 hour cooldown
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `cron-alert-check:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

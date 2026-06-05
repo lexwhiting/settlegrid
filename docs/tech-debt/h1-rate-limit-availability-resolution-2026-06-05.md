@@ -90,6 +90,11 @@ status-guard region + docstring (panel-verified byte-stable txn body + retention
 
 ## 5. Follow-ons (documented, deliberately NOT this chunk)
 
+> **Items 1 + 2 RESOLVED 2026-06-05** by the (M)+(E) chunk — the `getClientIp` call-site migration (208
+> files) + the `processDataExport` symmetric guard both shipped (pre-build PLAN_READY + post-build panel
+> PASS/0-blocking). See `m-getclientip-migration-resolution-2026-06-05.md`. Item 3 (crashed-`processing`
+> runbook note) is unchanged; `auth.id` keying remains a separate deferred item.
+
 1. **The ~218-caller `getClientIp` migration** (DEBT #1 residual): existing call sites
    read XFF in two styles; on Vercel both resolve identically (correction #3), so this is
    consistency hygiene, not a vuln. Mechanical sweep; large blast radius; do as its own

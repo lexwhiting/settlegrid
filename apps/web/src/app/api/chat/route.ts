@@ -2,7 +2,7 @@ import { streamText, convertToModelMessages } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { errorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 
@@ -132,7 +132,7 @@ Free forever for most developers — $0, 50K ops/mo, progressive take rate, unli
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(req.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `chat:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

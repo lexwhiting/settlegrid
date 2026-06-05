@@ -11,6 +11,8 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
+  getClientIp: (h: Headers) =>
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
   apiLimiter: {},
   sdkLimiter: {},
   checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: Date.now() + 60000 }),

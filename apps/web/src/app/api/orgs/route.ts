@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { createOrganization, addMember } from '@/lib/settlement/organizations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { getOrCreateRequestId } from '@/lib/request-id'
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Require authenticated developer
     const developer = await requireDeveloper(request)
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `orgs:create:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

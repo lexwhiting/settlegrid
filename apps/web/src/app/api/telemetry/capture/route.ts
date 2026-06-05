@@ -25,7 +25,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { errorResponse, successResponse, internalErrorResponse } from '@/lib/api'
-import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import {
   EVENT_NAMES,
@@ -92,22 +92,6 @@ function telemetryLimiter() {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * First-hop IP for the rate-limit key. Mirrors the waitlist H1 fix:
- * `x-forwarded-for` is a comma-separated proxy chain; only [0] (the
- * trusted edge's view of the originating client) is meaningful.
- */
-function firstHopIp(request: NextRequest): string {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first) return first
-  }
-  const realIp = request.headers.get('x-real-ip')
-  if (realIp) return realIp.trim()
-  return 'unknown'
-}
-
-/**
  * Vercel injects `x-vercel-ip-country` on every request (ISO-3166
  * alpha-2). Falls back to `'XX'` (ISO 3166 user-assigned reserved)
  * outside Vercel so PostHog doesn't see `null` and so dashboards
@@ -152,7 +136,7 @@ export async function POST(request: NextRequest) {
     // an Upstash round-trip, but parsing first lets a flooder force
     // arbitrary CPU work on us before being blocked. Limit-first is
     // the cheaper-to-reject path.
-    const ip = firstHopIp(request)
+    const ip = getClientIp(request.headers)
     const rate = await checkRateLimit(telemetryLimiter(), `telemetry:${ip}`)
     if (!rate.success) {
       // No `Retry-After` body — 429 is self-explanatory and we don't

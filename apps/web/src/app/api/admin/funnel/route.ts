@@ -25,7 +25,7 @@
 import { NextRequest } from 'next/server'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { runFunnelQueries, type FunnelData } from '@/lib/funnel-queries'
 
@@ -46,7 +46,7 @@ interface FunnelResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `admin-funnel:${ip}`)
     if (!rateLimit.success) {
       return errorResponse(

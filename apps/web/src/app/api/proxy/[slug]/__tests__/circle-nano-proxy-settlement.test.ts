@@ -71,6 +71,8 @@ vi.mock('@/lib/settlement/circle-nano/settle', () => ({
   executeCircleNanoSettlement: H.execute,
 }))
 vi.mock('@/lib/rate-limit', () => ({
+  getClientIp: (h: Headers) =>
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
   sdkLimiter: {},
   checkRateLimit: vi.fn(async () => ({ success: true })),
 }))
