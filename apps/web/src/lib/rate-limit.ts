@@ -1,5 +1,6 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { getRedis } from './redis'
+import { logger } from './logger'
 
 export interface RateLimitResult {
   success: boolean
@@ -26,21 +27,51 @@ export function createRateLimiter(
   })
 }
 
+/** Behavior when the rate-limit store itself fails (H1, 2026-06-05). */
+export type RateLimitFailMode = 'open' | 'closed'
+
 /**
  * Checks the rate limit for a given identifier.
  * Returns a normalized result object.
+ *
+ * Availability contract (H1, 2026-06-05): a rate-limit STORE failure must
+ * not take the API down. The Upstash client already fails open on a
+ * HANGING store (built-in 5s timeout race → success:true,
+ * reason:'timeout'); this guard covers the REJECTION path (connection
+ * refused / DNS / auth / 5xx / missing env via the lazy limiters).
+ * Default failMode 'open' (founder decision 2026-06-04): log a structured
+ * operator alert and allow the request — rate limiting here is anti-abuse,
+ * not authentication (same trust stance as checkDemoRateLimit). Pass
+ * { failMode: 'closed' } for a route class where blocking on store-failure
+ * is preferable (none do today; hook only).
  */
 export async function checkRateLimit(
   limiter: Ratelimit,
-  identifier: string
+  identifier: string,
+  options?: { failMode?: RateLimitFailMode }
 ): Promise<RateLimitResult> {
-  const result = await limiter.limit(identifier)
+  const failMode = options?.failMode ?? 'open'
+  try {
+    const result = await limiter.limit(identifier)
 
-  return {
-    success: result.success,
-    limit: result.limit,
-    remaining: result.remaining,
-    reset: result.reset,
+    return {
+      success: result.success,
+      limit: result.limit,
+      remaining: result.remaining,
+      reset: result.reset,
+    }
+  } catch (err) {
+    logger.error(
+      failMode === 'open' ? 'rate_limit.fail_open' : 'rate_limit.fail_closed',
+      {
+        identifier,
+        error: err instanceof Error ? err.message : String(err),
+      }
+    )
+    // Mirrors the Upstash client's own timeout-response convention
+    // ({ limit: 0, remaining: 0, reset: 0 }) so header-forwarding callers
+    // degrade identically to the library's built-in fail-open.
+    return { success: failMode === 'open', limit: 0, remaining: 0, reset: 0 }
   }
 }
 
@@ -123,9 +154,50 @@ export async function checkTieredRateLimit(
 
   let limiter = tieredLimiterCache.get(cacheKey)
   if (!limiter) {
-    limiter = createRateLimiter(requestsPerMin, '1 m')
+    // H1: createRateLimiter eagerly calls getRedis() (requireEnv-backed) —
+    // a creation throw here sits OUTSIDE checkRateLimit's guard, so it
+    // gets the same fail-open treatment. Nothing is cached on failure;
+    // the next call retries creation.
+    try {
+      limiter = createRateLimiter(requestsPerMin, '1 m')
+    } catch (err) {
+      logger.error('rate_limit.fail_open', {
+        identifier,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return { success: true, limit: 0, remaining: 0, reset: 0 }
+    }
     tieredLimiterCache.set(cacheKey, limiter)
   }
 
   return checkRateLimit(limiter, identifier)
+}
+
+// ─── Client IP extraction ─────────────────────────────────────────────────────
+
+/**
+ * Best-effort client-IP extraction for rate-limit bucket keys.
+ *
+ * Trust model (verified against official Vercel docs, 2026-06-05 —
+ * vercel.com/docs/headers/request-headers): Vercel OVERWRITES inbound
+ * `x-forwarded-for` and "do[es] not forward external IPs … to prevent IP
+ * spoofing", so on the deploy target the left-most entry IS the
+ * edge-observed client IP and `x-real-ip` is documented identical. On a
+ * non-Vercel host without that property a visitor could spoof the bucket
+ * key — that degrades per-IP limiting to per-spoofed-IP limiting (still
+ * anti-abuse); if this code ever moves off Vercel, revisit (see
+ * docs/tech-debt/h1-rate-limit-availability-build-plan-2026-06-05.md).
+ *
+ * Returns 'unknown-ip' when neither header is usable — pooling anonymous
+ * traffic into one conservative bucket.
+ */
+export function getClientIp(headers: Headers): string {
+  const forwarded = headers.get('x-forwarded-for')
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim()
+    if (first && first.length > 0) return first
+  }
+  const real = headers.get('x-real-ip')
+  if (real && real.length > 0) return real.trim()
+  return 'unknown-ip'
 }

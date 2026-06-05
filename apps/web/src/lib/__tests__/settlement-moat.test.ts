@@ -84,6 +84,7 @@ vi.mock('@/lib/db/schema', () => ({
   auditLogs: { id: 'id', developerId: 'developer_id', ipAddress: 'ip_address', userAgent: 'user_agent', createdAt: 'created_at' },
   consumers: { id: 'id', email: 'email', supabaseUserId: 'supabase_user_id', passwordHash: 'password_hash' },
   apiKeys: { id: 'id', toolId: 'tool_id' },
+  developerApiKeys: { id: 'id', developerId: 'developer_id' },
   toolReviews: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', comment: 'comment' },
   agentIdentities: {
     id: 'id', providerId: 'provider_id', agentName: 'agent_name', identityType: 'identity_type',
@@ -641,9 +642,13 @@ describe('processDataDeletion', () => {
     })
   })
 
-  it('processes a pending deletion and returns completed', async () => {
-    // The function calls db.select() three times sequentially:
-    // 1) complianceExports record, 2) developer lookup, 3) tool IDs
+  /**
+   * Full mock rig for a deletion run that reaches the transaction.
+   * The function calls db.select() three times sequentially:
+   * 1) complianceExports record, 2) developer lookup, 3) tool IDs.
+   * Returns the hoisted txChain so tests can pin transaction steps.
+   */
+  function setupDeletionRunMocks(record: Record<string, unknown>) {
     let selectCallCount = 0
     mockDbSelect.mockImplementation(() => {
       selectCallCount++
@@ -656,13 +661,7 @@ describe('processDataDeletion', () => {
       }
       if (selectCallCount === 1) {
         // complianceExports record
-        chain.limit.mockResolvedValue([{
-          id: 'del-1',
-          requestType: 'data-deletion',
-          entityType: 'customer',
-          entityId: 'cust-1',
-          status: 'pending',
-        }])
+        chain.limit.mockResolvedValue([record])
       } else if (selectCallCount === 2) {
         // developer lookup
         chain.limit.mockResolvedValue([{ id: 'cust-1', email: 'dev@test.com' }])
@@ -676,30 +675,45 @@ describe('processDataDeletion', () => {
     setupUpdateChain()
 
     // Transaction mock: run the callback with a tx that supports all ops
-    mockDbTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
-      const txChain = {
-        update: vi.fn().mockReturnValue({
-          set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined),
-          }),
-        }),
-        delete: vi.fn().mockReturnValue({
+    const txChain = {
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue(undefined),
         }),
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]),
           }),
         }),
-      }
+      }),
+    }
+    mockDbTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
       await cb(txChain)
+    })
+    return txChain
+  }
+
+  it('processes a pending deletion and returns completed', async () => {
+    const txChain = setupDeletionRunMocks({
+      id: 'del-1',
+      requestType: 'data-deletion',
+      entityType: 'customer',
+      entityId: 'cust-1',
+      status: 'pending',
     })
 
     const result = await processDataDeletion('del-1')
 
     expect(result.status).toBe('completed')
+    // H1: pin txn step 1b (developer_api_keys erasure) + step 6
+    // (webhook_endpoints) — the two tx.delete calls on the no-tools path —
+    // so the schema mock can't silently drift again.
+    expect(txChain.delete).toHaveBeenCalledTimes(2)
   })
 
   it('throws when deletion not found', async () => {
@@ -718,14 +732,50 @@ describe('processDataDeletion', () => {
     await expect(processDataDeletion('exp-1')).rejects.toThrow('Not a data-deletion request')
   })
 
-  it('throws when deletion already processed', async () => {
+  it('returns completed as an idempotent no-op when already completed', async () => {
     setupSelectChain([{
       id: 'del-2',
       requestType: 'data-deletion',
       status: 'completed',
     }])
 
-    await expect(processDataDeletion('del-2')).rejects.toThrow('Deletion already processed')
+    const result = await processDataDeletion('del-2')
+
+    expect(result.status).toBe('completed')
+    // The no-op path must not flip status to 'processing' or touch the txn.
+    expect(mockDbUpdate).not.toHaveBeenCalled()
+    expect(mockDbTransaction).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      'compliance.data_deletion_already_completed',
+      expect.objectContaining({ exportId: 'del-2' })
+    )
+  })
+
+  it('retries a failed deletion to completion', async () => {
+    // 'failed' implies the anonymization transaction never committed
+    // (status 'completed' is set INSIDE it), so a retry runs the full body.
+    const txChain = setupDeletionRunMocks({
+      id: 'del-4',
+      requestType: 'data-deletion',
+      entityType: 'customer',
+      entityId: 'cust-1',
+      status: 'failed',
+    })
+
+    const result = await processDataDeletion('del-4')
+
+    expect(result.status).toBe('completed')
+    expect(txChain.delete).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws when a deletion is already in progress', async () => {
+    setupSelectChain([{
+      id: 'del-3',
+      requestType: 'data-deletion',
+      status: 'processing',
+    }])
+
+    await expect(processDataDeletion('del-3')).rejects.toThrow('already in progress')
   })
 })
 

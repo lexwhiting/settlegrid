@@ -330,9 +330,15 @@ export async function processDataExport(
  * Financial records (payouts, purchases, ledger_entries, settlement_batches)
  * are retained for 7-year IRS / Stripe compliance but PII is scrubbed.
  *
- * Idempotent: re-running on an already-anonymized developer is a no-op
- * for each individual step (UPDATE ... SET name = '[Deleted]' WHERE id = X
- * is safe to run twice).
+ * Status machine (H1, 2026-06-05): pending → processing → completed | failed.
+ * - 'completed': re-runs are an idempotent NO-OP (returns completed; GDPR
+ *   Art. 17 processors retry).
+ * - 'failed': RETRYABLE — all anonymization writes commit atomically in the
+ *   transaction below and 'completed' is set INSIDE it, so 'failed' implies
+ *   the transaction never committed and a retry sees pristine data.
+ * - 'processing': guarded (throws) — another run is, or appears to be, in
+ *   flight. A run that crashed mid-flight needs a manual status reset (see
+ *   the H1 capstone runbook note).
  */
 export async function processDataDeletion(
   exportId: string
@@ -351,9 +357,19 @@ export async function processDataDeletion(
     throw new Error(`Not a data-deletion request: ${record.requestType}`)
   }
 
-  if (record.status !== 'pending') {
-    throw new Error(`Deletion already processed: status=${record.status}`)
+  if (record.status === 'completed') {
+    // H1: idempotent no-op — the deletion already ran to completion.
+    logger.info('compliance.data_deletion_already_completed', { exportId })
+    return { status: 'completed' }
   }
+
+  if (record.status === 'processing') {
+    // Concurrency guard: another run is (or appears to be) in flight.
+    throw new Error(`Deletion already in progress: ${exportId}`)
+  }
+
+  // 'pending' (first run) and 'failed' (retry) both proceed — see the
+  // status-machine docstring for the retry-safety proof.
 
   const developerId = record.entityId
 

@@ -14,7 +14,7 @@
  */
 
 import type { Ratelimit } from '@upstash/ratelimit'
-import { createRateLimiter, type RateLimitResult } from './rate-limit'
+import { createRateLimiter, getClientIp, type RateLimitResult } from './rate-limit'
 import { logger } from './logger'
 
 /** Hard cap from the P4.K1 spec — 30 requests per IP per hour. */
@@ -51,35 +51,13 @@ export function __resetDemoRateLimiterForTests(): void {
 /**
  * Best-effort IP extraction from a Next.js request's headers.
  *
- * Trust model: this function ASSUMES the runtime is fronted by a
- * trusted proxy (Vercel, Cloudflare, AWS ALB) that authoritatively
- * sets `x-forwarded-for` to the real client IP at index 0, with any
- * inbound visitor-supplied entries appended to the right. On
- * Vercel — the deploy target this repo is calibrated for — this
- * holds: Vercel rewrites `x-forwarded-for` before user code runs,
- * placing the actual edge-observed IP at the head of the list.
- *
- * If you redeploy this code somewhere without that property
- * (Render, Fly.io with default config, raw Node behind a basic
- * reverse proxy), a malicious visitor can spoof the rate-limit
- * bucket key by setting their own `x-forwarded-for: trusted-ip`.
- * That degrades the demo's rate limit from "30/hr/IP" to "30/hr
- * per spoofed-IP" — still anti-abuse, just bypassable per actor.
- *
- * We take only the LEFT-most entry: with the proxy-trust model,
- * that entry is the trusted one; in the no-trust model, every
- * entry is equally untrusted, so `[0]` is no worse than `[N-1]`.
+ * H1 (2026-06-05): the P4.K1 implementation + Vercel trust-model
+ * docstring moved to the shared `getClientIp` in `./rate-limit` —
+ * the single source of truth. Re-exported here for back-compat;
+ * semantics are byte-identical (left-most XFF → x-real-ip →
+ * 'unknown-ip').
  */
-export function extractClientIp(headers: Headers): string {
-  const forwarded = headers.get('x-forwarded-for')
-  if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim()
-    if (first && first.length > 0) return first
-  }
-  const real = headers.get('x-real-ip')
-  if (real && real.length > 0) return real.trim()
-  return 'unknown-ip'
-}
+export { getClientIp as extractClientIp } from './rate-limit'
 
 /**
  * Apply the demo rate limit for an inbound request. Returns the
@@ -95,7 +73,7 @@ export function extractClientIp(headers: Headers): string {
 export async function checkDemoRateLimit(
   headers: Headers,
 ): Promise<RateLimitResult & { identifier: string }> {
-  const identifier = extractClientIp(headers)
+  const identifier = getClientIp(headers)
   try {
     const limiter = getLimiter()
     const result = await limiter.limit(`demo-kernel:${identifier}`)
