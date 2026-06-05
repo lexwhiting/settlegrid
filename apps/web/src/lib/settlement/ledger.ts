@@ -355,9 +355,13 @@ export interface RailSettlementRow {
   /** P3.K6 — optional plugin-returned cryptographic authorization artifact. */
   authorizationArtifact?: string | null
   /**
-   * Account the settlement belongs to (usually the developer's
-   * provider account). Populates the legacy `account_id` NOT NULL
-   * column so the insert satisfies the existing schema constraints.
+   * For settlement rows this is the OWNING DEVELOPER's id — the
+   * PERMANENT semantic (B4, 2026-06-04), NOT an accounts.id (the
+   * double-entry accounts table is dormant/unprovisioned). The
+   * reconciler credits real money from this column
+   * (reconcile.ts creditSettlement: developers.id = account_id),
+   * so it MUST stay a developer id. Populates the legacy
+   * `account_id` NOT NULL column.
    */
   accountId: string
   /**

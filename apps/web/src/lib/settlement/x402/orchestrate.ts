@@ -48,7 +48,7 @@ export interface ExecuteX402SettlementParams {
   /** The decoded, structurally-valid exact payload (from parseX402ExactPayload). */
   payload: X402ExactPayload
   costCents: number
-  /** Owning developer id (A1 stand-in for accountId — parity with circle-nano). */
+  /** Owning developer id — the PERMANENT settlement-row account_id semantic (B4; see RailSettlementRow.accountId). Parity with circle-nano. */
   accountId: string
   /**
    * The owning tool's id — recorded in the pending-row metadata so the B1.4

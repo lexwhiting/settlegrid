@@ -12,6 +12,7 @@ const {
   mockSettled,
   mockFailed,
   mockTx,
+  mockReturning,
   mockSql,
   mockDevelopers,
   mockTools,
@@ -27,8 +28,11 @@ const {
   mockConfirm: vi.fn(),
   mockSettled: vi.fn(),
   mockFailed: vi.fn(),
-  // F4 credit txn: tx.update(table).set({...}).where(...) — update/set chain; where resolves.
+  // F4 credit txn: tx.update(table).set({...}).where(...) — update/set chain. The
+  // developers UPDATE chains .returning({id}) (B4 zero-row detection) off where()'s
+  // return value; the tools UPDATE awaits where() directly — see beforeEach.
   mockTx: { update: vi.fn(), set: vi.fn(), where: vi.fn() },
+  mockReturning: vi.fn(),
   mockSql: vi.fn((strings: TemplateStringsArray, ...vals: unknown[]) => ({ __sql: strings, vals })),
   mockDevelopers: { id: 'developers.id', balanceCents: 'developers.balanceCents' },
   mockTools: { id: 'tools.id', totalRevenueCents: 'tools.totalRevenueCents' },
@@ -70,6 +74,9 @@ import {
   reconcileOneRow,
   reconcilePendingSettlements,
 } from '../reconcile'
+// Mocked above — imported for assertions (the B4 semantic-guard pin + log checks).
+import { eq } from 'drizzle-orm'
+import { logger } from '@/lib/logger'
 
 const FROM = `0x${'a'.repeat(40)}`
 const NONCE = `0x${'b'.repeat(64)}`
@@ -88,11 +95,16 @@ beforeEach(() => {
   mockDb.where.mockReturnValue(mockDb)
   mockDb.orderBy.mockReturnValue(mockDb)
   mockDb.limit.mockResolvedValue([])
-  // F4 credit txn plumbing.
+  // F4 credit txn plumbing. where() returns an awaitable that ALSO exposes
+  // .returning() — the developers UPDATE chains .returning({id}) (B4) while the
+  // tools UPDATE awaits where()'s return value directly.
   mockDb.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockTx))
   mockTx.update.mockReturnValue(mockTx)
   mockTx.set.mockReturnValue(mockTx)
-  mockTx.where.mockResolvedValue(undefined)
+  mockReturning.mockResolvedValue([{ id: 'dev-7' }])
+  mockTx.where.mockImplementation(() =>
+    Object.assign(Promise.resolve(undefined), { returning: mockReturning }),
+  )
 })
 
 describe('parseSettlementOperationId', () => {
@@ -249,6 +261,40 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
     expect(mockTx.update).toHaveBeenCalledTimes(1)
     expect(mockTx.update).toHaveBeenCalledWith(mockDevelopers)
+  })
+
+  it('settled + flipped but the developer UPDATE matches NO row → rolls back, logs settlement.credit_failed (never a false "credited")', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    // B4: zero rows matched — a dangling developer id (deleted developer, or a
+    // mis-attributed account_id). The credit did NOT happen and must be flagged.
+    mockReturning.mockResolvedValueOnce([])
+    const out = await reconcileOneRow(X402_ROW)
+    expect(out).toBe('settled') // the on-chain flip DID happen; only the credit is flagged
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.credit_failed',
+      expect.objectContaining({ operationId: X402_OPID, developerId: 'dev-7', amountCents: 50 }),
+      expect.any(Error),
+    )
+    expect(vi.mocked(logger.info)).not.toHaveBeenCalledWith('settlement.credited', expect.anything())
+    expect(mockTx.update).toHaveBeenCalledTimes(1) // tools update never reached (rolled back)
+  })
+
+  // B4 SEMANTIC GUARD (2026-06-04): settlement-row account_id IS the owning
+  // developer's id — the PERMANENT semantic (founder decision, option B; the A1
+  // "backfill when provisioning lands" instruction is RETIRED). The reconciler
+  // credits real money by matching developers.id = row.accountId; a "backfill"
+  // of account_id to accounts.id would zero-match that UPDATE and un-credit
+  // genuinely-collected USDC (loud since B4 — settlement.credit_failed — but
+  // still un-credited). This pin makes any re-point of the credit linkage
+  // break CI, not prod.
+  // See docs/tech-debt/b4-account-attribution-resolution-2026-06-04.md.
+  it("B4 SEMANTIC GUARD: the developer credited IS the row's account_id value", async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    const out = await reconcileOneRow(X402_ROW)
+    expect(out).toBe('settled')
+    expect(vi.mocked(eq)).toHaveBeenCalledWith(mockDevelopers.id, 'dev-7')
   })
 })
 

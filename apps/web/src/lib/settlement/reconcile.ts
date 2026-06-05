@@ -191,6 +191,13 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
  * a DB error here leaves THIS row's dev uncredited (the row is now 'settled', so a
  * later run won't re-select it) — the same non-atomicity the live path has.
  * settlement.credit_failed is the operator signal to credit manually (by operationId).
+ *
+ * B4 (2026-06-04): a developers UPDATE that matches ZERO rows (dangling developer
+ * id — a deleted developer, or a mis-attributed account_id) now throws inside the
+ * transaction → rollback → the catch logs settlement.credit_failed. Previously the
+ * empty txn committed and 'settlement.credited' logged a FALSE success. Settlement-row
+ * account_id IS the owning developer's id — the permanent semantic; see
+ * docs/tech-debt/b4-account-attribution-resolution-2026-06-04.md.
  */
 export async function creditSettlement(params: {
   developerId: string | null | undefined
@@ -212,10 +219,21 @@ export async function creditSettlement(params: {
 
   try {
     await db.transaction(async (tx) => {
-      await tx
+      const credited = await tx
         .update(developers)
         .set({ balanceCents: sql`${developers.balanceCents} + ${amountCents}`, updatedAt: new Date() })
         .where(eq(developers.id, developerId))
+        .returning({ id: developers.id })
+      if (credited.length === 0) {
+        // B4: zero rows matched ⇒ the credit DID NOT HAPPEN (dangling
+        // developer id — a deleted developer, or a mis-attributed
+        // account_id). Without this check the txn commits empty and the
+        // 'settlement.credited' log below LIES. Throw → rollback (the
+        // tools update never runs) → the catch below logs
+        // settlement.credit_failed, the documented operator signal to
+        // credit manually by operationId.
+        throw new Error(`settlement credit matched no developer row (developerId=${developerId})`)
+      }
       if (toolId) {
         await tx
           .update(tools)
