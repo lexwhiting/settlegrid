@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { developers, webhookEndpoints } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { planChangedEmail } from '@/lib/email'
@@ -35,7 +35,7 @@ const changePlanSchema = z.object({
 /** POST /api/billing/change-plan — switch an existing subscription to a different plan */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `billing-change-plan:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

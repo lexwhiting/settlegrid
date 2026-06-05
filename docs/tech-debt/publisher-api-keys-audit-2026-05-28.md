@@ -34,6 +34,16 @@
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
 
+## UPDATE 2026-06-05 — (M)+(E) chunk (see `m-getclientip-migration-resolution-2026-06-05.md`)
+
+- **DEBT #1 → CLOSED.** The H1 follow-on shipped: all **208** inline `x-forwarded-for` rate-limit
+  derivations migrated to the shared `getClientIp` helper (single source of truth; the three sentinels
+  `'unknown'`/`'anonymous'`/`'unknown-ip'` unified to `'unknown-ip'` everywhere — incl. a now-corrected
+  stale guard at `api-keys/route.ts:137`). + (E) `processDataExport` symmetric status guard. Pre-build
+  PLAN_READY + post-build panel **PASS / 0 blocking**; apps/web tsc 0 / vitest 4250 / next build 0 /
+  eslint 0; local commit (NOT pushed). The optional `auth.id` keying for authenticated routes is a
+  SEPARATE, deliberately-deferred item (never part of DEBT #1's mechanical scope).
+
 ## UPDATE 2026-06-05 — H1 chunk (see `h1-rate-limit-availability-resolution-2026-06-05.md`)
 
 - **DEBT #1 → PARTIALLY RESOLVED (surgical core shipped; follow-on documented).**

@@ -4,7 +4,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { checkRateLimit, sdkLimiter } from '@/lib/rate-limit'
+import { checkRateLimit, sdkLimiter, getClientIp } from '@/lib/rate-limit'
 import { revokeAgent, updateAgent } from '@/lib/settlement/identity'
 import { addCorsHeaders, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import type { RegisterAgentParams } from '@/lib/settlement/identity'
@@ -31,7 +31,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(sdkLimiter, `agents-revoke:${ip}`)
     if (!rl.success) {
       return addCorsHeaders(errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED'))
@@ -64,7 +64,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(sdkLimiter, `agents-update:${ip}`)
     if (!rl.success) {
       return addCorsHeaders(errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED'))

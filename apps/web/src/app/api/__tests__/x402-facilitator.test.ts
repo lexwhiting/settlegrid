@@ -31,6 +31,8 @@ const {
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
+  getClientIp: (h: Headers) =>
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
   apiLimiter: {},
   checkRateLimit: mockCheckRateLimit,
 }))
@@ -400,7 +402,7 @@ describe('POST /v1/settle', () => {
     expect(res.status).toBe(200)
     expect(mockCheckRateLimit).toHaveBeenCalledWith(
       expect.anything(),
-      'x402-facilitator-settle:unknown',
+      'x402-facilitator-settle:unknown-ip',
     )
   })
 })

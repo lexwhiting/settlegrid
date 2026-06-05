@@ -12,7 +12,7 @@ const { mockCheckRateLimit, mockGetCronSecret, mockReconcile } = vi.hoisted(() =
   mockReconcile: vi.fn(),
 }))
 
-vi.mock('@/lib/rate-limit', () => ({ apiLimiter: {}, checkRateLimit: mockCheckRateLimit }))
+vi.mock('@/lib/rate-limit', () => ({ apiLimiter: {}, checkRateLimit: mockCheckRateLimit, getClientIp: (h: Headers) => h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip' }))
 vi.mock('@/lib/env', () => ({ getCronSecret: mockGetCronSecret }))
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('@/lib/settlement/reconcile', () => ({ reconcilePendingSettlements: mockReconcile }))

@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { consumerToolBalances, tools, invocations, purchases } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -12,7 +12,7 @@ export const maxDuration = 60
 /** GET /api/consumer/subscriptions — aggregated subscription hub */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `consumer-subs:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

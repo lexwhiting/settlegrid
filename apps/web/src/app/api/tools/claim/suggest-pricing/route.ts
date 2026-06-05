@@ -9,7 +9,7 @@ import {
   errorResponse,
   internalErrorResponse,
 } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { getEffectiveCostCents, getSuggestedPricing } from '@/lib/pricing-utils'
 import { getBundlesForCategory } from '@/lib/tool-bundles'
@@ -70,7 +70,7 @@ interface PricingSuggestion {
 export async function POST(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `suggest-pricing:${ip}`)
     if (!rl.success) {
       return errorResponse(

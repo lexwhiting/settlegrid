@@ -21,7 +21,7 @@ vi.mock('@/lib/db', () => ({ db: mockDb, schema: {} }))
 vi.mock('@/lib/db/schema', () => ({
   tools: { id: 'id', name: 'name', slug: 'slug', status: 'status' },
 }))
-vi.mock('@/lib/rate-limit', () => ({ apiLimiter: {}, checkRateLimit: mockCheckRateLimit }))
+vi.mock('@/lib/rate-limit', () => ({ apiLimiter: {}, checkRateLimit: mockCheckRateLimit, getClientIp: (h: Headers) => h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip' }))
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),

@@ -3,7 +3,7 @@ import { eq, and, sql, inArray, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   TOOL_BUNDLES,
   getBundlesForCategory,
@@ -56,7 +56,7 @@ const CATEGORY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `bundles:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

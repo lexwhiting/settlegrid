@@ -2,7 +2,7 @@
 
 import { NextRequest } from 'next/server'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { checkRateLimit, sdkLimiter } from '@/lib/rate-limit'
+import { checkRateLimit, sdkLimiter, getClientIp } from '@/lib/rate-limit'
 import { getSettlementBatch } from '@/lib/settlement/sessions'
 import { addCorsHeaders, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
@@ -14,7 +14,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(sdkLimiter, `settlement-get:${ip}`)
     if (!rl.success) {
       return addCorsHeaders(errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED'))

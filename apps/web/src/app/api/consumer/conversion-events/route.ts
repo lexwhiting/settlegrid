@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { conversionEvents, tools } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 
 export const maxDuration = 60
@@ -32,7 +32,7 @@ const createConversionEventSchema = z.object({
 export async function POST(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `conv-events:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `conv-events-list:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

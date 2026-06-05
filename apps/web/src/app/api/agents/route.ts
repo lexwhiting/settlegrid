@@ -4,7 +4,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { checkRateLimit, sdkLimiter } from '@/lib/rate-limit'
+import { checkRateLimit, sdkLimiter, getClientIp } from '@/lib/rate-limit'
 import { registerAgent, listAgentsByProvider } from '@/lib/settlement/identity'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
@@ -27,7 +27,7 @@ const registerSchema = z.object({
 
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(sdkLimiter, `agents-register:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
@@ -57,7 +57,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
 
 export const GET = withCors(async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(sdkLimiter, `agents-list:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

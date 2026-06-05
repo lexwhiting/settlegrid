@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { checkRateLimit, createRateLimiter } from '@/lib/rate-limit'
+import { checkRateLimit, createRateLimiter, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { classifyWithAI, type ClassificationResult } from '@/lib/ai-classify'
 import { getSuggestedPricing } from '@/lib/pricing-utils'
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Rate limit by IP (no auth required for frictionless experience)
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(autoDetectLimiter, `auto-detect:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

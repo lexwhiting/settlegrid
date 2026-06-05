@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { developerApiKeys } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { publisherApiKeyRevokedEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
@@ -22,7 +22,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `dev-keys-revoke:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

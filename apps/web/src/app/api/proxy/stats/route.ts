@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 
 export const maxDuration = 60
@@ -19,7 +19,7 @@ export const maxDuration = 60
 export async function GET(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `proxy-stats:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

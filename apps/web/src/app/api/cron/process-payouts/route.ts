@@ -40,7 +40,7 @@ import { getCronSecret, getStripeSecretKey } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { processPayout } from '@/lib/payouts/process'
 import { calculateTakeCents } from '@/lib/pricing'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 
 export const maxDuration = 300 // 5 min — generous for ≤ ~hundreds of devs
@@ -61,7 +61,7 @@ function getStripe(): Stripe {
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `cron-process-payouts:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

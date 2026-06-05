@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { tools, invocations, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { csvEscape } from '@/lib/csv'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { hasFeature } from '@/lib/tier-config'
@@ -16,7 +16,7 @@ export const maxDuration = 60
 export async function GET(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `dev-export:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
 

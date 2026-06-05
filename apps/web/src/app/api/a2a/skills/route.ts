@@ -8,7 +8,7 @@ import {
   processPayment,
 } from '@/lib/settlement/ap2/credentials'
 import type { IntentMandate, CartMandate, PaymentMandate } from '@/lib/settlement/ap2/types'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 15
@@ -36,7 +36,7 @@ const skillRequestSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  const ip = getClientIp(req.headers)
   const rl = await checkRateLimit(apiLimiter, `a2a:skills:${ip}`)
   if (!rl.success) {
     return NextResponse.json({ error: 'Rate limited' }, { status: 429, headers: CORS_HEADERS })

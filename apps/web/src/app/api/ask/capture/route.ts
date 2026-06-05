@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { consumers } from '@/lib/db/schema'
-import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail, welcomeConsumerEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 
@@ -28,7 +28,7 @@ const captureSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
 
     // Rate limit by IP
     const rl = await checkRateLimit(captureLimiter, `ask-capture:${ip}`)

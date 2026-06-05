@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrganization, removeMember } from '@/lib/settlement/organizations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { checkPermission } from '@/lib/settlement/rbac'
@@ -20,7 +20,7 @@ export async function DELETE(
   try {
     const developer = await requireDeveloper(request)
     const { id, userId } = await params
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `orgs:members:delete:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)

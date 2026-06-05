@@ -22,7 +22,7 @@ import { NextRequest } from 'next/server'
 import { sql, and, eq, desc, gte } from 'drizzle-orm'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { kernelTelemetry } from '@/lib/db/schema'
@@ -127,10 +127,7 @@ export interface KernelHealthRails {
 }
 
 export async function GET(request: NextRequest) {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    'anonymous'
+  const ip = getClientIp(request.headers)
   const rate = await checkRateLimit(apiLimiter, `admin-kernel-health:${ip}`)
   if (!rate.success) {
     return errorResponse('Rate limited.', 429, 'RATE_LIMITED')

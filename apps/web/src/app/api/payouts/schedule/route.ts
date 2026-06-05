@@ -41,7 +41,7 @@ import {
   internalErrorResponse,
   parseBody,
 } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { getStripeClient } from '@/lib/rails'
@@ -80,7 +80,7 @@ const scheduleSchema = z.discriminatedUnion('interval', [
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `payout-schedule:${ip.split(',')[0]?.trim() ?? 'unknown'}`)
     if (!rl.success) {
       return errorResponse(

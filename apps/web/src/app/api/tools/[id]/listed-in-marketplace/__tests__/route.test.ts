@@ -48,6 +48,8 @@ vi.mock('@/lib/middleware/auth', () => ({
 vi.mock('@/lib/rate-limit', () => ({
   apiLimiter: {},
   checkRateLimit: mockCheckRateLimit,
+  getClientIp: (h: Headers) =>
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -150,7 +152,7 @@ describe('PATCH /api/tools/[id]/listed-in-marketplace — auth + rate limit', ()
       },
     )
     await PATCH(req, { params: Promise.resolve({ id: VALID_UUID }) })
-    expect(mockCheckRateLimit).toHaveBeenCalledWith(expect.anything(), 'tool-listed:unknown')
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(expect.anything(), 'tool-listed:unknown-ip')
   })
 })
 

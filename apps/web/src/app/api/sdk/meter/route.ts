@@ -4,7 +4,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, consumers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, checkTieredRateLimit, getClientIp } from '@/lib/rate-limit'
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
 import { detectFraud } from '@/lib/fraud'
 import { logger } from '@/lib/logger'
@@ -44,7 +44,7 @@ const meterSchema = z.object({
 
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
 
     // ── Tiered rate limiting: look up developer tier for the tool ────────────
     // First try flat rate limit as a fast guard

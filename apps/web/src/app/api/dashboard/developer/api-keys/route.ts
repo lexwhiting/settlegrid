@@ -6,7 +6,7 @@ import { developerApiKeys } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { generatePublisherApiKey } from '@/lib/crypto'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { publisherApiKeyCreatedEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
@@ -30,7 +30,7 @@ const createKeySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `dev-keys-list:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `dev-keys-create:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     try {
       const template = publisherApiKeyCreatedEmail(auth.email, prefix, {
         label: body.label,
-        ip: ip !== 'unknown' ? ip : undefined,
+        ip: ip !== 'unknown-ip' ? ip : undefined,
         userAgent: request.headers.get('user-agent') ?? undefined,
       })
       sendNotificationEmail({

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { desc, sql, gte, count } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, invocations } from '@/lib/db/schema'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 15
@@ -34,7 +34,7 @@ function getToolTypeLabel(toolType: string): string {
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `activity:${ip}`)
     if (!rl.success) {
       return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })

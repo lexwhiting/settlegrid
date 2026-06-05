@@ -8,11 +8,11 @@
 import { NextRequest } from 'next/server'
 import { EXPERIMENTS } from '@/lib/experiments'
 import { successResponse, errorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `admin-experiments:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

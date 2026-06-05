@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
-import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 10
@@ -46,7 +46,7 @@ export async function GET(
 ) {
   try {
     const { slug } = await params
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
 
     const rl = await checkRateLimit(widgetLimiter, `widget:${ip}`)
     if (!rl.success) {

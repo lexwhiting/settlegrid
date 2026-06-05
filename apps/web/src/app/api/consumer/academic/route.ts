@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { consumers } from '@/lib/db/schema'
-import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 
@@ -129,7 +129,7 @@ function academicWelcomeEmail(email: string, institutionName: string): { subject
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
 
     // Rate limit
     const rl = await checkRateLimit(academicLimiter, `academic:${ip}`)

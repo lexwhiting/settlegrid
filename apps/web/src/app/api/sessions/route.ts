@@ -4,7 +4,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { checkRateLimit, sdkLimiter } from '@/lib/rate-limit'
+import { checkRateLimit, sdkLimiter, getClientIp } from '@/lib/rate-limit'
 import { createSession } from '@/lib/settlement/sessions'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
@@ -21,7 +21,7 @@ const createSessionSchema = z.object({
 
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(sdkLimiter, `session-create:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

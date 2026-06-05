@@ -9,7 +9,7 @@ import {
   errorResponse,
   internalErrorResponse,
 } from '@/lib/api'
-import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { authLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
@@ -56,8 +56,7 @@ export async function POST(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
     // Rate limit: use authLimiter (5/min) to prevent brute-force token guessing
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(authLimiter, `tools-claim:${ip}`)
     if (!rl.success) {
       return errorResponse(

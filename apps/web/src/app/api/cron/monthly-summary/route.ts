@@ -5,7 +5,7 @@ import { eq, sql, and } from 'drizzle-orm'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getCronSecret } from '@/lib/env'
 import { logger } from '@/lib/logger'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
 import type { MonthlySummaryData } from '@/lib/email'
@@ -24,7 +24,7 @@ export const maxDuration = 60
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `cron-monthly-summary:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

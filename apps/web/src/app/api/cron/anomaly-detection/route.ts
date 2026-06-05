@@ -5,7 +5,7 @@ import { tools, invocations, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { getCronSecret } from '@/lib/env'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
 import { notifyDeveloper } from '@/lib/notifications'
 import { baseEmailTemplate } from '@/lib/email'
@@ -40,7 +40,7 @@ interface AnomalyResult {
  */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `cron-anomaly:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 

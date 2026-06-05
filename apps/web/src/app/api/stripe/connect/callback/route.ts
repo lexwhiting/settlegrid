@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { getAppUrl } from '@/lib/env'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { stripeConnectCompleteEmail, sendEmail } from '@/lib/email'
 import { createStripeRailAdapter } from '@settlegrid/mcp'
 import type { StripeClient, OnboardingStatusCode } from '@settlegrid/mcp'
@@ -42,7 +42,7 @@ function toLegacyStatus(code: OnboardingStatusCode): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `stripe-callback:${ip}`)
     if (!rateLimit.success) {
       const appUrl = getAppUrl()

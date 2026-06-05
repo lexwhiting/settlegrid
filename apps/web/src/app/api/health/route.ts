@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getHealthRedisUrl, getHealthRedisToken } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +10,7 @@ export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `health:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

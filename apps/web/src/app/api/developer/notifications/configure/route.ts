@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
 import type { NotificationWebhooks } from '@/lib/notifications'
 
@@ -28,7 +28,7 @@ const configureSchema = z.object({
 /** GET /api/developer/notifications/configure — get current webhook config */
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `dev-notif-configure-get:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 /** POST /api/developer/notifications/configure — set Slack/Discord webhook URLs */
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rl = await checkRateLimit(apiLimiter, `dev-notif-configure:${ip}`)
     if (!rl.success) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')

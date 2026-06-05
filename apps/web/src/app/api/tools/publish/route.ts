@@ -5,7 +5,7 @@ import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { tools, developers, developerApiKeys } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
@@ -197,7 +197,7 @@ export async function PUT(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
     // Rate limit by IP
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `tools-publish:${ip}`)
     if (!rateLimit.success) {
       return errorResponse(

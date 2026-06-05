@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, schema } from '@/lib/db'
 import { eq, desc } from 'drizzle-orm'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
@@ -17,7 +17,7 @@ function escapeXml(str: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  const ip = getClientIp(req.headers)
   const rl = await checkRateLimit(apiLimiter, `feed:rss:${ip}`)
   if (!rl.success) {
     return new NextResponse('Rate limited', { status: 429 })

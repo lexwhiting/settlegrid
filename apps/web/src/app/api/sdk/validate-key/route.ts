@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { apiKeys, tools, consumerToolBalances, developers } from '@/lib/db/schema'
 import { hashApiKey } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { sdkLimiter, checkRateLimit, checkTieredRateLimit } from '@/lib/rate-limit'
+import { sdkLimiter, checkRateLimit, checkTieredRateLimit, getClientIp } from '@/lib/rate-limit'
 import { isIpInAllowlist } from '@/lib/ip-validation'
 import { isIpBlocked, trackFailedAuth } from '@/lib/fraud'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
@@ -21,7 +21,7 @@ const validateKeySchema = z.object({
 
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
 
     // Check if IP is blocked due to excessive failed auth attempts
     const blocked = await isIpBlocked(ip)

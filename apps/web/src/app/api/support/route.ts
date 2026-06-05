@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { authLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { authLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getResendApiKey } from '@/lib/env'
 import { sanitizeSubject } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -27,7 +27,7 @@ function escapeHtml(str: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(req.headers)
     const rateLimit = await checkRateLimit(authLimiter, `support:${ip}`)
     if (!rateLimit.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')

@@ -37,7 +37,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { kernelTelemetry } from '@/lib/db/schema'
 import { errorResponse, successResponse, internalErrorResponse } from '@/lib/api'
-import { createRateLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { DEFAULT_POSTHOG_HOST } from '@/lib/posthog'
 
@@ -123,10 +123,7 @@ function constantTimeEquals(a: string, b: string): boolean {
 
 export async function POST(request: NextRequest) {
   // Rate limit by first-hop IP.
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    'anonymous'
+  const ip = getClientIp(request.headers)
   const rate = await checkRateLimit(limiter, `kernel-telemetry:${ip}`)
   if (!rate.success) {
     return errorResponse('Too many telemetry events.', 429, 'RATE_LIMITED')

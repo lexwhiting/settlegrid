@@ -12,7 +12,7 @@ import {
   ParseBodyError,
 } from '@/lib/api'
 import { getAppUrl } from '@/lib/env'
-import { apiLimiter, checkRateLimit } from '@/lib/rate-limit'
+import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { createStripeRailAdapter } from '@settlegrid/mcp'
 import type { StripeClient } from '@settlegrid/mcp'
@@ -65,7 +65,7 @@ const connectSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+    const ip = getClientIp(request.headers)
     const rateLimit = await checkRateLimit(apiLimiter, `stripe-connect:${ip}`)
     if (!rateLimit.success) {
       return errorResponse(
