@@ -33,6 +33,9 @@ export async function PATCH(
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `consumer-alerts:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const { id } = await params
     if (!UUID_RE.test(id)) {
       return errorResponse('Invalid alert ID.', 400, 'INVALID_ID')
@@ -94,6 +97,9 @@ export async function DELETE(
     try { auth = await requireConsumer(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
+
+    const userRl = await checkRateLimit(apiLimiter, `consumer-alerts:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const { id } = await params
     if (!UUID_RE.test(id)) {

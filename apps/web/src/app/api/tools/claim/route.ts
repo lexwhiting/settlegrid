@@ -91,6 +91,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userRl = await checkRateLimit(authLimiter, `tools-claim:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse(
+        'Too many requests. Please try again later.',
+        429,
+        'RATE_LIMIT_EXCEEDED',
+        requestId
+      )
+    }
+
     // Parse and validate the body
     const body = await parseBody(request, claimSchema)
 

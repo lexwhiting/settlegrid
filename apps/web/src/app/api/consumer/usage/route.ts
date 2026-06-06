@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `usage:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const url = new URL(request.url)
     const toolId = url.searchParams.get('toolId')
     const daysParam = url.searchParams.get('days')

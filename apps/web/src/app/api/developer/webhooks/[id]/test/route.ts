@@ -38,6 +38,9 @@ export async function POST(
       )
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-webhook-test:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     // Look up the endpoint (must belong to the authenticated developer)
     const [endpoint] = await db
       .select({

@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `admin-metrics:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     if (!ADMIN_EMAILS.includes(auth.email)) {
       return errorResponse('Forbidden.', 403, 'FORBIDDEN')
     }

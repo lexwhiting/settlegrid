@@ -38,6 +38,11 @@ export async function POST(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `data-export:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     // ── Tier gate: data_export requires Scale+ ─────────────────────────
     const [developer] = await db
       .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })

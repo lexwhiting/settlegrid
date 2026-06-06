@@ -29,6 +29,11 @@ export async function PATCH(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-payout-settings:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const body = await parseBody(request, updatePayoutSettingsSchema)
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }

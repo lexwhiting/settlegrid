@@ -106,6 +106,17 @@ async function requireAdmin(request: NextRequest) {
     const message = err instanceof Error ? err.message : 'Authentication required'
     return { ok: false as const, response: errorResponse(message, 401, 'UNAUTHORIZED') }
   }
+  const userRl = await checkRateLimit(apiLimiter, `admin-signup-followup:uid:${auth.id}`)
+  if (!userRl.success) {
+    return {
+      ok: false as const,
+      response: errorResponse(
+        'Too many requests. Please try again later.',
+        429,
+        'RATE_LIMIT_EXCEEDED',
+      ),
+    }
+  }
   if (!ADMIN_EMAILS.includes(auth.email)) {
     return {
       ok: false as const,

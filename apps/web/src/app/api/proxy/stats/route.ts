@@ -33,6 +33,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `proxy-stats:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     // Get all tool IDs belonging to this developer that have proxy endpoints
     const developerTools = await db
       .select({

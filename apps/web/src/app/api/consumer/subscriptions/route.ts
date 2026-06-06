@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `consumer-subs:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     // All tool balances with tool info
     const toolBalances = await db
       .select({

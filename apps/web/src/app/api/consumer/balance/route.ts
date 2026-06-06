@@ -25,6 +25,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `balance:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     // Fetch per-tool balances in parallel with the global balance so the
     // consumer dashboard has a complete picture without a second round-trip
     // (consumer-audit #15).

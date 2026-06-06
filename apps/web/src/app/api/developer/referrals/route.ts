@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-referrals:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const devReferrals = await db
       .select({
         id: referrals.id,
@@ -62,6 +65,9 @@ export async function POST(request: NextRequest) {
     try { auth = await requireDeveloper(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
+
+    const userRl = await checkRateLimit(apiLimiter, `dev-referrals:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const body = await parseBody(request, createReferralSchema)
 

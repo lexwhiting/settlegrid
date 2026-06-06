@@ -66,6 +66,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `chargeback-unpause:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse(
+        'Too many requests. Please try again later.',
+        429,
+        'RATE_LIMIT_EXCEEDED',
+      )
+    }
+
     if (!ADMIN_EMAILS.includes(auth.email)) {
       // Generic 403 — do not leak the gate's existence to non-admins.
       return errorResponse('Forbidden.', 403, 'FORBIDDEN')

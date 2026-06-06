@@ -207,6 +207,27 @@ describe('POST /api/orgs', () => {
     expect(res.status).toBe(429)
   })
 
+  it('returns 429 when the per-user (uid) rate limit trips post-auth', async () => {
+    mockCheckRateLimit
+      .mockResolvedValueOnce({ success: true, limit: 100, remaining: 99, reset: 0 })
+      .mockResolvedValueOnce({ success: false, limit: 100, remaining: 0, reset: 0 })
+
+    const req = makeRequest('http://localhost:3005/api/orgs', 'POST', {
+      name: 'Uid Limited Corp',
+      slug: 'uid-limited',
+      billingEmail: 'billing@uidlimited.com',
+    })
+
+    const res = await createOrg(req)
+
+    expect(res.status).toBe(429)
+    expect(mockCheckRateLimit).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'orgs:create:uid:dev-123'
+    )
+  })
+
   it('returns 401 when not authenticated', async () => {
     mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required. Please sign in.'))
 

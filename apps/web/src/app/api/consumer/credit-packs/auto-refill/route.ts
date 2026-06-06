@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `consumer-auto-refill:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const [consumer] = await db
       .select({
         autoRefillPackId: consumers.autoRefillPackId,
@@ -78,6 +81,9 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
+
+    const userRl = await checkRateLimit(apiLimiter, `consumer-auto-refill-set:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     let parsed: z.infer<typeof autoRefillSchema>
     try {

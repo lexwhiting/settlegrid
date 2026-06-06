@@ -93,6 +93,7 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import { PUT } from '../route'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 const VALID_BODY = {
   name: 'My Tool',
@@ -278,6 +279,27 @@ describe('PUT /api/tools/publish — auth via developer_api_keys', () => {
 
     expect(res.status).toBe(401)
     expect(data.code).toBe('UNAUTHORIZED')
+    expect(mockValidate).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/tools/publish — per-user (uid) rate limit', () => {
+  it('returns 429 keyed on the API-key developer id when the uid limit trips', async () => {
+    mockAuth()
+    vi.mocked(checkRateLimit)
+      .mockResolvedValueOnce({ success: true, limit: 100, remaining: 99, reset: 0 })
+      .mockResolvedValueOnce({ success: false, limit: 100, remaining: 0, reset: 0 })
+
+    const res = await PUT(makeRequest())
+    const data = await res.json()
+
+    expect(res.status).toBe(429)
+    expect(data.code).toBe('RATE_LIMIT_EXCEEDED')
+    expect(vi.mocked(checkRateLimit)).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'tools-publish:uid:dev-123'
+    )
     expect(mockValidate).not.toHaveBeenCalled()
   })
 })

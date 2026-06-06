@@ -114,6 +114,7 @@ vi.mock('drizzle-orm', () => ({
 
 import { GET as listPayouts } from '@/app/api/payouts/route'
 import { POST as triggerPayout } from '@/app/api/payouts/trigger/route'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 function makeRequest(url: string, method: string = 'GET', body?: unknown): NextRequest {
   const init: { method: string; headers: Record<string, string>; body?: string } = {
@@ -174,6 +175,32 @@ describe('List Payouts (GET /api/payouts)', () => {
     const response = await listPayouts(request)
 
     expect(response.status).toBe(401)
+  })
+
+  it('returns 429 when the per-user (uid) rate limit trips', async () => {
+    vi.mocked(checkRateLimit)
+      .mockResolvedValueOnce({ success: true, limit: 100, remaining: 99, reset: 0 })
+      .mockResolvedValueOnce({ success: false, limit: 100, remaining: 0, reset: 0 })
+
+    const request = makeRequest('/api/payouts')
+    const response = await listPayouts(request)
+
+    expect(response.status).toBe(429)
+    expect(vi.mocked(checkRateLimit)).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'payouts-list:uid:dev-123'
+    )
+  })
+
+  it('never reaches the uid rate-limit layer when auth fails', async () => {
+    mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required.'))
+
+    const request = makeRequest('/api/payouts')
+    const response = await listPayouts(request)
+
+    expect(response.status).toBe(401)
+    expect(vi.mocked(checkRateLimit)).toHaveBeenCalledTimes(1)
   })
 })
 

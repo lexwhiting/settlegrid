@@ -36,6 +36,11 @@ export async function DELETE(
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-keys-revoke:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const { id } = await params
     if (!UUID_REGEX.test(id)) {
       return errorResponse('Invalid key ID format.', 400, 'INVALID_ID')

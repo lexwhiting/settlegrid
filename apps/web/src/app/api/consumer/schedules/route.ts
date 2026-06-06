@@ -98,6 +98,9 @@ export async function GET(request: NextRequest) {
 
     const consumer = await requireConsumer(request)
 
+    const userRl = await checkRateLimit(apiLimiter, `consumer-schedules-list:uid:${consumer.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const schedules = await db
       .select({
         id: consumerSchedules.id,
@@ -137,6 +140,10 @@ export async function POST(request: NextRequest) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const consumer = await requireConsumer(request)
+
+    const userRl = await checkRateLimit(apiLimiter, `consumer-schedules-create:uid:${consumer.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const body = await parseBody(request, createScheduleSchema)
 
     // Validate cron expression

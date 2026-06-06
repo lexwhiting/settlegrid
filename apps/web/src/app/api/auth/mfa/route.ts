@@ -25,6 +25,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `mfa-status:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const supabase = createSupabaseFromRequest(request)
     const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
 
@@ -63,10 +68,16 @@ export async function POST(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
+    let auth
     try {
-      await requireDeveloper(request)
+      auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `mfa-enroll:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     const supabase = createSupabaseFromRequest(request)
@@ -109,6 +120,11 @@ export async function PUT(request: NextRequest) {
       auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `mfa-verify:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     const body = await parseBody(request, verifySchema)
@@ -173,6 +189,11 @@ export async function DELETE(request: NextRequest) {
       auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `mfa-unenroll:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     // DELETE body parsing — read from URL search params as fallback
