@@ -29,6 +29,9 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `consumer-alerts:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const alerts = await db
       .select({
         id: consumerAlerts.id,
@@ -63,6 +66,9 @@ export async function POST(request: NextRequest) {
     try { auth = await requireConsumer(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
+
+    const userRl = await checkRateLimit(apiLimiter, `consumer-alerts:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const body = await parseBody(request, createAlertSchema)
 

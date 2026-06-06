@@ -276,6 +276,22 @@ describe('Consumer Balance (GET /api/consumer/balance)', () => {
     expect(data.balances[0].balanceCents).toBe(5000)
     expect(data.balances[0].toolName).toBe('Test Tool')
   })
+
+  it('returns 429 when the per-user (uid) rate limit trips', async () => {
+    mockCheckRateLimit
+      .mockResolvedValueOnce({ success: true, limit: 5, remaining: 4, reset: 0 })
+      .mockResolvedValueOnce({ success: false, limit: 5, remaining: 0, reset: 0 })
+
+    const request = makeRequest('/api/consumer/balance')
+    const response = await getBalance(request)
+
+    expect(response.status).toBe(429)
+    expect(mockCheckRateLimit).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'balance:uid:con-123'
+    )
+  })
 })
 
 describe('Consumer Usage (GET /api/consumer/usage)', () => {

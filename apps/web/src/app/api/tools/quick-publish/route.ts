@@ -124,6 +124,11 @@ export async function POST(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `quick-publish:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     const body = await parseBody(request, quickPublishSchema)
 
     // Validate category if provided

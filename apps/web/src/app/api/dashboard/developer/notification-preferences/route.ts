@@ -54,6 +54,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-notif-prefs-get:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const [developer] = await db
       .select({ notificationPreferences: developers.notificationPreferences })
       .from(developers)
@@ -86,6 +91,11 @@ export async function PATCH(request: NextRequest) {
       auth = await requireDeveloper(request)
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `dev-notif-prefs-patch:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     const body = await parseBody(request, notificationPreferencesSchema)

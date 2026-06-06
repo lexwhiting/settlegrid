@@ -149,6 +149,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `tools-list:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     const developerTools = await db
       .select({
         id: tools.id,
@@ -202,6 +207,11 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `tools-create:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
     const body = await parseBody(request, createToolSchema)

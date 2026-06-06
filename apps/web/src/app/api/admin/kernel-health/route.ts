@@ -141,6 +141,10 @@ export async function GET(request: NextRequest) {
     // avoid leaking the surface to non-admins.
     return errorResponse('Not Found.', 404, 'NOT_FOUND')
   }
+  const userRl = await checkRateLimit(apiLimiter, `admin-kernel-health:uid:${auth.id}`)
+  if (!userRl.success) {
+    return errorResponse('Rate limited.', 429, 'RATE_LIMITED')
+  }
   if (!ADMIN_EMAILS.includes(auth.email)) {
     return errorResponse('Not Found.', 404, 'NOT_FOUND')
   }

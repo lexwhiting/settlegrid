@@ -101,6 +101,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `payout-schedule:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse(
+        'Too many requests. Please try again later.',
+        429,
+        'RATE_LIMIT_EXCEEDED',
+      )
+    }
+
     const body = (await parseBody(request, scheduleSchema)) as DesiredPayoutSchedule
 
     // Look up the developer's Stripe Connect ID + cached schedule.

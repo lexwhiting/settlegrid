@@ -26,6 +26,11 @@ export async function DELETE(
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `orgs:members:delete:uid:${developer.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     const org = await getOrganization(id)
     if (!org) {
       return errorResponse('Organization not found', 404, 'NOT_FOUND', requestId)

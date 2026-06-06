@@ -45,6 +45,11 @@ export async function PATCH(
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `admin-review-mod:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     if (!ADMIN_EMAILS.includes(auth.email)) {
       return errorResponse('Forbidden. Admin access required.', 403, 'FORBIDDEN')
     }

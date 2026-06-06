@@ -34,6 +34,31 @@
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
 
+## UPDATE 2026-06-06 — (N) chunk (see `n-authid-keying-resolution-2026-06-06.md`)
+
+- **DEBT #1 → FULLY CLOSED (all three sketch parts now shipped: a=H1 fail-open, b=M getClientIp,
+  c=N auth.id keying).** Sub-part **#1c** — *"for authenticated routes, key on `auth.id` after auth"* —
+  is now done: a post-auth, identity-keyed rate-limit layer added at **122 guard sites across 95
+  session-authenticated route files** (the two-layer model: pre-auth IP limit untouched + post-auth
+  per-user cap, each reusing the handler's existing limiter — `apiLimiter`, or `authLimiter` for
+  `tools/claim`). D1 scope = session-auth routes only (rails / SDK / `proxy/[slug]` / `cron/*` OUT;
+  `tools/[id]/health` excluded as optional-auth/anonymous-bypassable). Insert-only (sole modified line:
+  the `auth/mfa` POST hoist+capture). Pre-build PLAN_READY (R1→R2, 0 blocking) → machine gates G1–G6 →
+  post-build panel **PASS / 0 blocking / 0 findings** → certification **CERTIFIED / 0 defects**;
+  apps/web tsc 0 / vitest **4256** / next build 0 / eslint 0; packages/mcp untouched 1896/1; local
+  commit (NOT pushed). **Fixes** distributed-authenticated-abuser IP-rotation evasion + per-user
+  accountability; **does NOT fix** shared-NAT collective throttling (the IP layer keeps its numbers →
+  follow-up **F1**).
+- **New tracked follow-ups (docs-only, opened by this chunk):**
+  - **F1 (deferred)** — NAT-fairness IP-raise on session routes. Costed: new limiter export →
+    ~84-test-file mock sweep + a deliberate flood-posture loosening. Do as its own chunk if NAT
+    throttling is observed.
+  - **F2 (observation, settlement surface, UNTOUCHED)** — `sdk/meter:108` keys its tiered limit on
+    client-supplied `body.consumerId` (schema-validated uuid, not matched to the key before the limit
+    call). Bounded by the 1000/min IP layer. Needs its own trace + funds-aware chunk.
+  - **F3 (hygiene candidate)** — `lib/middleware/auth.ts:155 requireApiKey` has zero route callers (dead
+    export; the `proxy/[slug]:93` comment references it as a contrast). Removal is a separate decision.
+
 ## UPDATE 2026-06-05 — (M)+(E) chunk (see `m-getclientip-migration-resolution-2026-06-05.md`)
 
 - **DEBT #1 → CLOSED.** The H1 follow-on shipped: all **208** inline `x-forwarded-for` rate-limit

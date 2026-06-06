@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `audit-export:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     // ── Tier gate: audit_logs requires Scale+ ──────────────────────────
     const [developer] = await db
       .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })

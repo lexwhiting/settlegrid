@@ -44,6 +44,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-usage:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     // Get developer's tier and founding member status
     const [developer] = await db
       .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })

@@ -34,6 +34,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `keys-list:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const keys = await db
       .select({
         id: apiKeys.id,
@@ -69,6 +74,11 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `keys-create:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     const body = await parseBody(request, createKeySchema)

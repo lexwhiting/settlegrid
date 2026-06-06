@@ -43,6 +43,9 @@ export async function DELETE(
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-webhooks:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const deleted = await db
       .delete(webhookEndpoints)
       .where(
@@ -91,6 +94,9 @@ export async function PATCH(
     try { auth = await requireDeveloper(request) } catch (err) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
+
+    const userRl = await checkRateLimit(apiLimiter, `dev-webhooks-patch:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     // ── Tier gate: custom_webhook_headers requires Scale+ ──────────
     const [developer] = await db

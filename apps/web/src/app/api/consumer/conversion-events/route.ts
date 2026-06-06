@@ -46,6 +46,11 @@ export async function POST(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `conv-events:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     const body = await parseBody(request, createConversionEventSchema)
 
     // If toolId provided, verify it exists
@@ -108,6 +113,11 @@ export async function GET(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `conv-events-list:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
     const url = new URL(request.url)

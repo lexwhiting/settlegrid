@@ -78,6 +78,11 @@ export async function PUT(
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-tool-endpoint:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     const { id } = await params
     if (!UUID_REGEX.test(id)) {
       return errorResponse('Invalid tool ID format.', 400, 'INVALID_ID', requestId)
@@ -165,6 +170,11 @@ export async function GET(
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-tool-endpoint:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     const { id } = await params
     if (!UUID_REGEX.test(id)) {
       return errorResponse('Invalid tool ID format.', 400, 'INVALID_ID', requestId)
@@ -228,6 +238,11 @@ export async function DELETE(
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED', requestId)
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `dev-tool-endpoint:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
     const { id } = await params

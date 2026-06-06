@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-achievements:uid:${auth.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     // Check for newly qualified achievements (non-blocking side effect)
     const newlyUnlocked = await checkAndUnlockAchievements(auth.id)
 

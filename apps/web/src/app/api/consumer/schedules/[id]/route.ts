@@ -22,6 +22,10 @@ export async function DELETE(request: NextRequest, ctx: RouteContext) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const consumer = await requireConsumer(request)
+
+    const userRl = await checkRateLimit(apiLimiter, `consumer-schedules-delete:uid:${consumer.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const { id } = await ctx.params
 
     // Validate UUID format
@@ -69,6 +73,10 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     const consumer = await requireConsumer(request)
+
+    const userRl = await checkRateLimit(apiLimiter, `consumer-schedules-patch:uid:${consumer.id}`)
+    if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+
     const { id } = await ctx.params
 
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

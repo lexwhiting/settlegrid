@@ -42,6 +42,11 @@ export async function GET(request: NextRequest) {
       return errorResponse(message, 401, 'UNAUTHORIZED')
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `dev-notif-configure-get:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const [developer] = await db
       .select({ notificationWebhooks: developers.notificationWebhooks })
       .from(developers)
@@ -75,6 +80,11 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Authentication required'
       return errorResponse(message, 401, 'UNAUTHORIZED')
+    }
+
+    const userRl = await checkRateLimit(apiLimiter, `dev-notif-configure:uid:${auth.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     // ── Tier gate: slack_notifications requires Builder+ ──────────────

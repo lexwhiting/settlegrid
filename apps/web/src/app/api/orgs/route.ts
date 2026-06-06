@@ -39,6 +39,11 @@ export async function POST(request: NextRequest) {
       return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
+    const userRl = await checkRateLimit(apiLimiter, `orgs:create:uid:${developer.id}`)
+    if (!userRl.success) {
+      return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
+    }
+
     // ── Tier gate: team_access requires Scale+ ─────────────────────────
     const [dev] = await db
       .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
