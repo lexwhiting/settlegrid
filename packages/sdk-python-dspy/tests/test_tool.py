@@ -108,7 +108,7 @@ class TestCallable:
     @respx.mock(base_url=API_URL)
     def test_sync_callable_meters(self, respx_mock) -> None:
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -123,6 +123,8 @@ class TestCallable:
         assert search("hello") == "results for hello"
         assert validate_route.call_count == 1
         assert meter_route.call_count == 1
+        # F2 contract: the buyer key rides the X-Api-Key header
+        assert meter_route.calls.last.request.headers.get("x-api-key") == BUYER_KEY
         sg.close()
 
     def test_preserves_introspection(self) -> None:
@@ -152,7 +154,7 @@ class TestDspyTool:
         """DSPy's ``Tool.__call__`` reads ``self.func`` live, so a
         single re-bind meters the sync dispatch path."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -180,7 +182,7 @@ class TestDspyTool:
         inspecting dspy/adapters/types/tool.py). The single rebind we
         do should therefore meter the async dispatch path too."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -243,7 +245,7 @@ class TestStubbedAgent:
         registry and invokes ``tool(**args)`` (the public sync
         dispatch). Stub that loop without an LM."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -283,7 +285,7 @@ class TestConfigure:
     def test_configure_then_bare_signature(self, respx_mock) -> None:
         sg = _sdk()
         configure(sg)
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(

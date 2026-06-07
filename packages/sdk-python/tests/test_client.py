@@ -106,7 +106,7 @@ class TestValidateKeySync:
     @respx.mock(base_url=API_URL)
     def test_valid_key_round_trip(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=Response(
                 200,
                 json={
@@ -128,7 +128,7 @@ class TestValidateKeySync:
     @respx.mock(base_url=API_URL)
     def test_caches_result(self, respx_mock):
         sg = _make_sdk()
-        route = respx_mock.post("/api/sdk/keys/validate").mock(
+        route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=Response(
                 200,
                 json={
@@ -152,7 +152,7 @@ class TestValidateKeySync:
     def test_caches_invalid_result_too(self, respx_mock):
         """Negative caching — bad keys cached so typo storms don't hammer API."""
         sg = _make_sdk()
-        route = respx_mock.post("/api/sdk/keys/validate").mock(
+        route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=Response(
                 200,
                 json={
@@ -180,7 +180,7 @@ class TestValidateKeySync:
     @respx.mock(base_url=API_URL)
     def test_clear_cache_forces_refetch(self, respx_mock):
         sg = _make_sdk()
-        route = respx_mock.post("/api/sdk/keys/validate").mock(
+        route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=Response(
                 200,
                 json={
@@ -208,7 +208,7 @@ class TestValidateKeyAsync:
     @respx.mock(base_url=API_URL)
     async def test_valid_key_round_trip(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=Response(
                 200,
                 json={
@@ -228,7 +228,7 @@ class TestValidateKeyAsync:
     @respx.mock(base_url=API_URL)
     async def test_caches_result(self, respx_mock):
         sg = _make_sdk()
-        route = respx_mock.post("/api/sdk/keys/validate").mock(
+        route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=Response(
                 200,
                 json={

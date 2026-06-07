@@ -121,7 +121,7 @@ class TestPlainCallable:
     @respx.mock(base_url=API_URL)
     def test_sync_callable_runs_handler_and_meters(self, respx_mock) -> None:
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -137,6 +137,8 @@ class TestPlainCallable:
         assert result == "results for python"
         assert validate_route.call_count == 1
         assert meter_route.call_count == 1
+        # F2 contract: the buyer key rides the X-Api-Key header
+        assert meter_route.calls.last.request.headers.get("x-api-key") == BUYER_KEY
         sg.close()
 
     @respx.mock(base_url=API_URL)
@@ -144,7 +146,7 @@ class TestPlainCallable:
         self, respx_mock
     ) -> None:
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -163,7 +165,7 @@ class TestPlainCallable:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_handler_raise_skips_meter(self, respx_mock) -> None:
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -252,7 +254,7 @@ class TestLangChainAtTool:
         invocation flow then routes through metering.
         """
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -282,7 +284,7 @@ class TestLangChainAtTool:
     @respx.mock(base_url=API_URL)
     async def test_at_tool_async_composes(self, respx_mock) -> None:
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -309,7 +311,7 @@ class TestBaseToolWrapping:
     @respx.mock(base_url=API_URL)
     def test_wraps_structured_tool_in_place(self, respx_mock) -> None:
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -338,7 +340,7 @@ class TestBaseToolWrapping:
     async def test_wraps_async_structured_tool(self, respx_mock) -> None:
         """Covers the ``coroutine`` slot wrapping path in _wrap_basetool."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -447,7 +449,7 @@ class TestHostileReviewRegressions:
         Previous logic skipped if the slot's function type didn't match
         a hardcoded check; now it wraps unconditionally."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -498,7 +500,7 @@ class TestConfigureDefaultClient:
         sg = _sdk()
         configure(sg)
 
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -561,7 +563,7 @@ class TestConfigureDefaultClient:
 
         with respx.mock(base_url=explicit_url) as explicit_router, \
                 respx.mock(base_url=default_url, assert_all_called=False) as default_router:
-            explicit_validate = explicit_router.post("/api/sdk/keys/validate").mock(
+            explicit_validate = explicit_router.post("/api/sdk/validate-key").mock(
                 return_value=_validate_response()
             )
             explicit_meter = explicit_router.post("/api/sdk/meter").mock(
@@ -571,7 +573,7 @@ class TestConfigureDefaultClient:
             # the SDK accidentally used the configured default, these
             # would be hit. assert_all_called=False so respx doesn't fail
             # the test merely because we set up unused tripwires.
-            default_validate = default_router.post("/api/sdk/keys/validate").mock(
+            default_validate = default_router.post("/api/sdk/validate-key").mock(
                 return_value=_validate_response()
             )
             default_meter = default_router.post("/api/sdk/meter").mock(
@@ -605,7 +607,7 @@ class TestFakeAgent:
     @respx.mock(base_url=API_URL)
     def test_fake_agent_dispatches_tool_call_and_meters(self, respx_mock) -> None:
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(

@@ -197,7 +197,7 @@ class TestDecoratorSync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_decorator_runs_handler_then_meters(self, respx_mock):
         sg = _make_sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -217,7 +217,7 @@ class TestDecoratorSync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_handler_raises_skips_meter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -238,7 +238,7 @@ class TestDecoratorSync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_invalid_key_short_circuits_before_handler(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_invalid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -261,7 +261,7 @@ class TestDecoratorSync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_runtime_kwarg_overrides_default_key(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         respx_mock.post("/api/sdk/meter").mock(return_value=_meter_response())
@@ -310,7 +310,7 @@ class TestDecoratorAsync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_async_decorator_runs_handler_then_meters(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -329,7 +329,7 @@ class TestDecoratorAsync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_async_handler_raises_skips_meter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -348,7 +348,7 @@ class TestDecoratorAsync:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_async_invalid_key_short_circuits(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_invalid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -372,7 +372,7 @@ class TestSyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_success_path_meters(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -391,7 +391,7 @@ class TestSyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_void_skips_meter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -407,7 +407,7 @@ class TestSyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_raise_skips_meter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -427,7 +427,7 @@ class TestSyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_invalid_key_in_enter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_invalid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -446,7 +446,7 @@ class TestSyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     def test_reentry_rejected(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         respx_mock.post("/api/sdk/meter").mock(return_value=_meter_response())
@@ -464,7 +464,7 @@ class TestAsyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_success_path_meters(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -482,7 +482,7 @@ class TestAsyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_void_skips_meter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -500,7 +500,7 @@ class TestAsyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_raise_skips_meter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -519,7 +519,7 @@ class TestAsyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_invalid_key_in_aenter(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_invalid_key_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -538,7 +538,7 @@ class TestAsyncContextManager:
     @respx.mock(base_url=API_URL, assert_all_called=False)
     async def test_async_reentry_rejected(self, respx_mock):
         sg = _make_sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_valid_key_response()
         )
         respx_mock.post("/api/sdk/meter").mock(return_value=_meter_response())

@@ -44,7 +44,7 @@ class _Base(BaseModel):
 
 
 class ValidateKeyRequest(_Base):
-    """Body of ``POST /api/sdk/keys/validate``."""
+    """Body of ``POST /api/sdk/validate-key``."""
 
     api_key: str = Field(min_length=1, alias="apiKey")
     tool_slug: str = Field(min_length=1, alias="toolSlug")
@@ -60,7 +60,10 @@ class MeterRequest(_Base):
     without them. ``api_key`` was previously sent on the wire but the
     meter endpoint's Zod schema doesn't accept it (Zod silently strips
     it); removed so the Python client matches the TS client's wire
-    shape.
+    shape. Since (F2) the server REQUIRES the buyer key as the
+    ``X-Api-Key`` request HEADER (``meter/route.ts:59-86``) — the key
+    rides the header, never this body (the client passes it via
+    ``extra_headers``; see :meth:`settlegrid.client.SettleGrid.meter`).
     """
 
     tool_slug: str = Field(min_length=1, alias="toolSlug")
@@ -79,20 +82,52 @@ class KeyValidationResult(_Base):
     """Result of validating a consumer API key.
 
     Mirrors :ts:type:`KeyValidationResult` from
-    ``packages/mcp/src/types.ts``.
+    ``packages/mcp/src/types.ts`` — at the TS SDK's RUNTIME tolerance,
+    not its (looser-than-reality) type declarations. The real
+    ``/api/sdk/validate-key`` route emits exactly two shapes
+    (``apps/web/src/app/api/sdk/validate-key/route.ts``):
+
+    - success (``:115-123`` test keys, ``:146-153`` normal):
+      ``{valid: true, consumerId, toolId, keyId, balanceCents,
+      isTestKey}`` — ``isTestKey`` is ALWAYS present.
+    - failure (HTTP **200**, ``:63/:70/:75/:80/:87``):
+      ``{valid: false, reason}`` — WITHOUT the id/balance fields.
+
+    Hence the id/balance fields are optional: they are ``None`` exactly
+    when ``valid`` is ``False`` (callers must check ``valid`` first —
+    the wrap pipeline raises :class:`~settlegrid.errors.InvalidKeyError`
+    before ever reading them).
     """
 
     valid: bool
-    consumer_id: str = Field(alias="consumerId")
-    tool_id: str = Field(alias="toolId")
-    key_id: str = Field(alias="keyId")
-    balance_cents: Annotated[int, Field(ge=0)] = Field(alias="balanceCents")
+    consumer_id: str | None = Field(default=None, alias="consumerId")
+    tool_id: str | None = Field(default=None, alias="toolId")
+    key_id: str | None = Field(default=None, alias="keyId")
+    balance_cents: Annotated[int, Field(ge=0)] | None = Field(
+        default=None, alias="balanceCents"
+    )
+    is_test_key: bool | None = Field(default=None, alias="isTestKey")
+    reason: str | None = Field(default=None)
 
 
 class MeterResult(_Base):
     """Result of metering (billing) an invocation.
 
-    Mirrors :ts:type:`MeterResult` from ``packages/mcp/src/types.ts``.
+    Mirrors :ts:type:`MeterResult` from ``packages/mcp/src/types.ts`` —
+    at the TS SDK's RUNTIME tolerance. The real ``/api/sdk/meter`` route
+    emits FOUR distinct success shapes
+    (``apps/web/src/app/api/sdk/meter/route.ts``):
+
+    - test-mode (``:181-188``): adds ``billed: false`` +
+      ``reason: 'TEST_MODE'``.
+    - zero-cost (``:218-223``): the four base fields only.
+    - Redis fast path (``:324-329``) — the PRIMARY production path:
+      **omits ``invocationId``** (the invocation record is written
+      asynchronously) and adds ``isFlagged`` only when flagged.
+    - DB fallback (``:415-421``): adds ``isFlagged`` only when flagged.
+
+    Hence ``invocation_id`` is optional (``None`` on the fast path) and
+    ``billed``/``reason``/``is_flagged`` are optional extras.
     """
 
     success: bool
@@ -100,7 +135,10 @@ class MeterResult(_Base):
         alias="remainingBalanceCents"
     )
     cost_cents: Annotated[int, Field(ge=0)] = Field(alias="costCents")
-    invocation_id: str = Field(alias="invocationId")
+    invocation_id: str | None = Field(default=None, alias="invocationId")
+    billed: bool | None = Field(default=None)
+    reason: str | None = Field(default=None)
+    is_flagged: bool | None = Field(default=None, alias="isFlagged")
 
 
 class APIErrorBody(_Base):

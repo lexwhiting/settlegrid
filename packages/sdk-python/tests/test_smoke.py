@@ -149,8 +149,9 @@ class TestPydanticTypes:
         assert result.valid is True
         assert result.consumer_id == "cons_abc"
         assert result.balance_cents == 5000
-        # Round-trip back to camelCase wire format
-        emitted = result.model_dump(by_alias=True)
+        # Round-trip back to camelCase wire format (exclude_none — unset
+        # optional fields are never serialized, per the module contract)
+        emitted = result.model_dump(by_alias=True, exclude_none=True)
         assert emitted == wire
 
     def test_meter_result_rejects_negative_balance(self) -> None:
