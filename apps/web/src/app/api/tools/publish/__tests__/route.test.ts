@@ -110,7 +110,10 @@ function makeRequest(body: unknown = VALID_BODY): NextRequest {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': 'sg_live_testkeyplaceholder123456789012',
+      // Publisher keys carry the sg_pub_ prefix; the route fast-fails any
+      // other prefix before hashing (register #4). Use a valid publisher
+      // key so the mocked auth join is what gates these tests.
+      'x-api-key': 'sg_pub_testkeyplaceholder123456789012',
     },
     body: JSON.stringify(body),
   })
@@ -280,6 +283,46 @@ describe('PUT /api/tools/publish — auth via developer_api_keys', () => {
     expect(res.status).toBe(401)
     expect(data.code).toBe('UNAUTHORIZED')
     expect(mockValidate).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/tools/publish — sg_pub_ prefix fast-fail (register #4)', () => {
+  it('fast-fails a 16+ char non-sg_pub_ key with a byte-identical 401 and NO db query', async () => {
+    // A long-enough but wrong-prefix key (e.g. a consumer sg_live_ key). The
+    // route must short-circuit BEFORE hashing/DB — proving the fast-fail — yet
+    // return the SAME 401 body as the hash-miss path (client-invisible parity).
+    const req = new NextRequest('http://localhost/api/tools/publish', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'sg_live_testkeyplaceholder123456789012',
+      },
+      body: JSON.stringify(VALID_BODY),
+    })
+
+    const res = await PUT(req)
+    const data = await res.json()
+
+    expect(res.status).toBe(401)
+    expect(data.code).toBe('UNAUTHORIZED')
+    expect(data.error).toBe('Invalid API key.') // identical to the hash-miss message
+    // Load-bearing fail-pre-fix assertion: the DB is never touched for a
+    // non-prefixed key. Pre-fix this would query the auth join.
+    expect(mockDb.select).not.toHaveBeenCalled()
+    expect(mockValidate).not.toHaveBeenCalled()
+  })
+
+  it('an sg_pub_ key passes the prefix gate and reaches the auth db lookup (gate is not over-eager)', async () => {
+    // Positive companion: a correctly-prefixed key must still hit the hash
+    // lookup. Auth join returns no row → 401, but the SELECT WAS issued.
+    mockDb.limit.mockResolvedValueOnce([])
+
+    const res = await PUT(makeRequest())
+    const data = await res.json()
+
+    expect(res.status).toBe(401)
+    expect(data.code).toBe('UNAUTHORIZED')
+    expect(mockDb.select).toHaveBeenCalled()
   })
 })
 

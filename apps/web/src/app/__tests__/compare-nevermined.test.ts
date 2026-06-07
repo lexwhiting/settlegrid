@@ -435,8 +435,8 @@ describe('P4.MKT3 — anti-regression on staleness fixes', () => {
   })
 
   it('Python SDK claim acknowledges packages/sdk-python (not just "no Python SDK yet")', () => {
-    // Honest framing: SettleGrid has Python SDK in monorepo at v0.1.0
-    // but not yet published to PyPI. payments-py IS on PyPI.
+    // Honest framing: SettleGrid has a Python SDK in the monorepo
+    // (packages/sdk-python) but not yet published to PyPI. payments-py IS on PyPI.
     expect(dataSrc).toContain('packages/sdk-python')
     expect(dataSrc).toContain('not yet published')
   })

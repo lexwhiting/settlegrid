@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto'
 
 const API_KEY_PREFIX = 'sg_live_'
-const PUBLISHER_API_KEY_PREFIX = 'sg_pub_'
+export const PUBLISHER_API_KEY_PREFIX = 'sg_pub_'
 
 /**
  * Generates a new API key with the sg_live_ prefix, its SHA-256 hash, and a display prefix.

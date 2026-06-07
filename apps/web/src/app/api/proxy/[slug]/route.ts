@@ -90,8 +90,8 @@ interface CachedProxyResponse {
 
 /**
  * Validates the x-api-key header and returns the key record with tool info.
- * Unlike requireApiKey from auth middleware, this does NOT restrict to a specific toolId —
- * we match by slug instead so the proxy works across tools.
+ * Does NOT restrict to a specific toolId — we match by slug instead so the
+ * proxy works across tools.
  */
 async function authenticateProxyRequest(
   request: NextRequest,

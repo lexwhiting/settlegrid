@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { eq } from 'drizzle-orm'
-import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-import { developers, consumers, apiKeys } from '@/lib/db/schema'
+import { developers, consumers } from '@/lib/db/schema'
 
 export interface AuthenticatedDeveloper {
   id: string
@@ -13,12 +12,6 @@ export interface AuthenticatedDeveloper {
 export interface AuthenticatedConsumer {
   id: string
   email: string
-}
-
-export interface AuthenticatedApiKey {
-  consumerId: string
-  toolId: string
-  keyId: string
 }
 
 /**
@@ -147,54 +140,4 @@ export async function requireConsumer(
   }
 
   return { id: consumer.id, email: consumer.email }
-}
-
-/**
- * Validates the x-api-key header against the apiKeys table.
- */
-export async function requireApiKey(
-  request: NextRequest
-): Promise<AuthenticatedApiKey> {
-  const rawKey = request.headers.get('x-api-key')
-
-  if (!rawKey) {
-    throw new Error('API key required. Provide x-api-key header.')
-  }
-
-  if (rawKey.length < 16) {
-    throw new Error('Invalid API key format.')
-  }
-
-  const keyHash = createHash('sha256').update(rawKey).digest('hex')
-
-  const [key] = await db
-    .select({
-      id: apiKeys.id,
-      consumerId: apiKeys.consumerId,
-      toolId: apiKeys.toolId,
-      status: apiKeys.status,
-    })
-    .from(apiKeys)
-    .where(eq(apiKeys.keyHash, keyHash))
-    .limit(1)
-
-  if (!key) {
-    throw new Error('Invalid API key.')
-  }
-
-  if (key.status !== 'active') {
-    throw new Error('API key has been revoked.')
-  }
-
-  db.update(apiKeys)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(apiKeys.id, key.id))
-    .then(() => {})
-    .catch(() => {})
-
-  return {
-    consumerId: key.consumerId,
-    toolId: key.toolId,
-    keyId: key.id,
-  }
 }

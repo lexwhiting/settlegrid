@@ -10,6 +10,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { validateToolForActivation } from '@/lib/quality-gates'
+import { PUBLISHER_API_KEY_PREFIX } from '@/lib/crypto'
 
 export const maxDuration = 60
 
@@ -157,6 +158,15 @@ async function authenticateDeveloperByApiKey(
 
   if (rawKey.length < 16) {
     throw new AuthError('Invalid API key format.')
+  }
+
+  if (!rawKey.startsWith(PUBLISHER_API_KEY_PREFIX)) {
+    // Fast-fail before hashing: publisher keys always carry the sg_pub_
+    // prefix (issued by generatePublisherApiKey). Deliberately the SAME
+    // message as the hash-miss path below, so this fast-fail is
+    // client-invisible (register #4: clarity/fast-fail, not a security
+    // gate — the hash lookup remains the real gate).
+    throw new AuthError('Invalid API key.')
   }
 
   const keyHash = createHash('sha256').update(rawKey).digest('hex')

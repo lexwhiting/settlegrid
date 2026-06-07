@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developerApiKeys } from '@/lib/db/schema'
+import { developerApiKeys, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { generatePublisherApiKey } from '@/lib/crypto'
@@ -16,8 +16,9 @@ import { sendNotificationEmail } from '@/lib/notifications'
 // docs/tech-debt/publisher-api-keys-audit-2026-05-28.md — read before extending.
 export const maxDuration = 60
 
-// Cap on active (non-revoked) publisher keys per developer. Soft guard against
-// unbounded key creation; revoked keys do not count toward the limit.
+// Cap on active (non-revoked) publisher keys per developer; enforced atomically
+// inside a transaction (see POST) so concurrent creates cannot race past it.
+// Revoked keys do not count toward the limit.
 const MAX_ACTIVE_KEYS = 10
 
 const createKeySchema = z.object({
@@ -97,14 +98,51 @@ export async function POST(request: NextRequest) {
 
     const body = await parseBody(request, createKeySchema)
 
-    // Enforce the per-developer active-key cap.
-    const activeKeys = await db
-      .select({ id: developerApiKeys.id })
-      .from(developerApiKeys)
-      .where(and(eq(developerApiKeys.developerId, auth.id), eq(developerApiKeys.status, 'active')))
-      .limit(MAX_ACTIVE_KEYS + 1)
+    // Enforce the per-developer active-key cap atomically. The developer row is
+    // the lock anchor: SELECT … FOR UPDATE serializes concurrent creates for the
+    // same developer so the count-then-insert can no longer race past the cap
+    // (register #2 TOCTOU). The lock is held only for DB-only work (no network
+    // I/O inside the txn), so contention is sub-millisecond.
+    const result = await db.transaction(async (tx) => {
+      await tx
+        .select({ id: developers.id })
+        .from(developers)
+        .where(eq(developers.id, auth.id))
+        .for('update')
+        .limit(1)
 
-    if (activeKeys.length >= MAX_ACTIVE_KEYS) {
+      const activeKeys = await tx
+        .select({ id: developerApiKeys.id })
+        .from(developerApiKeys)
+        .where(and(eq(developerApiKeys.developerId, auth.id), eq(developerApiKeys.status, 'active')))
+        .limit(MAX_ACTIVE_KEYS + 1)
+
+      if (activeKeys.length >= MAX_ACTIVE_KEYS) {
+        return { capExceeded: true as const }
+      }
+
+      const { key, hash, prefix } = generatePublisherApiKey()
+
+      const [created] = await tx
+        .insert(developerApiKeys)
+        .values({
+          developerId: auth.id,
+          keyHash: hash,
+          keyPrefix: prefix,
+          label: body.label ?? null,
+        })
+        .returning({
+          id: developerApiKeys.id,
+          keyPrefix: developerApiKeys.keyPrefix,
+          label: developerApiKeys.label,
+          status: developerApiKeys.status,
+          createdAt: developerApiKeys.createdAt,
+        })
+
+      return { capExceeded: false as const, created, key, prefix }
+    })
+
+    if (result.capExceeded) {
       return errorResponse(
         `You have reached the maximum of ${MAX_ACTIVE_KEYS} active API keys. Revoke an existing key before creating a new one.`,
         422,
@@ -112,23 +150,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { key, hash, prefix } = generatePublisherApiKey()
-
-    const [created] = await db
-      .insert(developerApiKeys)
-      .values({
-        developerId: auth.id,
-        keyHash: hash,
-        keyPrefix: prefix,
-        label: body.label ?? null,
-      })
-      .returning({
-        id: developerApiKeys.id,
-        keyPrefix: developerApiKeys.keyPrefix,
-        label: developerApiKeys.label,
-        status: developerApiKeys.status,
-        createdAt: developerApiKeys.createdAt,
-      })
+    const { created, key, prefix } = result
 
     // Audit log — fire-and-forget
     writeAuditLog({

@@ -10,23 +10,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockWriteAuditLog } = vi.hoisted(() => ({
-  mockDb: {
+const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockWriteAuditLog } = vi.hoisted(() => {
+  const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    // The POST cap guard chains the developer-row lock select via .for('update').
+    for: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]),
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([]),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
-  },
-  mockRequireDeveloper: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
-  mockWriteAuditLog: vi.fn(),
-}))
+    // POST runs the cap-check + insert inside one db.transaction. The mock tx is
+    // mockDb itself, so all the chain mocks above apply unchanged inside the txn;
+    // a rejection thrown in the callback propagates to the route's outer catch.
+    transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(mockDb)),
+  }
+  return {
+    mockDb,
+    mockRequireDeveloper: vi.fn(),
+    mockCheckRateLimit: vi.fn(),
+    mockWriteAuditLog: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 
@@ -41,6 +50,11 @@ vi.mock('@/lib/db/schema', () => ({
     lastUsedAt: 'last_used_at',
     createdAt: 'created_at',
     revokedAt: 'revoked_at',
+  },
+  // The POST cap guard locks the developer row (SELECT … FOR UPDATE) as its
+  // serializer; eq(developers.id, auth.id) needs this stub.
+  developers: {
+    id: 'id',
   },
 }))
 
@@ -105,10 +119,15 @@ beforeEach(() => {
   mockDb.from.mockReturnThis()
   mockDb.where.mockReturnThis()
   mockDb.orderBy.mockReturnThis()
+  mockDb.for.mockReturnThis()
   mockDb.insert.mockReturnThis()
   mockDb.values.mockReturnThis()
   mockDb.update.mockReturnThis()
   mockDb.set.mockReturnThis()
+  // clearAllMocks (mockClear) preserves implementations, so the hoisted
+  // transaction impl survives; re-assert it as belt-and-braces, mirroring the
+  // per-mock .mockReturnThis() re-assertions above.
+  mockDb.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(mockDb))
   mockDb.limit.mockReset().mockResolvedValue([])
   mockDb.returning.mockReset().mockResolvedValue([])
   mockRequireDeveloper.mockResolvedValue(DEV)
@@ -144,6 +163,7 @@ describe('GET /api/dashboard/developer/api-keys', () => {
 
 describe('POST /api/dashboard/developer/api-keys', () => {
   it('201 returns the plaintext sg_pub_ key once and writes a create audit log', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: 'dev-1' }]) // developer lock row
     mockDb.limit.mockResolvedValueOnce([]) // active-key count = 0
     mockDb.returning.mockResolvedValueOnce([
       { id: 'k-new', keyPrefix: 'sg_pub_abcd', label: null, status: 'active', createdAt: new Date() },
@@ -160,12 +180,34 @@ describe('POST /api/dashboard/developer/api-keys', () => {
   })
 
   it('422 when the active-key cap is reached', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: 'dev-1' }]) // developer lock row
     mockDb.limit.mockResolvedValueOnce(Array.from({ length: 10 }, (_, i) => ({ id: `k${i}` })))
     const res = await POST(createReq({ label: 'over the cap' }))
     const data = await res.json()
     expect(res.status).toBe(422)
     expect(data.code).toBe('MAX_KEYS_EXCEEDED')
     expect(mockDb.insert).not.toHaveBeenCalled()
+    // The cap is evaluated inside the transactional guard.
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('serializes the cap-check + insert inside one db.transaction locked on the developer row', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: 'dev-1' }]) // developer lock row
+    mockDb.limit.mockResolvedValueOnce([]) // active-key count = 0
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'k-new', keyPrefix: 'sg_pub_abcd', label: null, status: 'active', createdAt: new Date() },
+    ])
+    const res = await POST(createReq({ label: 'CI' }))
+    expect(res.status).toBe(201)
+    // The whole guard runs in exactly one transaction.
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    // The serializer is a real row lock: SELECT … FOR UPDATE on the developer row.
+    expect(mockDb.for).toHaveBeenCalledWith('update')
+    // The lock select targets the developer row by the authenticated id
+    // (schema mock: developers.id === 'id'; drizzle eq mock returns { eq: [a,b] }).
+    expect(mockDb.where).toHaveBeenCalledWith({ eq: ['id', 'dev-1'] })
+    // The insert happened (inside the txn) — the key was actually created.
+    expect(mockDb.insert).toHaveBeenCalledTimes(1)
   })
 
   it('422 when the label exceeds 100 chars', async () => {

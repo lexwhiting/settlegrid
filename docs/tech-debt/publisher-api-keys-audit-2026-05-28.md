@@ -34,6 +34,47 @@
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
 
+## UPDATE 2026-06-07 — (R) chunk (see `r-register-closeout-resolution-2026-06-07.md`)
+
+The register's entire remaining **non-gated** tail, drained in one **zero-migration, zero-money-spine**
+bundle. After this chunk the register holds only founder-gated items ((K) de-recommended, (A) BD-gated,
+(H)+F1 demand-gated) plus the post-deploy (C) lead. LOCAL commit (NOT pushed).
+
+- **DEBT #2 → RESOLVED (no migration).** The active-key cap (10) TOCTOU is closed: the cap count + key
+  insert in `dashboard/developer/api-keys/route.ts` POST now run inside one `db.transaction` with the
+  **developer row locked `SELECT … FOR UPDATE`** as the serializer (idiom per `lib/payouts/process.ts`;
+  deadlock-free vs payouts/reconciler/GDPR-deletion, all of which lock the developer row first).
+  Response contract byte-identical (422 `MAX_KEYS_EXCEEDED`; 201 shape). No column/index/migration.
+  +1 structural regression test (proven failing pre-fix).
+- **DEBT #4 → RESOLVED.** `tools/publish/route.ts` `authenticateDeveloperByApiKey` fast-fails a
+  non-`sg_pub_` key **before** hashing (reads the now-exported `PUBLISHER_API_KEY_PREFIX` from
+  `lib/crypto.ts`; `hashApiKey`/key formats untouched). Throws the **same** message as the hash-miss
+  path → 401 byte-identical for every input class (clarity/fast-fail, not a security change). +2 tests
+  (no-DB-query fast-fail proven failing pre-fix; positive companion).
+- **DEBT #7 → RESOLVED.** `publisherApiKeyCreatedEmail` / `publisherApiKeyRevokedEmail` now render the
+  escaped recipient (`the SettleGrid account associated with <strong>{escapeHtml(email)}</strong>`,
+  mirroring `accountDeletedEmail`). +11 email tests (recipient render + escaped hostile recipient + the
+  label-XSS guards that double as #8's email case).
+- **DEBT #8 → RESOLVED (highest-value cases).** NEW client tests:
+  `components/__tests__/api-key-reveal-dialog.test.tsx` (7) pins the clipboard-failure-keeps-key-visible
+  guard + success-decoupled-from-dismiss; the email label-XSS guards live with #7's tests. **Residual
+  (documented):** the page-level `loadApiKeys`-failure→retry case is not testable in this repo's idiom
+  (vitest `node` env; no jsdom/@testing-library by standing decision; behavior exists + verified). The
+  GET-failure server half is already route-tested.
+- **F3 → RESOLVED.** Dead `requireApiKey` export + `AuthenticatedApiKey` interface + their unique
+  imports removed from `lib/middleware/auth.ts`; the `proxy/[slug]:93` contrast comment reworded
+  (comment-only; no proxy code). Zero remaining references (grep-proven).
+- **DEBT #6 → documented-wontfix.** Bootstrap `created_at` non-monotonic — harmless (drizzle-kit reads
+  `MAX` only); the per-row-ordering warning already lives in
+  `apps/web/scripts/bootstrap__drizzle_migrations.sql` (header, lines 28-29). No code change.
+- **F4's nevermined nit → CLOSED.** `compare/nevermined/data.ts` dropped the stale "at v0.1.0" (Python
+  SDK is 0.2.0) → versionless phrasing; gating test stays green.
+- **Gates:** pre-build R1 PLAN_NEEDS_FIXES (1 blocker — the dialog react-mock `ReferenceError` trap,
+  caught + fixed) → R2 **PLAN_READY / 0 blocking**; post-build panel **CERTIFIED / 0 blocking** incl.
+  the mandatory **ZERO-SPINE-DIFF** lens. apps/web tsc 0 / vitest **4282** (4261 + 21) / build 0 /
+  eslint 0; packages/mcp **1898/1** unchanged; zero `packages/sdk-python*` / `drizzle/` / money-spine
+  hunks. LOCAL commit (NOT pushed; no migration; no publish).
+
 ## UPDATE 2026-06-06 — (N) chunk (see `n-authid-keying-resolution-2026-06-06.md`)
 
 - **DEBT #1 → FULLY CLOSED (all three sketch parts now shipped: a=H1 fail-open, b=M getClientIp,
