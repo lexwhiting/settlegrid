@@ -625,7 +625,7 @@ async function handleSgBalance(
     method,
     costCents,
     startTime,
-  })
+  }, apiKey)
 
   // 5. Build settlement result + format response via the adapter. Use the
   // `costCents` the server returned on `meterResponse`, NOT the locally

@@ -132,11 +132,12 @@ vi.mock('@/lib/logger', () => ({
 
 import { POST as validateKey } from '@/app/api/sdk/validate-key/route'
 import { POST as meter } from '@/app/api/sdk/meter/route'
+import { POST as meterWithMetadata } from '@/app/api/sdk/meter-with-metadata/route'
 
-function makeRequest(url: string, body: unknown): NextRequest {
+function makeRequest(url: string, body: unknown, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(`http://localhost:3005${url}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   })
 }
@@ -337,10 +338,12 @@ describe('Meter (POST /api/sdk/meter)', () => {
   })
 
   it('meters a successful invocation and deducts credits', async () => {
-    // 1st limit = tool+dev lookup (moved to top of route)
-    // 2nd limit = apiKeys createdAt for fraud check
-    // 3rd limit = balance check
+    // 1st limit = F2 auth: api-key lookup by hash (NEW first query)
+    // 2nd limit = tool+dev lookup
+    // 3rd limit = apiKeys createdAt for fraud check
+    // 4th limit = balance check
     mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440002', consumerId: '550e8400-e29b-41d4-a716-446655440000', toolId: '550e8400-e29b-41d4-a716-446655440001', status: 'active' }]) // F2 auth row
       .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }]) // key createdAt
       .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 5000 }]) // balance check
@@ -358,7 +361,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
       method: 'classify',
       costCents: 5,
       latencyMs: 120,
-    })
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' })
 
     const response = await meter(request)
     const data = await response.json()
@@ -370,6 +373,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
 
   it('returns 402 for insufficient credits', async () => {
     mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440002', consumerId: '550e8400-e29b-41d4-a716-446655440000', toolId: '550e8400-e29b-41d4-a716-446655440001', status: 'active' }]) // F2 auth row
       .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }])
       .mockResolvedValueOnce([{ id: 'balance-1', balanceCents: 2 }])
@@ -381,7 +385,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
       keyId: '550e8400-e29b-41d4-a716-446655440002',
       method: 'classify',
       costCents: 5,
-    })
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' })
 
     const response = await meter(request)
     const data = await response.json()
@@ -392,6 +396,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
 
   it('returns 402 when no balance record exists', async () => {
     mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440002', consumerId: '550e8400-e29b-41d4-a716-446655440000', toolId: '550e8400-e29b-41d4-a716-446655440001', status: 'active' }]) // F2 auth row
       .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }])
       .mockResolvedValueOnce([]) // no balance
@@ -403,15 +408,16 @@ describe('Meter (POST /api/sdk/meter)', () => {
       keyId: '550e8400-e29b-41d4-a716-446655440002',
       method: 'classify',
       costCents: 5,
-    })
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' })
 
     const response = await meter(request)
     expect(response.status).toBe(402)
   })
 
   it('handles zero-cost invocations', async () => {
-    // Tool+dev lookup is the first query even for zero-cost
+    // 1st limit = F2 auth row; 2nd limit = tool+dev lookup
     mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440002', consumerId: '550e8400-e29b-41d4-a716-446655440000', toolId: '550e8400-e29b-41d4-a716-446655440001', status: 'active' }]) // F2 auth row
       .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
 
     // Make mockDb thenable for await db.update().set().where()
@@ -430,7 +436,7 @@ describe('Meter (POST /api/sdk/meter)', () => {
       keyId: '550e8400-e29b-41d4-a716-446655440002',
       method: 'ping',
       costCents: 0,
-    })
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' })
 
     const response = await meter(request)
     const data = await response.json()
@@ -461,5 +467,98 @@ describe('Meter (POST /api/sdk/meter)', () => {
 
     const response = await meter(request)
     expect(response.status).toBe(422)
+  })
+
+  it('returns 401 when no X-Api-Key header is present', async () => {
+    const request = makeRequest('/api/sdk/meter', {
+      toolSlug: 'my-tool',
+      consumerId: '550e8400-e29b-41d4-a716-446655440000',
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+      keyId: '550e8400-e29b-41d4-a716-446655440002',
+      method: 'classify',
+      costCents: 5,
+    }) // deliberately no x-api-key header
+
+    const response = await meter(request)
+    const data = await response.json()
+    expect(response.status).toBe(401)
+    expect(data.code).toBe('API_KEY_REQUIRED')
+  })
+
+  it('returns 403 when the key does not own the request identity (binding mismatch)', async () => {
+    // F2 auth row resolves to a DIFFERENT consumerId than the body claims.
+    mockDb.limit.mockResolvedValueOnce([
+      { id: '550e8400-e29b-41d4-a716-446655440002', consumerId: '11111111-1111-1111-1111-111111111111', toolId: '550e8400-e29b-41d4-a716-446655440001', status: 'active' },
+    ])
+
+    const request = makeRequest('/api/sdk/meter', {
+      toolSlug: 'my-tool',
+      consumerId: '550e8400-e29b-41d4-a716-446655440000',
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+      keyId: '550e8400-e29b-41d4-a716-446655440002',
+      method: 'classify',
+      costCents: 5,
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' })
+
+    const response = await meter(request)
+    const data = await response.json()
+    expect(response.status).toBe(403)
+    expect(data.code).toBe('KEY_BINDING_MISMATCH')
+  })
+})
+
+describe('Meter With Metadata (POST /api/sdk/meter-with-metadata)', () => {
+  const META_KEY = 'sg_live_meter_test_key_000000000'
+  const metaBody = {
+    toolSlug: 'my-tool',
+    consumerId: '550e8400-e29b-41d4-a716-446655440000',
+    toolId: '550e8400-e29b-41d4-a716-446655440001',
+    keyId: '550e8400-e29b-41d4-a716-446655440002',
+    method: 'classify',
+    costCents: 0,
+  }
+  const authRow = {
+    id: '550e8400-e29b-41d4-a716-446655440002',
+    consumerId: '550e8400-e29b-41d4-a716-446655440000',
+    toolId: '550e8400-e29b-41d4-a716-446655440001',
+    status: 'active',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetMockDb()
+    mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
+  })
+
+  it('returns 401 when no X-Api-Key header is present', async () => {
+    const response = await meterWithMetadata(makeRequest('/api/sdk/meter-with-metadata', metaBody))
+    const data = await response.json()
+    expect(response.status).toBe(401)
+    expect(data.code).toBe('API_KEY_REQUIRED')
+  })
+
+  it('returns 403 when the key does not own the request identity (binding mismatch)', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      { ...authRow, consumerId: '11111111-1111-1111-1111-111111111111' },
+    ])
+    const response = await meterWithMetadata(
+      makeRequest('/api/sdk/meter-with-metadata', metaBody, { 'x-api-key': META_KEY }),
+    )
+    const data = await response.json()
+    expect(response.status).toBe(403)
+    expect(data.code).toBe('KEY_BINDING_MISMATCH')
+  })
+
+  it('authenticates and records a zero-cost invocation (200)', async () => {
+    mockDb.limit.mockResolvedValueOnce([authRow]) // F2 auth row
+    mockDb.returning.mockResolvedValueOnce([{ id: 'inv-meta-1' }]) // zero-cost invocation insert
+    const response = await meterWithMetadata(
+      makeRequest('/api/sdk/meter-with-metadata', metaBody, { 'x-api-key': META_KEY }),
+    )
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.costCents).toBe(0)
+    expect(data.invocationId).toBe('inv-meta-1')
   })
 })

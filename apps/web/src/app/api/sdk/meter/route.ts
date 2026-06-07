@@ -4,6 +4,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, consumers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
+import { hashApiKey } from '@/lib/crypto'
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit, getClientIp } from '@/lib/rate-limit'
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
 import { detectFraud } from '@/lib/fraud'
@@ -54,6 +55,35 @@ export const POST = withCors(async function POST(request: NextRequest) {
     }
 
     const body = await parseBody(request, meterSchema)
+
+    // ── Authenticate + bind: require the presented API key and verify it owns
+    //    the (consumerId, toolId, keyId) the body claims, BEFORE any billing effect.
+    //    Mirrors proxy/[slug] authenticateProxyRequest (hashApiKey -> active-key row). ──
+    const rawKey = request.headers.get('x-api-key')
+    if (!rawKey || rawKey.length < 16) {
+      return errorResponse('API key required. Provide x-api-key header.', 401, 'API_KEY_REQUIRED')
+    }
+    const [keyRow] = await db
+      .select({
+        id: apiKeys.id,
+        consumerId: apiKeys.consumerId,
+        toolId: apiKeys.toolId,
+        status: apiKeys.status,
+      })
+      .from(apiKeys)
+      .where(eq(apiKeys.keyHash, hashApiKey(rawKey)))
+      .limit(1)
+    if (!keyRow || keyRow.status !== 'active') {
+      return errorResponse('Invalid API key.', 401, 'INVALID_API_KEY')
+    }
+    // Single generic 403 on any identity mismatch — does NOT leak which field was wrong.
+    if (
+      keyRow.id !== body.keyId ||
+      keyRow.consumerId !== body.consumerId ||
+      keyRow.toolId !== body.toolId
+    ) {
+      return errorResponse('API key does not match the request.', 403, 'KEY_BINDING_MISMATCH')
+    }
 
     // ── Look up developer tier for tiered rate limiting ─────────────────────
     const [toolDev] = await db

@@ -124,6 +124,7 @@ async function apiCall<T>(
   path: string,
   body: Record<string, unknown>,
   resilience?: ResilienceContext,
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   // Pre-flight: rate limiter
   if (resilience && !resilience.rateLimiter.tryConsume()) {
@@ -151,7 +152,7 @@ async function apiCall<T>(
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(extraHeaders ?? {}) },
         body: JSON.stringify(body),
         signal: controller.signal,
       })
@@ -410,9 +411,11 @@ export function createMiddleware(
   }
 
   /** Meter an invocation (deduct credits, record usage) */
-  async function meter(context: InvocationContext): Promise<MeterResponse> {
+  async function meter(context: InvocationContext, apiKey: string): Promise<MeterResponse> {
     const latencyMs = Date.now() - context.startTime
 
+    // F2: send the API key as X-Api-Key so the server authenticates the metering
+    // call and binds it to consumerId/toolId/keyId before any credit/record effect.
     const result = await apiCall<MeterResponse>(config, '/meter', {
       toolSlug: config.toolSlug,
       consumerId: context.consumerId,
@@ -421,7 +424,7 @@ export function createMiddleware(
       method: context.method,
       costCents: context.costCents,
       latencyMs,
-    }, resilience)
+    }, resilience, { 'X-Api-Key': apiKey })
 
     // P4.1 — fire `first_billed_call` once per (toolSlug, consumerId)
     // per process. Fire-and-forget; the helper handles dedupe and
@@ -540,11 +543,11 @@ export function createMiddleware(
     }
 
     if (config.debug) {
-      await meter(context)
+      await meter(context, apiKey)
     } else {
       // Fire and forget — don't block the response
       // Errors are silently swallowed; debug mode (above) awaits for diagnostics
-      meter(context).catch(() => {})
+      meter(context, apiKey).catch(() => {})
     }
 
     return result

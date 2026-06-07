@@ -2,6 +2,19 @@
 
 All notable changes to `@settlegrid/mcp`.
 
+## 0.3.0 — 2026-06-06
+
+Security release. The metering call now authenticates.
+
+### Changed
+- **`/meter` is now authenticated.** `sg.wrap()`, `sg.meter()`, and the dispatch kernel now send the
+  consumer API key as an `X-Api-Key` header on the metering request. The SettleGrid server (F2) hashes
+  it, looks up the active key, and rejects any request whose `consumerId`/`toolId`/`keyId` does not
+  belong to the presented key — closing an unauthenticated metering / credit-attribution gap.
+- **Requires a SettleGrid server with F2 deployed.** Against such a server an older SDK (`< 0.3.0`) that
+  does not send the header receives `401` on `/meter`; metering is fire-and-forget, so the tool call
+  still returns, but the invocation is not billed/recorded. Upgrade to keep metering working.
+
 ## 0.2.0 — 2026-05-27
 
 Additive release; no breaking changes from `0.1.1`. Same `settlegrid.init()` + `sg.wrap()` core API.

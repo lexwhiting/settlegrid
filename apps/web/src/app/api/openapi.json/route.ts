@@ -63,6 +63,15 @@ export async function GET(request: NextRequest) {
         post: {
           summary: 'Meter a tool invocation',
           tags: ['SDK'],
+          parameters: [
+            {
+              name: 'X-Api-Key',
+              in: 'header',
+              required: true,
+              schema: { type: 'string' },
+              description: 'Consumer API key (sg_live_…); must own the consumerId/toolId/keyId in the body.',
+            },
+          ],
           requestBody: {
             required: true,
             content: {
@@ -85,6 +94,8 @@ export async function GET(request: NextRequest) {
           },
           responses: {
             '200': { description: 'Metering recorded successfully' },
+            '401': { description: 'Missing or invalid API key' },
+            '403': { description: 'API key does not match the request identity' },
             '402': { description: 'Insufficient credits' },
           },
         },

@@ -272,6 +272,24 @@ describe('sg.wrap() end-to-end with fetch mock — pricing-model → meter body'
     expect(meterCalls[0].method).toBe('generate')
   })
 
+  it('F2: meter request carries the X-Api-Key header (authenticated metering)', async () => {
+    const sg = settlegrid.init({
+      toolSlug: 'e2e-auth',
+      pricing: { defaultCostCents: 5 },
+      debug: true, // synchronous meter so the fetch completes before wrap() resolves
+    })
+    const wrapped = sg.wrap(() => ({ ok: true }), { method: 'classify' })
+    await wrapped({}, { headers: { 'x-api-key': 'sg_live_e2e' } })
+
+    const meterCall = fetchMock.mock.calls.find(
+      ([url]) => typeof url === 'string' && url.endsWith('/api/sdk/meter'),
+    )
+    expect(meterCall).toBeDefined()
+    const headers = (meterCall![1] as RequestInit).headers as Record<string, string>
+    expect(headers['X-Api-Key']).toBe('sg_live_e2e')
+    expect(headers['Content-Type']).toBe('application/json')
+  })
+
   it('per-byte × units: meter body charges defaultCostCents × units', async () => {
     const sg = settlegrid.init({
       toolSlug: 'e2e-bytes',
