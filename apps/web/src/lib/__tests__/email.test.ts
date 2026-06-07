@@ -27,6 +27,8 @@ import {
   autoRefillConfirmationEmail,
   apiKeyCreatedEmail,
   apiKeyRevokedEmail,
+  publisherApiKeyCreatedEmail,
+  publisherApiKeyRevokedEmail,
   webhookFailureEmail,
   abandonedCheckoutEmail,
   accountEmailChangedEmail,
@@ -851,6 +853,75 @@ describe('apiKeyRevokedEmail', () => {
     const result = apiKeyRevokedEmail('user@test.com', 'sk_test', 'Tool')
     expect(result.html).toContain('#fef3c7')
     expect(result.html).toContain('#92400e')
+  })
+})
+
+describe('publisherApiKeyCreatedEmail', () => {
+  it('generates the create subject', () => {
+    const result = publisherApiKeyCreatedEmail('dev@test.com', 'sg_pub_abcd')
+    expect(result.subject).toContain('New publisher API key created')
+  })
+
+  it('renders the recipient email in the body', () => {
+    const result = publisherApiKeyCreatedEmail('dev@test.com', 'sg_pub_abcd')
+    expect(result.html).toContain('dev@test.com')
+    expect(result.html).toContain('associated with')
+  })
+
+  it('escapes a hostile recipient email (no raw angle brackets)', () => {
+    const result = publisherApiKeyCreatedEmail('a<b@evil.com', 'sg_pub_abcd')
+    expect(result.html).toContain('a&lt;b@evil.com')
+    expect(result.html).not.toContain('a<b@evil.com')
+  })
+
+  it('includes the masked key prefix', () => {
+    const result = publisherApiKeyCreatedEmail('dev@test.com', 'sg_pub_abcd')
+    expect(result.html).toContain('sg_pub_abcd...')
+  })
+
+  it('renders the label when provided', () => {
+    const result = publisherApiKeyCreatedEmail('dev@test.com', 'sg_pub_abcd', { label: 'CI pipeline' })
+    expect(result.html).toContain('CI pipeline')
+  })
+
+  it('escapes a malicious label (XSS guard — register #8)', () => {
+    const result = publisherApiKeyCreatedEmail('dev@test.com', 'sg_pub_abcd', {
+      label: '<img src=x onerror=alert(1)>',
+    })
+    expect(result.html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+    expect(result.html).not.toContain('<img src=x onerror=alert(1)>')
+  })
+})
+
+describe('publisherApiKeyRevokedEmail', () => {
+  it('generates the revoke subject', () => {
+    const result = publisherApiKeyRevokedEmail('dev@test.com', 'sg_pub_abcd')
+    expect(result.subject).toContain('Publisher API key revoked')
+  })
+
+  it('renders the recipient email in the body', () => {
+    const result = publisherApiKeyRevokedEmail('dev@test.com', 'sg_pub_abcd')
+    expect(result.html).toContain('dev@test.com')
+    expect(result.html).toContain('associated with')
+  })
+
+  it('escapes a hostile recipient email (no raw angle brackets)', () => {
+    const result = publisherApiKeyRevokedEmail('a<b@evil.com', 'sg_pub_abcd')
+    expect(result.html).toContain('a&lt;b@evil.com')
+    expect(result.html).not.toContain('a<b@evil.com')
+  })
+
+  it('includes the masked key prefix', () => {
+    const result = publisherApiKeyRevokedEmail('dev@test.com', 'sg_pub_abcd')
+    expect(result.html).toContain('sg_pub_abcd...')
+  })
+
+  it('escapes a malicious label (XSS guard — register #8)', () => {
+    const result = publisherApiKeyRevokedEmail('dev@test.com', 'sg_pub_abcd', {
+      label: '<img src=x onerror=alert(1)>',
+    })
+    expect(result.html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+    expect(result.html).not.toContain('<img src=x onerror=alert(1)>')
   })
 })
 

@@ -580,7 +580,7 @@ ${options.userAgent ? `<p class="sg-text" style="color:#6b7280;font-size:13px;ma
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Publisher API Key Created</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A new publisher API key was created on your SettleGrid account. Use it to publish tools programmatically via <code class="sg-code" style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">PUT /api/tools/publish</code>.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A new publisher API key was created on the SettleGrid account associated with <strong>${escapeHtml(email)}</strong>. Use it to publish tools programmatically via <code class="sg-code" style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">PUT /api/tools/publish</code>.</p>
 <table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;margin:16px 0">
 <tr><td style="padding:12px 16px">
 <p class="sg-text" style="color:#374151;margin:0;font-size:14px"><strong>Key prefix:</strong> <code class="sg-code" style="background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(keyPrefix)}...</code></p>
@@ -609,7 +609,7 @@ export function publisherApiKeyRevokedEmail(
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Publisher API Key Revoked</h2>
-<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A publisher API key on your SettleGrid account has been revoked and will no longer authenticate tool publishing.</p>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">A publisher API key on the SettleGrid account associated with <strong>${escapeHtml(email)}</strong> has been revoked and will no longer authenticate tool publishing.</p>
 <table role="presentation" class="sg-info-box" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef3c7;border:1px solid #fde68a;border-radius:8px;margin:16px 0">
 <tr><td style="padding:12px 16px">
 <p class="sg-text" style="color:#92400e;margin:0;font-size:14px"><strong>Key prefix:</strong> <code class="sg-code" style="background:#fde68a;padding:2px 6px;border-radius:4px;font-size:13px;font-family:${CODE_FONT}">${escapeHtml(keyPrefix)}...</code></p>

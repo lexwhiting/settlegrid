@@ -166,7 +166,7 @@ export const dimensions: Dimension[] = [
     settlegrid: {
       value: 'TypeScript shipped; Python in development',
       cite:
-        '@settlegrid/mcp + ai-sdk + mastra + langchain + n8n + cursor on npm; packages/sdk-python at v0.1.0 not yet published to PyPI',
+        '@settlegrid/mcp + ai-sdk + mastra + langchain + n8n + cursor on npm; packages/sdk-python not yet published to PyPI',
       sourceUrl: 'https://www.npmjs.com/org/settlegrid',
     },
     nevermined: {
@@ -261,7 +261,7 @@ export const neverminedStronger: Point[] = [
   {
     claim: 'Python SDK on PyPI today',
     cite:
-      "payments-py is published to PyPI. SettleGrid's settlegrid Python SDK lives in packages/sdk-python at v0.1.0 but is not yet published.",
+      "payments-py is published to PyPI. SettleGrid's settlegrid Python SDK lives in packages/sdk-python but is not yet published.",
     sourceUrl: 'https://pypi.org/project/payments-py/',
   },
   {
