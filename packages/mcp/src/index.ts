@@ -53,7 +53,7 @@ import type {
  * console.log(`SettleGrid SDK v${SDK_VERSION}`)
  * ```
  */
-export const SDK_VERSION = '0.2.0' as const
+export const SDK_VERSION = '0.3.0' as const
 
 // ─── Error re-exports ────────────────────────────────────────────────────────
 
@@ -521,7 +521,7 @@ export const settlegrid = {
           method,
           costCents: costCheck.costCents,
           startTime: Date.now(),
-        })
+        }, apiKey)
 
         return {
           success: result.success,

@@ -1,6 +1,6 @@
 {
   "name": "@settlegrid/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The Settlement Layer for the AI Economy — monetize any MCP tool, REST API, or AI agent with per-call billing, real-time metering, and automated Stripe payouts.",
   "keywords": [
     "settlegrid",

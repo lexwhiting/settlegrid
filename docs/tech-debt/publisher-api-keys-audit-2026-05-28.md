@@ -53,11 +53,23 @@
   - **F1 (deferred)** — NAT-fairness IP-raise on session routes. Costed: new limiter export →
     ~84-test-file mock sweep + a deliberate flood-posture loosening. Do as its own chunk if NAT
     throttling is observed.
-  - **F2 (observation, settlement surface, UNTOUCHED)** — `sdk/meter:108` keys its tiered limit on
-    client-supplied `body.consumerId` (schema-validated uuid, not matched to the key before the limit
-    call). Bounded by the 1000/min IP layer. Needs its own trace + funds-aware chunk.
+  - **F2 — RESOLVED 2026-06-06** (see `f2-sdk-meter-auth-resolution-2026-06-06.md`). The (F2) chunk
+    authenticated the `sdk/meter` + `meter-with-metadata` metering call: it now requires the consumer API
+    key as an `X-Api-Key` header, hashes it, looks up the active `api_keys` row, and **rejects** any
+    `keyId`/`consumerId`/`toolId` not belonging to the presented key — *before any credit/record/revenue
+    effect*. Closes the confirmed unauthenticated metering/credit-attribution gap AND the original narrow
+    observation (the gate runs before the tiered limit, so `body.consumerId` is proven == the key's
+    consumerId). TS SDK `@settlegrid/mcp` 0.2.0→0.3.0 sends the header. Pre-build R1→R2 PLAN_READY
+    (0 blocking) → post-build funds-SEAL **CERTIFIED / 0 blocking / 0 findings**. apps/web tsc 0 / vitest
+    **4261** / build 0; packages/mcp **1898/1** + tsup 0; GROSS-writer 1/1/1/5/0. LOCAL commit (NOT pushed).
   - **F3 (hygiene candidate)** — `lib/middleware/auth.ts:155 requireApiKey` has zero route callers (dead
     export; the `proxy/[slug]:93` comment references it as a contrast). Removal is a separate decision.
+  - **F4 (opened by F2 2026-06-06, founder-deferred)** — the **Python SDK family** (`packages/sdk-python`
+    core + the 6 framework wrappers: crewai/smolagents/dspy/langchain/pydantic-ai/llamaindex) does NOT send
+    `X-Api-Key` on `/meter` and will **401 at runtime** against an F2-deployed server. Re-add `apiKey` to
+    the core meter call (it was literally removed once — see `_types.py` comment) + update the wrappers'
+    test assertions + bump the Python SDK. Safe to defer: 0 live SDK traffic, 0 funded balances. Do before
+    any Python consumer onboards. (TS SDK already done at 0.3.0.)
 
 ## UPDATE 2026-06-05 — (M)+(E) chunk (see `m-getclientip-migration-resolution-2026-06-05.md`)
 

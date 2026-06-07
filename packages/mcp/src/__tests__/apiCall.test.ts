@@ -97,6 +97,15 @@ describe('apiCall — HTTP client error mapping', () => {
     expect(JSON.parse(init.body as string)).toEqual({ foo: 'bar' })
   })
 
+  it('200 success: forwards extraHeaders (e.g. X-Api-Key) alongside Content-Type', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ ok: true }))
+    await apiCall(baseConfig, '/meter', { foo: 'bar' }, undefined, { 'X-Api-Key': 'sg_live_test' })
+    const init = fetchSpy.mock.calls[0][1] as RequestInit
+    const headers = init.headers as Record<string, string>
+    expect(headers['Content-Type']).toBe('application/json')
+    expect(headers['X-Api-Key']).toBe('sg_live_test')
+  })
+
   // ─── 2. 401 → InvalidKeyError ────────────────────────────────────────────
   it('401: throws InvalidKeyError', async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ error: 'bad key' }, 401))

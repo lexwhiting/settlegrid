@@ -137,10 +137,10 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn().mockImplementation((strings: unknown, ...values: unknown[]) => ({ sql: strings, values })),
 }))
 
-function makeRequest(url: string, body: unknown): NextRequest {
+function makeRequest(url: string, body: unknown, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(`http://localhost:3005${url}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   })
 }
@@ -244,10 +244,11 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
   it('skips billing for test keys and returns billed=false', async () => {
     const { POST } = await import('@/app/api/sdk/meter/route')
 
-    // 1st limit: tool+dev lookup (moved to top of route)
+    // 1st limit: F2 auth row; 2nd limit: tool+dev lookup; 3rd limit: verify key is test key
     mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440003', consumerId: '550e8400-e29b-41d4-a716-446655440001', toolId: '550e8400-e29b-41d4-a716-446655440002', status: 'active' }]) // F2 auth row
       .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
-      // 2nd limit: verify key is test key
+      // verify key is test key
       .mockResolvedValueOnce([{ isTestKey: true }])
     // Insert invocation
     mockDb.returning.mockResolvedValueOnce([{ id: 'inv-test-1' }])
@@ -260,7 +261,7 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
       method: 'test.method',
       costCents: 10,
       isTestKey: true,
-    }))
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' }))
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -274,14 +275,15 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
   it('falls through to normal billing if isTestKey flag is false in DB', async () => {
     const { POST } = await import('@/app/api/sdk/meter/route')
 
-    // 1st limit: tool+dev lookup
+    // 1st limit: F2 auth row; 2nd limit: tool+dev lookup
     mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440003', consumerId: '550e8400-e29b-41d4-a716-446655440001', toolId: '550e8400-e29b-41d4-a716-446655440002', status: 'active' }]) // F2 auth row
       .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'starter' }])
-      // 2nd limit: key is NOT actually a test key in DB
+      // key is NOT actually a test key in DB
       .mockResolvedValueOnce([{ isTestKey: false }])
-      // 3rd limit: apiKeys createdAt for fraud check
+      // apiKeys createdAt for fraud check
       .mockResolvedValueOnce([{ createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) }])
-      // 4th limit: balance check fallback
+      // balance check fallback
       .mockResolvedValueOnce([{ id: 'bal-1', balanceCents: 1000 }])
 
     // DB deduction
@@ -297,7 +299,7 @@ describe('Meter — Test Mode (POST /api/sdk/meter)', () => {
       method: 'test.method',
       costCents: 10,
       isTestKey: true,
-    }))
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' }))
     const data = await response.json()
 
     expect(response.status).toBe(200)
