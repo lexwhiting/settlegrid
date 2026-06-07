@@ -1,5 +1,12 @@
 # NEXT-CHUNK HANDOFF — post-(F4) (2026-06-06, Step-0-gated)
 
+> **⚠️ SUPERSEDED 2026-06-07 — STALE-CARRY CORRECTION:** this menu named **B4 as the lead**;
+> that was WRONG. B4 was already **RESOLVED 2026-06-04** at `be43b501` (founder option (B),
+> PLAN_READY + funds-SEAL, capstone `b4-account-attribution-resolution-2026-06-04.md`) — the
+> framing was carried in error from the F2 handoff. The corrected Step-0 (founder, 2026-06-07)
+> picked the **(R) register close-out bundle**:
+> `r-register-closeout-bundle-handoff-2026-06-07.md` is the operative next-chunk handoff.
+
 > (F4) is **CLOSED + CERTIFIED** (`f4-python-sdk-meter-auth-resolution-2026-06-06.md`): the Python SDK
 > family now actually works against the real server (phantom validate path fixed, `X-Api-Key` on
 > `/meter`, all six real response shapes parse). Local commit on top of F2 `2b479a3e` — **NOT pushed,
