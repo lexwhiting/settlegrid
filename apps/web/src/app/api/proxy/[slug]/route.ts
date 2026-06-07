@@ -114,7 +114,6 @@ async function authenticateProxyRequest(
         developerId: string
         pricingConfig: unknown
       }
-      developerRevenueSharePct: number
     }
   | { ok: false; error: NextResponse }
 > {
@@ -153,11 +152,9 @@ async function authenticateProxyRequest(
       proxyEndpoint: tools.proxyEndpoint,
       developerId: tools.developerId,
       pricingConfig: tools.pricingConfig,
-      revenueSharePct: developers.revenueSharePct,
     })
     .from(apiKeys)
     .innerJoin(tools, eq(apiKeys.toolId, tools.id))
-    .innerJoin(developers, eq(tools.developerId, developers.id))
     .where(eq(apiKeys.keyHash, keyHash))
     .limit(1)
 
@@ -226,7 +223,6 @@ async function authenticateProxyRequest(
       developerId: row.developerId,
       pricingConfig: row.pricingConfig,
     },
-    developerRevenueSharePct: row.revenueSharePct,
   }
 }
 
@@ -1206,10 +1202,8 @@ async function handleMppProxy(
       proxyEndpoint: tools.proxyEndpoint,
       developerId: tools.developerId,
       pricingConfig: tools.pricingConfig,
-      revenueSharePct: developers.revenueSharePct,
     })
     .from(tools)
-    .innerJoin(developers, eq(tools.developerId, developers.id))
     .where(eq(tools.slug, slug))
     .limit(1)
 
@@ -1482,10 +1476,8 @@ async function lookupToolBySlug(slug: string, requestId: string) {
       proxyEndpoint: tools.proxyEndpoint,
       developerId: tools.developerId,
       pricingConfig: tools.pricingConfig,
-      revenueSharePct: developers.revenueSharePct,
     })
     .from(tools)
-    .innerJoin(developers, eq(tools.developerId, developers.id))
     .where(eq(tools.slug, slug))
     .limit(1)
 
@@ -1507,7 +1499,6 @@ async function lookupToolBySlug(slug: string, requestId: string) {
     proxyEndpoint: toolRow.proxyEndpoint as string,
     developerId: toolRow.developerId,
     pricingConfig: toolRow.pricingConfig,
-    revenueSharePct: toolRow.revenueSharePct,
   }
   return { ok: true as const, toolRow: verifiedTool }
 }
@@ -1578,7 +1569,6 @@ async function forwardAndBill(
     proxyEndpoint: string
     developerId: string
     pricingConfig: unknown
-    revenueSharePct: number
   },
   paymentMethod: PaymentMethod,
   costCents: number,

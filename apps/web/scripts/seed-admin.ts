@@ -48,7 +48,6 @@ async function main() {
       slug: "lexwhiting",
       supabaseUserId,
       tier: "enterprise",
-      revenueSharePct: 97,
       publicProfile: true,
       publicBio: "Founder, Alerterra",
     })

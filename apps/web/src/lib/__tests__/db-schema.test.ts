@@ -54,10 +54,6 @@ describe('developers table schema', () => {
     expect(schema.developers.tier).toBeDefined()
   })
 
-  it('has revenueSharePct column', () => {
-    expect(schema.developers.revenueSharePct).toBeDefined()
-  })
-
   it('has stripeSubscriptionId column', () => {
     expect(schema.developers.stripeSubscriptionId).toBeDefined()
   })

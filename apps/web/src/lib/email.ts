@@ -361,7 +361,7 @@ ${ctaButton('View Admin Dashboard', 'https://settlegrid.ai/admin')}
 
 export function stripeConnectCompleteEmail(
   name: string,
-  options?: { preheader?: string; revenueSharePct?: number }
+  options?: { preheader?: string }
 ): EmailTemplate {
   return {
     subject: 'Stripe Connect is active — You can now receive payouts',

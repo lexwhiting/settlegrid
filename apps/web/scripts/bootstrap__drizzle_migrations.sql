@@ -108,6 +108,11 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
 SELECT 'dabd3540ed03fff9bc3f90ef12747b5b7e25597ef831d7f96b17654996b7732a', 1779993698000
 WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'dabd3540ed03fff9bc3f90ef12747b5b7e25597ef831d7f96b17654996b7732a');
 
+-- 0014_drop_revenue_share_pct  (hand-written, not in journal; ships with (C) 2026-06-07 — apply the .sql via SQL Editor alongside seeding this row, AFTER the (C) bundle deploys)
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+SELECT 'e720ecaacc420f2c5d4af891d096d23788a6ad68f279f331e87c2a9d29bf43df', 1780790400000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'e720ecaacc420f2c5d4af891d096d23788a6ad68f279f331e87c2a9d29bf43df');
+
 COMMIT;
 
 -- POST-RUN VERIFICATION (run separately after the bootstrap):
@@ -115,6 +120,6 @@ COMMIT;
 --   FROM "drizzle"."__drizzle_migrations"
 --   ORDER BY created_at;
 --
--- Expected: 14 rows. MAX(created_at) = 1779993698000 (0013_developer_api_keys).
+-- Expected: 15 rows. MAX(created_at) = 1780790400000 (0014_drop_revenue_share_pct).
 -- All three journal folderMillis (1773459112883, 1776513600000, 1777737600000)
 -- are < MAX, so drizzle-kit migrate will correctly skip them.

@@ -34,6 +34,36 @@
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
 
+## UPDATE 2026-06-07 — (C) chunk (see `c-revenuesharepct-reconciliation-resolution-2026-06-07.md`)
+
+The legacy **`revenueSharePct` flat take model** reconciled and retired — reframed at Step-0 from "legacy
+cleanup hygiene" to a **money-spine funds-correctness** fix (it had one LIVE divergent consumer). LOCAL
+commit (NOT pushed); migration **generated NOT applied** (founder-gated).
+
+- **Funds bug fixed (the centerpiece).** `lib/settlement/sessions.ts` `finalizeSession` deferred/atomic
+  branch took a **flat 15% session fee** (live DB default 85) and credited the post-fee amount, then
+  payout took **progressively on top** — a structural **double-take** vs the progressive payout model.
+  Now sessions credit the **FULL** amount (`platformFeeCents: 0`); the single take happens once at payout
+  (`calculateTakeCents`) — meter-parity. Re-derived math: a $60k/mo earner was double-taken ~1,023,000c,
+  now a single 168,000c. **Latent today** (immediate-only sessions + unwired `processSettlementBatch` +
+  dormant prod = no active loss), fixed before sessions carry real money. +2 new fail-pre-fix tests.
+- **Dead `revenueSharePct` refs removed (behavior-neutral):** the meter free-tier overage block (a
+  100→100 no-op feeding an already-ignored param, + its self-contained `dev-ops:` counter);
+  meter-with-metadata + proxy (3 chains) dead selects + their now-orphaned `developers` joins
+  (non-filtering: `tools.developerId` is `notNull().references`); the `recordInvocationAsync` legacy
+  param; the auth/me + settings + email display refs (UI/email already on progressive copy).
+- **Schema/DB drift resolved by DROP.** Schema said `.default(100)`; the only DDL (`0000`) had `DEFAULT
+  85`, never ALTERed → live rows carried 85 (12×85, 3×95, 0×100), feeding no money math. NEW hand-written
+  `drizzle/0014_drop_revenue_share_pct.sql` (`DROP COLUMN IF EXISTS`) + bootstrap hash row (sha256
+  `e720ecaa…`); `schema.ts` + `seed-admin.ts` (typed insert) updated. **drizzle-kit `generate` is
+  unusable** here (partial meta) — hand-written per the 0002-0013 convention. **Deploy-ordering:** ship
+  with the current bundle, apply 0014 **after** deploy (expand/contract).
+- **Gates:** pre-build R1 PLAN_NEEDS_FIXES (3 RED-gate blockers — unused-const eslint ×2 + a missed typed
+  seed insert; all fixed + re-verified) → R2 **PLAN_READY / 0 blocking**; post-build **FUNDS-SEAL
+  CERTIFIED / 0 blocking** incl. migration-safety + zero-out-of-spine-diff lenses. apps/web tsc 0 /
+  vitest **4283** (4282 − 1 + 2) / build 0 / eslint 0; packages/mcp **1898/1** unchanged; zero
+  `packages/sdk-python*` / pricing-rate / payout-logic / meter-credit / rate-limit / crypto hunks.
+
 ## UPDATE 2026-06-07 — (R) chunk (see `r-register-closeout-resolution-2026-06-07.md`)
 
 The register's entire remaining **non-gated** tail, drained in one **zero-migration, zero-money-spine**
