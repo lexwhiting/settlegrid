@@ -32,7 +32,6 @@ interface DeveloperProfile {
   name: string | null
   slug: string | null
   tier: string
-  revenueSharePct: number
   stripeConnectStatus: string
   stripeSubscriptionId: string | null
   balanceCents: number

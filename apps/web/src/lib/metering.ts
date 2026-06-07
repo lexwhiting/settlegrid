@@ -295,7 +295,6 @@ export function recordInvocationAsync(params: {
   costCents: number
   latencyMs: number | null
   developerId: string
-  revenueSharePct: number // Legacy — ignored. Progressive take rate calculated at payout time. See lib/pricing.ts
   isTest?: boolean
   isFlagged?: boolean
   referralCode?: string

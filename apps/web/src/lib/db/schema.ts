@@ -24,7 +24,6 @@ export const developers = pgTable('developers', {
   supabaseUserId: text('supabase_user_id').unique(),
   passwordHash: text('password_hash'),
   tier: text('tier').notNull().default('standard'), // 'standard' | 'builder' | 'scale' | 'enterprise' (legacy: 'starter' | 'growth' may exist for migrated users — treat as 'builder')
-  revenueSharePct: integer('revenue_share_pct').notNull().default(100), // Legacy — progressive take rates now calculated dynamically. See lib/pricing.ts
   stripeConnectId: text('stripe_connect_id'),
   stripeConnectStatus: text('stripe_connect_status').notNull().default('not_started'),
   stripeCustomerId: text('stripe_customer_id'), // Stripe Customer for subscription billing

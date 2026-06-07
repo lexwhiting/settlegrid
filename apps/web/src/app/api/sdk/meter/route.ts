@@ -12,20 +12,6 @@ import { logger } from '@/lib/logger'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { suspiciousActivityEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
-import { getRedis, tryRedis } from '@/lib/redis'
-
-/** Monthly ops limits per tier */
-const TIER_OPS_LIMITS: Record<string, number> = {
-  standard: 50_000,
-  builder: 200_000,
-  starter: 200_000, // legacy alias — treat as builder
-  growth: 200_000, // legacy alias — treat as builder
-  scale: 2_000_000,
-  enterprise: 10_000_000,
-}
-
-/** Legacy — progressive take rate now calculated at payout time. See lib/pricing.ts */
-const OVERAGE_REVENUE_SHARE_PCT = 100 // developer keeps 100% at invocation time; take rate applied at payout
 
 export const maxDuration = 60
 export { corsOptions as OPTIONS }
@@ -89,7 +75,6 @@ export const POST = withCors(async function POST(request: NextRequest) {
     const [toolDev] = await db
       .select({
         developerId: tools.developerId,
-        revenueSharePct: developers.revenueSharePct,
         developerTier: developers.tier,
       })
       .from(tools)
@@ -99,39 +84,6 @@ export const POST = withCors(async function POST(request: NextRequest) {
 
     if (!toolDev) {
       return errorResponse('Tool not found.', 404, 'NOT_FOUND')
-    }
-
-    // ── Overage: progressive take rate applied at payout time, not here ─
-    let effectiveRevenueSharePct = toolDev.revenueSharePct
-    const tier = toolDev.developerTier ?? 'standard'
-    const tierLimit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
-
-    if (effectiveRevenueSharePct === 100 && tier === 'standard') {
-      // Free tier — check if over monthly ops limit using Redis counter
-      const redis = getRedis()
-      const now = new Date()
-      const monthKey = `dev-ops:${toolDev.developerId}:${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      const monthOps = await tryRedis(() => redis.get<number>(monthKey))
-
-      if (monthOps !== null && monthOps >= tierLimit) {
-        // Over limit — apply platform fee on this invocation
-        effectiveRevenueSharePct = OVERAGE_REVENUE_SHARE_PCT
-        logger.info('meter.overage_fee_applied', {
-          developerId: toolDev.developerId,
-          tier,
-          monthOps,
-          tierLimit,
-          effectiveRevenueSharePct,
-        })
-      }
-
-      // Increment the monthly ops counter (fire-and-forget)
-      tryRedis(async () => {
-        const ttl = 33 * 24 * 60 * 60 // 33 days — covers any month + buffer
-        const exists = await redis.exists(monthKey)
-        await redis.incr(monthKey)
-        if (!exists) await redis.expire(monthKey, ttl)
-      })
     }
 
     // Apply tiered rate limit based on developer's plan
@@ -310,7 +262,6 @@ export const POST = withCors(async function POST(request: NextRequest) {
         costCents: body.costCents,
         latencyMs: body.latencyMs ?? null,
         developerId: toolDev.developerId,
-        revenueSharePct: effectiveRevenueSharePct,
         referralCode: body.referralCode,
         isFlagged: fraudResult.flagged,
       })

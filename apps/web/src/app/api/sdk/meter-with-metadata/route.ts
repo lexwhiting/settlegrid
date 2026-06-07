@@ -133,14 +133,12 @@ export const POST = withCors(async function POST(request: NextRequest) {
       )
     }
 
-    // Get tool + developer to find revenue share percentage
+    // Get the tool's developerId for crediting
     const [toolDev] = await db
       .select({
         developerId: tools.developerId,
-        revenueSharePct: developers.revenueSharePct,
       })
       .from(tools)
-      .innerJoin(developers, eq(tools.developerId, developers.id))
       .where(eq(tools.id, body.toolId))
       .limit(1)
 

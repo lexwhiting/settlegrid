@@ -570,7 +570,7 @@ export async function finalizeSession(sessionId: string): Promise<FinalizeResult
     }
   }
 
-  // Look up developer IDs and revenue share for each tool
+  // Look up the developer ID for each tool (tool → developer mapping, for crediting).
   const toolIds = [...new Set(hops.map(h => h.toolId))]
   const toolRows = toolIds.length > 0
     ? await db
@@ -582,41 +582,25 @@ export async function finalizeSession(sessionId: string): Promise<FinalizeResult
         .where(sql`${tools.id} IN (${sql.join(toolIds.map(id => sql`${id}::uuid`), sql`, `)})`)
     : []
 
-  const developerIds = [...new Set(toolRows.map(t => t.developerId))]
-  const developerRows = developerIds.length > 0
-    ? await db
-        .select({
-          developerId: developers.id,
-          revenueSharePct: developers.revenueSharePct,
-        })
-        .from(developers)
-        .where(sql`${developers.id} IN (${sql.join(
-          developerIds.map(id => sql`${id}::uuid`),
-          sql`, `
-        )})`)
-    : []
-
-  const devMap = new Map(developerRows.map(d => [d.developerId, d.revenueSharePct]))
   const toolDevMap = new Map(toolRows.map(t => [t.toolId, t.developerId]))
 
   const disbursements: SessionDisbursement[] = []
-  let totalPlatformFee = 0
 
   for (const [, entry] of disbursementMap) {
     const developerId = toolDevMap.get(entry.toolId)
     if (!developerId) continue
 
-    const revSharePct = devMap.get(developerId) ?? 85
-    const platformFeeCents = Math.ceil(entry.amountCents * ((100 - revSharePct) / 100))
-    const developerAmountCents = entry.amountCents - platformFeeCents
-
-    totalPlatformFee += platformFeeCents
-
+    // Single take model: sessions credit the developer the FULL amount; the
+    // progressive platform take is applied exactly ONCE, at payout time
+    // (calculateTakeCents, lib/pricing.ts), on the pooled balanceCents —
+    // identical to the meter path. No flat fee is taken at settlement time.
+    // (The legacy flat revenueSharePct session fee was removed in chunk (C);
+    // taking here AND at payout double-took session revenue.)
     disbursements.push({
       developerId,
       toolId: entry.toolId,
-      amountCents: developerAmountCents,
-      platformFeeCents,
+      amountCents: entry.amountCents,
+      platformFeeCents: 0,
       stripeTransferId: null,
       status: 'pending',
     })
@@ -624,13 +608,14 @@ export async function finalizeSession(sessionId: string): Promise<FinalizeResult
 
   const totalAmount = hops.reduce((sum, h) => sum + h.costCents, 0)
 
-  // Create settlement batch
+  // Create settlement batch. platformFeeCents is 0: the take is deferred to
+  // payout (single progressive take), so the batch credits the full amount.
   const [batch] = await db
     .insert(settlementBatches)
     .values({
       sessionId,
       totalAmountCents: totalAmount,
-      platformFeeCents: totalPlatformFee,
+      platformFeeCents: 0,
       disbursements,
     })
     .returning({ id: settlementBatches.id })

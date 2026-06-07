@@ -181,7 +181,6 @@ describe('Metering', () => {
           costCents: 100,
           latencyMs: 50,
           developerId: 'd1',
-          revenueSharePct: 95,
         })
       ).not.toThrow()
     })

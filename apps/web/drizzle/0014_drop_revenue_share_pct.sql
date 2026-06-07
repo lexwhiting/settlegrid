@@ -1,0 +1,21 @@
+-- (C) revenueSharePct take-model reconciliation (2026-06-07)
+-- Drop the legacy flat-take column `developers.revenue_share_pct`.
+--
+-- The flat revenueSharePct model was superseded by the progressive
+-- calculateTakeCents model (apps/web/src/lib/pricing.ts), applied once at
+-- payout. Chunk (C) removed the last divergent consumer (the sessions
+-- finalize flat fee) and every dead reference, so no deployed code reads
+-- this column. Expand/contract: ship the (C) code first (so live instances
+-- stop SELECTing the column), THEN apply this DROP. The column carried only
+-- a stale DEFAULT 85 (vs the ORM's 100) that fed no money math.
+--
+-- IF EXISTS makes the one-shot Supabase SQL Editor paste idempotent.
+-- Hand-written (NOT via drizzle-kit generate — drizzle/meta is intentionally
+-- partial: only 0000_snapshot.json + a 3-entry journal, so generate would
+-- diff against a stale snapshot and emit a wrong migration). Register the
+-- applied hash in scripts/bootstrap__drizzle_migrations.sql.
+--
+-- FOUNDER-GATED: apply via the Supabase SQL Editor after the (C) bundle
+-- deploys. Do NOT auto-apply.
+
+ALTER TABLE "developers" DROP COLUMN IF EXISTS "revenue_share_pct";
