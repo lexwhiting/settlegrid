@@ -315,7 +315,7 @@ class TestRequestAsync:
     @pytest.mark.asyncio
     async def test_success_returns_dict(self, http_client: SettleGridHTTPClient) -> None:
         with respx.mock(base_url="https://api.test") as router:
-            router.post("/api/sdk/keys/validate").mock(
+            router.post("/api/sdk/validate-key").mock(
                 return_value=httpx.Response(
                     200,
                     json={
@@ -327,7 +327,7 @@ class TestRequestAsync:
                     },
                 )
             )
-            body = await http_client.request("/keys/validate", {"apiKey": "k"})
+            body = await http_client.request("/validate-key", {"apiKey": "k"})
             assert body["consumerId"] == "c"
         await http_client.aclose()
 
@@ -336,13 +336,13 @@ class TestRequestAsync:
         self, http_client: SettleGridHTTPClient
     ) -> None:
         with respx.mock(base_url="https://api.test") as router:
-            router.post("/api/sdk/keys/validate").mock(
+            router.post("/api/sdk/validate-key").mock(
                 return_value=httpx.Response(
                     401, json={"error": "bad key", "code": "INVALID_KEY"}
                 )
             )
             with pytest.raises(InvalidKeyError):
-                await http_client.request("/keys/validate", {"apiKey": "k"})
+                await http_client.request("/validate-key", {"apiKey": "k"})
         await http_client.aclose()
 
     @pytest.mark.asyncio
@@ -508,7 +508,7 @@ class TestRequestSync:
     def test_success_returns_dict(self) -> None:
         client = self._client()
         with respx.mock(base_url="https://api.test") as router:
-            router.post("/api/sdk/keys/validate").mock(
+            router.post("/api/sdk/validate-key").mock(
                 return_value=httpx.Response(
                     200,
                     json={
@@ -520,18 +520,18 @@ class TestRequestSync:
                     },
                 )
             )
-            body = client.request_sync("/keys/validate", {"apiKey": "k"})
+            body = client.request_sync("/validate-key", {"apiKey": "k"})
             assert body["valid"] is True
         client.close()
 
     def test_401_maps_to_invalid_key(self) -> None:
         client = self._client()
         with respx.mock(base_url="https://api.test") as router:
-            router.post("/api/sdk/keys/validate").mock(
+            router.post("/api/sdk/validate-key").mock(
                 return_value=httpx.Response(401, json={"error": "no"})
             )
             with pytest.raises(InvalidKeyError):
-                client.request_sync("/keys/validate", {"apiKey": "k"})
+                client.request_sync("/validate-key", {"apiKey": "k"})
         client.close()
 
     def test_5xx_retries(self) -> None:
@@ -589,11 +589,11 @@ class TestRequestSync:
             )
         )
         with respx.mock(base_url="https://api.test") as router:
-            router.post("/api/sdk/keys/validate").mock(
+            router.post("/api/sdk/validate-key").mock(
                 side_effect=httpx.ConnectError("dns failed")
             )
             with pytest.raises(NetworkError):
-                client.request_sync("/keys/validate", {"apiKey": "k"})
+                client.request_sync("/validate-key", {"apiKey": "k"})
         client.close()
 
     def test_non_json_error_body_falls_back(self) -> None:
@@ -607,7 +607,7 @@ class TestRequestSync:
             )
         )
         with respx.mock(base_url="https://api.test") as router:
-            router.post("/api/sdk/keys/validate").mock(
+            router.post("/api/sdk/validate-key").mock(
                 return_value=httpx.Response(
                     400,
                     content=b"<html>nginx 400</html>",
@@ -615,5 +615,5 @@ class TestRequestSync:
                 )
             )
             with pytest.raises(SettleGridUnavailableError):
-                client.request_sync("/keys/validate", {"apiKey": "k"})
+                client.request_sync("/validate-key", {"apiKey": "k"})
         client.close()

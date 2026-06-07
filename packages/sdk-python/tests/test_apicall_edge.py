@@ -48,11 +48,11 @@ class TestLiteralNullBody:
     @respx.mock(base_url="https://api.test")
     async def test_401_with_null_body_still_invalid_key(self, respx_mock) -> None:
         client = _client()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=httpx.Response(401, json=None)
         )
         with pytest.raises(InvalidKeyError):
-            await client.request("/keys/validate", {"apiKey": "k"})
+            await client.request("/validate-key", {"apiKey": "k"})
         await client.aclose()
 
     @respx.mock(base_url="https://api.test")
@@ -96,11 +96,11 @@ class TestNonObjectBody:
     @respx.mock(base_url="https://api.test")
     async def test_401_with_number_body_normalizes_to_empty(self, respx_mock) -> None:
         client = _client()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=httpx.Response(401, json=42)
         )
         with pytest.raises(InvalidKeyError):
-            await client.request("/keys/validate", {"apiKey": "k"})
+            await client.request("/validate-key", {"apiKey": "k"})
         await client.aclose()
 
     @respx.mock(base_url="https://api.test")
@@ -163,11 +163,11 @@ class TestEdgeCaseErrorBodies:
         """``{ error: "" }`` should NOT pass an empty string to the
         constructor — falls back to the default message."""
         client = _client()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=httpx.Response(401, json={"error": ""})
         )
         with pytest.raises(InvalidKeyError) as exc:
-            await client.request("/keys/validate", {"apiKey": "k"})
+            await client.request("/validate-key", {"apiKey": "k"})
         # Default message starts with "Invalid or revoked"
         assert "Invalid or revoked" in str(exc.value) or len(str(exc.value)) > 0
         await client.aclose()

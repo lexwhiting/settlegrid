@@ -138,7 +138,7 @@ class TestCallable:
     @respx.mock(base_url=API_URL)
     def test_sync_callable_meters(self, respx_mock) -> None:
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -153,6 +153,8 @@ class TestCallable:
         assert search("hello") == "results for hello"
         assert validate_route.call_count == 1
         assert meter_route.call_count == 1
+        # F2 contract: the buyer key rides the X-Api-Key header
+        assert meter_route.calls.last.request.headers.get("x-api-key") == BUYER_KEY
         sg.close()
 
     def test_preserves_introspection(self) -> None:
@@ -180,7 +182,7 @@ class TestFunctionTool:
         preserve ``ToolMetadata`` (name, description, fn_schema) so the
         agent's tool-router still finds the tool correctly."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -215,7 +217,7 @@ class TestFunctionTool:
         the user's ``callback`` and ``partial_params``. The fix forwards
         every kwarg the original tool was constructed with."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -255,7 +257,7 @@ class TestFunctionTool:
     @respx.mock(base_url=API_URL)
     async def test_wraps_async_function_tool(self, respx_mock) -> None:
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -285,7 +287,7 @@ class TestStubbedAgent:
         pick a tool by name from a registry, call ``tool.call(**args)``,
         observe the result. Asserts metering fires per call."""
         sg = _sdk()
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -325,7 +327,7 @@ class TestConfigure:
     def test_configure_then_bare_signature(self, respx_mock) -> None:
         sg = _sdk()
         configure(sg)
-        respx_mock.post("/api/sdk/keys/validate").mock(
+        respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(

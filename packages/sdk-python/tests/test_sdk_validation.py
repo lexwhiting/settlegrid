@@ -144,7 +144,7 @@ class TestWrapValidation:
         # Without `route.called` checks, the test would pass even if
         # metering silently broke (handler returned "ok" without charge).
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -167,7 +167,7 @@ class TestWrapValidation:
     @respx.mock(base_url=API_URL)
     async def test_succeeds_with_valid_async_handler(self, respx_mock) -> None:
         sg = _sdk()
-        validate_route = respx_mock.post("/api/sdk/keys/validate").mock(
+        validate_route = respx_mock.post("/api/sdk/validate-key").mock(
             return_value=_validate_response()
         )
         meter_route = respx_mock.post("/api/sdk/meter").mock(
@@ -401,7 +401,7 @@ class TestResponseBodyShapes:
         assert result.tool_id == "t"
         assert result.key_id == "k"
         assert result.balance_cents == 5000
-        assert result.model_dump(by_alias=True) == wire
+        assert result.model_dump(by_alias=True, exclude_none=True) == wire
 
     def test_meter_result_round_trip(self) -> None:
         wire = {
@@ -415,4 +415,4 @@ class TestResponseBodyShapes:
         assert result.remaining_balance_cents == 4990
         assert result.cost_cents == 10
         assert result.invocation_id == "inv_123"
-        assert result.model_dump(by_alias=True) == wire
+        assert result.model_dump(by_alias=True, exclude_none=True) == wire

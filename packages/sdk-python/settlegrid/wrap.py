@@ -38,6 +38,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
 
 if TYPE_CHECKING:
+    from ._types import KeyValidationResult
     from .client import SettleGrid
 
 # Argument names reserved by the SDK on wrapped callables. A user
@@ -46,6 +47,27 @@ if TYPE_CHECKING:
 _RESERVED_KWARG = "_settlegrid_api_key"
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _require_ids(validation: KeyValidationResult) -> tuple[str, str, str]:
+    """Return ``(consumer_id, tool_id, key_id)`` or raise ``InvalidKeyError``.
+
+    The real ``validate-key`` route always includes the three UUIDs on
+    ``valid=True`` responses; only the HTTP-200 failure shape
+    (``{valid: false, reason}``) omits them — and the callers below check
+    ``valid`` BEFORE calling this. A malformed valid-True body without
+    the ids is treated as an invalid key rather than letting ``None``
+    leak into the meter call.
+    """
+    from .errors import InvalidKeyError  # local import — keep wrap.py decoupled
+
+    if (
+        validation.consumer_id is None
+        or validation.tool_id is None
+        or validation.key_id is None
+    ):
+        raise InvalidKeyError()
+    return validation.consumer_id, validation.tool_id, validation.key_id
 
 
 class Invocation:
@@ -209,6 +231,7 @@ class Wrapper:
             validation = sg.validate_key(api_key)
             if not validation.valid:
                 raise InvalidKeyError()
+            consumer_id, tool_id, key_id = _require_ids(validation)
             # 2. Handler. If it raises, meter is skipped — no charge for
             #    failed invocations (matches TS execute() semantics).
             result = func(*args, **kwargs)
@@ -217,9 +240,9 @@ class Wrapper:
                 api_key,
                 method=meter_name,
                 cost_cents=price_cents,
-                consumer_id=validation.consumer_id,
-                tool_id=validation.tool_id,
-                key_id=validation.key_id,
+                consumer_id=consumer_id,
+                tool_id=tool_id,
+                key_id=key_id,
             )
             return result
 
@@ -248,14 +271,15 @@ class Wrapper:
             validation = await sg.validate_key_async(api_key)
             if not validation.valid:
                 raise InvalidKeyError()
+            consumer_id, tool_id, key_id = _require_ids(validation)
             result = await func(*args, **kwargs)
             await sg.meter_async(
                 api_key,
                 method=meter_name,
                 cost_cents=price_cents,
-                consumer_id=validation.consumer_id,
-                tool_id=validation.tool_id,
-                key_id=validation.key_id,
+                consumer_id=consumer_id,
+                tool_id=tool_id,
+                key_id=key_id,
             )
             return result
 
@@ -274,14 +298,15 @@ class Wrapper:
         validation = self._sg.validate_key(api_key)
         if not validation.valid:
             raise InvalidKeyError()
+        consumer_id, tool_id, key_id = _require_ids(validation)
         self._active = True
         self._invocation = Invocation(
             meter=self.meter,
             price_cents=self.price_cents,
             api_key=api_key,
-            consumer_id=validation.consumer_id,
-            tool_id=validation.tool_id,
-            key_id=validation.key_id,
+            consumer_id=consumer_id,
+            tool_id=tool_id,
+            key_id=key_id,
         )
         return self._invocation
 
@@ -310,14 +335,15 @@ class Wrapper:
         validation = await self._sg.validate_key_async(api_key)
         if not validation.valid:
             raise InvalidKeyError()
+        consumer_id, tool_id, key_id = _require_ids(validation)
         self._active = True
         self._invocation = Invocation(
             meter=self.meter,
             price_cents=self.price_cents,
             api_key=api_key,
-            consumer_id=validation.consumer_id,
-            tool_id=validation.tool_id,
-            key_id=validation.key_id,
+            consumer_id=consumer_id,
+            tool_id=tool_id,
+            key_id=key_id,
         )
         return self._invocation
 

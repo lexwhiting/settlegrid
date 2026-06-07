@@ -133,7 +133,7 @@ class TestHTTPPostLoopDefensiveRaise:
         monkeypatch.setattr(asyncio, "sleep", lambda *_a, **_k: _async_noop())
 
         with pytest.raises(SettleGridUnavailableError, match="Exhausted retry"):
-            await client.request("/keys/validate", {"apiKey": "k"})
+            await client.request("/validate-key", {"apiKey": "k"})
         await client.aclose()
 
     def test_sync_request_post_loop_raise(self, monkeypatch) -> None:
@@ -149,7 +149,7 @@ class TestHTTPPostLoopDefensiveRaise:
         monkeypatch.setattr(time, "sleep", lambda *_a, **_k: None)
 
         with pytest.raises(SettleGridUnavailableError, match="Exhausted retry"):
-            client.request_sync("/keys/validate", {"apiKey": "k"})
+            client.request_sync("/validate-key", {"apiKey": "k"})
         client.close()
 
 

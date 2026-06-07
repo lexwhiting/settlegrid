@@ -115,7 +115,7 @@ class HTTPConfig:
     max_retries: int = DEFAULT_MAX_RETRIES
     circuit_breaker_threshold: int = DEFAULT_CIRCUIT_BREAKER_THRESHOLD
     circuit_breaker_cooldown_ms: int = DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS
-    user_agent: str = "settlegrid-python/0.1.0"
+    user_agent: str = "settlegrid-python/0.2.0"
 
 
 # ─── Internal: status-code error mapping ─────────────────────────────────
@@ -313,12 +313,21 @@ class SettleGridHTTPClient:
 
     # ─── public entry points ─────────────────────────────────────────
 
-    async def request(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+    async def request(
+        self,
+        path: str,
+        body: dict[str, Any],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Execute a POST against ``/api/sdk{path}`` with retries.
 
         Returns the parsed JSON response on success, or raises a typed
         :class:`SettleGridError` on failure. Path is prefixed with
-        ``/api/sdk`` to mirror the TS middleware.
+        ``/api/sdk`` to mirror the TS middleware. ``extra_headers``
+        (additive — mirrors the TS ``apiCall`` ``extraHeaders`` param,
+        ``packages/mcp/src/middleware.ts``) are MERGED with the
+        client-level headers per httpx semantics: ``Content-Type`` /
+        ``User-Agent`` survive unless explicitly overridden.
         """
         self._guard_circuit_open()
         full_path = f"/api/sdk{path}"
@@ -327,7 +336,7 @@ class SettleGridHTTPClient:
         max_attempts = max(_MIN_ATTEMPTS, self.config.max_retries + 1)
         for attempt in range(max_attempts):
             attempt_result = await self._do_attempt_async(
-                client, full_path, body, attempt, max_attempts
+                client, full_path, body, attempt, max_attempts, extra_headers
             )
             if attempt_result.retry:
                 await asyncio.sleep(attempt_result.backoff_ms / 1000)
@@ -344,7 +353,12 @@ class SettleGridHTTPClient:
             "Exhausted retry budget; last attempt did not surface an error"
         )
 
-    def request_sync(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+    def request_sync(
+        self,
+        path: str,
+        body: dict[str, Any],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Synchronous twin of :meth:`request` — identical semantics."""
         self._guard_circuit_open()
         full_path = f"/api/sdk{path}"
@@ -353,7 +367,7 @@ class SettleGridHTTPClient:
         max_attempts = max(_MIN_ATTEMPTS, self.config.max_retries + 1)
         for attempt in range(max_attempts):
             attempt_result = self._do_attempt_sync(
-                client, full_path, body, attempt, max_attempts
+                client, full_path, body, attempt, max_attempts, extra_headers
             )
             if attempt_result.retry:
                 time.sleep(attempt_result.backoff_ms / 1000)
@@ -383,9 +397,10 @@ class SettleGridHTTPClient:
         body: dict[str, Any],
         attempt: int,
         max_attempts: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> _AttemptResult:
         try:
-            response = await client.post(full_path, json=body)
+            response = await client.post(full_path, json=body, headers=extra_headers)
         except httpx.TimeoutException:
             self._circuit.record_failure()
             return _AttemptResult(error=TimeoutError(self.config.timeout_ms))
@@ -405,9 +420,10 @@ class SettleGridHTTPClient:
         body: dict[str, Any],
         attempt: int,
         max_attempts: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> _AttemptResult:
         try:
-            response = client.post(full_path, json=body)
+            response = client.post(full_path, json=body, headers=extra_headers)
         except httpx.TimeoutException:
             self._circuit.record_failure()
             return _AttemptResult(error=TimeoutError(self.config.timeout_ms))

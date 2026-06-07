@@ -64,12 +64,26 @@
     **4261** / build 0; packages/mcp **1898/1** + tsup 0; GROSS-writer 1/1/1/5/0. LOCAL commit (NOT pushed).
   - **F3 (hygiene candidate)** — `lib/middleware/auth.ts:155 requireApiKey` has zero route callers (dead
     export; the `proxy/[slug]:93` comment references it as a contrast). Removal is a separate decision.
-  - **F4 (opened by F2 2026-06-06, founder-deferred)** — the **Python SDK family** (`packages/sdk-python`
-    core + the 6 framework wrappers: crewai/smolagents/dspy/langchain/pydantic-ai/llamaindex) does NOT send
-    `X-Api-Key` on `/meter` and will **401 at runtime** against an F2-deployed server. Re-add `apiKey` to
-    the core meter call (it was literally removed once — see `_types.py` comment) + update the wrappers'
-    test assertions + bump the Python SDK. Safe to defer: 0 live SDK traffic, 0 funded balances. Do before
-    any Python consumer onboards. (TS SDK already done at 0.3.0.)
+  - **F4 → RESOLVED 2026-06-06** (see `f4-python-sdk-meter-auth-resolution-2026-06-06.md`) — the
+    **Python SDK family** (`packages/sdk-python` core + the 6 framework wrappers) now sends `X-Api-Key`
+    on `/meter` (additive `extra_headers` on `_http.request*`, mirroring the TS `apiCall` design). The
+    chunk ABSORBED two pre-handoff findings that made F4 bigger than registered: a **PHANTOM validate
+    path** (`/api/sdk/keys/validate` never existed; real route `/validate-key` — the family had NEVER
+    worked against the deployed server) and **response-model strictness** (`KeyValidationResult`
+    rejected BOTH real validate shapes incl. failure-as-HTTP-200 `{valid:false,reason}`; `MeterResult`
+    rejected 3 of 4 real meter shapes incl. the Redis fast path that omits `invocationId`). Core
+    `settlegrid` 0.1.0→**0.2.0**; wrappers stay 0.1.0 (test-only edits). 18 new wire-contract tests
+    (18/18 proven failing pre-fix); core 394 / wrappers 17/15/15/30/15/17; mypy+ruff clean. Pre-build
+    audit R1 **PLAN_READY / 0 blocking** (one round — no blockers found) → post-build panel
+    **CERTIFIED / 0 blocking / 0 findings** incl. the mandatory ZERO-SERVER-DIFF lens (zero `apps/web`
+    / `packages/mcp` hunks; TS baselines byte-identical: tsc 0 / vitest 4261 / build 0 / mcp 1898+1 /
+    tsup 0). Compat: new SDK works against BOTH server generations (validate-key pre-exists F2;
+    pre-F2 meter ignores the extra header) → safe independent of the F2 deploy. LOCAL commit (NOT
+    pushed; NO PyPI). The F2+F4 deploy/publish bundle is now founder-actionable.
+
+    *Original entry (opened by F2 2026-06-06, founder-deferred): the family did NOT send `X-Api-Key`
+    on `/meter` and would 401 at runtime against an F2-deployed server; safe to defer (0 live SDK
+    traffic, 0 funded balances); do before any Python consumer onboards.*
 
 ## UPDATE 2026-06-05 — (M)+(E) chunk (see `m-getclientip-migration-resolution-2026-06-05.md`)
 

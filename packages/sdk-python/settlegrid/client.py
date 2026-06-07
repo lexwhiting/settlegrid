@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from .wrap import Wrapper
 
 
-SDK_VERSION = "0.1.0"
+SDK_VERSION = "0.2.0"
 
 
 class SettleGrid:
@@ -154,7 +154,7 @@ class SettleGrid:
         if cached is not None:
             return cached
         body = self._http.request_sync(
-            "/keys/validate",
+            "/validate-key",
             {"apiKey": api_key, "toolSlug": self.tool_slug},
         )
         result = KeyValidationResult.model_validate(body)
@@ -168,7 +168,7 @@ class SettleGrid:
         if cached is not None:
             return cached
         body = await self._http.request(
-            "/keys/validate",
+            "/validate-key",
             {"apiKey": api_key, "toolSlug": self.tool_slug},
         )
         result = KeyValidationResult.model_validate(body)
@@ -191,9 +191,14 @@ class SettleGrid:
 
         The flow mirrors the TS SDK: validate the key (cached), then
         POST to ``/api/sdk/meter`` with the cost + the consumer / tool /
-        key UUIDs returned by the prior ``validate_key`` call. The server
-        enforces balance + budget caps and returns the typed errors the
-        SDK maps to :class:`InsufficientCreditsError` /
+        key UUIDs returned by the prior ``validate_key`` call. Since
+        (F2) the server REQUIRES the buyer key as the ``X-Api-Key``
+        request header (``meter/route.ts:59-86``) — it is hashed,
+        resolved to the active ``api_keys`` row, and bound against the
+        body's ``keyId/consumerId/toolId`` before any billing effect;
+        this client sends it via ``extra_headers``, never in the body.
+        The server enforces balance + budget caps and returns the typed
+        errors the SDK maps to :class:`InsufficientCreditsError` /
         :class:`BudgetExceededError`.
 
         ``consumer_id`` / ``tool_id`` / ``key_id`` are the three UUIDs
@@ -215,6 +220,7 @@ class SettleGrid:
                 "method": method,
                 "costCents": cost_cents,
             },
+            extra_headers={"X-Api-Key": api_key},
         )
         return MeterResult.model_validate(body)
 
@@ -240,6 +246,7 @@ class SettleGrid:
                 "method": method,
                 "costCents": cost_cents,
             },
+            extra_headers={"X-Api-Key": api_key},
         )
         return MeterResult.model_validate(body)
 
