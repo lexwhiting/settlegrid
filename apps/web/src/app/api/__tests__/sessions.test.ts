@@ -25,7 +25,8 @@ vi.mock('@/lib/settlement/sessions', () => ({
 vi.mock('@/lib/rate-limit', () => ({
   getClientIp: (h: Headers) =>
     h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
-  sdkLimiter: {},
+  sdkLimiter: { __id: 'sdkLimiter' },
+  sessionLimiter: { __id: 'sessionLimiter' },
   checkRateLimit: mockCheckRateLimit,
 }))
 
@@ -69,6 +70,7 @@ import { POST as createSessionRoute } from '@/app/api/sessions/route'
 import { GET as getSessionRoute } from '@/app/api/sessions/[id]/route'
 import { POST as delegateRoute } from '@/app/api/sessions/[id]/delegate/route'
 import { POST as completeRoute } from '@/app/api/sessions/[id]/complete/route'
+import { sdkLimiter, sessionLimiter } from '@/lib/rate-limit'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -123,6 +125,12 @@ describe('POST /api/sessions', () => {
     expect(data.budgetCents).toBe(10000)
   })
 
+  it('rate-limits session-create on the shared sdkLimiter (row-inserter stays at 1000 — F1 split)', async () => {
+    mockCreateSession.mockResolvedValue(mockSession)
+    await createSessionRoute(makeRequest('/api/sessions', 'POST', { customerId: 'cust-1', budgetCents: 10000 }))
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(sdkLimiter, expect.stringContaining('session-create:'))
+  })
+
   it('validates body with Zod (missing customerId)', async () => {
     const request = makeRequest('/api/sessions', 'POST', {
       budgetCents: 10000,
@@ -175,6 +183,12 @@ describe('GET /api/sessions/[id]', () => {
     expect(response.status).toBe(200)
     expect(data.id).toBe('sess-001')
     expect(data.budgetCents).toBe(10000)
+  })
+
+  it('rate-limits session-get on the sessionLimiter (F1 — non-inserting in-session route)', async () => {
+    mockGetSessionState.mockResolvedValue(mockSession)
+    await getSessionRoute(makeRequest('/api/sessions/sess-001'), { params: Promise.resolve({ id: 'sess-001' }) })
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(sessionLimiter, expect.stringContaining('session-get:'))
   })
 
   it('returns 404 for unknown session', async () => {
@@ -232,6 +246,13 @@ describe('POST /api/sessions/[id]/delegate', () => {
       budgetCents: 3000,
       parentSessionId: 'sess-001',
     }))
+  })
+
+  it('rate-limits session-delegate on the shared sdkLimiter (row-inserter stays at 1000 — F1 split)', async () => {
+    mockDb.limit.mockResolvedValue([{ customerId: 'cust-1' }])
+    mockCreateSession.mockResolvedValue({ ...mockSession, id: 'sess-002', parentSessionId: 'sess-001' })
+    await delegateRoute(makeRequest('/api/sessions/sess-001/delegate', 'POST', { budgetCents: 3000 }), { params: Promise.resolve({ id: 'sess-001' }) })
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(sdkLimiter, expect.stringContaining('session-delegate:'))
   })
 
   it('returns 404 when parent session not found', async () => {
@@ -319,6 +340,12 @@ describe('POST /api/sessions/[id]/complete', () => {
     expect(response.status).toBe(200)
     expect(data.status).toBe('completed')
     expect(data.sessionId).toBe('sess-001')
+  })
+
+  it('rate-limits session-complete on the sessionLimiter (F1 — non-inserting in-session route)', async () => {
+    mockCompleteSession.mockResolvedValue(undefined)
+    await completeRoute(makeRequest('/api/sessions/sess-001/complete', 'POST'), { params: Promise.resolve({ id: 'sess-001' }) })
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(sessionLimiter, expect.stringContaining('session-complete:'))
   })
 
   it('returns 404 when session not found', async () => {

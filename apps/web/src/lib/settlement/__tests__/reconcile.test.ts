@@ -75,7 +75,7 @@ import {
   reconcilePendingSettlements,
 } from '../reconcile'
 // Mocked above — imported for assertions (the B4 semantic-guard pin + log checks).
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 
 const FROM = `0x${'a'.repeat(40)}`
@@ -350,5 +350,14 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     const summary = await reconcilePendingSettlements()
     expect(summary.scanned).toBe(2)
     expect(summary.settled).toBe(1) // the second row still processed
+  })
+
+  it('selects ONLY the on-chain RECONCILABLE_RAILS (pins the by-construction link with the (H) hop guard)', async () => {
+    mockDb.limit.mockResolvedValue([])
+    await reconcilePendingSettlements()
+    // The reconciler's WHERE gates rail on inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]); the hop
+    // guard (rails.ts isReconcilableRail) excludes EXACTLY this set, so a hop row's rail is never in the
+    // reconciler's selection set — provable by construction via the shared constant.
+    expect(inArray).toHaveBeenCalledWith('rail', ['circle-nano', 'x402'])
   })
 })

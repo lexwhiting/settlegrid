@@ -15,6 +15,7 @@ import { getRedis, tryRedis } from '@/lib/redis'
 import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 import { recordSettlementEntryAsync } from './ledger'
+import { isReconcilableRail } from './rails'
 import type { SessionCreateParams, SessionState } from './types'
 import type {
   SessionHop,
@@ -466,20 +467,39 @@ export async function recordHop(
     typeof input.accountId === 'string' &&
     input.accountId.length > 0
   ) {
-    recordSettlementEntryAsync({
-      invocationId: hopId,
-      sessionId,
-      rail: input.rail,
-      protocol: input.protocol,
-      amountCents: input.costCents,
-      currency: input.currency ?? 'USD',
-      takeBps: input.takeBps ?? 0,
-      status: 'pending',
-      externalRef: input.externalRef ?? null,
-      metadata: input.metadata ?? null,
-      accountId: input.accountId,
-      description: `Hop ${input.serviceId}/${input.method} via ${input.rail}/${input.protocol}`,
-    })
+    if (isReconcilableRail(input.rail)) {
+      // Rail-enum guard (H, 2026-06-08). On-chain rails (x402 / circle-nano)
+      // settle via their own engines (circle-nano/settle.ts, x402/orchestrate.ts),
+      // which write the authoritative, RECONCILABLE ledger row with a parseable
+      // operation_id. A HOP row for an on-chain rail carries a bare-UUID hopId as
+      // its operation_id, so reconcilePendingSettlements would re-SELECT it every
+      // run forever (skipped-unparseable) and starve its bounded batch. Exclude
+      // the on-chain rails from the hop attribution path BY CONSTRUCTION — the hop
+      // is still recorded for budget (above); only the duplicative on-chain ledger
+      // row is skipped. isReconcilableRail shares RECONCILABLE_RAILS with reconcile.ts
+      // (via rails.ts), so the guard and the reconciler's selection can never drift.
+      // See docs/tech-debt/h-f1-trace-2026-06-08.md §1b.
+      logger.warn('session.hop_settlement_skipped_onchain_rail', {
+        sessionId,
+        hopId,
+        rail: input.rail,
+      })
+    } else {
+      recordSettlementEntryAsync({
+        invocationId: hopId,
+        sessionId,
+        rail: input.rail,
+        protocol: input.protocol,
+        amountCents: input.costCents,
+        currency: input.currency ?? 'USD',
+        takeBps: input.takeBps ?? 0,
+        status: 'pending',
+        externalRef: input.externalRef ?? null,
+        metadata: input.metadata ?? null,
+        accountId: input.accountId,
+        description: `Hop ${input.serviceId}/${input.method} via ${input.rail}/${input.protocol}`,
+      })
+    }
   }
 
   const effectiveBudget = budget ?? 0

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 // Mock @upstash/redis and @upstash/ratelimit before importing
 vi.mock('@upstash/redis', () => ({
@@ -37,7 +39,7 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import type { Ratelimit } from '@upstash/ratelimit'
-import { createRateLimiter, checkRateLimit, getClientIp, authLimiter, apiLimiter, sdkLimiter } from '@/lib/rate-limit'
+import { createRateLimiter, checkRateLimit, getClientIp, authLimiter, apiLimiter, sdkLimiter, sessionLimiter } from '@/lib/rate-limit'
 import type { RateLimitResult } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -108,6 +110,19 @@ describe('pre-configured rate limiters', () => {
     expect(typeof authLimiter.limit).toBe('function')
     expect(typeof apiLimiter.limit).toBe('function')
     expect(typeof sdkLimiter.limit).toBe('function')
+  })
+
+  it('sessionLimiter is defined (F1)', () => {
+    expect(sessionLimiter).toBeDefined()
+  })
+
+  it('sessionLimiter exposes a limit method', () => {
+    expect(typeof sessionLimiter.limit).toBe('function')
+  })
+
+  it('sessionLimiter is configured at 5000/min (source pin — a silent re-tune trips CI)', () => {
+    const src = readFileSync(resolve(__dirname, '../rate-limit.ts'), 'utf8')
+    expect(src).toMatch(/export const sessionLimiter = lazyLimiter\(5000, '1 m'\)/)
   })
 })
 

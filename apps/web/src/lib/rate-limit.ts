@@ -99,6 +99,25 @@ export const apiLimiter = lazyLimiter(100, '1 m')
 /** 1000 requests per minute — for SDK/tool invocation endpoints */
 export const sdkLimiter = lazyLimiter(1000, '1 m')
 
+/**
+ * 5000 requests per minute — for the multi-hop IN-SESSION operation routes
+ * (session-hop / session-get / session-finalize / session-complete), keyed
+ * `session-*:${ip}`. Deliberately higher than the shared sdkLimiter (1000/min;
+ * F1, 2026-06-08): a single NAT/cloud egress fronting many legitimate agents was
+ * collectively throttled at 1000/min, dominated by the high-frequency hop route.
+ * These four routes are budget-capped, non-financial, and do NOT insert a
+ * workflow_sessions row (recordHop appends JSONB + increments spentCents; get
+ * reads; finalize/complete are state transitions), so a higher per-IP ceiling
+ * raises only infra load. The ROW-INSERTING session routes (session-create /
+ * session-delegate, both via createSession's insert) deliberately STAY on the
+ * shared sdkLimiter (1000/min) — in line with the platform's existing
+ * unauth-row-insert limit (outcomes-create) — so this change does NOT amplify
+ * the unbounded workflow_sessions growth. Every money path
+ * (proxy / sdk-meter / billing-webhook / mcp) also stays on sdkLimiter.
+ * See docs/tech-debt/h-f1-trace-2026-06-08.md §2.
+ */
+export const sessionLimiter = lazyLimiter(5000, '1 m')
+
 // ─── Tiered Rate Limiting ────────────────────────────────────────────────────
 
 export type PlanTier = 'free' | 'builder' | 'scale' | 'enterprise'
