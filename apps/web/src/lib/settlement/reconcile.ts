@@ -24,9 +24,9 @@ import { ledgerEntries, developers, tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { markSettlementSettled, markSettlementFailed } from './ledger'
 import { confirmSettlementTx } from './circle-nano/settle-engine'
-
-/** Rails that settle on-chain (broadcast→confirm) and so can be reconciled by txHash. */
-const RECONCILABLE_RAILS = ['circle-nano', 'x402'] as const
+// Single source of truth shared with the (H) hop rail-enum guard (rails.ts) so the
+// reconciler's selection set and the guard's exclusion set can never drift.
+import { RECONCILABLE_RAILS } from './rails'
 
 export interface ReconcilableRow {
   operationId: string | null

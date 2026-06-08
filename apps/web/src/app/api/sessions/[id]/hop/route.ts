@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { checkRateLimit, sdkLimiter, getClientIp } from '@/lib/rate-limit'
+import { checkRateLimit, sessionLimiter, getClientIp } from '@/lib/rate-limit'
 import { recordHop } from '@/lib/settlement/sessions'
 import { addCorsHeaders, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 
@@ -25,7 +25,7 @@ export async function POST(
 ) {
   try {
     const ip = getClientIp(request.headers)
-    const rl = await checkRateLimit(sdkLimiter, `session-hop:${ip}`)
+    const rl = await checkRateLimit(sessionLimiter, `session-hop:${ip}`)
     if (!rl.success) {
       return addCorsHeaders(errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED'))
     }

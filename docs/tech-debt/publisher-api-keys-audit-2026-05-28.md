@@ -34,6 +34,29 @@
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
 
+## UPDATE 2026-06-08 — (H)+(F1) chunk (see `h-f1-resolution-2026-06-08.md`)
+
+Founder lifted both demand-gates; shipped as one chunk, two workstreams, atop deployed `origin/main` =
+`839455fb`. **LOCAL commit (NOT pushed; no migration; nothing published).**
+
+- **F1 → RESOLVED** (the deferred follow-up opened by the (N) chunk — see its entry above). NAT-fairness
+  per-IP raise: new `sessionLimiter` (5000/min) on the 4 **non-inserting** session routes; row-inserting
+  `create`/`delegate` + all money paths stay at 1000. 0 forced mock breaks (the "~84-file sweep" was a large
+  over-estimate). Bounded loosening (audit-confirmed).
+- **(H) multi-hop hop→ledger — RESOLVED as SAFETY-ONLY** (the demand-gated item; Subsystem 1 / the unified
+  ledger). A **rail-enum guard** in `recordHop` now excludes the on-chain rails (`{circle-nano,x402}`) from
+  the hop attribution path, sharing the reconciler's `RECONCILABLE_RAILS` (new leaf `lib/settlement/rails.ts`)
+  so a hop row can never enter the reconciler's selection window — closing the **reconciler-starvation trap**
+  by construction (mis-credit was already impossible). **No migration** (app-layer guard; `rail` is free
+  text). Durability kept lib fire-and-forget. **The hop ledger TRAIL is NOT activated** — wiring an auth'd
+  `accountId` through the hop-route zod (which would also activate (C)'s now-correct deferred settlement) is
+  a **separate, larger, founder-gated future chunk** (a caller-supplied `accountId` on the unauthenticated
+  hop route would be a money-attribution vulnerability). Subsystem 2 batch settlement remains UNWIRED + OUT.
+- **Gates:** pre-build **PLAN_READY** (7 lenses, 0 blocking) → exec gate apps/web tsc 0 / vitest **4301**
+  (4283 + 18) / build 0 / eslint 0; packages/mcp **1898/1** unchanged → seal-gating review **CERTIFIED**
+  (6 lenses) → post-seal deep audit **STANDS** (4 lenses + critic). All full-coverage, 0 blocking. Zero
+  `packages/sdk-python*` / `drizzle/` / pricing / payout / meter-credit / crypto / shared-writer hunks.
+
 ## UPDATE 2026-06-07 — (C) chunk (see `c-revenuesharepct-reconciliation-resolution-2026-06-07.md`)
 
 The legacy **`revenueSharePct` flat take model** reconciled and retired — reframed at Step-0 from "legacy
@@ -121,9 +144,14 @@ bundle. After this chunk the register holds only founder-gated items ((K) de-rec
   accountability; **does NOT fix** shared-NAT collective throttling (the IP layer keeps its numbers →
   follow-up **F1**).
 - **New tracked follow-ups (docs-only, opened by this chunk):**
-  - **F1 (deferred)** — NAT-fairness IP-raise on session routes. Costed: new limiter export →
-    ~84-test-file mock sweep + a deliberate flood-posture loosening. Do as its own chunk if NAT
-    throttling is observed.
+  - **F1 → RESOLVED 2026-06-08** (see `h-f1-resolution-2026-06-08.md`; shipped with (H) as one chunk). New
+    `sessionLimiter = lazyLimiter(5000,'1 m')` on the **4 non-inserting** session routes (`hop`/`get`/
+    `finalize`/`complete`); the **row-inserting** `create`/`delegate` stay byte-stable on `sdkLimiter` (1000),
+    so the loosening does NOT amplify unbounded `workflow_sessions` growth, and every money path stays 1000.
+    The costed "~84-file mock sweep" proved a **large over-estimate → 0 forced mock breaks** (only
+    `sessions.test.ts` imports the session routes + it mocks `checkRateLimit`). Abuse-cost audit-confirmed
+    bounded (the 4 routes are budget-capped + non-financial). Pre-build PLAN_READY → rate-limit-posture seal
+    **CERTIFIED** → post-seal deep audit **STANDS** (all 0-blocking, full-coverage). LOCAL commit (NOT pushed).
   - **F2 — RESOLVED 2026-06-06** (see `f2-sdk-meter-auth-resolution-2026-06-06.md`). The (F2) chunk
     authenticated the `sdk/meter` + `meter-with-metadata` metering call: it now requires the consumer API
     key as an `X-Api-Key` header, hashes it, looks up the active `api_keys` row, and **rejects** any
