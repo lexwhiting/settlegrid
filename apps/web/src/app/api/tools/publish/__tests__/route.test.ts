@@ -66,6 +66,7 @@ vi.mock('@/lib/db/schema', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a, b) => ({ field: a, value: b })),
+  inArray: vi.fn().mockImplementation((col, vals) => ({ inArray: [col, vals] })),
   and: vi.fn().mockImplementation((...args) => ({ and: args })),
 }))
 

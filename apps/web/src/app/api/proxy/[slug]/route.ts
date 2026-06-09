@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAddress } from 'viem'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, sql, inArray } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { tools, developers, apiKeys, consumerToolBalances, consumers, invocations } from '@/lib/db/schema'
-import { hashApiKey } from '@/lib/crypto'
+import { apiKeyHashCandidates } from '@/lib/crypto'
 import { tryRedis, getRedis } from '@/lib/redis'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -133,7 +133,7 @@ async function authenticateProxyRequest(
     }
   }
 
-  const keyHash = hashApiKey(rawKey)
+  const keyHashes = apiKeyHashCandidates(rawKey, 'live')
 
   // Look up the key, joining tool + developer to get all info in one query
   const results = await db
@@ -155,7 +155,7 @@ async function authenticateProxyRequest(
     })
     .from(apiKeys)
     .innerJoin(tools, eq(apiKeys.toolId, tools.id))
-    .where(eq(apiKeys.keyHash, keyHash))
+    .where(inArray(apiKeys.keyHash, keyHashes))
     .limit(1)
 
   if (results.length === 0) {

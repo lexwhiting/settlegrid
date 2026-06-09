@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { apiKeys, tools } from '@/lib/db/schema'
-import { hashApiKey } from '@/lib/crypto'
+import { apiKeyHashCandidates } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
@@ -33,7 +33,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       return successResponse({ valid: false, reason: 'Not a test API key. Use sg_test_ prefix.' })
     }
 
-    const keyHash = hashApiKey(body.apiKey)
+    const keyHashes = apiKeyHashCandidates(body.apiKey, 'live')
 
     // Look up the key, join with tool to verify slug
     const results = await db
@@ -48,7 +48,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       })
       .from(apiKeys)
       .innerJoin(tools, eq(apiKeys.toolId, tools.id))
-      .where(eq(apiKeys.keyHash, keyHash))
+      .where(inArray(apiKeys.keyHash, keyHashes))
       .limit(1)
 
     if (results.length === 0) {

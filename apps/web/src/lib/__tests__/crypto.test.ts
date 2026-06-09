@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateApiKey, hashApiKey } from '@/lib/crypto'
+import { generateApiKey, hashApiKey, hashApiKeyHmac } from '@/lib/crypto'
 
 describe('generateApiKey', () => {
   it('returns key, hash, and prefix', () => {
@@ -32,15 +32,15 @@ describe('generateApiKey', () => {
     expect(prefix).toBe(key.slice(0, 8))
   })
 
-  it('hash is valid SHA-256 hex digest (64 chars)', () => {
+  it('hash is a 64-char hex digest (HMAC-SHA256)', () => {
     const { hash } = generateApiKey()
     expect(hash.length).toBe(64)
     expect(/^[a-f0-9]+$/.test(hash)).toBe(true)
   })
 
-  it('hash matches hashApiKey output for same key', () => {
+  it('hash matches hashApiKeyHmac(live) output for same key', () => {
     const { key, hash } = generateApiKey()
-    expect(hashApiKey(key)).toBe(hash)
+    expect(hashApiKeyHmac(key, 'live')).toBe(hash)
   })
 })
 

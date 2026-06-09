@@ -34,6 +34,14 @@ export default defineConfig({
      * (those still want explicit per-test timeouts).
      */
     testTimeout: 15_000,
+    env: {
+      // (K): API-key hashing is fail-closed HMAC — generateApiKey /
+      // hashApiKeyHmac throw without a pepper. Inject a deterministic NON-PROD
+      // pepper so the crypto suites (which call the real generators) run, and
+      // so route tests that exercise the real apiKeyHashCandidates are saved.
+      // Never a real pepper.
+      API_KEY_PEPPER: 'test_pepper_not_for_production_use_only',
+    },
   },
   resolve: {
     alias: {

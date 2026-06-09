@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, consumers, consumerToolBalances, invocations, apiKeys } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
-import { hashApiKey } from '@/lib/crypto'
+import { apiKeyHashCandidates } from '@/lib/crypto'
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit, getClientIp } from '@/lib/rate-limit'
 import { checkBudget, deductCreditsRedis, recordInvocationAsync, incrementPeriodSpend } from '@/lib/metering'
 import { detectFraud } from '@/lib/fraud'
@@ -57,7 +57,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
         status: apiKeys.status,
       })
       .from(apiKeys)
-      .where(eq(apiKeys.keyHash, hashApiKey(rawKey)))
+      .where(inArray(apiKeys.keyHash, apiKeyHashCandidates(rawKey, 'live')))
       .limit(1)
     if (!keyRow || keyRow.status !== 'active') {
       return errorResponse('Invalid API key.', 401, 'INVALID_API_KEY')

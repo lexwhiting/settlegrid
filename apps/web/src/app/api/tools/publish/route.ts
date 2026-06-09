@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
-import { createHash } from 'crypto'
+import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers, developerApiKeys } from '@/lib/db/schema'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -10,7 +9,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { validateToolForActivation } from '@/lib/quality-gates'
-import { PUBLISHER_API_KEY_PREFIX } from '@/lib/crypto'
+import { PUBLISHER_API_KEY_PREFIX, apiKeyHashCandidates } from '@/lib/crypto'
 
 export const maxDuration = 60
 
@@ -169,13 +168,13 @@ async function authenticateDeveloperByApiKey(
     throw new AuthError('Invalid API key.')
   }
 
-  const keyHash = createHash('sha256').update(rawKey).digest('hex')
+  const keyHashes = apiKeyHashCandidates(rawKey, 'pub')
 
   const [row] = await db
     .select({ id: developers.id, email: developers.email, keyId: developerApiKeys.id })
     .from(developerApiKeys)
     .innerJoin(developers, eq(developerApiKeys.developerId, developers.id))
-    .where(and(eq(developerApiKeys.keyHash, keyHash), eq(developerApiKeys.status, 'active')))
+    .where(and(inArray(developerApiKeys.keyHash, keyHashes), eq(developerApiKeys.status, 'active')))
     .limit(1)
 
   if (!row) {

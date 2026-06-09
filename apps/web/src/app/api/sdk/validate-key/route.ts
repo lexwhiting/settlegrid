@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { apiKeys, tools, consumerToolBalances, developers } from '@/lib/db/schema'
-import { hashApiKey } from '@/lib/crypto'
+import { apiKeyHashCandidates } from '@/lib/crypto'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, checkTieredRateLimit, getClientIp } from '@/lib/rate-limit'
 import { isIpInAllowlist } from '@/lib/ip-validation'
@@ -37,7 +37,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
 
     const body = await parseBody(request, validateKeySchema)
 
-    const keyHash = hashApiKey(body.apiKey)
+    const keyHashes = apiKeyHashCandidates(body.apiKey, 'live')
 
     // Single query: look up the key, join with tool to verify slug + active status
     const results = await db
@@ -54,7 +54,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       })
       .from(apiKeys)
       .innerJoin(tools, eq(apiKeys.toolId, tools.id))
-      .where(eq(apiKeys.keyHash, keyHash))
+      .where(inArray(apiKeys.keyHash, keyHashes))
       .limit(1)
 
     if (results.length === 0) {

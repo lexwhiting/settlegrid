@@ -22,7 +22,7 @@
 |---|---|---|---|---|
 | 1 | **HIGH** (repo-wide) | Rate limiter fails on Redis outage (no fail-static/`ephemeralCache`) **and** keys on spoofable left-most `x-forwarded-for` | `apps/web/src/lib/rate-limit.ts` + **every** route handler | Not specific to this feature — the whole app shares `checkRateLimit`. Fix centrally: (a) `ephemeralCache: new Map()` or `tryRedis` wrap with explicit fail-closed `503`; (b) derive client IP from the platform-trusted value (Vercel) not raw XFF; (c) for authenticated routes, key on `auth.id` after auth. Do as a dedicated hardening PR across all routes. |
 | 2 | LOW | Active-key cap (10) is a TOCTOU soft guard — concurrent POSTs can exceed it | `api-keys/route.ts` (`MAX_ACTIVE_KEYS` check) | Self-affecting only (a dev over-provisioning their own keys); not cross-tenant; bounded. Fix if desired: `db.transaction` + `SELECT … FOR UPDATE`, or a partial unique index. Comment already labels it "soft guard." |
-| 3 | LOW (arch) | Unsalted shared SHA-256 keyspace across consumer (`sg_live_`) + publisher (`sg_pub_`) keys; no pepper/HMAC, no domain tag | `apps/web/src/lib/crypto.ts` (`hashApiKey`) | Negligible collision risk (256-bit), so not exploitable today. No defense-in-depth if DB disclosed. Fix: `HMAC-SHA256(serverPepper, "pub:"+key)` for new keys (needs dual-read/migration for existing). Affects consumer keys too. |
+| 3 | ~~LOW (arch)~~ **RESOLVED (K)** | Unsalted shared SHA-256 keyspace across consumer (`sg_live_`) + publisher (`sg_pub_`) keys; no pepper/HMAC, no domain tag | `apps/web/src/lib/crypto.ts` (`hashApiKey`) | **RESOLVED 2026-06-08 by the (K) chunk** (see `k-hmac-pepper-resolution-2026-06-08.md` + the UPDATE below): HMAC-SHA256(pepper, domain+':'+key) for new keys via pure dual-read (legacy SHA-256 kept as the domain-less dual-read branch); fail-closed pepper; `live`/`pub` domain tag. NO migration. |
 | 4 | LOW | Publish auth checks `rawKey.length >= 16` but not the `sg_pub_` prefix before hashing | `tools/publish/route.ts` (`authenticateDeveloperByApiKey`) | Hash lookup is the real gate (not a bypass). Optional fast-fail/clarity: assert prefix. |
 | 5 | LOW (pre-existing) | `processDataDeletion` "Idempotent" docstring overstates — `status !== 'pending'` guard **throws** on re-run; consumer cross-anonymize uses the post-rewrite developer email | `compliance.ts` (`processDataDeletion`) | Pre-existing (not introduced here). Fix: treat `completed` as a success no-op; look up the consumer before rewriting the developer email. |
 | 6 | NIT (pre-existing) | Bootstrap `created_at` non-monotonic for `0002–0007` | `scripts/bootstrap__drizzle_migrations.sql` | Harmless (migrator reads MAX only). Don't let future migrations depend on per-row ordering. |
@@ -33,6 +33,29 @@
 - Items **1, 5, 6** are pre-existing/repo-wide — they predate or are orthogonal to this feature; listed for completeness, owned by a future cross-cutting hardening pass, not by this feature.
 - Items **2, 3, 4, 7, 8** are this-feature-adjacent but accepted as non-blocking for ship.
 - Full audit reasoning is in the session transcript that produced commits `55d4c0f6..c2790860`.
+
+## UPDATE 2026-06-08 — (K) chunk: **DEBT #3 RESOLVED** (see `k-hmac-pepper-resolution-2026-06-08.md`)
+
+Founder lifted the gate; shipped atop the unpushed (H)+(F1) local stack (`ede13b8b`), itself atop deployed
+`origin/main = 839455fb`. **LOCAL commit (NOT pushed; no migration; nothing published).**
+
+- **DEBT #3 → RESOLVED.** API-keyspace hash hardened bare `SHA-256(key)` → **`HMAC-SHA256(serverPepper,
+  domain+':'+key)`** via **pure dual-read**: existing rows can't be re-hashed (the raw key isn't stored), so
+  all 6 verify sites look up `key_hash IN [hashApiKey(key) /* domain-less legacy */, hashApiKeyHmac(key,
+  domain)]`. New keys issue under HMAC; existing keys keep authenticating via the SHA branch. The publisher
+  site (`tools/publish`) was **de-inlined** through the shared `apiKeyHashCandidates` helper (the old inline
+  `createHash` + import removed). Pepper = **fail-CLOSED** `requireEnv('API_KEY_PEPPER')`; `live`/`pub` domain
+  tag blocks cross-class replay. **NO migration** (HMAC hex == SHA width; pure dual-read needs no column).
+  Key formats byte-stable.
+- **Gates:** pre-build **PLAN_READY** (7 lenses; R1 caught + folded a real route-test mock-omission blocker →
+  R2 0-blocking) → exec gate apps/web tsc 0 / vitest **4313** (4301 + 12) / build 0 (pepper UNSET → lazy
+  accessor proven) / eslint 0; packages/mcp **1898/1**; `packages/sdk-python*` byte-stable → seal-gating
+  review **CERTIFIED** (6 lenses; R1 degraded by transient rate-limit → resumed R2 clean) → post-seal deep
+  audit **SEAL_STANDS** (5 lenses + completeness critic; whole-repo + cross-chunk). All full-coverage, 0
+  blocking. Zero settlement / rate-limit / pricing / payout / meter-credit / adapter / mcp / sdk-python hunks.
+- **⚠️ FOUNDER PREREQUISITE — the push is HELD on it:** `API_KEY_PEPPER` must be set in Vercel prod FIRST
+  (confirmed NOT set via `vercel env ls`). Deploying (K) without it = every auth path 500s (fail-closed). Set
+  pepper (≥32-byte high-entropy, Production + Preview) → then push `main` (ships (H)+(F1)+(K)). No migration.
 
 ## UPDATE 2026-06-08 — (H)+(F1) chunk (see `h-f1-resolution-2026-06-08.md`)
 
