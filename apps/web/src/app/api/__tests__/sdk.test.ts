@@ -87,6 +87,7 @@ vi.mock('@/lib/db/schema', () => ({
 
 vi.mock('@/lib/crypto', () => ({
   hashApiKey: vi.fn().mockReturnValue('hashed-api-key-sha256'),
+  apiKeyHashCandidates: vi.fn().mockReturnValue(['sha-stub', 'hmac-stub']),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -99,6 +100,7 @@ vi.mock('@/lib/rate-limit', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
+  inArray: vi.fn().mockImplementation((col: unknown, vals: unknown[]) => ({ inArray: [col, vals] })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({

@@ -32,6 +32,17 @@ export function getGateSecret(): string {
   return requireEnv('GATE_SECRET')
 }
 
+// API key pepper — server secret keying the HMAC over API keys ((K) / DEBT #3).
+// FAIL-CLOSED: required in EVERY environment (local/preview/prod). requireEnv
+// throws on missing/empty, so a misconfigured pepper is a loud deploy error,
+// never a silent degrade to the unkeyed legacy SHA-256 (auth is correctness,
+// not anti-abuse — unlike the H1 rate-limiter's fail-open). Must be set in prod
+// BEFORE the (K) code deploys: existing keys keep working via dual-read; new
+// keys issue under HMAC. Operator residual: use a high-entropy value (>=32 bytes).
+export function getApiKeyPepper(): string {
+  return requireEnv('API_KEY_PEPPER')
+}
+
 // Individual lazy getters — only validate the var you actually need
 export function getDatabaseUrl(): string {
   return requireEnv('DATABASE_URL')

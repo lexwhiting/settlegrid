@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateApiKey, hashApiKey } from '../crypto'
+import { generateApiKey, hashApiKey, hashApiKeyHmac } from '../crypto'
 
 describe('generateApiKey (extended)', () => {
   it('key starts with sg_live_ prefix', () => {
@@ -13,7 +13,7 @@ describe('generateApiKey (extended)', () => {
     expect(key.length).toBe(8 + 64)
   })
 
-  it('hash is a 64-character hex string (SHA-256)', () => {
+  it('hash is a 64-character hex string (HMAC-SHA256)', () => {
     const { hash } = generateApiKey()
     expect(hash.length).toBe(64)
     expect(/^[a-f0-9]{64}$/.test(hash)).toBe(true)
@@ -41,9 +41,9 @@ describe('generateApiKey (extended)', () => {
     expect(hashes.size).toBe(50)
   })
 
-  it('hash matches hashApiKey of the key', () => {
+  it('hash matches hashApiKeyHmac(live) of the key', () => {
     const { key, hash } = generateApiKey()
-    expect(hashApiKey(key)).toBe(hash)
+    expect(hashApiKeyHmac(key, 'live')).toBe(hash)
   })
 
   it('key contains only valid hex characters after prefix', () => {
