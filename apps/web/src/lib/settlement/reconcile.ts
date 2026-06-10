@@ -49,6 +49,15 @@ export interface ReconcilableRow {
 export type ReconcileOutcome =
   | 'settled'
   | 'failed'
+  /**
+   * (S) — the on-chain outcome was settled/failed but the row was ALREADY
+   * terminal when we tried to flip it (a concurrent winner: the live settle
+   * path or an overlapping run). THIS run performed no transition, so these
+   * are tallied separately and the summary's settled/failed report only TRUE
+   * transitions (B1.4 item 3 — the flipped:false over-report).
+   */
+  | 'settled-noop'
+  | 'failed-noop'
   | 'pending-unconfirmed'
   | 'pending-nonce-consumed'
   | 'skipped-no-txhash'
@@ -132,7 +141,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
           operationId: row.operationId,
         })
       }
-      return 'settled'
+      return flipped ? 'settled' : 'settled-noop'
     }
     case 'reverted': {
       if (confirmation.nonceConsumed) {
@@ -147,7 +156,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
       }
       const flipped = await markSettlementFailed(operationId, rail, confirmation.txHash)
       logger.warn('reconcile.failed', { operationId, rail, txHash: confirmation.txHash, flipped })
-      return 'failed'
+      return flipped ? 'failed' : 'failed-noop'
     }
     case 'unconfirmed':
       // Still in mempool / dropped / RPC blip — leave pending, retry next run.
@@ -252,12 +261,30 @@ export async function creditSettlement(params: {
   }
 }
 
+/**
+ * (S) — truthful run telemetry invariant:
+ *   scanned === settled + failed + pending + skipped + noop + errored
+ * `settled`/`failed` count TRUE transitions this run performed; raced no-op
+ * flips land in `noop`; rows whose examination threw land in `errored`
+ * (previously they vanished from every bucket).
+ */
 export interface ReconcileSummary {
   scanned: number
   settled: number
   failed: number
   pending: number
   skipped: number
+  /** (S) raced no-op flips (settled-noop + failed-noop) — already terminal via a concurrent winner. */
+  noop: number
+  /** (S) rows whose examination threw (left pending; re-examined after one rotation). */
+  errored: number
+  /**
+   * (S) pending-age alert count: pending rows on reconcilable rails older
+   * than `overdueAfterMs` at run time (INCLUDING null-external_ref rows the
+   * window deliberately excludes — they are classified, not hidden).
+   * null ⇒ the overdue check itself failed (reconcile.overdue_check_failed).
+   */
+  overdue: number | null
   outcomes: Record<ReconcileOutcome, number>
 }
 
@@ -265,6 +292,8 @@ function emptyOutcomes(): Record<ReconcileOutcome, number> {
   return {
     settled: 0,
     failed: 0,
+    'settled-noop': 0,
+    'failed-noop': 0,
     'pending-unconfirmed': 0,
     'pending-nonce-consumed': 0,
     'skipped-no-txhash': 0,
@@ -275,20 +304,50 @@ function emptyOutcomes(): Record<ReconcileOutcome, number> {
 
 /**
  * Find stuck 'pending' on-chain-rail settlement rows older than `olderThanMs`
- * and reconcile up to `limit` of them, oldest first. Bounded per run; a large
- * backlog clears over successive runs (the immediate, non-blocking confirm means
- * one stuck tx never starves the batch).
+ * and reconcile up to `limit` of them. Bounded per run; a large backlog clears
+ * over successive runs (the immediate, non-blocking confirm means one stuck tx
+ * never starves the batch).
+ *
+ * (S) ROTATION GUARANTEE — deferral, never exclusion: the window orders by
+ * `COALESCE(last_reconciled_at, created_at) ASC` — a FIFO queue where each
+ * row's position is the last time the reconciler examined it (or its creation
+ * time if never examined) — and each row's watermark is set immediately
+ * BEFORE that row is examined. Rare never-terminal rows (dropped-tx
+ * 'unconfirmed' forever; reverted+nonce-consumed) therefore go to the back of
+ * the queue after each examination instead of permanently starving newer
+ * confirmable rows of their credit. Deferral is BOUNDED for every arrival
+ * pattern: a row examined at time T can only be preempted by rows whose queue
+ * position predates T — a fixed, draining set — never by rows arriving after
+ * T (the seal-review fix for the NULLS FIRST ordering, whose absolute
+ * new-row priority let sustained inflow >= limit/run defer a watermarked
+ * row's re-examination indefinitely; see the (S) resolution doc). A plain
+ * `asc(lastReconciledAt)` would be WRONG here (PG ASC = NULLS LAST: every
+ * never-examined row would sort last and starve). Per-row mark-BEFORE-examine
+ * is load-bearing too — a row whose examination kills the whole run is
+ * already watermarked (rotates out), while unexamined tail rows are not (keep
+ * their place). Pinned by __tests__/reconcile-starvation.test.ts, which
+ * executes the emitted query against a stateful in-memory table.
  */
 export async function reconcilePendingSettlements(opts?: {
   olderThanMs?: number
   limit?: number
+  overdueAfterMs?: number
 }): Promise<ReconcileSummary> {
   const olderThanMs = opts?.olderThanMs ?? 5 * 60_000 // past the live settle's own confirm window
   const limit = opts?.limit ?? 25
+  // (S) pending-age alert threshold. 6h = 24 cron runs: Base txs confirm in
+  // seconds, so 6h pending is unambiguously anomalous, yet the threshold is
+  // immune to transient RPC outages.
+  const overdueAfterMs = opts?.overdueAfterMs ?? 6 * 3_600_000
   const cutoff = new Date(Date.now() - olderThanMs)
+  const overdueCutoff = new Date(Date.now() - overdueAfterMs)
 
   const rows = await db
     .select({
+      // (S) — id keys the per-row watermark UPDATE; createdAt feeds the
+      // overdue classification.
+      id: ledgerEntries.id,
+      createdAt: ledgerEntries.createdAt,
       operationId: ledgerEntries.operationId,
       rail: ledgerEntries.rail,
       externalRef: ledgerEntries.externalRef,
@@ -312,17 +371,112 @@ export async function reconcilePendingSettlements(opts?: {
         lt(ledgerEntries.createdAt, cutoff),
       ),
     )
-    .orderBy(asc(ledgerEntries.createdAt))
+    // (S) rotation ordering — see the function doc. Raw sql (no drizzle
+    // helper composes COALESCE in ORDER BY); createdAt tiebreaks equal keys.
+    .orderBy(
+      sql`COALESCE(${ledgerEntries.lastReconciledAt}, ${ledgerEntries.createdAt}) ASC`,
+      asc(ledgerEntries.createdAt),
+    )
     .limit(limit)
 
   const outcomes = emptyOutcomes()
+  let errored = 0
+  let watermarkFailures = 0
+  // (S) seal fix S10/S13 — identify WHICH rows lost their rotation slot and
+  // carry the last underlying error (bounded by `limit`, so <= 25 entries).
+  const watermarkFailedOps: Array<string | null> = []
+  let lastWatermarkErr: unknown
+  // (S) classified tallies of THIS run's examined-and-still-stuck OVERDUE rows
+  // (feeds the pending-age alert; item 4 — sticky classes named, never lumped).
+  // Terminal outcomes (settled/failed and both noops) resolved — not stuck.
+  const examinedOverdue = { nonceConsumed: 0, unconfirmed: 0, unparseable: 0, unsupported: 0, errored: 0 }
+  const OVERDUE_CLASS: Partial<Record<ReconcileOutcome, keyof typeof examinedOverdue>> = {
+    'pending-nonce-consumed': 'nonceConsumed',
+    'pending-unconfirmed': 'unconfirmed',
+    'skipped-unparseable': 'unparseable',
+    'skipped-unsupported': 'unsupported',
+  }
   for (const row of rows) {
+    // (S) rotation watermark — PER-ROW, immediately BEFORE examination (see
+    // the function doc for why this exact timing is load-bearing). Touches
+    // ONLY the watermark column, so it can never race the WHERE-pending flips
+    // into a wrong state; setting it on a concurrently-flipped row is harmless.
     try {
-      outcomes[await reconcileOneRow(row)]++
+      await db
+        .update(ledgerEntries)
+        .set({ lastReconciledAt: new Date() })
+        .where(eq(ledgerEntries.id, row.id))
     } catch (err) {
-      // One bad row must not abort the batch; leave it pending, retry next run.
+      // Rotation degrades for THIS row this run only; examination proceeds.
+      watermarkFailures++
+      watermarkFailedOps.push(row.operationId)
+      lastWatermarkErr = err
+    }
+    const isOverdue = row.createdAt < overdueCutoff
+    try {
+      const outcome = await reconcileOneRow(row)
+      outcomes[outcome]++
+      const overdueClass = OVERDUE_CLASS[outcome]
+      if (isOverdue && overdueClass) examinedOverdue[overdueClass]++
+    } catch (err) {
+      // One bad row must not abort the batch; leave it pending (re-examined
+      // after one rotation — it was already watermarked above).
+      errored++
+      if (isOverdue) examinedOverdue.errored++
       logger.error('reconcile.row_error', { operationId: row.operationId, rail: row.rail }, err)
     }
+  }
+  if (watermarkFailures > 0) {
+    logger.error(
+      'reconcile.watermark_update_failed',
+      { count: watermarkFailures, operationIds: watermarkFailedOps },
+      lastWatermarkErr,
+    )
+  }
+
+  // (S) pending-age alert — ONE structured error line per run while the
+  // condition persists (the settlement.credit_failed posture; never per-row).
+  // Deliberately NO isNotNull(external_ref) here: every genuinely-overdue
+  // pending row is alerted and classified — null-external_ref rows are the
+  // settle path's to retry (outside the window BY DESIGN) and surface as
+  // noTxhashCount, not silently hidden. Driver types: count() comes back as a
+  // STRING from postgres-js; min(timestamptz) may come back as a string OR a
+  // Date depending on driver parsing — Number()/new Date() normalize both
+  // (DC-18; the conversions are load-bearing).
+  let overdue: number | null = null
+  try {
+    const [agg] = await db
+      .select({
+        total: sql<string>`count(*)`,
+        noTxhash: sql<string>`count(*) filter (where ${ledgerEntries.externalRef} is null)`,
+        oldestCreatedAt: sql<string | Date | null>`min(${ledgerEntries.createdAt})`,
+      })
+      .from(ledgerEntries)
+      .where(
+        and(
+          eq(ledgerEntries.settlementStatus, 'pending'),
+          inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
+          lt(ledgerEntries.createdAt, overdueCutoff),
+        ),
+      )
+    overdue = Number(agg.total)
+    if (overdue > 0) {
+      logger.error('reconcile.pending_overdue', {
+        overdueCount: overdue,
+        noTxhashCount: Number(agg.noTxhash),
+        oldestPendingAgeMs:
+          agg.oldestCreatedAt !== null
+            ? Date.now() - new Date(agg.oldestCreatedAt).getTime()
+            : null,
+        overdueAfterMs,
+        examinedThisRun: examinedOverdue,
+      })
+    }
+  } catch (err) {
+    // The alert is best-effort: its failure must never abort the run. The
+    // classification already computed from THIS run's window still surfaces
+    // here (seal fix S11) so the aggregate failing doesn't blind the operator.
+    logger.error('reconcile.overdue_check_failed', { examinedThisRun: examinedOverdue }, err)
   }
 
   return {
@@ -334,6 +488,9 @@ export async function reconcilePendingSettlements(opts?: {
       outcomes['skipped-no-txhash'] +
       outcomes['skipped-unparseable'] +
       outcomes['skipped-unsupported'],
+    noop: outcomes['settled-noop'] + outcomes['failed-noop'],
+    errored,
+    overdue,
     outcomes,
   }
 }

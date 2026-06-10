@@ -39,6 +39,11 @@ export async function GET(request: NextRequest) {
       failed: summary.failed,
       pending: summary.pending,
       skipped: summary.skipped,
+      // (S) truthful telemetry: raced no-op flips, examination errors, and
+      // the pending-age alert count (null = the overdue check failed).
+      noop: summary.noop,
+      errored: summary.errored,
+      overdue: summary.overdue,
     })
     return successResponse(summary)
   } catch (error) {

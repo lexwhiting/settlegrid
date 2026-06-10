@@ -16,6 +16,8 @@ const {
   mockSql,
   mockDevelopers,
   mockTools,
+  mockDbUpdateWhere,
+  agg,
 } = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
@@ -24,6 +26,10 @@ const {
     orderBy: vi.fn(),
     limit: vi.fn(),
     transaction: vi.fn(),
+    // (S) db-level update chain — the per-row rotation-watermark UPDATE
+    // (db.update(ledgerEntries).set({lastReconciledAt}).where(eq(id, row.id))).
+    update: vi.fn(),
+    set: vi.fn(),
   },
   mockConfirm: vi.fn(),
   mockSettled: vi.fn(),
@@ -36,16 +42,26 @@ const {
   mockSql: vi.fn((strings: TemplateStringsArray, ...vals: unknown[]) => ({ __sql: strings, vals })),
   mockDevelopers: { id: 'developers.id', balanceCents: 'developers.balanceCents' },
   mockTools: { id: 'tools.id', totalRevenueCents: 'tools.totalRevenueCents' },
+  // (S) terminal of the watermark UPDATE chain (awaited per row).
+  mockDbUpdateWhere: vi.fn(),
+  // (S) overdue-aggregate result holder (the run's SECOND db.select(), which
+  // terminates at .where()). error simulates the aggregate query failing.
+  agg: {
+    value: [{ total: '0', noTxhash: '0', oldestCreatedAt: null }] as unknown[],
+    error: null as Error | null,
+  },
 }))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 vi.mock('@/lib/db/schema', () => ({
   ledgerEntries: {
+    id: 'id',
     operationId: 'operation_id',
     rail: 'rail',
     externalRef: 'external_ref',
     settlementStatus: 'settlement_status',
     createdAt: 'created_at',
+    lastReconciledAt: 'last_reconciled_at',
     amountCents: 'amount_cents',
     accountId: 'account_id',
     metadata: 'metadata',
@@ -90,11 +106,33 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockSettled.mockResolvedValue(true)
   mockFailed.mockResolvedValue(true)
-  mockDb.select.mockReturnValue(mockDb)
+  // (S) per-call select routing: ODD db.select() calls are the WINDOW query —
+  // they get the existing mockDb chain, whose terminal .limit() still
+  // delegates to mockDb.limit so every mockDb.limit.mockResolvedValue(...)
+  // test passes unedited. EVEN calls are the overdue AGGREGATE, which
+  // terminates at .where() and resolves from agg.value / throws agg.error.
+  mockDb.select.mockImplementation(() => {
+    const isWindow = mockDb.select.mock.calls.length % 2 === 1
+    if (isWindow) return mockDb
+    return {
+      from: () => ({
+        where: async () => {
+          if (agg.error) throw agg.error
+          return agg.value
+        },
+      }),
+    }
+  })
+  agg.value = [{ total: '0', noTxhash: '0', oldestCreatedAt: null }]
+  agg.error = null
   mockDb.from.mockReturnValue(mockDb)
   mockDb.where.mockReturnValue(mockDb)
   mockDb.orderBy.mockReturnValue(mockDb)
   mockDb.limit.mockResolvedValue([])
+  // (S) the per-row watermark UPDATE chain.
+  mockDb.update.mockReturnValue(mockDb)
+  mockDb.set.mockReturnValue({ where: mockDbUpdateWhere })
+  mockDbUpdateWhere.mockResolvedValue([])
   // F4 credit txn plumbing. where() returns an awaitable that ALSO exposes
   // .returning() — the developers UPDATE chains .returning({id}) (B4) while the
   // tools UPDATE awaits where()'s return value directly.
@@ -206,11 +244,11 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
   })
 
-  it('x402 settled but flip LOST (flipped===false) → NO credit (another actor owns the credit)', async () => {
+  it("x402 settled but flip LOST (flipped===false) → NO credit (another actor owns the credit) + outcome 'settled-noop' (S item 3: not a transition THIS run performed)", async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(false)
     const out = await reconcileOneRow(X402_ROW)
-    expect(out).toBe('settled')
+    expect(out).toBe('settled-noop')
     expect(mockDb.transaction).not.toHaveBeenCalled()
   })
 
@@ -231,14 +269,23 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
   })
 
-  it('circle-nano settled but flip LOST (flipped===false) → NO credit (exactly-once holds across the widen)', async () => {
+  it("circle-nano settled but flip LOST (flipped===false) → NO credit (exactly-once holds across the widen) + outcome 'settled-noop'", async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(false)
     const out = await reconcileOneRow({
       operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX,
       amountCents: 50, accountId: 'dev-7', metadata: { toolId: 'tool-9' },
     })
-    expect(out).toBe('settled')
+    expect(out).toBe('settled-noop')
+    expect(mockDb.transaction).not.toHaveBeenCalled()
+  })
+
+  it("reverted (nonce free) but flip LOST (flipped===false) → outcome 'failed-noop' (S item 3)", async () => {
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: TX, nonceConsumed: false })
+    mockFailed.mockResolvedValue(false)
+    const out = await reconcileOneRow({ operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX })
+    expect(out).toBe('failed-noop')
+    expect(mockSettled).not.toHaveBeenCalled()
     expect(mockDb.transaction).not.toHaveBeenCalled()
   })
 
@@ -312,36 +359,58 @@ describe('reconcileOneRow — skips rows with nothing to confirm', () => {
   })
 })
 
+// (S) helper — a recent (NOT overdue) window row with the id/createdAt fields
+// the rotation SELECT now returns.
+const winRow = (id: string, opId: string, rail: string) => ({
+  id,
+  createdAt: new Date(Date.now() - 10 * 60_000),
+  operationId: opId,
+  rail,
+  externalRef: TX,
+})
+
 describe('reconcilePendingSettlements — bounded batch + summary', () => {
-  it('reconciles each queried row and tallies the FULL summary (settled/failed/pending/skipped)', async () => {
+  it('reconciles each queried row and tallies the FULL summary (settled/failed/pending/skipped/noop/errored)', async () => {
     mockDb.limit.mockResolvedValue([
-      { operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX },
-      { operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX },
-      { operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX },
-      { operationId: X402_OPID, rail: 'x402', externalRef: TX },
+      winRow('r1', CNANO_OPID, 'circle-nano'),
+      winRow('r2', CNANO_OPID, 'circle-nano'),
+      winRow('r3', CNANO_OPID, 'circle-nano'),
+      winRow('r4', X402_OPID, 'x402'),
+      winRow('r5', X402_OPID, 'x402'),
     ])
     mockConfirm
       .mockResolvedValueOnce({ kind: 'settled', txHash: TX })
       .mockResolvedValueOnce({ kind: 'reverted', txHash: TX, nonceConsumed: false })
       .mockResolvedValueOnce({ kind: 'reverted', txHash: TX, nonceConsumed: true })
       .mockResolvedValueOnce({ kind: 'unsupported-network' })
+      .mockResolvedValueOnce({ kind: 'settled', txHash: TX })
+    // (S) the 5th row's flip is LOST to a concurrent winner → settled-noop.
+    mockSettled.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
 
     const summary = await reconcilePendingSettlements({ limit: 25 })
-    expect(summary.scanned).toBe(4)
-    expect(summary.settled).toBe(1)
+    expect(summary.scanned).toBe(5)
+    expect(summary.settled).toBe(1) // TRUE transitions only (S item 3)
     expect(summary.failed).toBe(1)
     expect(summary.pending).toBe(1) // the reverted + nonce-consumed row
     expect(summary.skipped).toBe(1) // the unsupported-network row
-    // Pin the aggregation arithmetic (a dropped term in the pending/skipped sums survives otherwise).
+    expect(summary.noop).toBe(1) // the raced no-op flip
+    expect(summary.errored).toBe(0)
+    expect(summary.overdue).toBe(0) // default aggregate: nothing overdue
+    // Pin the aggregation arithmetic (a dropped term in the sums survives otherwise).
     expect(summary.outcomes['pending-nonce-consumed']).toBe(1)
     expect(summary.outcomes['skipped-unsupported']).toBe(1)
+    expect(summary.outcomes['settled-noop']).toBe(1)
+    // (S) truthful-telemetry invariant.
+    expect(summary.scanned).toBe(
+      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored,
+    )
     expect(mockDb.limit).toHaveBeenCalledWith(25)
   })
 
-  it('one row throwing does not abort the batch', async () => {
+  it('one row throwing does not abort the batch — and is counted in errored (S item 3)', async () => {
     mockDb.limit.mockResolvedValue([
-      { operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX },
-      { operationId: X402_OPID, rail: 'x402', externalRef: TX },
+      winRow('r1', CNANO_OPID, 'circle-nano'),
+      winRow('r2', X402_OPID, 'x402'),
     ])
     mockConfirm
       .mockRejectedValueOnce(new Error('rpc boom'))
@@ -350,6 +419,141 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     const summary = await reconcilePendingSettlements()
     expect(summary.scanned).toBe(2)
     expect(summary.settled).toBe(1) // the second row still processed
+    expect(summary.errored).toBe(1) // the thrower no longer vanishes from every bucket
+    expect(summary.scanned).toBe(
+      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored,
+    )
+  })
+
+  it('(S) rotation watermark: ONE per-row UPDATE keyed to that row id, issued BEFORE that row is examined', async () => {
+    mockDb.limit.mockResolvedValue([
+      winRow('r1', CNANO_OPID, 'circle-nano'),
+      winRow('r2', X402_OPID, 'x402'),
+    ])
+    mockConfirm.mockResolvedValue({ kind: 'unconfirmed', txHash: TX })
+
+    await reconcilePendingSettlements()
+    // one watermark UPDATE per selected row, keyed by eq(id, <that row's id>)
+    expect(mockDbUpdateWhere).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(eq)).toHaveBeenCalledWith('id', 'r1')
+    expect(vi.mocked(eq)).toHaveBeenCalledWith('id', 'r2')
+    // mark-BEFORE-examine, per row: update(i) precedes confirm(i) precedes update(i+1)
+    const u = mockDbUpdateWhere.mock.invocationCallOrder
+    const c = mockConfirm.mock.invocationCallOrder
+    expect(u[0]).toBeLessThan(c[0])
+    expect(c[0]).toBeLessThan(u[1])
+    expect(u[1]).toBeLessThan(c[1])
+  })
+
+  it('(S) zero selected rows → zero watermark UPDATEs', async () => {
+    await reconcilePendingSettlements()
+    expect(mockDb.update).not.toHaveBeenCalled()
+  })
+
+  it('(S) a failing watermark UPDATE never blocks examination — logged once with the count', async () => {
+    mockDb.limit.mockResolvedValue([
+      winRow('r1', CNANO_OPID, 'circle-nano'),
+      winRow('r2', X402_OPID, 'x402'),
+    ])
+    mockDbUpdateWhere.mockRejectedValue(new Error('db blip'))
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.settled).toBe(2) // both rows still examined + flipped
+    // seal fix S10/S13: the operator can identify WHICH rows lost their
+    // rotation slot and sees the underlying error.
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.watermark_update_failed',
+      { count: 2, operationIds: [CNANO_OPID, X402_OPID] },
+      expect.any(Error),
+    )
+  })
+
+  it('(S) a watermark UPDATE rejecting with a NON-Error value (battery H6 pin) → bare catch holds, examination proceeds', async () => {
+    mockDb.limit.mockResolvedValue([winRow('r1', CNANO_OPID, 'circle-nano')])
+    mockDbUpdateWhere.mockRejectedValue('string-rejection')
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.settled).toBe(1)
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.watermark_update_failed',
+      { count: 1, operationIds: [CNANO_OPID] },
+      'string-rejection',
+    )
+  })
+
+  it('(S) pending-age alert: fires ONE classified reconcile.pending_overdue when overdue rows exist', async () => {
+    // an overdue (10h) nonce-consumed sticky row is in this run's window…
+    mockDb.limit.mockResolvedValue([
+      { ...winRow('r1', CNANO_OPID, 'circle-nano'), createdAt: new Date(Date.now() - 10 * 3_600_000) },
+    ])
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: TX, nonceConsumed: true })
+    // …and the aggregate sees 3 overdue total, 1 of them settle-path-owned
+    // (null external_ref). postgres-js returns aggregate values as STRINGS.
+    agg.value = [{
+      total: '3',
+      noTxhash: '1',
+      oldestCreatedAt: new Date(Date.now() - 10 * 3_600_000).toISOString(),
+    }]
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.overdue).toBe(3)
+    const alerts = vi.mocked(logger.error).mock.calls.filter((c) => c[0] === 'reconcile.pending_overdue')
+    expect(alerts).toHaveLength(1) // one line per run, never per row
+    const payload = alerts[0][1] as Record<string, unknown>
+    expect(payload.overdueCount).toBe(3)
+    expect(payload.noTxhashCount).toBe(1)
+    expect(payload.overdueAfterMs).toBe(6 * 3_600_000)
+    expect(payload.examinedThisRun).toEqual(
+      expect.objectContaining({ nonceConsumed: 1, unconfirmed: 0, unparseable: 0, unsupported: 0, errored: 0 }),
+    )
+    // the string-typed min(created_at) converts to a real, finite age (DC-18 NaN guard)
+    expect(Number.isFinite(payload.oldestPendingAgeMs)).toBe(true)
+    expect(payload.oldestPendingAgeMs as number).toBeGreaterThan(0)
+  })
+
+  it('(S) pending-age alert: silent when nothing is overdue', async () => {
+    mockDb.limit.mockResolvedValue([winRow('r1', CNANO_OPID, 'circle-nano')])
+    mockConfirm.mockResolvedValue({ kind: 'unconfirmed', txHash: TX })
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.overdue).toBe(0)
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith('reconcile.pending_overdue', expect.anything())
+  })
+
+  it('(S) the overdue check failing never aborts the run: overdue=null + reconcile.overdue_check_failed', async () => {
+    mockDb.limit.mockResolvedValue([winRow('r1', CNANO_OPID, 'circle-nano')])
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    agg.error = new Error('aggregate boom')
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.scanned).toBe(1)
+    expect(summary.settled).toBe(1) // the run completed normally
+    expect(summary.overdue).toBeNull()
+    // seal fix S11: the classification computed from THIS run's window still
+    // surfaces even when the aggregate fails.
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.overdue_check_failed',
+      { examinedThisRun: expect.objectContaining({ nonceConsumed: 0 }) },
+      expect.any(Error),
+    )
+  })
+
+  it('(S) aggregate returning ZERO rows (battery H1 pin) → destructure caught, overdue=null, run completes', async () => {
+    agg.value = []
+    mockDb.limit.mockResolvedValue([winRow('r1', CNANO_OPID, 'circle-nano')])
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.scanned).toBe(1)
+    expect(summary.settled).toBe(1)
+    expect(summary.overdue).toBeNull()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.overdue_check_failed',
+      expect.anything(),
+      expect.anything(),
+    )
   })
 
   it('selects ONLY the on-chain RECONCILABLE_RAILS (pins the by-construction link with the (H) hop guard)', async () => {

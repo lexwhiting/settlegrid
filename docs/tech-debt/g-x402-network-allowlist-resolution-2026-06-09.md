@@ -86,9 +86,10 @@ SEPARATE, stricter gate on the credit-minting proxy/circle-nano rails, untouched
   register's (K) UPDATE now read SHIPPED+LIVE @ `23663006` (deployed + smoke-tested 2026-06-09).
 
 ## Next-chunk pointers (existing queue; no new handoff needed)
-- **B4 settlement-row account attribution** — in-repo handoff
-  `b4-settlement-account-attribution-handoff-2026-06-04.md` (⚠️ contains a verified TRAP note:
-  reconcile.ts credits real money from settlement-row account_id).
+> ⚠️ RIDER (2026-06-10, docs-only, rode the (S) commit): the original list here named **B4** —
+> a STALE pointer inherited from a cross-account memory; B4 was SEALED `be43b501` on 2026-06-04
+> (its handoff is CONSUMED; the TRAP note it carried — reconcile.ts credits real money from
+> settlement-row account_id — is permanently pinned in code + the B4 semantic-guard test).
+> **B1.4 starvation-at-scale was CLOSED by (S) on 2026-06-10**
+> (`s-reconciler-starvation-resolution-2026-06-10.md`).
 - **B1.1 circle-nano enable-gate split** (INCREMENTAL, different rail).
-- **B1.4 starvation-at-scale** (needs migration; "before high volume" — facilitator off, volume
-  minimal today).

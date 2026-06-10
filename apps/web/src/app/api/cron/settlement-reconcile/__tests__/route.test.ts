@@ -18,6 +18,8 @@ vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 vi.mock('@/lib/settlement/reconcile', () => ({ reconcilePendingSettlements: mockReconcile }))
 
 import { GET } from '../route'
+// Mocked above — imported for the done-log assertion.
+import { logger } from '@/lib/logger'
 
 function req(auth?: string): NextRequest {
   const headers: Record<string, string> = {}
@@ -29,7 +31,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
   mockGetCronSecret.mockReturnValue('test-secret')
-  mockReconcile.mockResolvedValue({ scanned: 0, settled: 0, failed: 0, pending: 0, skipped: 0, outcomes: {} })
+  mockReconcile.mockResolvedValue({
+    scanned: 0, settled: 0, failed: 0, pending: 0, skipped: 0,
+    noop: 0, errored: 0, overdue: 0, outcomes: {},
+  })
 })
 
 describe('settlement-reconcile cron', () => {
@@ -46,13 +51,23 @@ describe('settlement-reconcile cron', () => {
     expect(mockReconcile).not.toHaveBeenCalled()
   })
 
-  it('runs the reconciler and returns its summary when authorized', async () => {
-    mockReconcile.mockResolvedValue({ scanned: 3, settled: 2, failed: 1, pending: 0, skipped: 0, outcomes: {} })
+  it('runs the reconciler and returns its summary when authorized — done-log carries the (S) truthful-telemetry fields', async () => {
+    mockReconcile.mockResolvedValue({
+      scanned: 5, settled: 2, failed: 1, pending: 0, skipped: 0,
+      noop: 1, errored: 1, overdue: 3, outcomes: {},
+    })
     const res = await GET(req('Bearer test-secret'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.scanned).toBe(3)
+    expect(body.scanned).toBe(5)
     expect(body.settled).toBe(2)
+    expect(body.noop).toBe(1)
+    expect(body.errored).toBe(1)
+    expect(body.overdue).toBe(3)
     expect(mockReconcile).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'cron.settlement_reconcile.done',
+      expect.objectContaining({ scanned: 5, settled: 2, noop: 1, errored: 1, overdue: 3 }),
+    )
   })
 })

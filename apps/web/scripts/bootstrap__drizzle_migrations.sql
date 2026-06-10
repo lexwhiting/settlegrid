@@ -113,6 +113,11 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
 SELECT 'e720ecaacc420f2c5d4af891d096d23788a6ad68f279f331e87c2a9d29bf43df', 1780790400000
 WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'e720ecaacc420f2c5d4af891d096d23788a6ad68f279f331e87c2a9d29bf43df');
 
+-- 0015_reconcile_watermark  (hand-written, not in journal; ships with (S) 2026-06-10 — APPLY-THEN-DEPLOY: apply the .sql via SQL Editor + seed this row BEFORE the (S) bundle deploys; the new reconciler code SELECTs the column)
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+SELECT '40943692cf5313ffca9d9f1ecda722c33ddf9922015dcb44b92558976d9d826d', 1781049600000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '40943692cf5313ffca9d9f1ecda722c33ddf9922015dcb44b92558976d9d826d');
+
 COMMIT;
 
 -- POST-RUN VERIFICATION (run separately after the bootstrap):
@@ -120,6 +125,6 @@ COMMIT;
 --   FROM "drizzle"."__drizzle_migrations"
 --   ORDER BY created_at;
 --
--- Expected: 15 rows. MAX(created_at) = 1780790400000 (0014_drop_revenue_share_pct).
+-- Expected: 16 rows. MAX(created_at) = 1781049600000 (0015_reconcile_watermark).
 -- All three journal folderMillis (1773459112883, 1776513600000, 1777737600000)
 -- are < MAX, so drizzle-kit migrate will correctly skip them.
