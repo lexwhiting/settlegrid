@@ -83,6 +83,28 @@ pre-fix-round) ·
 build **0** (`build-postfix.log`) · eslint changed **0** · `git diff --numstat packages/` empty ·
 python byte-stable · numstat confined to the 8 chunk files + docs · 0015 hash frozen.
 
+## ③ POST-SEAL DEEP AUDIT ADDENDUM (2026-06-10, `wf_41d2eca2-5df`) — HARDENED-AND-RE-CERTIFIED
+
+Integrated-whole audit (4 fable lenses: integration seams / whole-system money path / full
+19-class ledger sweep / ops-deploy reality + xhigh collective-miss critic; pre-flight 29/29 in
+`.audit/s-deep/`): 25 findings, 0 dead lenses. **No defect OF the sealed chunk was found — the
+seal's bar holds.** Two in-scope hardenings landed (fail-pre-fix proofs in
+`.audit/s-deep/fixA-prefix-red.txt`):
+1. **Per-run examination budget** (`runBudgetMs`, default 40s) + `deferred` summary field:
+   guarantees the overdue aggregate, pending-age alert, and done-summary ALWAYS emit — three
+   lenses independently showed a degraded RPC (viem default 10s×3-retries/row, frozen engine)
+   could blow the route's 60s maxDuration and kill the run BEFORE the alert, going dark exactly
+   during the outages the alert exists to surface. Deferred rows are not watermarked (keep their
+   queue place). Invariant now: scanned = settled+failed+pending+skipped+noop+errored+deferred.
+2. **401 Sentry trail** on the cron route (`cron.settlement_reconcile.unauthorized`): a dead
+   cron (CRON_SECRET rotation drift) previously left no log anywhere — and every stuck-credit
+   operator signal is emitted from inside a successful run.
+Everything else found is PRE-EXISTING in the integrated system (most live in deployed prod) and
+is REGISTERED with priorities + fix shapes in **`s-deep-audit-register-2026-06-10.md`** (P1
+flip→credit kill window; P2 stale-externalRef failed-flip race; P3 credit-gate F2-pin micro-
+chunk; P4 reconciler transport timeout; P5 terminalization/alert hygiene; P6 ops; P7 lows).
+Defect ledger updated (DC-01 + DC-06 new faces).
+
 ## Founder state / next
 - **Applied (done, founder, 2026-06-10):** 0015 + hash row + verification (16 rows, MAX
   `1781049600000`).

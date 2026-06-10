@@ -263,10 +263,11 @@ export async function creditSettlement(params: {
 
 /**
  * (S) — truthful run telemetry invariant:
- *   scanned === settled + failed + pending + skipped + noop + errored
+ *   scanned === settled + failed + pending + skipped + noop + errored + deferred
  * `settled`/`failed` count TRUE transitions this run performed; raced no-op
  * flips land in `noop`; rows whose examination threw land in `errored`
- * (previously they vanished from every bucket).
+ * (previously they vanished from every bucket); rows the per-run time budget
+ * skipped land in `deferred` (③ post-seal hardening).
  */
 export interface ReconcileSummary {
   scanned: number
@@ -278,6 +279,17 @@ export interface ReconcileSummary {
   noop: number
   /** (S) rows whose examination threw (left pending; re-examined after one rotation). */
   errored: number
+  /**
+   * (③) rows selected but NOT examined because the per-run time budget ran
+   * out (`runBudgetMs`, default 40s of the route's 60s maxDuration). Deferred
+   * rows are NOT watermarked, so they keep their queue position and are
+   * examined first next run. The budget guarantees the overdue aggregate, the
+   * pending-age alert, and this summary always emit — previously a degraded
+   * RPC (viem default ~10s × 3 retries per row) could blow the 60s budget and
+   * Vercel killed the run BEFORE the alert, going dark exactly during the
+   * outages the alert exists to surface.
+   */
+  deferred: number
   /**
    * (S) pending-age alert count: pending rows on reconcilable rails older
    * than `overdueAfterMs` at run time (INCLUDING null-external_ref rows the
@@ -332,6 +344,7 @@ export async function reconcilePendingSettlements(opts?: {
   olderThanMs?: number
   limit?: number
   overdueAfterMs?: number
+  runBudgetMs?: number
 }): Promise<ReconcileSummary> {
   const olderThanMs = opts?.olderThanMs ?? 5 * 60_000 // past the live settle's own confirm window
   const limit = opts?.limit ?? 25
@@ -339,8 +352,15 @@ export async function reconcilePendingSettlements(opts?: {
   // seconds, so 6h pending is unambiguously anomalous, yet the threshold is
   // immune to transient RPC outages.
   const overdueAfterMs = opts?.overdueAfterMs ?? 6 * 3_600_000
+  // (③) per-run examination budget — leaves headroom inside the route's 60s
+  // maxDuration for the overdue aggregate + alert + summary, so they ALWAYS
+  // emit even when degraded RPC makes per-row confirms slow. A single row's
+  // in-flight RPC can still overrun (the engine transport is frozen spine);
+  // the registered follow-up is a reconciler-specific transport timeout.
+  const runBudgetMs = opts?.runBudgetMs ?? 40_000
   const cutoff = new Date(Date.now() - olderThanMs)
   const overdueCutoff = new Date(Date.now() - overdueAfterMs)
+  const examinationDeadline = Date.now() + runBudgetMs
 
   const rows = await db
     .select({
@@ -396,7 +416,14 @@ export async function reconcilePendingSettlements(opts?: {
     'skipped-unparseable': 'unparseable',
     'skipped-unsupported': 'unsupported',
   }
-  for (const row of rows) {
+  let deferred = 0
+  for (const [i, row] of rows.entries()) {
+    // (③) budget check BEFORE the watermark, so deferred rows keep their
+    // queue position (mark-before-examine semantics preserved).
+    if (Date.now() >= examinationDeadline) {
+      deferred = rows.length - i
+      break
+    }
     // (S) rotation watermark — PER-ROW, immediately BEFORE examination (see
     // the function doc for why this exact timing is load-bearing). Touches
     // ONLY the watermark column, so it can never race the WHERE-pending flips
@@ -490,6 +517,7 @@ export async function reconcilePendingSettlements(opts?: {
       outcomes['skipped-unsupported'],
     noop: outcomes['settled-noop'] + outcomes['failed-noop'],
     errored,
+    deferred,
     overdue,
     outcomes,
   }
