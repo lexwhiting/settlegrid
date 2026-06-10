@@ -33,8 +33,10 @@ import { USDC_ADDRESSES } from '../x402/types'
 import type { Eip3009SettleProof } from '../eip3009/types'
 import { getBaseRpcUrl } from '@/lib/env'
 
-/** The only networks we pin USDC + the EIP-712 domain for; anything else fails closed. */
-const SUPPORTED_CHAINS = {
+/** The only networks we pin USDC + the EIP-712 domain for; anything else fails closed.
+ * Exported (read-only) so the (G) no-drift invariant test can pin
+ * CANONICAL_X402_NETWORKS == keys(SUPPORTED_CHAINS) against the real engine set. */
+export const SUPPORTED_CHAINS = {
   'eip155:8453': base,
   'eip155:84532': baseSepolia,
 } as const

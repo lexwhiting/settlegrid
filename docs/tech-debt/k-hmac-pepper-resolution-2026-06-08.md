@@ -5,8 +5,10 @@
 > and handoff (`k-hmac-pepper-handoff-2026-06-08.md`). **TIER: HIGH-STAKES** (auth/crypto boundary on
 > the money path; a deliberate edit to the frozen `lib/crypto.ts hashApiKey` spine).
 >
-> **State: SEALED + DEEP-AUDITED + LOCAL COMMIT. PUSH HELD on a founder prerequisite (set
-> `API_KEY_PEPPER` in Vercel prod FIRST).** Nothing pushed / prod-env-set / migrated / published.
+> **State: SHIPPED + LIVE** — pushed as `origin/main @ 23663006`, deployed + smoke-tested
+> 2026-06-09 (the founder prerequisite — `API_KEY_PEPPER` in Vercel prod — was satisfied first).
+> *(Status line updated 2026-06-10 as the (G)-chunk docs-tidy rider; this doc previously read
+> "PUSH HELD".)*
 
 ## What (K) is
 Hardened the API-keyspace hash from bare `SHA-256(key)` → **`HMAC-SHA256(serverPepper, domain + ':' + key)`**

@@ -6,6 +6,8 @@ import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import {
   verifyExactPayment,
   settleExactPayment,
+  CANONICAL_X402_NETWORKS,
+  isCanonicalX402Network,
 } from '@/lib/settlement/x402'
 import type { X402ExactPayload } from '@/lib/settlement/x402'
 import { logger } from '@/lib/logger'
@@ -40,6 +42,20 @@ export const POST = withCors(async function POST(request: NextRequest) {
       network: paymentPayload.network,
       hasPaymentIdentifier: !!paymentIdentifier,
     })
+
+    // (G) Settle-boundary guard: only canonical settleable+confirmable networks
+    // may reach the engines — a non-canonical settle could otherwise broadcast
+    // money the reconciler can never confirm. Reject BEFORE verify/settle so no
+    // RPC is spent on a doomed network. Network-then-scheme, matching the
+    // facilitator v1 settle route.
+    if (!isCanonicalX402Network(paymentPayload.network)) {
+      return errorResponse(
+        `Network not supported for settlement: ${paymentPayload.network}. ` +
+          `Supported: ${CANONICAL_X402_NETWORKS.join(', ')}.`,
+        400,
+        'UNSUPPORTED_NETWORK'
+      )
+    }
 
     // Only exact scheme settlement is supported for now
     if (paymentPayload.scheme === 'upto') {

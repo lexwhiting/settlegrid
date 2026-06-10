@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+// Direct module path (NOT the mocked '@/lib/settlement/x402' barrel) — the canonical
+// allowlist the (G) guard + advertisement filter derive from.
+import { CANONICAL_X402_NETWORKS } from '@/lib/settlement/x402/networks'
 
 // ─── Hoisted mock values ────────────────────────────────────────────────────
 
@@ -943,7 +946,10 @@ describe('GET /api/x402/supported', () => {
   it('returns network list with USDC addresses', async () => {
     const res = await GET(createRequest())
     const data = await res.json()
-    expect(data.networks.length).toBeGreaterThanOrEqual(3)
+    // (G): advertise EXACTLY the canonical settleable+confirmable set — never eip155:1.
+    const ids = data.networks.map((n: { network: string }) => n.network).sort()
+    expect(ids).toEqual([...CANONICAL_X402_NETWORKS].sort())
+    expect(ids).not.toContain('eip155:1')
     for (const net of data.networks) {
       expect(net.assetSymbol).toBe('USDC')
       expect(net.assetDecimals).toBe(6)
@@ -1026,6 +1032,41 @@ describe('POST /api/x402/verify', () => {
     expect(res.status).toBe(422)
   })
 
+  it('rejects a non-canonical network (eip155:1) before the verify engine runs', async () => {
+    const req = createVerifyRequest({
+      paymentPayload: {
+        scheme: 'exact',
+        network: 'eip155:1',
+        payload: { signature: '0xabc', authorization: {} },
+      },
+    })
+
+    const res = await POST(req)
+    const data = await res.json()
+    expect(res.status).toBe(400)
+    expect(data.code).toBe('UNSUPPORTED_NETWORK')
+    expect(mockVerifyExact).not.toHaveBeenCalled()
+    expect(mockVerifyUpto).not.toHaveBeenCalled()
+  })
+
+  it('still reaches the verify engine for Base Sepolia (eip155:84532)', async () => {
+    mockVerifyExact.mockResolvedValueOnce({ isValid: true, network: 'eip155:84532' })
+
+    const req = createVerifyRequest({
+      paymentPayload: {
+        scheme: 'exact',
+        network: 'eip155:84532',
+        payload: { signature: '0xabc', authorization: {} },
+      },
+    })
+
+    const res = await POST(req)
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.isValid).toBe(true)
+    expect(mockVerifyExact).toHaveBeenCalled()
+  })
+
   it('dispatches to verifyUptoPayment for upto scheme', async () => {
     mockVerifyUpto.mockResolvedValueOnce({
       isValid: true,
@@ -1081,6 +1122,46 @@ describe('POST /api/x402/settle', () => {
     const data = await res.json()
     expect(res.status).toBe(400)
     expect(data.code).toBe('UNSUPPORTED_SCHEME')
+  })
+
+  it('rejects a non-canonical network (eip155:1) before any engine call', async () => {
+    const req = createSettleRequest({
+      paymentPayload: {
+        scheme: 'exact',
+        network: 'eip155:1',
+        payload: { signature: '0xabc', authorization: {} },
+      },
+    })
+
+    const res = await POST(req)
+    const data = await res.json()
+    expect(res.status).toBe(400)
+    expect(data.code).toBe('UNSUPPORTED_NETWORK')
+    expect(mockVerifyExact).not.toHaveBeenCalled()
+    expect(mockSettleExact).not.toHaveBeenCalled()
+  })
+
+  it('still settles on Base Sepolia (eip155:84532) — the guard is not over-broad', async () => {
+    mockVerifyExact.mockResolvedValueOnce({ isValid: true })
+    mockSettleExact.mockResolvedValueOnce({
+      success: true,
+      txHash: '0xsepoliatxhash',
+      network: 'eip155:84532',
+    })
+
+    const req = createSettleRequest({
+      paymentPayload: {
+        scheme: 'exact',
+        network: 'eip155:84532',
+        payload: { signature: '0xabc', authorization: {} },
+      },
+    })
+
+    const res = await POST(req)
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(mockSettleExact).toHaveBeenCalled()
   })
 
   it('returns 402 when verification fails', async () => {
