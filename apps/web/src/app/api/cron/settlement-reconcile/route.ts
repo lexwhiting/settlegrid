@@ -29,6 +29,14 @@ export async function GET(request: NextRequest) {
       return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
     }
     if (authHeader !== `Bearer ${cronSecret}`) {
+      // (③) a silently-dead cron is silently-aging USDC credits: every stuck-
+      // settlement operator signal is emitted from INSIDE a successful run, so
+      // an auth mismatch (e.g. CRON_SECRET rotation drift) must leave a Sentry
+      // trail of its own. Scanner noise is bounded by the per-IP rate limit.
+      logger.error('cron.settlement_reconcile.unauthorized', {
+        ip,
+        userAgent: request.headers.get('user-agent') ?? null,
+      })
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
@@ -44,6 +52,8 @@ export async function GET(request: NextRequest) {
       noop: summary.noop,
       errored: summary.errored,
       overdue: summary.overdue,
+      // (③) rows skipped by the per-run examination budget (keep queue place).
+      deferred: summary.deferred,
     })
     return successResponse(summary)
   } catch (error) {

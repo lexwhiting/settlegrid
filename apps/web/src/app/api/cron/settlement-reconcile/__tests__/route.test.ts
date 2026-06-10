@@ -33,15 +33,19 @@ beforeEach(() => {
   mockGetCronSecret.mockReturnValue('test-secret')
   mockReconcile.mockResolvedValue({
     scanned: 0, settled: 0, failed: 0, pending: 0, skipped: 0,
-    noop: 0, errored: 0, overdue: 0, outcomes: {},
+    noop: 0, errored: 0, deferred: 0, overdue: 0, outcomes: {},
   })
 })
 
 describe('settlement-reconcile cron', () => {
-  it('401 without the cron-secret bearer (and never reconciles)', async () => {
+  it('401 without the cron-secret bearer (and never reconciles) — and leaves a Sentry-mirrored trail (③: a dead cron must not be silent)', async () => {
     const res = await GET(req())
     expect(res.status).toBe(401)
     expect(mockReconcile).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'cron.settlement_reconcile.unauthorized',
+      expect.objectContaining({ ip: expect.any(String) }),
+    )
   })
 
   it('500 when CRON_SECRET is unset (and never reconciles)', async () => {
@@ -54,7 +58,7 @@ describe('settlement-reconcile cron', () => {
   it('runs the reconciler and returns its summary when authorized — done-log carries the (S) truthful-telemetry fields', async () => {
     mockReconcile.mockResolvedValue({
       scanned: 5, settled: 2, failed: 1, pending: 0, skipped: 0,
-      noop: 1, errored: 1, overdue: 3, outcomes: {},
+      noop: 1, errored: 1, deferred: 1, overdue: 3, outcomes: {},
     })
     const res = await GET(req('Bearer test-secret'))
     expect(res.status).toBe(200)
@@ -67,7 +71,7 @@ describe('settlement-reconcile cron', () => {
     expect(mockReconcile).toHaveBeenCalledTimes(1)
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
       'cron.settlement_reconcile.done',
-      expect.objectContaining({ scanned: 5, settled: 2, noop: 1, errored: 1, overdue: 3 }),
+      expect.objectContaining({ scanned: 5, settled: 2, noop: 1, errored: 1, overdue: 3, deferred: 1 }),
     )
   })
 })

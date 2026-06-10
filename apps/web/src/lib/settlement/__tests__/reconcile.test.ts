@@ -400,9 +400,9 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     expect(summary.outcomes['pending-nonce-consumed']).toBe(1)
     expect(summary.outcomes['skipped-unsupported']).toBe(1)
     expect(summary.outcomes['settled-noop']).toBe(1)
-    // (S) truthful-telemetry invariant.
+    // (S/③) truthful-telemetry invariant.
     expect(summary.scanned).toBe(
-      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored,
+      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored + summary.deferred,
     )
     expect(mockDb.limit).toHaveBeenCalledWith(25)
   })
@@ -421,7 +421,7 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     expect(summary.settled).toBe(1) // the second row still processed
     expect(summary.errored).toBe(1) // the thrower no longer vanishes from every bucket
     expect(summary.scanned).toBe(
-      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored,
+      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored + summary.deferred,
     )
   })
 
@@ -520,6 +520,43 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     const summary = await reconcilePendingSettlements()
     expect(summary.overdue).toBe(0)
     expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith('reconcile.pending_overdue', expect.anything())
+  })
+
+  it('(③) run budget exhausted → remaining rows DEFERRED (not examined, NOT watermarked, keep their queue place) and the overdue aggregate + alert + summary still emit', async () => {
+    mockDb.limit.mockResolvedValue([
+      winRow('r1', CNANO_OPID, 'circle-nano'),
+      winRow('r2', X402_OPID, 'x402'),
+    ])
+    // first row's confirm takes ~25ms; budget of 10ms expires before row 2
+    mockConfirm.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 25))
+      return { kind: 'settled', txHash: TX }
+    })
+    agg.value = [{ total: '1', noTxhash: '0', oldestCreatedAt: new Date(Date.now() - 7 * 3_600_000).toISOString() }]
+
+    const summary = await reconcilePendingSettlements({ runBudgetMs: 10 })
+    expect(mockConfirm).toHaveBeenCalledTimes(1) // row 2 never examined
+    expect(mockDbUpdateWhere).toHaveBeenCalledTimes(1) // row 2 never watermarked (keeps queue place)
+    expect(summary.scanned).toBe(2)
+    expect(summary.settled).toBe(1)
+    expect(summary.deferred).toBe(1)
+    // the alert still emitted despite the exhausted budget — the truncation fix
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith('reconcile.pending_overdue', expect.anything())
+    expect(summary.scanned).toBe(
+      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored + summary.deferred,
+    )
+  })
+
+  it('(③) zero run budget → entire window deferred, zero examinations, summary + aggregate still complete', async () => {
+    mockDb.limit.mockResolvedValue([
+      winRow('r1', CNANO_OPID, 'circle-nano'),
+      winRow('r2', X402_OPID, 'x402'),
+    ])
+    const summary = await reconcilePendingSettlements({ runBudgetMs: 0 })
+    expect(mockConfirm).not.toHaveBeenCalled()
+    expect(mockDb.update).not.toHaveBeenCalled()
+    expect(summary.deferred).toBe(2)
+    expect(summary.overdue).toBe(0) // aggregate still ran (default agg)
   })
 
   it('(S) the overdue check failing never aborts the run: overdue=null + reconcile.overdue_check_failed', async () => {
