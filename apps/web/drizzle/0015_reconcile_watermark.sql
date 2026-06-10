@@ -1,0 +1,37 @@
+-- (S) Reconciler starvation-at-scale fix (2026-06-10) — rotation watermark.
+--
+-- Adds `ledger_entries.last_reconciled_at`: the pending-settlement reconciler
+-- (apps/web/src/lib/settlement/reconcile.ts, cron */15min) sets it PER-ROW
+-- immediately BEFORE examining that row (mark-before-examine), and orders its
+-- bounded window by `last_reconciled_at ASC NULLS FIRST, created_at ASC`.
+-- This turns the oldest-first window into a fair ROTATION: rare never-terminal
+-- rows (dropped-tx, reverted+nonce-consumed) are deferred behind every
+-- not-yet-examined row instead of occupying the window forever and starving
+-- newer confirmable rows of their USDC credit (B1.4 carried-debt item 2).
+--
+-- NULLABLE, NO DEFAULT, NO BACKFILL: NULL means "never examined by the
+-- reconciler" and deliberately sorts FIRST (the explicit NULLS FIRST in the
+-- query — Postgres ASC defaults to NULLS LAST, which would deprioritize every
+-- existing row). Do NOT backfill.
+--
+-- ⚠️ DEPLOY ORDERING — APPLY-THEN-DEPLOY (inverse of 0014's expand/contract
+-- DROP): the NEW reconciler code SELECTs/ORDERs on/UPDATEs this column, so
+-- deploying code BEFORE applying this migration breaks the reconcile cron
+-- ("column does not exist") every 15 minutes. Applying FIRST is zero-impact:
+-- currently-deployed code never references the column (verified: all
+-- from(ledgerEntries) sites use explicit column lists; INSERT value lists omit
+-- it). Order: (1) paste this file in the Supabase SQL Editor, (2) seed the
+-- 0015 hash row from scripts/bootstrap__drizzle_migrations.sql, (3) only then
+-- deploy the (S) bundle.
+--
+-- IF NOT EXISTS makes the one-shot Supabase SQL Editor paste idempotent.
+-- Hand-written (NOT via drizzle-kit generate — drizzle/meta is intentionally
+-- partial: only 0000_snapshot.json + a 3-entry journal, so generate would
+-- diff against a stale snapshot and emit a wrong migration). Register the
+-- applied hash in scripts/bootstrap__drizzle_migrations.sql.
+--
+-- FOUNDER-GATED: apply via the Supabase SQL Editor BEFORE the (S) bundle
+-- deploys. Do NOT auto-apply.
+
+ALTER TABLE "ledger_entries" ADD COLUMN IF NOT EXISTS "last_reconciled_at" timestamp with time zone;
+CREATE INDEX IF NOT EXISTS "ledger_entries_last_reconciled_at_idx" ON "ledger_entries" ("last_reconciled_at");

@@ -890,6 +890,19 @@ export const ledgerEntries = pgTable(
     settlementStatus: text('settlement_status'),
     settledAt: timestamp('settled_at', { withTimezone: true }),
     externalRef: text('external_ref'),
+    // (S) 2026-06-10 — reconciler rotation watermark. Set PER-ROW immediately
+    // BEFORE that row is examined (mark-before-examine; batch mark-at-select
+    // and mark-after-examine were REJECTED — each excludes rows under
+    // repeating capacity-crash / poison-row runs, see the (S) trace §b +
+    // .audit/s-prebuild probe P3 matrix). The window orders by
+    // COALESCE(last_reconciled_at, created_at) ASC — a FIFO rotation queue
+    // whose position is "last examined, else created": deferral, never
+    // exclusion, BOUNDED under every arrival pattern (the seal review
+    // replaced the earlier NULLS-FIRST ordering, whose absolute new-row
+    // priority let sustained inflow defer a watermarked row indefinitely).
+    // NULL = never examined (queues at created_at — do not backfill).
+    // Requires migration 0015 APPLIED BEFORE this code deploys.
+    lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true }),
     // ─── P3.K6 authorization gate columns ─────────────────────────
     // `authorizationSignals` is the per-check audit trail produced
     // by `authorizeInvocation()`. Reconciliation + compliance
@@ -916,6 +929,13 @@ export const ledgerEntries = pgTable(
     index('ledger_entries_settlement_status_idx').on(table.settlementStatus),
     index('ledger_entries_session_id_idx').on(table.sessionId),
     index('ledger_entries_external_ref_idx').on(table.externalRef),
+    // (S) — shipped with 0015 and ALREADY APPLIED to prod. Honest note (seal
+    // findings S5/S12): the rotation ORDER BY is a COALESCE expression the
+    // planner cannot serve from this plain index — the window query is driven
+    // by the settlement_status/rail predicates and re-sorts its small
+    // filtered set. Kept as applied (dropping needs a new founder-gated
+    // migration; cost at current volume is negligible).
+    index('ledger_entries_last_reconciled_at_idx').on(table.lastReconciledAt),
     check('ledger_entries_amount_positive', sql`${table.amountCents} > 0`),
     check('ledger_entries_entry_type_check', sql`${table.entryType} IN ('debit', 'credit')`),
     // P2.TAX1 — tax-cents and jurisdiction are tied: non-zero tax
