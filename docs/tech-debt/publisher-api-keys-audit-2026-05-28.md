@@ -36,6 +36,11 @@
 
 ## UPDATE 2026-06-08 — (K) chunk: **DEBT #3 RESOLVED** (see `k-hmac-pepper-resolution-2026-06-08.md`)
 
+> **STATUS RIDER 2026-06-10 (docs-only, rode the (G) commit):** (K) is **SHIPPED + LIVE** —
+> `origin/main @ 23663006`, deployed + smoke-tested 2026-06-09 after the founder set
+> `API_KEY_PEPPER` in Vercel prod (the prerequisite below was satisfied before the push).
+> The "LOCAL commit (NOT pushed)" + "push HELD" lines below are the historical 2026-06-08 state.
+
 Founder lifted the gate; shipped atop the unpushed (H)+(F1) local stack (`ede13b8b`), itself atop deployed
 `origin/main = 839455fb`. **LOCAL commit (NOT pushed; no migration; nothing published).**
 

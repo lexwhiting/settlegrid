@@ -3,6 +3,7 @@ import { successResponse, internalErrorResponse, errorResponse } from '@/lib/api
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { withCors, OPTIONS as corsOptions } from '@/lib/middleware/cors'
 import { USDC_ADDRESSES } from '@/lib/settlement/x402/types'
+import { isCanonicalX402Network } from '@/lib/settlement/x402/networks'
 import type { X402SupportedInfo } from '@/lib/settlement/x402/types'
 
 export const maxDuration = 30
@@ -32,12 +33,17 @@ export const GET = withCors(async function GET(request: NextRequest) {
           status: 'beta',
         },
       ],
-      networks: Object.entries(USDC_ADDRESSES).map(([network, address]) => ({
-        network,
-        asset: address,
-        assetSymbol: 'USDC',
-        assetDecimals: 6,
-      })),
+      // (G) Advertise ONLY the canonical settleable+confirmable networks — the
+      // USDC_ADDRESSES table also carries eip155:1 for the verify engine's
+      // internals, which no settle path here supports.
+      networks: Object.entries(USDC_ADDRESSES)
+        .filter(([network]) => isCanonicalX402Network(network))
+        .map(([network, address]) => ({
+          network,
+          asset: address,
+          assetSymbol: 'USDC',
+          assetDecimals: 6,
+        })),
       extensions: ['offer-and-receipt', 'payment-identifier'],
     }
 
