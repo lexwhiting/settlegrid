@@ -569,6 +569,23 @@ export async function markSettlementSettled(
  * NULL (CHECK-safe) and stores the reverted txHash as forensic evidence.
  * Guarded `WHERE settlement_status='pending'`.
  *
+ * (T) CAS — `txHash` is REQUIRED and the WHERE additionally demands
+ * `external_ref = txHash`: a terminal 'failed' flip lands ONLY when the hash
+ * whose revert the caller just confirmed is still the hash bound to the row.
+ * A reconciler holding a STALE external_ref from its batch SELECT (the live
+ * path's recovery resubmitted and markSettlementBroadcast re-pointed the row),
+ * or a Redis-down sibling request racing a resubmit, can no longer terminally
+ * fail a row whose CURRENT tx may settle on-chain — previously that ended as
+ * "USDC collected, developer never credited, ledger wrong, zero alerts"
+ * (③ register P2). A CAS reject returns false with the row still 'pending';
+ * the reconciler re-examines it next rotation with a fresh ref. No legitimate
+ * caller is blockable: every caller confirms a hash the write-ahead
+ * onBroadcast bound to the row before any flip, and confirmSettlementTx
+ * returns its input hash in every branch. 'settled' flips deliberately carry
+ * NO CAS — a success receipt is per-hash evidence that THAT tx moved the
+ * funds, and a settled-CAS would create a permanent-pending zombie class in
+ * the swallowed-onBroadcast edge (see the (T) trace §3).
+ *
  * NOTE: callers must NOT use this when a revert is accompanied by the nonce
  * already being consumed on-chain (a concurrent settler moved the funds) — that
  * is NOT a failure; use markSettlementBroadcast to leave it 'pending' for
@@ -577,19 +594,22 @@ export async function markSettlementSettled(
 export async function markSettlementFailed(
   operationId: string,
   rail: string,
-  txHash?: string,
+  txHash: string,
 ): Promise<boolean> {
   const updated = await db
     .update(ledgerEntries)
     .set({
       settlementStatus: 'failed',
-      ...(txHash ? { externalRef: txHash } : {}),
+      externalRef: txHash,
     })
     .where(
       and(
         eq(ledgerEntries.operationId, operationId),
         eq(ledgerEntries.rail, rail),
         eq(ledgerEntries.settlementStatus, 'pending'),
+        // (T) the CAS conjunct — see the function doc. NULL never equals, so a
+        // never-broadcast row is unflippable here (safe: no caller does that).
+        eq(ledgerEntries.externalRef, txHash),
       ),
     )
     .returning({ id: ledgerEntries.id })

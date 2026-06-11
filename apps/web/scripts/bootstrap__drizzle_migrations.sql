@@ -118,6 +118,11 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
 SELECT '40943692cf5313ffca9d9f1ecda722c33ddf9922015dcb44b92558976d9d826d', 1781049600000
 WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '40943692cf5313ffca9d9f1ecda722c33ddf9922015dcb44b92558976d9d826d');
 
+-- 0016_credited_at  (hand-written, not in journal; ships with (T) 2026-06-10 — APPLY-THEN-DEPLOY after 0015 + BEFORE the (T) bundle deploys: deploy-first is a TOTAL settlement-admission outage — every ledger_entries INSERT breaks; see the 0016 header)
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+SELECT 'e47be3c8fbc51876a9b3e8a3cca65cbec7aa34a660343270becfafb90b43dfe4', 1781136000000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'e47be3c8fbc51876a9b3e8a3cca65cbec7aa34a660343270becfafb90b43dfe4');
+
 COMMIT;
 
 -- POST-RUN VERIFICATION (run separately after the bootstrap):
@@ -125,6 +130,6 @@ COMMIT;
 --   FROM "drizzle"."__drizzle_migrations"
 --   ORDER BY created_at;
 --
--- Expected: 16 rows. MAX(created_at) = 1781049600000 (0015_reconcile_watermark).
+-- Expected: 17 rows. MAX(created_at) = 1781136000000 (0016_credited_at).
 -- All three journal folderMillis (1773459112883, 1776513600000, 1777737600000)
 -- are < MAX, so drizzle-kit migrate will correctly skip them.

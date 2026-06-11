@@ -33,7 +33,7 @@ beforeEach(() => {
   mockGetCronSecret.mockReturnValue('test-secret')
   mockReconcile.mockResolvedValue({
     scanned: 0, settled: 0, failed: 0, pending: 0, skipped: 0,
-    noop: 0, errored: 0, deferred: 0, overdue: 0, outcomes: {},
+    noop: 0, errored: 0, deferred: 0, overdue: 0, uncredited: 0, outcomes: {},
   })
 })
 
@@ -58,7 +58,7 @@ describe('settlement-reconcile cron', () => {
   it('runs the reconciler and returns its summary when authorized — done-log carries the (S) truthful-telemetry fields', async () => {
     mockReconcile.mockResolvedValue({
       scanned: 5, settled: 2, failed: 1, pending: 0, skipped: 0,
-      noop: 1, errored: 1, deferred: 1, overdue: 3, outcomes: {},
+      noop: 1, errored: 1, deferred: 1, overdue: 3, uncredited: 2, outcomes: {},
     })
     const res = await GET(req('Bearer test-secret'))
     expect(res.status).toBe(200)
@@ -68,10 +68,11 @@ describe('settlement-reconcile cron', () => {
     expect(body.noop).toBe(1)
     expect(body.errored).toBe(1)
     expect(body.overdue).toBe(3)
+    expect(body.uncredited).toBe(2) // (T) open credit-resolution incidents pass through
     expect(mockReconcile).toHaveBeenCalledTimes(1)
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
       'cron.settlement_reconcile.done',
-      expect.objectContaining({ scanned: 5, settled: 2, noop: 1, errored: 1, overdue: 3, deferred: 1 }),
+      expect.objectContaining({ scanned: 5, settled: 2, noop: 1, errored: 1, overdue: 3, deferred: 1, uncredited: 2 }),
     )
   })
 })

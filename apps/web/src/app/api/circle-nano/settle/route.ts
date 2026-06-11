@@ -206,6 +206,8 @@ export const POST = withCors(async function POST(request: NextRequest) {
           toolId: toolRow.id,
           amountCents: costCents,
           operationId: circleNanoOperationId(parsedProof),
+          // (T) — keys the credited_at marker written inside the credit txn.
+          rail: 'circle-nano',
         })
       }
 

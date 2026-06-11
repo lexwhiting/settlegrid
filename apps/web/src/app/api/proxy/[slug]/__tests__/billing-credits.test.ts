@@ -81,12 +81,16 @@ describe('Phase 2 invariant — developer balance credits are GROSS, not NET', (
     })
   }
 
-  it('proxy/[slug]/route.ts has 5 GROSS balance writers (one per payment-method path)', () => {
+  it('proxy/[slug]/route.ts has 6 GROSS balance writers (one per payment-method path + the (T) on-chain transactional twin)', () => {
     const abs = resolve(process.cwd(), 'src/app/api/proxy/[slug]/route.ts')
     const src = readFileSync(abs, 'utf8')
     const matches = src.match(GROSS_WRITER_PATTERN) ?? []
-    // 5 sites: cached, x402-collected, mpp, api-key, failover.
-    expect(matches.length).toBe(5)
+    // 6 sites: cached, x402-collected, mpp, api-key, failover, PLUS the (T)
+    // on-chain transactional twin inside forwardAndBill (the settlement-keyed
+    // credit txn that also writes the credited_at marker; the legacy
+    // Promise.all branch was kept BYTE-identical rather than hoisting a shared
+    // SET const, so the GROSS writer appears once per branch — R2 audit fix B2).
+    expect(matches.length).toBe(6)
   })
 
   it('sdk/meter/route.ts has 1 GROSS balance writer', () => {

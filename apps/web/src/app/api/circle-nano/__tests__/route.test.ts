@@ -252,6 +252,8 @@ describe('POST /api/circle-nano/settle', () => {
         toolId: 'tool-uuid-1',
         amountCents: 50,
         operationId: expect.stringContaining('circle-nano:eip155:8453:'),
+        // (T) — rail keys the credited_at marker inside the credit txn.
+        rail: 'circle-nano',
       }),
     )
   })
