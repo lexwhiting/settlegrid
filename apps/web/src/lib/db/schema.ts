@@ -903,6 +903,22 @@ export const ledgerEntries = pgTable(
     // NULL = never examined (queues at created_at — do not backfill).
     // Requires migration 0015 APPLIED BEFORE this code deploys.
     lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true }),
+    // (T) 2026-06-10 — credit marker: "the developer-balance credit COMMITTED,
+    // in the same DB transaction as this marker." Written ONLY by the two
+    // credit-writer sites (creditSettlement — reconciler tail + kernel
+    // /settle; the proxy forwardAndBill on-chain transaction). A SETTLED
+    // reconcilable-rail row with credited_at NULL past the sweep's grace
+    // window is an OPEN credit-resolution incident (silent P1 loss, F3
+    // upstream-fail, credit_failed, credit_skipped_no_data, pin-blocked
+    // testnet credit) enumerated by reconcile.uncredited_settled every run
+    // until the operator closes it (runbook UPDATE). One loss class lives
+    // OUTSIDE the sweep by construction — a success receipt landing on a
+    // terminally-failed row — and is alerted by the live path instead
+    // (settlement.settled_evidence_on_terminal_failed_row; runbook §3). NULL on non-reconcilable rails (ap2, hops) is
+    // meaningless by design. Requires migration 0016 APPLIED BEFORE this code
+    // deploys (deploy-first breaks EVERY ledger_entries INSERT — drizzle
+    // emits the full column list — i.e. a total settlement-admission outage).
+    creditedAt: timestamp('credited_at', { withTimezone: true }),
     // ─── P3.K6 authorization gate columns ─────────────────────────
     // `authorizationSignals` is the per-check audit trail produced
     // by `authorizeInvocation()`. Reconciliation + compliance
@@ -936,6 +952,14 @@ export const ledgerEntries = pgTable(
     // filtered set. Kept as applied (dropping needs a new founder-gated
     // migration; cost at current volume is negligible).
     index('ledger_entries_last_reconciled_at_idx').on(table.lastReconciledAt),
+    // (T) — partial index serving the uncredited-row sweep (migration 0016).
+    // Predicate deliberately omits the rail pair: the query stays correct for
+    // any future rail without a silent index-coverage gap (DC-07); accepted
+    // trade — ap2 settled rows (never marked, outside the marker universe)
+    // accumulate in the NULL-set; revisit via a future migration if material.
+    index('ledger_entries_uncredited_settled_idx')
+      .on(table.settledAt)
+      .where(sql`${table.settlementStatus} = 'settled' AND ${table.creditedAt} IS NULL`),
     check('ledger_entries_amount_positive', sql`${table.amountCents} > 0`),
     check('ledger_entries_entry_type_check', sql`${table.entryType} IN ('debit', 'credit')`),
     // P2.TAX1 — tax-cents and jurisdiction are tied: non-zero tax

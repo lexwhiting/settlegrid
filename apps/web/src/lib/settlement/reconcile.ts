@@ -17,16 +17,21 @@
  *   - Every flip is guarded WHERE settlement_status='pending' (terminal-safe;
  *     a race with the live settle path or another run resolves to one winner).
  */
-import { and, eq, inArray, lt, asc, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, asc, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { Hex } from 'viem'
 import { db } from '@/lib/db'
 import { ledgerEntries, developers, tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
-import { markSettlementSettled, markSettlementFailed } from './ledger'
+import { markSettlementSettled, markSettlementFailed, findSettlementRow } from './ledger'
 import { confirmSettlementTx } from './circle-nano/settle-engine'
 // Single source of truth shared with the (H) hop rail-enum guard (rails.ts) so the
 // reconciler's selection set and the guard's exclusion set can never drift.
-import { RECONCILABLE_RAILS } from './rails'
+// (T) — isReconcilableRail replaces the credit gate's hardcoded rail pair (P3).
+import { RECONCILABLE_RAILS, isReconcilableRail } from './rails'
+// (T) — the F2 mainnet pin, the SAME env-pinned predicates the proxy handlers and
+// the kernel /settle route use. The reconciler was the ONLY credit-capable
+// surface without it (register P3).
+import { X402_MAINNET_NETWORK, isX402TestnetSettlementAllowed } from '@/lib/env'
 
 export interface ReconcilableRow {
   operationId: string | null
@@ -60,6 +65,14 @@ export type ReconcileOutcome =
   | 'failed-noop'
   | 'pending-unconfirmed'
   | 'pending-nonce-consumed'
+  /**
+   * (T) — the failed-flip CAS rejected a STALE external_ref: the row was
+   * re-pointed (a live-path resubmit via markSettlementBroadcast) after this
+   * run's batch SELECT read it, so the revert evidence this run confirmed
+   * belongs to a superseded tx. The row REMAINS pending and re-examines next
+   * rotation with a fresh ref (pending-* semantics — no transition occurred).
+   */
+  | 'pending-stale-ref'
   | 'skipped-no-txhash'
   | 'skipped-unparseable'
   | 'skipped-unsupported'
@@ -128,18 +141,37 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
       // WHERE settlement_status='pending') credits it, the same invariant the live
       // settle paths use, so they can never both credit. Both on-chain rails
       // (x402 + circle-nano) now store the data to credit in metadata.toolId.
-      if (flipped && (rail === 'x402' || rail === 'circle-nano')) {
-        const rawToolId =
-          row.metadata && typeof row.metadata === 'object'
-            ? (row.metadata as Record<string, unknown>).toolId
-            : undefined
-        const toolId = typeof rawToolId === 'string' && rawToolId.length > 0 ? rawToolId : null
-        await creditSettlement({
-          developerId: row.accountId,
-          toolId,
-          amountCents: row.amountCents,
-          operationId: row.operationId,
-        })
+      // (T) P3 — RECONCILABLE_RAILS replaces the hardcoded rail pair (single
+      // source of truth; behavior-identical today) and the credit gains the F2
+      // mainnet pin (parity with handleX402Proxy / handleCircleNanoProxy / the
+      // kernel /settle route — this was the ONLY credit-capable surface
+      // without it). The pin gates the CREDIT only, never the flip: a testnet
+      // row settled on its own chain is honest bookkeeping, and blocking the
+      // flip would mint an immortal pending row (DC-09). A blocked credit
+      // leaves the row unmarked, so the uncredited sweep enumerates it — a
+      // Sepolia row in a prod DB is a real open incident. Latent in prod
+      // today (the (G) allowlist already rejects non-Base admission).
+      if (flipped && isReconcilableRail(rail)) {
+        if (parsed.network !== X402_MAINNET_NETWORK && !isX402TestnetSettlementAllowed()) {
+          logger.error('reconcile.credit_blocked_testnet', {
+            operationId,
+            rail,
+            network: parsed.network,
+          })
+        } else {
+          const rawToolId =
+            row.metadata && typeof row.metadata === 'object'
+              ? (row.metadata as Record<string, unknown>).toolId
+              : undefined
+          const toolId = typeof rawToolId === 'string' && rawToolId.length > 0 ? rawToolId : null
+          await creditSettlement({
+            developerId: row.accountId,
+            toolId,
+            amountCents: row.amountCents,
+            operationId: row.operationId,
+            rail,
+          })
+        }
       }
       return flipped ? 'settled' : 'settled-noop'
     }
@@ -155,6 +187,23 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
         return 'pending-nonce-consumed'
       }
       const flipped = await markSettlementFailed(operationId, rail, confirmation.txHash)
+      if (!flipped) {
+        // (T) — disambiguate the two flipped:false meanings: a concurrent
+        // terminal winner (the (S) noop class) vs the CAS rejecting a STALE
+        // external_ref (the row was re-pointed after this run's SELECT — the
+        // P2 race, now closed). A still-pending row keeps its place in the
+        // rotation and re-examines with a fresh ref next run.
+        const current = await findSettlementRow(operationId, rail)
+        if (current?.settlementStatus === 'pending') {
+          logger.warn('reconcile.failed_flip_stale_ref', {
+            operationId,
+            rail,
+            staleTxHash: confirmation.txHash,
+            currentRef: current.externalRef,
+          })
+          return 'pending-stale-ref'
+        }
+      }
       logger.warn('reconcile.failed', { operationId, rail, txHash: confirmation.txHash, flipped })
       return flipped ? 'failed' : 'failed-noop'
     }
@@ -201,6 +250,16 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
  * later run won't re-select it) — the same non-atomicity the live path has.
  * settlement.credit_failed is the operator signal to credit manually (by operationId).
  *
+ * (T) credited_at marker — written INSIDE the same transaction as the credit:
+ * the marker commits iff the developer-balance credit commits. A settled
+ * reconcilable-rail row left unmarked (this txn never ran — the P1 process-kill
+ * window; or it rolled back — credit_failed) is enumerated by the uncredited
+ * sweep every run until resolved: the silent-lost-credit class is now
+ * detectable. A marker UPDATE matching zero rows logs
+ * settlement.credit_marker_unmatched and NEVER throws — throwing would roll
+ * back a REAL credit to save an accounting marker (the inverted defect); an
+ * unmarked-but-credited row merely pages until the operator closes it.
+ *
  * B4 (2026-06-04): a developers UPDATE that matches ZERO rows (dangling developer
  * id — a deleted developer, or a mis-attributed account_id) now throws inside the
  * transaction → rollback → the catch logs settlement.credit_failed. Previously the
@@ -213,8 +272,10 @@ export async function creditSettlement(params: {
   toolId: string | null
   amountCents: number | null | undefined
   operationId: string | null
+  /** (T) — the settlement row's rail; keys the credited_at marker UPDATE. */
+  rail: string
 }): Promise<void> {
-  const { developerId, toolId, amountCents, operationId } = params
+  const { developerId, toolId, amountCents, operationId, rail } = params
   if (!developerId || typeof amountCents !== 'number' || amountCents <= 0) {
     // No data to credit (a pre-F4 row, or a non-positive amount). The dev balance
     // is the payout source of truth — flag loudly rather than silently lose it.
@@ -227,6 +288,7 @@ export async function creditSettlement(params: {
   }
 
   try {
+    let marked = 0
     await db.transaction(async (tx) => {
       const credited = await tx
         .update(developers)
@@ -249,7 +311,30 @@ export async function creditSettlement(params: {
           .set({ totalRevenueCents: sql`${tools.totalRevenueCents} + ${amountCents}`, updatedAt: new Date() })
           .where(eq(tools.id, toolId))
       }
+      // (T) — the credit marker, same transaction (see the function doc). The
+      // isNull guard makes a hypothetical double-call inert on the marker.
+      if (operationId) {
+        const rows = await tx
+          .update(ledgerEntries)
+          .set({ creditedAt: new Date() })
+          .where(
+            and(
+              eq(ledgerEntries.operationId, operationId),
+              eq(ledgerEntries.rail, rail),
+              eq(ledgerEntries.settlementStatus, 'settled'),
+              isNull(ledgerEntries.creditedAt),
+            ),
+          )
+          .returning({ id: ledgerEntries.id })
+        marked = rows.length
+      }
     })
+    if (marked === 0) {
+      // Anomaly, not a loss: the credit committed but no settled row matched
+      // the marker key (null operationId, or a row in an unexpected state).
+      // Logged — never thrown (see the function doc).
+      logger.error('settlement.credit_marker_unmatched', { operationId, rail, developerId })
+    }
     if (!toolId) {
       // Dev (the payout source) WAS credited; only the per-tool revenue stat is
       // missed because the row lacks a toolId. Alert so it can be reconciled.
@@ -297,6 +382,17 @@ export interface ReconcileSummary {
    * null ⇒ the overdue check itself failed (reconcile.overdue_check_failed).
    */
   overdue: number | null
+  /**
+   * (T) uncredited-row sweep count: SETTLED reconcilable-rail rows older than
+   * `creditGraceMs` whose credited_at marker was never committed — each is an
+   * OPEN credit-resolution incident (a silent flip→credit process-kill loss,
+   * an F3 upstream-fail no-credit, a credit_failed rollback, or a pin-blocked
+   * testnet credit). Alerted via reconcile.uncredited_settled, ONE structured
+   * error line per run while any persist (no de-dup BY DESIGN — incidents
+   * page until the operator closes them via the runbook UPDATE).
+   * null ⇒ the sweep itself failed (reconcile.uncredited_check_failed).
+   */
+  uncredited: number | null
   outcomes: Record<ReconcileOutcome, number>
 }
 
@@ -308,6 +404,7 @@ function emptyOutcomes(): Record<ReconcileOutcome, number> {
     'failed-noop': 0,
     'pending-unconfirmed': 0,
     'pending-nonce-consumed': 0,
+    'pending-stale-ref': 0,
     'skipped-no-txhash': 0,
     'skipped-unparseable': 0,
     'skipped-unsupported': 0,
@@ -345,6 +442,8 @@ export async function reconcilePendingSettlements(opts?: {
   limit?: number
   overdueAfterMs?: number
   runBudgetMs?: number
+  /** (T) uncredited-sweep grace window (default 60min) — see the sweep block. */
+  creditGraceMs?: number
 }): Promise<ReconcileSummary> {
   const olderThanMs = opts?.olderThanMs ?? 5 * 60_000 // past the live settle's own confirm window
   const limit = opts?.limit ?? 25
@@ -409,10 +508,14 @@ export async function reconcilePendingSettlements(opts?: {
   // (S) classified tallies of THIS run's examined-and-still-stuck OVERDUE rows
   // (feeds the pending-age alert; item 4 — sticky classes named, never lumped).
   // Terminal outcomes (settled/failed and both noops) resolved — not stuck.
-  const examinedOverdue = { nonceConsumed: 0, unconfirmed: 0, unparseable: 0, unsupported: 0, errored: 0 }
+  // (T) staleRef — LICENSED EXTENSION of the (S) alert payload (recorded in the
+  // build plan Recipe 2a): without it, CAS-rejected stale-ref rows would be
+  // silently unclassified in examinedThisRun — the lumping item 4 forbade.
+  const examinedOverdue = { nonceConsumed: 0, unconfirmed: 0, unparseable: 0, unsupported: 0, errored: 0, staleRef: 0 }
   const OVERDUE_CLASS: Partial<Record<ReconcileOutcome, keyof typeof examinedOverdue>> = {
     'pending-nonce-consumed': 'nonceConsumed',
     'pending-unconfirmed': 'unconfirmed',
+    'pending-stale-ref': 'staleRef',
     'skipped-unparseable': 'unparseable',
     'skipped-unsupported': 'unsupported',
   }
@@ -506,11 +609,62 @@ export async function reconcilePendingSettlements(opts?: {
     logger.error('reconcile.overdue_check_failed', { examinedThisRun: examinedOverdue }, err)
   }
 
+  // (T) — uncredited-row sweep: enumerate SETTLED reconcilable-rail rows whose
+  // credited_at marker never committed. Every credit writer marks in the SAME
+  // transaction as the developer-balance credit, so a NULL marker past the
+  // grace window is an OPEN credit-resolution incident: the silent P1
+  // flip→credit process-kill loss (previously invisible — no log, terminal
+  // row never re-selected), an F3 settled-but-upstream-failed no-credit, a
+  // credit_failed rollback, or a pin-blocked testnet credit. The grace window
+  // absorbs in-flight credits (the proxy credits AFTER its upstream fetch —
+  // seconds to ~30s; 60min is unambiguous). One structured error line per run
+  // while any persist (the pending_overdue posture; closure = the runbook
+  // UPDATE). Best-effort: failure logs and never aborts the run. postgres-js
+  // returns count(*) as a STRING (DC-18 — Number() is load-bearing).
+  const creditGraceMs = opts?.creditGraceMs ?? 60 * 60_000
+  let uncredited: number | null = null
+  try {
+    const graceCutoff = new Date(Date.now() - creditGraceMs)
+    const sweepWhere = and(
+      eq(ledgerEntries.settlementStatus, 'settled'),
+      inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
+      isNull(ledgerEntries.creditedAt),
+      lt(ledgerEntries.settledAt, graceCutoff),
+    )
+    const [agg] = await db
+      .select({ total: sql<string>`count(*)` })
+      .from(ledgerEntries)
+      .where(sweepWhere)
+    uncredited = Number(agg.total)
+    if (uncredited > 0) {
+      // Bounded id sample (≤ 25, oldest first) — operation_id is already
+      // rail-prefixed by construction, so the bare ids match the runbook's
+      // closure UPDATE keys exactly.
+      const sample = await db
+        .select({ operationId: ledgerEntries.operationId, settledAt: ledgerEntries.settledAt })
+        .from(ledgerEntries)
+        .where(sweepWhere)
+        .orderBy(asc(ledgerEntries.settledAt))
+        .limit(25)
+      logger.error('reconcile.uncredited_settled', {
+        uncreditedCount: uncredited,
+        graceMs: creditGraceMs,
+        oldestSettledAt: sample[0]?.settledAt ?? null,
+        operationIds: sample.map((s) => s.operationId),
+      })
+    }
+  } catch (err) {
+    logger.error('reconcile.uncredited_check_failed', {}, err)
+  }
+
   return {
     scanned: rows.length,
     settled: outcomes.settled,
     failed: outcomes.failed,
-    pending: outcomes['pending-unconfirmed'] + outcomes['pending-nonce-consumed'],
+    pending:
+      outcomes['pending-unconfirmed'] +
+      outcomes['pending-nonce-consumed'] +
+      outcomes['pending-stale-ref'],
     skipped:
       outcomes['skipped-no-txhash'] +
       outcomes['skipped-unparseable'] +
@@ -519,6 +673,7 @@ export async function reconcilePendingSettlements(opts?: {
     errored,
     deferred,
     overdue,
+    uncredited,
     outcomes,
   }
 }

@@ -60,7 +60,9 @@ const { state, mockDb, drizzleMock, ledgerEntriesMock, mockConfirm, mockSettled,
       external_ref: 'externalRef',
       settlement_status: 'settlementStatus',
       created_at: 'createdAt',
+      settled_at: 'settledAt',
       last_reconciled_at: 'lastReconciledAt',
+      credited_at: 'creditedAt',
       amount_cents: 'amountCents',
       account_id: 'accountId',
       metadata: 'metadata',
@@ -185,6 +187,10 @@ const { state, mockDb, drizzleMock, ledgerEntriesMock, mockConfirm, mockSettled,
       lt: (col: string, val: unknown) => ({ kind: 'lt', col, val }),
       asc: (col: string) => ({ kind: 'asc', col }),
       isNotNull: (col: string) => ({ kind: 'isNotNull', col }),
+      // (T) — the uncredited sweep's NULL-marker conjunct. Without this key the
+      // sweep would die on an undefined operator and go SILENTLY dark
+      // (uncredited:null swallowed by its best-effort catch) in this suite.
+      isNull: (col: string) => ({ kind: 'isNull', col }),
       sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ kind: 'sql', strings, vals }),
     }
     const ledgerEntriesMock = {
@@ -194,7 +200,9 @@ const { state, mockDb, drizzleMock, ledgerEntriesMock, mockConfirm, mockSettled,
       externalRef: 'external_ref',
       settlementStatus: 'settlement_status',
       createdAt: 'created_at',
+      settledAt: 'settled_at',
       lastReconciledAt: 'last_reconciled_at',
+      creditedAt: 'credited_at',
       amountCents: 'amount_cents',
       accountId: 'account_id',
       metadata: 'metadata',
@@ -229,6 +237,9 @@ vi.mock('../circle-nano/settle-engine', () => ({ confirmSettlementTx: mockConfir
 vi.mock('../ledger', () => ({
   markSettlementSettled: mockSettled,
   markSettlementFailed: mockFailed,
+  // (T) — reconcile.ts newly imports the CAS-reject re-read (DC-05: every new
+  // symbol needs its factory key even when these scenarios never reach it).
+  findSettlementRow: vi.fn(async () => null),
 }))
 
 import { reconcilePendingSettlements } from '../reconcile'
@@ -346,5 +357,12 @@ describe('reconciler window rotation — deferral, never exclusion (LB-1)', () =
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("(T) the uncredited sweep is LIVE in this harness — summary.uncredited is a NUMBER, never null (a missing mock capability would silently dark-en it via the best-effort catch)", async () => {
+    state.rows = [row(1, false)]
+    const summary = await reconcilePendingSettlements()
+    expect(typeof summary.uncredited).toBe('number')
+    expect(summary.uncredited).toBe(0)
   })
 })

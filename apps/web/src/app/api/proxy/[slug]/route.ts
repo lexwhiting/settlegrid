@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAddress } from 'viem'
-import { eq, and, sql, inArray } from 'drizzle-orm'
+import { eq, and, sql, inArray, isNull } from 'drizzle-orm'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-import { tools, developers, apiKeys, consumerToolBalances, consumers, invocations } from '@/lib/db/schema'
+import { tools, developers, apiKeys, consumerToolBalances, consumers, invocations, ledgerEntries } from '@/lib/db/schema'
 import { apiKeyHashCandidates } from '@/lib/crypto'
 import { tryRedis, getRedis } from '@/lib/redis'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
@@ -22,8 +22,8 @@ import {
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
 import { extractX402PaymentHeader, parseX402ExactPayload } from '@/lib/settlement/x402/parse'
-import { executeX402Settlement } from '@/lib/settlement/x402/orchestrate'
-import { executeCircleNanoSettlement } from '@/lib/settlement/circle-nano/settle'
+import { executeX402Settlement, x402OperationId } from '@/lib/settlement/x402/orchestrate'
+import { executeCircleNanoSettlement, circleNanoOperationId } from '@/lib/settlement/circle-nano/settle'
 import { parseCircleNanoProof } from '@settlegrid/mcp'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
@@ -1599,6 +1599,17 @@ async function forwardAndBill(
      * drives a manual off-band refund runbook keyed by txHash + payer.
      */
     irreversibleOnChain?: boolean
+    /**
+     * (T) On-chain settlement identity — passed ONLY by the x402/circle-nano
+     * handlers' fresh-flip path (the flip winner). When present, the credit
+     * runs as ONE transaction (developers + tools + the credited_at marker on
+     * the settlement row) so the marker commits iff the developer credit
+     * commits — the uncredited sweep can then enumerate any settled row whose
+     * credit was lost (a process kill mid-request, a rolled-back txn).
+     * Absent ⇒ the legacy Promise.all credit below is byte-identical
+     * (non-settlement rails have no row to mark).
+     */
+    settlement?: { operationId: string; rail: 'x402' | 'circle-nano' }
   }
 ): Promise<NextResponse> {
   const upstreamHeaders = buildUpstreamHeaders(request)
@@ -1679,17 +1690,62 @@ async function forwardAndBill(
   if (upstreamOk && !skipCredit) {
     // Awaited — see proxy.billing_update_error rationale above.
     try {
-      await Promise.all([
-        db.update(tools).set({
-          totalInvocations: sql`${tools.totalInvocations} + 1`,
-          totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
-          updatedAt: new Date(),
-        }).where(eq(tools.id, toolRow.id)),
-        db.update(developers).set({
-          balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
-          updatedAt: new Date(),
-        }).where(eq(developers.id, toolRow.developerId)),
-      ])
+      if (options?.settlement) {
+        // (T) — on-chain fresh-flip credit: ONE transaction so the credited_at
+        // marker commits iff the developer credit commits (the sweep's honesty
+        // contract). LOCK-ORDER IS LOAD-BEARING: developers THEN tools — the
+        // SAME order creditSettlement acquires (reconcile.ts); inverting it
+        // would create an AB-BA deadlock class between a reconciler/kernel
+        // credit and this one on the same developer+tool, and PG would abort
+        // one txn, rolling a REAL credit back into a manufactured incident.
+        const { operationId, rail } = options.settlement
+        let marked = 0
+        let devMatched = 1
+        await db.transaction(async (txn) => {
+          const dev = await txn.update(developers).set({
+            balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
+            updatedAt: new Date(),
+          }).where(eq(developers.id, toolRow.developerId))
+            .returning({ id: developers.id })
+          devMatched = dev.length
+          await txn.update(tools).set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+            updatedAt: new Date(),
+          }).where(eq(tools.id, toolRow.id))
+          if (devMatched > 0) {
+            const rows = await txn.update(ledgerEntries).set({ creditedAt: new Date() })
+              .where(and(
+                eq(ledgerEntries.operationId, operationId),
+                eq(ledgerEntries.rail, rail),
+                eq(ledgerEntries.settlementStatus, 'settled'),
+                isNull(ledgerEntries.creditedAt),
+              ))
+              .returning({ id: ledgerEntries.id })
+            marked = rows.length
+          }
+        })
+        // A dangling developerId must NOT mark the row "credited" — leave it
+        // paging truthfully in the sweep and log; never throw (a thrown marker
+        // would lose the rest of the response path for an accounting signal).
+        if (devMatched === 0) {
+          logger.error('settlement.credit_zero_row_unmarked', { operationId, rail, slug, requestId })
+        } else if (marked === 0) {
+          logger.error('settlement.credit_marker_unmatched', { operationId, rail, slug, requestId })
+        }
+      } else {
+        await Promise.all([
+          db.update(tools).set({
+            totalInvocations: sql`${tools.totalInvocations} + 1`,
+            totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
+            updatedAt: new Date(),
+          }).where(eq(tools.id, toolRow.id)),
+          db.update(developers).set({
+            balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
+            updatedAt: new Date(),
+          }).where(eq(developers.id, toolRow.developerId)),
+        ])
+      }
     } catch (err) {
       logger.error(`proxy.${paymentMethod}_billing_update_error`, { slug, requestId }, err)
       if (options?.irreversibleOnChain) {
@@ -1908,7 +1964,24 @@ async function handleX402Proxy(
       amountUsdc: exactPayload.payload.authorization.value,
       ...(isReplay ? { replay: true } : {}),
     },
-    isReplay ? { skipCredit: true } : { irreversibleOnChain: true }
+    isReplay
+      ? { skipCredit: true }
+      : {
+          irreversibleOnChain: true,
+          // (T) — the settlement identity keys the credited_at marker inside
+          // the credit transaction. Recomputed from the EXPORTED deterministic
+          // builder (same inputs ⇒ same operation_id the orchestrator wrote);
+          // the inline proof object is exactly orchestrate.ts's private
+          // toProof mapping. Zero orchestrator edits (R1 audit fix F1+F2).
+          settlement: {
+            operationId: x402OperationId({
+              network: exactPayload.network,
+              authorization: exactPayload.payload.authorization,
+              signature: exactPayload.payload.signature,
+            }),
+            rail: 'x402',
+          },
+        }
   )
 }
 
@@ -2045,7 +2118,14 @@ async function handleCircleNanoProxy(
       amountUsdc: proof.authorization.value,
       ...(isReplay ? { replay: true } : {}),
     },
-    isReplay ? { skipCredit: true } : { irreversibleOnChain: true }
+    isReplay
+      ? { skipCredit: true }
+      : {
+          irreversibleOnChain: true,
+          // (T) — see the x402 handler note; the kernel /settle route already
+          // recomputes this exact key (circleNanoOperationId(parsedProof)).
+          settlement: { operationId: circleNanoOperationId(proof), rail: 'circle-nano' },
+        }
   )
 }
 

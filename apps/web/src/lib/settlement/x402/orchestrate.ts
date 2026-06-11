@@ -41,8 +41,13 @@ import {
 const RAIL = 'x402'
 /** 1 US cent = 10,000 USDC base units (6 decimals). */
 const USDC_BASE_UNITS_PER_CENT = 10_000n
-/** Redis settle-lock TTL (s) — exceeds the route's maxDuration so it can't expire mid-request; released in finally. */
-const SETTLE_LOCK_TTL_SECONDS = 70
+/**
+ * Redis settle-lock TTL (s) — must exceed EVERY caller route's maxDuration
+ * (the proxy route is 90s); released in finally. 100 = 90 + margin — see the
+ * circle-nano twin's comment for the (T) ③ deep-audit rationale; preflight
+ * probe I9 pins the relationship.
+ */
+const SETTLE_LOCK_TTL_SECONDS = 100
 
 export interface ExecuteX402SettlementParams {
   /** The decoded, structurally-valid exact payload (from parseX402ExactPayload). */
@@ -174,6 +179,21 @@ async function applyOutcome(
         // us. Return the recorded txHash + alreadySettled so the proxy forwards
         // WITHOUT re-crediting (credit fires only for the flip winner).
         const row = await findSettlementRow(operationId, RAIL)
+        if (row && row.settlementStatus !== 'settled') {
+          // (T) ② seal HIGH — the P2 MIRROR window (see circle-nano
+          // settle.ts applyOutcome for the full trace): SUCCESS receipt in
+          // hand but the row is terminally non-settled (a reconciler/sibling
+          // flipped 'failed' on current-ref revert evidence during our
+          // resubmit gap). The settled-only sweep is blind to failed rows and
+          // the caller skips the credit — this branch is the loss class's
+          // sole detector. Alert → manual credit + row repair per the runbook.
+          logger.error('settlement.settled_evidence_on_terminal_failed_row', {
+            operationId,
+            rowStatus: row.settlementStatus,
+            winningTxHash: result.txHash,
+            storedRef: row.externalRef,
+          })
+        }
         return { status: 'settled', txHash: row?.externalRef ?? result.txHash, alreadySettled: true }
       }
       logger.info('x402.settle_onchain_success', { operationId, txHash: result.txHash })
@@ -339,7 +359,23 @@ export async function executeX402Settlement(
     //    persists the hash the instant it broadcasts (write-ahead), so a mid-wait
     //    process kill leaves a re-waitable tx.
     const onBroadcast = async (txHash: Hex): Promise<void> => {
-      await markSettlementBroadcast(operationId, RAIL, txHash)
+      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash)
+      if (!persisted) {
+        // (T) ② seal — broadcast-time sibling of
+        // settled_evidence_on_terminal_failed_row (see circle-nano settle.ts
+        // for the full rationale): puts the candidate hash on the record
+        // before the receipt window, covering kill-mid-wait / receipt-timeout
+        // sub-schedules of the P2 mirror class.
+        const row = await findSettlementRow(operationId, RAIL)
+        if (row && row.settlementStatus === 'failed') {
+          logger.error('settlement.broadcast_evidence_on_terminal_failed_row', {
+            operationId,
+            rowStatus: row.settlementStatus,
+            broadcastTxHash: txHash,
+            storedRef: row.externalRef,
+          })
+        }
+      }
     }
     const result = await submitCircleNanoOnChain(proof, { onBroadcast })
     return applyOutcome(operationId, result)

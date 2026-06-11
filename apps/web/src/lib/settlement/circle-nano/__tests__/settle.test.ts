@@ -59,6 +59,8 @@ vi.mock('@/lib/logger', () => ({
 
 import { executeCircleNanoSettlement, circleNanoOperationId } from '../settle'
 import type { CircleNanoProof } from '@settlegrid/mcp'
+// Mocked above — imported for the (T)-seal funds-critical alert assertion.
+import { logger } from '@/lib/logger'
 
 const PROOF: CircleNanoProof = {
   network: 'eip155:84532',
@@ -224,6 +226,44 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
     mockSettled.mockResolvedValue(false) // row was no longer 'pending'
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
+    // a SETTLED winner is the benign race — no funds-critical alert.
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'settlement.settled_evidence_on_terminal_failed_row',
+      expect.anything(),
+    )
+  })
+
+  it("(T seal) SUCCESS receipt but the row is terminally FAILED (the P2 mirror window: a reconciler revert-flip landed during our resubmit gap) → funds-critical alert; outcome still alreadySettled (no auto-credit — manual runbook path)", async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null) // step 1 idempotency read
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xH1' }) // re-read: terminal FAILED
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xH2' }) // OUR tx moved the USDC
+    mockSettled.mockResolvedValue(false) // WHERE-pending no-match (row already failed)
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xH1', alreadySettled: true })
+    // The ONLY actor that knows funds moved onto a failed row is THIS branch —
+    // the settled-only sweep is blind to failed rows. The alert is the
+    // detectability contract for this loss class (② seal HIGH).
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_evidence_on_terminal_failed_row',
+      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', winningTxHash: '0xH2', storedRef: '0xH1' }),
+    )
+  })
+
+  it('(T seal) broadcast write no-ops onto a terminally FAILED row → sibling alert AT BROADCAST TIME (covers the kill-mid-wait / receipt-timeout sub-schedules: the winning-candidate hash is on the record before any receipt)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null) // step 1 idempotency read
+      .mockResolvedValue({ id: '1', settlementStatus: 'failed', externalRef: '0xH1' }) // onBroadcast no-op re-read (default — no once-queue leak pre-fix)
+    mockBroadcast.mockResolvedValue(false) // WHERE-pending no-match (mirror flip landed pre-broadcast)
+    mockSubmit.mockImplementation(async (_proof: unknown, opts: { onBroadcast: (h: string) => Promise<void> }) => {
+      await opts.onBroadcast('0xH2')
+      return { kind: 'broadcast-unconfirmed', txHash: '0xH2', reason: 'timeout' } // receipt never observed
+    })
+    await executeCircleNanoSettlement(PARAMS)
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.broadcast_evidence_on_terminal_failed_row',
+      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', broadcastTxHash: '0xH2', storedRef: '0xH1' }),
+    )
   })
 })
 

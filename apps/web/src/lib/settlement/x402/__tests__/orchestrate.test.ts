@@ -66,6 +66,8 @@ vi.mock('@/lib/logger', () => ({
 
 import { executeX402Settlement, x402OperationId } from '../orchestrate'
 import type { X402ExactPayload } from '../types'
+// Mocked above — imported for the (T)-seal funds-critical alert assertion.
+import { logger } from '@/lib/logger'
 
 const RECIPIENT = '0xReCiPiEnT000000000000000000000000000000002'
 const PAYLOAD: X402ExactPayload = {
@@ -247,6 +249,43 @@ describe('executeX402Settlement — idempotency & locking (no double-charge)', (
     const outcome = await executeX402Settlement(PARAMS)
     expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
     expect(mockSubmit).toHaveBeenCalledTimes(1)
+    // a SETTLED winner is the benign race — no funds-critical alert.
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'settlement.settled_evidence_on_terminal_failed_row',
+      expect.anything(),
+    )
+  })
+
+  it("(T seal) SUCCESS receipt but the row is terminally FAILED (the P2 mirror window: a reconciler revert-flip landed during our resubmit gap) → funds-critical alert; outcome still alreadySettled (no auto-credit — manual runbook path)", async () => {
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xH2' }) // OUR tx moved the USDC
+    mockSettled.mockResolvedValue(false) // WHERE-pending no-match (row already failed)
+    mockFindRow
+      .mockResolvedValueOnce(null) // idempotency read
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xH1' }) // re-read: terminal FAILED
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xH1', alreadySettled: true })
+    // The settled-only sweep is blind to failed rows; this branch holds the
+    // success receipt and is the loss class's only detector (② seal HIGH).
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_evidence_on_terminal_failed_row',
+      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', winningTxHash: '0xH2', storedRef: '0xH1' }),
+    )
+  })
+
+  it('(T seal) broadcast write no-ops onto a terminally FAILED row → sibling alert AT BROADCAST TIME (kill-mid-wait / receipt-timeout sub-schedule coverage)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null) // idempotency read
+      .mockResolvedValue({ id: '1', settlementStatus: 'failed', externalRef: '0xH1' }) // onBroadcast no-op re-read (default — no once-queue leak pre-fix)
+    mockBroadcast.mockResolvedValue(false) // WHERE-pending no-match (mirror flip landed pre-broadcast)
+    mockSubmit.mockImplementation(async (_proof: unknown, opts: { onBroadcast: (h: string) => Promise<void> }) => {
+      await opts.onBroadcast('0xH2')
+      return { kind: 'broadcast-unconfirmed', txHash: '0xH2', reason: 'timeout' } // receipt never observed
+    })
+    await executeX402Settlement(PARAMS)
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.broadcast_evidence_on_terminal_failed_row',
+      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', broadcastTxHash: '0xH2', storedRef: '0xH1' }),
+    )
   })
 
   it("previously-failed row → terminal 'failed', no re-submit", async () => {

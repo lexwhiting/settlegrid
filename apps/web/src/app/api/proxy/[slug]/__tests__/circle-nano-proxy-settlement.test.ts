@@ -28,15 +28,34 @@ const H = vi.hoisted(() => {
     where: () => selectChain,
     limit: selectLimit,
   }
-  // forwardAndBill credit: db.update().set().where()  (tools + developers)
+  // forwardAndBill legacy credit: db.update().set().where()  (tools + developers)
   const updateWhere = vi.fn()
   const updateChain = { set: () => updateChain, where: updateWhere }
   const dbUpdate = vi.fn(() => updateChain)
+  // (T) forwardAndBill ON-CHAIN credit: db.transaction(tx => tx.update(table)
+  // .set(vals).where(cond)[.returning()]) — dev + tools + credited_at marker in
+  // ONE txn (shape specified per R2 audit improvement #1; mirrors the x402 twin).
+  const txReturning = vi.fn()
+  const txSet = vi.fn()
+  const txWhere = vi.fn()
+  const txUpdate = vi.fn(() => ({
+    set: (vals: unknown) => {
+      txSet(vals)
+      return {
+        where: (cond: unknown) => {
+          txWhere(cond)
+          return Object.assign(Promise.resolve(undefined), { returning: txReturning })
+        },
+      }
+    },
+  }))
+  const dbTransaction = vi.fn(async (cb: (tx: unknown) => Promise<void>) => cb({ update: txUpdate }))
   // recordProtocolInvocation: db.insert().values()
   const insertValues = vi.fn()
   const db = {
     select: () => selectChain,
     update: dbUpdate,
+    transaction: dbTransaction,
     insert: () => ({ values: insertValues }),
   }
   return {
@@ -44,6 +63,11 @@ const H = vi.hoisted(() => {
     selectLimit,
     updateWhere,
     dbUpdate,
+    dbTransaction,
+    txUpdate,
+    txSet,
+    txWhere,
+    txReturning,
     insertValues,
     validateCircleNano: vi.fn(),
     genCircleNano402: vi.fn(),
@@ -67,9 +91,13 @@ vi.mock('@/lib/circle-nano-proxy', () => ({
 // The on-chain settlement orchestrator is mocked here (its viem/ledger/Redis
 // branching is covered in settle.test.ts); this file pins the ROUTE contract:
 // settle-before-credit, replay skip-credit, F2 pin, dark-gate, free pass-through.
-vi.mock('@/lib/settlement/circle-nano/settle', () => ({
-  executeCircleNanoSettlement: H.execute,
-}))
+vi.mock('@/lib/settlement/circle-nano/settle', async (importOriginal) => {
+  // (T) — route.ts now imports the PURE deterministic operation-id builder from
+  // this module; pass the REAL one through (importActual) so the marker keys
+  // the exact id the orchestrator would write (R2 audit fix B4).
+  const actual = await importOriginal<typeof import('@/lib/settlement/circle-nano/settle')>()
+  return { executeCircleNanoSettlement: H.execute, circleNanoOperationId: actual.circleNanoOperationId }
+})
 vi.mock('@/lib/rate-limit', () => ({
   getClientIp: (h: Headers) =>
     h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || 'unknown-ip',
@@ -80,6 +108,22 @@ vi.mock('@/lib/rate-limit', () => ({
 // handleCircleNanoProxy is route-private; drive the REAL exported POST → handleProxy →
 // legacy dispatch chain (USE_UNIFIED_ADAPTERS off) → handleCircleNanoProxy.
 import { POST } from '../route'
+// The REAL builder (importActual passthrough above) — computes the exact
+// operation_id the marker WHERE must key (② seal MEDIUM: cond asserted).
+import { circleNanoOperationId } from '@/lib/settlement/circle-nano/settle'
+
+/** Flatten a REAL drizzle SQL cond into bound params + text (drizzle ^0.38). */
+function flattenCond(node: unknown, acc = { params: [] as unknown[], text: [] as string[] }) {
+  if (!node || typeof node !== 'object') return acc
+  const n = node as Record<string, unknown>
+  if (Array.isArray(n.queryChunks)) {
+    for (const c of n.queryChunks as unknown[]) flattenCond(c, acc)
+    return acc
+  }
+  if ('encoder' in n && 'value' in n) acc.params.push(n.value)
+  else if (Array.isArray(n.value)) acc.text.push((n.value as unknown[]).join(''))
+  return acc
+}
 
 function toolRow(costCents: number) {
   return {
@@ -152,6 +196,9 @@ beforeEach(() => {
   })
   // Default: a FRESH on-chain settle (no alreadySettled → credit fires).
   H.execute.mockResolvedValue({ status: 'settled', txHash: '0xCNTX' })
+  // (T) txn chain default: dev UPDATE returning [{id}] (row matched ⇒ the
+  // marker runs), marker returning [{id}] (marked ⇒ no unmatched alert).
+  H.txReturning.mockResolvedValue([{ id: 'x' }])
   // Legacy dispatch (skip unified) so circle-nano reaches handleCircleNanoProxy;
   // recipient set so the dark-gate (isCircleNanoKernelEnabled) is OPEN.
   vi.stubEnv('USE_UNIFIED_ADAPTERS', 'false')
@@ -171,7 +218,31 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(res.status).toBe(200)
     expect(H.execute).toHaveBeenCalledTimes(1) // settled on-chain BEFORE delivery
     expect(globalThis.fetch).toHaveBeenCalledTimes(1) // forwarded only after settle
-    expect(H.dbUpdate).toHaveBeenCalled() // credited (developers.balanceCents + tools.totalRevenueCents)
+    // (T) fresh on-chain flip → the TRANSACTION branch: developers THEN tools
+    // THEN the credited_at marker; ZERO direct db.update calls.
+    expect(H.dbUpdate).not.toHaveBeenCalled()
+    expect(H.dbTransaction).toHaveBeenCalledTimes(1)
+    expect(H.txUpdate).toHaveBeenCalledTimes(3)
+    const txSetCalls = H.txSet.mock.calls.map((c) => c[0] as Record<string, unknown>)
+    expect(txSetCalls[0]).toHaveProperty('balanceCents') // 1st: developers (lock-order pin)
+    expect(txSetCalls[1]).toHaveProperty('totalRevenueCents') // 2nd: tools
+    expect(txSetCalls[2]).toHaveProperty('creditedAt') // 3rd: the marker
+    // (② seal MEDIUM) the marker WHERE itself: keyed by the EXACT operation_id
+    // (real builder over this test's proof fields) + rail + settled + IS NULL.
+    const marker = flattenCond(H.txWhere.mock.calls[2]?.[0])
+    expect(marker.params).toContain(
+      circleNanoOperationId({
+        network: 'eip155:8453',
+        authorization: {
+          from: PAYER, to: '0x' + 'a'.repeat(40), value: '500000',
+          validAfter: '0', validBefore: '9999999999', nonce: '0x' + 'cd'.repeat(32),
+        },
+        signature: ('0x' + 'ab'.repeat(65)) as `0x${string}`,
+      } as Parameters<typeof circleNanoOperationId>[0]),
+    )
+    expect(marker.params).toContain('circle-nano')
+    expect(marker.params).toContain('settled')
+    expect(marker.text.join(' ')).toContain('is null')
     expect(res.headers.get('X-SettleGrid-Tx-Hash')).toBe('0xCNTX')
     // B4 SEMANTIC GUARD: the proxy attributes settlement rows to the OWNING
     // DEVELOPER (toolRow.developerId) — the PERMANENT account_id semantic;
@@ -208,6 +279,7 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(res.status).toBe(200)
     expect(globalThis.fetch).toHaveBeenCalledTimes(1) // honor the paid request
     expect(H.dbUpdate).not.toHaveBeenCalled() // skipCredit — the flip winner already credited
+    expect(H.dbTransaction).not.toHaveBeenCalled() // (T) no marker txn either
   })
 
   it('settled on-chain but upstream returns non-2xx → no credit + onchain_settled_upstream_failed alert (F3)', async () => {
@@ -216,6 +288,7 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     const res = await callPost(makeReq(MAINNET_PROOF))
     expect(res.status).toBe(500)
     expect(H.dbUpdate).not.toHaveBeenCalled() // settled USDC but undelivered → dev credited 0
+    expect(H.dbTransaction).not.toHaveBeenCalled() // (T) and no marker txn
     expect(H.logger.error).toHaveBeenCalledWith(
       'proxy.onchain_settled_upstream_failed',
       expect.objectContaining({ paymentMethod: 'circle-nano' }),

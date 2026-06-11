@@ -18,6 +18,9 @@ const {
   mockTools,
   mockDbUpdateWhere,
   agg,
+  sweepAgg,
+  selectPlan,
+  mockFindRow,
 } = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
@@ -50,6 +53,18 @@ const {
     value: [{ total: '0', noTxhash: '0', oldestCreatedAt: null }] as unknown[],
     error: null as Error | null,
   },
+  // (T) uncredited-sweep aggregate (the run's THIRD db.select()) + the bounded
+  // id-sample chain (a FOURTH select, only when the count is non-zero).
+  sweepAgg: {
+    value: [{ total: '0' }] as unknown[],
+    error: null as Error | null,
+    sample: [] as unknown[],
+  },
+  // (T) per-run select plan — replaces the (S) odd/even parity routing, which
+  // cannot survive the sweep's 3rd/4th select per run (R2 audit fix B6).
+  selectPlan: { seq: ['window', 'overdue', 'sweep'] as string[] },
+  // (T) ledger mock for findSettlementRow (the CAS-reject re-read).
+  mockFindRow: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
@@ -61,7 +76,9 @@ vi.mock('@/lib/db/schema', () => ({
     externalRef: 'external_ref',
     settlementStatus: 'settlement_status',
     createdAt: 'created_at',
+    settledAt: 'settled_at',
     lastReconciledAt: 'last_reconciled_at',
+    creditedAt: 'credited_at',
     amountCents: 'amount_cents',
     accountId: 'account_id',
     metadata: 'metadata',
@@ -76,6 +93,8 @@ vi.mock('drizzle-orm', () => ({
   lt: vi.fn((a: unknown, b: unknown) => ({ lt: [a, b] })),
   asc: vi.fn((a: unknown) => ({ asc: a })),
   isNotNull: vi.fn((a: unknown) => ({ isNotNull: a })),
+  // (T) — the credited_at marker WHERE + the sweep's NULL-marker conjunct.
+  isNull: vi.fn((a: unknown) => ({ isNull: a })),
   sql: mockSql,
 }))
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
@@ -83,6 +102,8 @@ vi.mock('../circle-nano/settle-engine', () => ({ confirmSettlementTx: mockConfir
 vi.mock('../ledger', () => ({
   markSettlementSettled: mockSettled,
   markSettlementFailed: mockFailed,
+  // (T) — the CAS-reject disambiguation re-read.
+  findSettlementRow: mockFindRow,
 }))
 
 import {
@@ -91,8 +112,10 @@ import {
   reconcilePendingSettlements,
 } from '../reconcile'
 // Mocked above — imported for assertions (the B4 semantic-guard pin + log checks).
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, isNull } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
+// Mocked above — the schema token objects, for tx.update(<table>) identity asserts.
+import { ledgerEntries } from '@/lib/db/schema'
 
 const FROM = `0x${'a'.repeat(40)}`
 const NONCE = `0x${'b'.repeat(64)}`
@@ -106,25 +129,47 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockSettled.mockResolvedValue(true)
   mockFailed.mockResolvedValue(true)
-  // (S) per-call select routing: ODD db.select() calls are the WINDOW query —
-  // they get the existing mockDb chain, whose terminal .limit() still
-  // delegates to mockDb.limit so every mockDb.limit.mockResolvedValue(...)
-  // test passes unedited. EVEN calls are the overdue AGGREGATE, which
-  // terminates at .where() and resolves from agg.value / throws agg.error.
+  // (T) per-call select PLAN — replaces the (S) odd/even parity routing, which
+  // cannot survive the sweep's 3rd (and conditional 4th) select per run
+  // (R2 audit fix B6). Each run's selects cycle through selectPlan.seq:
+  //   'window'  → the existing mockDb chain (terminal .limit delegates to
+  //               mockDb.limit, so mockDb.limit.mockResolvedValue(...) tests
+  //               pass unedited);
+  //   'overdue' → the pending-age aggregate (terminates at .where(); resolves
+  //               agg.value / throws agg.error);
+  //   'sweep'   → the (T) uncredited aggregate (same shape; sweepAgg);
+  //   'sample'  → the (T) bounded id-sample chain (orderBy → limit), only
+  //               when a test sets a non-zero sweep count.
   mockDb.select.mockImplementation(() => {
-    const isWindow = mockDb.select.mock.calls.length % 2 === 1
-    if (isWindow) return mockDb
+    const seq = selectPlan.seq
+    const step = seq[(mockDb.select.mock.calls.length - 1) % seq.length]
+    if (step === 'window') return mockDb
+    if (step === 'sample') {
+      return {
+        from: () => ({
+          where: () => ({ orderBy: () => ({ limit: async () => sweepAgg.sample }) }),
+        }),
+      }
+    }
+    const holder = step === 'sweep' ? sweepAgg : agg
     return {
       from: () => ({
         where: async () => {
-          if (agg.error) throw agg.error
-          return agg.value
+          if (holder.error) throw holder.error
+          return holder.value
         },
       }),
     }
   })
   agg.value = [{ total: '0', noTxhash: '0', oldestCreatedAt: null }]
   agg.error = null
+  sweepAgg.value = [{ total: '0' }]
+  sweepAgg.error = null
+  sweepAgg.sample = []
+  selectPlan.seq = ['window', 'overdue', 'sweep']
+  // (T) findSettlementRow default: terminal row — flipped:false reads as a
+  // concurrent-winner noop unless a test makes the row still-pending.
+  mockFindRow.mockResolvedValue({ id: 'r1', settlementStatus: 'failed', externalRef: TX })
   mockDb.from.mockReturnValue(mockDb)
   mockDb.where.mockReturnValue(mockDb)
   mockDb.orderBy.mockReturnValue(mockDb)
@@ -230,7 +275,7 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     metadata: { toolId: 'tool-9' },
   }
 
-  it('x402 settled + flipped → credits dev balance THEN tool revenue in ONE txn, by amountCents', async () => {
+  it('x402 settled + flipped → credits dev balance THEN tool revenue THEN the credited_at marker in ONE txn, by amountCents', async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(true)
     const out = await reconcileOneRow(X402_ROW)
@@ -238,7 +283,14 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
     expect(mockTx.update).toHaveBeenNthCalledWith(1, mockDevelopers)
     expect(mockTx.update).toHaveBeenNthCalledWith(2, mockTools)
-    expect(mockTx.update).toHaveBeenCalledTimes(2)
+    // (T) the credit marker rides the SAME transaction (lock order dev→tools→marker).
+    expect(mockTx.update).toHaveBeenNthCalledWith(3, ledgerEntries)
+    expect(mockTx.update).toHaveBeenCalledTimes(3)
+    // (T) marker-WHERE shape: operationId + rail + settled + credited_at IS NULL.
+    expect(vi.mocked(eq)).toHaveBeenCalledWith('operation_id', X402_OPID)
+    expect(vi.mocked(eq)).toHaveBeenCalledWith('rail', 'x402')
+    expect(vi.mocked(eq)).toHaveBeenCalledWith('settlement_status', 'settled')
+    expect(vi.mocked(isNull)).toHaveBeenCalledWith('credited_at')
     // the increment amount (50) flows into BOTH sql interpolations.
     const sqlAmounts = mockSql.mock.calls.flatMap((c) => c.slice(1))
     expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
@@ -263,7 +315,9 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
     expect(mockTx.update).toHaveBeenNthCalledWith(1, mockDevelopers)
     expect(mockTx.update).toHaveBeenNthCalledWith(2, mockTools)
-    expect(mockTx.update).toHaveBeenCalledTimes(2)
+    // (T) + the credited_at marker, same transaction.
+    expect(mockTx.update).toHaveBeenNthCalledWith(3, ledgerEntries)
+    expect(mockTx.update).toHaveBeenCalledTimes(3)
     // the increment amount (50) flows into BOTH sql interpolations.
     const sqlAmounts = mockSql.mock.calls.flatMap((c) => c.slice(1))
     expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
@@ -289,6 +343,22 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(mockDb.transaction).not.toHaveBeenCalled()
   })
 
+  it("(T) reverted but flip CAS-REJECTED on a still-pending row → outcome 'pending-stale-ref' + stale-ref warn (the P2 disambiguation)", async () => {
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: TX, nonceConsumed: false })
+    mockFailed.mockResolvedValue(false)
+    // The re-read finds the row STILL PENDING with a re-pointed ref — the CAS
+    // rejected stale evidence, not a concurrent terminal winner.
+    mockFindRow.mockResolvedValue({ id: 'r1', settlementStatus: 'pending', externalRef: '0xNEWER' })
+    const out = await reconcileOneRow({ operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX })
+    expect(out).toBe('pending-stale-ref')
+    expect(mockFindRow).toHaveBeenCalledWith(CNANO_OPID, 'circle-nano')
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'reconcile.failed_flip_stale_ref',
+      { operationId: CNANO_OPID, rail: 'circle-nano', staleTxHash: TX, currentRef: '0xNEWER' },
+    )
+    expect(mockDb.transaction).not.toHaveBeenCalled()
+  })
+
   it('x402 settled + flipped but MISSING accountId → NO db credit (dev balance not silently lost — flagged)', async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(true)
@@ -306,8 +376,10 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     })
     expect(out).toBe('settled')
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
-    expect(mockTx.update).toHaveBeenCalledTimes(1)
-    expect(mockTx.update).toHaveBeenCalledWith(mockDevelopers)
+    // (T) developers + the credited_at marker (no tools update without a toolId).
+    expect(mockTx.update).toHaveBeenCalledTimes(2)
+    expect(mockTx.update).toHaveBeenNthCalledWith(1, mockDevelopers)
+    expect(mockTx.update).toHaveBeenNthCalledWith(2, ledgerEntries)
   })
 
   it('settled + flipped but the developer UPDATE matches NO row → rolls back, logs settlement.credit_failed (never a false "credited")', async () => {
@@ -396,6 +468,7 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     expect(summary.noop).toBe(1) // the raced no-op flip
     expect(summary.errored).toBe(0)
     expect(summary.overdue).toBe(0) // default aggregate: nothing overdue
+    expect(summary.uncredited).toBe(0) // (T) default sweep: no open incidents
     // Pin the aggregation arithmetic (a dropped term in the sums survives otherwise).
     expect(summary.outcomes['pending-nonce-consumed']).toBe(1)
     expect(summary.outcomes['skipped-unsupported']).toBe(1)
@@ -405,6 +478,39 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
       summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored + summary.deferred,
     )
     expect(mockDb.limit).toHaveBeenCalledWith(25)
+  })
+
+  it('(T) the uncredited sweep failing → uncredited:null + reconcile.uncredited_check_failed; the run still returns a full summary', async () => {
+    sweepAgg.error = new Error('sweep agg boom')
+    const summary = await reconcilePendingSettlements()
+    expect(summary.uncredited).toBeNull()
+    expect(summary.overdue).toBe(0) // the (S) overdue block is unaffected
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.uncredited_check_failed',
+      {},
+      expect.any(Error),
+    )
+  })
+
+  it('(T) uncredited rows present → ONE reconcile.uncredited_settled error line with bare rail-prefixed operationIds (bounded sample)', async () => {
+    selectPlan.seq = ['window', 'overdue', 'sweep', 'sample']
+    sweepAgg.value = [{ total: '2' }]
+    const oldSettled = new Date(Date.now() - 7_200_000)
+    sweepAgg.sample = [
+      { operationId: X402_OPID, settledAt: oldSettled },
+      { operationId: CNANO_OPID, settledAt: new Date(Date.now() - 3_600_000) },
+    ]
+    const summary = await reconcilePendingSettlements()
+    expect(summary.uncredited).toBe(2) // postgres-js STRING '2' → Number (DC-18)
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.uncredited_settled',
+      expect.objectContaining({
+        uncreditedCount: 2,
+        oldestSettledAt: oldSettled,
+        // operation_id is rail-prefixed by construction — NO extra rail prefix.
+        operationIds: [X402_OPID, CNANO_OPID],
+      }),
+    )
   })
 
   it('one row throwing does not abort the batch — and is counted in errored (S item 3)', async () => {

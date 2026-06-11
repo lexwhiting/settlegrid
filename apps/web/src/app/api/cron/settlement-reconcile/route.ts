@@ -54,6 +54,10 @@ export async function GET(request: NextRequest) {
       overdue: summary.overdue,
       // (③) rows skipped by the per-run examination budget (keep queue place).
       deferred: summary.deferred,
+      // (T) open credit-resolution incidents: settled reconcilable-rail rows
+      // past the grace window with no committed credit marker (null = the
+      // sweep itself failed).
+      uncredited: summary.uncredited,
     })
     return successResponse(summary)
   } catch (error) {

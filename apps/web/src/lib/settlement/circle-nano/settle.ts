@@ -38,8 +38,17 @@ import {
 
 const RAIL = 'circle-nano'
 
-/** Redis settle-lock TTL (s) — must exceed the route's maxDuration so a lock can't expire mid-request; released in finally. */
-const SETTLE_LOCK_TTL_SECONDS = 70
+/**
+ * Redis settle-lock TTL (s) — must exceed EVERY caller route's maxDuration so a
+ * lock can't expire mid-request; released in finally. Callers: the kernel
+ * /settle route (maxDuration 60) AND the proxy route (maxDuration 90) — the
+ * (T) ③ deep audit caught the prior 70s value sitting BELOW the proxy's 90s,
+ * which let the lock expire mid-settle under degraded RPC and re-open the
+ * sibling-concurrency window the P2-mirror machinery treats as lock-rare.
+ * 100 = 90 + margin. If any caller's maxDuration ever rises above 90, raise
+ * this with it (preflight probe I9 in .audit/t-deep/preflight.mjs pins it).
+ */
+const SETTLE_LOCK_TTL_SECONDS = 100
 
 export interface ExecuteCircleNanoSettlementParams {
   proof: CircleNanoProof
@@ -123,6 +132,24 @@ async function applyOutcome(
         // Row wasn't 'pending' — a concurrent winner already settled it. Return
         // the recorded txHash so the response is consistent.
         const row = await findSettlementRow(operationId, RAIL)
+        if (row && row.settlementStatus !== 'settled') {
+          // (T) ② seal HIGH — the P2 MIRROR window: we hold a SUCCESS receipt
+          // (USDC MOVED via result.txHash) but the row is terminally
+          // non-settled — a reconciler/sibling legitimately flipped 'failed'
+          // on the prior tx's CURRENT-ref revert evidence during our resubmit
+          // gap (post-confirm, pre-onBroadcast re-point). The settled-only
+          // uncredited sweep can NEVER see a failed row, and the caller skips
+          // the credit on alreadySettled — so THIS branch, the only actor
+          // holding the receipt, is the loss class's sole detector. Alert →
+          // operator repairs the row + credits manually (runbook). No
+          // auto-credit/auto-repair here: a new money path needs its own audit.
+          logger.error('settlement.settled_evidence_on_terminal_failed_row', {
+            operationId,
+            rowStatus: row.settlementStatus,
+            winningTxHash: result.txHash,
+            storedRef: row.externalRef,
+          })
+        }
         // Concurrent-flip-loser: a winner already flipped + credited this row → mark
         // alreadySettled so the caller does NOT re-credit.
         return { status: 'settled', txHash: row?.externalRef ?? result.txHash, alreadySettled: true }
@@ -228,7 +255,29 @@ export async function executeCircleNanoSettlement(
     //    nonce still free (it definitively failed); for settled / still-in-flight /
     //    reverted-but-nonce-consumed we apply the stored tx's outcome and return.
     const onBroadcast = async (txHash: Hex): Promise<void> => {
-      await markSettlementBroadcast(operationId, RAIL, txHash)
+      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash)
+      if (!persisted) {
+        // (T) ② seal — sibling of settled_evidence_on_terminal_failed_row,
+        // fired at BROADCAST time: the write-ahead no-opped (WHERE pending)
+        // because the row went terminal mid-request. If it is FAILED, a live
+        // tx that may move USDC is now in flight against a terminally-failed
+        // row — and if this process dies before observing the receipt, no
+        // later actor can detect the loss (buyer retries exit at
+        // PREVIOUSLY_FAILED; the reconciler and the sweep never look at
+        // failed rows). Logging the candidate hash HERE puts the evidence on
+        // the record before the receipt window; the receipt-time alert
+        // remains the confirmation. Irreducible residual: a kill between
+        // writeContract and this callback (no DB write possible).
+        const row = await findSettlementRow(operationId, RAIL)
+        if (row && row.settlementStatus === 'failed') {
+          logger.error('settlement.broadcast_evidence_on_terminal_failed_row', {
+            operationId,
+            rowStatus: row.settlementStatus,
+            broadcastTxHash: txHash,
+            storedRef: row.externalRef,
+          })
+        }
+      }
     }
     if (existing?.settlementStatus === 'pending' && existing.externalRef) {
       const confirmed = await confirmCircleNanoTx(proof, existing.externalRef as Hex)
