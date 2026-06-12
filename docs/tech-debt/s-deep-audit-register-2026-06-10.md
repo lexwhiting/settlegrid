@@ -22,6 +22,17 @@
 > Critic-C4 (tools-UPDATE zero-row check) deliberately NOT folded into (T): stat-only blast
 > radius (the dev balance has the B4 throw) — stays P7-class hygiene.
 
+> **(U) CLOSURE + ③ ADDENDA (2026-06-11, ② SEALED + ③ SEAL STANDS):** P4 is CLOSED by the (U)
+> chunk (`p4-transport-resolution-2026-06-11.md`): bounded reconciler transport
+> (`RECONCILER_RPC_TIMEOUT_MS=3000`/1 retry via `reconcilerPublicClientFor` on
+> `confirmSettlementTx` only) + detectors-first run order (sweep + overdue aggregate emit BEFORE
+> the examination loop — the ③-(T) escalation's exact ask) + the LB-2 funds-trap fix (a failed
+> reverted-branch nonce re-check now returns `unconfirmed`/`revert-nonce-unverifiable`, never a
+> clean `reverted`). Evidence: `.audit/u-prebuild/` (R1→R2 PLAN_READY), `.audit/u-build/`,
+> `.audit/u-seal/SEAL.md` (0 high), `.audit/u-deep/VERDICT.md` (SEAL STANDS). The (U) ③ audit
+> ADDED: **P8(g)** (live-engine LB-2 twin, HIGH — below), the **NEW P9 credit-finality policy
+> item** (founder decision), and the P5/P6/P7 addenda + notes marked **③-(U)** below.
+
 ## P1 — Flip→credit non-atomicity: process-kill loses a credit SILENTLY (deep S-D1 + critic C1; HIGH) — **CLOSED by (T)**
 `reconcile.ts` flip (`markSettlementSettled`, own txn) then credit (`creditSettlement`, second
 txn) — a process kill between them (maxDuration timeout; OOM) leaves a TERMINAL `settled` row
@@ -84,8 +95,21 @@ don't clobber a DIFFERENT existing ref in that branch (needs a markSettlementBro
 frozen surface, hence registered). (f) when prevention lands, also return the WINNING hash (not
 the row's reverted ref) in the mirror branch's response/tx-hash header — until then the alert's
 `winningTxHash` is authoritative (runbook §3 says so).
+**③-(U) addendum (2026-06-11): (g) live-engine LB-2 twin — HIGH (the (U) ③ headline).**
+`interpretReceipt`'s reverted-branch nonce-recheck CATCH defaults `nonceConsumed:false`
+(settle-engine.ts:346-348) and BOTH live orchestrators then `markSettlementFailed`
+unconditionally (circle-nano/settle.ts:169, x402/orchestrate.ts:216) — terminalizing on the
+SAME incomplete-evidence state (U) ruled non-terminal on the reconciler side. Combined with the
+P8(b) untracked-hash window the lost credit is SILENT (no evidence-holder → neither (T)
+evidence alert fires; the sweep is settled-only; buyer retries exit PREVIOUSLY_FAILED). Fix
+shape (verified link-by-link by the (U) ③): map the FAILED nonce-recheck in that one branch to
+`broadcast-unconfirmed` — both orchestrators already map that kind to pending +
+`markSettlementBroadcast`; flip the settle-engine test expectation as the red/green proof.
+Mirrors the sealed reconciler LB-2 semantics. **Note (P5/P8-adjacent, ③-(U) F2):** the live
+stale-ref 402 buyer verdict discards the CAS result — buyer told 'failed' while the flip was
+CAS-rejected; fold when the orchestrator mirror branch opens.
 
-## P4 — Transport timeout for the reconciler's confirm path (deep S-D3/D6/D8 residual; MED)
+## P4 — Transport timeout for the reconciler's confirm path (deep S-D3/D6/D8 residual; MED) — **CLOSED by (U)** (2026-06-11; ② SEALED + ③ SEAL STANDS — see the (U) closure banner above + `p4-transport-resolution-2026-06-11.md`; the ③-(T) escalation's detectors-first ask shipped as the (b-i) run reorder)
 ③ fixed alert delivery (run budget + deferred), but a single in-flight
 `getTransactionReceipt` can still hang ~41s (viem defaults: 10s × 3 retries, unconfigured
 `http()` in `publicClientFor` — frozen engine) and overrun the budget's headroom.
@@ -106,6 +130,11 @@ alarm fatigue on the one alert guarding the credit tail). **Fix shape:** store `
 pending-row metadata at `ensurePendingRow`; terminalize (or quarantine-classify) rows whose
 authorization has provably expired with no broadcast. Own small chunk + operator runbook.
 Ledger: DC-18 (alarm-fatigue face).
+**③-(U) addenda (2026-06-11):** (i) the immortal classes inflate time-to-first-examination
+LINEARLY (each permanent row consumes a rotation slot every cycle — the alarm-fatigue face has
+a latency face too); (ii) the Sentry-quota mechanism: ~3 error events/run × 96 runs/day ≈
+8.6k/month once two standing incident classes coexist — a low quota ingest-DROPS the armed P1
+pages, a strictly worse failure than alarm fatigue (founder close-block item).
 
 ## P6 — Ops items (MED→LOW)
 - **Dead-man switch** for the reconcile cron (③ added the 401 Sentry trail; an out-of-band
@@ -115,6 +144,19 @@ Ledger: DC-18 (alarm-fatigue face).
   one-line `isNull(settlementStatus)` fix when ledger.ts next opens. (deep S-D4/D11)
 - **SENTRY_DSN presence in prod env** — the alert chain assumes it; founder checklist line.
   (critic C6)
+- **③-(U) additions (2026-06-11):** cron-route 429 branch has ZERO log/Sentry trail (the (S③)
+  401-trail rationale applies verbatim one line below it; route frozen — one logger.error when
+  it next opens; mitigants: limiter fails open, trigger exotic) · RPC-health reason
+  discriminator on the engine's `unconfirmed` (TransactionReceiptNotFoundError vs
+  transport-error split — a sustained >3s provider currently reads identical to mass-dropped
+  txs, first paged at 6h; perturbs the sealed wire shape, so next engine open) · the SAME family:
+  unset/typo'd `SETTLEGRID_BASE_RPC_URL` silently degrades to public-RPC (env-preflight founder
+  line) · gas-balance-check cron: silent 401 + warn-level low-gas never reaches Sentry ·
+  transport-hygiene residual: the 3s bound is time-to-headers and a 429 Retry-After overrides
+  retry delay (verified in viem 2.47.4) — a TRUE adversarial bound needs a custom transport ·
+  hung-detector-query residual: the (U) reorder guarantees detectors run FIRST, not that a hung
+  DB aggregate can't stall the run (② note) · garbage-receipt-status hardening candidate: the
+  engine trusts `receipt.status` shape from the RPC (② note, engine-open rider).
 
 - **③-(T) ops addenda (2026-06-10):** Sentry grouping: identical `captureMessage` keys collapse
   into ONE issue and default rules notify on NEW issues only — the "pages until closed" posture
@@ -146,3 +188,29 @@ Ledger: DC-18 (alarm-fatigue face).
   idempotency; deep S-D19). · `confirmSettlementTx` docstring stale on x402 nonce parity
   (critic C5 — docs-only rider when settle-engine.ts next opens). · 10 unscheduled cron route
   dirs (likely intentional; verify against product intent; deep S-D10).
+- **③-(U) additions (2026-06-11):** `SETTLE_LOCK_TTL` duplicated as two literals (DC-07) ·
+  starvation-suite residuals: 2 minor harness-fidelity items recorded with the F7
+  faithful-to-detectors-first verification · cron modulo-dispatch nit (② note).
+
+## P9 — Credit-finality policy (③-(U) NEW, P8-family; **FOUNDER DECISION** — operator gate)
+The (U) ③ critic's must-check 1, sustained as a genuine design-level residual no chunk has
+dispositioned (the registered reorg item is a different micro-gap): credits are granted on
+1-confirmation bare-receipt evidence on Base. Decide the policy — confirmations depth and/or
+safe-head requirement for credit-grade evidence — then schedule its own cadence. EXCLUDED from
+(V) by its handoff (rejected merge). Until decided, the runbook's manual-repair steps remain
+the deepest verification any credit gets.
+
+## Register NOTES (③-(U), 2026-06-11 — dispositions, not scheduled work)
+- **Facilitator-enable precondition list** (latent surfaces; add to any facilitator-v1 charter):
+  facilitator + `verify.ts` use bare `http()` ignoring `getBaseRpcUrl` (DC-07) · the facilitator
+  claims 'no funds moved' on incomplete evidence — the LB-2 rule is absent on that latent relay
+  surface (DC-13) · it needs its own bounded transport.
+- Proxy zero-dev-match commits the tools-stat increment while the reconciler path rolls back —
+  divergent stat purity nit (row-marker/paging side is deliberate, in-code (T) comment).
+- x402 idempotent-hit returns `txHash:''` silently; the circle-nano twin logs an anomaly warn
+  (DC-18 parity nit).
+- Reporting purity: monthly-summary/weekly-report crons read settled-but-uncredited rows as
+  revenue (no funds impact; reporting-only).
+- Sweep sample-fail self-suppression (pre-existing, (T)-sealed block): a thrown sweep SAMPLE
+  query suppresses its own alert into `uncredited_check_failed` — honest but worth knowing when
+  triaging `uncredited: null` (② note).

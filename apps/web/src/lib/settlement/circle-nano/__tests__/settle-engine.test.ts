@@ -117,13 +117,16 @@ describe('confirmSettlementTx — immediate reconciliation receipt check (B1.4)'
     expect(await confirmSettlementTx('eip155:84532', TXH)).toEqual({ kind: 'unconfirmed', txHash: TXH })
   })
 
-  it('reverted but the nonce-recheck RPC throws → treated as not-consumed (failure side)', async () => {
+  it('reverted but the nonce-recheck RPC throws → unconfirmed (incomplete evidence is never terminalized — LB-2)', async () => {
+    // (U) — the funds trap: a failed nonce-state read after a reverted receipt is INCOMPLETE
+    // evidence. The pre-(U) default (reverted{nonceConsumed:false}) let the reconciler CAS-flip
+    // 'failed' while a concurrent winner may have moved the USDC. Safe direction: stay pending.
     mockGetReceipt.mockResolvedValue({ status: 'reverted' })
     mockReadContract.mockRejectedValue(new Error('rpc down'))
     expect(await confirmSettlementTx('eip155:84532', TXH, { from: FROM, nonce: NONCE })).toEqual({
-      kind: 'reverted',
+      kind: 'unconfirmed',
       txHash: TXH,
-      nonceConsumed: false,
+      reason: 'revert-nonce-unverifiable',
     })
   })
 

@@ -64,6 +64,16 @@ Create "alert on EVERY event" (or regression) rules for:
 Until then, treat the FIRST Sentry occurrence of each as standing until the
 runbook closes it — re-pages will not re-notify.
 
+**③-(U) addendum (2026-06-11):** `reconcile.overdue_examined` is now a FOURTH
+error-level class reaching Sentry (the (U) detectors-first carrier — runbook
+§2). DECISION (recorded at the (U) close): do **NOT** arm an every-event rule
+for it — it recurs every 15 min while any standing overdue class exists, so an
+every-event page would recreate the exact alarm-fatigue face register-P5
+exists to kill; it also ingests against quota (see the (U) capstone's founder
+block: ~8.6k events/month worst case across standing classes — verify the org
+quota). Revisit arming it only AFTER (V) lands and `pending_overdue` becomes
+actionable again.
+
 ## 4. Founder decisions parked here
 - 0010 journal quirk (pre-existing, NOT (T)): `drizzle/` has TWO 0010_* files
   but the bootstrap registers only `0010_payouts_index_includes_unknown` (17
