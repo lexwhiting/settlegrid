@@ -209,7 +209,14 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
     }
     case 'unconfirmed':
       // Still in mempool / dropped / RPC blip — leave pending, retry next run.
-      logger.info('reconcile.unconfirmed', { operationId, rail, txHash: confirmation.txHash })
+      // (U): reason distinguishes the LB-2 incomplete-revert-evidence case
+      // (revert-nonce-unverifiable) from plain receipt-unavailable.
+      logger.info('reconcile.unconfirmed', {
+        operationId,
+        rail,
+        txHash: confirmation.txHash,
+        reason: confirmation.reason ?? 'receipt-unavailable',
+      })
       return 'pending-unconfirmed'
     case 'unsupported-network':
       // A network the confirm engine doesn't support (e.g. a facilitator-mode
@@ -368,11 +375,11 @@ export interface ReconcileSummary {
    * (③) rows selected but NOT examined because the per-run time budget ran
    * out (`runBudgetMs`, default 40s of the route's 60s maxDuration). Deferred
    * rows are NOT watermarked, so they keep their queue position and are
-   * examined first next run. The budget guarantees the overdue aggregate, the
-   * pending-age alert, and this summary always emit — previously a degraded
-   * RPC (viem default ~10s × 3 retries per row) could blow the 60s budget and
-   * Vercel killed the run BEFORE the alert, going dark exactly during the
-   * outages the alert exists to surface.
+   * examined first next run. (U): the detectors (overdue aggregate + uncredited
+   * sweep) now emit BEFORE the examination loop and the reconciler's confirm
+   * transport is bounded (RECONCILER_RPC_* in settle-engine.ts — worst
+   * ~12.3s/row vs the old unbounded ~10s × 3 retries per call), so the budget
+   * now protects the SUMMARY's headroom rather than detector delivery.
    */
   deferred: number
   /**
@@ -451,15 +458,123 @@ export async function reconcilePendingSettlements(opts?: {
   // seconds, so 6h pending is unambiguously anomalous, yet the threshold is
   // immune to transient RPC outages.
   const overdueAfterMs = opts?.overdueAfterMs ?? 6 * 3_600_000
-  // (③) per-run examination budget — leaves headroom inside the route's 60s
-  // maxDuration for the overdue aggregate + alert + summary, so they ALWAYS
-  // emit even when degraded RPC makes per-row confirms slow. A single row's
-  // in-flight RPC can still overrun (the engine transport is frozen spine);
-  // the registered follow-up is a reconciler-specific transport timeout.
+  // (③) per-run examination budget — bounds the loop so the SUMMARY keeps
+  // headroom inside the route's 60s maxDuration. (U): the detectors (sweep +
+  // overdue) no longer depend on it at all — they emit BEFORE the loop — and
+  // the reconciler's confirm transport is bounded (RECONCILER_RPC_* — worst
+  // ~12.3s/row nominal; adversarial RPC shapes can exceed it, see the ③
+  // caveat on the constants). The detectors are safe either way.
   const runBudgetMs = opts?.runBudgetMs ?? 40_000
   const cutoff = new Date(Date.now() - olderThanMs)
   const overdueCutoff = new Date(Date.now() - overdueAfterMs)
   const examinationDeadline = Date.now() + runBudgetMs
+
+  // ─── (U) DETECTORS-FIRST ─────────────────────────────────────────────────
+  // The run's two P1 detectors emit BEFORE the window SELECT and the
+  // examination loop: emission happens-before every RPC call and every loop DB
+  // write, so no single degraded RPC call (nor the loop itself) can starve
+  // them — the P4 ③-escalation's bar. The aggregates report the PRE-run
+  // "standing incidents" state (the more honest reading, per the register
+  // escalation note). The sweep runs FIRST — it is the P1 silent-loss
+  // detector; a kill between the two queries loses the lesser signal. Each
+  // block keeps its own best-effort try/catch: a detector's own failure logs
+  // *_check_failed and never aborts the run. Pinned by
+  // __tests__/reconcile-detector-availability.test.ts.
+
+  // (T) — uncredited-row sweep: enumerate SETTLED reconcilable-rail rows whose
+  // credited_at marker never committed. Every credit writer marks in the SAME
+  // transaction as the developer-balance credit, so a NULL marker past the
+  // grace window is an OPEN credit-resolution incident: the silent P1
+  // flip→credit process-kill loss (previously invisible — no log, terminal
+  // row never re-selected), an F3 settled-but-upstream-failed no-credit, a
+  // credit_failed rollback, or a pin-blocked testnet credit. The grace window
+  // absorbs in-flight credits (the proxy credits AFTER its upstream fetch —
+  // seconds to ~30s; 60min is unambiguous). One structured error line per run
+  // while any persist (the pending_overdue posture; closure = the runbook
+  // UPDATE). Best-effort: failure logs and never aborts the run. postgres-js
+  // returns count(*) as a STRING (DC-18 — Number() is load-bearing).
+  const creditGraceMs = opts?.creditGraceMs ?? 60 * 60_000
+  let uncredited: number | null = null
+  try {
+    const graceCutoff = new Date(Date.now() - creditGraceMs)
+    const sweepWhere = and(
+      eq(ledgerEntries.settlementStatus, 'settled'),
+      inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
+      isNull(ledgerEntries.creditedAt),
+      lt(ledgerEntries.settledAt, graceCutoff),
+    )
+    const [agg] = await db
+      .select({ total: sql<string>`count(*)` })
+      .from(ledgerEntries)
+      .where(sweepWhere)
+    uncredited = Number(agg.total)
+    if (uncredited > 0) {
+      // Bounded id sample (≤ 25, oldest first) — operation_id is already
+      // rail-prefixed by construction, so the bare ids match the runbook's
+      // closure UPDATE keys exactly.
+      const sample = await db
+        .select({ operationId: ledgerEntries.operationId, settledAt: ledgerEntries.settledAt })
+        .from(ledgerEntries)
+        .where(sweepWhere)
+        .orderBy(asc(ledgerEntries.settledAt))
+        .limit(25)
+      logger.error('reconcile.uncredited_settled', {
+        uncreditedCount: uncredited,
+        graceMs: creditGraceMs,
+        oldestSettledAt: sample[0]?.settledAt ?? null,
+        operationIds: sample.map((s) => s.operationId),
+      })
+    }
+  } catch (err) {
+    logger.error('reconcile.uncredited_check_failed', {}, err)
+  }
+
+  // (S) pending-age alert — ONE structured error line per run while the
+  // condition persists (the settlement.credit_failed posture; never per-row).
+  // Deliberately NO isNotNull(external_ref) here: every genuinely-overdue
+  // pending row is alerted — null-external_ref rows are the settle path's to
+  // retry (outside the window BY DESIGN) and surface as noTxhashCount, not
+  // silently hidden. (U): this-run examination classes surface via the
+  // post-loop reconcile.overdue_examined carrier (classification can only
+  // exist AFTER examination). Driver types: count() comes back as a STRING
+  // from postgres-js; min(timestamptz) may come back as a string OR a Date
+  // depending on driver parsing — Number()/new Date() normalize both (DC-18;
+  // the conversions are load-bearing).
+  let overdue: number | null = null
+  try {
+    const [agg] = await db
+      .select({
+        total: sql<string>`count(*)`,
+        noTxhash: sql<string>`count(*) filter (where ${ledgerEntries.externalRef} is null)`,
+        oldestCreatedAt: sql<string | Date | null>`min(${ledgerEntries.createdAt})`,
+      })
+      .from(ledgerEntries)
+      .where(
+        and(
+          eq(ledgerEntries.settlementStatus, 'pending'),
+          inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
+          lt(ledgerEntries.createdAt, overdueCutoff),
+        ),
+      )
+    overdue = Number(agg.total)
+    if (overdue > 0) {
+      logger.error('reconcile.pending_overdue', {
+        overdueCount: overdue,
+        noTxhashCount: Number(agg.noTxhash),
+        oldestPendingAgeMs:
+          agg.oldestCreatedAt !== null
+            ? Date.now() - new Date(agg.oldestCreatedAt).getTime()
+            : null,
+        overdueAfterMs,
+      })
+    }
+  } catch (err) {
+    // The alert is best-effort: its failure must never abort the run. (U): the
+    // run's examined-overdue classification surfaces via the post-loop
+    // reconcile.overdue_examined carrier regardless of this aggregate's outcome
+    // (supersedes the S11 fallback payload — pre-loop, nothing is examined yet).
+    logger.error('reconcile.overdue_check_failed', {}, err)
+  }
 
   const rows = await db
     .select({
@@ -564,97 +679,19 @@ export async function reconcilePendingSettlements(opts?: {
     )
   }
 
-  // (S) pending-age alert — ONE structured error line per run while the
-  // condition persists (the settlement.credit_failed posture; never per-row).
-  // Deliberately NO isNotNull(external_ref) here: every genuinely-overdue
-  // pending row is alerted and classified — null-external_ref rows are the
-  // settle path's to retry (outside the window BY DESIGN) and surface as
-  // noTxhashCount, not silently hidden. Driver types: count() comes back as a
-  // STRING from postgres-js; min(timestamptz) may come back as a string OR a
-  // Date depending on driver parsing — Number()/new Date() normalize both
-  // (DC-18; the conversions are load-bearing).
-  let overdue: number | null = null
-  try {
-    const [agg] = await db
-      .select({
-        total: sql<string>`count(*)`,
-        noTxhash: sql<string>`count(*) filter (where ${ledgerEntries.externalRef} is null)`,
-        oldestCreatedAt: sql<string | Date | null>`min(${ledgerEntries.createdAt})`,
-      })
-      .from(ledgerEntries)
-      .where(
-        and(
-          eq(ledgerEntries.settlementStatus, 'pending'),
-          inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
-          lt(ledgerEntries.createdAt, overdueCutoff),
-        ),
-      )
-    overdue = Number(agg.total)
-    if (overdue > 0) {
-      logger.error('reconcile.pending_overdue', {
-        overdueCount: overdue,
-        noTxhashCount: Number(agg.noTxhash),
-        oldestPendingAgeMs:
-          agg.oldestCreatedAt !== null
-            ? Date.now() - new Date(agg.oldestCreatedAt).getTime()
-            : null,
-        overdueAfterMs,
-        examinedThisRun: examinedOverdue,
-      })
-    }
-  } catch (err) {
-    // The alert is best-effort: its failure must never abort the run. The
-    // classification already computed from THIS run's window still surfaces
-    // here (seal fix S11) so the aggregate failing doesn't blind the operator.
-    logger.error('reconcile.overdue_check_failed', { examinedThisRun: examinedOverdue }, err)
-  }
-
-  // (T) — uncredited-row sweep: enumerate SETTLED reconcilable-rail rows whose
-  // credited_at marker never committed. Every credit writer marks in the SAME
-  // transaction as the developer-balance credit, so a NULL marker past the
-  // grace window is an OPEN credit-resolution incident: the silent P1
-  // flip→credit process-kill loss (previously invisible — no log, terminal
-  // row never re-selected), an F3 settled-but-upstream-failed no-credit, a
-  // credit_failed rollback, or a pin-blocked testnet credit. The grace window
-  // absorbs in-flight credits (the proxy credits AFTER its upstream fetch —
-  // seconds to ~30s; 60min is unambiguous). One structured error line per run
-  // while any persist (the pending_overdue posture; closure = the runbook
-  // UPDATE). Best-effort: failure logs and never aborts the run. postgres-js
-  // returns count(*) as a STRING (DC-18 — Number() is load-bearing).
-  const creditGraceMs = opts?.creditGraceMs ?? 60 * 60_000
-  let uncredited: number | null = null
-  try {
-    const graceCutoff = new Date(Date.now() - creditGraceMs)
-    const sweepWhere = and(
-      eq(ledgerEntries.settlementStatus, 'settled'),
-      inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
-      isNull(ledgerEntries.creditedAt),
-      lt(ledgerEntries.settledAt, graceCutoff),
-    )
-    const [agg] = await db
-      .select({ total: sql<string>`count(*)` })
-      .from(ledgerEntries)
-      .where(sweepWhere)
-    uncredited = Number(agg.total)
-    if (uncredited > 0) {
-      // Bounded id sample (≤ 25, oldest first) — operation_id is already
-      // rail-prefixed by construction, so the bare ids match the runbook's
-      // closure UPDATE keys exactly.
-      const sample = await db
-        .select({ operationId: ledgerEntries.operationId, settledAt: ledgerEntries.settledAt })
-        .from(ledgerEntries)
-        .where(sweepWhere)
-        .orderBy(asc(ledgerEntries.settledAt))
-        .limit(25)
-      logger.error('reconcile.uncredited_settled', {
-        uncreditedCount: uncredited,
-        graceMs: creditGraceMs,
-        oldestSettledAt: sample[0]?.settledAt ?? null,
-        operationIds: sample.map((s) => s.operationId),
-      })
-    }
-  } catch (err) {
-    logger.error('reconcile.uncredited_check_failed', {}, err)
+  // (U) — the (S) item-4 classification, displaced from the pre-loop alert
+  // payload by the detectors-first reorder: classification can only exist
+  // AFTER examination. error level (② seal fix): the (S)-sealed classification
+  // rode the error-level pending_overdue payload into the Sentry mirror
+  // (logger.ts mirrors ONLY error level) — a warn carrier would silently drop
+  // the sticky-class breakdown (incl. the funds-moved nonceConsumed class)
+  // from the Sentry surface. NOT a new page: the armed Sentry rule filters on
+  // its two message keys, which this is not — it is the preserved delivery of
+  // the displaced classification, ≤1 line per run, only when this run
+  // examined sticky overdue rows. Emits regardless of the aggregate's own
+  // success (supersedes the S11 fallback payload).
+  if (Object.values(examinedOverdue).some((n) => n > 0)) {
+    logger.error('reconcile.overdue_examined', { examinedThisRun: examinedOverdue, overdueAfterMs })
   }
 
   return {

@@ -45,6 +45,24 @@ type SupportedNetwork = keyof typeof SUPPORTED_CHAINS
 /** Receipt-wait timeout (ms). Base block ~2s ⇒ 30s ≈ 15 blocks; well under the route's maxDuration=60s. */
 export const RECEIPT_TIMEOUT_MS = 30_000
 
+/**
+ * (U) Reconciler-only RPC budget. The reconciler asks "is it mined NOW?" on a 15-min
+ * rotation — patience buys nothing there, and unbounded patience starves the run's
+ * detectors (the P4 ③-escalation). Worst per call = (RETRY_COUNT+1) × TIMEOUT_MS + 150ms
+ * backoff = 6.15s; worst per examination (receipt + reverted-branch nonce read) = 12.3s,
+ * inside the 20s tail behind the 40s examination budget (route maxDuration 60s).
+ * ③ caveat — the 6.15s figure is the TIMER-bound shape, not an adversarial bound: viem
+ * honors a 429 Retry-After header as the retry delay (server-controlled, unbounded —
+ * buildRequest.js), and the per-attempt timeout binds time-to-HEADERS (a drip-feed
+ * response body escapes it). Funds-safe either way; detector emission never depends on
+ * this arithmetic — the detectors run BEFORE the loop by construction (reconcile.ts).
+ * The LIVE settle paths deliberately keep viem defaults (10s × 3 retries — the buyer is
+ * on the line); publicClientFor must stay byte-identical (pinned by
+ * transport-isolation.test.ts).
+ */
+export const RECONCILER_RPC_TIMEOUT_MS = 3_000
+export const RECONCILER_RPC_RETRY_COUNT = 1
+
 export type CircleNanoSettleErrorCode =
   | 'UNSUPPORTED_NETWORK'
   | 'GAS_WALLET_NOT_CONFIGURED'
@@ -95,6 +113,18 @@ function splitSignature(signature: string): { v: number; r: Hex; s: Hex } {
 
 function publicClientFor(network: SupportedNetwork) {
   return createPublicClient({ chain: SUPPORTED_CHAINS[network], transport: http(getBaseRpcUrl(network)) })
+}
+
+/** (U) Reconciler-bounded twin of {@link publicClientFor}: same chain + URL resolution,
+ * bounded transport. ADDITIVE — the live factory above is byte-identical (LB-1). */
+function reconcilerPublicClientFor(network: SupportedNetwork) {
+  return createPublicClient({
+    chain: SUPPORTED_CHAINS[network],
+    transport: http(getBaseRpcUrl(network), {
+      timeout: RECONCILER_RPC_TIMEOUT_MS,
+      retryCount: RECONCILER_RPC_RETRY_COUNT,
+    }),
+  })
 }
 
 /**
@@ -236,8 +266,10 @@ export type SettlementTxConfirmation =
   | { kind: 'settled'; txHash: Hex }
   /** Confirmed revert. `nonceConsumed` (circle-nano only): a concurrent tx spent the EIP-3009 nonce → NOT a failure. */
   | { kind: 'reverted'; txHash: Hex; nonceConsumed: boolean }
-  /** Not mined yet / dropped / RPC error — leave the row 'pending' and retry next run. */
-  | { kind: 'unconfirmed'; txHash: Hex }
+  /** Not mined yet / dropped / RPC error — leave the row 'pending' and retry next run.
+   * (U) reason (optional, additive): 'revert-nonce-unverifiable' = a reverted receipt whose
+   * nonce-state recheck failed — incomplete evidence deliberately NOT terminalized (LB-2). */
+  | { kind: 'unconfirmed'; txHash: Hex; reason?: 'revert-nonce-unverifiable' }
   | { kind: 'unsupported-network' }
 
 /**
@@ -259,7 +291,9 @@ export async function confirmSettlementTx(
   const chain = SUPPORTED_CHAINS[network as SupportedNetwork]
   const usdcAddress = USDC_ADDRESSES[network]
   if (!chain || !usdcAddress) return { kind: 'unsupported-network' }
-  const publicClient = publicClientFor(network as SupportedNetwork)
+  // (U) — the reconciler-bounded client: one degraded RPC call must never eat the run's
+  // examination budget (viem defaults are ~41s worst per hung call; bounded = 6.15s).
+  const publicClient = reconcilerPublicClientFor(network as SupportedNetwork)
 
   let receipt
   try {
@@ -272,7 +306,7 @@ export async function confirmSettlementTx(
 
   // Reverted: THIS tx moved no funds. For circle-nano, recheck whether the nonce
   // is nonetheless consumed (a concurrent settler moved the USDC) — same logic
-  // as interpretReceipt; unknown → false (the failure side).
+  // as interpretReceipt.
   let nonceConsumed = false
   if (eip3009) {
     try {
@@ -283,7 +317,13 @@ export async function confirmSettlementTx(
         args: [eip3009.from, eip3009.nonce],
       })) as boolean
     } catch {
-      /* leave false — treat unknown as the failure side */
+      // (U) LB-2 — the funds trap: a failed nonce-state read after a reverted receipt is
+      // INCOMPLETE evidence. Defaulting nonceConsumed:false would let the reconciler
+      // CAS-flip 'failed' while a concurrent winner may have moved the USDC (the (T) CAS
+      // cannot protect — the ref matches). Safe direction: 'unconfirmed' — the row stays
+      // pending and re-examines next rotation with fresh evidence. The no-eip3009 branch
+      // is unaffected (no nonce exists to check; the receipt is complete evidence).
+      return { kind: 'unconfirmed', txHash, reason: 'revert-nonce-unverifiable' }
     }
   }
   return { kind: 'reverted', txHash, nonceConsumed }

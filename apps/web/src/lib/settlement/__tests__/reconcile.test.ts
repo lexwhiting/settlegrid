@@ -47,22 +47,25 @@ const {
   mockTools: { id: 'tools.id', totalRevenueCents: 'tools.totalRevenueCents' },
   // (S) terminal of the watermark UPDATE chain (awaited per row).
   mockDbUpdateWhere: vi.fn(),
-  // (S) overdue-aggregate result holder (the run's SECOND db.select(), which
-  // terminates at .where()). error simulates the aggregate query failing.
+  // (S) overdue-aggregate result holder (the run's THIRD db.select() under the
+  // (U) detectors-first order — terminates at .where()). error simulates the
+  // aggregate query failing.
   agg: {
     value: [{ total: '0', noTxhash: '0', oldestCreatedAt: null }] as unknown[],
     error: null as Error | null,
   },
-  // (T) uncredited-sweep aggregate (the run's THIRD db.select()) + the bounded
-  // id-sample chain (a FOURTH select, only when the count is non-zero).
+  // (T) uncredited-sweep aggregate (the run's FIRST db.select() under (U) —
+  // the P1 detector emits first) + the bounded id-sample chain (the SECOND
+  // select, only when the count is non-zero).
   sweepAgg: {
     value: [{ total: '0' }] as unknown[],
     error: null as Error | null,
     sample: [] as unknown[],
   },
   // (T) per-run select plan — replaces the (S) odd/even parity routing, which
-  // cannot survive the sweep's 3rd/4th select per run (R2 audit fix B6).
-  selectPlan: { seq: ['window', 'overdue', 'sweep'] as string[] },
+  // cannot survive the sweep's extra selects per run (R2 audit fix B6).
+  // (U) canonical order: sweep 1st → [sample] → overdue → window LAST.
+  selectPlan: { seq: ['sweep', 'overdue', 'window'] as string[] },
   // (T) ledger mock for findSettlementRow (the CAS-reject re-read).
   mockFindRow: vi.fn(),
 }))
@@ -130,8 +133,10 @@ beforeEach(() => {
   mockSettled.mockResolvedValue(true)
   mockFailed.mockResolvedValue(true)
   // (T) per-call select PLAN — replaces the (S) odd/even parity routing, which
-  // cannot survive the sweep's 3rd (and conditional 4th) select per run
-  // (R2 audit fix B6). Each run's selects cycle through selectPlan.seq:
+  // cannot survive the sweep's extra selects per run (R2 audit fix B6).
+  // (U) detectors-first canonical order: sweep 1st → [sample, when a test sets
+  // a non-zero sweep count] → overdue → window LAST. Each run's selects cycle
+  // through selectPlan.seq:
   //   'window'  → the existing mockDb chain (terminal .limit delegates to
   //               mockDb.limit, so mockDb.limit.mockResolvedValue(...) tests
   //               pass unedited);
@@ -166,7 +171,7 @@ beforeEach(() => {
   sweepAgg.value = [{ total: '0' }]
   sweepAgg.error = null
   sweepAgg.sample = []
-  selectPlan.seq = ['window', 'overdue', 'sweep']
+  selectPlan.seq = ['sweep', 'overdue', 'window']
   // (T) findSettlementRow default: terminal row — flipped:false reads as a
   // concurrent-winner noop unless a test makes the row still-pending.
   mockFindRow.mockResolvedValue({ id: 'r1', settlementStatus: 'failed', externalRef: TX })
@@ -244,6 +249,23 @@ describe('reconcileOneRow — flips on confirmed on-chain state', () => {
     expect(out).toBe('pending-unconfirmed')
     expect(mockSettled).not.toHaveBeenCalled()
     expect(mockFailed).not.toHaveBeenCalled()
+    // (U) the reason-plumb: a plain unconfirmed logs the receipt-unavailable default.
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.unconfirmed',
+      expect.objectContaining({ reason: 'receipt-unavailable' }),
+    )
+  })
+
+  it('(U) LB-2 unconfirmed (revert-nonce-unverifiable) → leaves pending, no flip, reason surfaces in the log', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'unconfirmed', txHash: TX, reason: 'revert-nonce-unverifiable' })
+    const out = await reconcileOneRow({ operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX })
+    expect(out).toBe('pending-unconfirmed')
+    expect(mockSettled).not.toHaveBeenCalled()
+    expect(mockFailed).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.unconfirmed',
+      expect.objectContaining({ reason: 'revert-nonce-unverifiable' }),
+    )
   })
 
   it('unsupported network → skipped, never flips a row it cannot confirm', async () => {
@@ -493,7 +515,7 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
   })
 
   it('(T) uncredited rows present → ONE reconcile.uncredited_settled error line with bare rail-prefixed operationIds (bounded sample)', async () => {
-    selectPlan.seq = ['window', 'overdue', 'sweep', 'sample']
+    selectPlan.seq = ['sweep', 'sample', 'overdue', 'window']
     sweepAgg.value = [{ total: '2' }]
     const oldSettled = new Date(Date.now() - 7_200_000)
     sweepAgg.sample = [
@@ -611,8 +633,23 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     expect(payload.overdueCount).toBe(3)
     expect(payload.noTxhashCount).toBe(1)
     expect(payload.overdueAfterMs).toBe(6 * 3_600_000)
-    expect(payload.examinedThisRun).toEqual(
-      expect.objectContaining({ nonceConsumed: 1, unconfirmed: 0, unparseable: 0, unsupported: 0, errored: 0 }),
+    // (U) the classification moved to the post-loop carrier (the pre-loop
+    // detectors-first alert cannot know what this run will examine).
+    // ②-fix: error level — the (S)-sealed classification rode an error-level
+    // payload into the Sentry mirror; warn is never mirrored (logger.ts).
+    expect(payload.examinedThisRun).toBeUndefined()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.overdue_examined',
+      expect.objectContaining({
+        examinedThisRun: expect.objectContaining({
+          nonceConsumed: 1,
+          unconfirmed: 0,
+          unparseable: 0,
+          unsupported: 0,
+          errored: 0,
+        }),
+        overdueAfterMs: 6 * 3_600_000,
+      }),
     )
     // the string-typed min(created_at) converts to a real, finite age (DC-18 NaN guard)
     expect(Number.isFinite(payload.oldestPendingAgeMs)).toBe(true)
@@ -674,13 +711,47 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     expect(summary.scanned).toBe(1)
     expect(summary.settled).toBe(1) // the run completed normally
     expect(summary.overdue).toBeNull()
-    // seal fix S11: the classification computed from THIS run's window still
-    // surfaces even when the aggregate fails.
+    // (U) the S11 fallback payload is superseded: the catch fires PRE-loop
+    // (nothing examined yet — payload {}); classification surfaces via the
+    // post-loop reconcile.overdue_examined carrier (pinned below).
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'reconcile.overdue_check_failed',
-      { examinedThisRun: expect.objectContaining({ nonceConsumed: 0 }) },
+      {},
       expect.any(Error),
     )
+  })
+
+  it('(U) S11-successor: aggregate fails + examined sticky overdue row → overdue_check_failed({}) AND the overdue_examined carrier BOTH emit', async () => {
+    mockDb.limit.mockResolvedValue([
+      { ...winRow('r1', CNANO_OPID, 'circle-nano'), createdAt: new Date(Date.now() - 10 * 3_600_000) },
+    ])
+    mockConfirm.mockResolvedValue({ kind: 'unconfirmed', txHash: TX })
+    agg.error = new Error('aggregate boom')
+
+    const summary = await reconcilePendingSettlements()
+    expect(summary.overdue).toBeNull()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.overdue_check_failed',
+      {},
+      expect.any(Error),
+    )
+    // the classification still surfaces — via the carrier, regardless of the
+    // aggregate's own outcome (strictly stronger than the old S11 fallback).
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.overdue_examined',
+      expect.objectContaining({
+        examinedThisRun: expect.objectContaining({ unconfirmed: 1 }),
+        overdueAfterMs: 6 * 3_600_000,
+      }),
+    )
+  })
+
+  it('(U) overdue_examined carrier: SILENT when this run examined no overdue rows', async () => {
+    mockDb.limit.mockResolvedValue([winRow('r1', CNANO_OPID, 'circle-nano')]) // 10min old — not overdue
+    mockConfirm.mockResolvedValue({ kind: 'unconfirmed', txHash: TX })
+    await reconcilePendingSettlements()
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith('reconcile.overdue_examined', expect.anything())
+    expect(vi.mocked(logger.warn)).not.toHaveBeenCalledWith('reconcile.overdue_examined', expect.anything())
   })
 
   it('(S) aggregate returning ZERO rows (battery H1 pin) → destructure caught, overdue=null, run completes', async () => {

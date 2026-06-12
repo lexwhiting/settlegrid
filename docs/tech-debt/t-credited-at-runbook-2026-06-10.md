@@ -45,7 +45,9 @@ credit COMMITTED, in the same DB transaction as this marker." Written ONLY by
 the credit writers (the reconciler tail + kernel `/settle` via
 `creditSettlement`; the proxy's on-chain credit transaction). A **settled**
 row on rail `circle-nano`/`x402` with `credited_at IS NULL` older than the
-60-min grace window is an **OPEN credit-resolution incident**.
+60-min grace window is an **OPEN credit-resolution incident**. (③-(U) wording
+fix: detection latency for a kill-window loss is **~60-75 min** — the 60-min
+grace PLUS up to one 15-min cron interval — not "the next run".)
 
 **The alert:** `reconcile.uncredited_settled` — one structured `logger.error`
 line per reconcile-cron run (every 15 min) **while any open incident persists**
@@ -99,6 +101,19 @@ working as designed — a reconciler failed-flip was rejected because the row's
 tx was re-pointed mid-run; the row stays pending and re-resolves on the next
 rotation with fresh evidence. Frequent occurrences without resolution would
 indicate a hot resubmit loop — only then investigate.
+
+**`reconcile.overdue_examined`** ((U), ERROR level — Sentry-visible): the
+post-loop classification carrier for `reconcile.pending_overdue`. Since (U)
+moved the overdue aggregate BEFORE the examination loop (detectors-first), the
+`pending_overdue` payload no longer carries `examinedThisRun` — this carrier
+holds the breakdown ({nonceConsumed, unconfirmed, unparseable, unsupported,
+errored}) and fires only when a nonzero examined-overdue class exists. Note
+the pre-run semantics: the overdue COUNT is taken at run START, so a row can
+be both counted overdue and resolved later in the SAME run — correlate the
+count with this carrier's breakdown (and the run's `done` summary) before
+treating the number as standing inventory. It is a classification feed, not a
+new page (the armed rules' message filters don't match it) — see the close
+checklist §3 before arming any rule on it.
 
 ## 3. The standalone funds-critical alert (NOT sweep-delivered)
 
