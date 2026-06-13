@@ -16,7 +16,7 @@ import type {
   CircleNanoToolConfig,
   CircleNanoErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isAddress } from 'viem'
-import { getAppUrl, getCircleNanoRecipient } from './env'
+import { getAppUrl, getCircleNanoRecipient, isCircleNanoKernelEnabled } from './env'
 import { verifyCircleNanoAuthorization, USDC_EIP712_DOMAINS } from './settlement/circle-nano/verify'
 import { USDC_ADDRESSES } from './settlement/x402/types'
 import { logger } from './logger'
@@ -37,17 +37,14 @@ export function isCircleNanoRequest(request: Request): boolean {
   return isCircleNanoRequestCore(request)
 }
 
-/** Circle Nano enable check — env.ts does not expose one, defined here. */
-export function isCircleNanoEnabled(): boolean {
-  return !!process.env.CIRCLE_NANO_API_KEY
-}
-
 export async function validateCircleNanoPayment(
   request: Request,
   toolConfig: CircleNanoToolConfig,
 ): Promise<CircleNanoPaymentResult> {
   return validateCircleNanoPaymentCore(request, {
-    enabled: isCircleNanoEnabled(),
+    // B1.1: this legacy structural-check wrapper is currently unused by app code; its
+    // enablement now keys on the recipient gate (the sole circle-nano gate) for coherence.
+    enabled: isCircleNanoKernelEnabled(),
     toolConfig,
     logger: appLogger,
   })

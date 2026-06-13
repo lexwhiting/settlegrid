@@ -72,6 +72,10 @@ const H = vi.hoisted(() => {
     validateCircleNano: vi.fn(),
     genCircleNano402: vi.fn(),
     execute: vi.fn(),
+    // B1.1: toggleable stand-in for CIRCLE_NANO_API_KEY. Pre-fix route.ts:472/:332 consult
+    // isCircleNanoEnabled (this mock); post-fix they key on isCircleNanoKernelEnabled (the
+    // REAL recipient gate, reads the stubbed SETTLEGRID_USDC_RECIPIENT) and this is inert.
+    cnanoApiKeySet: true,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   }
 })
@@ -84,7 +88,7 @@ vi.mock('@/lib/redis', () => ({
 vi.mock('@/lib/logger', () => ({ logger: H.logger }))
 vi.mock('@/lib/circle-nano-proxy', () => ({
   isCircleNanoRequest: () => true,
-  isCircleNanoEnabled: () => true,
+  isCircleNanoEnabled: () => H.cnanoApiKeySet,
   validateCircleNanoCredentialString: H.validateCircleNano,
   generateCircleNano402Response: H.genCircleNano402,
 }))
@@ -185,6 +189,7 @@ function stubFetch(status: number) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  H.cnanoApiKeySet = true // B1.1: reset the API-key toggle (clearAllMocks does not touch plain props)
   H.updateWhere.mockResolvedValue(undefined)
   H.insertValues.mockResolvedValue(undefined)
   // Offline verification PASSES (the kernel-grade verifier is mocked here).
@@ -306,16 +311,39 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(H.dbUpdate).not.toHaveBeenCalled()
   })
 
-  it('dark-gate: recipient unset (rail not configured) → 503 CIRCLE_NANO_NOT_CONFIGURED, no settle/forward/credit', async () => {
+  // B1.1 set/unset (legacy path): recipient unset (rail DARK) → the dispatch gate (route.ts:472,
+  // now keyed on isCircleNanoKernelEnabled) does NOT route circle-nano, so the request FALLS THROUGH
+  // to the other rails / API-key flow EXACTLY as when circle-nano is disabled — never served as
+  // circle-nano. The handler's :2015 503 dark-gate (the frozen funds-safety money boundary) is now
+  // provably SHADOWED by this dispatch gate: both dispatch paths require recipient-set, so :2015's
+  // 503 branch is unreachable-by-construction defense-in-depth (byte-identical/unedited; its 503
+  // semantics remain covered by the kernel settle:91/verify:93 suites). CIRCLE_NANO_API_KEY set is
+  // irrelevant post-fix. (Pre-fix this returned a circle-nano 503 — the carried bug this re-pin flips.)
+  it('B1.1 set/unset (legacy): recipient unset → circle-nano NOT dispatched, request falls through (no circle-nano 503/402), money path untouched', async () => {
     H.selectLimit.mockResolvedValue([toolRow(50)])
     vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '') // isCircleNanoKernelEnabled() → false
     const res = await callPost(makeReq(MAINNET_PROOF))
-    expect(res.status).toBe(503)
-    const body = await res.json()
-    expect(body.code).toBe('CIRCLE_NANO_NOT_CONFIGURED')
-    expect(H.execute).not.toHaveBeenCalled()
-    expect(globalThis.fetch).not.toHaveBeenCalled()
+    // Falls through "exactly as when disabled": no rail matches + no API key → the API-key
+    // flow's 401, NOT the circle-nano dark-gate 503 (the pre-fix bug). Empirically confirmed.
+    expect(res.status).toBe(401)
+    const body = await res.json().catch(() => ({}))
+    expect(body.code).not.toBe('CIRCLE_NANO_NOT_CONFIGURED')
+    expect(H.execute).not.toHaveBeenCalled() // never settled
+    expect(H.genCircleNano402).not.toHaveBeenCalled() // no circle-nano 402 emitted
+    expect(globalThis.fetch).not.toHaveBeenCalled() // not forwarded as circle-nano
     expect(H.dbUpdate).not.toHaveBeenCalled()
+  })
+
+  // B1.1 unset/set (legacy path): API key UNSET but recipient SET → circle-nano STILL serves. Proves
+  // the dispatch gate keys on the RECIPIENT, not the API key (the AND-trap: AND-ing the now-vestigial
+  // key would wrongly dark a fully-serviceable configured rail).
+  it('B1.1 unset/set (legacy): API key unset but recipient set → circle-nano still serves (recipient gate, not API key)', async () => {
+    H.cnanoApiKeySet = false // CIRCLE_NANO_API_KEY unset
+    H.selectLimit.mockResolvedValue([toolRow(50)])
+    const res = await callPost(makeReq(MAINNET_PROOF))
+    expect(res.status).toBe(200)
+    expect(H.execute).toHaveBeenCalledTimes(1)
+    expect(res.headers.get('X-SettleGrid-Tx-Hash')).toBe('0xCNTX')
   })
 
   it('FREE circle-nano (costCents<=0) → forwards, no settlement attempted (no money moves)', async () => {
@@ -324,5 +352,33 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(res.status).toBe(200)
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
     expect(H.execute).not.toHaveBeenCalled() // free path never settles on-chain
+  })
+})
+
+// B1.1 — the SAME gate-coherence on the PROD-DEFAULT dispatch path. useUnifiedAdapters() defaults
+// TRUE (env.ts), so prod routes via tryUnifiedAdapterDispatch → the enabledMap at route.ts:332 →
+// (REAL protocolRegistry.detect on the x-circle-nano-auth header) → handleCircleNanoProxy. These pin
+// route.ts:332's binding to the recipient gate end-to-end (a :332-vs-:472 divergence surfaces here).
+describe('B1.1 — prod-default UNIFIED dispatch path (route.ts:332)', () => {
+  it('set/unset (unified): recipient unset → circle-nano NOT dispatched, request falls through (no circle-nano 503/402)', async () => {
+    vi.stubEnv('USE_UNIFIED_ADAPTERS', undefined as unknown as string) // unset → defaults TRUE (prod path)
+    H.selectLimit.mockResolvedValue([toolRow(50)])
+    vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '') // recipient unset
+    const res = await callPost(makeReq(MAINNET_PROOF))
+    // Falls through to the API-key flow's 401 (NOT the circle-nano 503), via the unified :332 gate.
+    expect(res.status).toBe(401)
+    const body = await res.json().catch(() => ({}))
+    expect(body.code).not.toBe('CIRCLE_NANO_NOT_CONFIGURED')
+    expect(H.execute).not.toHaveBeenCalled()
+    expect(H.genCircleNano402).not.toHaveBeenCalled()
+  })
+
+  it('unset/set (unified): API key unset but recipient set → circle-nano still serves (recipient gate, not API key)', async () => {
+    vi.stubEnv('USE_UNIFIED_ADAPTERS', undefined as unknown as string) // unset → defaults TRUE (prod path)
+    H.cnanoApiKeySet = false // CIRCLE_NANO_API_KEY unset
+    H.selectLimit.mockResolvedValue([toolRow(50)])
+    const res = await callPost(makeReq(MAINNET_PROOF))
+    expect(res.status).toBe(200)
+    expect(H.execute).toHaveBeenCalledTimes(1)
   })
 })

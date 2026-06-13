@@ -244,9 +244,10 @@ export function getAcpStripeKey(): string | undefined {
 // Circle Nano (USDC EIP-3009 nanopayments) — kernel rail. The offline
 // verifier needs only the platform USDC address that EIP-3009 authorizations
 // must pay (`authorization.to`); NO Circle account or API key is required to
-// verify + record. The legacy direct-proxy `isCircleNanoEnabled` in
-// circle-nano-proxy.ts still gates on CIRCLE_NANO_API_KEY — a separate,
-// untouched surface.
+// verify + record. B1.1 made this recipient-based gate the SOLE circle-nano
+// enablement gate — proxy dispatch + the unified enabledMap + the verifier all
+// key on it; the legacy API-key gate (`isCircleNanoEnabled`/`CIRCLE_NANO_API_KEY`)
+// was removed, so `CIRCLE_NANO_API_KEY` is now unread.
 export function getCircleNanoRecipient(): string | undefined {
   // Trim defensively: the recipient is set via the Vercel dashboard/CLI and a
   // stray trailing newline (a known hazard for this deployment — the gas-wallet

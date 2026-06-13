@@ -30,7 +30,7 @@ import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } 
 import { isAcpRequest, validateAcpPayment, generateAcp402Response } from '@/lib/acp-proxy'
 import { isUcpRequest, isUcpEnabled, validateUcpPayment, generateUcp402Response } from '@/lib/ucp-proxy'
 import { isMastercardRequest, isMastercardEnabled, mastercardAdapter, validateMastercardPayment, generateMastercard402Response } from '@/lib/mastercard-proxy'
-import { isCircleNanoRequest, isCircleNanoEnabled, validateCircleNanoCredentialString, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
+import { isCircleNanoRequest, validateCircleNanoCredentialString, generateCircleNano402Response } from '@/lib/circle-nano-proxy'
 import { isL402Request, isL402Enabled, validateL402Payment, generateL402_402Response } from '@/lib/l402-proxy'
 import { isAlipayRequest, isAlipayEnabled, validateAlipayPayment, generateAlipay402Response } from '@/lib/alipay-proxy'
 import { isKyaPayRequest, isKyaPayEnabled, validateKyaPayPayment, generateKyaPay402Response } from '@/lib/kyapay-proxy'
@@ -329,7 +329,11 @@ async function tryUnifiedAdapterDispatch(
     acp: isAcpEnabled,
     ucp: isUcpEnabled,
     'mastercard-vi': isMastercardEnabled,
-    'circle-nano': isCircleNanoEnabled,
+    // B1.1: circle-nano keys on the recipient (settlement-capability) gate so the
+    // unified dispatch advertises/routes the rail IFF it can verify+settle — mirrors
+    // isX402SettlementEnabled (advertised==verified). Must stay in lockstep with the
+    // legacy chain at :472 (the proxy-equivalence contract) and the verifier's gate.
+    'circle-nano': isCircleNanoKernelEnabled,
     // P2.K2 — five emerging protocols now have adapter-registry entries
     // so their enabled-check is part of the equivalence contract too.
     l402: isL402Enabled,
@@ -468,8 +472,11 @@ async function handleProxy(
       return handleMppProxy(request, slug, requestId, startTime)
     }
 
-    // 2. Circle Nanopayments (x402-compatible, more specific headers win)
-    if (isCircleNanoEnabled() && isCircleNanoRequest(request)) {
+    // 2. Circle Nanopayments (x402-compatible, more specific headers win). B1.1: gate on
+    // the recipient (settlement-capability) gate, NOT the API key — a key-set/recipient-unset
+    // deploy falls through here EXACTLY as when disabled (the rail can't verify/settle what it
+    // would advertise). Lockstep with the unified enabledMap (:332) per the equivalence contract.
+    if (isCircleNanoKernelEnabled() && isCircleNanoRequest(request)) {
       return handleCircleNanoProxy(request, slug, requestId, startTime)
     }
 

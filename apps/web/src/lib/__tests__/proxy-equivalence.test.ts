@@ -72,7 +72,6 @@ import {
 } from '@/lib/mpp'
 import {
   isCircleNanoRequest,
-  isCircleNanoEnabled,
   generateCircleNano402Response as legacyCnano,
 } from '@/lib/circle-nano-proxy'
 import {
@@ -123,6 +122,7 @@ import {
 } from '@/lib/drain-proxy'
 import {
   isMppEnabled,
+  isCircleNanoKernelEnabled,
   isX402Enabled,
   isAp2Enabled,
   isVisaTapEnabled,
@@ -167,7 +167,8 @@ type DecisionOutcome =
 
 function legacyDetect(request: Request): DecisionOutcome {
   if (isMppEnabled() && isMppRequest(request)) return { matched: 'mpp' }
-  if (isCircleNanoEnabled() && isCircleNanoRequest(request)) return { matched: 'circle-nano' }
+  // B1.1: lockstep with route.ts:472 — circle-nano dispatch keys on the recipient gate.
+  if (isCircleNanoKernelEnabled() && isCircleNanoRequest(request)) return { matched: 'circle-nano' }
   if (isX402Enabled() && isX402Request(request)) return { matched: 'x402' }
   if (isMastercardEnabled() && isMastercardRequest(request))
     return { matched: 'mastercard-vi' }
@@ -263,15 +264,15 @@ beforeEach(() => {
   vi.stubEnv('ACP_STRIPE_KEY', 'sk_acp_test')
   vi.stubEnv('UCP_API_KEY', 'ucp-test')
   vi.stubEnv('MASTERCARD_API_KEY', 'mc-test')
+  // B1.1: circle-nano dispatch now keys on isCircleNanoKernelEnabled() (the recipient gate), so a
+  // VALID recipient must be set for the legacy mirror (legacyDetect:170) to route circle-nano —
+  // matching the synthetic fullEnabledMap['circle-nano']=()=>true on the unified side, so the
+  // matching cases stay equivalent. CIRCLE_NANO_API_KEY is now vestigial (no longer a gate) but
+  // left set (harmless). The one case needing the dark no-recipient state ("Circle Nano: legacy
+  // === adapter", where the wrapper's discovery enrichment must be absent to match the bare
+  // adapter) stubs recipient='' locally.
   vi.stubEnv('CIRCLE_NANO_API_KEY', 'cnano-test')
-  // B1.1: the circle-nano legacy wrapper now enriches its 402 with discovery
-  // fields (pay_to / asset_address / eip712_domain) when SETTLEGRID_USDC_RECIPIENT
-  // is set, going BEYOND the bare adapter's build402Response. This byte-for-byte
-  // equivalence battery exercises the dark (no-recipient) state where the two are
-  // identical; pin the recipient empty so an ambient env value can't make the
-  // wrapper diverge from the adapter and flake this test. (The wrapper's enriched
-  // path is covered by circle-nano-402-discovery.test.ts.)
-  vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '')
+  vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '0x' + '9'.repeat(40))
   vi.stubEnv('L402_ENABLED', 'true')
   vi.stubEnv('ALIPAY_APP_ID', 'alipay-test')
   vi.stubEnv('KYAPAY_VERIFICATION_KEY', 'kya-test')
@@ -1101,6 +1102,11 @@ describe('P2.K3 Level 2 — byte-for-byte Response equivalence (13 protocols)', 
   })
 
   it('Circle Nano: legacy === adapter', async () => {
+    // B1.1: legacyCnano (the wrapper) injects discovery (pay_to / asset_address / eip712_domain)
+    // when SETTLEGRID_USDC_RECIPIENT is set, going BEYOND the bare adapter's build402Response.
+    // Pin recipient='' locally so the wrapper omits discovery and matches the bare adapter
+    // byte-for-byte (the enriched path is covered by circle-nano-402-discovery.test.ts).
+    vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '')
     const legacy = await normalize(legacyCnano(SLUG, COST, NAME))
     const unified = await normalize(
       new CircleNanoAdapter().build402Response({
