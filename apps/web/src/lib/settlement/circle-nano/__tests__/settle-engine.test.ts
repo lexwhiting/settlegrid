@@ -10,11 +10,16 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockReadContract, mockWaitForReceipt, mockWriteContract, mockGetReceipt } = vi.hoisted(() => ({
+const { mockReadContract, mockWaitForReceipt, mockWriteContract, mockGetReceipt, mockGetBlock, mockHttp } = vi.hoisted(() => ({
   mockReadContract: vi.fn(),
   mockWaitForReceipt: vi.fn(),
   mockWriteContract: vi.fn(),
   mockGetReceipt: vi.fn(),
+  // (V) — the safe-head chain-time anchor read (readSafeBlockTimestampBounded).
+  mockGetBlock: vi.fn(),
+  // (V) — http wrapped as a spy so the BOUNDED transport options are assertable
+  // (the transport-isolation technique, without editing that pinned file).
+  mockHttp: vi.fn(),
 }))
 
 vi.mock('viem', async (importOriginal) => {
@@ -25,8 +30,10 @@ vi.mock('viem', async (importOriginal) => {
       readContract: mockReadContract,
       waitForTransactionReceipt: mockWaitForReceipt,
       getTransactionReceipt: mockGetReceipt,
+      getBlock: mockGetBlock,
     }),
     createWalletClient: () => ({ writeContract: mockWriteContract }),
+    http: mockHttp.mockImplementation((...args: unknown[]) => (actual.http as (...a: unknown[]) => unknown)(...args)),
   }
 })
 vi.mock('viem/accounts', () => ({
@@ -34,7 +41,7 @@ vi.mock('viem/accounts', () => ({
 }))
 
 import { WaitForTransactionReceiptTimeoutError } from 'viem'
-import { submitCircleNanoOnChain, confirmSettlementTx } from '../settle-engine'
+import { submitCircleNanoOnChain, confirmCircleNanoTx, confirmSettlementTx, readAuthorizationStateBounded, readSafeBlockTimestampBounded, RECONCILER_RPC_TIMEOUT_MS, RECONCILER_RPC_RETRY_COUNT } from '../settle-engine'
 import type { CircleNanoProof } from '@settlegrid/mcp'
 
 const PROOF: CircleNanoProof = {
@@ -254,5 +261,101 @@ describe('submitCircleNanoOnChain — fail closed', () => {
     expect(r).toMatchObject({ kind: 'submit-error' })
     expect(mockReadContract).not.toHaveBeenCalled()
     expect(mockWriteContract).not.toHaveBeenCalled()
+  })
+})
+
+// ─── (V) P8(g) — the live-engine LB-2 twin (the (U)-③ HIGH, register P8(g)) ─────────────
+describe('(V) P8(g) — interpretReceipt reverted-branch nonce-recheck failure is INCOMPLETE evidence', () => {
+  it('R-V5: submit path — reverted receipt + recheck THROWS → broadcast-unconfirmed/revert-nonce-unverifiable (never a clean reverted{false}) — FAILS PRE-FIX', async () => {
+    // authorizationState call #1 = the pre-submit guard (false → proceed);
+    // call #2 = the post-revert recheck → THROWS (RPC down mid-request).
+    let authCalls = 0
+    mockReadContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+      if (functionName === 'authorizationState') {
+        authCalls += 1
+        if (authCalls === 1) return false
+        throw new Error('rpc down')
+      }
+      if (functionName === 'balanceOf') return 10n ** 12n
+      throw new Error(`unexpected readContract: ${functionName}`)
+    })
+    mockWriteContract.mockResolvedValue('0xTX')
+    mockWaitForReceipt.mockResolvedValue({ status: 'reverted' })
+    const r = await submitCircleNanoOnChain(PROOF)
+    // Pre-(V): { kind: 'reverted', txHash: '0xTX', nonceConsumed: false } — both
+    // orchestrators terminalize 'failed' on that shape while the nonce state is
+    // UNKNOWN (the USDC may have moved via a concurrent tx). Safe direction:
+    expect(r).toEqual({ kind: 'broadcast-unconfirmed', txHash: '0xTX', reason: 'revert-nonce-unverifiable' })
+  })
+
+  it('R-V5-twin: confirmCircleNanoTx (recovery re-wait) — same branch, same direction (its recheck is authorizationState call #1) — FAILS PRE-FIX', async () => {
+    mockReadContract.mockRejectedValue(new Error('rpc down'))
+    mockWaitForReceipt.mockResolvedValue({ status: 'reverted' })
+    const r = await confirmCircleNanoTx(PROOF, '0xSTORED' as `0x${string}`)
+    expect(r).toEqual({ kind: 'broadcast-unconfirmed', txHash: '0xSTORED', reason: 'revert-nonce-unverifiable' })
+  })
+
+  it('R-V5-pin: reverted + recheck SUCCEEDS keeps the exact pre-(V) shapes (consumed → reverted{true}; free → reverted{false}) — passes pre+post', async () => {
+    setupChain({ nonceUsed: false, nonceRecheck: true })
+    mockWriteContract.mockResolvedValue('0xTX')
+    mockWaitForReceipt.mockResolvedValue({ status: 'reverted' })
+    expect(await submitCircleNanoOnChain(PROOF)).toEqual({ kind: 'reverted', txHash: '0xTX', nonceConsumed: true })
+    setupChain({ nonceUsed: false, nonceRecheck: false })
+    mockWaitForReceipt.mockResolvedValue({ status: 'reverted' })
+    expect(await submitCircleNanoOnChain(PROOF)).toEqual({ kind: 'reverted', txHash: '0xTX', nonceConsumed: false })
+  })
+})
+
+// ─── (V) — the expiry pass's two bounded readers (never throw; DC-08 typed directions) ──
+describe('(V) readAuthorizationStateBounded / readSafeBlockTimestampBounded', () => {
+  it('nonce reader: true→consumed, false→unconsumed, throw→unknown, unsupported network→unknown (never reaches the chain)', async () => {
+    mockReadContract.mockResolvedValueOnce(true)
+    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('consumed')
+    mockReadContract.mockResolvedValueOnce(false)
+    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('unconsumed')
+    mockReadContract.mockRejectedValueOnce(new Error('rpc down'))
+    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('unknown')
+    mockReadContract.mockClear()
+    expect(await readAuthorizationStateBounded('eip155:1', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('unknown')
+    expect(mockReadContract).not.toHaveBeenCalled()
+  })
+
+  it("chain-time reader: reads the SAFE head (blockTag 'safe' — reorg-immune; the R1-B3/safe-tag pin) and returns Number(timestamp); null on throw/unsupported", async () => {
+    mockGetBlock.mockResolvedValueOnce({ timestamp: 1781136000n })
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBe(1781136000)
+    expect(mockGetBlock).toHaveBeenCalledWith({ blockTag: 'safe' })
+    mockGetBlock.mockRejectedValueOnce(new Error('safe tag unsupported'))
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
+    mockGetBlock.mockClear()
+    expect(await readSafeBlockTimestampBounded('eip155:1')).toBeNull()
+    expect(mockGetBlock).not.toHaveBeenCalled()
+  })
+
+  it('chain-time reader: a MALFORMED block (missing/garbage timestamp — viem formatBlock yields undefined without throwing) → null, NEVER NaN (NaN would bypass the expiry pass\'s anchor null-check; ② seal F-1)', async () => {
+    mockGetBlock.mockResolvedValueOnce({ number: 123n }) // no timestamp key
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
+    mockGetBlock.mockResolvedValueOnce({ timestamp: 'garbage' })
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
+  })
+
+  it('chain-time reader: an ABSURD-FUTURE timestamp (a lying/buggy RPC) → null, NEVER the future value (③ finding 8 — the F-1 sibling on the HIGH side: a finite-future safeTs would make the expiry pass\'s chainTs>vb anchor pass for EVERY row, re-opening the wall-clock-only terminalization R1-B3 refuted → a zero-detector real-USDC-loss flip)', async () => {
+    const nowSec = Math.floor(Date.now() / 1000)
+    mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec + 10 * 365 * 24 * 3600) }) // ~year 2036
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
+    // a legitimate safe head (lags wall-clock by minutes) still passes
+    mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec - 120) })
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBe(nowSec - 120)
+  })
+
+  it('both readers ride the BOUNDED reconciler transport (3s/1-retry options on http) — never the live defaults', async () => {
+    mockHttp.mockClear()
+    mockReadContract.mockResolvedValueOnce(false)
+    await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)
+    mockGetBlock.mockResolvedValueOnce({ timestamp: 1n })
+    await readSafeBlockTimestampBounded('eip155:84532')
+    expect(mockHttp).toHaveBeenCalledTimes(2)
+    for (const call of mockHttp.mock.calls) {
+      expect(call[1]).toEqual({ timeout: RECONCILER_RPC_TIMEOUT_MS, retryCount: RECONCILER_RPC_RETRY_COUNT })
+    }
   })
 })

@@ -31,6 +31,7 @@ import {
   markSettlementSettled,
   markSettlementFailed,
   markSettlementBroadcast,
+  refreshPendingValidBefore,
 } from '../ledger'
 import {
   submitCircleNanoOnChain,
@@ -161,15 +162,26 @@ async function ensurePendingRow(
       // For the x402 exact scheme this equals the tool cost (verifier enforces
       // value === required), but recorded explicitly for audit parity.
       authorizedValueBaseUnits: proof.authorization.value,
+      // (V) P5-i — the expiry pass's terminalization evidence: the CANONICAL
+      // decimal-seconds bound (BigInt normalizes the hex/octal forms the BigInt
+      // verifier accepts; a raw hex string would brick the pass's integer guard
+      // and the refresh's ::numeric cast). First-write-wins; re-signs raise it
+      // via refreshPendingValidBefore.
+      validBefore: BigInt(proof.authorization.validBefore).toString(10),
     },
     description: `x402 settlement for tool ${toolSlug} (${method})`,
   })
 }
 
-/** Map an on-chain engine result → a ledger flip + route outcome (mirrors circle-nano applyOutcome). */
+/** Map an on-chain engine result → a ledger flip + route outcome (mirrors circle-nano applyOutcome).
+ * (V) P8-e — `expectedPriorRef` is the external_ref this request READ at step 2
+ * (null when none existed): threaded into every markSettlementBroadcast so a
+ * lock-less loser can never clobber a DIFFERENT live ref while the same-actor
+ * T1→T2 recovery re-point stays legal (the no-clobber CAS in ledger.ts). */
 async function applyOutcome(
   operationId: string,
   result: CircleNanoOnChainResult,
+  expectedPriorRef: string | null,
 ): Promise<X402SettlementOutcome> {
   switch (result.kind) {
     case 'settled': {
@@ -194,7 +206,17 @@ async function applyOutcome(
             storedRef: row.externalRef,
           })
         }
-        return { status: 'settled', txHash: row?.externalRef ?? result.txHash, alreadySettled: true }
+        // (V) P8-f — in the MIRROR case (row terminally non-settled) return the
+        // WINNING hash we hold the receipt for (runbook §3's authoritative hash);
+        // a SETTLED row keeps its recorded ref.
+        return {
+          status: 'settled',
+          txHash:
+            row && row.settlementStatus !== 'settled'
+              ? result.txHash
+              : (row?.externalRef ?? result.txHash),
+          alreadySettled: true,
+        }
       }
       logger.info('x402.settle_onchain_success', { operationId, txHash: result.txHash })
       return { status: 'settled', txHash: result.txHash }
@@ -203,7 +225,9 @@ async function applyOutcome(
       if (result.nonceConsumed) {
         // Our tx reverted but the (from,nonce) is spent → a concurrent tx settled
         // the authorization (USDC reached the bound recipient). NOT a failure.
-        await markSettlementBroadcast(operationId, RAIL, result.txHash)
+        // (V): the no-clobber CAS — a lock-less loser's write loses against a
+        // DIFFERENT live winner ref instead of overwriting it (③-(U) addendum (e)).
+        await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
         logger.warn('x402.settle_reverted_nonce_consumed', { operationId, txHash: result.txHash })
         return {
           status: 'pending',
@@ -213,7 +237,29 @@ async function applyOutcome(
           txHash: result.txHash,
         }
       }
-      await markSettlementFailed(operationId, RAIL, result.txHash)
+      const flipped = await markSettlementFailed(operationId, RAIL, result.txHash)
+      if (!flipped) {
+        // (V) 3e — the ③-(U) F2 fold: a CAS-rejected flip on a still-pending row
+        // means the row was re-pointed mid-request — the buyer's terminal
+        // 'failed' would be a lie while the CURRENT tx may settle. Disambiguate
+        // exactly like the reconciler's pending-stale-ref.
+        const current = await findSettlementRow(operationId, RAIL)
+        if (current?.settlementStatus === 'pending') {
+          logger.warn('x402.settle_reverted_stale_ref', { operationId, staleTxHash: result.txHash, currentRef: current.externalRef })
+          return {
+            status: 'pending',
+            code: 'X402_SETTLEMENT_PENDING_CONFIRMATION',
+            httpStatus: 502,
+            reason: 'Settlement evidence was superseded by a concurrent re-point; confirmation reconciling.',
+            txHash: current.externalRef ?? result.txHash,
+          }
+        }
+        if (current?.settlementStatus === 'settled') {
+          // A concurrent winner settled + credited — never re-credit.
+          return { status: 'settled', txHash: current.externalRef ?? result.txHash, alreadySettled: true }
+        }
+        // Terminal 'failed' (or row absent): the truthful terminal response below.
+      }
       logger.warn('x402.settle_reverted', { operationId, txHash: result.txHash })
       return {
         status: 'failed',
@@ -223,7 +269,7 @@ async function applyOutcome(
       }
     }
     case 'broadcast-unconfirmed': {
-      await markSettlementBroadcast(operationId, RAIL, result.txHash)
+      await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
       logger.warn('x402.settle_unconfirmed', { operationId, txHash: result.txHash, reason: result.reason })
       return {
         status: 'pending',
@@ -342,6 +388,30 @@ export async function executeX402Settlement(
     // 4. Write-ahead INTENT row (so a crash post-broadcast is recoverable + the flip has a row to match).
     await ensurePendingRow(proof, { ...params, operationId })
 
+    // 4.5 (V) — raise the stored validBefore bound to cover THIS authorization
+    //     (re-signs share the (from,nonce) row; the INSERT is first-write-wins).
+    //     RAISE-only: a legacy row without a bound keeps none. `false` ⇒ the
+    //     row went TERMINAL between the step-2 read and now (incl. the expiry
+    //     pass's flip) — abort before ANY broadcast onto a terminal row
+    //     (R2-B5b; the writer's validBefore CAS closes the other ordering).
+    const refreshed = await refreshPendingValidBefore(
+      operationId,
+      RAIL,
+      BigInt(proof.authorization.validBefore).toString(10),
+    )
+    if (!refreshed) {
+      const current = await findSettlementRow(operationId, RAIL)
+      if (current?.settlementStatus === 'settled') {
+        return { status: 'settled', txHash: current.externalRef ?? '', alreadySettled: true }
+      }
+      return {
+        status: 'failed',
+        code: 'X402_SETTLEMENT_PREVIOUSLY_FAILED',
+        httpStatus: 402,
+        reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.',
+      }
+    }
+
     // 5. Recovery — a prior attempt already broadcast a tx (stored in external_ref):
     //    re-wait on THAT tx instead of blindly re-submitting (re-broadcast would
     //    duplicate). Only fall through to a fresh submit when the stored tx is a
@@ -350,7 +420,21 @@ export async function executeX402Settlement(
       const confirmed = await confirmCircleNanoTx(proof, existing.externalRef as Hex)
       const storedTxDefinitivelyFailed = confirmed.kind === 'reverted' && !confirmed.nonceConsumed
       if (!storedTxDefinitivelyFailed) {
-        return applyOutcome(operationId, confirmed)
+        return applyOutcome(operationId, confirmed, existing.externalRef)
+      }
+      // (V) P8-a — re-read terminality IMMEDIATELY before the fresh submit (the
+      // P2-mirror window); the surviving race stays DETECTED by the (T) alerts.
+      const current = await findSettlementRow(operationId, RAIL)
+      if (current && current.settlementStatus !== 'pending') {
+        if (current.settlementStatus === 'settled') {
+          return { status: 'settled', txHash: current.externalRef ?? '', alreadySettled: true }
+        }
+        return {
+          status: 'failed',
+          code: 'X402_SETTLEMENT_PREVIOUSLY_FAILED',
+          httpStatus: 402,
+          reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.',
+        }
       }
       logger.info('x402.settle_recovery_resubmit', { operationId, priorTx: existing.externalRef })
     }
@@ -359,7 +443,9 @@ export async function executeX402Settlement(
     //    persists the hash the instant it broadcasts (write-ahead), so a mid-wait
     //    process kill leaves a re-waitable tx.
     const onBroadcast = async (txHash: Hex): Promise<void> => {
-      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash)
+      // (V) P8-e — expectedPrior = the ref this request read at step 2 (the
+      // legal same-actor T1→T2 re-point); a sibling's winner is never clobbered.
+      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash, existing?.externalRef ?? null)
       if (!persisted) {
         // (T) ② seal — broadcast-time sibling of
         // settled_evidence_on_terminal_failed_row (see circle-nano settle.ts
@@ -378,7 +464,7 @@ export async function executeX402Settlement(
       }
     }
     const result = await submitCircleNanoOnChain(proof, { onBroadcast })
-    return applyOutcome(operationId, result)
+    return applyOutcome(operationId, result, existing?.externalRef ?? null)
   } finally {
     await tryRedis(async () => {
       await getRedis().del(lockKey)

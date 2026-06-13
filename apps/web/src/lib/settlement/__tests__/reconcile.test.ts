@@ -20,7 +20,12 @@ const {
   agg,
   sweepAgg,
   selectPlan,
+  expiryPlan,
+  mockNonceState,
+  mockChainTs,
+  mockExpired,
   mockFindRow,
+  mockQuarantineReturning,
 } = vi.hoisted(() => ({
   mockDb: {
     select: vi.fn(),
@@ -66,8 +71,18 @@ const {
   // cannot survive the sweep's extra selects per run (R2 audit fix B6).
   // (U) canonical order: sweep 1st → [sample] → overdue → window LAST.
   selectPlan: { seq: ['sweep', 'overdue', 'window'] as string[] },
+  // (V) — the expiry pass's candidate SELECT (the run's select between the
+  // overdue aggregate and the window under the (V) order) + the two bounded
+  // engine readers + the evidence-CAS terminal writer.
+  expiryPlan: { candidates: [] as unknown[] },
+  mockNonceState: vi.fn(),
+  mockChainTs: vi.fn(),
+  mockExpired: vi.fn(),
   // (T) ledger mock for findSettlementRow (the CAS-reject re-read).
   mockFindRow: vi.fn(),
+  // (V) ② seal — the quarantine-classify UPDATE's .returning({id}) terminal (the
+  // truth CAS rowcount; default = one row classified).
+  mockQuarantineReturning: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
@@ -101,10 +116,17 @@ vi.mock('drizzle-orm', () => ({
   sql: mockSql,
 }))
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
-vi.mock('../circle-nano/settle-engine', () => ({ confirmSettlementTx: mockConfirm }))
+vi.mock('../circle-nano/settle-engine', () => ({
+  confirmSettlementTx: mockConfirm,
+  // (V) — the expiry pass's bounded readers.
+  readAuthorizationStateBounded: mockNonceState,
+  readSafeBlockTimestampBounded: mockChainTs,
+}))
 vi.mock('../ledger', () => ({
   markSettlementSettled: mockSettled,
   markSettlementFailed: mockFailed,
+  // (V) — the expiry pass's evidence-CAS terminal writer.
+  markSettlementExpiredNoBroadcast: mockExpired,
   // (T) — the CAS-reject disambiguation re-read.
   findSettlementRow: mockFindRow,
 }))
@@ -149,6 +171,14 @@ beforeEach(() => {
     const seq = selectPlan.seq
     const step = seq[(mockDb.select.mock.calls.length - 1) % seq.length]
     if (step === 'window') return mockDb
+    if (step === 'expiry') {
+      // (V) — the candidates SELECT: from→where→orderBy→limit.
+      return {
+        from: () => ({
+          where: () => ({ orderBy: () => ({ limit: async () => expiryPlan.candidates }) }),
+        }),
+      }
+    }
     if (step === 'sample') {
       return {
         from: () => ({
@@ -171,7 +201,14 @@ beforeEach(() => {
   sweepAgg.value = [{ total: '0' }]
   sweepAgg.error = null
   sweepAgg.sample = []
-  selectPlan.seq = ['sweep', 'overdue', 'window']
+  selectPlan.seq = ['sweep', 'overdue', 'expiry', 'window']
+  expiryPlan.candidates = []
+  mockNonceState.mockReset()
+  mockNonceState.mockResolvedValue('unconsumed')
+  mockChainTs.mockReset()
+  mockChainTs.mockResolvedValue(9_999_999_999) // far past every fixture vb
+  mockExpired.mockReset()
+  mockExpired.mockResolvedValue(true)
   // (T) findSettlementRow default: terminal row — flipped:false reads as a
   // concurrent-winner noop unless a test makes the row still-pending.
   mockFindRow.mockResolvedValue({ id: 'r1', settlementStatus: 'failed', externalRef: TX })
@@ -179,10 +216,16 @@ beforeEach(() => {
   mockDb.where.mockReturnValue(mockDb)
   mockDb.orderBy.mockReturnValue(mockDb)
   mockDb.limit.mockResolvedValue([])
-  // (S) the per-row watermark UPDATE chain.
+  // (S) the per-row watermark UPDATE chain. (V) ② seal: where()'s return is an
+  // awaitable that ALSO exposes .returning() — the watermark UPDATE awaits
+  // where() directly while the quarantine-classify UPDATE chains .returning({id})
+  // (the truth-CAS rowcount; same dual-shape pattern as the credit-txn mock).
   mockDb.update.mockReturnValue(mockDb)
   mockDb.set.mockReturnValue({ where: mockDbUpdateWhere })
-  mockDbUpdateWhere.mockResolvedValue([])
+  mockDbUpdateWhere.mockImplementation(() =>
+    Object.assign(Promise.resolve([]), { returning: mockQuarantineReturning }),
+  )
+  mockQuarantineReturning.mockResolvedValue([{ id: 'exp-1' }])
   // F4 credit txn plumbing. where() returns an awaitable that ALSO exposes
   // .returning() — the developers UPDATE chains .returning({id}) (B4) while the
   // tools UPDATE awaits where()'s return value directly.
@@ -515,7 +558,7 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
   })
 
   it('(T) uncredited rows present → ONE reconcile.uncredited_settled error line with bare rail-prefixed operationIds (bounded sample)', async () => {
-    selectPlan.seq = ['sweep', 'sample', 'overdue', 'window']
+    selectPlan.seq = ['sweep', 'sample', 'overdue', 'expiry', 'window']
     sweepAgg.value = [{ total: '2' }]
     const oldSettled = new Date(Date.now() - 7_200_000)
     sweepAgg.sample = [
@@ -777,5 +820,350 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     // guard (rails.ts isReconcilableRail) excludes EXACTLY this set, so a hop row's rail is never in the
     // reconciler's selection set — provable by construction via the shared constant.
     expect(inArray).toHaveBeenCalledWith('rail', ['circle-nano', 'x402'])
+  })
+})
+
+// ─── (V) — the expiry pass (P5-ii), P8-c, and the C4 rider ──────────────────────────────
+describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-evidence invariant)', () => {
+  const NOW_SEC = Math.floor(Date.now() / 1000)
+  const VB_EXPIRED = String(NOW_SEC - 7_200) // wall-expired by 2h
+  const candidate = (over: Record<string, unknown> = {}) => ({
+    id: 'exp-1',
+    createdAt: new Date(Date.now() - 7_200_000),
+    operationId: CNANO_OPID,
+    rail: 'circle-nano',
+    externalRef: null,
+    metadata: { validBefore: VB_EXPIRED, toolId: 't1' },
+    ...over,
+  })
+  const expirySeq = () => {
+    selectPlan.seq = ['sweep', 'overdue', 'expiry', 'window']
+  }
+  /** The quarantine/classification UPDATE payloads (metadata sql-merges) — distinguished
+   *  from the per-candidate watermark UPDATEs ({lastReconciledAt}). */
+  const metadataSetCalls = () =>
+    mockDb.set.mock.calls.filter((c) => (c[0] as Record<string, unknown>).metadata !== undefined)
+
+  it('R-V12 (THE adversarial case): a mined-then-expired row (expired AND nonce CONSUMED) QUARANTINES with the alert — NEVER flips failed — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockNonceState.mockResolvedValue('consumed')
+    await reconcilePendingSettlements()
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(mockFailed).not.toHaveBeenCalled()
+    expect(metadataSetCalls().length).toBe(1) // the quarantine merge
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.expired_nonce_consumed_quarantined',
+      expect.objectContaining({ operationId: CNANO_OPID, rail: 'circle-nano', validBefore: VB_EXPIRED }),
+    )
+  })
+
+  it('R-V27 (② seal S1 — the truth CAS): a consumed-arm row that acquired a LIVE ref mid-pass (classify matches 0 rows) emits NO untracked alert and counts NO quarantine — FAILS PRE-FIX', async () => {
+    // The race: candidate SELECT read the row at ref NULL; a buyer re-sign ran the
+    // full live path during the pass's bounded reads (refresh vb2 → broadcast T2 →
+    // onBroadcast committed ref=T2 → T2 MINED). The nonce read then returns
+    // 'consumed' — but the consumption is TRACKED (ref=T2 on the row). The
+    // classify UPDATE's isNull(external_ref) CAS matches 0 rows; the P8(b)
+    // 'untracked' alert and the quarantined tally MUST stay silent (DC-18 — a
+    // false fire of the one alert guarding real untracked losses).
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockNonceState.mockResolvedValue('consumed')
+    mockQuarantineReturning.mockResolvedValue([]) // the truth CAS: row no longer ref-NULL
+    await reconcilePendingSettlements()
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'reconcile.expired_nonce_consumed_quarantined',
+      expect.anything(),
+    )
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, terminalized: 0, quarantined: 0 }),
+    )
+  })
+
+  it('R-V28 (② seal S1 — arg-shape pin): the quarantine UPDATE WHERE carries isNull(external_ref) — the classify domain is ref-NULL rows only — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate({ metadata: null })] // legacy arm — classify fires
+    await reconcilePendingSettlements()
+    // call #1 = the watermark where; call #2 = the quarantine where
+    const quarantineWhereArg = mockDbUpdateWhere.mock.calls[1]?.[0] as { and?: unknown[] }
+    expect(quarantineWhereArg).toBeDefined()
+    expect(
+      (quarantineWhereArg.and ?? []).some(
+        (n) => (n as Record<string, unknown>).isNull === 'external_ref',
+      ),
+    ).toBe(true)
+  })
+
+  it('R-V29 (② seal S1/S3 — truthful counters): the one-shot expiry_unprovable is gated on the classify rowcount, and quarantined never counts an uncommitted classify — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate({ metadata: null })] // legacy arm
+    mockQuarantineReturning.mockResolvedValue([]) // classify matched 0 rows
+    await reconcilePendingSettlements()
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'reconcile.expiry_unprovable',
+      expect.anything(),
+    )
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, quarantined: 0 }),
+    )
+  })
+
+  it('R-V13: expired + UNCONSUMED terminalizes via the evidence-CAS writer (proved value = the candidate-read bound) — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockNonceState.mockResolvedValue('unconsumed')
+    mockChainTs.mockResolvedValue(NOW_SEC - 100) // chain past vb (vb = now-7200)
+    await reconcilePendingSettlements()
+    expect(mockExpired).toHaveBeenCalledWith(
+      CNANO_OPID,
+      'circle-nano',
+      VB_EXPIRED,
+      expect.objectContaining({ chainTs: NOW_SEC - 100 }),
+    )
+    expect(mockFailed).not.toHaveBeenCalled() // never the (T) failed-CAS writer
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expired_terminalized',
+      expect.objectContaining({ operationId: CNANO_OPID, validBefore: VB_EXPIRED }),
+    )
+  })
+
+  it("R-V14: a FAILED nonce read ('unknown') leaves the row pending and unclassified — but the pass is TRUTHFUL about it — FAILS PRE-FIX", async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockNonceState.mockResolvedValue('unknown')
+    await reconcilePendingSettlements()
+    expect(mockNonceState).toHaveBeenCalled() // positive assert (R1-I4)
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0 }),
+    )
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(metadataSetCalls().length).toBe(0)
+  })
+
+  it('R-V15: a LEGACY row (no stored validBefore) quarantines legacy-no-validbefore WITHOUT touching the chain; NULL-metadata rows classify via the COALESCE merge — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate({ metadata: { toolId: 't1' } }), candidate({ id: 'exp-2', metadata: null })]
+    await reconcilePendingSettlements()
+    expect(mockNonceState).not.toHaveBeenCalled()
+    expect(mockChainTs).not.toHaveBeenCalled()
+    const merges = metadataSetCalls()
+    expect(merges.length).toBe(2)
+    for (const call of merges) {
+      const node = (call[0] as { metadata: { __sql: TemplateStringsArray; vals: unknown[] } }).metadata
+      const joined = Array.from(node.__sql ?? []).join('#')
+      expect(joined).toContain('COALESCE(') // the R1-B1 NULL-strictness rule
+      expect(node.vals).toContain('legacy-no-validbefore')
+    }
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.expiry_unprovable',
+      expect.objectContaining({ expiryClass: 'legacy-no-validbefore' }),
+    )
+  })
+
+  it('R-V16: a within-margin row is examined but untouched (no readers, no classification) — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate({ metadata: { validBefore: String(NOW_SEC - 10) } })] // inside vb+300
+    await reconcilePendingSettlements()
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, terminalized: 0 }),
+    )
+    expect(mockNonceState).not.toHaveBeenCalled()
+    expect(mockChainTs).not.toHaveBeenCalled()
+    expect(metadataSetCalls().length).toBe(0)
+  })
+
+  it('R-V17: detector EMISSION happens-before the first expiry-pass chain read (invocationCallOrder — the order pin)', async () => {
+    expirySeq()
+    agg.value = [{ total: '2', noTxhash: '1', oldestCreatedAt: null }] // overdue fires
+    expiryPlan.candidates = [candidate()]
+    await reconcilePendingSettlements()
+    const overdueEmit = vi.mocked(logger.error).mock.invocationCallOrder[
+      vi.mocked(logger.error).mock.calls.findIndex((c) => c[0] === 'reconcile.pending_overdue')
+    ]
+    const firstChainRead = mockChainTs.mock.invocationCallOrder[0]
+    expect(overdueEmit).toBeDefined()
+    expect(firstChainRead).toBeDefined()
+    expect(overdueEmit).toBeLessThan(firstChainRead)
+  })
+
+  it('R-V18: the candidates SELECT WHERE carries the classified-row exclusion + the never-broadcast predicate (arg-shape pin)', async () => {
+    expirySeq()
+    await reconcilePendingSettlements()
+    const sqlTemplates = mockSql.mock.calls.map((c) => Array.from(c[0] as TemplateStringsArray).join('#'))
+    expect(sqlTemplates.some((t) => t.includes("'expiryClass'") && t.includes('IS NULL'))).toBe(true)
+    const isNullCalls = vi.mocked(isNull).mock.calls.map((c) => c[0])
+    expect(isNullCalls).toContain('external_ref')
+  })
+
+  it('R-V23: a PRESENT-but-malformed validBefore quarantines unparseable BEFORE any comparison — the readers are never called — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [
+      candidate({ id: 'm1', metadata: { validBefore: '' } }),
+      candidate({ id: 'm2', metadata: { validBefore: 'abc' } }),
+      candidate({ id: 'm3', metadata: { validBefore: '0' } }),
+    ]
+    await reconcilePendingSettlements()
+    expect(mockNonceState).not.toHaveBeenCalled()
+    expect(mockChainTs).not.toHaveBeenCalled()
+    expect(mockExpired).not.toHaveBeenCalled()
+    const merges = metadataSetCalls()
+    expect(merges.length).toBe(3)
+    for (const call of merges) {
+      const node = (call[0] as { metadata: { vals: unknown[] } }).metadata
+      expect(node.vals).toContain('unparseable')
+    }
+  })
+
+  it('R-V24: wall-expired but NOT chain-expired (sequencer catch-up shape) SKIPS — and a null chain read stays pending as unknown — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockChainTs.mockResolvedValue(Number(VB_EXPIRED) - 10) // chain has NOT passed the bound
+    await reconcilePendingSettlements()
+    expect(mockChainTs).toHaveBeenCalled() // positive assert (R2-imp5)
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, terminalized: 0 }),
+    )
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(mockNonceState).not.toHaveBeenCalled()
+
+    vi.mocked(logger.info).mockClear()
+    mockChainTs.mockResolvedValue(null) // the safe read failed — DC-08 direction
+    await reconcilePendingSettlements()
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0 }),
+    )
+  })
+
+  it('R-V25: the refreshed (raised) bound governs — chainTs past the STALE vb1 but not the stored vb2 → NO terminalization — FAILS PRE-FIX', async () => {
+    expirySeq()
+    const vb2 = String(NOW_SEC - 400) // raised by a re-sign; still wall-expired (now > vb2+300)
+    expiryPlan.candidates = [candidate({ metadata: { validBefore: vb2 } })]
+    mockChainTs.mockResolvedValue(NOW_SEC - 1_000) // ∈ (vb1, vb2): past the old bound only
+    await reconcilePendingSettlements()
+    expect(mockChainTs).toHaveBeenCalled()
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(mockNonceState).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, terminalized: 0 }),
+    )
+  })
+
+  it('R-V26: an out-of-allowlist network (eip155:1 — IN USDC_ADDRESSES, NOT canonical) quarantines unsupported-network before ANY read — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate({ operationId: `circle-nano:eip155:1:${FROM}:${NONCE}` })]
+    await reconcilePendingSettlements()
+    expect(mockNonceState).not.toHaveBeenCalled()
+    expect(mockChainTs).not.toHaveBeenCalled()
+    expect(mockExpired).not.toHaveBeenCalled()
+    const merges = metadataSetCalls()
+    expect(merges.length).toBe(1)
+    expect((merges[0][0] as { metadata: { vals: unknown[] } }).metadata.vals).toContain('unsupported-network')
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.expiry_unprovable',
+      expect.objectContaining({ expiryClass: 'unsupported-network' }),
+    )
+  })
+
+  it('R-V21: summary identity holds with a non-empty pass — expiry work appears in NO summary bucket (scanned counts window rows only)', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockNonceState.mockResolvedValue('unknown')
+    mockDb.limit.mockResolvedValue([
+      { id: 'w1', createdAt: new Date(Date.now() - 600_000), operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX, amountCents: 5, accountId: 'dev-7', metadata: null },
+    ])
+    mockConfirm.mockResolvedValue({ kind: 'unconfirmed', txHash: TX })
+    const summary = await reconcilePendingSettlements()
+    expect(summary.scanned).toBe(1)
+    expect(summary.scanned).toBe(
+      summary.settled + summary.failed + summary.pending + summary.skipped + summary.noop + summary.errored + summary.deferred,
+    )
+    expect(Object.keys(summary).sort()).toEqual(
+      ['deferred', 'errored', 'failed', 'noop', 'outcomes', 'overdue', 'pending', 'scanned', 'settled', 'skipped', 'uncredited'].sort(),
+    )
+  })
+})
+
+describe('(V) reconcileOneRow — P8-c (the settled-noop failed-row re-read) + the C4 rider', () => {
+  it("R-V19: a settled confirmation whose flip no-ops onto a terminally FAILED row emits the (T) receipt-time alert key (divergent receipt views NAMED, not lumped) — FAILS PRE-FIX", async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(false) // WHERE-pending no-match
+    mockFindRow.mockResolvedValue({ id: 'r1', settlementStatus: 'failed', externalRef: '0xOTHER' })
+    const outcome = await reconcileOneRow({ operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX })
+    expect(outcome).toBe('settled-noop') // tally unchanged — summary identity pinned
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_evidence_on_terminal_failed_row',
+      expect.objectContaining({ operationId: CNANO_OPID, rowStatus: 'failed', winningTxHash: TX, storedRef: '0xOTHER' }),
+    )
+  })
+
+  it('R-V19-settled: a settled-noop onto an already-SETTLED row stays silent (a normal raced winner, not the mirror)', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(false)
+    mockFindRow.mockResolvedValue({ id: 'r1', settlementStatus: 'settled', externalRef: TX })
+    const outcome = await reconcileOneRow({ operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX })
+    expect(outcome).toBe('settled-noop')
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'settlement.settled_evidence_on_terminal_failed_row',
+      expect.anything(),
+    )
+  })
+
+  it('R-V20: a tools-stat UPDATE matching ZERO rows logs credit_tool_stat_unmatched and NEVER throws — the developer credit still commits (C4) — FAILS PRE-FIX', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    mockReturning
+      .mockResolvedValueOnce([{ id: 'dev-7' }]) // developers UPDATE — credit lands
+      .mockResolvedValueOnce([]) // tools UPDATE — dangling toolId
+      .mockResolvedValueOnce([{ id: 'r1' }]) // credited_at marker
+    const outcome = await reconcileOneRow({
+      operationId: CNANO_OPID,
+      rail: 'circle-nano',
+      externalRef: TX,
+      amountCents: 50,
+      accountId: 'dev-7',
+      metadata: { toolId: 'ghost-tool' },
+    })
+    expect(outcome).toBe('settled')
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.credit_tool_stat_unmatched',
+      expect.objectContaining({ operationId: CNANO_OPID, toolId: 'ghost-tool' }),
+    )
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith('settlement.credited', expect.anything())
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith('settlement.credit_failed', expect.anything(), expect.anything())
+  })
+
+  it('R-V30 (② seal S4): credit_tool_stat_unmatched is emitted only AFTER the credit transaction COMMITS — a marker-write rollback emits credit_failed alone, never the stat alert for a credit that never landed — FAILS PRE-FIX', async () => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+    mockReturning
+      .mockResolvedValueOnce([{ id: 'dev-7' }]) // developers UPDATE — credit lands (pre-rollback)
+      .mockResolvedValueOnce([]) // tools UPDATE — dangling toolId
+      .mockRejectedValueOnce(new Error('marker write failed')) // credited_at marker → tx ROLLS BACK
+    await reconcileOneRow({
+      operationId: CNANO_OPID,
+      rail: 'circle-nano',
+      externalRef: TX,
+      amountCents: 50,
+      accountId: 'dev-7',
+      metadata: { toolId: 'ghost-tool' },
+    })
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.credit_failed',
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'settlement.credit_tool_stat_unmatched',
+      expect.anything(),
+    )
   })
 })

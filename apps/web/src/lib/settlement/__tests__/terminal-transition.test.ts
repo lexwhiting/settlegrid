@@ -83,6 +83,9 @@ const {
     switch (node.kind) {
       case 'and':
         return (node.args ?? []).every((a) => evalWhere(a, row))
+      // (V) licensed extension — the no-clobber broadcast CAS disjunction (PG-faithful: OR).
+      case 'or':
+        return (node.args ?? []).some((a) => evalWhere(a, row))
       case 'eq':
         return field(row, node.col) === node.val
       case 'inArray':
@@ -95,6 +98,20 @@ const {
         const v = field(row, node.col)
         if (v === null) return false
         return (v as Date | number) < (node.val as Date | number)
+      }
+      // (V) licensed extension — the expired-writer evidence CAS (jsonb text-eq).
+      // PG-faithful: NULL ->> 'k' and missing keys yield NULL; NULL = $x is NULL ⇒ no match.
+      case 'sql': {
+        const joined = (node.strings ?? []).join('#')
+        if (joined.includes("->>'validBefore' =")) {
+          const meta = field(row, (node.vals ?? [])[0]) as unknown
+          const vb =
+            meta && typeof meta === 'object' && !Array.isArray(meta)
+              ? (meta as Record<string, unknown>).validBefore
+              : undefined
+          return typeof vb === 'string' && vb === (node.vals ?? [])[1]
+        }
+        throw new Error(`terminal-transition interpreter: unhandled sql WHERE '${joined}'`)
       }
       default:
         throw new Error(`terminal-transition interpreter: unhandled WHERE node '${node.kind}'`)
@@ -266,6 +283,7 @@ const {
 
   const drizzleMock = {
     and: (...args: Node[]) => ({ kind: 'and', args }),
+    or: (...args: Node[]) => ({ kind: 'or', args }),
     eq: (col: string, val: unknown) => ({ kind: 'eq', col, val }),
     inArray: (col: string, vals: unknown[]) => ({ kind: 'inArray', col, vals }),
     lt: (col: string, val: unknown) => ({ kind: 'lt', col, val }),
@@ -309,7 +327,7 @@ vi.mock('../circle-nano/settle-engine', () => ({ confirmSettlementTx: mockConfir
 // ../ledger is REAL: the CAS pin executes the actual emitted UPDATE.
 // ./rails and @/lib/env are REAL (pure; the testnet flag is cleared per-test).
 
-import { markSettlementFailed } from '../ledger'
+import { markSettlementFailed, markSettlementBroadcast, markSettlementExpiredNoBroadcast, refreshPendingValidBefore } from '../ledger'
 import { reconcileOneRow, reconcilePendingSettlements } from '../reconcile'
 
 const FROM = `0x${'a'.repeat(40)}`
@@ -492,5 +510,130 @@ describe('P3 — reconciler credit-gate mainnet pin (latent, DC-13)', () => {
     await reconcilePendingSettlements({ creditGraceMs: 0 })
     expect(state.devs[0].balanceCents).toBe(50)
     expect(state.rows[0].creditedAt).not.toBeNull()
+  })
+})
+
+// ─── (V) P8-e — the no-clobber broadcast CAS (register P8(e), ③-(U) addendum (e)) ───────
+// markSettlementBroadcast gains expectedPriorRef; the WHERE becomes
+// pending AND (ref IS NULL OR ref = txHash OR ref = expectedPriorRef).
+// Cells from the trace §c caller×ref-state matrix.
+describe('(V) P8-e — no-clobber markSettlementBroadcast CAS', () => {
+  it('R-V1: a lock-less LOSER cannot overwrite a known-DIFFERENT winner ref — FAILS PRE-FIX', async () => {
+    state.rows = [row({ externalRef: '0xWINNER' })]
+    const landed = await markSettlementBroadcast(MAINNET_OP, 'circle-nano', '0xLOSER', null)
+    expect(landed).toBe(false)
+    expect(state.rows[0].externalRef).toBe('0xWINNER') // pre-fix: clobbered to 0xLOSER
+    expect(state.rows[0].settlementStatus).toBe('pending')
+  })
+
+  it('R-V2: the same-actor T1→T2 crash-recovery re-point still lands (the DC-09 zombie-inverse pin — passes pre+post)', async () => {
+    state.rows = [row({ externalRef: '0xT1' })]
+    const landed = await markSettlementBroadcast(MAINNET_OP, 'circle-nano', '0xT2', '0xT1')
+    expect(landed).toBe(true)
+    expect(state.rows[0].externalRef).toBe('0xT2')
+  })
+
+  it('R-V3: first broadcast onto a NULL ref lands; own-hash rewrite is a no-op-equivalent land', async () => {
+    state.rows = [row({ externalRef: null })]
+    expect(await markSettlementBroadcast(MAINNET_OP, 'circle-nano', '0xT1', null)).toBe(true)
+    expect(state.rows[0].externalRef).toBe('0xT1')
+    // own-hash idempotent rewrite (recovery same-value write)
+    expect(await markSettlementBroadcast(MAINNET_OP, 'circle-nano', '0xT1', null)).toBe(true)
+    expect(state.rows[0].externalRef).toBe('0xT1')
+  })
+
+  it('R-V1b: a third-actor re-point after our recovery read is rejected (expectedPrior stale vs winner)', async () => {
+    state.rows = [row({ externalRef: '0xWINNER' })]
+    const landed = await markSettlementBroadcast(MAINNET_OP, 'circle-nano', '0xT2', '0xT1')
+    expect(landed).toBe(false)
+    expect(state.rows[0].externalRef).toBe('0xWINNER')
+  })
+
+  it('R-V22a: terminal rows are untouchable regardless of expectedPrior (idempotent re-run safe)', async () => {
+    state.rows = [row({ externalRef: '0xT1', settlementStatus: 'failed' })]
+    expect(await markSettlementBroadcast(MAINNET_OP, 'circle-nano', '0xT2', '0xT1')).toBe(false)
+    expect(state.rows[0].externalRef).toBe('0xT1')
+  })
+})
+
+// ─── (V) P5-ii — markSettlementExpiredNoBroadcast (the evidence-CAS terminal writer) ────
+describe('(V) P5-ii — expired-no-broadcast writer (two CAS conjuncts)', () => {
+  it('R-V4: flips a ref-NULL pending row whose stored validBefore matches the proved value; evidence merged in the same SET', async () => {
+    state.rows = [row({ externalRef: null, metadata: { validBefore: '100', toolId: 'tool-9' } })]
+    const flipped = await markSettlementExpiredNoBroadcast(MAINNET_OP, 'circle-nano', '100', { chainTs: 401, checkedAt: '2026-06-12T00:00:00Z' })
+    expect(flipped).toBe(true)
+    expect(state.rows[0].settlementStatus).toBe('failed')
+    expect(state.rows[0].settledAt).toBeNull() // CHECK-safe: failed ⇒ settled_at NULL
+    expect(state.rows[0].externalRef).toBeNull() // honest: no hash exists
+    // evidence merge SHAPE (R-V22 license): the SET node carries the COALESCE wrap + the evidence object
+    const setNode = state.rows[0].metadata as { kind: string; strings?: readonly string[] }
+    expect(setNode.kind).toBe('sql')
+    const joined = (setNode.strings ?? []).join('#')
+    expect(joined).toContain("COALESCE(")
+    expect(joined).toContain("'expiredTerminalized'")
+  })
+
+  it('R-V4-ref: a ref-BEARING pending row is untouchable (the IS-NULL CAS)', async () => {
+    state.rows = [row({ externalRef: '0xT1', metadata: { validBefore: '100' } })]
+    expect(await markSettlementExpiredNoBroadcast(MAINNET_OP, 'circle-nano', '100', { chainTs: 401, checkedAt: 'x' })).toBe(false)
+    expect(state.rows[0].settlementStatus).toBe('pending')
+  })
+
+  it('R-V4-terminal: a settled row is untouchable; idempotent re-run is a no-op (DC-17)', async () => {
+    state.rows = [row({ externalRef: null, settlementStatus: 'settled', settledAt: new Date(), metadata: { validBefore: '100' } })]
+    expect(await markSettlementExpiredNoBroadcast(MAINNET_OP, 'circle-nano', '100', { chainTs: 401, checkedAt: 'x' })).toBe(false)
+    expect(state.rows[0].settlementStatus).toBe('settled')
+  })
+
+  it('R-V4-B5: the flip CASes on the validBefore it PROVED — a concurrently-raised bound (refresh committed vb2, pass proved stale vb1) matches 0 rows — FAILS PRE-FIX', async () => {
+    // The R2 interleaving: pass read vb1='100'; a buyer re-sign refreshed the row to vb2='200'
+    // and its tx may be broadcast (onBroadcast not yet committed → ref still NULL). The proof
+    // no longer covers the row: the flip MUST lose.
+    state.rows = [row({ externalRef: null, metadata: { validBefore: '200' } })]
+    const flipped = await markSettlementExpiredNoBroadcast(MAINNET_OP, 'circle-nano', '100', { chainTs: 401, checkedAt: 'x' })
+    expect(flipped).toBe(false)
+    expect(state.rows[0].settlementStatus).toBe('pending')
+  })
+
+  it('R-V4-nullmeta: a NULL-metadata row can never match the evidence CAS (NULL ->> never equals — PG-faithful)', async () => {
+    state.rows = [row({ externalRef: null, metadata: null })]
+    expect(await markSettlementExpiredNoBroadcast(MAINNET_OP, 'circle-nano', '100', { chainTs: 401, checkedAt: 'x' })).toBe(false)
+    expect(state.rows[0].settlementStatus).toBe('pending')
+  })
+})
+
+// ─── (V) P5-i companion — refreshPendingValidBefore (raise-only GREATEST merge) ─────────
+describe('(V) refreshPendingValidBefore — raise-only, boolean contract', () => {
+  it('R-V4b: raises a stored bound on a pending row (true) and is untouchable on a terminal row (false)', async () => {
+    state.rows = [row({ externalRef: null, metadata: { validBefore: '100' } })]
+    expect(await refreshPendingValidBefore(MAINNET_OP, 'circle-nano', '200')).toBe(true)
+    // SHAPE assert (R-V22 license — the harness assigns SET nodes verbatim):
+    const setNode = state.rows[0].metadata as { kind: string; strings?: readonly string[] }
+    expect(setNode.kind).toBe('sql')
+    const joined = (setNode.strings ?? []).join('#')
+    expect(joined).toContain('GREATEST(')
+    expect(joined).toContain('::text')
+    expect(joined).toContain("COALESCE(")
+    state.rows = [row({ externalRef: null, settlementStatus: 'failed', metadata: { validBefore: '100' } })]
+    expect(await refreshPendingValidBefore(MAINNET_OP, 'circle-nano', '200')).toBe(false)
+  })
+
+  it('R-V4b-B6: RAISE-only — the emitted SET is presence-guarded (CASE WHEN metadata ? validBefore) so a legacy row NEVER gains a bound minted from a retry proof — FAILS PRE-FIX', async () => {
+    // R3-B6: a created bound provably cannot cover the row's original pre-(V) authorization
+    // (vb_orig unknowable, unbounded above) — the pass must keep quarantining legacy rows,
+    // never prove expiry against a minted bound. The guard is the SQL CASE itself.
+    state.rows = [row({ externalRef: null, metadata: null })]
+    expect(await refreshPendingValidBefore(MAINNET_OP, 'circle-nano', '200')).toBe(true) // row counted (WHERE pending)
+    const setNode = state.rows[0].metadata as { kind: string; strings?: readonly string[] }
+    expect(setNode.kind).toBe('sql')
+    const joined = (setNode.strings ?? []).join('#')
+    expect(joined).toContain('CASE WHEN')
+    expect(joined).toContain("? 'validBefore'")
+    expect(joined).toContain('ELSE')
+    // ② seal S2 — the plan-promised defensive regex guard on the STORED value's
+    // ::numeric cast (plan Batch 1c): a corrupt non-numeric stored bound must
+    // degrade like a legacy row (metadata no-op → the pass quarantines
+    // 'unparseable'), never 22P02-throw the live settle path forever.
+    expect(joined).toContain("~ '^[0-9]+$'")
   })
 })

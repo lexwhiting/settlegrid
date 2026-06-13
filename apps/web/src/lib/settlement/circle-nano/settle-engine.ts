@@ -75,8 +75,11 @@ export type CircleNanoOnChainResult =
   | { kind: 'settled'; txHash: Hex }
   /** Receipt confirmed `reverted`. `nonceConsumed` = the (from,nonce) is spent on-chain anyway (a concurrent tx settled it). */
   | { kind: 'reverted'; txHash: Hex; nonceConsumed: boolean }
-  /** Broadcast but no confirmed receipt within the timeout (or an RPC error while waiting). The tx MAY still confirm. */
-  | { kind: 'broadcast-unconfirmed'; txHash: Hex; reason: 'timeout' | 'rpc-error' }
+  /** Broadcast but no confirmed receipt within the timeout (or an RPC error while waiting). The tx MAY still confirm.
+   * (V) 'revert-nonce-unverifiable': a CONFIRMED-reverted receipt whose nonce recheck FAILED —
+   * pending-side because the EVIDENCE is incomplete (the nonce may be consumed by a concurrent
+   * tx), not because the tx may confirm (twin of confirmSettlementTx's (U) reason below). */
+  | { kind: 'broadcast-unconfirmed'; txHash: Hex; reason: 'timeout' | 'rpc-error' | 'revert-nonce-unverifiable' }
   /** Pre-submit: the nonce is already consumed on-chain — no tx was sent. */
   | { kind: 'nonce-already-used' }
   /** Pre-submit: payer balance < authorized value — no tx was sent. */
@@ -278,10 +281,14 @@ export type SettlementTxConfirmation =
  * the tx was broadcast minutes ago, so we ask "is it mined NOW?" and never
  * block (so one stuck tx can't starve the rest of the batch).
  *
- * For circle-nano, pass `eip3009 = {from, nonce}` so a reverted tx triggers the
- * SAME audited authorizationState recheck `interpretReceipt` uses (a concurrent
- * tx may have spent the nonce → not a failure). x402 carries no nonce on this
- * path → omit `eip3009`, and a revert is a plain failure. Read-only.
+ * Pass `eip3009 = {from, nonce}` so a reverted tx triggers the SAME audited
+ * authorizationState recheck `interpretReceipt` uses (a concurrent tx may have
+ * spent the nonce → not a failure). BOTH on-chain rails carry (from,nonce) in
+ * their operation_ids and pass it (x402 keys on the EIP-3009 pair since the
+ * proxy settles on-chain in-process — the reconciler parses it for both; (V)
+ * docs rider: the old "x402 omits eip3009" claim was stale). Callers that
+ * genuinely lack a nonce omit `eip3009`, and a revert is then complete
+ * per-receipt evidence. Read-only.
  */
 export async function confirmSettlementTx(
   network: string,
@@ -329,6 +336,71 @@ export async function confirmSettlementTx(
   return { kind: 'reverted', txHash, nonceConsumed }
 }
 
+/**
+ * (V) — bounded read of USDC's authorizationState(from,nonce) for the expiry
+ * pass. Rides the (U) reconciler-bounded transport (NEVER the live client) and
+ * NEVER throws: the failure direction is encoded in the type (DC-08) —
+ * 'unknown' on any error or unsupported network, and the caller's only safe
+ * move on 'unknown' is to leave the row pending (the LB-2 rule).
+ */
+export async function readAuthorizationStateBounded(
+  network: string,
+  from: Address,
+  nonce: Hex,
+): Promise<'consumed' | 'unconsumed' | 'unknown'> {
+  const chain = SUPPORTED_CHAINS[network as SupportedNetwork]
+  const usdcAddress = USDC_ADDRESSES[network]
+  if (!chain || !usdcAddress) return 'unknown'
+  try {
+    const consumed = (await reconcilerPublicClientFor(network as SupportedNetwork).readContract({
+      address: usdcAddress, abi: EIP3009_ABI, functionName: 'authorizationState', args: [from, nonce],
+    })) as boolean
+    return consumed ? 'consumed' : 'unconsumed'
+  } catch {
+    return 'unknown'
+  }
+}
+
+/**
+ * (V) — bounded read of the SAFE-head block timestamp (seconds) for the expiry
+ * pass's CHAIN-TIME anchor. blockTag 'safe' (the L1-derived head), NOT
+ * 'latest': the OP-stack unsafe tip can reorg — an observed latest timestamp
+ * past validBefore could vanish while the canonical chain still mines the tx;
+ * a safe-head observation cannot, and consensus timestamps strictly increase,
+ * so safeTs > validBefore proves NO future canonical block can mine the
+ * authorization (wall-clock expiry alone is NOT that proof — sequencer-stall
+ * catch-up blocks mine queued txs with past timestamps). The safe head's
+ * minutes-scale lag only delays terminalization (skip-direction — never a
+ * wrong flip). NEVER throws: null on any error/unsupported network/tag — and
+ * null on a MALFORMED block (viem's formatBlock yields `timestamp: undefined`
+ * on a block lacking the field WITHOUT throwing; Number(undefined) is NaN,
+ * which is not null and would BYPASS the caller's anchor comparison — the
+ * finite-positive guard keeps the contract "epoch seconds or null", DC-08).
+ * ③ finding 8 — the F-1 sibling on the HIGH side: an ABSURD-FUTURE finite
+ * timestamp (a lying/buggy/compromised RPC) would make the expiry pass's
+ * `chainTs > vb` anchor pass for EVERY row regardless of real chain time,
+ * collapsing the proof back to wall-clock-only — the exact terminalization
+ * R1-B3 refuted (sequencer-stall catch-up blocks). A safe-head timestamp
+ * legitimately LAGS wall-clock (it trails the unsafe tip by minutes); it can
+ * never lead it. So clamp the upper side too: a value beyond now + a generous
+ * skew is implausible RPC garbage → null (skip-direction: stay pending). The
+ * contract is now "a PLAUSIBLE epoch-seconds value, or null."
+ */
+const MAX_SAFE_TS_FUTURE_SKEW_SECONDS = 900
+export async function readSafeBlockTimestampBounded(network: string): Promise<number | null> {
+  const chain = SUPPORTED_CHAINS[network as SupportedNetwork]
+  if (!chain) return null
+  try {
+    const block = await reconcilerPublicClientFor(network as SupportedNetwork).getBlock({ blockTag: 'safe' })
+    const ts = Number(block.timestamp)
+    if (!Number.isFinite(ts) || ts <= 0) return null
+    if (ts > Math.floor(Date.now() / 1000) + MAX_SAFE_TS_FUTURE_SKEW_SECONDS) return null
+    return ts
+  } catch {
+    return null
+  }
+}
+
 /** Shared receipt interpretation: success / reverted(+nonce recheck) / unconfirmed. */
 async function interpretReceipt(
   publicClient: ReturnType<typeof publicClientFor>,
@@ -349,7 +421,15 @@ async function interpretReceipt(
         address: usdcAddress, abi: EIP3009_ABI, functionName: 'authorizationState', args: [from, nonce],
       })) as boolean
     } catch {
-      /* leave false — orchestrator treats unknown as the failure side */
+      // (V) P8(g) — the live twin of the (U) reconciler LB-2 fix (the (U)-③ HIGH):
+      // a failed nonce-state read after a reverted receipt is INCOMPLETE evidence.
+      // The pre-(V) default (nonceConsumed:false → a clean 'reverted') made BOTH
+      // orchestrators terminalize 'failed' while a concurrent winner may have
+      // moved the USDC — with the P8(b) untracked-hash window the loss was
+      // SILENT. Safe direction: broadcast-unconfirmed — the row stays pending +
+      // re-pointable + reconciler-recoverable on both rails (their arms already
+      // map this kind to pending + markSettlementBroadcast).
+      return { kind: 'broadcast-unconfirmed', txHash, reason: 'revert-nonce-unverifiable' }
     }
     return { kind: 'reverted', txHash, nonceConsumed }
   } catch (err) {

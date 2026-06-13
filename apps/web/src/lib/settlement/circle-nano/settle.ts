@@ -29,6 +29,7 @@ import {
   markSettlementSettled,
   markSettlementFailed,
   markSettlementBroadcast,
+  refreshPendingValidBefore,
 } from '../ledger'
 import {
   submitCircleNanoOnChain,
@@ -115,15 +116,26 @@ async function ensurePendingRow(
       // Honesty: the FULL authorized value that moves on-chain (may exceed the
       // tool cost the verifier requires it to cover).
       authorizedValueBaseUnits: proof.authorization.value,
+      // (V) P5-i — the expiry pass's terminalization evidence: the CANONICAL
+      // decimal-seconds bound. BigInt normalizes the hex/octal forms the
+      // verifier accepts — a raw hex string would brick the pass's integer
+      // guard and the refresh's ::numeric cast. First-write-wins (the INSERT
+      // is idempotent); re-signs raise it via refreshPendingValidBefore.
+      validBefore: BigInt(proof.authorization.validBefore).toString(10),
     },
     description: `circle-nano settlement for tool ${toolSlug} (${method})`,
   })
 }
 
-/** Map an on-chain result to a ledger flip + route outcome. */
+/** Map an on-chain result to a ledger flip + route outcome.
+ * (V) P8-e — `expectedPriorRef` is the external_ref this request READ at step 1
+ * (null when none existed): threaded into every markSettlementBroadcast so a
+ * lock-less loser can never clobber a DIFFERENT live ref while the same-actor
+ * T1→T2 recovery re-point stays legal (the no-clobber CAS in ledger.ts). */
 async function applyOutcome(
   operationId: string,
   result: CircleNanoOnChainResult,
+  expectedPriorRef: string | null,
 ): Promise<CircleNanoSettlementOutcome> {
   switch (result.kind) {
     case 'settled': {
@@ -152,7 +164,17 @@ async function applyOutcome(
         }
         // Concurrent-flip-loser: a winner already flipped + credited this row → mark
         // alreadySettled so the caller does NOT re-credit.
-        return { status: 'settled', txHash: row?.externalRef ?? result.txHash, alreadySettled: true }
+        // (V) P8-f — in the MIRROR case (row terminally non-settled) return the
+        // WINNING hash we hold the receipt for (runbook §3's authoritative hash),
+        // not the row's reverted stored ref; a SETTLED row keeps its recorded ref.
+        return {
+          status: 'settled',
+          txHash:
+            row && row.settlementStatus !== 'settled'
+              ? result.txHash
+              : (row?.externalRef ?? result.txHash),
+          alreadySettled: true,
+        }
       }
       logger.info('circle_nano.settle_onchain_success', { operationId, txHash: result.txHash })
       return { status: 'settled', txHash: result.txHash }
@@ -161,17 +183,37 @@ async function applyOutcome(
       if (result.nonceConsumed) {
         // Our tx reverted but the (from,nonce) is spent — a concurrent tx settled
         // the authorization (the USDC reached the platform recipient). NOT a
-        // failure: keep 'pending' + store our hash for reconciliation.
-        await markSettlementBroadcast(operationId, RAIL, result.txHash)
+        // failure: keep 'pending' + store our hash for reconciliation. (V): the
+        // no-clobber CAS makes a lock-less loser's write here lose against a
+        // DIFFERENT live winner ref instead of overwriting it (③-(U) addendum (e)).
+        await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
         logger.warn('circle_nano.settle_reverted_nonce_consumed', { operationId, txHash: result.txHash })
         return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Authorization settled by a concurrent transaction; confirmation reconciling.', txHash: result.txHash }
       }
-      await markSettlementFailed(operationId, RAIL, result.txHash)
+      const flipped = await markSettlementFailed(operationId, RAIL, result.txHash)
+      if (!flipped) {
+        // (V) 3e — the ③-(U) F2 fold (fold-on-open trigger discharged): the (T)
+        // CAS result was previously DISCARDED — a CAS-rejected flip on a
+        // still-pending row meant the row was re-pointed mid-request (a live
+        // sibling's resubmit), yet the buyer was told terminal 'failed' while
+        // the row's CURRENT tx may settle. Disambiguate exactly like the
+        // reconciler's pending-stale-ref.
+        const current = await findSettlementRow(operationId, RAIL)
+        if (current?.settlementStatus === 'pending') {
+          logger.warn('circle_nano.settle_reverted_stale_ref', { operationId, staleTxHash: result.txHash, currentRef: current.externalRef })
+          return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Settlement evidence was superseded by a concurrent re-point; confirmation reconciling.', txHash: current.externalRef ?? result.txHash }
+        }
+        if (current?.settlementStatus === 'settled') {
+          // A concurrent winner settled + credited — never re-credit.
+          return { status: 'settled', txHash: current.externalRef ?? result.txHash, alreadySettled: true }
+        }
+        // Terminal 'failed' (or row absent): the truthful terminal response below.
+      }
       logger.warn('circle_nano.settle_reverted', { operationId, txHash: result.txHash })
       return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_REVERTED', httpStatus: 402, reason: 'The settlement transaction reverted on-chain; the payment did not complete.' }
     }
     case 'broadcast-unconfirmed': {
-      await markSettlementBroadcast(operationId, RAIL, result.txHash)
+      await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
       logger.warn('circle_nano.settle_unconfirmed', { operationId, txHash: result.txHash, reason: result.reason })
       return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Settlement broadcast on-chain but not yet confirmed; treat as pending and retry to confirm.', txHash: result.txHash }
     }
@@ -247,6 +289,28 @@ export async function executeCircleNanoSettlement(
     //    flip has a row to match).
     await ensurePendingRow({ ...params, operationId })
 
+    // 3.5 (V) — raise the stored validBefore bound to cover THIS authorization
+    //     (re-signs share the (from,nonce) row; the INSERT is first-write-wins,
+    //     so the refresh is the only writer that can raise a stale bound — the
+    //     expiry pass proves expiry against the stored value). RAISE-only: a
+    //     legacy row without a bound keeps none. `false` ⇒ the row went
+    //     TERMINAL between the step-1 read and now (incl. the expiry pass's
+    //     flip landing in that sliver) — abort before ANY broadcast onto a
+    //     terminal row (R2-B5b: this closes the flip-first ordering; the
+    //     writer's validBefore CAS closes the refresh-first ordering).
+    const refreshed = await refreshPendingValidBefore(
+      operationId,
+      RAIL,
+      BigInt(proof.authorization.validBefore).toString(10),
+    )
+    if (!refreshed) {
+      const current = await findSettlementRow(operationId, RAIL)
+      if (current?.settlementStatus === 'settled') {
+        return { status: 'settled', txHash: current.externalRef ?? '', alreadySettled: true }
+      }
+      return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_PREVIOUSLY_FAILED', httpStatus: 402, reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.' }
+    }
+
     // 4. Recovery — a prior attempt already broadcast a tx (stored in external_ref
     //    on the pending row): re-wait on THAT tx instead of blindly re-submitting.
     //    Re-broadcasting while the stored tx may still be in the mempool would
@@ -255,7 +319,10 @@ export async function executeCircleNanoSettlement(
     //    nonce still free (it definitively failed); for settled / still-in-flight /
     //    reverted-but-nonce-consumed we apply the stored tx's outcome and return.
     const onBroadcast = async (txHash: Hex): Promise<void> => {
-      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash)
+      // (V) P8-e — expectedPrior = the ref this request read at step 1 (the
+      // legal same-actor T1→T2 re-point); a DIFFERENT live ref (a sibling's
+      // winner) is never clobbered.
+      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash, existing?.externalRef ?? null)
       if (!persisted) {
         // (T) ② seal — sibling of settled_evidence_on_terminal_failed_row,
         // fired at BROADCAST time: the write-ahead no-opped (WHERE pending)
@@ -283,7 +350,19 @@ export async function executeCircleNanoSettlement(
       const confirmed = await confirmCircleNanoTx(proof, existing.externalRef as Hex)
       const storedTxDefinitivelyFailed = confirmed.kind === 'reverted' && !confirmed.nonceConsumed
       if (!storedTxDefinitivelyFailed) {
-        return applyOutcome(operationId, confirmed)
+        return applyOutcome(operationId, confirmed, existing.externalRef)
+      }
+      // (V) P8-a — re-read terminality IMMEDIATELY before the fresh submit: a
+      // reconciler/sibling flip can land during the confirm above (the P2-mirror
+      // window). Aborting here means no resubmitted tx can settle onto a
+      // terminally-failed row through THIS gap; the surviving race (a flip
+      // landing after this read) stays DETECTED by the (T) evidence alerts.
+      const current = await findSettlementRow(operationId, RAIL)
+      if (current && current.settlementStatus !== 'pending') {
+        if (current.settlementStatus === 'settled') {
+          return { status: 'settled', txHash: current.externalRef ?? '', alreadySettled: true }
+        }
+        return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_PREVIOUSLY_FAILED', httpStatus: 402, reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.' }
       }
       logger.info('circle_nano.settle_recovery_resubmit', { operationId, priorTx: existing.externalRef })
     }
@@ -292,7 +371,7 @@ export async function executeCircleNanoSettlement(
     //    onBroadcast persists the hash the instant it broadcasts (write-ahead),
     //    so a mid-wait process kill still leaves a re-waitable tx.
     const result = await submitCircleNanoOnChain(proof, { onBroadcast })
-    return applyOutcome(operationId, result)
+    return applyOutcome(operationId, result, existing?.externalRef ?? null)
   } finally {
     await tryRedis(async () => {
       await getRedis().del(lockKey)

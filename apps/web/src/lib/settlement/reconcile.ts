@@ -22,8 +22,22 @@ import type { Hex } from 'viem'
 import { db } from '@/lib/db'
 import { ledgerEntries, developers, tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
-import { markSettlementSettled, markSettlementFailed, findSettlementRow } from './ledger'
-import { confirmSettlementTx } from './circle-nano/settle-engine'
+import {
+  markSettlementSettled,
+  markSettlementFailed,
+  markSettlementExpiredNoBroadcast,
+  findSettlementRow,
+} from './ledger'
+import {
+  confirmSettlementTx,
+  readAuthorizationStateBounded,
+  readSafeBlockTimestampBounded,
+} from './circle-nano/settle-engine'
+// (V) — the expiry pass's network gate. CANONICAL (== keys(SUPPORTED_CHAINS), pinned by
+// x402-networks.test.ts), NOT USDC_ADDRESSES (a strict superset containing eip155:1 —
+// rows on a non-canonical network are UNDECIDABLE by the bounded readers and would loop
+// 'unknown' forever without the step-1 quarantine arm).
+import { isCanonicalX402Network } from './x402/networks'
 // Single source of truth shared with the (H) hop rail-enum guard (rails.ts) so the
 // reconciler's selection set and the guard's exclusion set can never drift.
 // (T) — isReconcilableRail replaces the credit gate's hardcoded rail pair (P3).
@@ -134,6 +148,23 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
     case 'settled': {
       const flipped = await markSettlementSettled(operationId, rail, confirmation.txHash)
       logger.info('reconcile.settled', { operationId, rail, txHash: confirmation.txHash, flipped })
+      if (!flipped) {
+        // (V) P8-c — name the divergent-receipt-views case instead of lumping it
+        // into settled-noop silence: a settled-noop onto a terminally FAILED row
+        // means THIS actor holds a SUCCESS receipt for a tx the ledger recorded
+        // as failed (the reconciler-side twin of the live path's (T) ② mirror
+        // alert — same key, same runbook §3 repair+credit path). The tally
+        // stays settled-noop (the ②-pinned summary identity is unchanged).
+        const current = await findSettlementRow(operationId, rail)
+        if (current && current.settlementStatus === 'failed') {
+          logger.error('settlement.settled_evidence_on_terminal_failed_row', {
+            operationId,
+            rowStatus: current.settlementStatus,
+            winningTxHash: confirmation.txHash,
+            storedRef: current.externalRef,
+          })
+        }
+      }
       // F4: an async-confirmed settlement was NOT billed in-request (a settle that
       // broadcast then timed out/crashed returned 'pending', skipping the in-request
       // credit), so the dev is still uncredited despite USDC collected. Credit
@@ -296,6 +327,7 @@ export async function creditSettlement(params: {
 
   try {
     let marked = 0
+    let toolStatUnmatched = false
     await db.transaction(async (tx) => {
       const credited = await tx
         .update(developers)
@@ -313,10 +345,21 @@ export async function creditSettlement(params: {
         throw new Error(`settlement credit matched no developer row (developerId=${developerId})`)
       }
       if (toolId) {
-        await tx
+        const toolRows = await tx
           .update(tools)
           .set({ totalRevenueCents: sql`${tools.totalRevenueCents} + ${amountCents}`, updatedAt: new Date() })
           .where(eq(tools.id, toolId))
+          .returning({ id: tools.id })
+        if (toolRows.length === 0) {
+          // (V) C4 rider — a dangling toolId silently skipped the per-tool stat.
+          // FLAG, never throw: a throw would roll back the REAL developer credit
+          // to save an accounting stat (the inverted defect — the credited_at
+          // marker doc's own rule). ② seal S4: the alert itself is emitted
+          // AFTER the transaction commits — a later rollback (e.g. the marker
+          // write failing) must not leave an alert standing for a credit that
+          // never landed (credit_failed is that path's truthful signal).
+          toolStatUnmatched = true
+        }
       }
       // (T) — the credit marker, same transaction (see the function doc). The
       // isNull guard makes a hypothetical double-call inert on the marker.
@@ -336,6 +379,11 @@ export async function creditSettlement(params: {
         marked = rows.length
       }
     })
+    if (toolStatUnmatched) {
+      // (V) C4 rider, post-commit (② seal S4): the credit IS committed; only
+      // the per-tool revenue stat found no row. Alert so it can be reconciled.
+      logger.error('settlement.credit_tool_stat_unmatched', { operationId, toolId })
+    }
     if (marked === 0) {
       // Anomaly, not a loss: the credit committed but no settled row matched
       // the marker key (null operationId, or a row in an unexpected state).
@@ -351,6 +399,252 @@ export async function creditSettlement(params: {
   } catch (err) {
     logger.error('settlement.credit_failed', { operationId, developerId, amountCents }, err)
   }
+}
+
+// ─── (V) P5-ii — the EXPIRY PASS ─────────────────────────────────────────────
+// Never-broadcast (external_ref NULL) pending rows are invisible to the
+// examination window (isNotNull BY DESIGN — they have no tx to confirm) and
+// nothing ever terminalized them: permanent pending_overdue inventory, alarm
+// fatigue on the one alert guarding the credit tail. The pass terminalizes a
+// row ONLY on the CONJUNCTIVE, CHAIN-ANCHORED proof that its authorization is
+// dead, and quarantine-classifies everything it cannot prove:
+//   1. opid unparseable / non-canonical network → quarantine (undecidable).
+//   2. no stored validBefore (legacy pre-(V) row) → quarantine — NEVER guess
+//      (the original bound is unknowable; a minted one cannot cover it).
+//   2.5 malformed stored value → quarantine (NaN/zero coercions otherwise
+//      fall INTO the expired arm — every comparison must see a canonical int).
+//   3. wall-clock pre-filter: now ≤ vb + margin → skip (cheap, NOT the proof).
+//   3.5 CHAIN-TIME anchor: safe-head timestamp must EXCEED vb — consensus
+//      timestamps strictly increase and USDC mines only block.timestamp < vb,
+//      so an observed safeTs > vb means NO future block can consume the nonce
+//      (wall-expiry alone is FALSE proof: sequencer-stall catch-up blocks mine
+//      queued txs with past timestamps). Read failure → stay pending.
+//   4. authorizationState NOW: 'unconsumed' ⇒ terminalize via the evidence-CAS
+//      writer (re-proves against the exact bound read at 1); 'consumed' ⇒ THE
+//      DETECTION WIN — funds may have moved via an untracked tx (the P8(b)
+//      window's first detector) OR the payer canceled (cancelAuthorization
+//      also consumes) — quarantine + alert, NEVER 'failed'; 'unknown' ⇒ stay
+//      pending (the LB-2 rule: incomplete evidence never terminalizes).
+// Quarantined rows stay 'pending' (the status CHECK is frozen; quarantine is a
+// metadata class), drop out of the candidate SELECT (anti-starvation), and
+// remain visible via pending_overdue/noTxhashCount.
+const EXPIRY_MARGIN_SECONDS = 300
+const EXPIRY_PASS_LIMIT = 3
+const EXPIRY_PASS_BUDGET_MS = 14_000
+
+const CANONICAL_VB = /^\d+$/
+
+interface ExpiryPassStats {
+  examined: number
+  terminalized: number
+  quarantined: number
+  unknown: number
+}
+
+/** Quarantine-classify: a COALESCE-wrapped jsonb merge (a bare `metadata ||`
+ * is NULL-strict in PG and would silently no-op the NULL-metadata legacy-hop
+ * class forever — the row would re-enter the LIMIT-3 SELECT every run). The
+ * row STAYS 'pending'; the class drops it from the candidate SELECT.
+ *
+ * ② seal S1 — the truth CAS: the pass's entire predicate domain is ref-NULL
+ * rows, so the WHERE carries isNull(external_ref) and the rowcount gates every
+ * downstream alert/tally. A row that acquired a LIVE ref mid-pass (a buyer
+ * re-sign's onBroadcast committing between the candidate SELECT and this
+ * write) matches 0 rows — classifying it would brand a TRACKED tx with the
+ * P8(b) 'untracked' class and false-fire the one alert guarding real untracked
+ * losses (DC-18). Returns whether the classification actually committed. */
+async function quarantineClassify(
+  rowId: string,
+  operationId: string | null,
+  rail: string | null,
+  expiryClass: 'unparseable' | 'unsupported-network' | 'legacy-no-validbefore' | 'nonce-consumed-untracked',
+): Promise<boolean> {
+  const updated = await db
+    .update(ledgerEntries)
+    .set({
+      metadata: sql`COALESCE(${ledgerEntries.metadata}, '{}'::jsonb) || jsonb_build_object('expiryClass', ${expiryClass}::text, 'expiryClassifiedAt', ${new Date().toISOString()}::text)`,
+    })
+    .where(
+      and(
+        eq(ledgerEntries.id, rowId),
+        eq(ledgerEntries.settlementStatus, 'pending'),
+        isNull(ledgerEntries.externalRef),
+      ),
+    )
+    .returning({ id: ledgerEntries.id })
+  const classified = updated.length > 0
+  if (classified && expiryClass !== 'nonce-consumed-untracked') {
+    // One-shot (the class exclusion stops re-selection): the row's expiry is
+    // UNPROVABLE — operator/runbook resolves. error level: Sentry mirrors
+    // error only (the (U) ② M1 lesson). Gated on the rowcount so a row the
+    // truth CAS rejected never alerts (it is live-tracked, not unprovable).
+    logger.error('reconcile.expiry_unprovable', { operationId, rail, expiryClass })
+  }
+  return classified
+}
+
+/** The bounded expiry pass. Its OWN try/catch (a failure must never starve the
+ * window loop or the summary); per-candidate deadline checks BEFORE the
+ * watermark (a stopped candidate keeps its queue position) plus a MID-candidate
+ * re-check between the chain and nonce reads (two bounded reads can otherwise
+ * stack past the sub-budget). Candidates rotate via the same
+ * mark-before-examine watermark as the window — the two row sets are disjoint
+ * BY the window's isNotNull(externalRef). */
+async function runExpiryPass(opts: {
+  cutoff: Date
+  examinationDeadline: number
+}): Promise<ExpiryPassStats> {
+  const stats: ExpiryPassStats = { examined: 0, terminalized: 0, quarantined: 0, unknown: 0 }
+  const passDeadline = Date.now() + EXPIRY_PASS_BUDGET_MS
+  const deadline = Math.min(passDeadline, opts.examinationDeadline)
+  try {
+    // Issued UNCONDITIONALLY (only per-candidate work checks deadlines).
+    const candidates = await db
+      .select({
+        id: ledgerEntries.id,
+        createdAt: ledgerEntries.createdAt,
+        operationId: ledgerEntries.operationId,
+        rail: ledgerEntries.rail,
+        externalRef: ledgerEntries.externalRef,
+        metadata: ledgerEntries.metadata,
+      })
+      .from(ledgerEntries)
+      .where(
+        and(
+          eq(ledgerEntries.settlementStatus, 'pending'),
+          inArray(ledgerEntries.rail, [...RECONCILABLE_RAILS]),
+          isNull(ledgerEntries.externalRef),
+          lt(ledgerEntries.createdAt, opts.cutoff),
+          sql`(${ledgerEntries.metadata}->>'expiryClass') IS NULL`,
+        ),
+      )
+      .orderBy(
+        sql`COALESCE(${ledgerEntries.lastReconciledAt}, ${ledgerEntries.createdAt}) ASC`,
+        asc(ledgerEntries.createdAt),
+      )
+      .limit(EXPIRY_PASS_LIMIT)
+
+    // ONE safe-head read per network per pass (cached).
+    const chainTsByNetwork = new Map<string, number | null>()
+
+    for (const row of candidates) {
+      if (Date.now() >= deadline) break
+      // mark-before-examine (the (S) rotation discipline — a candidate whose
+      // examination kills the pass is already watermarked and rotates out).
+      try {
+        await db.update(ledgerEntries).set({ lastReconciledAt: new Date() }).where(eq(ledgerEntries.id, row.id))
+      } catch {
+        /* rotation degrades for this row this pass only */
+      }
+      stats.examined++
+
+      // 1 — decidability gates (no RPC behind either arm). ② seal S1/S3: the
+      // quarantined tally counts only COMMITTED classifications (the truth-CAS
+      // rowcount) — never an attempt the row outran or a write that failed.
+      const parsed = row.operationId && row.rail ? parseSettlementOperationId(row.operationId, row.rail) : null
+      if (!parsed) {
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'unparseable')) stats.quarantined++
+        continue
+      }
+      if (!isCanonicalX402Network(parsed.network) || !parsed.eip3009) {
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'unsupported-network')) stats.quarantined++
+        continue
+      }
+
+      // 2 — the legacy arm: never guess an unknowable bound.
+      const meta = row.metadata && typeof row.metadata === 'object' ? (row.metadata as Record<string, unknown>) : null
+      const vbRaw = meta?.validBefore
+      if (vbRaw === undefined || vbRaw === null) {
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'legacy-no-validbefore')) stats.quarantined++
+        continue
+      }
+      // 2.5 — the canonical-integer guard (R1-B2): Number('')===0 and
+      // Number('abc')===NaN both otherwise fall into the expired arm.
+      if (typeof vbRaw !== 'string' || !CANONICAL_VB.test(vbRaw) || !Number.isFinite(Number(vbRaw)) || Number(vbRaw) <= 0) {
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'unparseable')) stats.quarantined++
+        continue
+      }
+      const vb = Number(vbRaw)
+
+      // 3 — wall-clock pre-filter (cheap; NOT the proof).
+      if (Math.floor(Date.now() / 1000) <= vb + EXPIRY_MARGIN_SECONDS) continue
+
+      // 3.5 — the chain-time anchor (the actual proof of expiry).
+      if (!chainTsByNetwork.has(parsed.network)) {
+        chainTsByNetwork.set(parsed.network, await readSafeBlockTimestampBounded(parsed.network))
+      }
+      const chainTs = chainTsByNetwork.get(parsed.network) ?? null
+      if (chainTs === null) {
+        stats.unknown++
+        continue
+      }
+      if (chainTs <= vb) continue // wall-expired but NOT chain-expired — not provably dead
+
+      // mid-candidate deadline re-check: the chain read may have consumed the
+      // budget; never start a second bounded read past the deadline.
+      if (Date.now() >= deadline) break
+
+      // 4 — nonce state NOW (final: no future block can consume it past 3.5).
+      const nonceState = await readAuthorizationStateBounded(parsed.network, parsed.eip3009.from, parsed.eip3009.nonce)
+      if (nonceState === 'unknown') {
+        stats.unknown++ // the LB-2 rule: incomplete evidence — stay pending
+        continue
+      }
+      if (nonceState === 'consumed') {
+        // THE DETECTION WIN — the P8(b) window's first detector. Attributive
+        // wording: funds may have moved via an untracked tx OR the payer
+        // canceled (EIP-3009 cancelAuthorization also consumes the nonce);
+        // the runbook attributes via (from,nonce) on-chain. NEVER 'failed'.
+        // ② seal S1 — truth-gated on the classify rowcount: a row that acquired
+        // a LIVE ref between the candidate SELECT and this write (a buyer
+        // re-sign that broadcast and MINED during the pass's bounded reads) is
+        // consumed-but-TRACKED — the live path settles it normally; firing the
+        // 'untracked' alert for it would be a false page on the one alert
+        // guarding real P8(b) losses.
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'nonce-consumed-untracked')) {
+          stats.quarantined++
+          logger.error('reconcile.expired_nonce_consumed_quarantined', {
+            operationId: row.operationId,
+            rail: row.rail,
+            from: parsed.eip3009.from,
+            nonce: parsed.eip3009.nonce,
+            validBefore: vbRaw,
+          })
+        }
+        continue
+      }
+      // chain-expired AND unconsumed-now ⇒ unconsumed-forever: terminalize via
+      // the evidence-CAS writer (CASes on the exact bound read above — a
+      // concurrently-raised bound or acquired ref ⇒ 0 rows ⇒ re-proven next run).
+      const flipped = await markSettlementExpiredNoBroadcast(row.operationId as string, row.rail as string, vbRaw, {
+        chainTs,
+        checkedAt: new Date().toISOString(),
+      })
+      if (flipped) {
+        stats.terminalized++
+        logger.info('reconcile.expired_terminalized', {
+          operationId: row.operationId,
+          rail: row.rail,
+          validBefore: vbRaw,
+          chainTs,
+          ageMs: row.createdAt ? Date.now() - new Date(row.createdAt as unknown as string | Date).getTime() : null,
+        })
+      }
+      // flipped === false: the row acquired a ref/terminal state or a raised
+      // bound concurrently — do nothing; the next run re-proves.
+    }
+  } catch (err) {
+    // The pass is best-effort: its failure must never abort the run (detector
+    // posture parity) — the window loop and summary proceed.
+    logger.error('reconcile.expiry_pass_failed', {}, err)
+  }
+  if (stats.examined > 0) {
+    // Truthful pass telemetry (info — a feed, not a page): a persistently
+    // failing anchor/nonce read shows up as unknown===examined run after run
+    // (the runbook's anchor-degradation cue).
+    logger.info('reconcile.expiry_pass', { ...stats })
+  }
+  return stats
 }
 
 /**
@@ -575,6 +869,13 @@ export async function reconcilePendingSettlements(opts?: {
     // (supersedes the S11 fallback payload — pre-loop, nothing is examined yet).
     logger.error('reconcile.overdue_check_failed', {}, err)
   }
+
+  // ─── (V) — the expiry pass: AFTER the detectors (their guarantee undiluted),
+  // BEFORE the window SELECT. Its elapsed time debits the shared envelope (the
+  // examinationDeadline above is computed ONCE and NOT recomputed — the
+  // pass's worst ~20.15s + the loop's tail stay inside maxDuration; deferred
+  // rows keep their queue position exactly as under (U)).
+  await runExpiryPass({ cutoff, examinationDeadline })
 
   const rows = await db
     .select({
