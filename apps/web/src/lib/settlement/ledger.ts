@@ -17,7 +17,7 @@
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { accounts, ledgerEntries } from '@/lib/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, or, isNull, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import {
   recordLedgerEntry as canonicalRecordLedgerEntry,
@@ -623,15 +623,126 @@ export async function markSettlementFailed(
  * 'pending' (settled_at stays NULL — CHECK-safe). A pending row carrying an
  * external_ref is the signal "broadcast on-chain, confirmation outstanding."
  * Guarded `WHERE settlement_status='pending'`.
+ *
+ * (V) P8-e — the no-clobber CAS (③-(U) register addendum (e)): `expectedPriorRef`
+ * is REQUIRED (no default — a defaulted arg would leave un-migrated callers
+ * silently unprotected). The write lands only when the row's current ref is
+ *   NULL (first broadcast) OR txHash itself (own-hash idempotent rewrite) OR
+ *   expectedPriorRef (the ref THIS actor read before acting — the same-actor
+ *   T1→T2 crash-recovery re-point).
+ * A lock-less loser whose snapshot is stale against a DIFFERENT live ref
+ * matches nothing and returns false — previously it silently OVERWROTE a
+ * known-good winner ref (if the winner then died pre-flip, the row looped
+ * pending-nonce-consumed forever and auto-credit became impossible). A
+ * rejected write keeps the caller's existing (T) broadcast-evidence/no-op
+ * handling; every surviving race stays DETECTED. Accepted-unreachable: a
+ * corrupted ''-ref row would be wiring-absent (?? null) but CAS-real — no
+ * prod writer can produce ''.
  */
 export async function markSettlementBroadcast(
   operationId: string,
   rail: string,
   txHash: string,
+  expectedPriorRef: string | null,
 ): Promise<boolean> {
   const updated = await db
     .update(ledgerEntries)
     .set({ externalRef: txHash })
+    .where(
+      and(
+        eq(ledgerEntries.operationId, operationId),
+        eq(ledgerEntries.rail, rail),
+        eq(ledgerEntries.settlementStatus, 'pending'),
+        or(
+          isNull(ledgerEntries.externalRef),
+          eq(ledgerEntries.externalRef, txHash),
+          ...(expectedPriorRef !== null ? [eq(ledgerEntries.externalRef, expectedPriorRef)] : []),
+        ),
+      ),
+    )
+    .returning({ id: ledgerEntries.id })
+  return updated.length > 0
+}
+
+/**
+ * (V) P5-ii — terminalize a NEVER-BROADCAST pending row whose authorization the
+ * expiry pass has PROVEN dead: chain-expired (safe-head block timestamp past the
+ * stored validBefore) AND nonce-unconsumed-now. Callers own that proof (LB-1);
+ * this writer enforces the preconditions structurally with TWO CAS conjuncts:
+ *   - external_ref IS NULL — defeats any broadcast whose onBroadcast committed
+ *     (a row that just acquired a live tx is untouchable here);
+ *   - metadata->>'validBefore' = provedValidBefore — defeats any re-sign whose
+ *     refresh committed (the pass proved expiry against the bound it READ; a
+ *     concurrently-raised bound means the proof no longer covers the row — the
+ *     DC-06 lesson: a terminal flip must CAS on the evidence it was keyed to).
+ * 0 rows ⇒ do-nothing; the next run re-proves against the raised bound
+ * (refreshPendingValidBefore is monotone, so this converges — no immortal rows).
+ * The terminalization evidence merges in the SAME statement. settled_at stays
+ * NULL (CHECK-safe: failed ⇒ NULL); external_ref stays NULL (no hash exists).
+ */
+export async function markSettlementExpiredNoBroadcast(
+  operationId: string,
+  rail: string,
+  provedValidBefore: string,
+  evidence: { chainTs: number; checkedAt: string },
+): Promise<boolean> {
+  const updated = await db
+    .update(ledgerEntries)
+    .set({
+      settlementStatus: 'failed',
+      metadata: sql`COALESCE(${ledgerEntries.metadata}, '{}'::jsonb) || jsonb_build_object('expiredTerminalized', jsonb_build_object('validBefore', ${provedValidBefore}::text, 'chainTs', ${evidence.chainTs}::numeric, 'checkedAt', ${evidence.checkedAt}::text))`,
+    })
+    .where(
+      and(
+        eq(ledgerEntries.operationId, operationId),
+        eq(ledgerEntries.rail, rail),
+        eq(ledgerEntries.settlementStatus, 'pending'),
+        isNull(ledgerEntries.externalRef),
+        // The evidence CAS — PG-faithful: a NULL metadata or absent key yields
+        // NULL on ->> and NULL = $x is never true, so legacy/unbound rows are
+        // structurally unflippable here (they quarantine in the pass instead).
+        sql`${ledgerEntries.metadata}->>'validBefore' = ${provedValidBefore}`,
+      ),
+    )
+    .returning({ id: ledgerEntries.id })
+  return updated.length > 0
+}
+
+/**
+ * (V) P5-i companion — RAISE the stored validBefore bound on a pending row to
+ * cover a re-signed authorization (EIP-3009 permits re-signing the same
+ * (from,nonce) with a later validBefore; recordSettlementEntry is
+ * first-write-wins, so the INSERT alone would hold the stale bound and the
+ * expiry pass would prove expiry against the WRONG value). RAISE-ONLY, never
+ * CREATE: a legacy pre-(V) row without a stored bound keeps NONE — a bound
+ * minted from a retry proof provably cannot cover the row's ORIGINAL
+ * authorization (unknowable, buyer-controlled, unbounded above), and the pass
+ * quarantines such rows instead of guessing. `validBefore` must be the
+ * canonical decimal-seconds string (BigInt(...).toString(10) — callers
+ * normalize; hex/octal forms would break the ::numeric casts).
+ *
+ * Returns rows>0: `false` ⇒ the row went TERMINAL between the caller's read
+ * and this write (including the expiry flip landing in that sliver) — callers
+ * MUST re-read and abort the submit (no broadcast onto a terminal row).
+ */
+export async function refreshPendingValidBefore(
+  operationId: string,
+  rail: string,
+  validBefore: string,
+): Promise<boolean> {
+  const updated = await db
+    .update(ledgerEntries)
+    .set({
+      // RAISE-only: the CASE presence-guard (metadata ? 'validBefore') makes a
+      // legacy row a metadata no-op — NULL ? 'k' is NULL ⇒ ELSE arm (the row
+      // still counts toward the boolean, which only reports WHERE-pending).
+      // ② seal S2 (the plan Batch-1c promised guard): the STORED value's
+      // ::numeric cast is regex-guarded — a corrupt non-numeric bound (no prod
+      // writer mints one; out-of-band only) degrades like a legacy row
+      // (metadata no-op; the expiry pass quarantines it 'unparseable') instead
+      // of 22P02-throwing every live settle for that operation forever.
+      metadata: sql`CASE WHEN ${ledgerEntries.metadata} ? 'validBefore' AND ${ledgerEntries.metadata}->>'validBefore' ~ '^[0-9]+$' THEN COALESCE(${ledgerEntries.metadata}, '{}'::jsonb) || jsonb_build_object('validBefore', GREATEST((${ledgerEntries.metadata}->>'validBefore')::numeric, ${validBefore}::numeric)::text) ELSE ${ledgerEntries.metadata} END`,
+    })
     .where(
       and(
         eq(ledgerEntries.operationId, operationId),

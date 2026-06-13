@@ -21,6 +21,7 @@ const {
   mockSettled,
   mockFailed,
   mockBroadcast,
+  mockRefresh,
   mockRedisSet,
   mockRedisDel,
 } = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ const {
   mockSettled: vi.fn(),
   mockFailed: vi.fn(),
   mockBroadcast: vi.fn(),
+  mockRefresh: vi.fn(),
   mockRedisSet: vi.fn(),
   mockRedisDel: vi.fn(),
 }))
@@ -49,6 +51,8 @@ vi.mock('../../ledger', () => ({
   markSettlementSettled: mockSettled,
   markSettlementFailed: mockFailed,
   markSettlementBroadcast: mockBroadcast,
+  // (V) — the raise-only validBefore refresh (R1-B4/R2-B5b).
+  refreshPendingValidBefore: mockRefresh,
 }))
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({ set: mockRedisSet, del: mockRedisDel }),
@@ -111,6 +115,7 @@ beforeEach(() => {
   mockSettled.mockResolvedValue(true)
   mockFailed.mockResolvedValue(true)
   mockBroadcast.mockResolvedValue(true)
+  mockRefresh.mockResolvedValue(true)
   mockRedisSet.mockResolvedValue('OK')
   mockRedisDel.mockResolvedValue(1)
 })
@@ -197,7 +202,7 @@ describe('executeX402Settlement — a reverted/unconfirmed tx is NEVER settled',
     mockSubmit.mockResolvedValue({ kind: 'reverted', txHash: '0xREV', nonceConsumed: true })
     const outcome = await executeX402Settlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending', code: 'X402_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502 })
-    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'x402', '0xREV')
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'x402', '0xREV', null) // (V) P8-e 4th arg
     expect(mockFailed).not.toHaveBeenCalled()
     expect(mockSettled).not.toHaveBeenCalled()
   })
@@ -263,7 +268,10 @@ describe('executeX402Settlement — idempotency & locking (no double-charge)', (
       .mockResolvedValueOnce(null) // idempotency read
       .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xH1' }) // re-read: terminal FAILED
     const outcome = await executeX402Settlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xH1', alreadySettled: true })
+    // (V) P8-f LICENSED FLIP (was '0xH1' — the row's reverted stored ref): the mirror
+    // branch now returns the WINNING hash we hold the receipt for (runbook §3's
+    // authoritative hash). Captured red-pre-fix in .audit/v-build/.
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xH2', alreadySettled: true })
     // The settled-only sweep is blind to failed rows; this branch holds the
     // success receipt and is the loss class's only detector (② seal HIGH).
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
@@ -322,5 +330,136 @@ describe('executeX402Settlement — timeout recovery (re-wait, do not re-submit)
     const outcome = await executeX402Settlement(PARAMS)
     expect(outcome).toEqual({ status: 'settled', txHash: '0xFRESH' })
     expect(mockSubmit).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ─── (V) pending-row lifecycle faces (P5-i, P8-a/e/f, 3e, R2-B5b) — circle-nano twins ───
+describe('(V) executeX402Settlement — pending-row lifecycle', () => {
+  beforeEach(() => {
+    // vi.clearAllMocks does NOT clear mockResolvedValueOnce queues — hard-reset
+    // the queue-bearing mocks so the Once-queue recipes below are leak-proof.
+    mockFindRow.mockReset()
+    mockFindRow.mockResolvedValue(null)
+    mockRefresh.mockReset()
+    mockRefresh.mockResolvedValue(true)
+    mockFailed.mockReset()
+    mockFailed.mockResolvedValue(true)
+  })
+
+  it('R-V7: the write-ahead row stores the CANONICAL validBefore and the refresh is called with the same value', async () => {
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
+    await executeX402Settlement(PARAMS)
+    const recorded = mockRecord.mock.calls[0][0]
+    expect(recorded.metadata.validBefore).toBe(BigInt(PAYLOAD.payload.authorization.validBefore).toString(10))
+    expect(mockRefresh).toHaveBeenCalledWith(OP_ID, 'x402', BigInt(PAYLOAD.payload.authorization.validBefore).toString(10))
+  })
+
+  it('R-V7-hex: a hex validBefore (BigInt-verifier-acceptable) is stored/passed as the DECIMAL string', async () => {
+    const hexPayload = {
+      ...PAYLOAD,
+      payload: { ...PAYLOAD.payload, authorization: { ...PAYLOAD.payload.authorization, validBefore: '0x2540BE3FF' } },
+    }
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
+    await executeX402Settlement({ ...PARAMS, payload: hexPayload })
+    const recorded = mockRecord.mock.calls[0][0]
+    expect(recorded.metadata.validBefore).toBe('9999999999')
+    const hexOp = x402OperationId({ network: hexPayload.network, authorization: hexPayload.payload.authorization, signature: hexPayload.payload.signature })
+    expect(mockRefresh).toHaveBeenCalledWith(hexOp, 'x402', '9999999999')
+  })
+
+  it('R-V8: the recovery resubmit re-checks terminality IMMEDIATELY pre-submit and aborts on a failed row (P8-a)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'pending', externalRef: '0xDROPPED' })
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xDROPPED' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xDROPPED', nonceConsumed: false })
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'failed', code: 'X402_SETTLEMENT_PREVIOUSLY_FAILED', httpStatus: 402 })
+  })
+
+  it('R-V8-settled: the P8-a re-read finding SETTLED aborts with alreadySettled', async () => {
+    mockFindRow
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'pending', externalRef: '0xDROPPED' })
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'settled', externalRef: '0xWINNER' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xDROPPED', nonceConsumed: false })
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
+  })
+
+  it('R-V8b: a FALSE refresh (row terminal in the read-to-refresh sliver) aborts BEFORE any broadcast (R2-B5b)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: null })
+    mockRefresh.mockResolvedValueOnce(false)
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'failed', code: 'X402_SETTLEMENT_PREVIOUSLY_FAILED' })
+  })
+
+  it('R-V8b-settled: refresh-false + re-read SETTLED → settled alreadySettled, no submit', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'settled', externalRef: '0xWINNER' })
+    mockRefresh.mockResolvedValueOnce(false)
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
+  })
+
+  it('R-V8b-null: refresh-false + re-read NULL row → failed-shaped outcome, no submit (totality)', async () => {
+    mockFindRow.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    mockRefresh.mockResolvedValueOnce(false)
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'failed' })
+  })
+
+  it("R-V9b: a CAS-rejected failed-flip on a STILL-PENDING row returns PENDING (the ③-(U) F2 fold), not the 402 'failed' lie", async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'pending', externalRef: '0xNEW' })
+    mockSubmit.mockResolvedValue({ kind: 'reverted', txHash: '0xREV', nonceConsumed: false })
+    mockFailed.mockResolvedValue(false)
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'pending', code: 'X402_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502 })
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'x402.settle_reverted_stale_ref',
+      expect.objectContaining({ operationId: OP_ID }),
+    )
+  })
+
+  it('R-V9b-terminal: a CAS-rejected failed-flip on an already-FAILED row keeps the truthful 402', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xREV' })
+    mockSubmit.mockResolvedValue({ kind: 'reverted', txHash: '0xREV', nonceConsumed: false })
+    mockFailed.mockResolvedValue(false)
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'failed', code: 'X402_SETTLEMENT_REVERTED', httpStatus: 402 })
+  })
+
+  it('R-V10: onBroadcast threads the step-1 ref as expectedPrior (the recovery T1→T2 re-point stays legal; P8-e wiring)', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xT1' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xT1', nonceConsumed: false })
+    mockSubmit.mockImplementation(async (_proof: unknown, opts: { onBroadcast: (h: string) => Promise<void> }) => {
+      await opts.onBroadcast('0xT2')
+      return { kind: 'settled', txHash: '0xT2' }
+    })
+    await executeX402Settlement(PARAMS)
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'x402', '0xT2', '0xT1')
+  })
+
+  it('R-V11: a recovery confirm returning broadcast-unconfirmed/revert-nonce-unverifiable (P8(g) face) stays pending with NO fresh submit — passes pre+post', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xT1' })
+    mockConfirm.mockResolvedValue({ kind: 'broadcast-unconfirmed', txHash: '0xT1', reason: 'revert-nonce-unverifiable' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'pending', code: 'X402_SETTLEMENT_PENDING_CONFIRMATION' })
   })
 })

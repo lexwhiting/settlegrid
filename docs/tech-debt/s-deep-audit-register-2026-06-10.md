@@ -67,7 +67,7 @@ third on-chain rail would confirm but silently never credit (shielded today by o
 **Fix shape:** tiny, but it edits the exactly-once credit gate → micro-chunk with funds-safety
 review. Ledger: DC-07/DC-13.
 
-## P8 — P2-mirror window PREVENTION (② seal residual; MED severity, VERY LOW likelihood — detection in place)
+## P8 — P2-mirror window PREVENTION (② seal residual; MED severity, VERY LOW likelihood — detection in place) — **(a,c,e,f,g) CLOSED by (V)** (2026-06-12; ② SEALED + ③ RE-CERTIFIED — `.audit/v-deep/VERDICT.md`). P8-a pre-submit terminal re-read; P8-e no-clobber broadcast CAS (expectedPriorRef, 6 sites); P8-f mirror winning-hash; P8-c reconciler (T)-key re-emit; P8(g) interpretReceipt catch → broadcast-unconfirmed. **REMAINING OPEN:** (b) the irreducible hard-kill-between-writeContract-and-onBroadcast silent residual (P8(b) — register-only; the (V) expiry pass's `nonce-consumed-untracked` quarantine is its FIRST detector).
 The (T) ② seal panel exhibited the mirror ordering of P2: a reconciler failed-flip lands with a
 CURRENT ref (the CAS legitimately passes) inside the live path's recovery-resubmit gap
 (post-confirm, pre-onBroadcast re-point); the resubmitted tx then settles USDC onto a terminally
@@ -107,7 +107,65 @@ shape (verified link-by-link by the (U) ③): map the FAILED nonce-recheck in th
 `markSettlementBroadcast`; flip the settle-engine test expectation as the red/green proof.
 Mirrors the sealed reconciler LB-2 semantics. **Note (P5/P8-adjacent, ③-(U) F2):** the live
 stale-ref 402 buyer verdict discards the CAS result — buyer told 'failed' while the flip was
-CAS-rejected; fold when the orchestrator mirror branch opens.
+CAS-rejected; fold when the orchestrator mirror branch opens. **[③-(V) F2 DISCHARGED 2026-06-12:
+the 3e fold shipped in (V) — CAS-false+still-pending → 502 PENDING + `*.settle_reverted_stale_ref`.]**
+
+## ③-(V) DEEP-AUDIT NEW ITEMS (2026-06-12 — surfaced by the (V) ③ integrated-whole audit; `.audit/v-deep/VERDICT.md`)
+The (V) ③ closed P5/P8(a,c,e,f,g) and RE-CERTIFIED after one in-phase fix (the chain-anchor
+upper plausibility clamp — finding 8, the F-1 sibling; settle-engine.ts). The integrated-whole
+panel + the collective-miss critic surfaced these, each routed here (fix out of (V) scope —
+verifier/frozen-path/prevention/future — or a founder decision). Priority-ordered:
+- **V-N1 (HIGH — FOUNDER-decision) validBefore upper-bound cap at BOTH verifiers.** Neither
+  `circle-nano/verify.ts:181` nor `x402/verify.ts` caps `validBefore` above (only rejects
+  expired). A buyer can mint a ref-NULL `pending` row with `validBefore` = year 2099 that NEVER
+  wall-expires → permanent `pending_overdue`/`noTxhashCount` inflation (the alarm-fatigue (V) set
+  out to kill, half-closed) AND permanent indexed payer-PII (V-N3). Rate limits bound the rate,
+  nothing bounds accumulation. Fix: reject `validBefore > now + maxWindow` (a new 402 code —
+  BUYER-FACING, hence not done in (V)). Root fix of the immortal-row + PII clusters. Ledger
+  DC-09/DC-18.
+- **V-N2 (HIGH — FOUNDER-decision; P9-adjacent) reconciler-tail credit pays the stale
+  first-write `amountCents`.** The idempotent INSERT (ON CONFLICT DO NOTHING) freezes
+  `amountCents`; `creditSettlement` credits `row.amountCents` (reconcile.ts:201);
+  `process-payouts` (cron `0 12 * * *`) pays `balanceCents` out as an unclawbackable Stripe
+  transfer ≤24h. A same-(from,nonce) re-sign under a LOWERED tool price over-credits.
+  **Operational Q the founder must answer: can a tool price be lowered while a live pending row
+  exists?** If yes, end-to-end fiat over-payment is reproducible. PRE-EXISTING (predates (V); the
+  refresh raises only validBefore). Fix: a credit-side amount-mismatch guard (detect) or a
+  prevention chunk reconciling `amountCents` (touches the frozen credit path). Ledger DC-01/DC-06.
+- **V-N3 (MED — FOUNDER legal-posture + bundle with V-N1) `ledger_entries` has no GDPR
+  retention/erasure path.** The `data-retention` cron deletes 6 tables, NOT `ledger_entries`
+  (zero `delete(ledgerEntries)` tree-wide); the payer EVM address is written into the indexed
+  `operation_id` + `metadata.payer`; the compliance financial-retention exemption was reasoned
+  for account-holders, not anonymous x402 payers. V-N1's cap bounds the attacker-inflatable
+  surface. Ledger DC-16-adjacent.
+- **V-N4 (MED) nonce-read block-pinning (② attention item i, ③-confirmed REACHABLE under a
+  load-balanced/replica-lagging RPC).** The pass's `readAuthorizationStateBounded` reads at
+  implicit 'latest' while the anchor is 'safe' — a replica whose 'latest' lags the sibling's
+  'safe' can read a consumed nonce as 'unconsumed' → wrong terminalization + P8(b) detector
+  suppression. Fix shape: return `{ts, blockNumber}` from the safe read and pin the nonce read
+  to that blockNumber, with a non-archive-pruning fallback to 'unknown' (NOT 'latest'). Interim
+  mitigation = a founder RPC-consistency check (prod `SETTLEGRID_BASE_RPC_URL` should be a
+  single-view-consistent provider). Non-trivial (pruning tradeoff) → its own chunk. Ledger DC-04/DC-08.
+- **V-N5 (LOW, P6-ops) expiry-pass drain / concurrency.** LIMIT-3/run (288/day) vs the admission
+  ceiling — under a hostile/buggy insufficient-balance flood the dead-row backlog grows; raise
+  drain via multicall nonce reads + a candidate-SELECT wall-expiry predicate (spend slots only on
+  rows that can terminalize this run). Concurrent reconcile-run overlap (manual trigger during a
+  scheduled run) is funds-safe (all (V) writers CAS/idempotent) but halves drain and double-pages
+  the quarantine alert → a single advisory lock on the cron, OR add `(metadata->>'expiryClass')
+  IS NULL` to `quarantineClassify`'s WHERE to dedup. Ledger DC-09.
+- **V-N6 (LOW, P7-hygiene) bundle:** rowId in the `reconcile.expiry_unprovable` payload
+  (operationId already present — marginal); the CAS-reject breadcrumb (② attention item ii —
+  pre-existing (T)-era posture; a warn on the 4 applyOutcome broadcast-CAS-false arms); the
+  terminal-transition harness sql-node evaluator (so a future builder can EXECUTE the
+  jsonb-merge SET nodes rather than shape-assert); the facilitator x402 verify `parseInt`
+  alignment (x402/settle.ts — outside the (V) set).
+- **V-N7 (LOW, buyer-facing — future chunk) bundle:** cross-rail error-envelope unification
+  (proxy x402 `{error:{code,message}}` vs circle-nano `{error:string,code}` — PRE-EXISTING, a
+  uniform consumer can't read both); a terminal/actionable signal for a buyer looping 502 on a
+  `nonce-consumed-untracked` quarantined row; SDK facilitator reason-surfacing (collapses non-2xx
+  to 500); an alreadySettled multi-delivery marker (forward-at-most-once for expensive tools).
+Defect-ledger: the (V) ③ folds DC-05 (the Once-queue face), strengthens DC-01/DC-08/DC-12/DC-18,
+and adds **DC-20** ("best-effort write-ahead failure aliases as truthful absence").
 
 ## P4 — Transport timeout for the reconciler's confirm path (deep S-D3/D6/D8 residual; MED) — **CLOSED by (U)** (2026-06-11; ② SEALED + ③ SEAL STANDS — see the (U) closure banner above + `p4-transport-resolution-2026-06-11.md`; the ③-(T) escalation's detectors-first ask shipped as the (b-i) run reorder)
 ③ fixed alert delivery (run budget + deferred), but a single in-flight
@@ -122,7 +180,7 @@ signal lost — precisely during the partial-RPC degradation that mints uncredit
 folding P4, also consider running the sweep/overdue aggregates BEFORE the examination loop
 (independent DB-only queries) or a hard per-row Promise.race deadline.
 
-## P5 — Permanent-pending terminalization + alert hygiene (deep S-D5; MED)
+## P5 — Permanent-pending terminalization + alert hygiene (deep S-D5; MED) — **CLOSED by (V)** (2026-06-12; ② SEALED + ③ RE-CERTIFIED — see the (V) closure banner below + `.audit/v-deep/VERDICT.md`; the expiry pass terminalizes provably-dead never-broadcast rows and quarantine-classifies the rest; operator runbook = `v-pending-lifecycle-runbook-2026-06-12.md`)
 Unfunded-wallet x402 authorizations mint `pending`/null-`external_ref` rows (write-ahead row
 precedes the balance pre-check) that NOTHING ever terminalizes; with nonce-consumed/dropped-tx
 rows they make `reconcile.pending_overdue` permanent once any exists (96 error lines/day →

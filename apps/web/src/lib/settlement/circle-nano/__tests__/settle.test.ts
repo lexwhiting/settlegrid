@@ -18,6 +18,7 @@ const {
   mockSettled,
   mockFailed,
   mockBroadcast,
+  mockRefresh,
   mockRedisSet,
   mockRedisDel,
 } = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ const {
   mockSettled: vi.fn(),
   mockFailed: vi.fn(),
   mockBroadcast: vi.fn(),
+  mockRefresh: vi.fn(),
   mockRedisSet: vi.fn(),
   mockRedisDel: vi.fn(),
 }))
@@ -42,6 +44,8 @@ vi.mock('../../ledger', () => ({
   markSettlementSettled: mockSettled,
   markSettlementFailed: mockFailed,
   markSettlementBroadcast: mockBroadcast,
+  // (V) — the raise-only validBefore refresh (R1-B4/R2-B5b).
+  refreshPendingValidBefore: mockRefresh,
 }))
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({ set: mockRedisSet, del: mockRedisDel }),
@@ -85,6 +89,7 @@ beforeEach(() => {
   mockSettled.mockResolvedValue(true)
   mockFailed.mockResolvedValue(true)
   mockBroadcast.mockResolvedValue(true)
+  mockRefresh.mockResolvedValue(true)
   mockRedisSet.mockResolvedValue('OK')
   mockRedisDel.mockResolvedValue(1)
 })
@@ -145,7 +150,7 @@ describe('executeCircleNanoSettlement — a reverted/unconfirmed tx is NEVER set
     mockSubmit.mockResolvedValue({ kind: 'reverted', txHash: '0xREV', nonceConsumed: true })
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502 })
-    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xREV')
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xREV', null) // (V) P8-e 4th arg
     expect(mockFailed).not.toHaveBeenCalled()
     expect(mockSettled).not.toHaveBeenCalled()
   })
@@ -154,7 +159,7 @@ describe('executeCircleNanoSettlement — a reverted/unconfirmed tx is NEVER set
     mockSubmit.mockResolvedValue({ kind: 'broadcast-unconfirmed', txHash: '0xPEND', reason: 'timeout' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', txHash: '0xPEND' })
-    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xPEND')
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xPEND', null) // (V) P8-e 4th arg
     expect(mockSettled).not.toHaveBeenCalled()
   })
 
@@ -240,7 +245,10 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xH2' }) // OUR tx moved the USDC
     mockSettled.mockResolvedValue(false) // WHERE-pending no-match (row already failed)
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xH1', alreadySettled: true })
+    // (V) P8-f LICENSED FLIP (was '0xH1' — the row's reverted stored ref): the mirror
+    // branch now returns the WINNING hash we hold the receipt for (runbook §3's
+    // authoritative hash). Captured red-pre-fix in .audit/v-build/.
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xH2', alreadySettled: true })
     // The ONLY actor that knows funds moved onto a failed row is THIS branch —
     // the settled-only sweep is blind to failed rows. The alert is the
     // detectability contract for this loss class (② seal HIGH).
@@ -303,5 +311,134 @@ describe('executeCircleNanoSettlement — timeout recovery (re-wait, do not re-s
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending' })
     expect(mockSubmit).not.toHaveBeenCalled()
+  })
+})
+
+// ─── (V) pending-row lifecycle faces (P5-i, P8-a/e/f, 3e, R2-B5b) ───────────────────────
+describe('(V) executeCircleNanoSettlement — pending-row lifecycle', () => {
+  beforeEach(() => {
+    // vi.clearAllMocks does NOT clear mockResolvedValueOnce queues — leaked Once
+    // entries from prior tests would silently re-route the Once-queue recipes
+    // below (the R-V8b discipline). Hard-reset the queue-bearing mocks here.
+    mockFindRow.mockReset()
+    mockFindRow.mockResolvedValue(null)
+    mockRefresh.mockReset()
+    mockRefresh.mockResolvedValue(true)
+    mockFailed.mockReset()
+    mockFailed.mockResolvedValue(true)
+  })
+
+  it('R-V7: the write-ahead row stores the CANONICAL validBefore and the refresh is called with the same value', async () => {
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
+    await executeCircleNanoSettlement(PARAMS)
+    const recorded = mockRecord.mock.calls[0][0]
+    expect(recorded.metadata.validBefore).toBe(BigInt(PROOF.authorization.validBefore).toString(10))
+    expect(mockRefresh).toHaveBeenCalledWith(OP_ID, 'circle-nano', BigInt(PROOF.authorization.validBefore).toString(10))
+  })
+
+  it('R-V7-hex: a hex validBefore (BigInt-verifier-acceptable) is stored/passed as the DECIMAL string', async () => {
+    const hexProof = { ...PROOF, authorization: { ...PROOF.authorization, validBefore: '0x2540BE3FF' } }
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
+    await executeCircleNanoSettlement({ ...PARAMS, proof: hexProof })
+    const recorded = mockRecord.mock.calls[0][0]
+    expect(recorded.metadata.validBefore).toBe('9999999999') // BigInt('0x2540BE3FF').toString(10)
+    const hexOp = circleNanoOperationId(hexProof)
+    expect(mockRefresh).toHaveBeenCalledWith(hexOp, 'circle-nano', '9999999999')
+  })
+
+  it('R-V8: the recovery resubmit re-checks terminality IMMEDIATELY pre-submit and aborts on a failed row (P8-a — shrinks the mirror window)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'pending', externalRef: '0xDROPPED' }) // step-1 read
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xDROPPED' }) // P8-a re-read: terminal
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xDROPPED', nonceConsumed: false }) // definitively failed
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_PREVIOUSLY_FAILED', httpStatus: 402 })
+  })
+
+  it('R-V8-settled: the P8-a re-read finding SETTLED aborts with alreadySettled (flip winner already credited)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'pending', externalRef: '0xDROPPED' })
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'settled', externalRef: '0xWINNER' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xDROPPED', nonceConsumed: false })
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
+  })
+
+  it('R-V8b: a FALSE refresh (row terminal in the read-to-refresh sliver — incl. the expiry flip) aborts BEFORE any broadcast (R2-B5b)', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null) // step-1 idempotency read: no row yet
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: null }) // the abort re-read
+    mockRefresh.mockResolvedValueOnce(false)
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_PREVIOUSLY_FAILED' })
+  })
+
+  it('R-V8b-settled: refresh-false + re-read SETTLED → settled alreadySettled, no submit', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'settled', externalRef: '0xWINNER' })
+    mockRefresh.mockResolvedValueOnce(false)
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xWINNER', alreadySettled: true })
+  })
+
+  it('R-V8b-null: refresh-false + re-read NULL row → failed-shaped outcome, no submit (totality)', async () => {
+    mockFindRow.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    mockRefresh.mockResolvedValueOnce(false)
+    mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'failed' })
+  })
+
+  it("R-V9b: a CAS-rejected failed-flip on a STILL-PENDING row returns PENDING (the live twin of the reconciler's pending-stale-ref — the ③-(U) F2 fold), not the 402 'failed' lie", async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null) // step-1
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'pending', externalRef: '0xNEW' }) // 3e re-read
+    mockSubmit.mockResolvedValue({ kind: 'reverted', txHash: '0xREV', nonceConsumed: false })
+    mockFailed.mockResolvedValue(false) // the (T) CAS rejected (stale ref)
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502 })
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'circle_nano.settle_reverted_stale_ref',
+      expect.objectContaining({ operationId: OP_ID }),
+    )
+  })
+
+  it('R-V9b-terminal: a CAS-rejected failed-flip on an already-FAILED row keeps the truthful 402', async () => {
+    mockFindRow
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '1', settlementStatus: 'failed', externalRef: '0xREV' })
+    mockSubmit.mockResolvedValue({ kind: 'reverted', txHash: '0xREV', nonceConsumed: false })
+    mockFailed.mockResolvedValue(false)
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_REVERTED', httpStatus: 402 })
+  })
+
+  it('R-V10: onBroadcast threads the step-1 ref as expectedPrior (the recovery T1→T2 re-point stays legal; P8-e wiring)', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xT1' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xT1', nonceConsumed: false }) // definitively failed → fresh submit
+    mockSubmit.mockImplementation(async (_proof: unknown, opts: { onBroadcast: (h: string) => Promise<void> }) => {
+      await opts.onBroadcast('0xT2')
+      return { kind: 'settled', txHash: '0xT2' }
+    })
+    await executeCircleNanoSettlement(PARAMS)
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xT2', '0xT1')
+  })
+
+  it('R-V11: a recovery confirm returning broadcast-unconfirmed/revert-nonce-unverifiable (P8(g) face) stays pending with NO fresh submit — passes pre+post', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xT1' })
+    mockConfirm.mockResolvedValue({ kind: 'broadcast-unconfirmed', txHash: '0xT1', reason: 'revert-nonce-unverifiable' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION' })
   })
 })

@@ -74,6 +74,16 @@ block: ~8.6k events/month worst case across standing classes — verify the org
 quota). Revisit arming it only AFTER (V) lands and `pending_overdue` becomes
 actionable again.
 
+**③-(V) supersession (2026-06-12):** (V) has now landed. `pending_overdue` is
+"actionable again" ONLY with a correction: terminalized rows exit the count, but
+QUARANTINED rows and not-yet-expired rows stand in it forever (the overdue WHERE
+is (S)-frozen). Use `actionable ≈ overdueCount − (standing quarantine baseline)`;
+the baseline query + the four new (V) error keys' arming decisions (arm
+`reconcile.expired_nonce_consumed_quarantined` + `settlement.credit_tool_stat_unmatched`
+every-event; do NOT arm `reconcile.expiry_pass_failed`; founder's call on
+`reconcile.expiry_unprovable`) are in `v-pending-lifecycle-runbook-2026-06-12.md`
+§3–§4. Fold those four keys into this founder Sentry quota/arming block.
+
 ## 4. Founder decisions parked here
 - 0010 journal quirk (pre-existing, NOT (T)): `drizzle/` has TWO 0010_* files
   but the bootstrap registers only `0010_payouts_index_includes_unknown` (17
