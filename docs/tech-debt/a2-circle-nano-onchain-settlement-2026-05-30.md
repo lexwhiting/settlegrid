@@ -23,9 +23,32 @@
 >    **by hand in the Supabase SQL Editor** (migrations are not auto-applied; the
 >    drizzle journal is intentionally incomplete). Without it the flip UPDATE
 >    scans every circle-nano row.
-> 5. **(Recommended, not required)** Set **`SETTLEGRID_BASE_RPC_URL`** in prod to a
->    dedicated mainnet provider (Alchemy/QuickNode/Coinbase). Falls back to viem's
->    public RPC, which is fine for Sepolia + low volume but rate-limited at scale.
+> 5. **🔺 REQUIRED for the expiry pass as of V-N4 (was "recommended, not required").**
+>    Set **`SETTLEGRID_BASE_RPC_URL`** in prod to a dedicated mainnet provider
+>    (Alchemy / QuickNode / Coinbase) that is **archive / deep-retention AND
+>    single-view-consistent** — it must serve historical `eth_call` at a
+>    ~10-minute-old block from one coherent view. NOT a `latest`-only tier, and
+>    NOT a load-balanced pool with divergent backend heads. (A "dedicated provider"
+>    alone is insufficient — pick the tier that retains historical state.)
+>    - **Why now required:** V-N4 pins the expiry pass's on-chain
+>      `authorizationState` nonce read to the SAFE block N whose timestamp proved
+>      expiry (the determinism fix). On Base the `safe` head lags `latest` by
+>      ~5–10 min (it advances only once the batch is posted to L1); a standard
+>      full node retains only ~128 blocks of state ≈ ~4.3 min at Base's 2 s block
+>      time, so a pruned / public / `latest`-only endpoint returns "missing trie
+>      node" / "block not found" on the pinned read.
+>    - **What breaks if skipped = LIVENESS, not safety.** Funds are NEVER at risk:
+>      a provider that cannot serve block N makes the read fail to `'unknown'` and
+>      the row STAYS pending (LB-2 / correct-or-`unknown` closure — never a wrong
+>      terminalization), and the live submit/confirm path uses `latest` and is
+>      unaffected. The cost of a bad provider is only that the expiry pass cannot
+>      TERMINALIZE provably-dead rows — they linger `pending`. That degradation is
+>      alarmed ON THE SAME RUN by `logger.error('reconcile.expiry_anchor_degraded')`
+>      (V-N4) and, ~6 h later, by `reconcile.pending_overdue`.
+>    - Public-RPC fallback is still fine for **Base Sepolia** testing and the live
+>      submit path; it is NOT sufficient for mainnet expiry-pass terminalization.
+>      Also still rate-limited at scale. See
+>      `docs/tech-debt/v-n4-nonce-read-block-pinning-handoff-2026-06-13.md` §6 LB-2.
 > 6. **Test the FULL flow on Base Sepolia FIRST** (real signed proof → real submit
 >    → confirmed receipt → row flips to `settled`+txHash) before mainnet.
 >

@@ -524,8 +524,9 @@ async function runExpiryPass(opts: {
       )
       .limit(EXPIRY_PASS_LIMIT)
 
-    // ONE safe-head read per network per pass (cached).
-    const chainTsByNetwork = new Map<string, number | null>()
+    // ONE safe-head read per network per pass (cached) — the timestamp AND the
+    // block number N it was read at, so the nonce read pins to that same N (V-N4).
+    const chainTsByNetwork = new Map<string, { ts: number; blockNumber: bigint } | null>()
 
     for (const row of candidates) {
       if (Date.now() >= deadline) break
@@ -578,14 +579,23 @@ async function runExpiryPass(opts: {
         stats.unknown++
         continue
       }
-      if (chainTs <= vb) continue // wall-expired but NOT chain-expired — not provably dead
+      if (chainTs.ts <= vb) continue // wall-expired but NOT chain-expired — not provably dead
 
       // mid-candidate deadline re-check: the chain read may have consumed the
       // budget; never start a second bounded read past the deadline.
       if (Date.now() >= deadline) break
 
-      // 4 — nonce state NOW (final: no future block can consume it past 3.5).
-      const nonceState = await readAuthorizationStateBounded(parsed.network, parsed.eip3009.from, parsed.eip3009.nonce)
+      // 4 — nonce state AS OF the safe block N (chainTs.blockNumber) whose
+      // timestamp proved expiry at 3.5 — PINNED so the read is deterministic
+      // w.r.t. that anchor across replicas (V-N4; an unpinned 'latest' can lag
+      // N and mis-read a consumed nonce). No future block can validly
+      // TRANSFER-consume past N (USDC time-gates the value-moving consume on
+      // block.timestamp < validBefore and chainTs(N) > vb), so reading at N
+      // captures every consume that moved USDC. A cancelAuthorization is NOT
+      // time-gated and may consume post-N, but moves no money — terminalizing a
+      // chain-expired row stays correct either way (pre-N cancel → 'consumed' →
+      // quarantine; see the attributive wording below).
+      const nonceState = await readAuthorizationStateBounded(parsed.network, parsed.eip3009.from, parsed.eip3009.nonce, chainTs.blockNumber)
       if (nonceState === 'unknown') {
         stats.unknown++ // the LB-2 rule: incomplete evidence — stay pending
         continue
@@ -617,7 +627,7 @@ async function runExpiryPass(opts: {
       // the evidence-CAS writer (CASes on the exact bound read above — a
       // concurrently-raised bound or acquired ref ⇒ 0 rows ⇒ re-proven next run).
       const flipped = await markSettlementExpiredNoBroadcast(row.operationId as string, row.rail as string, vbRaw, {
-        chainTs,
+        chainTs: chainTs.ts, // the SCALAR — the evidence shape stays { chainTs:number, checkedAt } (V-N4: do NOT embed the {ts,blockNumber} object)
         checkedAt: new Date().toISOString(),
       })
       if (flipped) {
@@ -626,7 +636,7 @@ async function runExpiryPass(opts: {
           operationId: row.operationId,
           rail: row.rail,
           validBefore: vbRaw,
-          chainTs,
+          chainTs: chainTs.ts, // scalar (V-N4)
           ageMs: row.createdAt ? Date.now() - new Date(row.createdAt as unknown as string | Date).getTime() : null,
         })
       }
@@ -639,6 +649,17 @@ async function runExpiryPass(opts: {
     logger.error('reconcile.expiry_pass_failed', {}, err)
   }
   if (stats.examined > 0) {
+    // (V-N4 / DC-18) — the pin-degradation backstop. Pinning the nonce read to
+    // block N (V-N4) can raise the 'unknown' rate when the RPC cannot serve N's
+    // state (a pruning full node, or — the precise risk the pin targets — a
+    // lagging backend whose tip < N). A pass that examined ≥1 candidate yet
+    // terminalized AND quarantined NOTHING while ≥1 nonce read came back
+    // 'unknown' is that degradation signature. Page on the SAME run: without
+    // this, a total terminalization stall is visible only INDIRECTLY up to 6h
+    // later via pending_overdue — the very alarm (V) de-fatigued.
+    if (stats.terminalized === 0 && stats.quarantined === 0 && stats.unknown > 0) {
+      logger.error('reconcile.expiry_anchor_degraded', { ...stats })
+    }
     // Truthful pass telemetry (info — a feed, not a page): a persistently
     // failing anchor/nonce read shows up as unknown===examined run after run
     // (the runbook's anchor-degradation cue).
