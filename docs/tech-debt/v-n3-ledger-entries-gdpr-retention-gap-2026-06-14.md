@@ -23,7 +23,7 @@ indexed/persisted places:
      money rails' replay-safety, which is **why erasure is not rushed into this chunk.**
 2. **`metadata.payer`** = `authorization.from`
    - circle-nano: `circle-nano/settle.ts` (metadata writer)
-   - x402: `x402/orchestrate.ts:157` (`payer: proof.authorization.from`)
+   - x402: `x402/orchestrate.ts:159` (`payer: proof.authorization.from`)
 
 **Third surface — TRANSIENT (response echo, not persistence):** the public facilitator
 `/v1/verify` RESPONSE echoes the payer address on every branch (`x402/verify.ts` returns
@@ -39,9 +39,18 @@ surfaces an erasure design must target are exactly **two**: `operation_id` and `
 - The `data-retention` cron purges **6** tables (`invocations`, `webhook_deliveries`, `audit_logs`,
   `tool_health_checks`, `conversion_events`, `compliance_exports`). It does **NOT** touch
   `ledger_entries` — there is **zero `delete(ledgerEntries)` tree-wide**.
-- `ledgerEntries` is **absent** from the compliance data-export path (`apps/web/src/lib/settlement/compliance.ts`
-  does not reference it), so a subject-access / erasure request routed through the compliance module
-  would not see these rows at all.
+- `ledgerEntries` rows are **absent from the compliance data-EXPORT path** (`collectDeveloperData` in
+  `apps/web/src/lib/settlement/compliance.ts` neither imports the `ledgerEntries` table nor returns these
+  rows), so a subject-access export would not surface them. **BUT `compliance.ts` is NOT silent about
+  `ledger_entries`** (③ correction 2026-06-14 — the original wording "compliance.ts does not reference it"
+  was imprecise): `processDataDeletion` lists `'ledger_entries'` under `retained` (`compliance.ts:540`) and
+  its docstring (`compliance.ts:354-355`) states financial records "are retained for 7-year IRS / Stripe
+  compliance **but PII is scrubbed**" — yet the deletion transaction (`compliance.ts:426-546`) **never
+  touches `ledgerEntries`**, so the payer's raw EVM address in `operation_id` + `metadata.payer` is retained
+  **UN-scrubbed**. This is an **active false-compliance surface, not a mere absence**: a developer's GDPR
+  data-deletion completes telling them financial-record PII was scrubbed while the anonymous payer's address
+  silently persists. (Pre-existing; V-N1 does not touch `compliance.ts`. The **V-N3-erasure chunk MUST
+  correct this docstring + `retained` claim** as part of designing the payer-address erasure path — see §5.)
 
 ## 3. The lawful-basis GAP (why we MUST NOT write "exempt")
 
@@ -83,8 +92,12 @@ user-facing language):
    migration must not collide or un-dedup live rows). This is the hard part and must be designed carefully.
 3. **`metadata.payer` anonymization / tombstoning** path + whether the `/v1/verify` transient echo needs
    to change.
-4. **Add `ledger_entries` to the compliance/erasure surface** so an erasure request can actually reach it
-   (it is invisible to `compliance.ts` today).
+4. **Wire `ledger_entries` into the compliance/erasure surface AND correct the existing false claim.**
+   `compliance.ts` already names `ledger_entries` under `processDataDeletion`'s `retained` list
+   (`:540`) with a docstring (`:354-355`) claiming financial-record "PII is scrubbed" — but the deletion
+   never scrubs the payer EVM address in `operation_id` + `metadata.payer` (§2). The erasure chunk must
+   (a) actually scrub/tombstone that address and (b) fix the `compliance.ts:354-355` docstring + the
+   `retained` result so a completed data-deletion no longer asserts a scrub it does not perform.
 5. **Privacy-notice update** introducing the anonymous-payer data-subject category + the chosen basis +
    an account-less erasure mechanism — **published only after founder + counsel sign-off.**
 
