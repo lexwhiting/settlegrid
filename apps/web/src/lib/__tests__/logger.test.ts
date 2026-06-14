@@ -84,6 +84,34 @@ describe('Structured logger', () => {
     const parsed = new Date(line.ts)
     expect(parsed.getTime()).not.toBeNaN()
   })
+
+  it('reserved keys (msg/level/ts) win over a clobbering meta key (S-D14)', () => {
+    // 28 cron/crawler sites pass a human `{ msg: '…' }` meta. The positional
+    // structured event key (what Sentry logKey + log queries key on) must win;
+    // the meta must never overwrite `msg`/`level`/`ts`.
+    logger.error('cron.aggregate_usage.no_secret', {
+      msg: 'CRON_SECRET not configured',
+      level: 'info',
+      ts: 'not-a-timestamp',
+      detail: 'kept',
+    })
+
+    const line = JSON.parse(consoleSpy.error.mock.calls[0][0] as string)
+    expect(line.msg).toBe('cron.aggregate_usage.no_secret') // structured key wins
+    expect(line.level).toBe('error') // reserved level wins over meta.level
+    expect(line.detail).toBe('kept') // non-reserved meta still passes through
+    expect(line.ts).not.toBe('not-a-timestamp') // reserved ts wins
+    expect(Number.isNaN(new Date(line.ts).getTime())).toBe(false)
+  })
+
+  it('a real Error still wins over meta.error/meta.stack (precedence preserved under spread-first)', () => {
+    const err = new Error('real failure')
+    logger.error('settlement.failed', { error: 'meta-error-should-lose', stack: 'meta-stack' }, err)
+
+    const line = JSON.parse(consoleSpy.error.mock.calls[0][0] as string)
+    expect(line.error).toBe('real failure')
+    expect(line.stack).toContain('Error: real failure')
+  })
 })
 
 describe('Sentry mirror — error-level logs only, gated on SENTRY_DSN', () => {

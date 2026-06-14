@@ -28,11 +28,17 @@ interface LogEntry {
 }
 
 function emit(level: LogLevel, msg: string, meta?: Record<string, unknown>, err?: unknown): void {
+  // Spread `meta` FIRST so the reserved structured keys (`level`/`msg`/`ts`)
+  // always win — a caller passing a human `{ msg: '…' }` meta (28 cron/crawler
+  // sites do) must NOT clobber the positional event key that alert rules + log
+  // queries key on. The `err`-derived `error`/`stack` assignment stays AFTER
+  // the literal so a real Error still wins over any `meta.error`/`meta.stack`.
+  const ts = new Date().toISOString()
   const entry: LogEntry = {
+    ...meta,
     level,
     msg,
-    ts: new Date().toISOString(),
-    ...meta,
+    ts,
   }
 
   if (err instanceof Error) {
