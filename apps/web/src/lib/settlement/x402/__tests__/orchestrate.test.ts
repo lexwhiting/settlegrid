@@ -156,6 +156,15 @@ describe('executeX402Settlement — offline verify (the x402 exact rule + payee 
     const outcome = await executeX402Settlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'failed', code: 'X402_NETWORK_UNSUPPORTED', httpStatus: 400 })
   })
+
+  it('a validBefore-too-far verify failure → X402_VALIDBEFORE_TOO_FAR 402 (V-N1, NO submit, NO write-ahead row)', async () => {
+    mockVerify.mockResolvedValue({ valid: false, errorCode: 'CIRCLE_NANO_VALIDBEFORE_TOO_FAR', invalidReason: 'too far in the future' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'failed', code: 'X402_VALIDBEFORE_TOO_FAR', httpStatus: 402 })
+    // An over-cap auth rejects at verify — it never reaches the pending-row writer.
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(mockRecord).not.toHaveBeenCalled()
+  })
 })
 
 describe('executeX402Settlement — happy path', () => {

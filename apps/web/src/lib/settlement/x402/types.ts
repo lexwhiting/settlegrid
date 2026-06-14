@@ -26,6 +26,33 @@ export const PERMIT2_ADDRESSES: Record<string, `0x${string}`> = {
   'eip155:1': '0x000000000022D473030F116dDEE9F6B43aC78BA3',
 }
 
+/**
+ * Maximum allowed window between `now` and a buyer-set EIP-3009 `validBefore`,
+ * in seconds. A `validBefore > now + this` is rejected at BOTH offline verifiers
+ * (`circle-nano/verify.ts` and `x402/verify.ts`) with a buyer-facing 402.
+ *
+ * WHY: an uncapped far-future `validBefore` (e.g. year 2099) lets a buyer mint a
+ * ref-NULL `pending` ledger row that never wall-expires — the reconciler's expiry
+ * pass pre-filter (`now <= validBefore + EXPIRY_MARGIN_SECONDS → skip`) skips it
+ * forever → permanent `pending_overdue`/`noTxhashCount` alarm inflation AND
+ * permanent indexed payer-PII. Rate limits bound the RATE of new rows; nothing
+ * bounded their ACCUMULATION. This cap is the root fix for all NEW rows.
+ *
+ * WHY 3600 (1h): the advertised seller anchor is `X402_MAX_TIMEOUT_SECONDS = 300`
+ * (a protocol-compliant buyer sets `validBefore ≈ now + 300`); a legit window only
+ * needs to cover a single in-request settle attempt (seconds), not the reconciler
+ * lifecycle. 3600 is 12× the advertised anchor — huge headroom for clock skew and
+ * non-canonical clients — while sitting materially below the 6h `pending_overdue`
+ * alarm threshold, so a max-cap abuse row (≤1h pending) can never re-cross it. The
+ * asymmetry favors generous: false-rejecting a good real-USDC payment is the worst
+ * outcome; an over-cap row's only cost is staying `pending` ~1h before terminalizing.
+ * This is an ANTI-ABUSE bound, NOT a protocol-conformance gate. See
+ * `docs/tech-debt/v-n1-validbefore-cap-handoff-2026-06-14.md` §2.
+ *
+ * DC-07: defined ONCE here and imported at both verifiers — never copied.
+ */
+export const MAX_VALIDBEFORE_WINDOW_SECONDS = 3600
+
 /** x402 v2 extensions — typed keys for the `extensions` field */
 export type X402Extension =
   | 'offer-and-receipt'       // Cryptographic receipt from facilitator
@@ -118,6 +145,7 @@ export type X402VerifyErrorCode =
   | 'WITNESS_EXCEEDS_PERMITTED'
   | 'ALLOWANCE_TOO_LOW'
   | 'SIGNATURE_INVALID'
+  | 'AUTHORIZATION_VALIDBEFORE_TOO_FAR' // validBefore > now + MAX_VALIDBEFORE_WINDOW_SECONDS (V-N1 cap)
   | 'VERIFICATION_RPC_ERROR'
 
 /** Facilitator verify response */

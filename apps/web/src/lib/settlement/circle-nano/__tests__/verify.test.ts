@@ -70,7 +70,10 @@ const DEFAULT_AUTH: AuthFields = {
   to: RECIPIENT,
   value: '10000', // 1 cent in USDC base units
   validAfter: '0',
-  validBefore: '2000000000', // far future
+  // Within the V-N1 cap relative to PARAMS.now=1000 (cap = now + 3600 = 4600).
+  // The cap is the 6th check (after EXPIRED, before amount/crypto), so a far-future
+  // default would flip every inheriting reject case to CIRCLE_NANO_VALIDBEFORE_TOO_FAR.
+  validBefore: '1300',
   nonce: `0x${'11'.repeat(32)}`,
 }
 
@@ -216,6 +219,38 @@ describe('verifyCircleNanoAuthorization — rejects every tampering / policy fai
     const result = await verifyCircleNanoAuthorization(proof, PARAMS)
     expect(result.valid).toBe(false)
     expect(result.errorCode).toBe('CIRCLE_NANO_AUTH_INVALID')
+  })
+})
+
+describe('verifyCircleNanoAuthorization — V-N1 validBefore upper-bound cap (anti-immortal-row)', () => {
+  // PARAMS.now = 1000; the cap is `validBefore > now + 3600` → boundary at 4600.
+  it('ACCEPTS at exactly now + 3600 (inclusive boundary — == now+MAX passes)', async () => {
+    const proof = await signedProof({ validBefore: '4600' }) // 1000 + 3600
+    const result = await verifyCircleNanoAuthorization(proof, PARAMS)
+    expect(result.valid).toBe(true)
+  })
+
+  it('REJECTS at now + 3601 with CIRCLE_NANO_VALIDBEFORE_TOO_FAR (one second over)', async () => {
+    const proof = await signedProof({ validBefore: '4601' }) // 1000 + 3601
+    const result = await verifyCircleNanoAuthorization(proof, PARAMS)
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('CIRCLE_NANO_VALIDBEFORE_TOO_FAR')
+  })
+
+  it('REJECTS a far-future (year-2033) validBefore — the immortal-pending-row vector', async () => {
+    const proof = await signedProof({ validBefore: '2000000000' }) // the old pre-cap default
+    const result = await verifyCircleNanoAuthorization(proof, PARAMS)
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('CIRCLE_NANO_VALIDBEFORE_TOO_FAR')
+  })
+
+  it('caps the future side WITHOUT touching the expired (past) side — EXPIRED still wins', async () => {
+    // Guards the ordering: the cap sits AFTER the expired check, so an expired
+    // auth still reports EXPIRED, not VALIDBEFORE_TOO_FAR.
+    const proof = await signedProof({ validBefore: '500' })
+    const result = await verifyCircleNanoAuthorization(proof, PARAMS)
+    expect(result.valid).toBe(false)
+    expect(result.errorCode).toBe('CIRCLE_NANO_EXPIRED')
   })
 })
 
