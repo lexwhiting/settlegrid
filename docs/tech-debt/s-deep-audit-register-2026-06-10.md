@@ -33,6 +33,24 @@
 > ADDED: **P8(g)** (live-engine LB-2 twin, HIGH — below), the **NEW P9 credit-finality policy
 > item** (founder decision), and the P5/P6/P7 addenda + notes marked **③-(U)** below.
 
+> **(W) DRAIN CLOSURE (2026-06-13, ② SEALED):** the non-gated ops/hygiene tail is drained.
+> **S-D14** (logger `emit()` lets a `msg:` meta clobber the structured event key across 34 sites)
+> FIXED + sealed — spread-first reserved-key precedence (`{ ...meta, level, msg, ts }`); verified
+> money-path-independent; Sentry grouping unchanged (keys off the positional arg); live fail-then-pass
+> reproduced (OLD `b3b1e175` form reds the pin, NEW greens). The two **P7 test-isolation flakes**
+> (`hop-rail-guard.test.ts` + `gas-wallet-monitor.test.ts`) hardened order-independent (afterEach
+> unstub + seam pins); the **starvation-suite residuals** addressed (doc-note only, harness/reconcile.ts
+> unchanged); the **B1.1-hygiene test cleanups** done (inert `isCircleNanoEnabled`/`CIRCLE_NANO_API_KEY`
+> plumbing removed — 0 prod readers; stale `route.ts` line-cites made symbolic IN THE TEST FILES only).
+> **C4** confirmed + marked CLOSED-by-(V) (P7 below). Diff = 1 prod file (`lib/logger.ts`) + 6 test
+> files; `route.ts` + `settlement/*` + `packages/mcp` + migrations byte-untouched; all HELD items
+> (S-D16/D18, DC-07-ttl, S-D12/D13, S-D4/D11, S-D7, cron-modulo, `route.ts:335/:478` comments) left
+> registered as fold-on-open / founder. 3 lens-distinct opus reviewers (xhigh): 0 high / 0 medium; 1
+> LOW (DC-15 comment-drift in the new hop-rail comment) fixed in-phase. Tier INCREMENTAL → ③ not
+> warranted. **Gate baseline now `tsc 0 · vitest 4440/191/0 · build 0 · lint 0`** (4434 after (W) → 4440 after V-N4 (+6) on 2026-06-13; was 4432 pre-(W); +2 S-D14
+> pins). Evidence: `.audit/w-hygiene-seal/` + `w-hygiene-drain-seal-2026-06-13.md`. Founder-gated:
+> not committed / pushed / deployed.
+
 ## P1 — Flip→credit non-atomicity: process-kill loses a credit SILENTLY (deep S-D1 + critic C1; HIGH) — **CLOSED by (T)**
 `reconcile.ts` flip (`markSettlementSettled`, own txn) then credit (`creditSettlement`, second
 txn) — a process kill between them (maxDuration timeout; OOM) leaves a TERMINAL `settled` row
@@ -138,14 +156,14 @@ verifier/frozen-path/prevention/future — or a founder decision). Priority-orde
   `operation_id` + `metadata.payer`; the compliance financial-retention exemption was reasoned
   for account-holders, not anonymous x402 payers. V-N1's cap bounds the attacker-inflatable
   surface. Ledger DC-16-adjacent.
-- **V-N4 (MED) nonce-read block-pinning (② attention item i, ③-confirmed REACHABLE under a
+- **V-N4 — ✅ BUILT + ② SEALED 2026-06-13 + ③ RE-CERTIFIED 2026-06-14** (seal: `v-n4-nonce-read-block-pinning-seal-2026-06-13.md`; HIGH-STAKES re-confirmed; 5 opus reviewers incl. an isolated /effort-max core-invariant pass; 0 high / 1 med accepted / 6 low; non-vacuity 11-RED live; gate 4440/191/0). **③** (`v-n4-post-seal-deep-audit-resolution-2026-06-14.md`; workflow `wf_bb0c329e-70a`, 5 opus lenses xhigh + adversarial verify + collective-miss critic max): seal's money-safety INDEPENDENTLY RE-CONFIRMED (invariant re-derived from canonical EIP3009.sol; both money candidates REFUTED; readers have NO caller outside runExpiryPass repo-wide; 17-case hostile battery green). Prod code BYTE-IDENTICAL; 2 test-fidelity hardenings landed (TF-2 exact-keys evidence guard, TF-7 null-anchor pager by-name) non-vacuity-proven live → `reconcile.test.ts` now `59341749` (gate 4440/191/0 unchanged). DC-18 pager-masking ESCALATED (broader than seal believed: multi-network + per-call-transient) + ROUTED to its own observability chunk (money-safe, not hotfixed). NEXT = founder-close + the DC-18 observability follow-up. _Original entry:_ **(MED) nonce-read block-pinning (② attention item i, ③-confirmed REACHABLE under a
   load-balanced/replica-lagging RPC).** The pass's `readAuthorizationStateBounded` reads at
   implicit 'latest' while the anchor is 'safe' — a replica whose 'latest' lags the sibling's
   'safe' can read a consumed nonce as 'unconsumed' → wrong terminalization + P8(b) detector
   suppression. Fix shape: return `{ts, blockNumber}` from the safe read and pin the nonce read
   to that blockNumber, with a non-archive-pruning fallback to 'unknown' (NOT 'latest'). Interim
   mitigation = a founder RPC-consistency check (prod `SETTLEGRID_BASE_RPC_URL` should be a
-  single-view-consistent provider). Non-trivial (pruning tradeoff) → its own chunk. Ledger DC-04/DC-08.
+  single-view-consistent provider). Non-trivial (pruning tradeoff) → its own chunk. Ledger DC-04/DC-08/DC-18/DC-05/DC-15 (V-N4 faces appended at seal). **Realized fix as planned; the founder RPC requirement is now a HARD deploy precondition (a2 GO-LIVE item 5) + a same-run `expiry_anchor_degraded` pager.**
 - **V-N5 (LOW, P6-ops) expiry-pass drain / concurrency.** LIMIT-3/run (288/day) vs the admission
   ceiling — under a hostile/buggy insufficient-balance flood the dead-row backlog grows; raise
   drain via multicall nonce reads + a candidate-SELECT wall-expiry predicate (spend slots only on
@@ -233,13 +251,19 @@ pages, a strictly worse failure than alarm fatigue (founder close-block item).
 - Test-isolation flakes found during ③ integration: `hop-rail-guard.test.ts` (stripe-connect
   control) + `gas-wallet-monitor.test.ts` (`@/lib/env` load) FAIL in isolated/small-group runs
   on the pristine committed tree yet PASS in every full-suite run — pre-existing, order/pool-
-  dependent; (S)/(③) untouched by them. (DC-05 family.)
+  dependent; (S)/(③) untouched by them. (DC-05 family.) **CLOSED by (W)** (2026-06-13): both
+  hardened order-independent — `gas-wallet-monitor` pins its `@/lib/env`/settle-engine seams +
+  afterEach; `hop-rail-guard` adds afterEach `unstubAllEnvs`/`unstubAllGlobals` (NOT restoreAllMocks
+  — see the (W) seal's N1 calibration); green under shuffle seeds 1/42/999.
 - GDPR anonymization leaves `stripeConnectStatus='active'` + retains pending settlement rows
   (deep S-D12). · `tools.totalInvocations` undercounts on exactly-once seams; F4-credited
   settlements write no invocations row → dashboard attribution gaps (deep S-D13 + critic C3). ·
   `creditSettlement` tools-UPDATE has no zero-row check (silent per-tool stat skip; critic C4 —
-  fold into P1's chunk). · logger `emit()` spread lets a `msg` meta key clobber the structured
-  key (deep S-D14). · timing-unsafe `!==` cron-secret compare across ~30 cron routes + missing
+  fold into P1's chunk) — **CLOSED by (V)** (reconcile.ts:353 `toolRows.length===0 → toolStatUnmatched`
+  guard, FLAG-not-throw, alert `settlement.credit_tool_stat_unmatched` emitted POST-commit at :386;
+  confirmed (W) ② 2026-06-13). · logger `emit()` spread lets a `msg` meta key clobber the structured
+  key (deep S-D14) — **CLOSED by (W)** (spread-first reserved-key precedence; ② sealed 2026-06-13,
+  fail-then-pass reproduced). · timing-unsafe `!==` cron-secret compare across ~30 cron routes + missing
   `.trim()` in `getCronSecret` (deep S-D15/D17). · stale engine error strings advertising
   eip155:1 + openapi `/api/x402/verify` schema mismatch (deep S-D16/D18 — fold into the queued
   (G) residual tidies). · bootstrap migrations table lacks UNIQUE(hash) (sequential-only
@@ -248,7 +272,9 @@ pages, a strictly worse failure than alarm fatigue (founder close-block item).
   dirs (likely intentional; verify against product intent; deep S-D10).
 - **③-(U) additions (2026-06-11):** `SETTLE_LOCK_TTL` duplicated as two literals (DC-07) ·
   starvation-suite residuals: 2 minor harness-fidelity items recorded with the F7
-  faithful-to-detectors-first verification · cron modulo-dispatch nit (② note).
+  faithful-to-detectors-first verification — **(W): addressed** 2026-06-13 (header over-claim softened
+  + NaN-overdue doc-note; harness/`reconcile.ts` byte-unchanged) · cron modulo-dispatch nit (② note —
+  HELD by (W) as fold-on-open).
 
 ## P9 — Credit-finality policy (③-(U) NEW, P8-family; **FOUNDER DECISION** — operator gate)
 The (U) ③ critic's must-check 1, sustained as a genuine design-level residual no chunk has

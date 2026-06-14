@@ -338,32 +338,51 @@ export async function confirmSettlementTx(
 
 /**
  * (V) — bounded read of USDC's authorizationState(from,nonce) for the expiry
- * pass. Rides the (U) reconciler-bounded transport (NEVER the live client) and
- * NEVER throws: the failure direction is encoded in the type (DC-08) —
- * 'unknown' on any error or unsupported network, and the caller's only safe
- * move on 'unknown' is to leave the row pending (the LB-2 rule).
+ * pass, PINNED to a caller-supplied block N (V-N4). Rides the (U)
+ * reconciler-bounded transport (NEVER the live client) and NEVER throws: the
+ * failure direction is encoded in the type (DC-08) — 'unknown' on any error or
+ * unsupported network, and the caller's only safe move on 'unknown' is to leave
+ * the row pending (the LB-2 rule). `blockNumber` MUST be the SAME safe block
+ * whose timestamp proved chain-expiry (`chainTs.blockNumber` from
+ * runExpiryPass), so the read is deterministic w.r.t. that anchor across a
+ * load-balanced / replica-lagging RPC: an unpinned 'latest' read can lag the
+ * safe head it was paired with and mis-report a CONSUMED nonce as unconsumed,
+ * mis-terminalizing a row whose USDC moved and suppressing the P8(b) detector
+ * (V-N4 / DC-04).
  */
 export async function readAuthorizationStateBounded(
   network: string,
   from: Address,
   nonce: Hex,
+  blockNumber: bigint,
 ): Promise<'consumed' | 'unconsumed' | 'unknown'> {
   const chain = SUPPORTED_CHAINS[network as SupportedNetwork]
   const usdcAddress = USDC_ADDRESSES[network]
   if (!chain || !usdcAddress) return 'unknown'
   try {
     const consumed = (await reconcilerPublicClientFor(network as SupportedNetwork).readContract({
-      address: usdcAddress, abi: EIP3009_ABI, functionName: 'authorizationState', args: [from, nonce],
+      address: usdcAddress, abi: EIP3009_ABI, functionName: 'authorizationState', args: [from, nonce], blockNumber,
     })) as boolean
     return consumed ? 'consumed' : 'unconsumed'
   } catch {
+    // (V-N4) LB-2 — the failure direction is STRICTLY 'unknown' (→ caller stays
+    // pending). Do NOT add an unpinned '/latest' retry here: a fallback to a
+    // non-deterministic read would re-open the exact replica-lag window this pin
+    // closes. A pinned eth_call that hard-fails (pruned state, or a backend
+    // whose tip < N — "block not found"/"missing trie node") is INCOMPLETE
+    // evidence, never a license to fall back. The deploy precondition (a
+    // deep-retention / single-view-consistent endpoint that serves historical
+    // eth_call at a ~minutes-old safe block) is HARD — see V-N4 handoff §6 LB-2.
     return 'unknown'
   }
 }
 
 /**
- * (V) — bounded read of the SAFE-head block timestamp (seconds) for the expiry
- * pass's CHAIN-TIME anchor. blockTag 'safe' (the L1-derived head), NOT
+ * (V/V-N4) — bounded read of the SAFE-head block (timestamp seconds + number)
+ * for the expiry pass's CHAIN-TIME anchor AND the block N its nonce read pins to
+ * (V-N4: `ts` and `blockNumber` come off ONE getBlock response so the pinned
+ * read uses the exact block whose timestamp proved expiry). blockTag 'safe' (the
+ * L1-derived head), NOT
  * 'latest': the OP-stack unsafe tip can reorg — an observed latest timestamp
  * past validBefore could vanish while the canonical chain still mines the tx;
  * a safe-head observation cannot, and consensus timestamps strictly increase,
@@ -384,10 +403,13 @@ export async function readAuthorizationStateBounded(
  * legitimately LAGS wall-clock (it trails the unsafe tip by minutes); it can
  * never lead it. So clamp the upper side too: a value beyond now + a generous
  * skew is implausible RPC garbage → null (skip-direction: stay pending). The
- * contract is now "a PLAUSIBLE epoch-seconds value, or null."
+ * contract is now "{ ts: a PLAUSIBLE epoch-seconds value; blockNumber: the safe
+ * block N }, or null."
  */
 const MAX_SAFE_TS_FUTURE_SKEW_SECONDS = 900
-export async function readSafeBlockTimestampBounded(network: string): Promise<number | null> {
+export async function readSafeBlockTimestampBounded(
+  network: string,
+): Promise<{ ts: number; blockNumber: bigint } | null> {
   const chain = SUPPORTED_CHAINS[network as SupportedNetwork]
   if (!chain) return null
   try {
@@ -395,7 +417,13 @@ export async function readSafeBlockTimestampBounded(network: string): Promise<nu
     const ts = Number(block.timestamp)
     if (!Number.isFinite(ts) || ts <= 0) return null
     if (ts > Math.floor(Date.now() / 1000) + MAX_SAFE_TS_FUTURE_SKEW_SECONDS) return null
-    return ts
+    // (V-N4) — pull block.number off the SAME getBlock response so the nonce
+    // read pins to the exact block N whose timestamp proved expiry (one fetch;
+    // a second 'safe' read could advance the head → a fresh window). viem types
+    // block.number as bigint|null — null ONLY for a pending block (impossible
+    // for 'safe'), but be total: a missing number → null (skip-direction).
+    if (block.number == null) return null
+    return { ts, blockNumber: block.number }
   } catch {
     return null
   }

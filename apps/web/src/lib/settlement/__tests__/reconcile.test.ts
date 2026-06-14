@@ -206,7 +206,9 @@ beforeEach(() => {
   mockNonceState.mockReset()
   mockNonceState.mockResolvedValue('unconsumed')
   mockChainTs.mockReset()
-  mockChainTs.mockResolvedValue(9_999_999_999) // far past every fixture vb
+  // (V-N4) — the safe-block object: {ts, blockNumber}. ts far past every fixture
+  // vb; blockNumber = the N the nonce read pins to.
+  mockChainTs.mockResolvedValue({ ts: 9_999_999_999, blockNumber: 42n })
   mockExpired.mockReset()
   mockExpired.mockResolvedValue(true)
   // (T) findSettlementRow default: terminal row — flipped:false reads as a
@@ -915,7 +917,7 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     expirySeq()
     expiryPlan.candidates = [candidate()]
     mockNonceState.mockResolvedValue('unconsumed')
-    mockChainTs.mockResolvedValue(NOW_SEC - 100) // chain past vb (vb = now-7200)
+    mockChainTs.mockResolvedValue({ ts: NOW_SEC - 100, blockNumber: 555n }) // chain past vb (vb = now-7200)
     await reconcilePendingSettlements()
     expect(mockExpired).toHaveBeenCalledWith(
       CNANO_OPID,
@@ -923,11 +925,27 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
       VB_EXPIRED,
       expect.objectContaining({ chainTs: NOW_SEC - 100 }),
     )
+    // (V-N4 / ③ TF-2 / DC-05) the evidence is the SCALAR-only shape {chainTs, checkedAt}.
+    // objectContaining above is a SUPERSET match — it would PASS even if a build embedded
+    // {ts,blockNumber}; this EXACT-keys assertion is the runtime guard against the object
+    // leaking (tsc's typed evidence param is the compile-time one).
+    const expiredEvidence = mockExpired.mock.calls[0][3] as Record<string, unknown>
+    expect(Object.keys(expiredEvidence).sort()).toEqual(['chainTs', 'checkedAt'])
+    expect(expiredEvidence).not.toHaveProperty('blockNumber')
     expect(mockFailed).not.toHaveBeenCalled() // never the (T) failed-CAS writer
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
       'reconcile.expired_terminalized',
       expect.objectContaining({ operationId: CNANO_OPID, validBefore: VB_EXPIRED }),
     )
+  })
+
+  it('R-V30 (V-N4 — THE threading fix, UNTESTED at the reconcile boundary pre-V-N4): the nonce read is PINNED to the cached safe block N (4th arg === chainTs.blockNumber, not "latest"/a wrong value) — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockChainTs.mockResolvedValue({ ts: NOW_SEC - 100, blockNumber: 777n }) // safe block N = 777
+    mockNonceState.mockResolvedValue('unconsumed')
+    await reconcilePendingSettlements()
+    expect(mockNonceState).toHaveBeenCalledWith('eip155:8453', FROM, NONCE, 777n)
   })
 
   it("R-V14: a FAILED nonce read ('unknown') leaves the row pending and unclassified — but the pass is TRUTHFUL about it — FAILS PRE-FIX", async () => {
@@ -942,6 +960,25 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     )
     expect(mockExpired).not.toHaveBeenCalled()
     expect(metadataSetCalls().length).toBe(0)
+  })
+
+  it('R-V31 (V-N4 / DC-18 — the anchor-degradation backstop): a pass that examined ≥1 candidate, read nonce "unknown", terminalized+quarantined NOTHING fires reconcile.expiry_anchor_degraded ON THE SAME RUN; a normal terminalizing pass does NOT — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockNonceState.mockResolvedValue('unknown') // pinned read cannot serve N → unknown
+    await reconcilePendingSettlements()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0, quarantined: 0 }),
+    )
+    // a normal pass (something terminalized) does NOT fire it
+    vi.mocked(logger.error).mockClear()
+    mockNonceState.mockResolvedValue('unconsumed')
+    await reconcilePendingSettlements()
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.anything(),
+    )
   })
 
   it('R-V15: a LEGACY row (no stored validBefore) quarantines legacy-no-validbefore WITHOUT touching the chain; NULL-metadata rows classify via the COALESCE merge — FAILS PRE-FIX', async () => {
@@ -1022,7 +1059,7 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
   it('R-V24: wall-expired but NOT chain-expired (sequencer catch-up shape) SKIPS — and a null chain read stays pending as unknown — FAILS PRE-FIX', async () => {
     expirySeq()
     expiryPlan.candidates = [candidate()]
-    mockChainTs.mockResolvedValue(Number(VB_EXPIRED) - 10) // chain has NOT passed the bound
+    mockChainTs.mockResolvedValue({ ts: Number(VB_EXPIRED) - 10, blockNumber: 100n }) // chain has NOT passed the bound
     await reconcilePendingSettlements()
     expect(mockChainTs).toHaveBeenCalled() // positive assert (R2-imp5)
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
@@ -1033,6 +1070,7 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     expect(mockNonceState).not.toHaveBeenCalled()
 
     vi.mocked(logger.info).mockClear()
+    vi.mocked(logger.error).mockClear()
     mockChainTs.mockResolvedValue(null) // the safe read failed — DC-08 direction
     await reconcilePendingSettlements()
     expect(mockExpired).not.toHaveBeenCalled()
@@ -1040,13 +1078,20 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
       'reconcile.expiry_pass',
       expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0 }),
     )
+    // (V-N4 / ③ TF-7 / DC-18) the NULL-safe-head-anchor route ALSO increments stats.unknown
+    // and MUST fire the same-run degradation page BY NAME — pin it (R-V31 only covers the
+    // nonce-'unknown' route into the same counter; this is the chainTs===null route).
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0, quarantined: 0 }),
+    )
   })
 
   it('R-V25: the refreshed (raised) bound governs — chainTs past the STALE vb1 but not the stored vb2 → NO terminalization — FAILS PRE-FIX', async () => {
     expirySeq()
     const vb2 = String(NOW_SEC - 400) // raised by a re-sign; still wall-expired (now > vb2+300)
     expiryPlan.candidates = [candidate({ metadata: { validBefore: vb2 } })]
-    mockChainTs.mockResolvedValue(NOW_SEC - 1_000) // ∈ (vb1, vb2): past the old bound only
+    mockChainTs.mockResolvedValue({ ts: NOW_SEC - 1_000, blockNumber: 200n }) // ∈ (vb1, vb2): past the old bound only
     await reconcilePendingSettlements()
     expect(mockChainTs).toHaveBeenCalled()
     expect(mockExpired).not.toHaveBeenCalled()

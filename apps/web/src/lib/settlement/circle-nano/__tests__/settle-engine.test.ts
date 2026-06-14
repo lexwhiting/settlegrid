@@ -310,25 +310,63 @@ describe('(V) P8(g) — interpretReceipt reverted-branch nonce-recheck failure i
 describe('(V) readAuthorizationStateBounded / readSafeBlockTimestampBounded', () => {
   it('nonce reader: true→consumed, false→unconsumed, throw→unknown, unsupported network→unknown (never reaches the chain)', async () => {
     mockReadContract.mockResolvedValueOnce(true)
-    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('consumed')
+    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 1n)).toBe('consumed')
     mockReadContract.mockResolvedValueOnce(false)
-    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('unconsumed')
+    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 1n)).toBe('unconsumed')
     mockReadContract.mockRejectedValueOnce(new Error('rpc down'))
-    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('unknown')
+    expect(await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 1n)).toBe('unknown')
     mockReadContract.mockClear()
-    expect(await readAuthorizationStateBounded('eip155:1', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)).toBe('unknown')
+    expect(await readAuthorizationStateBounded('eip155:1', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 1n)).toBe('unknown')
     expect(mockReadContract).not.toHaveBeenCalled()
   })
 
-  it("chain-time reader: reads the SAFE head (blockTag 'safe' — reorg-immune; the R1-B3/safe-tag pin) and returns Number(timestamp); null on throw/unsupported", async () => {
-    mockGetBlock.mockResolvedValueOnce({ timestamp: 1781136000n })
-    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBe(1781136000)
+  it('nonce reader: PINS the read to the passed blockNumber — readContract carries blockNumber:N (V-N4 determinism fix; the NON-VACUOUS concrete-bigint form, never a 3-arg/undefined assert) — FAILS PRE-FIX', async () => {
+    mockReadContract.mockClear()
+    mockReadContract.mockResolvedValueOnce(true)
+    expect(
+      await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 12345n),
+    ).toBe('consumed')
+    expect(mockReadContract).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 12345n }))
+  })
+
+  it('nonce reader (V-N4 LB-2): a PINNED read that throws (pruned/transient/tip<N) → "unknown" with NO unpinned "latest" retry — ONE call, and it carried the blockNumber', async () => {
+    mockReadContract.mockClear()
+    mockReadContract.mockRejectedValueOnce(new Error('missing trie node')) // node cannot serve block N's state
+    expect(
+      await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 99n),
+    ).toBe('unknown')
+    expect(mockReadContract).toHaveBeenCalledTimes(1) // no second, unpinned fallback read
+    expect(mockReadContract).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 99n }))
+  })
+
+  it('nonce reader (V-N4 — differential-lag proof): only block N sees the consume → pinned-to-N reads "consumed" while a lagging/earlier block reads "unconsumed" (the exact replica-lag bug the pin closes)', async () => {
+    mockReadContract.mockReset()
+    mockReadContract.mockImplementation(async ({ blockNumber }: { blockNumber?: bigint }) => blockNumber === 12345n)
+    expect(
+      await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 12345n),
+    ).toBe('consumed')
+    expect(
+      await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 12344n),
+    ).toBe('unconsumed')
+  })
+
+  it("chain-time reader: reads the SAFE head (blockTag 'safe' — reorg-immune; the R1-B3/safe-tag pin) and returns { ts, blockNumber } off ONE getBlock (V-N4); null on throw/unsupported", async () => {
+    mockGetBlock.mockResolvedValueOnce({ timestamp: 1781136000n, number: 12345n })
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toEqual({ ts: 1781136000, blockNumber: 12345n })
     expect(mockGetBlock).toHaveBeenCalledWith({ blockTag: 'safe' })
     mockGetBlock.mockRejectedValueOnce(new Error('safe tag unsupported'))
     expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
     mockGetBlock.mockClear()
     expect(await readSafeBlockTimestampBounded('eip155:1')).toBeNull()
     expect(mockGetBlock).not.toHaveBeenCalled()
+  })
+
+  it('chain-time reader (V-N4 §5.1 totality): a valid timestamp but ABSENT/null block.number → null — a pinned read needs a concrete N (only a pending block lacks number; impossible for "safe", but be total)', async () => {
+    const nowSec = Math.floor(Date.now() / 1000)
+    mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec - 60) }) // no number key
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
+    mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec - 60), number: null }) // pending-style
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
   })
 
   it('chain-time reader: a MALFORMED block (missing/garbage timestamp — viem formatBlock yields undefined without throwing) → null, NEVER NaN (NaN would bypass the expiry pass\'s anchor null-check; ② seal F-1)', async () => {
@@ -343,15 +381,15 @@ describe('(V) readAuthorizationStateBounded / readSafeBlockTimestampBounded', ()
     mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec + 10 * 365 * 24 * 3600) }) // ~year 2036
     expect(await readSafeBlockTimestampBounded('eip155:8453')).toBeNull()
     // a legitimate safe head (lags wall-clock by minutes) still passes
-    mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec - 120) })
-    expect(await readSafeBlockTimestampBounded('eip155:8453')).toBe(nowSec - 120)
+    mockGetBlock.mockResolvedValueOnce({ timestamp: BigInt(nowSec - 120), number: 999n })
+    expect(await readSafeBlockTimestampBounded('eip155:8453')).toEqual({ ts: nowSec - 120, blockNumber: 999n })
   })
 
   it('both readers ride the BOUNDED reconciler transport (3s/1-retry options on http) — never the live defaults', async () => {
     mockHttp.mockClear()
     mockReadContract.mockResolvedValueOnce(false)
-    await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`)
-    mockGetBlock.mockResolvedValueOnce({ timestamp: 1n })
+    await readAuthorizationStateBounded('eip155:84532', PROOF.authorization.from as `0x${string}`, PROOF.authorization.nonce as `0x${string}`, 1n)
+    mockGetBlock.mockResolvedValueOnce({ timestamp: 1n, number: 1n })
     await readSafeBlockTimestampBounded('eip155:84532')
     expect(mockHttp).toHaveBeenCalledTimes(2)
     for (const call of mockHttp.mock.calls) {
