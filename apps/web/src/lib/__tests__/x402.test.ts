@@ -158,9 +158,10 @@ describe('x402 Types', () => {
       'WITNESS_EXCEEDS_PERMITTED',
       'ALLOWANCE_TOO_LOW',
       'SIGNATURE_INVALID',
+      'AUTHORIZATION_VALIDBEFORE_TOO_FAR',
       'VERIFICATION_RPC_ERROR',
     ]
-    expect(codes).toHaveLength(10)
+    expect(codes).toHaveLength(11)
   })
 
   it('X402SettleErrorCode includes structured error codes', () => {
@@ -441,6 +442,56 @@ describe('verifyExactPayment', () => {
     const result = await verifyExactPayment(payload)
     expect(result.invalidReason).toContain('eip155:8453')
     expect(result.invalidReason).toContain('Base')
+  })
+
+  // ── V-N1 validBefore upper-bound cap (the cap fires BEFORE the on-chain reads) ──
+  // verifyExactPayment reads the real clock (no injectable `now`), so pin Date.now
+  // for the exact ±1s boundary assertions.
+  it('ACCEPTS validBefore exactly at the cap (now + 3600, inclusive)', async () => {
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(now * 1000)
+    try {
+      mockReadContract.mockResolvedValueOnce(false) // nonce unused
+      mockReadContract.mockResolvedValueOnce(BigInt(10000000)) // sufficient balance
+      const payload = makeExactPayload({ validBefore: String(now + 3600) })
+      const result = await verifyExactPayment(payload)
+      expect(result.isValid).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('REJECTS validBefore one second past the cap (now + 3601) with AUTHORIZATION_VALIDBEFORE_TOO_FAR', async () => {
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(now * 1000)
+    try {
+      const payload = makeExactPayload({ validBefore: String(now + 3601) })
+      const result = await verifyExactPayment(payload)
+      expect(result.isValid).toBe(false)
+      expect(result.errorCode).toBe('AUTHORIZATION_VALIDBEFORE_TOO_FAR')
+      // The cap fires before any on-chain read — no RPC spent on an over-cap auth.
+      expect(mockReadContract).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('REJECTS a far-future validBefore (year 2099) — the immortal-pending-row vector', async () => {
+    const payload = makeExactPayload({ validBefore: '4070908800' }) // 2099-01-01
+    const result = await verifyExactPayment(payload)
+    expect(result.isValid).toBe(false)
+    expect(result.errorCode).toBe('AUTHORIZATION_VALIDBEFORE_TOO_FAR')
+    expect(mockReadContract).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-numeric validBefore (strict BigInt parse — closes the parseInt NaN bypass)', async () => {
+    // parseInt('not-a-number') → NaN, and `now > NaN` / `NaN > now+MAX` are both
+    // false → today it slips past both time checks AND the cap. Strict BigInt throws
+    // → the function-wide catch fails CLOSED (matching verifyUptoPayment's convention).
+    const payload = makeExactPayload({ validBefore: 'not-a-number' })
+    const result = await verifyExactPayment(payload)
+    expect(result.isValid).toBe(false)
+    expect(result.errorCode).toBe('VERIFICATION_RPC_ERROR')
+    // Crucially it did NOT silently pass through to the on-chain nonce/balance reads.
+    expect(mockReadContract).not.toHaveBeenCalled()
   })
 })
 

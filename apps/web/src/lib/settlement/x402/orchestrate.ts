@@ -119,6 +119,8 @@ function verifyFailureOutcome(
     CIRCLE_NANO_WRONG_RECIPIENT: { code: 'X402_WRONG_RECIPIENT', httpStatus: 402 },
     CIRCLE_NANO_NOT_YET_VALID: { code: 'X402_EXPIRED', httpStatus: 402 },
     CIRCLE_NANO_EXPIRED: { code: 'X402_EXPIRED', httpStatus: 402 },
+    // V-N1: a far-future validBefore rejected by the shared verifier → buyer-facing 402.
+    CIRCLE_NANO_VALIDBEFORE_TOO_FAR: { code: 'X402_VALIDBEFORE_TOO_FAR', httpStatus: 402 },
     CIRCLE_NANO_AMOUNT_MISMATCH: { code: 'X402_AMOUNT_MISMATCH', httpStatus: 402 },
     CIRCLE_NANO_AUTH_INVALID: { code: 'X402_SIGNATURE_INVALID', httpStatus: 402 },
   }

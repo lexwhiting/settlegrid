@@ -23,7 +23,7 @@
  */
 
 import { recoverTypedDataAddress, type Address, type Hex } from 'viem'
-import { USDC_ADDRESSES } from '../x402/types'
+import { USDC_ADDRESSES, MAX_VALIDBEFORE_WINDOW_SECONDS } from '../x402/types'
 import type { CircleNanoErrorCode } from '@settlegrid/mcp'
 import type { Eip3009SettleProof } from '../eip3009/types'
 
@@ -183,6 +183,18 @@ export async function verifyEip3009Authorization(
       valid: false,
       errorCode: 'CIRCLE_NANO_EXPIRED',
       invalidReason: `Authorization expired ${nowSec - validBefore}s ago.`,
+    }
+  }
+  // V-N1: cap a far-FUTURE validBefore (anti-abuse — an uncapped year-2099 window
+  // mints a ref-NULL pending row that never wall-expires → permanent
+  // pending_overdue/noTxhashCount inflation + indexed payer-PII). Inclusive bound
+  // (`> now+MAX` rejects; `== now+MAX` passes) — consistent with the strict time
+  // window above. Placed with the time-window family, before amount/crypto.
+  if (validBefore > nowSec + BigInt(MAX_VALIDBEFORE_WINDOW_SECONDS)) {
+    return {
+      valid: false,
+      errorCode: 'CIRCLE_NANO_VALIDBEFORE_TOO_FAR',
+      invalidReason: `Authorization validBefore is too far in the future: ${validBefore - nowSec}s ahead exceeds the ${MAX_VALIDBEFORE_WINDOW_SECONDS}s cap.`,
     }
   }
 

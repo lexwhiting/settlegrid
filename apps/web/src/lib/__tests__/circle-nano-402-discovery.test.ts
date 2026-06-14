@@ -111,7 +111,8 @@ describe('B1.1 — circle-nano 402 surfaces ground-truthed discovery fields', ()
     const to = body.pay_to as `0x${string}`
     const value = BigInt(body.amount_usdc_base_units as string)
     const validAfter = 0n
-    const validBefore = 2_000_000_000n
+    // Within the V-N1 cap relative to now:1000 below (cap = now + 3600 = 4600).
+    const validBefore = 1_300n
     const nonce = `0x${'22'.repeat(32)}` as `0x${string}`
 
     const signature = await account.signTypedData({

@@ -14,7 +14,7 @@ import type {
   X402Network,
   X402GasEstimate,
 } from './types'
-import { USDC_ADDRESSES } from './types'
+import { USDC_ADDRESSES, MAX_VALIDBEFORE_WINDOW_SECONDS } from './types'
 import { logger } from '@/lib/logger'
 
 /**
@@ -277,11 +277,21 @@ export async function verifyExactPayment(
     }
 
     const client = getPublicClient(network)
-    const now = Math.floor(Date.now() / 1000)
+    // V-N1/DC-12: parse the time fields with STRICT BigInt (not parseInt). With
+    // parseInt, a non-numeric validBefore → NaN, and `now > NaN` / `NaN > now+MAX`
+    // are BOTH false — so it would slip past the time checks AND the new cap (a
+    // silent bypass that could reach the pending-row writer). BigInt throws on any
+    // non-integer / non-numeric input; the function-wide catch turns that into a
+    // fail-CLOSED VERIFICATION_RPC_ERROR — the SAME strict-BigInt-then-catch
+    // convention verifyUptoPayment already uses for `permitted.amount`. `now` is
+    // BigInt too so the reason-string arithmetic stays bigint-bigint (identical
+    // digit output). Hex tolerated (BigInt('0x..'), already relied on by the
+    // metadata writer); '' / whitespace → 0n → EXPIRED reject (still fail-closed).
+    const now = BigInt(Math.floor(Date.now() / 1000))
 
     // Check time validity
-    const validAfter = parseInt(authorization.validAfter, 10)
-    const validBefore = parseInt(authorization.validBefore, 10)
+    const validAfter = BigInt(authorization.validAfter)
+    const validBefore = BigInt(authorization.validBefore)
 
     if (now < validAfter) {
       const waitSeconds = validAfter - now
@@ -299,6 +309,21 @@ export async function verifyExactPayment(
         isValid: false,
         invalidReason: `Authorization expired ${expiredAgo}s ago (validBefore=${validBefore}, now=${now}).`,
         errorCode: 'AUTHORIZATION_EXPIRED',
+        payer: authorization.from,
+        network,
+      }
+    }
+    // V-N1: cap a far-FUTURE validBefore BEFORE any on-chain read, so an over-cap
+    // authorization rejects without spending an RPC call (and an over-cap exact
+    // auth never reaches the settle orchestrator's pending-row writer). Inclusive
+    // bound — `> now+MAX` rejects; `== now+MAX` passes — matching the strict
+    // time-window family above. (number > bigint and bigint > bigint are both legal.)
+    if (validBefore > now + BigInt(MAX_VALIDBEFORE_WINDOW_SECONDS)) {
+      const aheadSeconds = validBefore - now
+      return {
+        isValid: false,
+        invalidReason: `Authorization validBefore is too far in the future: ${aheadSeconds}s ahead exceeds the ${MAX_VALIDBEFORE_WINDOW_SECONDS}s cap (validBefore=${validBefore}, now=${now}).`,
+        errorCode: 'AUTHORIZATION_VALIDBEFORE_TOO_FAR',
         payer: authorization.from,
         network,
       }

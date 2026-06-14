@@ -66,7 +66,10 @@ async function signedProofBlob(to = RECIPIENT, value = '10000'): Promise<string>
     to,
     value,
     validAfter: '0',
-    validBefore: '9999999999',
+    // Real route → real verifier uses the real Date.now() clock (no injected now),
+    // so use a within-cap window relative to it (now + 300s, well under the 3600s
+    // V-N1 cap). A fixed far-future literal would now reject as VALIDBEFORE_TOO_FAR.
+    validBefore: String(Math.floor(Date.now() / 1000) + 300),
     nonce: `0x${'33'.repeat(32)}`,
   }
   const signature = await account.signTypedData({

@@ -69,7 +69,9 @@ async function validSignedProof(): Promise<CircleNanoProof> {
     to: RECIPIENT,
     value: '10000',
     validAfter: '0',
-    validBefore: '2000000000',
+    // Within the V-N1 cap relative to PARAMS.now=1000 (cap = now + 3600 = 4600);
+    // the hard `valid: true` assertion below would otherwise flip to a reject.
+    validBefore: '1300',
     nonce: `0x${'11'.repeat(32)}`,
   }
   const signature = await account.signTypedData({
