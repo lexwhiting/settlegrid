@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
+import { isInternalEmail } from '@/lib/internal-accounts'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { getCronSecret } from '@/lib/env'
 import { logger } from '@/lib/logger'
@@ -18,9 +19,15 @@ const SIGNIFICANT_CHANGE_PCT = 10
 interface EcosystemMetrics {
   npmWeeklyDownloads: number | null
   githubStars: number | null
-  totalActiveTools: number
+  // Tools/developers reported EXTERNAL (excludes internal/seed/system accounts per
+  // lib/internal-accounts.ts) with the raw total alongside, so the email can't be
+  // misread as traction. STOPGAP until developers.isInternal ships — see
+  // docs/tech-debt/ecosystem-metrics-internal-account-exclusion-2026-06-14.md.
+  activeToolsExternal: number
+  activeToolsTotal: number
   totalUnclaimedTools: number
-  totalDevelopers: number
+  developersExternal: number
+  developersTotal: number
   timestamp: string
 }
 
@@ -74,12 +81,19 @@ async function fetchGithubStars(): Promise<number | null> {
 /**
  * Count tools in SettleGrid DB
  */
-async function countTools(): Promise<{ active: number; unclaimed: number }> {
+async function countTools(): Promise<{ activeExternal: number; activeTotal: number; unclaimed: number }> {
   try {
-    const [activeRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
+    // Fetch active tools WITH owner email so internal/seed-owned tools (e.g. the
+    // ~29 seed tools owned by the seed-data account) are excluded from the external
+    // count. Scale is tiny (tens of active tools); the JS filter reuses the single
+    // isInternalEmail source of truth shared with the future isInternal backfill.
+    const activeRows = await db
+      .select({ ownerEmail: developers.email })
       .from(tools)
+      .leftJoin(developers, eq(developers.id, tools.developerId))
       .where(eq(tools.status, 'active'))
+    const activeTotal = activeRows.length
+    const activeExternal = activeRows.filter((r) => !isInternalEmail(r.ownerEmail)).length
 
     const [unclaimedRow] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -87,25 +101,26 @@ async function countTools(): Promise<{ active: number; unclaimed: number }> {
       .where(eq(tools.status, 'unclaimed'))
 
     return {
-      active: activeRow?.count ?? 0,
+      activeExternal,
+      activeTotal,
       unclaimed: unclaimedRow?.count ?? 0,
     }
   } catch {
-    return { active: 0, unclaimed: 0 }
+    return { activeExternal: 0, activeTotal: 0, unclaimed: 0 }
   }
 }
 
 /**
  * Count total developers in SettleGrid DB
  */
-async function countDevelopers(): Promise<number> {
+async function countDevelopers(): Promise<{ external: number; total: number }> {
   try {
-    const [row] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(developers)
-    return row?.count ?? 0
+    const rows = await db.select({ email: developers.email }).from(developers)
+    const total = rows.length
+    const external = rows.filter((r) => !isInternalEmail(r.email)).length
+    return { external, total }
   } catch {
-    return 0
+    return { external: 0, total: 0 }
   }
 }
 
@@ -117,11 +132,11 @@ async function sendSummaryIfSignificant(metrics: EcosystemMetrics): Promise<void
   // In the future, compare against stored previous values
 
   const lines = [
-    `<strong>npm Weekly Downloads:</strong> ${metrics.npmWeeklyDownloads?.toLocaleString() ?? 'N/A'}`,
-    `<strong>GitHub Stars:</strong> ${metrics.githubStars?.toLocaleString() ?? 'N/A'}`,
-    `<strong>Active Tools:</strong> ${metrics.totalActiveTools.toLocaleString()}`,
-    `<strong>Unclaimed Tools:</strong> ${metrics.totalUnclaimedTools.toLocaleString()}`,
-    `<strong>Total Developers:</strong> ${metrics.totalDevelopers.toLocaleString()}`,
+    `<strong>MCP SDK — npm weekly downloads (ecosystem, not SettleGrid):</strong> ${metrics.npmWeeklyDownloads?.toLocaleString() ?? 'N/A'}`,
+    `<strong>MCP servers repo — GitHub stars (ecosystem, not SettleGrid):</strong> ${metrics.githubStars?.toLocaleString() ?? 'N/A'}`,
+    `<strong>Active Tools (external):</strong> ${metrics.activeToolsExternal.toLocaleString()} <span style="color:#999;">(${metrics.activeToolsTotal.toLocaleString()} total incl. internal/seed)</span>`,
+    `<strong>Unclaimed Tools (crawled catalog):</strong> ${metrics.totalUnclaimedTools.toLocaleString()}`,
+    `<strong>Total Developers (external):</strong> ${metrics.developersExternal.toLocaleString()} <span style="color:#999;">(${metrics.developersTotal.toLocaleString()} total incl. internal/seed)</span>`,
   ]
 
   const html = `
@@ -181,9 +196,11 @@ export async function GET(request: NextRequest) {
     const metrics: EcosystemMetrics = {
       npmWeeklyDownloads: npmDownloads,
       githubStars: githubStars,
-      totalActiveTools: toolCounts.active,
+      activeToolsExternal: toolCounts.activeExternal,
+      activeToolsTotal: toolCounts.activeTotal,
       totalUnclaimedTools: toolCounts.unclaimed,
-      totalDevelopers: developerCount,
+      developersExternal: developerCount.external,
+      developersTotal: developerCount.total,
       timestamp: new Date().toISOString(),
     }
 
@@ -191,9 +208,11 @@ export async function GET(request: NextRequest) {
     logger.info('cron.ecosystem_metrics.collected', {
       npmWeeklyDownloads: metrics.npmWeeklyDownloads,
       githubStars: metrics.githubStars,
-      totalActiveTools: metrics.totalActiveTools,
+      activeToolsExternal: metrics.activeToolsExternal,
+      activeToolsTotal: metrics.activeToolsTotal,
       totalUnclaimedTools: metrics.totalUnclaimedTools,
-      totalDevelopers: metrics.totalDevelopers,
+      developersExternal: metrics.developersExternal,
+      developersTotal: metrics.developersTotal,
     })
 
     // Send summary email
