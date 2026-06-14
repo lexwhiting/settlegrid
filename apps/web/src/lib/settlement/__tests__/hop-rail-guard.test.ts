@@ -11,7 +11,7 @@
  * FAILS PRE-FIX: the unguarded recordHop calls recordSettlementEntryAsync for ANY
  * rail (the if-branch only checks rail/protocol/accountId are non-empty strings).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { mockRecordSettlementEntryAsync, mockRedis, mockDb, mockLogger } = vi.hoisted(() => {
   const mockRedis = {
@@ -75,6 +75,17 @@ const TX = '0x' + 'a'.repeat(64)
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+// Order-independence: clean up any env/global stub a sibling left in the shared
+// pool worker (the register's stripe-connect-mocking-sibling flake). unstub* is
+// the exact cleanup that leak needs; vi.restoreAllMocks() is unnecessary here —
+// this file installs no vi.spyOn spies, and its hoisted vi.fn(impl) mocks
+// (mockRedis/mockDb) survive restore in vitest 2.1.9 (beforeEach's clearAllMocks
+// already resets their call history).
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
 })
 
 describe('recordHop rail-enum guard (H — closes the reconciler-starvation trap)', () => {

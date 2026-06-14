@@ -3,10 +3,24 @@
  * monitor; the I/O (`readGasWalletBalanceEth`) is exercised via the cron
  * handler test with this seam mocked.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+
+// Hermetic: pin gas-wallet-monitor's two external seams so importing this pure
+// classifier never reads ambient/cached env. Without this the module's
+// transitive `@/lib/env` + `./circle-nano/settle-engine` loads inherit whatever
+// a sibling left in the shared pool worker (the register's "@/lib/env load"
+// flake). `classifyGasBalance` is pure, so the seams are unused by these tests.
+vi.mock('@/lib/env', () => ({ getBaseRpcUrl: () => undefined }))
+vi.mock('../circle-nano/settle-engine', () => ({ getGasWalletAddress: () => null }))
+
 import { classifyGasBalance } from '../gas-wallet-monitor'
 
 const T = { warnEth: 0.004, criticalEth: 0.0015 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
+})
 
 describe('classifyGasBalance', () => {
   it('ok when comfortably above WARN', () => {

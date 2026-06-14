@@ -19,8 +19,11 @@
  * a plain asc() over a nullable column sorts NULLs LAST (PG default) — so a
  * future "cleanup" to asc(lastReconciledAt) fails these rotation tests the
  * way it would starve in prod, instead of passing on JS null-coercion (seal
- * finding S2). A wrong ordering or a missing watermark write fails HERE, not
- * in prod.
+ * finding S2). To be precise about HOW it fails: the interpreter THROWS only
+ * on an UNRECOGNIZED sql / ORDER BY / WHERE node; a recognized-but-
+ * semantically-wrong node (e.g. a plain asc(lastReconciledAt)) does NOT throw
+ * — it sorts PG-faithfully and the rotation ASSERTIONS go red. Either path
+ * catches a wrong ordering or a missing watermark write HERE, not in prod.
  *
  * Both tests FAIL against the pre-(S) reconciler (bare createdAt ASC, no
  * watermark): the empirical red run is captured in
@@ -148,7 +151,11 @@ const { state, mockDb, drizzleMock, ledgerEntriesMock, mockConfirm, mockSettled,
             limit: async (n: number) => runSelect(fields, where as Node, order, n),
           }),
           // The overdue aggregate terminates at .where() — resolve it inertly
-          // (postgres-js returns aggregate counts as STRINGS).
+          // (postgres-js returns aggregate counts as STRINGS). Residual: a
+          // NON-numeric count(*) would make summary.overdue Number(garbage)=NaN
+          // → JSON-null, masquerading as "check failed" — accepted disposition
+          // (sealed s-reconciler-starvation-resolution-2026-06-10.md, "Theoretical
+          // NaN-overdue"): a real count(*) can't yield garbage, so it stays silent.
           then: (
             resolve: (v: unknown) => unknown,
             reject: (e: unknown) => unknown,

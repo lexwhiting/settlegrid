@@ -167,7 +167,7 @@ type DecisionOutcome =
 
 function legacyDetect(request: Request): DecisionOutcome {
   if (isMppEnabled() && isMppRequest(request)) return { matched: 'mpp' }
-  // B1.1: lockstep with route.ts:472 — circle-nano dispatch keys on the recipient gate.
+  // B1.1: lockstep with the legacy dispatch gate — circle-nano dispatch keys on the recipient gate.
   if (isCircleNanoKernelEnabled() && isCircleNanoRequest(request)) return { matched: 'circle-nano' }
   if (isX402Enabled() && isX402Request(request)) return { matched: 'x402' }
   if (isMastercardEnabled() && isMastercardRequest(request))
@@ -265,13 +265,11 @@ beforeEach(() => {
   vi.stubEnv('UCP_API_KEY', 'ucp-test')
   vi.stubEnv('MASTERCARD_API_KEY', 'mc-test')
   // B1.1: circle-nano dispatch now keys on isCircleNanoKernelEnabled() (the recipient gate), so a
-  // VALID recipient must be set for the legacy mirror (legacyDetect:170) to route circle-nano —
-  // matching the synthetic fullEnabledMap['circle-nano']=()=>true on the unified side, so the
-  // matching cases stay equivalent. CIRCLE_NANO_API_KEY is now vestigial (no longer a gate) but
-  // left set (harmless). The one case needing the dark no-recipient state ("Circle Nano: legacy
-  // === adapter", where the wrapper's discovery enrichment must be absent to match the bare
-  // adapter) stubs recipient='' locally.
-  vi.stubEnv('CIRCLE_NANO_API_KEY', 'cnano-test')
+  // VALID recipient must be set for the legacy mirror (legacyDetect's circle-nano line) to route
+  // circle-nano — matching the synthetic fullEnabledMap['circle-nano']=()=>true on the unified
+  // side, so the matching cases stay equivalent. The one case needing the dark no-recipient state
+  // ("Circle Nano: legacy === adapter", where the wrapper's discovery enrichment must be absent to
+  // match the bare adapter) stubs recipient='' locally.
   vi.stubEnv('SETTLEGRID_USDC_RECIPIENT', '0x' + '9'.repeat(40))
   vi.stubEnv('L402_ENABLED', 'true')
   vi.stubEnv('ALIPAY_APP_ID', 'alipay-test')
