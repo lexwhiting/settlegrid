@@ -107,7 +107,8 @@ describe('executeCircleNanoSettlement — happy path', () => {
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toEqual({ status: 'settled', txHash: '0xTX' })
-    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xTX')
+    // (V-N2) fresh submit: the settled flip carries this proof's value (500000).
+    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xTX', '500000')
     expect(mockFailed).not.toHaveBeenCalled()
     expect(mockRedisDel).toHaveBeenCalledWith(LOCK_KEY)
   })
@@ -159,7 +160,10 @@ describe('executeCircleNanoSettlement — a reverted/unconfirmed tx is NEVER set
     mockSubmit.mockResolvedValue({ kind: 'broadcast-unconfirmed', txHash: '0xPEND', reason: 'timeout' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', txHash: '0xPEND' })
-    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xPEND', null) // (V) P8-e 4th arg
+    // (V-N2 ③ DC-20) fresh-submit broadcast-unconfirmed BACKSTOPS the settled value
+    // (5th arg) so a swallowed onBroadcast write can't leave a NULL-value row that
+    // the reconciler later credits at the stale amountCents. null = (V) P8-e expectedPrior.
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xPEND', null, '500000')
     expect(mockSettled).not.toHaveBeenCalled()
   })
 
@@ -282,7 +286,10 @@ describe('executeCircleNanoSettlement — timeout recovery (re-wait, do not re-s
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toEqual({ status: 'settled', txHash: '0xBROADCAST' })
     expect(mockConfirm).toHaveBeenCalledWith(PROOF, '0xBROADCAST')
-    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xBROADCAST')
+    // (V-N2) RECOVERY confirm of the PRIOR broadcast → NO value supplied (its
+    // value was recorded at its own broadcast; must not be overwritten with this
+    // request's possibly-resigned value). The 4th arg is undefined.
+    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xBROADCAST', undefined)
     expect(mockSubmit).not.toHaveBeenCalled() // no fresh submit
   })
 
@@ -294,7 +301,9 @@ describe('executeCircleNanoSettlement — timeout recovery (re-wait, do not re-s
     expect(outcome).toEqual({ status: 'settled', txHash: '0xFRESH' })
     expect(mockConfirm).toHaveBeenCalledTimes(1)
     expect(mockSubmit).toHaveBeenCalledTimes(1)
-    expect(mockSettled).toHaveBeenLastCalledWith(OP_ID, 'circle-nano', '0xFRESH')
+    // (V-N2) fresh submit (after the prior tx definitively failed): the settled
+    // flip carries this proof's value (500000).
+    expect(mockSettled).toHaveBeenLastCalledWith(OP_ID, 'circle-nano', '0xFRESH', '500000')
   })
 
   it('stored tx still in-flight (unconfirmed) → stays pending, does NOT re-broadcast', async () => {
@@ -431,7 +440,8 @@ describe('(V) executeCircleNanoSettlement — pending-row lifecycle', () => {
       return { kind: 'settled', txHash: '0xT2' }
     })
     await executeCircleNanoSettlement(PARAMS)
-    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xT2', '0xT1')
+    // (V-N2) onBroadcast records the settled value (500000) in the same UPDATE.
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xT2', '0xT1', '500000')
   })
 
   it('R-V11: a recovery confirm returning broadcast-unconfirmed/revert-nonce-unverifiable (P8(g) face) stays pending with NO fresh submit — passes pre+post', async () => {
