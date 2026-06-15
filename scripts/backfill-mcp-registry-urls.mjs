@@ -11,8 +11,16 @@
 import pg from 'pg'
 const { Client } = pg
 
-const CONNECTION_STRING =
-  '***REMOVED***'
+// SECURITY: the connection string MUST come from the environment — never hardcode
+// credentials (a hardcoded prod Postgres secret was committed here and exposed; the
+// credential has been removed from source and must be rotated at the provider).
+const CONNECTION_STRING = process.env.DATABASE_URL
+if (!CONNECTION_STRING) {
+  console.error(
+    'DATABASE_URL is not set. Provide the connection string via the environment — never hardcode credentials.',
+  )
+  process.exit(1)
+}
 const MCP_REGISTRY_URL = 'https://registry.modelcontextprotocol.io/v0.1/servers'
 
 /**
