@@ -172,7 +172,8 @@ describe('executeX402Settlement — happy path', () => {
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
     const outcome = await executeX402Settlement(PARAMS)
     expect(outcome).toEqual({ status: 'settled', txHash: '0xTX' })
-    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'x402', '0xTX')
+    // (V-N2) fresh submit: the settled flip carries this proof's value (500000).
+    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'x402', '0xTX', '500000')
     expect(mockFailed).not.toHaveBeenCalled()
     expect(mockRedisDel).toHaveBeenCalledWith(LOCK_KEY)
   })
@@ -220,6 +221,10 @@ describe('executeX402Settlement — a reverted/unconfirmed tx is NEVER settled',
     mockSubmit.mockResolvedValue({ kind: 'broadcast-unconfirmed', txHash: '0xPEND', reason: 'timeout' })
     const outcome = await executeX402Settlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending', txHash: '0xPEND' })
+    // (V-N2 ③ DC-20) fresh-submit broadcast-unconfirmed BACKSTOPS the settled value
+    // (5th arg) so a swallowed onBroadcast write can't leave a NULL-value row that the
+    // reconciler later credits at the stale amountCents.
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'x402', '0xPEND', null, '500000')
     expect(mockSettled).not.toHaveBeenCalled()
   })
 
@@ -461,7 +466,8 @@ describe('(V) executeX402Settlement — pending-row lifecycle', () => {
       return { kind: 'settled', txHash: '0xT2' }
     })
     await executeX402Settlement(PARAMS)
-    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'x402', '0xT2', '0xT1')
+    // (V-N2) onBroadcast records the settled value (500000) in the same UPDATE.
+    expect(mockBroadcast).toHaveBeenCalledWith(OP_ID, 'x402', '0xT2', '0xT1', '500000')
   })
 
   it('R-V11: a recovery confirm returning broadcast-unconfirmed/revert-nonce-unverifiable (P8(g) face) stays pending with NO fresh submit — passes pre+post', async () => {

@@ -509,6 +509,12 @@ export interface SettlementRowState {
   id: string
   settlementStatus: string | null
   externalRef: string | null
+  /**
+   * (V-N2) — the frozen first-write cost in cents. The broadcast-seam divergence
+   * detector compares the value being collected (the broadcasting proof, P2)
+   * against this (P1) to flag a price-changed-during-pending settlement.
+   */
+  amountCents: number | null
 }
 
 /**
@@ -525,6 +531,8 @@ export async function findSettlementRow(
       id: ledgerEntries.id,
       settlementStatus: ledgerEntries.settlementStatus,
       externalRef: ledgerEntries.externalRef,
+      // (V-N2) — the frozen amountCents for the broadcast-seam detector.
+      amountCents: ledgerEntries.amountCents,
     })
     .from(ledgerEntries)
     .where(
@@ -544,14 +552,38 @@ export async function markSettlementSettled(
   operationId: string,
   rail: string,
   txHash: string,
+  /**
+   * (V-N2) — the actually-collected value (base units = proof.authorization.value)
+   * of THIS settling tx. OPTIONAL: supplied ONLY by the in-request submit→confirm
+   * path (proof in scope, txHash == the tx whose value this is), so value and
+   * external_ref stay atomically paired even if the broadcast-time
+   * markSettlementBroadcast CAS-rejected. OMITTED by the reconciler tail (no
+   * proof in scope — it READS the value recorded at broadcast) and by the
+   * recovery confirm path (the settling tx is the PRIOR broadcast, whose value
+   * was recorded at ITS broadcast — must not be overwritten with this request's
+   * possibly-resigned value). When omitted the SET is byte-identical to pre-V-N2.
+   */
+  settledValueBaseUnits?: string,
 ): Promise<boolean> {
   const updated = await db
     .update(ledgerEntries)
-    .set({
-      settlementStatus: 'settled',
-      settledAt: new Date(),
-      externalRef: txHash,
-    })
+    .set(
+      settledValueBaseUnits !== undefined
+        ? {
+            settlementStatus: 'settled',
+            settledAt: new Date(),
+            externalRef: txHash,
+            // NULL-safe jsonb merge (a bare `metadata ||` is NULL-strict in PG).
+            // Keyed distinctly from the frozen authorizedValueBaseUnits — see
+            // SETTLED_VALUE_BASE_UNITS_KEY in settled-value.ts (keep in sync).
+            metadata: sql`COALESCE(${ledgerEntries.metadata}, '{}'::jsonb) || jsonb_build_object('settledValueBaseUnits', ${settledValueBaseUnits}::text)`,
+          }
+        : {
+            settlementStatus: 'settled',
+            settledAt: new Date(),
+            externalRef: txHash,
+          },
+    )
     .where(
       and(
         eq(ledgerEntries.operationId, operationId),
@@ -644,10 +676,30 @@ export async function markSettlementBroadcast(
   rail: string,
   txHash: string,
   expectedPriorRef: string | null,
+  /**
+   * (V-N2) — the actually-collected value (base units = proof.authorization.value)
+   * of the tx being broadcast (txHash). Recorded in the SAME UPDATE that sets
+   * external_ref, so value and tx-hash are atomically paired (a same-actor
+   * T1→T2 recovery re-point updates both together). OPTIONAL — supplied ONLY by
+   * the orchestrators' onBroadcast (the moment THIS request broadcasts txHash);
+   * the applyOutcome reverted-nonce-consumed / broadcast-unconfirmed calls OMIT
+   * it (they do not re-point to a new tx, so the value already paired with the
+   * existing ref stands). When omitted the SET is byte-identical to pre-V-N2.
+   */
+  settledValueBaseUnits?: string,
 ): Promise<boolean> {
   const updated = await db
     .update(ledgerEntries)
-    .set({ externalRef: txHash })
+    .set(
+      settledValueBaseUnits !== undefined
+        ? {
+            externalRef: txHash,
+            // NULL-safe jsonb merge — see SETTLED_VALUE_BASE_UNITS_KEY in
+            // settled-value.ts (keep the inline 'settledValueBaseUnits' in sync).
+            metadata: sql`COALESCE(${ledgerEntries.metadata}, '{}'::jsonb) || jsonb_build_object('settledValueBaseUnits', ${settledValueBaseUnits}::text)`,
+          }
+        : { externalRef: txHash },
+    )
     .where(
       and(
         eq(ledgerEntries.operationId, operationId),

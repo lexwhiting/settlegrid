@@ -36,6 +36,8 @@ import {
   confirmCircleNanoTx,
   type CircleNanoOnChainResult,
 } from './settle-engine'
+// (V-N2) — the broadcast-seam settled-value divergence detector.
+import { detectSettledValueDivergence } from '../settled-value'
 
 const RAIL = 'circle-nano'
 
@@ -136,10 +138,15 @@ async function applyOutcome(
   operationId: string,
   result: CircleNanoOnChainResult,
   expectedPriorRef: string | null,
+  // (V-N2) — the settled value of THIS request's tx, supplied ONLY on the
+  // fresh-submit path (result.txHash is the tx whose value this is). UNDEFINED on
+  // the recovery path (result is a confirm of the PRIOR broadcast — its value was
+  // recorded at its own broadcast and must not be re-pointed to this proof's value).
+  settledValueBaseUnits?: string,
 ): Promise<CircleNanoSettlementOutcome> {
   switch (result.kind) {
     case 'settled': {
-      const flipped = await markSettlementSettled(operationId, RAIL, result.txHash)
+      const flipped = await markSettlementSettled(operationId, RAIL, result.txHash, settledValueBaseUnits)
       if (!flipped) {
         // Row wasn't 'pending' — a concurrent winner already settled it. Return
         // the recorded txHash so the response is consistent.
@@ -213,7 +220,16 @@ async function applyOutcome(
       return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_REVERTED', httpStatus: 402, reason: 'The settlement transaction reverted on-chain; the payment did not complete.' }
     }
     case 'broadcast-unconfirmed': {
-      await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
+      // (V-N2 ③ DC-20) BACKSTOP the settled value here, not only in onBroadcast:
+      // onBroadcast's markSettlementBroadcast is best-effort (the engine swallows a
+      // throw), so a DB blip at the broadcast instant could leave this still-pending
+      // tx with external_ref-but-no-settledValueBaseUnits, which the reconciler would
+      // later credit at the stale frozen amountCents (the vector V-N2 closes). result.txHash
+      // is THIS request's broadcast tx, so settledValueBaseUnits (fresh-submit = its proof
+      // value; recovery = undefined, leaving the prior tx's recorded value intact) is the
+      // correct value to pair with it. Consumed for a credit only if this tx later confirms
+      // settled (then it collected exactly that value); a later revert never credits.
+      await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef, settledValueBaseUnits)
       logger.warn('circle_nano.settle_unconfirmed', { operationId, txHash: result.txHash, reason: result.reason })
       return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Settlement broadcast on-chain but not yet confirmed; treat as pending and retry to confirm.', txHash: result.txHash }
     }
@@ -319,10 +335,23 @@ export async function executeCircleNanoSettlement(
     //    nonce still free (it definitively failed); for settled / still-in-flight /
     //    reverted-but-nonce-consumed we apply the stored tx's outcome and return.
     const onBroadcast = async (txHash: Hex): Promise<void> => {
+      // (V-N2) — record the ACTUALLY-collected value (EIP-3009 moves exactly
+      // authorization.value) in the SAME UPDATE that pins external_ref, keyed to
+      // this broadcasting tx. The reconciler tail later credits THIS recorded
+      // value, not the frozen first-write amountCents.
+      const settledValueBaseUnits = proof.authorization.value
       // (V) P8-e — expectedPrior = the ref this request read at step 1 (the
       // legal same-actor T1→T2 re-point); a DIFFERENT live ref (a sibling's
       // winner) is never clobbered.
-      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash, existing?.externalRef ?? null)
+      const persisted = await markSettlementBroadcast(operationId, RAIL, txHash, existing?.externalRef ?? null, settledValueBaseUnits)
+      // (V-N2 detect) — at the broadcast seam the broadcasting value (P2) and the
+      // row's frozen amountCents (P1) coexist; flag a loss-direction divergence.
+      detectSettledValueDivergence({
+        operationId,
+        rail: RAIL,
+        settledValueBaseUnits,
+        frozenAmountCents: existing?.amountCents ?? params.costCents,
+      })
       if (!persisted) {
         // (T) ② seal — sibling of settled_evidence_on_terminal_failed_row,
         // fired at BROADCAST time: the write-ahead no-opped (WHERE pending)
@@ -371,7 +400,10 @@ export async function executeCircleNanoSettlement(
     //    onBroadcast persists the hash the instant it broadcasts (write-ahead),
     //    so a mid-wait process kill still leaves a re-waitable tx.
     const result = await submitCircleNanoOnChain(proof, { onBroadcast })
-    return applyOutcome(operationId, result, existing?.externalRef ?? null)
+    // (V-N2) — fresh submit: result.txHash IS the tx this request broadcast, so
+    // its value is this proof's value (pass it so a settled flip that re-points
+    // the ref carries the value with it; the recovery call at step 4 does NOT).
+    return applyOutcome(operationId, result, existing?.externalRef ?? null, proof.authorization.value)
   } finally {
     await tryRedis(async () => {
       await getRedis().del(lockKey)

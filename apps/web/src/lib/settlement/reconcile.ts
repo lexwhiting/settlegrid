@@ -42,6 +42,9 @@ import { isCanonicalX402Network } from './x402/networks'
 // reconciler's selection set and the guard's exclusion set can never drift.
 // (T) — isReconcilableRail replaces the credit gate's hardcoded rail pair (P3).
 import { RECONCILABLE_RAILS, isReconcilableRail } from './rails'
+// (V-N2) — credit the ACTUAL settled value recorded at broadcast, not the frozen
+// first-write amountCents (the over/under-credit vector).
+import { settledBaseUnitsToCents, SETTLED_VALUE_BASE_UNITS_KEY } from './settled-value'
 // (T) — the F2 mainnet pin, the SAME env-pinned predicates the proxy handlers and
 // the kernel /settle route use. The reconciler was the ONLY credit-capable
 // surface without it (register P3).
@@ -190,15 +193,56 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
             network: parsed.network,
           })
         } else {
-          const rawToolId =
+          const meta =
             row.metadata && typeof row.metadata === 'object'
-              ? (row.metadata as Record<string, unknown>).toolId
-              : undefined
+              ? (row.metadata as Record<string, unknown>)
+              : null
+          const rawToolId = meta?.toolId
           const toolId = typeof rawToolId === 'string' && rawToolId.length > 0 ? rawToolId : null
+          // (V-N2) — credit the ACTUAL settled value, recorded at broadcast
+          // (markSettlementBroadcast, keyed to the tx this reconciler just
+          // confirmed), NOT the frozen first-write amountCents. Reading the frozen
+          // amountCents re-credits a stale value when a same-(from,nonce) re-sign
+          // settled at a changed tool price (over-credit when lowered, under-credit
+          // when raised). Credit it UNCONDITIONALLY — no min/max: under universal
+          // exactAmount the settled value == what the buyer paid, correct in BOTH
+          // directions (the tail has no current-cost to min against anyway).
+          const rawSettled = meta?.[SETTLED_VALUE_BASE_UNITS_KEY]
+          let creditCents: number | null | undefined
+          if (rawSettled === undefined || rawSettled === null) {
+            // (§13.G) legacy / in-flight pre-deploy row: broadcast before V-N2,
+            // confirmed after — the value was never recorded. Fall back to the
+            // frozen amountCents (NOT null — creditSettlement's guard keeps that
+            // safe), but emit a distinct signal: this bounded (~≤1h post-V-N1 cap)
+            // window re-creates the over-credit vector, so the residual MUST be
+            // observable.
+            creditCents = row.amountCents
+            logger.warn('settlement.settled_value_legacy_fallback', {
+              operationId: row.operationId,
+              rail,
+              amountCents: row.amountCents ?? null,
+            })
+          } else {
+            const cents = typeof rawSettled === 'string' ? settledBaseUnitsToCents(rawSettled) : null
+            if (cents === null) {
+              // (§13.E) a malformed / overflowing recorded value is corruption,
+              // not a credit — never silently Number() it. Fall back to the
+              // bounded, valid frozen amountCents + alert at error level.
+              creditCents = row.amountCents
+              logger.error('settlement.settled_value_unconvertible', {
+                operationId: row.operationId,
+                rail,
+                settledValueBaseUnits: String(rawSettled),
+                amountCents: row.amountCents ?? null,
+              })
+            } else {
+              creditCents = cents
+            }
+          }
           await creditSettlement({
             developerId: row.accountId,
             toolId,
-            amountCents: row.amountCents,
+            amountCents: creditCents,
             operationId: row.operationId,
             rail,
           })

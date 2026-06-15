@@ -333,16 +333,21 @@ describe('reconcileOneRow — flips on confirmed on-chain state', () => {
 })
 
 describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)', () => {
+  // (V-N2) — the row carries metadata.settledValueBaseUnits='300000' (= 30 cents,
+  // the ACTUAL collected value) DISTINCT from the frozen amountCents=50: a
+  // same-(from,nonce) re-sign under a LOWERED price. The reconciler must credit
+  // the SETTLED 30, not the frozen 50 (non-vacuity: reverting the source to
+  // row.amountCents credits 50 and these tests go RED).
   const X402_ROW = {
     operationId: X402_OPID,
     rail: 'x402',
     externalRef: TX,
     amountCents: 50,
     accountId: 'dev-7',
-    metadata: { toolId: 'tool-9' },
+    metadata: { toolId: 'tool-9', settledValueBaseUnits: '300000' },
   }
 
-  it('x402 settled + flipped → credits dev balance THEN tool revenue THEN the credited_at marker in ONE txn, by amountCents', async () => {
+  it('(V-N2) x402 settled + flipped → credits dev balance THEN tool revenue THEN the credited_at marker in ONE txn, by the SETTLED value (30c) NOT the frozen amountCents (50c)', async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(true)
     const out = await reconcileOneRow(X402_ROW)
@@ -358,9 +363,10 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(vi.mocked(eq)).toHaveBeenCalledWith('rail', 'x402')
     expect(vi.mocked(eq)).toHaveBeenCalledWith('settlement_status', 'settled')
     expect(vi.mocked(isNull)).toHaveBeenCalledWith('credited_at')
-    // the increment amount (50) flows into BOTH sql interpolations.
+    // (V-N2) the SETTLED value (30) flows into BOTH sql interpolations — NOT 50.
     const sqlAmounts = mockSql.mock.calls.flatMap((c) => c.slice(1))
-    expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
+    expect(sqlAmounts.filter((v) => v === 30)).toHaveLength(2)
+    expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(0)
   })
 
   it("x402 settled but flip LOST (flipped===false) → NO credit (another actor owns the credit) + outcome 'settled-noop' (S item 3: not a transition THIS run performed)", async () => {
@@ -371,12 +377,12 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(mockDb.transaction).not.toHaveBeenCalled()
   })
 
-  it('circle-nano settled + flipped → credits dev balance THEN tool revenue in ONE txn (Part C2 rail-agnostic widen)', async () => {
+  it('(V-N2) circle-nano settled + flipped → credits dev balance THEN tool revenue in ONE txn, by the SETTLED value (30c) NOT amountCents (50c) (Part C2 rail-agnostic widen)', async () => {
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
     mockSettled.mockResolvedValue(true)
     const out = await reconcileOneRow({
       operationId: CNANO_OPID, rail: 'circle-nano', externalRef: TX,
-      amountCents: 50, accountId: 'dev-7', metadata: { toolId: 'tool-9' },
+      amountCents: 50, accountId: 'dev-7', metadata: { toolId: 'tool-9', settledValueBaseUnits: '300000' },
     })
     expect(out).toBe('settled')
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
@@ -385,9 +391,10 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     // (T) + the credited_at marker, same transaction.
     expect(mockTx.update).toHaveBeenNthCalledWith(3, ledgerEntries)
     expect(mockTx.update).toHaveBeenCalledTimes(3)
-    // the increment amount (50) flows into BOTH sql interpolations.
+    // (V-N2) the SETTLED value (30) flows into BOTH sql interpolations — NOT 50.
     const sqlAmounts = mockSql.mock.calls.flatMap((c) => c.slice(1))
-    expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(2)
+    expect(sqlAmounts.filter((v) => v === 30)).toHaveLength(2)
+    expect(sqlAmounts.filter((v) => v === 50)).toHaveLength(0)
   })
 
   it("circle-nano settled but flip LOST (flipped===false) → NO credit (exactly-once holds across the widen) + outcome 'settled-noop'", async () => {
@@ -439,7 +446,9 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     mockSettled.mockResolvedValue(true)
     const out = await reconcileOneRow({
       operationId: X402_OPID, rail: 'x402', externalRef: TX,
-      amountCents: 50, accountId: 'dev-7', metadata: {},
+      // (V-N2) settled value present (50c) but NO toolId — credits the dev on the
+      // primary settled path, skips the tool stat.
+      amountCents: 50, accountId: 'dev-7', metadata: { settledValueBaseUnits: '500000' },
     })
     expect(out).toBe('settled')
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
@@ -459,7 +468,8 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(out).toBe('settled') // the on-chain flip DID happen; only the credit is flagged
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.credit_failed',
-      expect.objectContaining({ operationId: X402_OPID, developerId: 'dev-7', amountCents: 50 }),
+      // (V-N2) the credited amount is the SETTLED value (30), not the frozen 50.
+      expect.objectContaining({ operationId: X402_OPID, developerId: 'dev-7', amountCents: 30 }),
       expect.any(Error),
     )
     expect(vi.mocked(logger.info)).not.toHaveBeenCalledWith('settlement.credited', expect.anything())
@@ -481,6 +491,90 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     const out = await reconcileOneRow(X402_ROW)
     expect(out).toBe('settled')
     expect(vi.mocked(eq)).toHaveBeenCalledWith(mockDevelopers.id, 'dev-7')
+  })
+})
+
+// ─── (V-N2) reconciler-tail credits the ACTUAL settled value ─────────────────
+// The reconciler credits the value RECORDED AT BROADCAST (metadata.settledValueBaseUnits,
+// the broadcasting proof's authorization.value), NOT the frozen first-write amountCents
+// a same-(from,nonce) re-sign under a changed price can outpace. These reproduce the
+// vector in BOTH directions + the boundary/fallback/recovery cases (§13.C/.E/.G/.I).
+describe('(V-N2) reconcileOneRow — credits the settled value, not the frozen amountCents', () => {
+  const row = (settledValueBaseUnits: string | undefined, amountCents = 50) => ({
+    operationId: X402_OPID,
+    rail: 'x402',
+    externalRef: TX,
+    amountCents,
+    accountId: 'dev-7',
+    metadata:
+      settledValueBaseUnits === undefined
+        ? { toolId: 'tool-9' }
+        : { toolId: 'tool-9', settledValueBaseUnits },
+  })
+  // The numeric amounts interpolated into the two credit-increment sql templates
+  // (developers.balanceCents + N, tools.totalRevenueCents + N) — N twice on a
+  // successful dev+tool credit.
+  const creditedAmounts = () =>
+    mockSql.mock.calls.flatMap((c) => c.slice(1)).filter((v) => typeof v === 'number')
+
+  beforeEach(() => {
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: TX })
+    mockSettled.mockResolvedValue(true)
+  })
+
+  it('PRICE-LOWERED (§13.C — the vector): frozen 50c, settled 30c → credits 30 (stops the over-credit), NEVER 50', async () => {
+    const out = await reconcileOneRow(row('300000', 50)) // 300000 base units = 30c
+    expect(out).toBe('settled')
+    const amts = creditedAmounts()
+    expect(amts.filter((v) => v === 30)).toHaveLength(2) // dev + tool
+    expect(amts.filter((v) => v === 50)).toHaveLength(0) // the over-credit is gone
+  })
+
+  it('PRICE-RAISED (§13.C symmetry): frozen 50c, settled 70c → credits 70 (stops the under-credit), NEVER 50', async () => {
+    const out = await reconcileOneRow(row('700000', 50)) // 700000 base units = 70c
+    expect(out).toBe('settled')
+    const amts = creditedAmounts()
+    expect(amts.filter((v) => v === 70)).toHaveLength(2)
+    expect(amts.filter((v) => v === 50)).toHaveLength(0)
+  })
+
+  it('LEGACY/IN-FLIGHT (§13.G): NO settledValueBaseUnits → credits the frozen amountCents + logs the legacy-fallback signal', async () => {
+    const out = await reconcileOneRow(row(undefined, 50))
+    expect(out).toBe('settled')
+    expect(creditedAmounts().filter((v) => v === 50)).toHaveLength(2) // safe fallback
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'settlement.settled_value_legacy_fallback',
+      expect.objectContaining({ operationId: X402_OPID, rail: 'x402', amountCents: 50 }),
+    )
+  })
+
+  it('UNITS BOUNDARY (§13.E): a sub-cent settled value FLOORS down (305000 base units = 30.5c → credits 30, never 31)', async () => {
+    const out = await reconcileOneRow(row('305000', 50)) // 30.5c → floor 30
+    expect(out).toBe('settled')
+    const amts = creditedAmounts()
+    expect(amts.filter((v) => v === 30)).toHaveLength(2)
+    expect(amts.filter((v) => v === 31)).toHaveLength(0) // never rounds/ceils up
+  })
+
+  it('UNITS BOUNDARY (§13.E): an OVERFLOWING settled value is NOT silently credited → falls back to amountCents + logs unconvertible', async () => {
+    const out = await reconcileOneRow(row('1' + '0'.repeat(30), 50)) // 10^30 base units → cents >> MAX_SAFE
+    expect(out).toBe('settled')
+    expect(creditedAmounts().filter((v) => v === 50)).toHaveLength(2) // bounded fallback, not garbage
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_value_unconvertible',
+      expect.objectContaining({ operationId: X402_OPID, rail: 'x402', amountCents: 50 }),
+    )
+  })
+
+  it('NONCE-CONSUMED RECOVERY (§13.I / DC-06): reverted-but-nonce-consumed with a recorded settled value → NEVER auto-credits, stays pending', async () => {
+    // txB(P2=70c) reverted because txA(P1) confirmed concurrently (nonce consumed):
+    // the recorded settledValueBaseUnits is NON-authoritative — the row must NOT
+    // auto-credit (manual repair reads the on-chain Transfer, not this field).
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: TX, nonceConsumed: true })
+    const out = await reconcileOneRow(row('700000', 50))
+    expect(out).toBe('pending-nonce-consumed')
+    expect(mockSettled).not.toHaveBeenCalled()
+    expect(mockDb.transaction).not.toHaveBeenCalled() // no credit txn fires
   })
 })
 
