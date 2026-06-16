@@ -75,6 +75,84 @@ export function settledBaseUnitsToCents(baseUnits: string): number | null {
 }
 
 /**
+ * (V-N2b) — resolve the value the IN-REQUEST on-chain credit should pay for a
+ * settled flip-winner, or DEFER. The live credit must equal the value of the tx
+ * that actually settled on `external_ref`:
+ *   - fresh-submit: the broadcasting proof's `authorization.value` (== costCents
+ *     under universal exactAmount), passed straight in — NO row re-read;
+ *   - recovery-confirm: the value recorded at the PRIOR tx's broadcast, re-read
+ *     off the (now terminal/frozen) row AFTER the flip.
+ *
+ * THE PIVOT (§7) — credit-the-recorded-value-OR-DEFER, never credit a guess:
+ *   - present + convertible (≥ 1 cent) → settledBaseUnitsToCents(it);
+ *   - ABSENT (the bounded swallowed-onBroadcast DC-20 residual) → null (DEFER) +
+ *     `settled_value_legacy_fallback` (warn), mirroring the reconciler tail;
+ *   - UNCONVERTIBLE / overflow / sub-cent-or-zero → null (DEFER) +
+ *     `settled_value_unconvertible` (error). On the credit-winner path costCents
+ *     is > 0 and exactAmount makes the settled value ≥ 1 cent, so a 0/sub-cent
+ *     result here is a genuine anomaly, not a free tool — fold it into the
+ *     error+defer arm (a 0-credit would otherwise write a credited_at marker that
+ *     MASKS the row from the uncredited sweep, the very masking §7.7 closes).
+ *
+ * A null return means DEFER: the seam leaves `credited_at` NULL (writes no
+ * balance / revenue / marker), so the uncredited-sweep ENUMERATES + ALERTS the row
+ * (reconcile.uncredited_settled) → an operator credits it via the runbook; the
+ * reconciler tail does NOT re-credit an already-settled row — strictly better than
+ * today's unconditional `costCents` credit on
+ * a recovery (the silent-wrong over/under-credit vector), and exactly-once-safe
+ * (the WHERE-pending flip stays the sole credit arbiter).
+ *
+ * The differentiated warn/error is emitted HERE (the orchestrator, the only layer
+ * that distinguishes absent from unconvertible — the settled outcome carries only
+ * a bare `creditCents: number | null`, §7.3). It runs in-request, so the signal
+ * fires at the in-request seam as §7.7 requires; the proxy twin / kernel defer on
+ * null WITHOUT re-emitting (no double-page). Names / levels / payload mirror the
+ * reconciler tail (reconcile.ts) for one ledger-side alert vocabulary.
+ *
+ * NOTE: keep the credit-or-defer POLICY here distinct from the reconciler's
+ * fallback-and-credit POLICY (it credits the frozen amountCents on absence). They
+ * deliberately differ (§7.9) — sharing the funds-safe primitive
+ * (settledBaseUnitsToCents) is enough; sharing the surrounding policy would be
+ * wrong, not drift.
+ */
+export function resolveInRequestCreditCents(params: {
+  operationId: string | null
+  rail: string
+  /**
+   * fresh-submit: the broadcasting proof's authorization.value; recovery: the
+   * row's recorded `settledValueBaseUnits` column. null/undefined ⇒ absent.
+   */
+  settledValueBaseUnits: string | null | undefined
+  /**
+   * The signal payload's `amountCents` (mirrors the reconciler): the row's frozen
+   * amountCents on recovery, this request's costCents on fresh-submit.
+   */
+  amountCents: number | null
+}): number | null {
+  const { operationId, rail, settledValueBaseUnits, amountCents } = params
+  if (settledValueBaseUnits === null || settledValueBaseUnits === undefined) {
+    // (§13.G mirror) absent recorded value — the bounded swallowed-write / legacy
+    // residual. DEFER + warn (NOT error: a re-creatable window, not corruption).
+    logger.warn('settlement.settled_value_legacy_fallback', { operationId, rail, amountCents })
+    return null
+  }
+  const cents = settledBaseUnitsToCents(settledValueBaseUnits)
+  if (cents === null || cents <= 0) {
+    // (§13.E mirror) corrupt / overflowing / sub-cent-or-zero on a costCents>0
+    // credit-winner path — never credit a guess, never mark a 0-credit. DEFER +
+    // error so an operator reconciles by operationId (raw value in the payload).
+    logger.error('settlement.settled_value_unconvertible', {
+      operationId,
+      rail,
+      settledValueBaseUnits,
+      amountCents,
+    })
+    return null
+  }
+  return cents
+}
+
+/**
  * (V-N2 detect) — fire at the BROADCAST seam, where the broadcasting proof's
  * settled value (P2) and the row's frozen amountCents (P1) coexist. The
  * reconciler tail is structurally blind to this (it would only ever see

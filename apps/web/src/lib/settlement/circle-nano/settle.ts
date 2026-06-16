@@ -37,7 +37,9 @@ import {
   type CircleNanoOnChainResult,
 } from './settle-engine'
 // (V-N2) — the broadcast-seam settled-value divergence detector.
-import { detectSettledValueDivergence } from '../settled-value'
+// (V-N2b) — the in-request credit-or-defer resolver (the live-credit twin of the
+// reconciler tail's recorded-value credit).
+import { detectSettledValueDivergence, resolveInRequestCreditCents } from '../settled-value'
 
 const RAIL = 'circle-nano'
 
@@ -74,7 +76,13 @@ export type CircleNanoSettlementOutcome =
   // `alreadySettled` marks a settled outcome this call did NOT freshly flip
   // pending→settled (an idempotent-hit or a concurrent-flip-loser) → the caller
   // must NOT credit (the flip winner already did). Mirrors x402's orchestrator.
-  | { status: 'settled'; txHash: string; alreadySettled?: true }
+  // `creditCents` (V-N2b, flip-winner only) — the ACTUALLY-collected value the
+  // in-request credit must pay (fresh-submit = this proof's value == costCents;
+  // recovery-confirm = the prior broadcast's recorded value, possibly ≠ costCents).
+  // `null` ⇒ DEFER (absent/unconvertible) — credit nothing, leave credited_at NULL;
+  // the uncredited-sweep enumerates + alerts the row → an operator credits it via the
+  // runbook (the reconciler tail does NOT re-credit an already-settled row). Mirrors x402.
+  | { status: 'settled'; txHash: string; alreadySettled?: true; creditCents?: number | null }
   | { status: 'failed'; code: string; httpStatus: number; reason: string }
   | { status: 'pending'; code: string; httpStatus: number; reason: string; txHash?: string }
 
@@ -184,7 +192,29 @@ async function applyOutcome(
         }
       }
       logger.info('circle_nano.settle_onchain_success', { operationId, txHash: result.txHash })
-      return { status: 'settled', txHash: result.txHash }
+      // (V-N2b) — resolve the value the in-request credit pays, OR DEFER (mirror of
+      // x402's orchestrate.ts). fresh-submit: settledValueBaseUnits is THIS proof's
+      // value (== costCents under exactAmount) — resolve directly, NO re-read.
+      // recovery-confirm: arg undefined (the settling tx is the PRIOR broadcast) →
+      // re-read the now-terminal/frozen row for its recorded value. null ⇒ DEFER.
+      let creditCents: number | null
+      if (settledValueBaseUnits !== undefined) {
+        creditCents = resolveInRequestCreditCents({
+          operationId,
+          rail: RAIL,
+          settledValueBaseUnits,
+          amountCents: null,
+        })
+      } else {
+        const settledRow = await findSettlementRow(operationId, RAIL)
+        creditCents = resolveInRequestCreditCents({
+          operationId,
+          rail: RAIL,
+          settledValueBaseUnits: settledRow?.settledValueBaseUnits,
+          amountCents: settledRow?.amountCents ?? null,
+        })
+      }
+      return { status: 'settled', txHash: result.txHash, creditCents }
     }
     case 'reverted': {
       if (result.nonceConsumed) {

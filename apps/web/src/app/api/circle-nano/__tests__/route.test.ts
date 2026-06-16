@@ -154,7 +154,9 @@ beforeEach(() => {
   mockIsCircleNanoKernelEnabled.mockReturnValue(true)
   mockIsX402TestnetAllowed.mockReturnValue(false)
   mockValidate.mockResolvedValue({ valid: true, payerAddress: '0xabc', amountUsdc: '500000' })
-  mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX' })
+  // (V-N2b) the orchestrator now resolves creditCents (fresh-submit == costCents 50);
+  // the route credits THAT value (defers when null).
+  mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX', creditCents: 50 })
   mockCredit.mockResolvedValue(undefined)
   setTool(ACTIVE_TOOL)
 })
@@ -217,7 +219,7 @@ describe('POST /api/circle-nano/verify', () => {
 
 describe('POST /api/circle-nano/settle', () => {
   it('on-chain settled → 200 with real-time settlementType + the txHash', async () => {
-    mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX' })
+    mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX', creditCents: 50 })
     const res = await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ONCHAIN))
     expect(res.status).toBe(200)
     const json = await res.json()
@@ -243,13 +245,15 @@ describe('POST /api/circle-nano/settle', () => {
   })
 
   it('on a FRESH on-chain settle → credits the developer + tool exactly once, keyed by the stable operation_id (Part C)', async () => {
-    mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX' })
+    mockExecute.mockResolvedValue({ status: 'settled', txHash: '0xONCHAINTX', creditCents: 50 })
     await settlePOST(makeReq('/api/circle-nano/settle', SETTLE_ONCHAIN))
     expect(mockCredit).toHaveBeenCalledTimes(1)
     expect(mockCredit).toHaveBeenCalledWith(
       expect.objectContaining({
         developerId: 'dev-uuid-1',
         toolId: 'tool-uuid-1',
+        // (V-N2b) the credited value is outcome.creditCents (== costCents on a fresh
+        // submit), NOT a hardcoded costCents read.
         amountCents: 50,
         operationId: expect.stringContaining('circle-nano:eip155:8453:'),
         // (T) — rail keys the credited_at marker inside the credit txn.

@@ -1615,8 +1615,17 @@ async function forwardAndBill(
      * credit was lost (a process kill mid-request, a rolled-back txn).
      * Absent ⇒ the legacy Promise.all credit below is byte-identical
      * (non-settlement rails have no row to mark).
+     *
+     * (V-N2b) `creditCents` — the value the on-chain twin credits (the orchestrator-
+     * resolved ACTUALLY-collected settled value; fresh = costCents, recovery = the
+     * prior broadcast's recorded value, possibly ≠ costCents). `null` / `undefined`
+     * ⇒ DEFER: the twin writes NOTHING (no balance / revenue / marker) so
+     * credited_at stays NULL and the uncredited sweep enumerates + alerts the row for
+     * a runbook credit (the reconciler tail does NOT re-credit an already-settled
+     * row). The handlers MUST copy outcome.creditCents here (a forgotten copy degrades to
+     * defer-always — a perf regression caught by a test, never a wrong credit).
      */
-    settlement?: { operationId: string; rail: 'x402' | 'circle-nano' }
+    settlement?: { operationId: string; rail: 'x402' | 'circle-nano'; creditCents?: number | null }
   }
 ): Promise<NextResponse> {
   const upstreamHeaders = buildUpstreamHeaders(request)
@@ -1693,6 +1702,13 @@ async function forwardAndBill(
   // already credited the single on-chain payment) → its recorded cost is 0.
   const skipCredit = options?.skipCredit === true
   const actualCost = upstreamOk && !skipCredit ? costCents : 0
+  // (V-N2b) — the cost RECORDED on the invocation row (§7.10). Defaults to
+  // actualCost (the quoted/charged price) and is overwritten ONLY when the on-chain
+  // settlement twin actually credits a DIFFERENT settled value (a recovery-confirm
+  // crediting the prior broadcast's recorded value), so invocations.costCents agrees
+  // with tools.totalRevenueCents (no dashboard self-contradiction). The
+  // X-SettleGrid-Cost-Cents header stays actualCost (the quoted price) below.
+  let recordedCostCents = actualCost
 
   if (upstreamOk && !skipCredit) {
     // Awaited — see proxy.billing_update_error rationale above.
@@ -1706,40 +1722,56 @@ async function forwardAndBill(
         // credit and this one on the same developer+tool, and PG would abort
         // one txn, rolling a REAL credit back into a manufactured incident.
         const { operationId, rail } = options.settlement
-        let marked = 0
-        let devMatched = 1
-        await db.transaction(async (txn) => {
-          const dev = await txn.update(developers).set({
-            balanceCents: sql`${developers.balanceCents} + ${actualCost}`,
-            updatedAt: new Date(),
-          }).where(eq(developers.id, toolRow.developerId))
-            .returning({ id: developers.id })
-          devMatched = dev.length
-          await txn.update(tools).set({
-            totalInvocations: sql`${tools.totalInvocations} + 1`,
-            totalRevenueCents: sql`${tools.totalRevenueCents} + ${actualCost}`,
-            updatedAt: new Date(),
-          }).where(eq(tools.id, toolRow.id))
-          if (devMatched > 0) {
-            const rows = await txn.update(ledgerEntries).set({ creditedAt: new Date() })
-              .where(and(
-                eq(ledgerEntries.operationId, operationId),
-                eq(ledgerEntries.rail, rail),
-                eq(ledgerEntries.settlementStatus, 'settled'),
-                isNull(ledgerEntries.creditedAt),
-              ))
-              .returning({ id: ledgerEntries.id })
-            marked = rows.length
+        // (V-N2b) — credit the ACTUALLY-collected settled value the orchestrator
+        // resolved (fresh-submit = this proof's value == actualCost; recovery-
+        // confirm = the prior broadcast's recorded value, which a re-sign at a
+        // changed price can make ≠ actualCost), NOT actualCost. `null` ⇒ DEFER:
+        // write NOTHING (no balance / revenue / marker), leaving credited_at NULL
+        // so the uncredited sweep enumerates + alerts it for a runbook credit (the
+        // reconciler tail does NOT re-credit an already-settled row) — strictly safer
+        // than crediting a guess on a recovery (the silent over/under-credit vector).
+        // The orchestrator already emitted the differentiated legacy_fallback
+        // (warn) / unconvertible (error) signal at resolution, so no re-emit here.
+        const settledCreditCents = options.settlement.creditCents ?? null
+        if (settledCreditCents != null) {
+          recordedCostCents = settledCreditCents // §7.10 — record the credited value
+          let marked = 0
+          let devMatched = 1
+          await db.transaction(async (txn) => {
+            const dev = await txn.update(developers).set({
+              balanceCents: sql`${developers.balanceCents} + ${settledCreditCents}`,
+              updatedAt: new Date(),
+            }).where(eq(developers.id, toolRow.developerId))
+              .returning({ id: developers.id })
+            devMatched = dev.length
+            await txn.update(tools).set({
+              totalInvocations: sql`${tools.totalInvocations} + 1`,
+              totalRevenueCents: sql`${tools.totalRevenueCents} + ${settledCreditCents}`,
+              updatedAt: new Date(),
+            }).where(eq(tools.id, toolRow.id))
+            if (devMatched > 0) {
+              const rows = await txn.update(ledgerEntries).set({ creditedAt: new Date() })
+                .where(and(
+                  eq(ledgerEntries.operationId, operationId),
+                  eq(ledgerEntries.rail, rail),
+                  eq(ledgerEntries.settlementStatus, 'settled'),
+                  isNull(ledgerEntries.creditedAt),
+                ))
+                .returning({ id: ledgerEntries.id })
+              marked = rows.length
+            }
+          })
+          // A dangling developerId must NOT mark the row "credited" — leave it
+          // paging truthfully in the sweep and log; never throw (a thrown marker
+          // would lose the rest of the response path for an accounting signal).
+          if (devMatched === 0) {
+            logger.error('settlement.credit_zero_row_unmarked', { operationId, rail, slug, requestId })
+          } else if (marked === 0) {
+            logger.error('settlement.credit_marker_unmatched', { operationId, rail, slug, requestId })
           }
-        })
-        // A dangling developerId must NOT mark the row "credited" — leave it
-        // paging truthfully in the sweep and log; never throw (a thrown marker
-        // would lose the rest of the response path for an accounting signal).
-        if (devMatched === 0) {
-          logger.error('settlement.credit_zero_row_unmarked', { operationId, rail, slug, requestId })
-        } else if (marked === 0) {
-          logger.error('settlement.credit_marker_unmatched', { operationId, rail, slug, requestId })
         }
+        // settledCreditCents == null ⇒ DEFER: no-op here. credited_at stays NULL
+        // (sweep enumerates the row), recordedCostCents stays actualCost (§7.10).
       } else {
         await Promise.all([
           db.update(tools).set({
@@ -1783,7 +1815,12 @@ async function forwardAndBill(
     toolId: toolRow.id,
     developerId: toolRow.developerId,
     method: `proxy:${request.method}`,
-    costCents: actualCost,
+    // (V-N2b §7.10) — the value actually credited on the settlement path; == the
+    // quoted actualCost on every non-settlement / fresh-submit path, where it AGREES
+    // with tools.totalRevenueCents. On a DEFER it stays actualCost while
+    // tools.totalRevenueCents is NOT bumped (the txn is skipped), so the two DIVERGE
+    // by actualCost on a deferred row — analytics-only, no funds impact (DC-18).
+    costCents: recordedCostCents,
     latencyMs,
     status: upstreamOk ? 'success' : 'error',
     paymentMethod,
@@ -1813,6 +1850,10 @@ async function forwardAndBill(
   })
 
   responseHeaders.set('X-SettleGrid-Proxy', 'true')
+  // (V-N2b §7.10) — the QUOTED price (actualCost == costCents on a served request),
+  // NOT necessarily the credited amount: on a recovery-confirm the developer is
+  // credited the prior broadcast's recorded value (recordedCostCents), which may
+  // differ. The buyer-spend-reporting refinement is registered for a DC-18 follow-up.
   responseHeaders.set('X-SettleGrid-Cost-Cents', String(actualCost))
   responseHeaders.set('X-SettleGrid-Latency-Ms', String(latencyMs))
   responseHeaders.set('X-SettleGrid-Payment-Method', paymentMethod)
@@ -1980,6 +2021,8 @@ async function handleX402Proxy(
           // builder (same inputs ⇒ same operation_id the orchestrator wrote);
           // the inline proof object is exactly orchestrate.ts's private
           // toProof mapping. Zero orchestrator edits (R1 audit fix F1+F2).
+          // (V-N2b) — carry the orchestrator-resolved settled value the twin
+          // credits (recovery-confirm may differ from costCents); null ⇒ DEFER.
           settlement: {
             operationId: x402OperationId({
               network: exactPayload.network,
@@ -1987,6 +2030,7 @@ async function handleX402Proxy(
               signature: exactPayload.payload.signature,
             }),
             rail: 'x402',
+            creditCents: outcome.creditCents,
           },
         }
   )
@@ -2131,7 +2175,9 @@ async function handleCircleNanoProxy(
           irreversibleOnChain: true,
           // (T) — see the x402 handler note; the kernel /settle route already
           // recomputes this exact key (circleNanoOperationId(parsedProof)).
-          settlement: { operationId: circleNanoOperationId(proof), rail: 'circle-nano' },
+          // (V-N2b) — carry the orchestrator-resolved settled value the twin
+          // credits (recovery-confirm may differ from costCents); null ⇒ DEFER.
+          settlement: { operationId: circleNanoOperationId(proof), rail: 'circle-nano', creditCents: outcome.creditCents },
         }
   )
 }

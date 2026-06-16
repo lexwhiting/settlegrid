@@ -106,9 +106,12 @@ describe('executeCircleNanoSettlement — happy path', () => {
   it("submits, flips 'pending'→'settled' with the txHash, returns settled", async () => {
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xTX' })
+    // (V-N2b) fresh-submit credits this proof's value floored to cents (50¢) — NO
+    // re-read (only the step-1 idempotency read fires).
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     // (V-N2) fresh submit: the settled flip carries this proof's value (500000).
     expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xTX', '500000')
+    expect(mockFindRow).toHaveBeenCalledTimes(1)
     expect(mockFailed).not.toHaveBeenCalled()
     expect(mockRedisDel).toHaveBeenCalledWith(LOCK_KEY)
   })
@@ -223,7 +226,7 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
     mockRedisSet.mockRejectedValue(new Error('redis unavailable'))
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xTX' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     expect(mockSubmit).toHaveBeenCalledTimes(1)
   })
 
@@ -280,11 +283,13 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
 })
 
 describe('executeCircleNanoSettlement — timeout recovery (re-wait, do not re-submit)', () => {
-  it('pending row with a stored broadcast tx that now confirms → settled WITHOUT re-submitting', async () => {
-    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xBROADCAST' })
+  it('pending row with a stored broadcast tx that now confirms → settled WITHOUT re-submitting; credits the RECORDED value, not costCents (V-N2b RAISE)', async () => {
+    // RAISE repro: price raised to costCents 50 after a 30¢ broadcast → credit the
+    // recorded 30 (what the prior tx moved), NOT 50 (the over-credit vector).
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xBROADCAST', amountCents: 50, settledValueBaseUnits: '300000' })
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xBROADCAST' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xBROADCAST' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xBROADCAST', creditCents: 30 })
     expect(mockConfirm).toHaveBeenCalledWith(PROOF, '0xBROADCAST')
     // (V-N2) RECOVERY confirm of the PRIOR broadcast → NO value supplied (its
     // value was recorded at its own broadcast; must not be overwritten with this
@@ -298,7 +303,7 @@ describe('executeCircleNanoSettlement — timeout recovery (re-wait, do not re-s
     mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xDROPPED', nonceConsumed: false })
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
     const outcome = await executeCircleNanoSettlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xFRESH' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xFRESH', creditCents: 50 })
     expect(mockConfirm).toHaveBeenCalledTimes(1)
     expect(mockSubmit).toHaveBeenCalledTimes(1)
     // (V-N2) fresh submit (after the prior tx definitively failed): the settled
@@ -320,6 +325,48 @@ describe('executeCircleNanoSettlement — timeout recovery (re-wait, do not re-s
     const outcome = await executeCircleNanoSettlement(PARAMS)
     expect(outcome).toMatchObject({ status: 'pending' })
     expect(mockSubmit).not.toHaveBeenCalled()
+  })
+})
+
+// ─── (V-N2b) in-request recovery-confirm credit value — credit-or-defer (§7) ───
+describe('(V-N2b) executeCircleNanoSettlement — recovery-confirm credits the RECORDED settled value, or DEFERS', () => {
+  it('LOWER repro: price lowered to 50¢ after a 70¢ broadcast → credits the recorded 70, NOT costCents 50', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR', amountCents: 50, settledValueBaseUnits: '700000' })
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xPRIOR' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: 70 })
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('§7.7 recovery whose value was NEVER recorded (swallowed onBroadcast) → DEFER (creditCents null) + legacy_fallback warn; prior value not re-pointed', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR', amountCents: 50 })
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xPRIOR' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: null })
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'settlement.settled_value_legacy_fallback',
+      expect.objectContaining({ operationId: OP_ID, rail: 'circle-nano', amountCents: 50 }),
+    )
+    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xPRIOR', undefined)
+  })
+
+  it('recovery whose recorded value is corrupt → DEFER (creditCents null) + unconvertible error', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR', amountCents: 50, settledValueBaseUnits: 'corrupt' })
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xPRIOR' })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: null })
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_value_unconvertible',
+      expect.objectContaining({ settledValueBaseUnits: 'corrupt' }),
+    )
+  })
+
+  it('§13.I / #11: a recovery confirm of a reverted-nonce-CONSUMED row stays PENDING — NEVER flips settled in-request, so NO credit', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xPRIOR', nonceConsumed: true })
+    const outcome = await executeCircleNanoSettlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION' })
+    expect(mockSettled).not.toHaveBeenCalled() // no flip → no in-request credit (the reconciler tail owns it)
   })
 })
 

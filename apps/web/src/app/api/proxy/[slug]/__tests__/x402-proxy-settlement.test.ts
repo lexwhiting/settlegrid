@@ -139,6 +139,17 @@ function flattenCond(node: unknown, acc = { params: [] as unknown[], text: [] as
   return acc
 }
 
+/**
+ * (V-N2b) The credited amount in `sql`${col} + ${N}`` is interpolated as a RAW
+ * NUMBER chunk (NOT a bound Param, unlike eq()'s values), so flattenCond can't see
+ * it. Pull the lone numeric queryChunk — the credit operand — directly.
+ */
+function creditAmountOf(node: unknown): number | undefined {
+  const chunks = (node as { queryChunks?: unknown[] })?.queryChunks
+  if (!Array.isArray(chunks)) return undefined
+  return chunks.find((c) => typeof c === 'number') as number | undefined
+}
+
 const TOOL_ROW = {
   id: 'tool-1',
   name: 'Demo Tool',
@@ -221,7 +232,8 @@ afterEach(() => {
 
 describe('handleX402Proxy — settled path forwards + credits exactly once', () => {
   it('fresh settle → forwards, credits dev+tool+marker in ONE txn (gross 50), tx-hash + cost headers', async () => {
-    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX' })
+    // (V-N2b) the orchestrator resolves creditCents (fresh-submit == costCents 50).
+    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     const res = await callPost(makeReq())
     expect(globalThis.fetch).toHaveBeenCalledTimes(1) // forwarded upstream
     // (T) fresh on-chain flip → the TRANSACTION branch: developers THEN tools
@@ -235,6 +247,10 @@ describe('handleX402Proxy — settled path forwards + credits exactly once', () 
     expect(txSetCalls[1]).toHaveProperty('totalRevenueCents') // 2nd: tools
     expect(txSetCalls[2]).toHaveProperty('creditedAt') // 3rd: the marker
     expect(txSetCalls[2].creditedAt).toBeInstanceOf(Date)
+    // (V-N2b) the credited VALUE is the orchestrator-resolved creditCents (50 here,
+    // == costCents on a fresh submit), bound into BOTH the balance + revenue SETs.
+    expect(creditAmountOf(txSetCalls[0].balanceCents)).toBe(50)
+    expect(creditAmountOf(txSetCalls[1].totalRevenueCents)).toBe(50)
     // (② seal MEDIUM) the marker WHERE itself, not just its SET: keyed by the
     // EXACT operation_id the orchestrator wrote (real builder on this test's
     // payload) + rail + settled + the credited_at IS NULL guard.
@@ -270,6 +286,35 @@ describe('handleX402Proxy — settled path forwards + credits exactly once', () 
     expect(res.headers.get('X-SettleGrid-Tx-Hash')).toBe('0xTX')
     expect(res.headers.get('X-SettleGrid-Cost-Cents')).toBe('0')
   })
+
+  it('(V-N2b §7.4) recovery-confirm: the handler bridges outcome.creditCents → the twin credits the RECORDED value (30), NOT costCents (50); the invocation records 30; the cost header stays the quoted 50', async () => {
+    // A recovery where the prior tx moved 30¢ but the current price (costCents) is
+    // 50¢ — the orchestrator resolved creditCents=30. A forgotten bridge would
+    // surface here as defer (no txn); a wrong bridge as a 50 credit.
+    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX', creditCents: 30 })
+    const res = await callPost(makeReq())
+    expect(H.dbTransaction).toHaveBeenCalledTimes(1)
+    const txSetCalls = H.txSet.mock.calls.map((c) => c[0] as Record<string, unknown>)
+    expect(creditAmountOf(txSetCalls[0].balanceCents)).toBe(30) // dev balance += 30 (recorded), NOT 50
+    expect(creditAmountOf(txSetCalls[1].totalRevenueCents)).toBe(30) // tool revenue += 30
+    // §7.10 — invocations.costCents records the CREDITED value (30) so it agrees
+    // with tools.totalRevenueCents (no dashboard self-contradiction).
+    const invocationRow = H.insertValues.mock.calls[0][0] as Record<string, unknown>
+    expect(invocationRow.costCents).toBe(30)
+    // the buyer-facing cost header stays the QUOTED price (the stated caveat).
+    expect(res.headers.get('X-SettleGrid-Cost-Cents')).toBe('50')
+  })
+
+  it('(V-N2b §7.5) DEFER: outcome.creditCents null → NO credit txn (credited_at untouched), still forwarded (200); the invocation records the quoted cost', async () => {
+    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX', creditCents: null })
+    const res = await callPost(makeReq())
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1) // still delivered (buyer paid once)
+    expect(H.dbTransaction).not.toHaveBeenCalled() // DEFER — no balance / revenue / marker
+    expect(H.dbUpdate).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    const invocationRow = H.insertValues.mock.calls[0][0] as Record<string, unknown>
+    expect(invocationRow.costCents).toBe(50) // §7.10 defer → the quoted cost (unchanged)
+  })
 })
 
 describe('handleX402Proxy — non-settled never forwards or credits', () => {
@@ -304,7 +349,7 @@ describe('handleX402Proxy — non-settled never forwards or credits', () => {
 
 describe('handleX402Proxy — F3 settle-then-upstream-fail (charged, not delivered)', () => {
   it('upstream 5xx after settle → NO credit + onchain_settled_upstream_failed alert', async () => {
-    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX' })
+    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       new Response('upstream boom', { status: 502, headers: { 'content-type': 'text/plain' } }),
     )
@@ -319,7 +364,7 @@ describe('handleX402Proxy — F3 settle-then-upstream-fail (charged, not deliver
   })
 
   it('credit TRANSACTION throws after settle+deliver → onchain_credit_lost_after_settle alert (buyer still served)', async () => {
-    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX' })
+    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     // (T) — the failure injection moves INTO the transaction (the on-chain
     // credit no longer flows through the legacy db.update chain): the dev
     // UPDATE's returning() rejects → the whole txn (credit+marker) rolls back.
@@ -345,7 +390,7 @@ describe('handleX402Proxy — F2 production network-pin', () => {
   })
 
   it('mainnet (eip155:8453) payload → passes the pin → settle attempted', async () => {
-    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX' })
+    H.executeX402Settlement.mockResolvedValue({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     await callPost(makeReq())
     expect(H.executeX402Settlement).toHaveBeenCalledTimes(1)
   })
