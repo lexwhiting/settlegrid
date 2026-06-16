@@ -350,9 +350,25 @@ export async function processDataExport(
 
 /**
  * Process a pending data deletion request.
- * Anonymizes PII across all relevant tables in a single transaction.
- * Financial records (payouts, purchases, ledger_entries, settlement_batches)
- * are retained for 7-year IRS / Stripe compliance but PII is scrubbed.
+ *
+ * Anonymizes the requesting developer's own identifying PII at its source — the
+ * `developers` row (step 1: name, email, bio, avatar, auth/Stripe linkage) — and
+ * scrubs or deletes the related consumer, API-key, invocation-metadata, audit-log
+ * (IP/UA), webhook, review, and tool rows, in a single transaction.
+ *
+ * Financial records (payouts, purchases, ledger_entries, settlement_batches) are
+ * RETAINED for 7-year IRS / Stripe bookkeeping and are NOT rewritten here. They
+ * reference the developer only by an internal developer ID — directly, via the
+ * owning tool, or denormalized into a row's JSON (e.g. settlement_batches'
+ * `disbursements`) — which now resolves to the anonymized `developers` row, so
+ * they carry no developer-identifying PII of their own.
+ *
+ * KNOWN GAP — `ledger_entries` additionally persists the anonymous on-chain
+ * PAYER's raw EVM address in `operation_id` ({rail}:{network}:{payer}:{nonce})
+ * and `metadata.payer`. This deletion does NOT touch those columns, so that
+ * address is retained UN-scrubbed. Its lawful basis and any erasure/tombstoning
+ * path are unsettled and routed to the V-N3-erasure chunk (counsel pending); see
+ * docs/tech-debt/v-n3-ledger-entries-gdpr-retention-gap-2026-06-14.md.
  *
  * Status machine (H1, 2026-06-05): pending → processing → completed | failed.
  * - 'completed': re-runs are an idempotent NO-OP (returns completed; GDPR
@@ -538,6 +554,16 @@ export async function processDataDeletion(
               ...(toolIds.length > 0 ? ['tools'] : []),
             ],
             retained: ['payouts', 'purchases', 'ledger_entries', 'settlement_batches'],
+            // V-N3 honesty: ledger_entries ALSO persists the anonymous on-chain
+            // payer's raw EVM address in the columns below; this deletion does NOT
+            // scrub them. Column PATHS only — never row values. Lawful basis /
+            // erasure unsettled, routed to V-N3-erasure (counsel pending).
+            retainedUnscrubbed: [
+              'ledger_entries.operation_id',
+              'ledger_entries.metadata.payer',
+            ],
+            retainedUnscrubbedNote:
+              "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending).",
             toolCount: toolIds.length,
           }),
           completedAt: new Date(),

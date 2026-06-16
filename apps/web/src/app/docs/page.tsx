@@ -612,7 +612,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How does GDPR data deletion work?',
-      a: 'Data deletion requests (GDPR Article 17, Right to Erasure) anonymize your PII across all tables — emails replaced with "deleted@anonymized," names with "[REDACTED]," IPs with "0.0.0.0." You receive an account deleted email confirming the deletion, with a 30-day data export download link if applicable.',
+      a: 'Data deletion requests (GDPR Article 17, Right to Erasure) anonymize the personal data that identifies you wherever it appears — your name, email, bio, and avatar are anonymized, your API keys and webhook endpoints are deleted, and audit-log IP addresses are removed. Financial records (payouts, purchases) are retained for 7 years per IRS and Stripe requirements, referencing only your anonymized account. You receive an account deleted email confirming the deletion, with a 30-day data export download link if applicable.',
     },
     {
       q: 'Is there an OpenAPI specification?',
