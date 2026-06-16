@@ -24,6 +24,9 @@ import {
   type LedgerEntry,
 } from '@settlegrid/mcp'
 import type { LedgerCategory } from './types'
+// (V-N2b) — the in-request recovery credit re-reads the recorded settled value
+// via the SAME key the broadcast/settled writers persist it under (no split-brain).
+import { SETTLED_VALUE_BASE_UNITS_KEY } from './settled-value'
 
 export interface PostEntryParams {
   debitAccountId: string
@@ -515,6 +518,15 @@ export interface SettlementRowState {
    * against this (P1) to flag a price-changed-during-pending settlement.
    */
   amountCents: number | null
+  /**
+   * (V-N2b) — the ACTUALLY-collected value (USDC base units, recorded at the
+   * settling tx's broadcast keyed to external_ref), read back so the in-request
+   * RECOVERY-confirm credit can pay it rather than this request's (possibly
+   * re-signed-at-a-changed-price) costCents. NULL when never recorded (legacy /
+   * swallowed onBroadcast) → the in-request reader DEFERS. Read via the SAME
+   * SETTLED_VALUE_BASE_UNITS_KEY the writers persist (no split-brain).
+   */
+  settledValueBaseUnits: string | null
 }
 
 /**
@@ -533,6 +545,12 @@ export async function findSettlementRow(
       externalRef: ledgerEntries.externalRef,
       // (V-N2) — the frozen amountCents for the broadcast-seam detector.
       amountCents: ledgerEntries.amountCents,
+      // (V-N2b) — the recorded settled value for the in-request recovery credit.
+      // Extracted from the metadata JSONB via `->>` keyed off the SHARED constant
+      // (a bound param), so the reader can never drift from the writers' key.
+      settledValueBaseUnits: sql<
+        string | null
+      >`${ledgerEntries.metadata} ->> ${SETTLED_VALUE_BASE_UNITS_KEY}`,
     })
     .from(ledgerEntries)
     .where(

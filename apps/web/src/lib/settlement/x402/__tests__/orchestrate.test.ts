@@ -171,9 +171,14 @@ describe('executeX402Settlement — happy path', () => {
   it("submits, flips 'pending'→'settled' with the txHash, returns settled", async () => {
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xTX' })
     const outcome = await executeX402Settlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xTX' })
+    // (V-N2b) fresh-submit credits this proof's value floored to cents (== costCents
+    // under exactAmount: 500000 base units → 50¢) — non-regression.
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xTX', creditCents: 50 })
     // (V-N2) fresh submit: the settled flip carries this proof's value (500000).
     expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'x402', '0xTX', '500000')
+    // (V-N2b) fresh-submit resolves creditCents from the proof value — NO row
+    // re-read (only the step-2 idempotency read fires).
+    expect(mockFindRow).toHaveBeenCalledTimes(1)
     expect(mockFailed).not.toHaveBeenCalled()
     expect(mockRedisDel).toHaveBeenCalledWith(LOCK_KEY)
   })
@@ -328,13 +333,19 @@ describe('executeX402Settlement — idempotency & locking (no double-charge)', (
 })
 
 describe('executeX402Settlement — timeout recovery (re-wait, do not re-submit)', () => {
-  it('pending row with a stored broadcast tx that now confirms → settled WITHOUT re-submitting', async () => {
-    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xBROADCAST' })
+  it('pending row with a stored broadcast tx that now confirms → settled WITHOUT re-submitting; credits the RECORDED value, not costCents (V-N2b RAISE)', async () => {
+    // RAISE repro: price was raised to costCents 50 AFTER a prior broadcast at 30¢.
+    // The recovery confirms the PRIOR tx (moved 30¢) → credit 30, NOT 50 (the old
+    // over-credit / platform-loss vector).
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xBROADCAST', amountCents: 50, settledValueBaseUnits: '300000' })
     mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xBROADCAST' })
     const outcome = await executeX402Settlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xBROADCAST' })
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xBROADCAST', creditCents: 30 })
     expect(mockConfirm).toHaveBeenCalledWith(PROOF_VIEW, '0xBROADCAST')
     expect(mockSubmit).not.toHaveBeenCalled()
+    // (V-N2b) recovery flips with an UNDEFINED 4th arg (the prior tx's recorded
+    // value is NOT re-pointed to this proof's possibly-re-signed value).
+    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'x402', '0xBROADCAST', undefined)
   })
 
   it('clean revert with the nonce FREE (stored tx definitively failed) → fresh submit', async () => {
@@ -342,8 +353,51 @@ describe('executeX402Settlement — timeout recovery (re-wait, do not re-submit)
     mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xDROPPED', nonceConsumed: false })
     mockSubmit.mockResolvedValue({ kind: 'settled', txHash: '0xFRESH' })
     const outcome = await executeX402Settlement(PARAMS)
-    expect(outcome).toEqual({ status: 'settled', txHash: '0xFRESH' })
+    // (V-N2b) the fresh resubmit credits this proof's value (50¢), not a re-read.
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xFRESH', creditCents: 50 })
     expect(mockSubmit).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ─── (V-N2b) in-request recovery-confirm credit value — credit-or-defer (§7) ───
+describe('(V-N2b) executeX402Settlement — recovery-confirm credits the RECORDED settled value, or DEFERS', () => {
+  it('LOWER repro: price lowered to 50¢ after a 70¢ broadcast → credits the recorded 70, NOT costCents 50 (the under-credit / dev-short-pay vector)', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR', amountCents: 50, settledValueBaseUnits: '700000' })
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xPRIOR' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: 70 })
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('§7.7 recovery whose value was NEVER recorded (swallowed onBroadcast) → DEFER (creditCents null) + legacy_fallback warn; prior value not re-pointed', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR', amountCents: 50 }) // no settledValueBaseUnits
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xPRIOR' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: null })
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'settlement.settled_value_legacy_fallback',
+      expect.objectContaining({ operationId: OP_ID, rail: 'x402', amountCents: 50 }),
+    )
+    expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'x402', '0xPRIOR', undefined)
+  })
+
+  it('recovery whose recorded value is corrupt → DEFER (creditCents null) + unconvertible error', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR', amountCents: 50, settledValueBaseUnits: 'corrupt' })
+    mockConfirm.mockResolvedValue({ kind: 'settled', txHash: '0xPRIOR' })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: null })
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_value_unconvertible',
+      expect.objectContaining({ settledValueBaseUnits: 'corrupt' }),
+    )
+  })
+
+  it('§13.I / #11: a recovery confirm of a reverted-nonce-CONSUMED row stays PENDING — NEVER flips settled in-request, so NO credit', async () => {
+    mockFindRow.mockResolvedValue({ id: '1', settlementStatus: 'pending', externalRef: '0xPRIOR' })
+    mockConfirm.mockResolvedValue({ kind: 'reverted', txHash: '0xPRIOR', nonceConsumed: true })
+    const outcome = await executeX402Settlement(PARAMS)
+    expect(outcome).toMatchObject({ status: 'pending', code: 'X402_SETTLEMENT_PENDING_CONFIRMATION' })
+    expect(mockSettled).not.toHaveBeenCalled() // no flip → no in-request credit (the reconciler tail owns it)
   })
 })
 

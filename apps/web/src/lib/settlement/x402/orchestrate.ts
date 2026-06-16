@@ -39,7 +39,9 @@ import {
   type CircleNanoOnChainResult,
 } from '../circle-nano/settle-engine'
 // (V-N2) — the broadcast-seam settled-value divergence detector.
-import { detectSettledValueDivergence } from '../settled-value'
+// (V-N2b) — the in-request credit-or-defer resolver (the live-credit twin of the
+// reconciler tail's recorded-value credit).
+import { detectSettledValueDivergence, resolveInRequestCreditCents } from '../settled-value'
 
 const RAIL = 'x402'
 /** 1 US cent = 10,000 USDC base units (6 decimals). */
@@ -87,9 +89,18 @@ export interface ExecuteX402SettlementParams {
  * "credit iff you flipped" invariant the B1.4 reconciler uses, so the live path
  * and the reconciler can never both credit). Omitted ⇒ this invocation is the
  * flip winner ⇒ the proxy credits.
+ *
+ * `creditCents` (V-N2b, flip-winner only) — the value the in-request credit MUST
+ * pay: the ACTUALLY-collected value of the tx on external_ref (fresh-submit = this
+ * proof's value == costCents; recovery-confirm = the PRIOR broadcast's recorded
+ * value, which a re-sign at a changed price can make ≠ costCents). `null` ⇒ DEFER
+ * (the recorded value was absent / unconvertible) — the seam credits nothing,
+ * leaves credited_at NULL; the uncredited-sweep enumerates + alerts the row → an
+ * operator credits it via the runbook (the reconciler tail does NOT re-credit an
+ * already-settled row). Absent on the alreadySettled paths (that invocation never credits).
  */
 export type X402SettlementOutcome =
-  | { status: 'settled'; txHash: string; alreadySettled?: true }
+  | { status: 'settled'; txHash: string; alreadySettled?: true; creditCents?: number | null }
   | { status: 'failed'; code: string; httpStatus: number; reason: string }
   | { status: 'pending'; code: string; httpStatus: number; reason: string; txHash?: string }
 
@@ -228,7 +239,33 @@ async function applyOutcome(
         }
       }
       logger.info('x402.settle_onchain_success', { operationId, txHash: result.txHash })
-      return { status: 'settled', txHash: result.txHash }
+      // (V-N2b) — resolve the value the in-request credit pays, OR DEFER.
+      //   - fresh-submit: settledValueBaseUnits is THIS proof's value (== costCents
+      //     under exactAmount) — resolve directly, NO row re-read (hot-path DB
+      //     round-trip + null-re-read mode avoided);
+      //   - recovery-confirm: settledValueBaseUnits is undefined (the settling tx is
+      //     the PRIOR broadcast, whose value lives on the row, NOT this proof's
+      //     possibly-re-signed value), so re-read the now-terminal/frozen row.
+      // null ⇒ DEFER (absent/unconvertible) — the proxy/kernel credit nothing and
+      // leave credited_at NULL; the resolver emitted the differentiated signal.
+      let creditCents: number | null
+      if (settledValueBaseUnits !== undefined) {
+        creditCents = resolveInRequestCreditCents({
+          operationId,
+          rail: RAIL,
+          settledValueBaseUnits,
+          amountCents: null,
+        })
+      } else {
+        const settledRow = await findSettlementRow(operationId, RAIL)
+        creditCents = resolveInRequestCreditCents({
+          operationId,
+          rail: RAIL,
+          settledValueBaseUnits: settledRow?.settledValueBaseUnits,
+          amountCents: settledRow?.amountCents ?? null,
+        })
+      }
+      return { status: 'settled', txHash: result.txHash, creditCents }
     }
     case 'reverted': {
       if (result.nonceConsumed) {

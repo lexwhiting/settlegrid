@@ -124,6 +124,17 @@ function flattenCond(node: unknown, acc = { params: [] as unknown[], text: [] as
   return acc
 }
 
+/**
+ * (V-N2b) The credited amount in `sql`${col} + ${N}`` is interpolated as a RAW
+ * NUMBER chunk (NOT a bound Param, unlike eq()'s values), so flattenCond can't see
+ * it. Pull the lone numeric queryChunk — the credit operand — directly.
+ */
+function creditAmountOf(node: unknown): number | undefined {
+  const chunks = (node as { queryChunks?: unknown[] })?.queryChunks
+  if (!Array.isArray(chunks)) return undefined
+  return chunks.find((c) => typeof c === 'number') as number | undefined
+}
+
 function toolRow(costCents: number) {
   return {
     id: 'tool-1',
@@ -193,8 +204,9 @@ beforeEach(() => {
     payerAddress: PAYER,
     amountUsdc: '500000',
   })
-  // Default: a FRESH on-chain settle (no alreadySettled → credit fires).
-  H.execute.mockResolvedValue({ status: 'settled', txHash: '0xCNTX' })
+  // Default: a FRESH on-chain settle (no alreadySettled → credit fires). (V-N2b)
+  // the orchestrator resolves creditCents (fresh-submit == costCents 50).
+  H.execute.mockResolvedValue({ status: 'settled', txHash: '0xCNTX', creditCents: 50 })
   // (T) txn chain default: dev UPDATE returning [{id}] (row matched ⇒ the
   // marker runs), marker returning [{id}] (marked ⇒ no unmatched alert).
   H.txReturning.mockResolvedValue([{ id: 'x' }])
@@ -226,6 +238,9 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(txSetCalls[0]).toHaveProperty('balanceCents') // 1st: developers (lock-order pin)
     expect(txSetCalls[1]).toHaveProperty('totalRevenueCents') // 2nd: tools
     expect(txSetCalls[2]).toHaveProperty('creditedAt') // 3rd: the marker
+    // (V-N2b) the credited VALUE is the orchestrator-resolved creditCents (50 here).
+    expect(creditAmountOf(txSetCalls[0].balanceCents)).toBe(50)
+    expect(creditAmountOf(txSetCalls[1].totalRevenueCents)).toBe(50)
     // (② seal MEDIUM) the marker WHERE itself: keyed by the EXACT operation_id
     // (real builder over this test's proof fields) + rail + settled + IS NULL.
     const marker = flattenCond(H.txWhere.mock.calls[2]?.[0])
@@ -345,6 +360,31 @@ describe('circle-nano direct-proxy settle-in-path (Phase 2)', () => {
     expect(res.status).toBe(200)
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
     expect(H.execute).not.toHaveBeenCalled() // free path never settles on-chain
+  })
+
+  it('(V-N2b §7.4) recovery-confirm: the handler bridges outcome.creditCents → the twin credits the RECORDED value (30), NOT costCents (50); the invocation records 30', async () => {
+    H.selectLimit.mockResolvedValue([toolRow(50)])
+    H.execute.mockResolvedValue({ status: 'settled', txHash: '0xCNTX', creditCents: 30 })
+    const res = await callPost(makeReq(MAINNET_PROOF))
+    expect(res.status).toBe(200)
+    expect(H.dbTransaction).toHaveBeenCalledTimes(1)
+    const txSetCalls = H.txSet.mock.calls.map((c) => c[0] as Record<string, unknown>)
+    expect(creditAmountOf(txSetCalls[0].balanceCents)).toBe(30) // dev balance += 30 (recorded), NOT 50
+    expect(creditAmountOf(txSetCalls[1].totalRevenueCents)).toBe(30) // tool revenue += 30
+    const invocationRow = H.insertValues.mock.calls[0][0] as Record<string, unknown>
+    expect(invocationRow.costCents).toBe(30) // §7.10
+  })
+
+  it('(V-N2b §7.5) DEFER: outcome.creditCents null → NO credit txn (credited_at untouched), still forwarded (200)', async () => {
+    H.selectLimit.mockResolvedValue([toolRow(50)])
+    H.execute.mockResolvedValue({ status: 'settled', txHash: '0xCNTX', creditCents: null })
+    const res = await callPost(makeReq(MAINNET_PROOF))
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1) // still delivered (buyer paid once)
+    expect(H.dbTransaction).not.toHaveBeenCalled() // DEFER — no balance / revenue / marker
+    expect(H.dbUpdate).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    const invocationRow = H.insertValues.mock.calls[0][0] as Record<string, unknown>
+    expect(invocationRow.costCents).toBe(50) // §7.10 defer → the quoted cost (unchanged)
   })
 })
 

@@ -13,10 +13,18 @@
  *
  * What we actually need to pin is the invariant: every site that
  * writes to `developers.balanceCents` credits the GROSS amount
- * (`costCents` / `actualCost` / `collectedCents` / `body.costCents`),
- * never `Math.floor(X * revenueSharePct / 100)`. The progressive
- * platform take is applied once, at payout time, in
+ * (`costCents` / `actualCost` / `collectedCents` / `body.costCents` /
+ * `settledCreditCents`), never `Math.floor(X * revenueSharePct / 100)`.
+ * The progressive platform take is applied once, at payout time, in
  * `apps/web/src/lib/pricing.ts:calculateTakeCents`.
+ *
+ * (V-N2b) The (T) on-chain transactional twin now credits
+ * `settledCreditCents` — the ACTUALLY-collected settled value the
+ * orchestrator resolved (fresh-submit == the quoted cost; recovery-confirm
+ * == the prior broadcast's recorded value, which a re-sign at a changed
+ * price can make ≠ the quoted cost). It is still GROSS — the FULL collected
+ * value, no fee netting — so it is added to the allowlist below, NOT
+ * exempted. The progressive take is still realized only at payout.
  *
  * Pre-Phase-2: 6 NET writers existed (5 in proxy/[slug]/route.ts, 1
  * in sdk/meter/route.ts). Post-Phase-2: 0. If a future regression
@@ -61,7 +69,7 @@ const NET_WRITER_PATTERNS: RegExp[] = [
  * (silently dropping developer credit) also fails the invariant.
  */
 const GROSS_WRITER_PATTERN =
-  /balanceCents:\s*sql`\$\{developers\.balanceCents\}\s*\+\s*\$\{(costCents|actualCost|collectedCents|body\.costCents|developerShareCents)\}`/g
+  /balanceCents:\s*sql`\$\{developers\.balanceCents\}\s*\+\s*\$\{(costCents|actualCost|collectedCents|body\.costCents|developerShareCents|settledCreditCents)\}`/g
 
 describe('Phase 2 invariant — developer balance credits are GROSS, not NET', () => {
   for (const relPath of FILES) {
@@ -90,6 +98,9 @@ describe('Phase 2 invariant — developer balance credits are GROSS, not NET', (
     // credit txn that also writes the credited_at marker; the legacy
     // Promise.all branch was kept BYTE-identical rather than hoisting a shared
     // SET const, so the GROSS writer appears once per branch — R2 audit fix B2).
+    // (V-N2b) the twin's operand migrated from `actualCost` to `settledCreditCents`
+    // (the orchestrator-resolved settled value); the legacy branch keeps
+    // `actualCost`, so both arms still match and the count holds at 6.
     expect(matches.length).toBe(6)
   })
 

@@ -15,7 +15,12 @@ vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-import { settledBaseUnitsToCents, detectSettledValueDivergence, SETTLED_VALUE_BASE_UNITS_KEY } from '../settled-value'
+import {
+  settledBaseUnitsToCents,
+  detectSettledValueDivergence,
+  resolveInRequestCreditCents,
+  SETTLED_VALUE_BASE_UNITS_KEY,
+} from '../settled-value'
 import { logger } from '@/lib/logger'
 
 beforeEach(() => {
@@ -106,16 +111,67 @@ describe('detectSettledValueDivergence — broadcast seam, loss-only error (§13
   })
 })
 
-// (V-N2 §13.B) — write/read key-sync guard. The reconciler READS the recorded
-// value via SETTLED_VALUE_BASE_UNITS_KEY; the ledger writers WRITE it as an inline
-// SQL literal. If a rename of the constant ever misses those literals, the row is
-// written-under-A / read-under-B: the reconciler never finds the value → silent
-// legacy-fallback → the over-credit vector V-N2 closes returns unnoticed. This
-// pins the two to the same string (mirrors credit-writer-census / verifier-exactamount-census).
-describe('(V-N2) settled-value metadata key — write literal == read constant (no split-brain)', () => {
+describe('(V-N2b) resolveInRequestCreditCents — credit-the-recorded-value-OR-DEFER (§7)', () => {
+  const BASE = { operationId: 'x402:eip155:8453:0xpayer:0xnonce', rail: 'x402', amountCents: 50 }
+
+  it('present + convertible → the floored cents (NOT costCents), NO signal', () => {
+    // recovery: recorded 30c ≠ the request's costCents 50 — credit the RECORDED value.
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: '300000' })).toBe(30)
+    // raise direction: recorded 70c.
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: '700000' })).toBe(70)
+    expect(vi.mocked(logger.warn)).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalled()
+  })
+
+  it('ABSENT (null/undefined) → null (DEFER) + settled_value_legacy_fallback (warn)', () => {
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: null })).toBeNull()
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: undefined })).toBeNull()
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'settlement.settled_value_legacy_fallback',
+      expect.objectContaining({ operationId: BASE.operationId, rail: 'x402', amountCents: 50 }),
+    )
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalled() // absent is warn, NOT error
+  })
+
+  it('UNCONVERTIBLE / overflow → null (DEFER) + settled_value_unconvertible (error)', () => {
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: 'not-a-number' })).toBeNull()
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: '1' + '0'.repeat(30) })).toBeNull()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_value_unconvertible',
+      expect.objectContaining({ operationId: BASE.operationId, rail: 'x402', settledValueBaseUnits: 'not-a-number', amountCents: 50 }),
+    )
+  })
+
+  it('sub-cent / zero on a costCents>0 credit path → null (DEFER) + error (never a 0-credit marker that masks the sweep)', () => {
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: '9999' })).toBeNull() // 0.9999c
+    expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: '0' })).toBeNull()
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'settlement.settled_value_unconvertible',
+      expect.objectContaining({ settledValueBaseUnits: '9999' }),
+    )
+  })
+})
+
+// (V-N2 §13.B) — write/read key-sync guard. The reconciler + the V-N2b in-request
+// recovery reader both READ the recorded value via SETTLED_VALUE_BASE_UNITS_KEY; the
+// ledger writers WRITE it as an inline SQL literal. If a rename of the constant ever
+// misses those literals, the row is written-under-A / read-under-B: the reader never
+// finds the value → silent legacy-fallback → the over/under-credit vector returns
+// unnoticed. This pins writers AND the reader to the same string (mirrors
+// credit-writer-census / verifier-exactamount-census).
+describe('(V-N2 / V-N2b) settled-value metadata key — write literal == read constant (no split-brain)', () => {
   it('ledger.ts persists the key under the SAME literal SETTLED_VALUE_BASE_UNITS_KEY holds, at both broadcast/settled writers', () => {
     const ledgerSrc = readFileSync(join(process.cwd(), 'src/lib/settlement/ledger.ts'), 'utf8')
     const writes = ledgerSrc.match(new RegExp(`jsonb_build_object\\('${SETTLED_VALUE_BASE_UNITS_KEY}'`, 'g')) ?? []
     expect(writes.length).toBe(2) // markSettlementBroadcast + markSettlementSettled
+  })
+
+  it('(V-N2b) findSettlementRow READS the value via the SETTLED_VALUE_BASE_UNITS_KEY constant (no hardcoded literal that could drift from the writers)', () => {
+    const ledgerSrc = readFileSync(join(process.cwd(), 'src/lib/settlement/ledger.ts'), 'utf8')
+    // the projection interpolates the imported constant into the JSONB `->>` read.
+    expect(ledgerSrc).toMatch(/->>\s*\$\{SETTLED_VALUE_BASE_UNITS_KEY\}/)
+    // and never a hardcoded `->>'settledValueBaseUnits'` literal that bypasses the constant.
+    expect(ledgerSrc).not.toMatch(new RegExp(`->>\\s*'${SETTLED_VALUE_BASE_UNITS_KEY}'`))
   })
 })

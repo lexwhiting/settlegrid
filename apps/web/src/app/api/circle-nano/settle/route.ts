@@ -200,11 +200,18 @@ export const POST = withCors(async function POST(request: NextRequest) {
       // gate on the single WHERE-pending flip, so one authorization credits once.
       // Keyed by the STABLE operation_id (NOT the response's randomUUID) so a
       // credit_failed/missing_toolid alert reconciles against the ledger row.
-      if (outcome.alreadySettled !== true) {
+      // (V-N2b) — credit the ACTUALLY-collected value the orchestrator resolved
+      // (fresh-submit = costCents; recovery-confirm = the prior broadcast's recorded
+      // value, possibly ≠ costCents), NOT costCents. `creditCents == null` ⇒ DEFER:
+      // skip the credit entirely (the row stays unmarked → the uncredited sweep
+      // enumerates + alerts it for a runbook credit; the reconciler tail does NOT
+      // re-credit an already-settled row) — never credit a guess on a recovery. The orchestrator
+      // already emitted the differentiated legacy_fallback / unconvertible signal.
+      if (outcome.alreadySettled !== true && outcome.creditCents != null) {
         await creditSettlement({
           developerId: toolRow.developerId,
           toolId: toolRow.id,
-          amountCents: costCents,
+          amountCents: outcome.creditCents,
           operationId: circleNanoOperationId(parsedProof),
           // (T) — keys the credited_at marker written inside the credit txn.
           rail: 'circle-nano',
