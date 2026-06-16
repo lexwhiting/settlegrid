@@ -1223,7 +1223,13 @@ describe('accountDeletedEmail', () => {
 
   it('has preheader text', () => {
     const result = accountDeletedEmail('user@test.com')
-    expect(result.html).toContain('permanently deleted')
+    // V-N3 SLICE 2 honesty: the account ROW persists (anonymized, deterministic
+    // deleted-<id>@ email kept for FK integrity), so "permanently deleted" was an
+    // overstatement. The preheader now states the honest disposition: deleted +
+    // personal data anonymized (the auth login IS permanently removed).
+    expect(result.html).toContain('account has been deleted')
+    expect(result.html).toContain('anonymized')
+    expect(result.html).not.toContain('permanently deleted')
   })
 
   it('escapes email address', () => {

@@ -612,7 +612,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How does GDPR data deletion work?',
-      a: 'Data deletion requests (GDPR Article 17, Right to Erasure) anonymize the personal data that identifies you wherever it appears — your name, email, bio, and avatar are anonymized, your API keys and webhook endpoints are deleted, and audit-log IP addresses are removed. Financial records (payouts, purchases) are retained for 7 years per IRS and Stripe requirements, referencing only your anonymized account. You receive an account deleted email confirming the deletion, with a 30-day data export download link if applicable.',
+      a: 'Data deletion requests (GDPR Article 17, Right to Erasure) anonymize the personal data that identifies you across your developer profile and the records that reference you — your name, email, bio, and avatar are anonymized, your Supabase auth login is deleted, your API keys and webhook endpoints are deleted, and audit-log IP addresses are removed. Financial records (payouts, purchases) are retained for 7 years per IRS and Stripe requirements, referencing only your anonymized account. You receive an account deleted email confirming the deletion, with a 30-day data export download link if applicable.',
     },
     {
       q: 'Is there an OpenAPI specification?',
@@ -632,11 +632,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What data is retained after account deletion?',
-      a: 'When you delete your account, all personally identifiable information (name, email, bio, avatar) is immediately anonymized. Your API keys, webhook endpoints, and Supabase auth records are deleted. However, financial records (payouts, purchases) are retained for 7 years with your developer ID anonymized. Audit logs are retained with IP addresses removed. This process completes within 90 days of your deletion request.',
+      a: 'When you delete your account, the personal data that identifies you (name, email, bio, avatar) is immediately anonymized. Your API keys, webhook endpoints, and Supabase auth records are deleted. However, financial records (payouts, purchases) are retained for 7 years with your developer ID anonymized. Audit logs are retained with IP addresses removed. This process completes within 90 days of your deletion request.',
     },
     {
       q: 'Can I request my data be removed from backups?',
-      a: 'Supabase backups rotate automatically on a 7-day cycle. After account deletion + 7 days, your PII will no longer exist in any backup. Financial records in backups are retained per the 7-year requirement but are anonymized in the primary database.',
+      a: 'Supabase backups rotate automatically on a 7-day cycle. After account deletion + 7 days, the profile data anonymized on deletion (name, email, bio, avatar) is no longer present in any backup. Financial records in backups are retained per the 7-year requirement but are anonymized in the primary database.',
     },
   ],
 },

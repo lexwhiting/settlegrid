@@ -101,6 +101,13 @@ vi.mock('@/lib/redis', () => ({
   tryRedis: mockTryRedis,
 }))
 
+// V-N3 SLICE 2: processDataDeletion now hard-deletes the Supabase auth user
+// (pre-txn). Mock the admin client so the real fail-closed module (which throws
+// without SUPABASE_SERVICE_ROLE_KEY) isn't hit. Default: resolve (deleted ok).
+vi.mock('@/lib/supabase/admin', () => ({
+  deleteSupabaseAuthUser: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -697,8 +704,14 @@ describe('processDataDeletion', () => {
 
   /**
    * Full mock rig for a deletion run that reaches the transaction.
-   * The function calls db.select() three times sequentially:
-   * 1) complianceExports record, 2) developer lookup, 3) tool IDs.
+   * The function calls db.select() FOUR times sequentially (V-N3 SLICE 2 added
+   * the pre-txn consumer lookup for the auth-user delete):
+   * 1) complianceExports record, 2) developer lookup (incl. supabaseUserId),
+   * 3) consumer-twin pre-txn lookup (for the Supabase auth-user id),
+   * 4) tool IDs.
+   * The developer lookup omits supabaseUserId (null/undefined) so no auth-delete
+   * call is attempted — the deletion completes via the mocked admin module either
+   * way; the auth-delete wiring itself is pinned in compliance-deletion-auth.test.ts.
    * Returns the hoisted txChain so tests can pin transaction steps.
    */
   function setupDeletionRunMocks(record: Record<string, unknown>) {
@@ -716,8 +729,11 @@ describe('processDataDeletion', () => {
         // complianceExports record
         chain.limit.mockResolvedValue([record])
       } else if (selectCallCount === 2) {
-        // developer lookup
+        // developer lookup (no supabaseUserId → no auth user to delete)
         chain.limit.mockResolvedValue([{ id: 'cust-1', email: 'dev@test.com' }])
+      } else if (selectCallCount === 3) {
+        // consumer-twin pre-txn lookup (no consumer → empty)
+        chain.limit.mockResolvedValue([])
       } else {
         // tool IDs (no limit call — resolves from where)
         chain.where.mockResolvedValue([])
