@@ -50,9 +50,11 @@ import { resolve } from 'node:path'
 
 const COMPLIANCE_PATH = resolve(__dirname, '../settlement/compliance.ts')
 const DOCS_PATH = resolve(__dirname, '../../app/docs/page.tsx')
+const EMAIL_PATH = resolve(__dirname, '../email.ts')
 
 const complianceSrc = readFileSync(COMPLIANCE_PATH, 'utf8')
 const docsSrc = readFileSync(DOCS_PATH, 'utf8')
+const emailSrc = readFileSync(EMAIL_PATH, 'utf8')
 
 /**
  * Slice the text between two markers (indexOf-based, like the privacy-notice
@@ -92,6 +94,38 @@ const gdprFaq = region(
   docsSrc,
   'How does GDPR data deletion work?',
   'Is there an OpenAPI specification?',
+)
+
+// ── SLICE 2 regions ──────────────────────────────────────────────────────────
+
+// The "What data is retained after account deletion?" FAQ — its "Supabase auth
+// records are deleted" sub-claim is TRUE only because the behavioral fix
+// hard-deletes the auth.users row. Sliced to its own answer so the pin can't be
+// vacuously satisfied by the GDPR-deletion FAQ above.
+const retainedAfterFaq = region(
+  docsSrc,
+  'What data is retained after account deletion?',
+  'Can I request my data be removed from backups?',
+)
+
+// The "Can I request my data be removed from backups?" FAQ — its backup-erasure
+// claim must be scoped to the data the deletion actually anonymizes, not an
+// absolute "all PII" guarantee (developer-keyed PII the 9-step deletion does not
+// scrub — organizations.billing_email, developers.notification_webhooks,
+// tools.name/slug — survives in the primary DB and therefore in backups; that
+// completeness gap is routed to the deletion-completeness follow-up).
+const backupsFaq = region(
+  docsSrc,
+  'Can I request my data be removed from backups?',
+  'How do I change my email address?',
+)
+
+// The accountDeletedEmail body+preheader — sliced from the export function to its
+// preheader option so the honesty pins target this email's copy specifically.
+const accountDeletedEmailSrc = region(
+  emailSrc,
+  'export function accountDeletedEmail(',
+  'export function dataExportReadyEmail(',
 )
 
 /**
@@ -238,9 +272,86 @@ describe('V-N3 compliance-honesty — D: public FAQ drops the "across all tables
     expect(gdprFaq).toMatch(/retained for 7 years/i)
   })
 
+  // SLICE 2: drop the absolute "wherever it appears" completeness over-claim
+  // (the on-chain payer address + organizations.billing_email are retained, so
+  // "wherever it appears" over-promises). Non-vacuous: the phrase exists ONLY in
+  // the OLD copy — reverting the :615 reword turns this RED.
+  it('no longer claims anonymization happens "wherever it appears" (completeness over-claim)', () => {
+    expect(gdprFaq).not.toMatch(/wherever it appears/i)
+  })
+
   it('asserts no forbidden lawful-basis conclusion in the public copy', () => {
     for (const [re, label] of BANNED_LEGAL_CONCLUSIONS) {
       expect(gdprFaq, `public FAQ must not assert ${label}`).not.toMatch(re)
     }
+  })
+})
+
+describe('V-N3 SLICE 2 — auth-user deletion is reflected in the record + docstring', () => {
+  // Non-vacuity: each PRESENT assertion matches text that exists ONLY after the
+  // SLICE-2 wiring/docstring edits. Reverting the wiring (or the docstring) ⇒ RED.
+
+  it('docstring states the Supabase auth user is deleted (not just supabaseUserId nulled)', () => {
+    expect(docstring).toMatch(/auth user/i)
+    expect(docstring).toMatch(/deleteSupabaseAuthUser/)
+  })
+
+  it('docstring retry-safety proof accounts for the pre-txn idempotent auth-delete', () => {
+    // The :376 'failed' RETRYABLE bullet must now reason about the auth-delete
+    // being idempotent + pre-txn, not only transactional atomicity.
+    expect(docstring).toMatch(/idempotent/i)
+    expect(docstring).toMatch(/auth-?delete/i)
+    expect(docstring).toMatch(/auth user deleted/i)
+  })
+
+  it('resultUrl anonymized array records the deleted Supabase auth user (gated on id present)', () => {
+    // Sliced to the anonymized array (up to the `retained:` key) so this pins the
+    // anonymized list specifically.
+    const anonymizedArray = region(resultUrl, 'anonymized: [', 'retained:')
+    expect(anonymizedArray).toMatch(/supabase_auth_user/)
+  })
+})
+
+describe('V-N3 SLICE 2 — the "data retained after deletion" FAQ auth-records claim is now TRUE', () => {
+  // This FAQ asserts "Supabase auth records are deleted". The behavioral fix
+  // (hard-delete of auth.users) makes it true. Pin the claim survives — if a
+  // future reword removes it without removing the behavior, or vice versa, this
+  // surfaces the drift.
+  it('still asserts the Supabase auth records are deleted', () => {
+    expect(retainedAfterFaq).toMatch(/Supabase auth records are deleted/)
+  })
+})
+
+describe('V-N3 SLICE 2 — accountDeletedEmail softens "permanently deleted" to honest copy', () => {
+  // The account ROW persists (anonymized, deterministic deleted-<id>@ email kept
+  // for FK integrity), so "permanently deleted" over-claimed. Non-vacuous: the
+  // banned phrase exists ONLY in the OLD copy — reverting the email edit ⇒ RED.
+  it('no longer claims the account was "permanently deleted" (anonymize-in-place)', () => {
+    expect(accountDeletedEmailSrc).not.toMatch(/permanently deleted/i)
+  })
+
+  it('states the honest disposition: deleted + personal data anonymized', () => {
+    expect(accountDeletedEmailSrc).toMatch(/has been deleted/i)
+    expect(accountDeletedEmailSrc).toMatch(/anonymized/i)
+  })
+})
+
+describe('V-N3 SLICE 2 (③ hardening) — sibling deletion-claim absolutes softened to match docs:615', () => {
+  // docs:635 + docs:639 carried ABSOLUTE completeness claims ("all personally
+  // identifiable information … anonymized", "your PII will no longer exist in any
+  // backup") that over-read vs developer-keyed PII the deletion does NOT scrub
+  // (organizations.billing_email, developers.notification_webhooks, tools.name/slug —
+  // the behavioral scrub is routed to the deletion-completeness follow-up). The ③
+  // deep audit softened the COPY to the scoped, honest framing matching docs:615 —
+  // closing the DC-16 "partial fix leaves a sibling" recurrence. Non-vacuous: each
+  // absolute existed ONLY in the OLD copy → reverting either reword turns these RED.
+  it('docs:635 no longer claims "all personally identifiable information" is anonymized', () => {
+    expect(retainedAfterFaq).not.toMatch(/all personally identifiable information/i)
+    expect(retainedAfterFaq).toMatch(/the personal data that identifies you/i)
+  })
+
+  it('docs:639 no longer claims PII "will no longer exist in any backup" (absolute)', () => {
+    expect(backupsFaq).not.toMatch(/no longer exist in any backup/i)
+    expect(backupsFaq).toMatch(/anonymized on deletion/i)
   })
 })

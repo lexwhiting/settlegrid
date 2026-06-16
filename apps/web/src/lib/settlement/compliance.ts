@@ -15,6 +15,7 @@ import {
 } from '@/lib/db/schema'
 import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
+import { deleteSupabaseAuthUser } from '@/lib/supabase/admin'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -351,10 +352,15 @@ export async function processDataExport(
 /**
  * Process a pending data deletion request.
  *
- * Anonymizes the requesting developer's own identifying PII at its source — the
- * `developers` row (step 1: name, email, bio, avatar, auth/Stripe linkage) — and
- * scrubs or deletes the related consumer, API-key, invocation-metadata, audit-log
- * (IP/UA), webhook, review, and tool rows, in a single transaction.
+ * Deletes the developer's Supabase AUTH user (the `auth.users` row holding the
+ * email/login identity) — BEFORE the DB transaction, since that is an external
+ * call that cannot be transactional — then anonymizes the requesting developer's
+ * own identifying PII at its source — the `developers` row (step 1: name, email,
+ * bio, avatar, auth/Stripe linkage) — and scrubs or deletes the related consumer,
+ * API-key, invocation-metadata, audit-log (IP/UA), webhook, review, and tool
+ * rows, in a single transaction. The Supabase auth user holds the email, so a
+ * deletion that only nulled `developers.supabaseUserId` would leave the login
+ * identity alive; this hard-deletes it (see {@link deleteSupabaseAuthUser}).
  *
  * Financial records (payouts, purchases, ledger_entries, settlement_batches) are
  * RETAINED for 7-year IRS / Stripe bookkeeping and are NOT rewritten here. They
@@ -372,13 +378,24 @@ export async function processDataExport(
  *
  * Status machine (H1, 2026-06-05): pending → processing → completed | failed.
  * - 'completed': re-runs are an idempotent NO-OP (returns completed; GDPR
- *   Art. 17 processors retry).
- * - 'failed': RETRYABLE — all anonymization writes commit atomically in the
- *   transaction below and 'completed' is set INSIDE it, so 'failed' implies
- *   the transaction never committed and a retry sees pristine data.
+ *   Art. 17 processors retry). 'completed' is set ONLY inside the transaction
+ *   below, AFTER a successful (or idempotent-already-done) auth-user delete, so
+ *   'completed' ⇒ (Supabase auth user deleted ∧ DB anonymized).
+ * - 'failed': RETRYABLE. Two writes happen: (a) the pre-txn Supabase
+ *   auth-user delete, then (b) the atomic anonymization transaction, with
+ *   'completed' set INSIDE the txn. The auth-delete is IDEMPOTENT (a not-found
+ *   user is treated as already-deleted), so a 'failed' retry is safe whether it
+ *   failed before or after the auth user was removed: a retry that finds the
+ *   auth user already gone succeeds, and the txn either never committed (so the
+ *   DB is pristine) or — being the only path that sets 'completed' — already
+ *   ran, in which case the idempotent-completed no-op short-circuits. Thus
+ *   'failed' implies the txn never committed and a retry sees pristine DB data.
+ *   (Transient window: auth deleted, DB pristine, status 'failed' — erasure
+ *   eagerly removed the auth identity; the retry finishes the DB anonymization.)
  * - 'processing': guarded (throws) — another run is, or appears to be, in
- *   flight. A run that crashed mid-flight needs a manual status reset (see
- *   the H1 capstone runbook note).
+ *   flight. A run that crashed mid-flight may have ALREADY deleted the Supabase
+ *   auth user (the auth-delete is pre-txn + idempotent, so this is safe to
+ *   retry) and needs a manual status reset (see the H1 capstone runbook note).
  */
 export async function processDataDeletion(
   exportId: string
@@ -420,15 +437,53 @@ export async function processDataDeletion(
     .where(eq(complianceExports.id, exportId))
 
   try {
-    // Look up developer to get email for consumer cross-reference
+    // Look up developer to get email for consumer cross-reference. Also select
+    // supabaseUserId BEFORE the txn — txn step 1 NULLs it, so it must be
+    // captured first (it identifies the Supabase auth.users row to delete).
     const [dev] = await db
-      .select({ id: developers.id, email: developers.email })
+      .select({
+        id: developers.id,
+        email: developers.email,
+        supabaseUserId: developers.supabaseUserId,
+      })
       .from(developers)
       .where(eq(developers.id, developerId))
       .limit(1)
 
     if (!dev) {
       throw new Error(`Developer not found: ${developerId}`)
+    }
+
+    // Capture the consumer twin's supabaseUserId too, BEFORE the txn (the txn's
+    // consumer lookup/anonymize NULLs it). Normally identical to the dev's (one
+    // auth.users.id per email — auth/callback writes the same user.id to both),
+    // but read both defensively in case a dev/consumer twin linked different
+    // auth users.
+    const [consumerForAuth] = await db
+      .select({ supabaseUserId: consumers.supabaseUserId })
+      .from(consumers)
+      .where(eq(consumers.email, dev.email))
+      .limit(1)
+
+    // ── Delete the Supabase AUTH user(s) BEFORE the DB transaction ───────────
+    // The auth-delete is an external network call that CANNOT be inside the DB
+    // transaction. It MUST run before the txn so the only 'completed' write (set
+    // INSIDE the txn) happens AFTER a successful (or idempotent-already-done)
+    // auth-delete → 'completed' ⇒ (auth user deleted ∧ DB anonymized). A throw
+    // here lands in the function's catch → status='failed' (retryable;
+    // deleteSupabaseAuthUser is idempotent on a not-found user). A null/absent
+    // id (API-key-only / seed developer who never linked Supabase auth) is
+    // skipped — nothing to delete.
+    const supabaseUserIds = [
+      ...new Set(
+        [dev.supabaseUserId, consumerForAuth?.supabaseUserId].filter(
+          (id): id is string => !!id
+        )
+      ),
+    ]
+    const deletedAuthUser = supabaseUserIds.length > 0
+    for (const supabaseUserId of supabaseUserIds) {
+      await deleteSupabaseAuthUser(supabaseUserId)
     }
 
     // Get all tool IDs owned by this developer (needed for cascading deletes)
@@ -544,6 +599,12 @@ export async function processDataDeletion(
           resultUrl: JSON.stringify({
             anonymized: [
               'developers',
+              // The Supabase auth.users row (email/login identity) was HARD
+              // deleted pre-txn — gated on a linked auth-user id being present
+              // (deletedAuthUser). An already-gone user is absorbed as a 404, so
+              // this records the END STATE "no live auth user for this identity",
+              // not which run performed the delete.
+              ...(deletedAuthUser ? ['supabase_auth_user'] : []),
               'developer_api_keys',
               ...(consumerRecord ? ['consumers'] : []),
               ...(toolIds.length > 0 ? ['api_keys', 'invocations.metadata'] : []),

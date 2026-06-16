@@ -2114,7 +2114,7 @@ export default function SettingsPage() {
                 <div className="border-t border-gray-200 dark:border-[#2A2D3E] pt-4">
                   <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Delete Account</h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">
-                    Permanently delete your account and all associated data. This action cannot be undone.
+                    Permanently delete your account and personal data. Financial records required for tax compliance are retained but anonymized. This action cannot be undone.
                   </p>
                   {!showDeleteConfirm ? (
                     <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
