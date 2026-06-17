@@ -12,6 +12,7 @@ import {
   referrals,
   auditLogs,
   toolReviews,
+  waitlistSignups,
 } from '@/lib/db/schema'
 import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
@@ -356,11 +357,16 @@ export async function processDataExport(
  * email/login identity) — BEFORE the DB transaction, since that is an external
  * call that cannot be transactional — then anonymizes the requesting developer's
  * own identifying PII at its source — the `developers` row (step 1: name, email,
- * bio, avatar, auth/Stripe linkage) — and scrubs or deletes the related consumer,
- * API-key, invocation-metadata, audit-log (IP/UA), webhook, review, and tool
- * rows, in a single transaction. The Supabase auth user holds the email, so a
- * deletion that only nulled `developers.supabaseUserId` would leave the login
- * identity alive; this hard-deletes it (see {@link deleteSupabaseAuthUser}).
+ * bio, avatar, auth/Stripe linkage, notification webhooks) — and scrubs or
+ * deletes the related consumer, API-key, invocation-metadata, audit-log
+ * (IP/UA/details — across the developer's own rows, the consumer twin's
+ * consumerId-keyed rows, and cross-principal rows that name the developer as
+ * their 'developer'/'developer_signup' resource), webhook, marketing-waitlist,
+ * review (the consumer twin's comments + the developer's own review responses),
+ * and tool rows (including each tool's source-repo/proxy/crawl-metadata infra
+ * fields), in a single transaction. The Supabase auth user holds the email, so a deletion that only
+ * nulled `developers.supabaseUserId` would leave the login identity alive; this
+ * hard-deletes it (see {@link deleteSupabaseAuthUser}).
  *
  * Financial records (payouts, purchases, ledger_entries, settlement_batches) are
  * RETAINED for 7-year IRS / Stripe bookkeeping and are NOT rewritten here. They
@@ -375,6 +381,21 @@ export async function processDataExport(
  * address is retained UN-scrubbed. Its lawful basis and any erasure/tombstoning
  * path are unsettled and routed to the V-N3-erasure chunk (counsel pending); see
  * docs/tech-debt/v-n3-ledger-entries-gdpr-retention-gap-2026-06-14.md.
+ *
+ * DEFERRED — a developer-owned organization's `organizations.billing_email` is
+ * likewise retained un-scrubbed here: it is a DISTINCT entity's data (an org that
+ * may have other members), and whether/how to scrub organization data on member
+ * deletion is unsettled, routed separately. It is disclosed in the resultUrl
+ * `retainedUnscrubbed` (column path only) and this deletion does not touch
+ * `organizations`/`organization_members`.
+ *
+ * DEFERRED — a developer-linked consumer account's financial/referral linkage
+ * (`consumers.stripe_customer_id`, `consumers.default_payment_method_id`,
+ * `consumers.referral_code`) is likewise retained un-scrubbed here: step 2
+ * anonymizes only the consumer's email/supabaseUserId/passwordHash. The
+ * consumer-side scrub is routed separately, and `referral_code` anchors referral
+ * attribution. Disclosed in the resultUrl `retainedUnscrubbed` (column paths
+ * only), gated on a consumer twin existing.
  *
  * Status machine (H1, 2026-06-05): pending → processing → completed | failed.
  * - 'completed': re-runs are an idempotent NO-OP (returns completed; GDPR
@@ -510,6 +531,9 @@ export async function processDataDeletion(
           stripeCustomerId: null,
           stripeSubscriptionId: null,
           notificationPreferences: {},
+          // V-N3 SLICE 3: the developer's own Slack/Discord webhook URLs
+          // ({ slack?, discord? }) are personal data — scrub alongside prefs.
+          notificationWebhooks: {},
           publicProfile: false,
           updatedAt: new Date(),
         })
@@ -542,6 +566,24 @@ export async function processDataDeletion(
           .where(eq(consumers.id, consumerRecord.id))
       }
 
+      // ── 2b. Delete the developer's marketing-waitlist signups ──────
+      //    waitlist_signups has no developer FK; it is keyed only by email.
+      //    Match the writer's normalization (api/waitlist stores
+      //    email.toLowerCase().trim()) so a mixed-case developer email still
+      //    matches — a raw-case match would leave the row (and make the
+      //    'waitlist_signups' disclosure a false claim). Keyed on the RAW
+      //    dev.email captured pre-txn (developers.email is anonymized by step 1
+      //    above, so it must NOT be re-selected here). DELETE (not anonymize):
+      //    a marketing signup with no dependents. Idempotent on a failed retry
+      //    (the txn rolled back ⇒ rows still present; already-gone ⇒ 0 rows).
+      //    The one-email-per-identity assumption (shared by the consumer lookup)
+      //    means this also covers the consumer twin's signup — no second capture.
+      const deletedWaitlistRows = await tx
+        .delete(waitlistSignups)
+        .where(sql`lower(${waitlistSignups.email}) = ${dev.email.toLowerCase().trim()}`)
+        .returning({ id: waitlistSignups.id })
+      const deletedWaitlist = deletedWaitlistRows.length > 0
+
       // ── 3. Delete API keys for this developer's tools ──────────────
       if (toolIds.length > 0) {
         await tx
@@ -557,11 +599,61 @@ export async function processDataDeletion(
           .where(inArray(invocations.toolId, toolIds))
       }
 
-      // ── 5. Scrub IP/UA from audit logs ─────────────────────────────
+      // ── 5. Scrub IP/UA + details from audit logs ───────────────────
+      //    V-N3 SLICE 3: `details` retains the developer's RAW EMAIL on
+      //    auth.login rows ({ provider, email }) and may embed PII in other
+      //    action shapes — null the whole column (SAFE-COMPLETE; every reader
+      //    handles null) alongside ipAddress/userAgent, same developerId scope.
       await tx
         .update(auditLogs)
-        .set({ ipAddress: null, userAgent: null })
+        .set({ ipAddress: null, userAgent: null, details: null })
         .where(eq(auditLogs.developerId, developerId))
+
+      // ── 5b. Scrub the consumer twin's OWN audit rows (consumerId-keyed) ─
+      //    V-N3 SLICE 3 RECOVERY (F-1): audit_logs has a `consumerId` column;
+      //    consumer-keyed writers (e.g. consumer/budget, consumer/keys) hold the
+      //    SUBJECT-as-consumer's IP/UA and may embed PII in `details`. Step 5
+      //    keys on developerId ONLY, so these survive it — leaving the
+      //    UNCONDITIONAL 'audit_logs.details' disclosure FALSE for a developer
+      //    who also has a consumer account. When a twin exists, scrub its rows on
+      //    the same whole-column basis (the twin is the same data subject).
+      if (consumerRecord) {
+        await tx
+          .update(auditLogs)
+          .set({ ipAddress: null, userAgent: null, details: null })
+          .where(eq(auditLogs.consumerId, consumerRecord.id))
+      }
+
+      // ── 5c. Scrub CROSS-PRINCIPAL audit rows that NAME the subject ──
+      //    V-N3 SLICE 3 RECOVERY (F-1, DC-16): a DIFFERENT principal (an admin)
+      //    can write an audit row ABOUT this developer carrying the subject's
+      //    raw email in `details` — CONFIRMED at admin/chargeback-watch/unpause
+      //    (developerId=admin, resourceType='developer', resourceId=<subject>,
+      //    details.targetDeveloperEmail=<subject email>). Such rows are keyed to
+      //    the admin's developerId, so step 5 never reaches them — and the full
+      //    audit_logs PII census (38 writers, all 3 keying paths) found this is
+      //    the ONLY writer that puts a developer-subject's PII into a
+      //    foreign-keyed row, always as the 'developer'/'developer_signup'
+      //    resource. Null `details` on every row that names the subject as that
+      //    resource, so the unconditional 'audit_logs.details' claim is TRUE.
+      //    Only `details` is nulled here (NOT ip/ua): on a cross-principal row
+      //    the IP/UA belong to the ACTING principal, not the subject — the
+      //    subject's PII lives only in `details`. RULING (DC-13 over-scrub
+      //    trade-off, handoff F-1 Option A): nulling the whole `details` also
+      //    drops the admin's collateral (adminEmail/note) — ACCEPTED: GDPR
+      //    erasure of the subject's PII dominates, and the admin's own email
+      //    survives on their developerId-keyed rows. Subject-keyed 'developer'
+      //    rows (the subject's own settings updates) are already nulled by
+      //    step 5 — re-nulling them here is idempotent.
+      await tx
+        .update(auditLogs)
+        .set({ details: null })
+        .where(
+          and(
+            inArray(auditLogs.resourceType, ['developer', 'developer_signup']),
+            eq(auditLogs.resourceId, developerId),
+          ),
+        )
 
       // ── 6. Delete webhook endpoints (may reveal infrastructure URLs) ─
       await tx
@@ -578,7 +670,33 @@ export async function processDataDeletion(
           .where(eq(toolReviews.consumerId, consumerRecord.id))
       }
 
+      // ── 7b. Anonymize the developer's OWN review responses ─────────
+      //    V-N3 SLICE 3 RECOVERY (F-2): tool_reviews.developer_response +
+      //    developer_responded_at hold free text the SUBJECT authored — the
+      //    developer's public reply on reviews of THEIR OWN tools, written via
+      //    dashboard/developer/reviews/[id]/respond (keyed via tools.developerId).
+      //    These rows are keyed to the developer's TOOLS, not the consumer twin,
+      //    so step 7's consumerId-scoped scrub never touches them and a
+      //    '[Deleted]' developer's replies (which can embed contact info) would
+      //    survive. Distinct WHERE from step 7 (keys on toolId ∈ toolIds). Null
+      //    ONLY the response columns — rating/comment on these rows are OTHER
+      //    consumers' authored data and are RETAINED. Idempotent (null-on-retry).
+      if (toolIds.length > 0) {
+        await tx
+          .update(toolReviews)
+          .set({ developerResponse: null, developerRespondedAt: null })
+          .where(inArray(toolReviews.toolId, toolIds))
+      }
+
       // ── 8. Mark tools as deleted, clear description/health endpoint ─
+      //    V-N3 SLICE 3: also null the PII-linked infra fields — sourceRepoUrl
+      //    (a github.com/<handle>/… URL embedding the dev's handle), proxyEndpoint
+      //    (the dev's infra URL), crawlMetadata (jsonb that can embed crawled
+      //    author/contact data). Product-safe on these status='deleted' rows: no
+      //    developer-owned status='template' write path exists (so they are never
+      //    a template-download target), and proxy/stats only COUNTs the endpoint,
+      //    never returns its value. PRESERVE name/slug — product-artifact identity
+      //    (over-scrub would break invocation/purchase/review history + the URL key).
       if (toolIds.length > 0) {
         await tx
           .update(tools)
@@ -586,6 +704,9 @@ export async function processDataDeletion(
             status: 'deleted',
             description: null,
             healthEndpoint: null,
+            sourceRepoUrl: null,
+            proxyEndpoint: null,
+            crawlMetadata: null,
             updatedAt: new Date(),
           })
           .where(inArray(tools.id, toolIds))
@@ -599,6 +720,9 @@ export async function processDataDeletion(
           resultUrl: JSON.stringify({
             anonymized: [
               'developers',
+              // V-N3 SLICE 3: the developer's Slack/Discord webhook URLs, reset
+              // to {} in step 1 (unconditional — the developer row always updates).
+              'developers.notification_webhooks',
               // The Supabase auth.users row (email/login identity) was HARD
               // deleted pre-txn — gated on a linked auth-user id being present
               // (deletedAuthUser). An already-gone user is absorbed as a 404, so
@@ -607,12 +731,28 @@ export async function processDataDeletion(
               ...(deletedAuthUser ? ['supabase_auth_user'] : []),
               'developer_api_keys',
               ...(consumerRecord ? ['consumers'] : []),
+              // V-N3 SLICE 3: marketing-waitlist rows — gated on the DELETE having
+              // matched rows (most developers never joined the waitlist), so this
+              // never claims a scrub that did not happen.
+              ...(deletedWaitlist ? ['waitlist_signups'] : []),
               ...(toolIds.length > 0 ? ['api_keys', 'invocations.metadata'] : []),
               'audit_logs.ip_address',
               'audit_logs.user_agent',
+              // V-N3 SLICE 3: audit-log details (held the dev's raw login email),
+              // nulled in step 5 (unconditional — same developerId scope as IP/UA).
+              'audit_logs.details',
               'webhook_endpoints',
               ...(consumerRecord ? ['tool_reviews'] : []),
-              ...(toolIds.length > 0 ? ['tools'] : []),
+              // V-N3 SLICE 3 RECOVERY (F-2): the developer's OWN review responses
+              // (tool_reviews.developer_response/developer_responded_at), nulled in
+              // step 7b — gated on the dev owning tools (step 7b only runs then).
+              // Distinct from the consumer-`comment` scrub ('tool_reviews' above).
+              ...(toolIds.length > 0 ? ['tool_reviews.developer_response'] : []),
+              // V-N3 SLICE 3: tool PII-infra fields — gated on the dev owning tools
+              // (mirrors the existing 'tools' gating; step 8 only runs then).
+              ...(toolIds.length > 0
+                ? ['tools', 'tools.source_repo_url', 'tools.proxy_endpoint', 'tools.crawl_metadata']
+                : []),
             ],
             retained: ['payouts', 'purchases', 'ledger_entries', 'settlement_batches'],
             // V-N3 honesty: ledger_entries ALSO persists the anonymous on-chain
@@ -622,9 +762,27 @@ export async function processDataDeletion(
             retainedUnscrubbed: [
               'ledger_entries.operation_id',
               'ledger_entries.metadata.payer',
+              // V-N3 SLICE 3: a distinct entity's data, DEFERRED (not scrubbed
+              // here). Column PATH only — never a row value. Factual posture, no
+              // lawful-basis conclusion (see retainedUnscrubbedNote).
+              'organizations.billing_email',
+              // V-N3 SLICE 3 RECOVERY (F-3/4/5): a developer-linked consumer
+              // account's financial/referral linkage is RETAINED un-scrubbed here
+              // (step 2 anonymizes only email/supabaseUserId/passwordHash). Column
+              // PATHS only — never row values (DC-11). Gated on a consumer twin
+              // existing, so this never lists paths for a non-existent row. The
+              // consumer-side scrub is deferred + routed separately; referral_code
+              // anchors referral attribution (scrubbing it would orphan it).
+              ...(consumerRecord
+                ? [
+                    'consumers.stripe_customer_id',
+                    'consumers.default_payment_method_id',
+                    'consumers.referral_code',
+                  ]
+                : []),
             ],
             retainedUnscrubbedNote:
-              "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending).",
+              "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending). organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately. A developer-linked consumer account's stripe_customer_id, default_payment_method_id, and referral_code are also retained un-scrubbed here; the consumer-side financial/referral linkage is deferred and routed separately, and referral_code anchors referral attribution.",
             toolCount: toolIds.length,
           }),
           completedAt: new Date(),

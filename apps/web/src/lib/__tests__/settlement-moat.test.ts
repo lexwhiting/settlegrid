@@ -86,6 +86,10 @@ vi.mock('@/lib/db/schema', () => ({
   apiKeys: { id: 'id', toolId: 'tool_id' },
   developerApiKeys: { id: 'id', developerId: 'developer_id' },
   toolReviews: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', comment: 'comment' },
+  // V-N3 SLICE 3: processDataDeletion now imports + deletes waitlist_signups
+  // (keyed by lower(email)). Without this stub, eq/sql over waitlistSignups.email
+  // dereferences undefined → TypeError → the run goes 'failed' → these tests RED.
+  waitlistSignups: { id: 'id', email: 'email', feature: 'feature' },
   agentIdentities: {
     id: 'id', providerId: 'provider_id', agentName: 'agent_name', identityType: 'identity_type',
     publicKey: 'public_key', fingerprint: 'fingerprint', verificationLevel: 'verification_level',
@@ -750,8 +754,16 @@ describe('processDataDeletion', () => {
           where: vi.fn().mockResolvedValue(undefined),
         }),
       }),
+      // V-N3 SLICE 3: the waitlist DELETE chains .where(pred).returning(); the
+      // step-1b/6 deletes await .where(pred) directly. So .where() returns an
+      // object that is BOTH awaitable (thenable → undefined) AND has .returning()
+      // (→ [] : no waitlist rows on this rig, so deletedWaitlist=false).
       delete: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(undefined),
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([]),
+          then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
+            Promise.resolve(undefined).then(onF, onR),
+        }),
       }),
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
@@ -779,10 +791,11 @@ describe('processDataDeletion', () => {
     const result = await processDataDeletion('del-1')
 
     expect(result.status).toBe('completed')
-    // H1: pin txn step 1b (developer_api_keys erasure) + step 6
-    // (webhook_endpoints) — the two tx.delete calls on the no-tools path —
-    // so the schema mock can't silently drift again.
-    expect(txChain.delete).toHaveBeenCalledTimes(2)
+    // H1 + V-N3 SLICE 3: pin txn step 1b (developer_api_keys), step 2b
+    // (waitlist_signups — unconditional) + step 6 (webhook_endpoints) — the
+    // THREE tx.delete calls on the no-tools path — so the schema mock can't
+    // silently drift again. (Was 2 before SLICE 3 added the waitlist DELETE.)
+    expect(txChain.delete).toHaveBeenCalledTimes(3)
   })
 
   it('throws when deletion not found', async () => {
@@ -834,7 +847,8 @@ describe('processDataDeletion', () => {
     const result = await processDataDeletion('del-4')
 
     expect(result.status).toBe('completed')
-    expect(txChain.delete).toHaveBeenCalledTimes(2)
+    // V-N3 SLICE 3: step 1b + step 2b (waitlist) + step 6 = 3 deletes.
+    expect(txChain.delete).toHaveBeenCalledTimes(3)
   })
 
   it('throws when a deletion is already in progress', async () => {

@@ -110,10 +110,11 @@ const retainedAfterFaq = region(
 
 // The "Can I request my data be removed from backups?" FAQ — its backup-erasure
 // claim must be scoped to the data the deletion actually anonymizes, not an
-// absolute "all PII" guarantee (developer-keyed PII the 9-step deletion does not
-// scrub — organizations.billing_email, developers.notification_webhooks,
-// tools.name/slug — survives in the primary DB and therefore in backups; that
-// completeness gap is routed to the deletion-completeness follow-up).
+// absolute "all PII" guarantee. (V-N3 SLICE 3 now scrubs the developer's
+// notification_webhooks, marketing-waitlist signups, audit-log details, and tool
+// infra fields; what remains UN-scrubbed in the primary DB — and therefore in
+// backups — is organizations.billing_email (a distinct entity, deferred) and
+// tools.name/slug (retained-by-design product identity).)
 const backupsFaq = region(
   docsSrc,
   'Can I request my data be removed from backups?',
@@ -353,5 +354,107 @@ describe('V-N3 SLICE 2 (③ hardening) — sibling deletion-claim absolutes soft
   it('docs:639 no longer claims PII "will no longer exist in any backup" (absolute)', () => {
     expect(backupsFaq).not.toMatch(/no longer exist in any backup/i)
     expect(backupsFaq).toMatch(/anonymized on deletion/i)
+  })
+})
+
+describe('V-N3 SLICE 3 — the completeness scrubs are disclosed in the persisted record (C)', () => {
+  // Non-vacuity: each path string exists ONLY after the SLICE-3 resultUrl edit.
+  // Reverting a scrub's disclosure entry ⇒ the matching assertion goes RED.
+  // (Runtime gating — toolIds>0, deletedWaitlist — is pinned behaviorally in
+  // compliance-deletion-auth.test.ts; these are SOURCE-TEXT presence pins per §7-E5.)
+
+  // Sliced to the anonymized array (up to the `retained:` key) so these pin the
+  // anonymized list specifically (compatible with the existing
+  // `.not.toMatch(/ledger_entries/)` + `/supabase_auth_user/` slice — no collision).
+  const anonymizedArray = region(resultUrl, 'anonymized: [', 'retained:')
+
+  it('anonymized records developers.notification_webhooks + audit_logs.details (unconditional scrubs)', () => {
+    expect(anonymizedArray).toMatch(/'developers\.notification_webhooks'/)
+    expect(anonymizedArray).toMatch(/'audit_logs\.details'/)
+  })
+
+  it('anonymized records waitlist_signups (gated on rows deleted at runtime)', () => {
+    expect(anonymizedArray).toMatch(/'waitlist_signups'/)
+  })
+
+  it('anonymized records the tools PII-infra column paths (gated on toolIds at runtime)', () => {
+    expect(anonymizedArray).toMatch(/'tools\.source_repo_url'/)
+    expect(anonymizedArray).toMatch(/'tools\.proxy_endpoint'/)
+    expect(anonymizedArray).toMatch(/'tools\.crawl_metadata'/)
+  })
+
+  // V-N3 SLICE 3 RECOVERY (F-2): the developer's own review responses are now
+  // disclosed (gated on toolIds at runtime; gating proven behaviorally in
+  // compliance-deletion-auth.test.ts). Source-text presence pin per §7-E5.
+  it('anonymized records tool_reviews.developer_response (gated on toolIds at runtime)', () => {
+    expect(anonymizedArray).toMatch(/'tool_reviews\.developer_response'/)
+  })
+
+  it('keeps the new scrub paths OUT of retainedUnscrubbed (they were scrubbed, not retained)', () => {
+    const retainedUnscrubbedArray = region(resultUrl, 'retainedUnscrubbed: [', 'retainedUnscrubbedNote:')
+    expect(retainedUnscrubbedArray).not.toMatch(/notification_webhooks/)
+    expect(retainedUnscrubbedArray).not.toMatch(/waitlist_signups/)
+    expect(retainedUnscrubbedArray).not.toMatch(/audit_logs\.details/)
+    expect(retainedUnscrubbedArray).not.toMatch(/source_repo_url/)
+    // F-2: the developer_response was SCRUBBED — it must not be mislabeled retained.
+    expect(retainedUnscrubbedArray).not.toMatch(/developer_response/)
+  })
+})
+
+describe('V-N3 SLICE 3 RECOVERY — F-1: audit_logs.details scrub is broadened to back the UNCONDITIONAL claim', () => {
+  // The unconditional 'audit_logs.details' disclosure is only HONEST because the
+  // step-5 scrub now reaches the consumer-twin (consumerId-keyed) and
+  // cross-principal (resourceType/resourceId-keyed) rows in addition to the
+  // developerId-keyed rows. These source-text pins guard the broadened scrub
+  // PREDICATES exist in source (the runtime predicate firing is pinned
+  // behaviorally in compliance-deletion-auth.test.ts). Non-vacuous: reverting the
+  // 5b/5c additions removes these clauses → RED.
+  const deletionBody = region(complianceSrc, 'async function processDataDeletion', '} catch (err) {')
+
+  it('still discloses audit_logs.details UNCONDITIONALLY (the claim the broadened scrub backs)', () => {
+    const anonymizedArray = region(resultUrl, 'anonymized: [', 'retained:')
+    expect(anonymizedArray).toMatch(/'audit_logs\.details'/)
+  })
+
+  it('scrubs the consumer twin’s consumerId-keyed audit rows (step 5b)', () => {
+    expect(deletionBody).toMatch(/auditLogs\.consumerId/)
+  })
+
+  it('scrubs cross-principal rows naming the subject as a developer/developer_signup resource (step 5c)', () => {
+    expect(deletionBody).toMatch(/inArray\(\s*auditLogs\.resourceType,\s*\['developer',\s*'developer_signup'\]\s*\)/)
+    expect(deletionBody).toMatch(/eq\(auditLogs\.resourceId,\s*developerId\)/)
+  })
+})
+
+describe('V-N3 SLICE 3 — organizations.billing_email is DEFERRED + disclosed honestly (F)', () => {
+  // §7-F: a column PATH in retainedUnscrubbed (DC-11, never a value) + the org
+  // posture folded into the SINGLE retainedUnscrubbedNote, with NO banned legal
+  // conclusion. Non-vacuous: the path + the distinct-entity wording exist ONLY
+  // after the SLICE-3 edit; reverting either turns this RED.
+  const retainedUnscrubbedArray = region(resultUrl, 'retainedUnscrubbed: [', 'retainedUnscrubbedNote:')
+  const note = region(resultUrl, 'retainedUnscrubbedNote:', 'toolCount:')
+
+  it('lists organizations.billing_email in retainedUnscrubbed as a column PATH', () => {
+    expect(retainedUnscrubbedArray).toMatch(/'organizations\.billing_email'/)
+  })
+
+  it('the note frames it as a distinct entity (an organization), routed separately', () => {
+    expect(note).toMatch(/distinct entity/i)
+    expect(note).toMatch(/organization/i)
+    expect(note).toMatch(/routed separately/i)
+  })
+
+  it('the note asserts NO forbidden lawful-basis conclusion (banned CLASS still clean)', () => {
+    for (const [re, label] of BANNED_LEGAL_CONCLUSIONS) {
+      expect(note, `org note must not assert ${label}`).not.toMatch(re)
+    }
+  })
+
+  it('preserves the existing ledger_entries un-scrubbed disclosure verbatim (added to, not reworded)', () => {
+    // §1: the V-N3-erasure ledger disclosure is frozen — the SLICE-3 org clause
+    // is APPENDED, the ledger sentence is untouched.
+    expect(note).toMatch(/The fields above retain the anonymous on-chain payer.s EVM address/)
+    expect(retainedUnscrubbedArray).toMatch(/'ledger_entries\.operation_id'/)
+    expect(retainedUnscrubbedArray).toMatch(/'ledger_entries\.metadata\.payer'/)
   })
 })
