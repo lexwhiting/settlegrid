@@ -23,10 +23,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
-  mockDb, mockAuthDelete, selectQueue, txSelectQueue, updateCalls, updatePreds, deleteCalls, waitlistRowsRef,
+  mockDb, mockAuthDelete, selectQueue, txSelectQueue, selectCalls, updateCalls, updatePreds, deleteCalls, waitlistRowsRef,
 } = vi.hoisted(() => {
     const selectQueue: unknown[][] = []
     const txSelectQueue: unknown[][] = []
+    // V-N3 SLICE 4: record every SELECT's .where()/.orderBy() predicate (across BOTH
+    // db.select and tx.select) so a test can pin the consumer-twin lookup's NORMALIZED
+    // predicate AND its byte-exact-first ORDER BY sql literal — the DETERMINISM pin
+    // (DC-05: assert the operator/function TEXT, not just the bound value).
+    const selectCalls: Array<{ where?: unknown; orderBy?: unknown }> = []
     const updateCalls: Array<Record<string, unknown>> = []
     // V-N3 SLICE 3 RECOVERY (F-1): record every tx.update().set(vals).where(pred)
     // as a {vals, pred} PAIR so a test can pin the step-5 audit-scrub PREDICATE(s)
@@ -46,13 +51,20 @@ const {
     // chain (the toolIds query: select().from().where()).
     function makeSelectBuilder(queue: unknown[][]) {
       const result = queue.shift() ?? []
+      const rec: { where?: unknown; orderBy?: unknown } = {}
       const builder: Record<string, unknown> = {
         from: () => builder,
-        where: () => builder,
-        limit: () => Promise.resolve(result),
+        where: (pred: unknown) => { rec.where = pred; return builder },
+        // V-N3 SLICE 4: the consumer-twin lookups add .orderBy(sql`…`) for the
+        // byte-exact-first deterministic tie-break; record it (and require the
+        // method to exist, else the run TypeErrors → 'failed' → tests RED).
+        orderBy: (ord: unknown) => { rec.orderBy = ord; return builder },
+        limit: () => { selectCalls.push(rec); return Promise.resolve(result) },
         // toolIds query awaits select().from().where() directly (no .limit):
-        then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
-          Promise.resolve(result).then(onF, onR),
+        then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) => {
+          selectCalls.push(rec)
+          return Promise.resolve(result).then(onF, onR)
+        },
       }
       return builder
     }
@@ -108,7 +120,7 @@ const {
       transaction: async (cb: (t: unknown) => Promise<unknown>) => cb(tx),
     } as Record<string, unknown>
 
-    return { mockDb, mockAuthDelete, selectQueue, txSelectQueue, updateCalls, updatePreds, deleteCalls, waitlistRowsRef }
+    return { mockDb, mockAuthDelete, selectQueue, txSelectQueue, selectCalls, updateCalls, updatePreds, deleteCalls, waitlistRowsRef }
   })
 
 vi.mock('@/lib/db', () => ({ db: mockDb }))
@@ -124,7 +136,9 @@ vi.mock('@/lib/db/schema', () => {
     consumers: tbl(['id', 'email', 'supabaseUserId', 'passwordHash']),
     tools: tbl(['id', 'developerId', 'status', 'description', 'healthEndpoint', 'updatedAt', 'createdAt']),
     invocations: tbl(['id', 'toolId', 'metadata']),
-    apiKeys: tbl(['id', 'toolId']),
+    // V-N3 SLICE 4: step-2 now deletes the consumer twin's OWN api_keys keyed on
+    // consumerId; without this column the eq() echo dereferences undefined (DC-05).
+    apiKeys: tbl(['id', 'toolId', 'consumerId']),
     developerApiKeys: tbl(['id', 'developerId']),
     payouts: tbl(['id', 'developerId']),
     webhookEndpoints: tbl(['id', 'developerId']),
@@ -140,6 +154,11 @@ vi.mock('@/lib/db/schema', () => {
     // this stub, waitlistSignups.email/.id dereference undefined → TypeError →
     // the run goes 'failed' → previously-GREEN tests turn RED.
     waitlistSignups: tbl(['id', 'email']),
+    // V-N3 SLICE 4: step-2 also deletes the consumer twin's cron schedules and
+    // nulls conversion_events.metadata (both consumerId-keyed). Stub them or the
+    // column refs dereference undefined → 'failed' → tests RED.
+    consumerSchedules: tbl(['id', 'consumerId']),
+    conversionEvents: tbl(['id', 'consumerId', 'metadata']),
   }
 })
 
@@ -169,6 +188,11 @@ vi.mock('@/lib/supabase/admin', () => ({
 }))
 
 import { processDataDeletion } from '@/lib/settlement/compliance'
+// V-N3 SLICE 4: these resolve to the SAME mocked table objects compliance.ts
+// receives (vi.mock returns one module instance), so a delete assertion can
+// distinguish the consumerId-keyed api_keys/consumer_schedules deletes — which
+// share an identical eq(consumerId, id) predicate in the mock — by table identity.
+import { apiKeys, consumerSchedules } from '@/lib/db/schema'
 
 /**
  * Seed the db mock for one processDataDeletion run.
@@ -185,6 +209,7 @@ function seed(opts: {
 }) {
   selectQueue.length = 0
   txSelectQueue.length = 0
+  selectCalls.length = 0
   updateCalls.length = 0
   updatePreds.length = 0
   deleteCalls.length = 0
@@ -223,6 +248,11 @@ type SqlPred = { sql: { strings: string[]; values: unknown[] } }
 const isSqlPred = (p: unknown): p is SqlPred =>
   !!p && typeof p === 'object' && 'sql' in (p as Record<string, unknown>)
 const waitlistDeletePred = () => deleteCalls.find((c) => isSqlPred(c.pred))?.pred as SqlPred | undefined
+
+// V-N3 SLICE 4: the two consumer-twin lookups (pre-txn auth + step-2 anonymize)
+// are the ONLY SELECTs with a sql-tagged WHERE (record/dev/toolIds use eq/inArray),
+// so this returns exactly those two — each with its captured {where, orderBy}.
+const sqlSelectLookups = () => selectCalls.filter((c) => isSqlPred(c.where))
 
 // ── F-1 predicate shapes (the mocked drizzle helpers) ────────────────────────
 //   eq(col, val)        → { a: col, b: val }
@@ -578,38 +608,182 @@ describe('processDataDeletion — V-N3 SLICE 3 RECOVERY (F-2): tool_reviews.deve
   })
 })
 
-describe('processDataDeletion — V-N3 SLICE 3 RECOVERY (F-3/4/5): consumer financial/referral disclosed-as-retained', () => {
+describe('processDataDeletion — V-N3 SLICE 4: consumer-side normalization + financial-linkage erasure', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuthDelete.mockResolvedValue(undefined)
   })
 
-  it('discloses the consumer twin’s financial/referral column PATHS in retainedUnscrubbed (gated on the twin)', async () => {
+  // ── (A) byte-exact-first DETERMINISTIC twin lookup (×2, IDENTICAL) ──
+
+  it('looks up the twin by NORMALIZED email with a byte-exact-first deterministic ORDER BY — IDENTICAL at both lookups', async () => {
+    // The mock returns the queued row regardless of predicate, so this pins the SQL
+    // CONSTRUCT that, on a real DB, deterministically resolves the byte-exact twin:
+    //   WHERE lower(email) = <normalized>  ORDER BY (email = <raw>) DESC, id ASC
+    // DC-05/DC-10 lesson: assert the operator/function TEXT (sql.strings), not just
+    // the bound value — a value-only test passes a lower→upper / =→<> / dropped-
+    // ORDER-BY regression that would mis-resolve or SPLIT the destructive twin scrub
+    // across two coexisting case-variant rows (the harm this chunk closes).
+    seed({ devSupabaseUserId: null, email: '  Bob@X.com  ', consumerInTxn: true })
+    await processDataDeletion('exp-1')
+
+    const lookups = sqlSelectLookups()
+    // Exactly two: the pre-txn auth lookup + the step-2 anonymize lookup.
+    expect(lookups.length, 'pre-txn auth + step-2 anonymize consumer lookups').toBe(2)
+
+    for (const lk of lookups) {
+      const whereText = (lk.where as SqlPred).sql.strings.join('')
+      expect(whereText, 'normalize via lower()').toMatch(/lower\s*\(/i)
+      expect(whereText, 'positive equality (=)').toContain('=')
+      expect(whereText, 'never uppercase the column').not.toMatch(/upper\s*\(/i)
+      expect(whereText, 'never an inequality/negation').not.toMatch(/<>|!=/)
+      // WHERE binds the NORMALIZED (lowercased+trimmed) email, never the raw case.
+      expect((lk.where as SqlPred).sql.values).toContain('bob@x.com')
+      expect((lk.where as SqlPred).sql.values).not.toContain('  Bob@X.com  ')
+
+      const orderText = (lk.orderBy as SqlPred).sql.strings.join('')
+      expect(orderText, 'byte-exact match sorted FIRST (DESC)').toMatch(/desc/i)
+      expect(orderText, 'byte-exact equality drives the ordering').toContain('=')
+      expect(orderText, 'stable id tie-break (ASC) → total order').toMatch(/asc/i)
+      // The ORDER BY compares the RAW dev email (byte-exact), distinct from the
+      // normalized WHERE value — this is what makes the TRUE twin sort first.
+      expect((lk.orderBy as SqlPred).sql.values).toContain('  Bob@X.com  ')
+    }
+    // Both lookups MUST be byte-identical so the auth-delete + DB-anonymize can
+    // never split across two case-variant rows (handoff §1 #2 harm (b)).
+    const [a, b] = lookups
+    expect((a.where as SqlPred).sql.strings).toEqual((b.where as SqlPred).sql.strings)
+    expect((a.orderBy as SqlPred).sql.strings).toEqual((b.orderBy as SqlPred).sql.strings)
+  })
+
+  it('captures + anonymizes the SAME resolved twin at both lookups (no split across case-variants)', async () => {
+    // Models two coexisting case-variant rows: the deterministic query (pinned
+    // above) returns the byte-exact twin — seeded here as the pre-txn auth id
+    // 'auth-true' and the step-2 row id 'cons-1'. The auth-delete uses the captured
+    // twin id AND the anonymize .set targets that same twin row.
+    seed({
+      devSupabaseUserId: null,
+      consumerSupabaseUserId: 'auth-true',
+      consumerInTxn: true,
+      email: 'Bob@X.com',
+    })
+    await processDataDeletion('exp-1')
+
+    expect(mockAuthDelete).toHaveBeenCalledWith('auth-true')
+    const consumerSet = updateCalls.find((c) => 'referralCode' in c)
+    expect(consumerSet, 'consumer anonymize .set() captured').toBeDefined()
+    const pred = updatePreds.find((u) => u.vals === consumerSet)?.pred
+    expect(isEqPred(pred, 'id', 'cons-1'), 'anonymize targets the resolved twin id').toBe(true)
+  })
+
+  // ── (B) financial/referral linkage scrub in the step-2 .set() ──
+
+  it('step 2 .set() nulls stripeCustomerId + defaultPaymentMethodId + referralCode (alongside the identity columns)', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true })
+    await processDataDeletion('exp-1')
+
+    const consumerSet = updateCalls.find((c) => 'referralCode' in c)
+    expect(consumerSet, 'consumer anonymize .set() captured').toBeDefined()
+    // Non-vacuous: reverting any null-out drops that property.
+    expect(consumerSet).toHaveProperty('stripeCustomerId', null)
+    expect(consumerSet).toHaveProperty('defaultPaymentMethodId', null)
+    expect(consumerSet).toHaveProperty('referralCode', null)
+    // The pre-existing identity scrub is preserved.
+    expect(consumerSet).toHaveProperty('supabaseUserId', null)
+    expect(consumerSet).toHaveProperty('passwordHash', null)
+  })
+
+  // ── (C) consumer-keyed sibling deletes + scrubs, gated on the twin ──
+
+  it('deletes the consumer twin’s OWN api_keys (consumerId-keyed) — distinct from the toolId-keyed delete', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true })
+    await processDataDeletion('exp-1')
+
+    // Disambiguated by table IDENTITY (the eq(consumerId, id) predicate is identical
+    // across tables in the mock) + the consumerId predicate.
+    const del = deleteCalls.find((c) => c.table === apiKeys && isEqPred(c.pred, 'consumerId', 'cons-1'))
+    expect(del, 'a consumerId-keyed api_keys DELETE must be issued').toBeDefined()
+  })
+
+  it('deletes the consumer twin’s cron schedules (consumerId-keyed)', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true })
+    await processDataDeletion('exp-1')
+
+    const del = deleteCalls.find((c) => c.table === consumerSchedules && isEqPred(c.pred, 'consumerId', 'cons-1'))
+    expect(del, 'a consumerId-keyed consumer_schedules DELETE must be issued').toBeDefined()
+  })
+
+  it('nulls conversion_events.metadata keyed on the twin (consumerId), distinct from invocations.metadata (toolId)', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true })
+    await processDataDeletion('exp-1')
+
+    const scrub = findUpdate((u) => u.vals?.metadata === null && isEqPred(u.pred, 'consumerId', 'cons-1'))
+    expect(scrub, 'conversion_events.metadata null keyed on consumerId').toBeDefined()
+    // ONLY metadata is nulled (the row's event/tier analytics are retained).
+    expect(scrub!.vals).toEqual({ metadata: null })
+  })
+
+  it('does NOT scrub outcome_verifications.dispute_reason (its consumerId is a tool-supplied opaque id, not consumers.id)', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true })
+    await processDataDeletion('exp-1')
+
+    // RULING: never scrubbed (a consumers.id-keyed scrub would generally no-op) AND
+    // never disclosed-as-anonymized (that would be a false DC-16 claim).
+    expect(updateCalls.find((c) => 'disputeReason' in c)).toBeUndefined()
+    expect(completedResultUrl()?.anonymized as string[]).not.toContain('outcome_verifications.dispute_reason')
+  })
+
+  it('does NOT issue any consumer-keyed delete/scrub when there is no twin (gate holds)', async () => {
+    seed({ devSupabaseUserId: null }) // no twin
+    await processDataDeletion('exp-1')
+
+    expect(deleteCalls.find((c) => c.table === apiKeys && isEqPred(c.pred, 'consumerId', 'cons-1'))).toBeUndefined()
+    expect(deleteCalls.find((c) => c.table === consumerSchedules)).toBeUndefined()
+    expect(updateCalls.find((c) => 'referralCode' in c)).toBeUndefined()
+    expect(findUpdate((u) => u.vals?.metadata === null && isEqPred(u.pred, 'consumerId', 'cons-1'))).toBeUndefined()
+  })
+
+  // ── (D) disclosure sync: financial/referral + siblings → anonymized (gated) ──
+
+  it('discloses the consumer financial/referral + sibling column PATHS in anonymized (gated on the twin)', async () => {
     seed({ devSupabaseUserId: null, consumerInTxn: true })
     await processDataDeletion('exp-1')
 
     const parsed = completedResultUrl()
-    const retained = parsed?.retainedUnscrubbed as string[]
-    // DC-11: column PATHS only, never row values.
-    expect(retained).toContain('consumers.stripe_customer_id')
-    expect(retained).toContain('consumers.default_payment_method_id')
-    expect(retained).toContain('consumers.referral_code')
-    // They are RETAINED, not scrubbed — must not appear in the anonymized list.
     const anonymized = parsed?.anonymized as string[]
-    expect(anonymized).not.toContain('consumers.referral_code')
-    // The note records the deferral without a banned lawful-basis conclusion.
-    expect(parsed?.retainedUnscrubbedNote as string).toMatch(/referral_code anchors referral attribution/i)
+    // DC-11: column PATHS only — they are SCRUBBED now, so they live in anonymized.
+    expect(anonymized).toContain('consumers.stripe_customer_id')
+    expect(anonymized).toContain('consumers.default_payment_method_id')
+    expect(anonymized).toContain('consumers.referral_code')
+    expect(anonymized).toContain('consumer_schedules')
+    expect(anonymized).toContain('conversion_events.metadata')
+    expect(anonymized).toContain('api_keys')
+
+    // They must NOT be mislabeled retained, and the false referral rationale is gone.
+    const retainedUnscrubbed = parsed?.retainedUnscrubbed as string[]
+    expect(retainedUnscrubbed).not.toContain('consumers.referral_code')
+    expect(retainedUnscrubbed).not.toContain('consumers.stripe_customer_id')
+    expect(parsed?.retainedUnscrubbedNote as string).not.toMatch(/referral_code anchors referral attribution/i)
+    // The org + ledger deferrals are untouched (still retained-un-scrubbed).
+    expect(retainedUnscrubbed).toContain('organizations.billing_email')
+    expect(retainedUnscrubbed).toContain('ledger_entries.operation_id')
   })
 
-  it('omits the consumer financial/referral paths when there is no consumer twin (no false disclosure)', async () => {
-    seed({ devSupabaseUserId: null }) // no twin
+  it('omits the consumer-side anonymized paths when there is no twin (no false disclosure)', async () => {
+    seed({ devSupabaseUserId: null }) // no twin, no tools
     await processDataDeletion('exp-1')
 
-    const retained = completedResultUrl()?.retainedUnscrubbed as string[]
-    expect(retained).not.toContain('consumers.stripe_customer_id')
-    expect(retained).not.toContain('consumers.referral_code')
-    // The pre-existing unconditional ledger/org disclosures are unaffected.
-    expect(retained).toContain('organizations.billing_email')
-    expect(retained).toContain('ledger_entries.operation_id')
+    const anonymized = completedResultUrl()?.anonymized as string[]
+    expect(anonymized).not.toContain('consumers.referral_code')
+    expect(anonymized).not.toContain('consumer_schedules')
+    expect(anonymized).not.toContain('conversion_events.metadata')
+    // api_keys is absent on the no-tools + no-twin path (neither gate fires).
+    expect(anonymized).not.toContain('api_keys')
+  })
+
+  it('still discloses api_keys when the developer owns tools but has no consumer twin (the toolId-keyed gate)', async () => {
+    seed({ devSupabaseUserId: null, toolIds: [{ id: 'tool-1' }] }) // tools, no twin
+    await processDataDeletion('exp-1')
+    expect(completedResultUrl()?.anonymized as string[]).toContain('api_keys')
   })
 })
