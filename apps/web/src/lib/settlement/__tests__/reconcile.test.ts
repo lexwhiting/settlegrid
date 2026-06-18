@@ -1056,14 +1056,14 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     expect(metadataSetCalls().length).toBe(0)
   })
 
-  it('R-V31 (V-N4 / DC-18 — the anchor-degradation backstop): a pass that examined ≥1 candidate, read nonce "unknown", terminalized+quarantined NOTHING fires reconcile.expiry_anchor_degraded ON THE SAME RUN; a normal terminalizing pass does NOT — FAILS PRE-FIX', async () => {
+  it('R-V31 (V-N4 / DC-18 — the PER-NETWORK anchor-degradation backstop): a network that examined ≥1 candidate, read nonce "unknown", terminalized+quarantined NOTHING fires reconcile.expiry_anchor_degraded FOR THAT NETWORK ON THE SAME RUN with the split counts; a normal terminalizing pass does NOT — FAILS PRE-FIX', async () => {
     expirySeq()
     expiryPlan.candidates = [candidate()]
-    mockNonceState.mockResolvedValue('unknown') // pinned read cannot serve N → unknown
+    mockNonceState.mockResolvedValue('unknown') // pinned read cannot serve N → unknownNonce
     await reconcilePendingSettlements()
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'reconcile.expiry_anchor_degraded',
-      expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0, quarantined: 0 }),
+      expect.objectContaining({ network: 'eip155:8453', terminalized: 0, quarantined: 0, unknownAnchor: 0, unknownNonce: 1, unknown: 1 }),
     )
     // a normal pass (something terminalized) does NOT fire it
     vi.mocked(logger.error).mockClear()
@@ -1072,6 +1072,101 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
       'reconcile.expiry_anchor_degraded',
       expect.anything(),
+    )
+  })
+
+  it('R-V32 (DC-18 — THE de-masking pin): in ONE pass, network A (eip155:8453) terminalizes a row WHILE network B (eip155:84532) is wholly nonce-degraded → MUST page B (not A); the OLD pass-global predicate paged NEITHER (A’s terminalize made terminalized===0 false) — FAILS PRE-FIX', async () => {
+    expirySeq()
+    // DC-05: a SECOND-network candidate (EXPIRY_PASS_LIMIT=3 admits ≥2). Both ops parse
+    // canonical; the readers DIVERGE by network within the one pass (was a flat singleton).
+    const B_OPID = `circle-nano:eip155:84532:${FROM}:${NONCE}`
+    expiryPlan.candidates = [candidate(), candidate({ id: 'exp-2', operationId: B_OPID })]
+    mockChainTs.mockImplementation(async (network: string) =>
+      network === 'eip155:8453' ? { ts: NOW_SEC - 100, blockNumber: 555n } : { ts: NOW_SEC - 100, blockNumber: 999n },
+    )
+    mockNonceState.mockImplementation(async (network: string) =>
+      network === 'eip155:8453' ? 'unconsumed' : 'unknown',
+    )
+    await reconcilePendingSettlements()
+    // A terminalized (progress) → no page for A
+    expect(mockExpired).toHaveBeenCalled()
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.objectContaining({ network: 'eip155:8453' }),
+    )
+    // B wholly degraded (nonce 'unknown', zero progress) → MUST page for B, nonce-attributed
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.objectContaining({ network: 'eip155:84532', terminalized: 0, quarantined: 0, unknownAnchor: 0, unknownNonce: 1, unknown: 1 }),
+    )
+  })
+
+  it('R-V33 (DC-18 — per-network↔flat reconciliation): Σ over the byNetwork buckets of each canonical counter === the flat stats counter in the info feed (catches a missed bucket increment / pager↔info-feed divergence) — FAILS PRE-FIX', async () => {
+    expirySeq()
+    const B_OPID = `circle-nano:eip155:84532:${FROM}:${NONCE}`
+    expiryPlan.candidates = [candidate(), candidate({ id: 'exp-2', operationId: B_OPID })]
+    mockChainTs.mockImplementation(async (network: string) =>
+      network === 'eip155:8453' ? { ts: NOW_SEC - 100, blockNumber: 555n } : { ts: NOW_SEC - 100, blockNumber: 999n },
+    )
+    mockNonceState.mockImplementation(async (network: string) =>
+      network === 'eip155:8453' ? 'unconsumed' : 'unknown',
+    )
+    await reconcilePendingSettlements()
+    const passCall = vi.mocked(logger.info).mock.calls.find((c) => c[0] === 'reconcile.expiry_pass')
+    expect(passCall).toBeDefined()
+    const payload = passCall?.[1] as unknown as {
+      terminalized: number; quarantined: number; unknownAnchor: number; unknownNonce: number; unknown: number
+      byNetwork: Record<string, { terminalized: number; quarantined: number; unknownAnchor: number; unknownNonce: number }>
+    }
+    const buckets = Object.values(payload.byNetwork)
+    const sum = (k: 'terminalized' | 'quarantined' | 'unknownAnchor' | 'unknownNonce') =>
+      buckets.reduce((s, b) => s + b[k], 0)
+    expect(sum('terminalized')).toBe(payload.terminalized)
+    expect(sum('quarantined')).toBe(payload.quarantined)
+    expect(sum('unknownAnchor')).toBe(payload.unknownAnchor)
+    expect(sum('unknownNonce')).toBe(payload.unknownNonce)
+    // the retained flat `unknown` is exactly the two splits (R-V24's info-feed key, derived)
+    expect(payload.unknown).toBe(payload.unknownAnchor + payload.unknownNonce)
+    // both canonical networks reached a canonical outcome → both bucketed
+    expect(Object.keys(payload.byNetwork).sort()).toEqual(['eip155:8453', 'eip155:84532'])
+  })
+
+  it('R-V34 ((V) alert-fatigue preservation): a network making REAL progress (a terminalize) with ONE transient unknown in the SAME pass does NOT page — the no-progress gate (terminalized_N===0 && quarantined_N===0) is kept, so a single transient amid progress no longer floods — FAILS PRE-FIX', async () => {
+    expirySeq()
+    const NONCE2 = `0x${'e'.repeat(64)}`
+    // both candidates on eip155:8453; row 1 terminalizes (unconsumed), row 2 is a transient unknown nonce
+    expiryPlan.candidates = [candidate(), candidate({ id: 'exp-2', operationId: `circle-nano:eip155:8453:${FROM}:${NONCE2}` })]
+    mockNonceState.mockReset()
+    mockNonceState.mockResolvedValueOnce('unconsumed').mockResolvedValueOnce('unknown')
+    await reconcilePendingSettlements()
+    expect(mockExpired).toHaveBeenCalledTimes(1) // only row 1 reached the terminalize writer
+    // the network made progress → its single transient unknown must NOT page (the (V) cure)
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.anything(),
+    )
+    // but the info feed is TRUTHFUL: examined 2, terminalized 1, unknownNonce 1
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 2, terminalized: 1, unknown: 1, unknownAnchor: 0, unknownNonce: 1 }),
+    )
+  })
+
+  it('R-V35 (DC-08 — examined>0 but no degradation does NOT page): a network whose only candidate is wall-expired-but-chain-NOT-expired (sequencer catch-up — no unknown, no progress) creates NO bucket and never pages per network — FAILS PRE-FIX', async () => {
+    expirySeq()
+    expiryPlan.candidates = [candidate()]
+    mockChainTs.mockResolvedValue({ ts: Number(VB_EXPIRED) - 10, blockNumber: 100n }) // chain has NOT passed the bound → skip at step 3.5
+    await reconcilePendingSettlements()
+    expect(mockExpired).not.toHaveBeenCalled()
+    expect(mockNonceState).not.toHaveBeenCalled() // skipped before the nonce read → no unknownNonce
+    expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith(
+      'reconcile.expiry_anchor_degraded',
+      expect.anything(),
+    )
+    // info feed truthful: examined 1, zero unknowns, empty byNetwork (no canonical outcome)
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      'reconcile.expiry_pass',
+      expect.objectContaining({ examined: 1, unknown: 0, unknownAnchor: 0, unknownNonce: 0, terminalized: 0, quarantined: 0 }),
     )
   })
 
@@ -1172,12 +1267,14 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
       'reconcile.expiry_pass',
       expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0 }),
     )
-    // (V-N4 / ③ TF-7 / DC-18) the NULL-safe-head-anchor route ALSO increments stats.unknown
-    // and MUST fire the same-run degradation page BY NAME — pin it (R-V31 only covers the
-    // nonce-'unknown' route into the same counter; this is the chainTs===null route).
+    // (V-N4 / ③ TF-7 / DC-18) the NULL-safe-head-anchor route increments stats.unknownAnchor
+    // and MUST fire the same-run PER-NETWORK degradation page BY NAME, attributed to the ANCHOR
+    // counter (R-V31 covers the nonce-'unknown' route; this is the chainTs===null route — the
+    // inclusive-OR predicate must page on the anchor counter alone, else a total anchor outage
+    // re-masks since the anchor-null `continue` precedes the nonce read).
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'reconcile.expiry_anchor_degraded',
-      expect.objectContaining({ examined: 1, unknown: 1, terminalized: 0, quarantined: 0 }),
+      expect.objectContaining({ network: 'eip155:8453', unknownAnchor: 1, unknownNonce: 0, terminalized: 0, quarantined: 0, unknown: 1 }),
     )
   })
 

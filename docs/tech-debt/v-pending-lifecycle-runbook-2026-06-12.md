@@ -91,10 +91,13 @@ issues and collapse recurring identical events (see `t-close-checklist` §3). De
 | `settlement.credit_tool_stat_unmatched` | error | **YES — arm every-event** (rare; every-event is safe; a stat gap per occurrence wants a page). |
 | `reconcile.expiry_unprovable` | error | **Founder's call:** one-shot per row; arm every-event OR treat the first occurrence as standing inventory. Low volume (finite legacy/unparseable backlog). |
 | `reconcile.expiry_pass_failed` | error | **DO NOT arm every-event.** Recurs every 15 min while a DB outage persists (the `overdue_examined` precedent) — an every-event rule recreates alarm fatigue. The first-issue notification suffices; resolution clears it. |
+| `reconcile.expiry_anchor_degraded` | error | **YES — arm every-event** (DC-18 de-mask, 2026-06-18; ③ [L1-1]). The PER-NETWORK same-run stall page. Its `msg`/`logKey` is the SAME constant for every network and every 15-min pass, and the `network` attribution lives only in `extra` (NOT the Sentry grouping key), so default grouping collapses recurrent per-network stalls into ONE non-renotifying issue — a persistent anchor/nonce outage then pages once and goes page-silent. Capped at ≤ the canonical-network count (2 today) per pass, so every-event cannot flood. Without this rule the de-mask's same-run signal degrades to the ≤6h `pending_overdue` backstop only. |
 
-Verify Sentry quota headroom for these four keys in the founder's existing Sentry
+Verify Sentry quota headroom for these five keys in the founder's existing Sentry
 rules/quota live-verification block (the (U) capstone pattern). `expiry_pass_failed`'s
-worst case (a stuck DB) adds ≤1 error line/15 min = 96/day — within quota.
+worst case (a stuck DB) adds ≤1 error line/15 min = 96/day; `expiry_anchor_degraded`'s
+worst case (both canonical networks degraded every pass) adds ≤2 lines/15 min = ≤192/day —
+both within quota.
 
 ## 4. `pending_overdue` is "actionable" again — but read it correctly (③ [31]/[32])
 
@@ -140,8 +143,58 @@ counted examined but never reaches the anchor read). Use instead:
 > Check the prod RPC's `eth_getBlockByNumber("safe", false)` support and the provider's
 > health. (The founder safe-tag curl is in the close checklist.)
 
+This is the SUSTAINED (cross-run) human cue and it stays the load-bearing one. The
+per-run `unknown` is now SPLIT into two attributing counters — `unknownAnchor` (the
+safe-head `eth_getBlockByNumber("safe")` read returned null) and `unknownNonce` (the
+block-pinned USDC `authorizationState(from, nonce)` read — a `readContract` eth_call at
+block N, NOT `eth_getTransactionCount` — could not serve that block) — and
+the feed carries a `byNetwork` breakdown, so the same cue reads per network: a degraded
+`unknownAnchor` points at safe-tag support, a degraded `unknownNonce` at a pruned/lagging
+backend whose tip < N.
+
+**SAME-RUN pager — `reconcile.expiry_anchor_degraded` (DC-18 de-mask, 2026-06-18).** This
+error-level page is now **PER NETWORK** (was pass-global, with no network field — any single
+terminalize/quarantine anywhere in the pass masked it). It fires one line per degraded
+network on the predicate:
+
+> **page network N iff `terminalized_N === 0 && quarantined_N === 0 && (unknownAnchor_N +
+> unknownNonce_N) > 0`** — i.e. that network made ZERO terminalization/quarantine progress
+> this pass AND ≥1 of its reads degraded. The payload carries `{ network, unknownAnchor,
+> unknownNonce, unknown, terminalized: 0, quarantined: 0 }`; triage by the network +
+> whichever split is non-zero (anchor → safe-tag; nonce → block-N pin / backend tip).
+
+It is a within-pass signal only (no cross-pass state — the 15-min cron is stateless) and is
+capped at ≤2 lines/pass (the 2 canonical networks), so it does not re-fatigue. A masked or
+missed page is bounded ≤6h by `pending_overdue`; the SUSTAINED judgment lives in the
+`reconcile.expiry_pass` info feed above. Network-less / non-canonical quarantines
+(unparseable / unsupported-network rows) are deliberately NOT attributed to any network and
+cannot mask a real network's degradation.
+
+**"No same-run page for network N" does NOT mean "N is healthy" (③ [L2-3]/[L3-1]/[L6-1] —
+two bounded masking modes, both by design, both money-safe, both caught within ≤6h by
+`pending_overdue`; the `reconcile.expiry_pass` info feed always carries N's
+`unknownAnchor`/`unknownNonce` even when the page is suppressed):**
+- **Intra-network progress (the no-progress gate).** If N made ANY terminalize OR quarantine
+  progress this pass (`terminalized_N > 0` OR `quarantined_N > 0`), N does NOT page even if
+  some of N's reads degraded — that is the (V) alert-fatigue cure, not a bug. Under a
+  SUSTAINED inflow of quarantine-bound rows on N (new legacy / malformed-vb /
+  nonce-consumed rows arriving every pass), `quarantined_N > 0` can persist indefinitely, so
+  a real anchor/nonce outage on N may never surface on the SAME-RUN page. (The per-row
+  `expiryClass` drain only bounds a FINITE quarantine set, NOT this sustained-arrival case —
+  the real bound is the ≤6h `pending_overdue` backstop, which counts N's stalled
+  ref-NULL rows regardless of the quarantine baseline.)
+- **Budget truncation (LIMIT 3 / 14s).** A pass that hits its row/time budget surfaces ONLY
+  the networks examined before the cut. Under a simultaneous MULTI-network RPC outage (the
+  worst case — reads slow enough to trip the 14s sub-budget after one row), one network may
+  page while a second is page-silent THIS pass; the un-examined rows keep their queue slot
+  (mark-before-examine, the FIFO `COALESCE(last_reconciled_at, created_at)` ordering) and
+  surface on the next pass (≤1–2 passes) or via `pending_overdue` ≤6h. So a single-network
+  page during a known broad RPC outage does NOT certify the other network healthy. (This
+  truncation path is not exercised by the synchronous-mock test pins — a known rig limit.)
+
 The expiry pass reports ONLY via these log keys (no cron-summary/HTTP-body field — summary
 identity is frozen): `reconcile.expiry_pass` (info, the per-run {examined, terminalized,
-quarantined, unknown} feed), `reconcile.expired_terminalized` (info), and the three error
-keys above. To reconstruct "what did the pass do this run," read these — not the cron
-`done` summary (③ [35]).
+quarantined, unknown, unknownAnchor, unknownNonce, byNetwork} feed), `reconcile.expiry_anchor_degraded`
+(error, the same-run per-network degradation page above), `reconcile.expired_terminalized`
+(info), and the three error keys above. To reconstruct "what did the pass do this run," read
+these — not the cron `done` summary (③ [35]).
