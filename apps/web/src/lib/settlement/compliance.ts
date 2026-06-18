@@ -391,19 +391,24 @@ export async function processDataExport(
  * `retainedUnscrubbed` (column path only) and this deletion does not touch
  * `organizations`/`organization_members`.
  *
- * V-N3 SLICE 4 — a developer-linked consumer twin's consumer-side data is erased
- * alongside the developer's. Step 2 anonymizes the twin's
+ * V-N3 SLICE 5 — a developer-linked consumer twin's consumer-side data is erased
+ * alongside the developer's, across the SET of ALL matching consumer rows (not a
+ * single picked row). Step 2 anonymizes each matching row's
  * email/supabaseUserId/passwordHash AND nulls its financial/referral linkage
  * (`stripe_customer_id`, `default_payment_method_id`, `referral_code` — none of
  * which anchor commission/attribution: developer commission keys off
  * `referrals`/`invocations.referralCode`, and already-granted peer-invite credits
  * live in other consumers' balances + their `referredByConsumerId` id back-link),
- * deletes the twin's own consumerId-keyed API keys + cron schedules, and nulls
- * `conversion_events.metadata` — all gated on the twin existing and disclosed in
- * the resultUrl `anonymized` (column paths only). The twin lookup is normalized
- * (lower()+trim) with a byte-exact-first deterministic tie-break, identical at the
- * pre-txn auth lookup and the step-2 anonymize, so a cross-path mixed-case twin is
- * reliably + consistently resolved. `outcome_verifications.dispute_reason` is left
+ * deletes those rows' own consumerId-keyed API keys + cron schedules, and nulls
+ * `conversion_events.metadata` — all gated on at least one matching row and
+ * disclosed in the resultUrl `anonymized` (column paths only). The twin lookup is
+ * normalized (lower()+trim, symmetric on both sides) and matches ALL rows whose
+ * normalized email equals the developer's: `consumers.email` UNIQUE is on the RAW
+ * value with no functional lower(email) index, so two+ case-variant rows for one
+ * subject (`Bob@X.com` / `bob@x.com`) can coexist. The SAME captured row set drives
+ * BOTH the pre-txn Supabase auth-user delete AND every in-txn scrub, so they cannot
+ * split; each row is re-anonymized with its OWN id (`deleted-<id>@…`) to preserve
+ * the per-row UNIQUE(email). `outcome_verifications.dispute_reason` is left
  * untouched: its `consumer_id` is a tool-supplied opaque identifier (not
  * `consumers.id`), so it cannot be reliably keyed to the subject here.
  *
@@ -485,31 +490,41 @@ export async function processDataDeletion(
       throw new Error(`Developer not found: ${developerId}`)
     }
 
-    // Capture the consumer twin's supabaseUserId too, BEFORE the txn (the txn's
-    // consumer lookup/anonymize NULLs it). Normally identical to the dev's (one
-    // auth.users.id per email — auth/callback writes the same user.id to both),
-    // but read both defensively in case a dev/consumer twin linked different
-    // auth users.
+    // Capture ALL consumer rows whose NORMALIZED email matches the developer's,
+    // ONCE, BEFORE the txn. This single captured set drives BOTH the pre-txn
+    // Supabase auth-user delete AND every in-txn consumer-scoped scrub (reused via
+    // `ids`), so the two operate on an IDENTICAL row set BY CONSTRUCTION and cannot
+    // split (the prior pre-txn `db` vs in-txn `tx` re-select were separate
+    // READ-COMMITTED snapshots that could diverge — F-3).
     //
-    // V-N3 SLICE 4: consumer emails are stored heterogeneously — RAW via OAuth
+    // V-N3 SLICE 5: consumer emails are stored heterogeneously — RAW via OAuth
     // (auth/callback) + newsletter, but lower()+trim() via ask/capture +
-    // consumer/academic — so a byte-exact `eq(email, dev.email)` MISSES a
-    // cross-path mixed-case twin (the SLICE-3 ③ sibling). Match on the NORMALIZED
-    // email instead, but break ties BYTE-EXACT-FIRST + a stable id key so the
-    // lookup is DETERMINISTIC and resolves to the SAME row as the step-2 anonymize
-    // lookup below (identical predicate + ORDER BY). consumers.email UNIQUE is on
-    // the RAW value and there is NO functional lower(email) index, so case-variant
-    // rows (Bob@X.com / bob@x.com) CAN coexist; a bare .limit(1) with no ORDER BY
-    // is non-deterministic and could (a) anonymize one variant + leave the sibling
-    // (re-breaking the unconditional audit_logs disclosure), (b) split the auth
-    // delete from the DB anonymize across two rows, or (c) capture the NULL-
-    // supabaseUserId variant and never delete the real twin's auth user.
-    const [consumerForAuth] = await db
-      .select({ supabaseUserId: consumers.supabaseUserId })
-      .from(consumers)
-      .where(sql`lower(${consumers.email}) = ${dev.email.toLowerCase().trim()}`)
-      .orderBy(sql`(${consumers.email} = ${dev.email}) DESC, ${consumers.id} ASC`)
-      .limit(1)
+    // consumer/academic — and `consumers.email` UNIQUE is on the RAW value with NO
+    // functional lower(email) index, so two+ case-variant rows for one subject
+    // (Bob@X.com / bob@x.com) CAN coexist. A single-row LIMIT-1 lookup scrubs the
+    // byte-exact row and LEAVES the sibling (F-1 under-deletion), de-references only
+    // that row's supabaseUserId so the sibling's auth user can orphan (F-2), and
+    // re-breaks the unconditional audit_logs disclosure. Match the NORMALIZED email
+    // and operate on the FULL SET — no ORDER BY, no LIMIT — so the erasure is
+    // universally complete (the byte-exact-first tie-break is no longer needed). The
+    // trim() is on the COLUMN side too (symmetric with the already-trimmed `norm`),
+    // closing the prior whitespace asymmetry.
+    //
+    // F-4 empty-email guard: when `norm` is '' the SELECT is SKIPPED entirely (the
+    // set is empty). Running `lower(trim(email))=''` could match an UNRELATED
+    // empty-email consumer row and pull its supabaseUserId into the irreversible
+    // (non-rolled-back) pre-txn auth-delete — so the guard gates the CAPTURE, not
+    // merely the writes.
+    const norm = dev.email.toLowerCase().trim()
+    const matchingConsumers =
+      norm === ''
+        ? []
+        : await db
+            .select({ id: consumers.id, supabaseUserId: consumers.supabaseUserId })
+            .from(consumers)
+            .where(sql`lower(trim(${consumers.email})) = ${norm}`)
+    const ids = matchingConsumers.map((c) => c.id)
+    const consumerMatched = ids.length > 0
 
     // ── Delete the Supabase AUTH user(s) BEFORE the DB transaction ───────────
     // The auth-delete is an external network call that CANNOT be inside the DB
@@ -519,12 +534,15 @@ export async function processDataDeletion(
     // here lands in the function's catch → status='failed' (retryable;
     // deleteSupabaseAuthUser is idempotent on a not-found user). A null/absent
     // id (API-key-only / seed developer who never linked Supabase auth) is
-    // skipped — nothing to delete.
+    // skipped — nothing to delete. The set spans EVERY matching consumer row's
+    // supabaseUserId + the dev's (deduped, non-null), so no sibling's auth user
+    // is left orphaned (F-2).
     const supabaseUserIds = [
       ...new Set(
-        [dev.supabaseUserId, consumerForAuth?.supabaseUserId].filter(
-          (id): id is string => !!id
-        )
+        [
+          dev.supabaseUserId,
+          ...matchingConsumers.map((c) => c.supabaseUserId),
+        ].filter((id): id is string => !!id)
       ),
     ]
     const deletedAuthUser = supabaseUserIds.length > 0
@@ -573,54 +591,56 @@ export async function processDataDeletion(
         .delete(developerApiKeys)
         .where(eq(developerApiKeys.developerId, developerId))
 
-      // ── 2. Anonymize consumer twin + erase its consumer-keyed PII/credentials ──
-      //    DETERMINISTIC byte-exact-first twin lookup — the predicate + ORDER BY
-      //    are IDENTICAL to the pre-txn auth lookup above, so both resolve the SAME
-      //    consumer row (see that comment for the normalization/determinism proof).
-      const [consumerRecord] = await tx
-        .select({ id: consumers.id })
-        .from(consumers)
-        .where(sql`lower(${consumers.email}) = ${dev.email.toLowerCase().trim()}`)
-        .orderBy(sql`(${consumers.email} = ${dev.email}) DESC, ${consumers.id} ASC`)
-        .limit(1)
+      // ── 2. Anonymize consumer twin SET + erase its consumer-keyed PII/credentials ──
+      //    Operates on the FULL set of matching consumer rows captured pre-txn
+      //    (`ids`), reused here so the auth-delete and the DB scrub target the
+      //    IDENTICAL row set by construction (no in-txn re-select, which could split
+      //    from the pre-txn capture under READ-COMMITTED — F-3).
+      if (consumerMatched) {
+        // Anonymize EACH matching row with ITS OWN id. `consumers.email` is
+        // notNull().unique() on the RAW value, so a single shared
+        // `deleted-<id>@deleted.settlegrid.ai` string across N rows would COLLIDE →
+        // UNIQUE violation → whole-txn rollback → the deletion silently never
+        // `completed`s. A per-row loop keying each row's email to its OWN id keeps
+        // every value unique; supabaseUserId / referralCode are nullable-unique, so
+        // multiple NULLs are permitted (only `email` needs per-row uniqueness).
+        //
+        // V-N3 SLICE 4 rationale (unchanged): stripe_customer_id /
+        // default_payment_method_id are nullable text with no consumer-side reader
+        // keying off them for the subject (the developer's own stripeCustomerId is
+        // nulled by step 1); referral_code is nullable (UNIQUE permits multiple
+        // NULLs) and anchors NO commission/attribution — developer commission keys
+        // off referrals.referralCode + invocations.referralCode (NEVER
+        // consumers.referralCode), and already-granted peer-invite credits live
+        // immutably in OTHER consumers' globalBalanceCents + their
+        // referredByConsumerId back-link (an id, not the code). Nulling it only
+        // prevents a NEW referee redeeming a deleted account's code (correct).
+        for (const id of ids) {
+          await tx
+            .update(consumers)
+            .set({
+              email: `deleted-${id}@deleted.settlegrid.ai`,
+              supabaseUserId: null,
+              passwordHash: null,
+              stripeCustomerId: null,
+              defaultPaymentMethodId: null,
+              referralCode: null,
+            })
+            .where(eq(consumers.id, id))
+        }
 
-      if (consumerRecord) {
-        // Anonymize the consumer's identifying PII AND its financial/referral
-        // linkage. V-N3 SLICE 4: stripe_customer_id / default_payment_method_id are
-        // nullable text with no consumer-side reader keying off them for the subject
-        // (the developer's own stripeCustomerId is nulled by step 1); referral_code
-        // is nullable (UNIQUE permits multiple NULLs) and anchors NO commission/
-        // attribution — developer commission keys off referrals.referralCode +
-        // invocations.referralCode (NEVER consumers.referralCode), and already-
-        // granted peer-invite credits live immutably in OTHER consumers'
-        // globalBalanceCents + their referredByConsumerId back-link (an id, not the
-        // code). Nulling it only prevents a NEW referee redeeming a deleted
-        // account's code (correct).
-        await tx
-          .update(consumers)
-          .set({
-            email: `deleted-${consumerRecord.id}@deleted.settlegrid.ai`,
-            supabaseUserId: null,
-            passwordHash: null,
-            stripeCustomerId: null,
-            defaultPaymentMethodId: null,
-            referralCode: null,
-          })
-          .where(eq(consumers.id, consumerRecord.id))
+        // Delete the twins' OWN API keys (consumerId-keyed live credentials —
+        // consumer/keys inserts with consumerId=auth.id). Step 3 deletes only
+        // toolId-keyed keys (the developer's tools), so a deleted twin's keys would
+        // SURVIVE and still authenticate + bill the SDK meter. Mirror of the
+        // developer step-1b credential delete; idempotent on retry. inArray over the
+        // captured set (gated on consumerMatched, so never an empty-array inArray).
+        await tx.delete(apiKeys).where(inArray(apiKeys.consumerId, ids))
 
-        // Delete the consumer twin's OWN API keys (consumerId-keyed live
-        // credentials — consumer/keys inserts with consumerId=auth.id). Step 3
-        // deletes only toolId-keyed keys (the developer's tools), so a deleted
-        // twin's keys would SURVIVE and still authenticate + bill the SDK meter.
-        // Mirror of the developer step-1b credential delete; idempotent on retry.
-        await tx.delete(apiKeys).where(eq(apiKeys.consumerId, consumerRecord.id))
-
-        // Delete the consumer twin's cron schedules: payload jsonb is unvalidated
-        // free-form (can embed consumer PII) and a scheduled job has no financial-
-        // retention basis (mirrors the webhook_endpoints delete in step 6).
-        await tx
-          .delete(consumerSchedules)
-          .where(eq(consumerSchedules.consumerId, consumerRecord.id))
+        // Delete the twins' cron schedules: payload jsonb is unvalidated free-form
+        // (can embed consumer PII) and a scheduled job has no financial-retention
+        // basis (mirrors the webhook_endpoints delete in step 6).
+        await tx.delete(consumerSchedules).where(inArray(consumerSchedules.consumerId, ids))
 
         // Null conversion_events.metadata — free-form jsonb the consumer supplies
         // (consumer/conversion-events writes body.metadata on a row keyed
@@ -635,7 +655,7 @@ export async function processDataDeletion(
         await tx
           .update(conversionEvents)
           .set({ metadata: null })
-          .where(eq(conversionEvents.consumerId, consumerRecord.id))
+          .where(inArray(conversionEvents.consumerId, ids))
       }
 
       // ── 2b. Delete the developer's marketing-waitlist signups ──────
@@ -688,12 +708,13 @@ export async function processDataDeletion(
       //    keys on developerId ONLY, so these survive it — leaving the
       //    UNCONDITIONAL 'audit_logs.details' disclosure FALSE for a developer
       //    who also has a consumer account. When a twin exists, scrub its rows on
-      //    the same whole-column basis (the twin is the same data subject).
-      if (consumerRecord) {
+      //    the same whole-column basis (the twin is the same data subject) — across
+      //    ALL matching consumer rows (inArray over the captured set).
+      if (consumerMatched) {
         await tx
           .update(auditLogs)
           .set({ ipAddress: null, userAgent: null, details: null })
-          .where(eq(auditLogs.consumerId, consumerRecord.id))
+          .where(inArray(auditLogs.consumerId, ids))
       }
 
       // ── 5c. Scrub CROSS-PRINCIPAL audit rows that NAME the subject ──
@@ -734,12 +755,13 @@ export async function processDataDeletion(
 
       // ── 7. Anonymize tool reviews written by the developer's consumer ─
       //    Reviews are authored by consumers, not the developer, but if the
-      //    developer also has a consumer account, anonymize those reviews.
-      if (consumerRecord) {
+      //    developer also has a consumer account, anonymize those reviews — across
+      //    ALL matching consumer rows (inArray over the captured set).
+      if (consumerMatched) {
         await tx
           .update(toolReviews)
           .set({ comment: null })
-          .where(eq(toolReviews.consumerId, consumerRecord.id))
+          .where(inArray(toolReviews.consumerId, ids))
       }
 
       // ── 7b. Anonymize the developer's OWN review responses ─────────
@@ -802,13 +824,15 @@ export async function processDataDeletion(
               // not which run performed the delete.
               ...(deletedAuthUser ? ['supabase_auth_user'] : []),
               'developer_api_keys',
-              ...(consumerRecord ? ['consumers'] : []),
+              ...(consumerMatched ? ['consumers'] : []),
               // V-N3 SLICE 4: the consumer twin's financial/referral linkage is now
               // SCRUBBED (step-2 .set() nulls them), not retained — so these paths
               // move from retainedUnscrubbed → anonymized, gated IDENTICALLY to their
-              // scrub (consumerRecord). conversion_events.metadata is the consumer's
-              // free-form jsonb, also nulled when a twin exists.
-              ...(consumerRecord
+              // scrub (consumerMatched = ≥1 matching consumer row). conversion_events.
+              // metadata is the consumer's free-form jsonb, also nulled when a twin
+              // exists. A path entry discloses the column was PROCESSED (DC-11 column
+              // PATHS only), not how many rows existed.
+              ...(consumerMatched
                 ? [
                     'consumers.stripe_customer_id',
                     'consumers.default_payment_method_id',
@@ -825,14 +849,14 @@ export async function processDataDeletion(
               // V-N3 SLICE 4: api_keys are deleted for the developer's tools (step 3,
               // toolId-keyed) AND for the consumer twin (step-2, consumerId-keyed),
               // so the path is honest when EITHER gate fires.
-              ...(toolIds.length > 0 || consumerRecord ? ['api_keys'] : []),
+              ...(toolIds.length > 0 || consumerMatched ? ['api_keys'] : []),
               'audit_logs.ip_address',
               'audit_logs.user_agent',
               // V-N3 SLICE 3: audit-log details (held the dev's raw login email),
               // nulled in step 5 (unconditional — same developerId scope as IP/UA).
               'audit_logs.details',
               'webhook_endpoints',
-              ...(consumerRecord ? ['tool_reviews'] : []),
+              ...(consumerMatched ? ['tool_reviews'] : []),
               // V-N3 SLICE 3 RECOVERY (F-2): the developer's OWN review responses
               // (tool_reviews.developer_response/developer_responded_at), nulled in
               // step 7b — gated on the dev owning tools (step 7b only runs then).

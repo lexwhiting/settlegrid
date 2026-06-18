@@ -740,7 +740,11 @@ describe('processDataDeletion', () => {
         // developer lookup (no supabaseUserId → no auth user to delete)
         chain.limit.mockResolvedValue([{ id: 'cust-1', email: 'dev@test.com' }])
       } else if (selectCallCount === 3) {
-        // consumer-twin pre-txn lookup (no consumer → empty)
+        // V-N3 SLICE 5: the consumer-twin pre-txn lookup is now BARE-AWAITED
+        // (db.select().from().where(sql`lower(trim(email))=norm`) — the all-rows
+        // capture, no .orderBy()/.limit()), so it must resolve from .where(), not
+        // .limit() (mirrors the toolIds branch below). No consumer → empty set.
+        chain.where.mockResolvedValue([])
         chain.limit.mockResolvedValue([])
       } else {
         // tool IDs (no limit call — resolves from where)
@@ -769,18 +773,9 @@ describe('processDataDeletion', () => {
             Promise.resolve(undefined).then(onF, onR),
         }),
       }),
-      // V-N3 SLICE 4: the step-2 consumer-twin lookup now chains
-      // .where(sql`…`).orderBy(sql`…`).limit(1) (byte-exact-first determinism), so
-      // .where() must return a builder exposing BOTH .orderBy() and .limit().
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
-      }),
+      // V-N3 SLICE 5: the in-txn consumer re-select is GONE — the consumer `ids`
+      // now flow from the ONE pre-txn capture (select call #3) and are reused
+      // in-txn via inArray, so the txn no longer calls tx.select() at all.
     }
     mockDbTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
       await cb(txChain)
