@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
-import crypto from 'crypto'
 import { z } from 'zod'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
-import { getCronSecret } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   isGitHubAppConfigured,
@@ -54,18 +53,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Authenticate via CRON_SECRET (Bearer token)
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth === 'no-secret') {
       logger.error('github.scan.no_cron_secret')
       return errorResponse('Endpoint not configured', 500, 'CONFIG_ERROR')
     }
-    const expectedToken = `Bearer ${cronSecret}`
-    if (
-      !authHeader ||
-      authHeader.length !== expectedToken.length ||
-      !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedToken))
-    ) {
+    if (auth === 'unauthorized') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 

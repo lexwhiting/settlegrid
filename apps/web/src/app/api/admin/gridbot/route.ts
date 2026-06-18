@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { successResponse, errorResponse } from '@/lib/api'
-import { getCronSecret } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { runGridBot, type ToolTypeSlug } from '@/lib/gridbot'
 
@@ -52,9 +52,8 @@ const requestSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Auth: require CRON_SECRET
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth !== 'ok') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 

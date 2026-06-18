@@ -3,7 +3,7 @@ import { eq, and, isNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse } from '@/lib/api'
-import { getCronSecret } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
@@ -19,9 +19,8 @@ export const maxDuration = 60
  */
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth !== 'ok') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
