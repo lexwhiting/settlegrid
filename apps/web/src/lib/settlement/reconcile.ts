@@ -482,7 +482,28 @@ interface ExpiryPassStats {
   examined: number
   terminalized: number
   quarantined: number
+  /** Flat unknown total (= unknownAnchor + unknownNonce). RETAINED for the
+   *  reconcile.expiry_pass info feed + the runbook's cross-run cue; the two
+   *  split counters below are ADDITIVE (DC-18 — never rename/drop this key). */
   unknown: number
+  /** DC-18 split — the safe-head anchor read (step 3.5) came back null. */
+  unknownAnchor: number
+  /** DC-18 split — the block-pinned nonce read (step 4) came back 'unknown'. */
+  unknownNonce: number
+}
+
+/** DC-18 — per-network degraded-stall aggregation for the de-masked pager.
+ *  Buckets are created LAZILY (bucket-existence ⟺ the network reached ≥1
+ *  canonical outcome this pass — that IS the per-network examined>0 guard) and
+ *  ONLY at the six canonical-network outcome sites. Network-less / non-canonical
+ *  quarantines (the unparseable and unsupported-network arms) stay in the FLAT
+ *  totals only, so they can neither mask nor be misattributed to a real
+ *  network's RPC degradation. */
+interface NetworkExpiryBucket {
+  terminalized: number
+  quarantined: number
+  unknownAnchor: number
+  unknownNonce: number
 }
 
 /** Quarantine-classify: a COALESCE-wrapped jsonb merge (a bare `metadata ||`
@@ -538,7 +559,19 @@ async function runExpiryPass(opts: {
   cutoff: Date
   examinationDeadline: number
 }): Promise<ExpiryPassStats> {
-  const stats: ExpiryPassStats = { examined: 0, terminalized: 0, quarantined: 0, unknown: 0 }
+  const stats: ExpiryPassStats = { examined: 0, terminalized: 0, quarantined: 0, unknown: 0, unknownAnchor: 0, unknownNonce: 0 }
+  // DC-18 — per-network aggregation for the de-masked pager (lazy; flat-totals
+  // additive). bucketFor() seeds a zeroed bucket on first canonical outcome for
+  // a network; the FLAT stats.* increments stay exactly where they are today.
+  const byNetwork = new Map<string, NetworkExpiryBucket>()
+  const bucketFor = (network: string): NetworkExpiryBucket => {
+    let b = byNetwork.get(network)
+    if (!b) {
+      b = { terminalized: 0, quarantined: 0, unknownAnchor: 0, unknownNonce: 0 }
+      byNetwork.set(network, b)
+    }
+    return b
+  }
   const passDeadline = Date.now() + EXPIRY_PASS_BUDGET_MS
   const deadline = Math.min(passDeadline, opts.examinationDeadline)
   try {
@@ -600,13 +633,19 @@ async function runExpiryPass(opts: {
       const meta = row.metadata && typeof row.metadata === 'object' ? (row.metadata as Record<string, unknown>) : null
       const vbRaw = meta?.validBefore
       if (vbRaw === undefined || vbRaw === null) {
-        if (await quarantineClassify(row.id, row.operationId, row.rail, 'legacy-no-validbefore')) stats.quarantined++
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'legacy-no-validbefore')) {
+          stats.quarantined++
+          bucketFor(parsed.network).quarantined++ // canonical site (network validated above)
+        }
         continue
       }
       // 2.5 — the canonical-integer guard (R1-B2): Number('')===0 and
       // Number('abc')===NaN both otherwise fall into the expired arm.
       if (typeof vbRaw !== 'string' || !CANONICAL_VB.test(vbRaw) || !Number.isFinite(Number(vbRaw)) || Number(vbRaw) <= 0) {
-        if (await quarantineClassify(row.id, row.operationId, row.rail, 'unparseable')) stats.quarantined++
+        if (await quarantineClassify(row.id, row.operationId, row.rail, 'unparseable')) {
+          stats.quarantined++
+          bucketFor(parsed.network).quarantined++ // canonical site (malformed-vb on a validated network)
+        }
         continue
       }
       const vb = Number(vbRaw)
@@ -621,6 +660,8 @@ async function runExpiryPass(opts: {
       const chainTs = chainTsByNetwork.get(parsed.network) ?? null
       if (chainTs === null) {
         stats.unknown++
+        stats.unknownAnchor++ // DC-18 split — the safe-head anchor read failed
+        bucketFor(parsed.network).unknownAnchor++
         continue
       }
       if (chainTs.ts <= vb) continue // wall-expired but NOT chain-expired — not provably dead
@@ -642,6 +683,8 @@ async function runExpiryPass(opts: {
       const nonceState = await readAuthorizationStateBounded(parsed.network, parsed.eip3009.from, parsed.eip3009.nonce, chainTs.blockNumber)
       if (nonceState === 'unknown') {
         stats.unknown++ // the LB-2 rule: incomplete evidence — stay pending
+        stats.unknownNonce++ // DC-18 split — the block-pinned nonce read degraded
+        bucketFor(parsed.network).unknownNonce++
         continue
       }
       if (nonceState === 'consumed') {
@@ -657,6 +700,7 @@ async function runExpiryPass(opts: {
         // guarding real P8(b) losses.
         if (await quarantineClassify(row.id, row.operationId, row.rail, 'nonce-consumed-untracked')) {
           stats.quarantined++
+          bucketFor(parsed.network).quarantined++ // canonical site (nonce-consumed)
           logger.error('reconcile.expired_nonce_consumed_quarantined', {
             operationId: row.operationId,
             rail: row.rail,
@@ -676,6 +720,7 @@ async function runExpiryPass(opts: {
       })
       if (flipped) {
         stats.terminalized++
+        bucketFor(parsed.network).terminalized++ // canonical site (terminalized)
         logger.info('reconcile.expired_terminalized', {
           operationId: row.operationId,
           rail: row.rail,
@@ -693,21 +738,64 @@ async function runExpiryPass(opts: {
     logger.error('reconcile.expiry_pass_failed', {}, err)
   }
   if (stats.examined > 0) {
-    // (V-N4 / DC-18) — the pin-degradation backstop. Pinning the nonce read to
-    // block N (V-N4) can raise the 'unknown' rate when the RPC cannot serve N's
-    // state (a pruning full node, or — the precise risk the pin targets — a
-    // lagging backend whose tip < N). A pass that examined ≥1 candidate yet
-    // terminalized AND quarantined NOTHING while ≥1 nonce read came back
-    // 'unknown' is that degradation signature. Page on the SAME run: without
-    // this, a total terminalization stall is visible only INDIRECTLY up to 6h
-    // later via pending_overdue — the very alarm (V) de-fatigued.
-    if (stats.terminalized === 0 && stats.quarantined === 0 && stats.unknown > 0) {
-      logger.error('reconcile.expiry_anchor_degraded', { ...stats })
+    // (V-N4 / DC-18) — the PER-NETWORK pin-degradation backstop. Pinning the
+    // nonce read to block N (V-N4) can raise the 'unknown' rate when an RPC
+    // cannot serve N's state (a pruning full node, or — the precise risk the pin
+    // targets — a lagging backend whose tip < N); the safe-head anchor read can
+    // independently come back null. BOTH stall terminalization, so they are
+    // tracked as TWO counters — unknownAnchor (the step-3.5 safe-head read) and
+    // unknownNonce (the step-4 pinned nonce read) — aggregated PER NETWORK.
+    //
+    // This REPLACES a pass-GLOBAL predicate (terminalized===0 && quarantined
+    // ===0 && unknown>0) that was co-occurrence-suppressible: any single
+    // terminalize or quarantine ANYWHERE in the pass (a co-scheduled testnet
+    // row, a per-call transient, a chain-independent legacy quarantine) masked a
+    // real per-network RPC stall — and the payload named no network. Instead,
+    // page network N iff it made ZERO terminalization/quarantine progress AND
+    // ≥1 of its reads degraded:
+    //   terminalized_N===0 && quarantined_N===0 && (unknownAnchor_N + unknownNonce_N) > 0
+    // The page is on EITHER counter (inclusive-OR); paging on nonce alone would
+    // re-mask a total anchor outage (the anchor-null `continue` at step 3.5
+    // precedes the step-4 nonce read, so a wholly-down safe-head yields
+    // unknownAnchor>0, unknownNonce=0 and never reaches the nonce read). The
+    // split is for PAYLOAD ATTRIBUTION only. Iterating the lazily-created
+    // byNetwork map IS the per-network examined>0 guard: a network with zero
+    // canonical outcomes (every row wall-clock/chain-not-expired-skipped) has no
+    // bucket and never pages.
+    //
+    // This bare per-network form is the per-network analogue of the
+    // already-shipped pass-global pager (it adds no new single-row fatigue): the
+    // SUSTAINED "across consecutive runs" judgment lives in the persistent
+    // reconcile.expiry_pass INFO feed below + pending_overdue (≤6h) — NOT
+    // cross-pass state (the 15-min cron is stateless). It is capped at ≤2 lines
+    // per pass (2 canonical networks), so it cannot flood — the (V)
+    // alert-fatigue cure holds. Rows stay pending in every branch (money-safe).
+    for (const [network, b] of byNetwork) {
+      if (b.terminalized === 0 && b.quarantined === 0 && b.unknownAnchor + b.unknownNonce > 0) {
+        logger.error('reconcile.expiry_anchor_degraded', {
+          network,
+          terminalized: b.terminalized,
+          quarantined: b.quarantined,
+          unknownAnchor: b.unknownAnchor,
+          unknownNonce: b.unknownNonce,
+          unknown: b.unknownAnchor + b.unknownNonce,
+        })
+      }
     }
     // Truthful pass telemetry (info — a feed, not a page): a persistently
-    // failing anchor/nonce read shows up as unknown===examined run after run
-    // (the runbook's anchor-degradation cue).
-    logger.info('reconcile.expiry_pass', { ...stats })
+    // failing anchor/nonce read shows up as unknown>0 with terminalized +
+    // quarantined===0 run after run (the runbook's anchor-degradation cue). The
+    // flat `unknown` key is RETAINED (= unknownAnchor + unknownNonce); the split
+    // + the per-network breakdown are ADDITIVE (no existing key renamed/removed).
+    logger.info('reconcile.expiry_pass', {
+      examined: stats.examined,
+      terminalized: stats.terminalized,
+      quarantined: stats.quarantined,
+      unknown: stats.unknown,
+      unknownAnchor: stats.unknownAnchor,
+      unknownNonce: stats.unknownNonce,
+      byNetwork: Object.fromEntries(byNetwork),
+    })
   }
   return stats
 }
