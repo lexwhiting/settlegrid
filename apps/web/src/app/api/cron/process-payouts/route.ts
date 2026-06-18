@@ -36,7 +36,8 @@ import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { developers, payouts as payoutsTable, auditLogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getCronSecret, getStripeSecretKey } from '@/lib/env'
+import { getStripeSecretKey } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { processPayout } from '@/lib/payouts/process'
 import { calculateTakeCents } from '@/lib/pricing'
@@ -65,13 +66,12 @@ export async function GET(request: NextRequest) {
     const rl = await checkRateLimit(apiLimiter, `cron-process-payouts:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth === 'no-secret') {
       logger.error('cron.process_payouts.no_secret', {})
       return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
     }
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (auth === 'unauthorized') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 

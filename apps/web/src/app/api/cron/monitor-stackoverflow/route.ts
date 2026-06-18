@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
-import { getCronSecret } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
 import { sendEmail, baseEmailTemplate, escapeHtml, sanitizeSubject } from '@/lib/email'
@@ -212,13 +212,12 @@ export async function GET(request: NextRequest) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     // Verify CRON_SECRET
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth === 'no-secret') {
       logger.error('cron.stackoverflow.no_secret', { msg: 'CRON_SECRET not configured' })
       return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
     }
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (auth === 'unauthorized') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 

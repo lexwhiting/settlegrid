@@ -3,7 +3,7 @@ import { eq, and, lte } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { consumerSchedules, tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getCronSecret } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { CronExpressionParser } from 'cron-parser'
@@ -91,13 +91,12 @@ export async function GET(request: NextRequest) {
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     // Verify CRON_SECRET
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth === 'no-secret') {
       logger.error('cron.consumer_schedules.no_secret', { msg: 'CRON_SECRET not configured' })
       return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
     }
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (auth === 'unauthorized') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 

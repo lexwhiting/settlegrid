@@ -4,7 +4,7 @@ import { tools, developers } from '@/lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { isInternalEmail } from '@/lib/internal-accounts'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
-import { getCronSecret } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
@@ -173,13 +173,12 @@ export async function GET(request: NextRequest) {
     const rl = await checkRateLimit(apiLimiter, `cron-ecosystem-metrics:${ip}`)
     if (!rl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = getCronSecret()
-    if (!cronSecret) {
+    const auth = verifyCronAuth(request.headers)
+    if (auth === 'no-secret') {
       logger.error('cron.ecosystem_metrics.no_secret', { msg: 'CRON_SECRET not configured' })
       return errorResponse('CRON_SECRET not configured', 500, 'CONFIG_ERROR')
     }
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (auth === 'unauthorized') {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
