@@ -82,8 +82,12 @@ vi.mock('@/lib/db/schema', () => ({
   webhookEndpoints: { id: 'id', developerId: 'developer_id', secret: 'secret', createdAt: 'created_at' },
   referrals: { id: 'id', referrerId: 'referrer_id', createdAt: 'created_at' },
   auditLogs: { id: 'id', developerId: 'developer_id', ipAddress: 'ip_address', userAgent: 'user_agent', createdAt: 'created_at' },
-  consumers: { id: 'id', email: 'email', supabaseUserId: 'supabase_user_id', passwordHash: 'password_hash' },
-  apiKeys: { id: 'id', toolId: 'tool_id' },
+  consumers: { id: 'id', email: 'email', supabaseUserId: 'supabase_user_id', passwordHash: 'password_hash', stripeCustomerId: 'stripe_customer_id', defaultPaymentMethodId: 'default_payment_method_id', referralCode: 'referral_code' },
+  // V-N3 SLICE 4: processDataDeletion now deletes the consumer twin's OWN api_keys
+  // (consumerId-keyed) + consumer_schedules and nulls conversion_events.metadata.
+  apiKeys: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id' },
+  consumerSchedules: { id: 'id', consumerId: 'consumer_id' },
+  conversionEvents: { id: 'id', consumerId: 'consumer_id', metadata: 'metadata' },
   developerApiKeys: { id: 'id', developerId: 'developer_id' },
   toolReviews: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', comment: 'comment' },
   // V-N3 SLICE 3: processDataDeletion now imports + deletes waitlist_signups
@@ -765,10 +769,15 @@ describe('processDataDeletion', () => {
             Promise.resolve(undefined).then(onF, onR),
         }),
       }),
+      // V-N3 SLICE 4: the step-2 consumer-twin lookup now chains
+      // .where(sql`…`).orderBy(sql`…`).limit(1) (byte-exact-first determinism), so
+      // .where() must return a builder exposing BOTH .orderBy() and .limit().
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
           }),
         }),
       }),
