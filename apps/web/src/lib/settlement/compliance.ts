@@ -19,6 +19,7 @@ import {
 import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { deleteSupabaseAuthUser } from '@/lib/supabase/admin'
+import { isLedgerPayerAnonymizeEnabled } from '@/lib/env'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -377,12 +378,19 @@ export async function processDataExport(
  * `disbursements`) — which now resolves to the anonymized `developers` row, so
  * they carry no developer-identifying PII of their own.
  *
- * KNOWN GAP — `ledger_entries` additionally persists the anonymous on-chain
- * PAYER's raw EVM address in `operation_id` ({rail}:{network}:{payer}:{nonce})
- * and `metadata.payer`. This deletion does NOT touch those columns, so that
- * address is retained UN-scrubbed. Its lawful basis and any erasure/tombstoning
- * path are unsettled and routed to the V-N3-erasure chunk (counsel pending); see
- * docs/tech-debt/v-n3-ledger-entries-gdpr-retention-gap-2026-06-14.md.
+ * KNOWN GAP / MINIMIZATION — `ledger_entries` additionally persists the anonymous
+ * on-chain PAYER's raw EVM address in `operation_id` ({rail}:{network}:{payer}:{nonce})
+ * and `metadata.payer`. This developer-deletion does NOT itself touch those
+ * columns. A scheduled DATA-MINIMIZATION path (V-N3-erasure — the payer-anonymize
+ * cron + admin backfill, gated behind LEDGER_PAYER_ANONYMIZE_ENABLED, DARK by
+ * default) removes the raw payer AND the EIP-3009 nonce from `operation_id` and
+ * nulls `metadata.payer` once a settlement row is terminal and past the retention
+ * window. While that flag is OFF the columns are retained UN-scrubbed (the runtime
+ * disclosure below says exactly that); the payer address remains PERMANENTLY
+ * PUBLIC ON-CHAIN via `external_ref` (the settlement tx + its EIP-3009 event), so
+ * this is data-MINIMIZATION, NOT erasure, and the lawful basis for the third-party
+ * payer address remains unsettled (counsel pending). See
+ * docs/tech-debt/v-n3-erasure-handoff-2026-06-18.md.
  *
  * DEFERRED — a developer-owned organization's `organizations.billing_email` is
  * likewise retained un-scrubbed here: it is a DISTINCT entity's data (an org that
@@ -549,6 +557,15 @@ export async function processDataDeletion(
     for (const supabaseUserId of supabaseUserIds) {
       await deleteSupabaseAuthUser(supabaseUserId)
     }
+
+    // V-N3-erasure: whether the scheduled payer-PII MINIMIZATION path is live.
+    // The disclosure below is conditioned on this so it never claims a
+    // minimization we are not performing (DC-16): while the flag is OFF the
+    // ledger payer columns are genuinely retained un-scrubbed (the cron/backfill
+    // no-op), so they stay in `retainedUnscrubbed`; only when ON do we disclose
+    // the standing minimization posture. This developer-deletion never touches
+    // those columns directly either way — the scheduled job does.
+    const payerMinimizeEnabled = isLedgerPayerAnonymizeEnabled()
 
     // Get all tool IDs owned by this developer (needed for cascading deletes)
     const devTools = await db
@@ -869,20 +886,43 @@ export async function processDataDeletion(
                 : []),
             ],
             retained: ['payouts', 'purchases', 'ledger_entries', 'settlement_batches'],
-            // V-N3 honesty: ledger_entries ALSO persists the anonymous on-chain
-            // payer's raw EVM address in the columns below; this deletion does NOT
-            // scrub them. Column PATHS only — never row values. Lawful basis /
-            // erasure unsettled, routed to V-N3-erasure (counsel pending).
+            // V-N3-erasure: ledger_entries ALSO persists the anonymous on-chain
+            // payer's raw EVM address in the columns below. The disclosure of those
+            // two paths is CONDITIONED on the minimization flag so it never
+            // overstates (DC-16): flag OFF → retained UN-scrubbed here (the cron +
+            // backfill no-op); flag ON → moved to `minimized` (a scheduled job
+            // removes the raw payer+nonce from operation_id and nulls metadata.payer
+            // once a row is terminal + past the retention window). EITHER way the
+            // address stays PERMANENTLY PUBLIC ON-CHAIN via external_ref, so it is
+            // MINIMIZATION, not erasure — and this developer-deletion never touches
+            // those columns itself. Column PATHS only — never row values.
             retainedUnscrubbed: [
-              'ledger_entries.operation_id',
-              'ledger_entries.metadata.payer',
+              // The two ledger payer-address paths are retained UN-scrubbed ONLY
+              // while the minimization flag is OFF; when ON they move to `minimized`
+              // (mirrors the :829-830 retainedUnscrubbed→anonymized gating pattern).
+              ...(payerMinimizeEnabled
+                ? []
+                : ['ledger_entries.operation_id', 'ledger_entries.metadata.payer']),
               // V-N3 SLICE 3: a distinct entity's data, DEFERRED (not scrubbed
               // here). Column PATH only — never a row value. Factual posture, no
-              // lawful-basis conclusion (see retainedUnscrubbedNote).
+              // lawful-basis conclusion (see retainedUnscrubbedNote). Always
+              // retained here, independent of the payer-minimization flag.
               'organizations.billing_email',
             ],
-            retainedUnscrubbedNote:
-              "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending). organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately.",
+            // V-N3-erasure: when the minimization path is LIVE (flag ON), disclose
+            // the two payer-address paths as MINIMIZED — not erased (the address
+            // stays public on-chain). Absent while the flag is OFF (nothing is
+            // minimized; the paths stay in retainedUnscrubbed above).
+            ...(payerMinimizeEnabled
+              ? {
+                  minimized: ['ledger_entries.operation_id', 'ledger_entries.metadata.payer'],
+                  minimizedNote:
+                    "These columns hold the anonymous on-chain payer's raw EVM address. SettleGrid minimizes its DIRECT retention of it: once a settlement row is terminal and past the retention window, a scheduled job removes the payer (and the EIP-3009 nonce) from operation_id and nulls metadata.payer. The address remains PERMANENTLY PUBLIC ON-CHAIN via external_ref (the settlement transaction and its EIP-3009 authorization event), so this is data MINIMIZATION, not erasure; rows still inside the retention window retain the address until they age out.",
+                }
+              : {}),
+            retainedUnscrubbedNote: payerMinimizeEnabled
+              ? "organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately. The anonymous on-chain payer address (ledger_entries.operation_id / metadata.payer) is disclosed under `minimized` / `minimizedNote` above."
+              : "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending). organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately.",
             toolCount: toolIds.length,
           }),
           completedAt: new Date(),
