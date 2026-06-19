@@ -396,6 +396,35 @@ export function useUnifiedAdapters(): boolean {
   return process.env.USE_UNIFIED_ADAPTERS?.trim().toLowerCase() !== 'false'
 }
 
+// ─── V-N3 ledger payer-PII minimization (DARK by default) ───────────────────
+// Data-minimization path: a daily cron + a one-time admin backfill that, on
+// TERMINAL + credit-resolved + aged x402/circle-nano settlement rows, rewrite
+// `ledger_entries.operation_id` to drop the raw EVM payer+nonce and surgically
+// null `metadata.payer` — removing the address from SettleGrid's queryable
+// columns. The payer stays permanently public on-chain via `external_ref`, so
+// this is MINIMIZATION, not erasure. Ships behind this disabled flag; flipping
+// it on + running the backfill are SEPARATE counsel-gated acts (V-N3-erasure
+// handoff §7). The window-floor SAFETY assert lives with the transform in
+// settlement/anonymize-payer.ts (it binds to MAX_VALIDBEFORE_WINDOW_SECONDS).
+
+/** DARK flag for the ledger payer-PII minimization cron + backfill. Strict-'true'
+ *  (mirrors isEmvcoEnabled / X_ENABLED). Default OFF — both routes no-op while off. */
+export function isLedgerPayerAnonymizeEnabled(): boolean {
+  return process.env.LEDGER_PAYER_ANONYMIZE_ENABLED === 'true'
+}
+
+/** Retention window (days) after which an eligible payer-bearing row is minimized.
+ *  Default = the documented 7-year (2555d) financial-retention period; counsel may
+ *  choose shorter for PII minimization but NOT below the safety floor enforced in
+ *  resolveAnonymizeWindowSeconds() (throws on a sub-floor value). A non-numeric /
+ *  empty value returns the default; a present-but-too-small value is rejected at
+ *  resolve time, not here, so the rejection carries the full floor context. */
+export function getLedgerPayerAnonymizeAfterDays(): number {
+  const raw = process.env.LEDGER_PAYER_ANONYMIZE_AFTER_DAYS
+  if (raw == null || raw.trim() === '') return 2555
+  return Number(raw) // NaN/sub-floor caught (throws) in resolveAnonymizeWindowSeconds
+}
+
 // Replicate API token — optional, needed for Replicate model crawler
 export function getReplicateToken(): string | undefined {
   return process.env.REPLICATE_API_TOKEN
