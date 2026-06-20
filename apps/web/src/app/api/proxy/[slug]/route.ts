@@ -26,6 +26,7 @@ import { executeX402Settlement, x402OperationId } from '@/lib/settlement/x402/or
 import { executeCircleNanoSettlement, circleNanoOperationId } from '@/lib/settlement/circle-nano/settle'
 // V-N3-log-redaction — the de-identified PK key for payer-bearing op_id log sites.
 import { settlementEntryId } from '@/lib/settlement/ledger'
+import { minimizeInvocationMetadata } from '@/lib/settlement/invocations-payer-min'
 import { parseCircleNanoProof } from '@settlegrid/mcp'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
@@ -51,6 +52,7 @@ import {
   isVisaTapEnabled,
   isAcpEnabled,
   useUnifiedAdapters,
+  isInvocationsPayerMinimizeEnabled,
 } from '@/lib/env'
 import { decideUnifiedDispatch, shouldDispatchUnified, type EnabledMap } from './_unified-dispatch'
 
@@ -1535,6 +1537,25 @@ function recordProtocolInvocation(params: {
   // by their protocol-specific identifier, not a SettleGrid consumer account.
   const PROTOCOL_SENTINEL_ID = '00000000-0000-0000-0000-000000000002'
 
+  // The fully-MERGED metadata object (after the per-rail extraMetadata spread).
+  const mergedMetadata: Record<string, unknown> = {
+    proxy: true,
+    paymentMethod: params.paymentMethod,
+    paymentId: params.paymentId ?? null,
+    payerIdentifier: params.payerIdentifier ?? null,
+    toolSlug: params.toolSlug,
+    upstreamStatus: params.upstreamStatus ?? null,
+    ...params.extraMetadata,
+  }
+  // V-N3-invocations-min (DARK by default) — when the flag is ON, minimize the raw
+  // EVM payer SettleGrid captured (x402/circle-nano/drain) from the merged object.
+  // Gating HERE (not at the call sites) covers BOTH callers AND the upstream-error
+  // path, and minimizes AFTER the spread so a rail-injected payer/payerAddress/
+  // drainNonce/drainChannelId in extraMetadata cannot bypass it. OFF ⇒ byte-identical.
+  const metadata = isInvocationsPayerMinimizeEnabled()
+    ? minimizeInvocationMetadata(mergedMetadata)
+    : mergedMetadata
+
   db.insert(invocations)
     .values({
       toolId: params.toolId,
@@ -1545,15 +1566,7 @@ function recordProtocolInvocation(params: {
       latencyMs: params.latencyMs,
       status: params.status,
       isTest: false,
-      metadata: {
-        proxy: true,
-        paymentMethod: params.paymentMethod,
-        paymentId: params.paymentId ?? null,
-        payerIdentifier: params.payerIdentifier ?? null,
-        toolSlug: params.toolSlug,
-        upstreamStatus: params.upstreamStatus ?? null,
-        ...params.extraMetadata,
-      },
+      metadata,
     })
     .then(() => {})
     .catch((err) => {
