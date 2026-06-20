@@ -413,6 +413,17 @@ export function isLedgerPayerAnonymizeEnabled(): boolean {
   return process.env.LEDGER_PAYER_ANONYMIZE_ENABLED === 'true'
 }
 
+/** DARK flag for the SECOND DC-16 census surface: the `invocations.metadata`
+ *  EVM-payer minimization (the proxy write-path + the backfill cron/admin route).
+ *  A DEDICATED flag, NOT a reuse of the ledger flag above — the V-N3-erasure ENABLE
+ *  gate is "BOTH census surfaces have a minimization mechanism LANDED", not one
+ *  flip, and the runbook flips both + amends the disclosure together (handoff §11).
+ *  Strict-'true', default OFF — the write-path stays byte-identical and both routes
+ *  no-op while off. See settlement/invocations-payer-min.ts. */
+export function isInvocationsPayerMinimizeEnabled(): boolean {
+  return process.env.INVOCATIONS_PAYER_MINIMIZE_ENABLED === 'true'
+}
+
 /** Retention window (days) after which an eligible payer-bearing row is minimized.
  *  Default = the documented 7-year (2555d) financial-retention period; counsel may
  *  choose shorter for PII minimization but NOT below the safety floor enforced in
