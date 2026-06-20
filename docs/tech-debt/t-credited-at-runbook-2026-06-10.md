@@ -57,13 +57,26 @@ first; operation_ids are rail-prefixed `circle-nano:…` / `x402:…`).
 `uncredited: null` in the cron summary means the sweep ITSELF failed
 (`reconcile.uncredited_check_failed`) — investigate the error, not the rows.
 
-**Triage (per operationId — search the logs):**
+**(V-N3 — the alerts now carry the de-identified PK row `id`, NOT the raw
+payer-bearing `operation_id`.)** The `operationIds` array and every per-row
+`settlement.*` line below log `settlementEntryId(operation_id)` = the row's
+primary key `id` (the raw EVM payer + nonce no longer reach the logs / Sentry).
+So triage keys on `id`: FIRST resolve the row —
+```sql
+SELECT operation_id, rail, account_id, amount_cents, external_ref, metadata
+FROM ledger_entries WHERE id = $1;  -- $1 = the alert's id
+```
+These uncredited rows are the anonymizer's carve-out, so their `operation_id`
+(and on-chain `external_ref` = txHash) are intact in the row. Then search the
+per-row logs (they key on the SAME `id`) and triage:
+
+**Triage (per row `id` — resolve the row, then search the logs):**
 | Log line found | Meaning | Action |
 |---|---|---|
 | `settlement.credited` | credit landed but the marker didn't (anomaly — see `settlement.credit_marker_unmatched`) | verify `developers.balance_cents`, then CLOSE |
 | `settlement.credit_failed` | credit transaction rolled back | credit manually (developer = row `account_id`; **amount = the `amountCents` field from THIS log line's payload** — the value the credit *attempted*, i.e. the actually-collected settled value). ⚠ (V-N2b) do NOT use the row's `amount_cents` *column*: on a recovery-confirm it is the QUOTED price and differs from the collected value — crediting it re-introduces the over/under-credit V-N2b closes. Then CLOSE |
 | `proxy.onchain_credit_lost_after_settle` | proxy credit txn failed after delivery | credit manually (developer = row `account_id`; **amount = `floor((metadata->>'settledValueBaseUnits')::numeric / 10000)`** — the actually-collected settled value). ⚠ (V-N2b) the log payload's `costCents` is only the QUOTED price and on a recovery-confirm differs from the collected value — do NOT credit it; if `settledValueBaseUnits` is absent, reconstruct the value from the on-chain tx at `external_ref`. Then CLOSE |
-| `proxy.onchain_settled_upstream_failed` | USDC collected, tool never delivered — NO credit owed to the dev | run the off-band buyer-refund runbook (keyed by txHash + payer), then CLOSE |
+| `proxy.onchain_settled_upstream_failed` | USDC collected, tool never delivered — NO credit owed to the dev | run the off-band buyer-refund runbook (keyed by txHash + payer; **(V-N3)** the `payer` is no longer in the log — recover it from the resolved row's `operation_id` `{rail}:{net}:{payer}:{nonce}` or the on-chain tx at `external_ref`), then CLOSE |
 | `reconcile.credit_blocked_testnet` | a TESTNET row reached the prod credit gate (should be impossible post-(G)) | investigate admission path; do NOT credit; CLOSE after investigation |
 | `settlement.credit_zero_row_unmarked` | credit matched no developer row (dangling id) | fix attribution, credit the DEVELOPER manually, then CLOSE. ⚠ On the PROXY path the tool stats (`total_invocations`/`total_revenue_cents`) already committed in the same txn — do NOT re-add tool revenue (the reconciler/kernel path rolled back everything — there, credit both) |
 | `settlement.credit_skipped_no_data` | settled row missing `account_id` or a positive `amount_cents` (pre-F4 shape) — nothing creditable as recorded | reconstruct developer + amount from the tool and the row metadata (payer/txHash), credit manually if owed, then CLOSE |
@@ -71,10 +84,12 @@ first; operation_ids are rail-prefixed `circle-nano:…` / `x402:…`).
 | `settlement.settled_value_unconvertible` (error) | **(V-N2b)** the IN-REQUEST credit DEFERRED because the row's recorded `settledValueBaseUnits` was corrupt / overflowing / sub-cent (raw value in the payload). Credit was intentionally skipped, NOT failed | credit manually (developer = row `account_id`; amount = reconstruct the collected value from the on-chain tx at `external_ref`). ⚠ do NOT credit the row's `amount_cents` — on a recovery it is the quoted price and re-introduces the over/under-credit V-N2b closes. Then CLOSE |
 | **nothing** | **a silent process kill — either the reconciler/kernel flip→credit window, OR the proxy mid-upstream-fetch (settle committed, delivery unknown)** | FIRST check the invocation records for a delivered request with this operationId/txHash; delivered (or a buyer retry delivered the F1 replay) → credit manually, then CLOSE; NOT delivered and never retried → the buyer paid for nothing: use the off-band refund posture (`onchain_settled_upstream_failed` runbook) instead of crediting, then CLOSE |
 
-**Closing an incident** (after the manual credit / refund / investigation):
+**Closing an incident** (after the manual credit / refund / investigation).
+**(V-N3) Key on the PK `id`** from the alert — it is the primary key, so it
+uniquely identifies the row and the `rail` predicate is no longer needed:
 ```sql
 UPDATE ledger_entries SET credited_at = now()
-WHERE operation_id = $1 AND rail = $2
+WHERE id = $1
   AND settlement_status = 'settled' AND credited_at IS NULL;
 ```
 
@@ -87,8 +102,10 @@ verifying the window, bulk-close it ONCE:
 -- ONLY after log-verifying the gap window's credits.
 -- ⚠ The timestamp MUST be the verified (T) deploy moment from the Vercel
 -- dashboard — NEVER later (a later bound silently erases genuine (T)-era
--- incidents). PREVIEW first and check every returned row was log-verified:
-SELECT operation_id, rail, settled_at FROM ledger_entries
+-- incidents). PREVIEW first and check every returned row was log-verified.
+-- (V-N3) `id` is projected so each previewed row can be matched against the
+-- PK-id-keyed `settlement.*` log lines; `operation_id` carries the raw payer.
+SELECT id, operation_id, rail, settled_at FROM ledger_entries
 WHERE settlement_status = 'settled' AND rail IN ('circle-nano','x402')
   AND credited_at IS NULL AND settled_at < '<the (T) deploy timestamp>';
 -- then, if and only if every previewed row is accounted for:
@@ -138,10 +155,13 @@ credit racing it can be swept into a payout mid-repair).
 2. Credit the money:
    `UPDATE developers SET balance_cents = balance_cents + <row amount_cents>, updated_at = now() WHERE id = '<row account_id>';`
    `UPDATE tools SET total_revenue_cents = total_revenue_cents + <row amount_cents>, updated_at = now() WHERE id = '<row metadata.toolId>';`
-3. LAST — repair the row + set the marker in ONE statement:
+3. LAST — repair the row + set the marker in ONE statement.
+   **(V-N3)** the `settlement.settled_evidence_on_terminal_failed_row` /
+   `settlement.broadcast_evidence_on_terminal_failed_row` alert now carries the
+   de-identified PK `id` (not the raw `operation_id`), so key on `id`:
    `UPDATE ledger_entries SET settlement_status='settled',
    settled_at = now(), external_ref = '<winningTxHash>', credited_at = now()
-   WHERE operation_id = $1 AND rail = $2 AND settlement_status = 'failed';`
+   WHERE id = $1 AND settlement_status = 'failed';`
    (Re-run-safe: the WHERE no-matches once repaired. If interrupted, resume by
    re-checking step 2's balances, then re-running step 3.)
 (The buyer was served — the response was `settled`/forwarded — so the credit is

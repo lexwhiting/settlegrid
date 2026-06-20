@@ -17,6 +17,7 @@
  */
 
 import * as Sentry from '@sentry/nextjs'
+import { redactLogString } from '@/lib/settlement/log-redaction'
 
 type LogLevel = 'info' | 'warn' | 'error'
 
@@ -27,25 +28,101 @@ interface LogEntry {
   [key: string]: unknown
 }
 
+/**
+ * V-N3-log-redaction (channel B) — the ONLY meta keys whose VALUE is human/error
+ * PROSE (never a structured identifier), so the payer sanitizer rewrites them
+ * keyed off the FIELD NAME. A viem/Postgres error formatted into one of these by
+ * a caller (e.g. `error: err.message`) embeds the raw payer/nonce; structured
+ * fields (`txHash`/`recipient`/`to`/…) are deliberately left intact — over-
+ * redacting them would blind debugging (handoff §3d/§5#4). This is the narrow
+ * sanctioned `emit()` change, NOT a blanket all-meta walk (that was rejected).
+ */
+const FREE_TEXT_ERROR_KEYS = ['error', 'reason', 'message', 'details', 'stack'] as const
+
+/**
+ * A sanitized COPY of an Error for `Sentry.captureException` — the error NAME is
+ * preserved (Sentry's exception type / grouping key, incl. `AggregateError`),
+ * with a payer-redacted message + stack. Deliberately does NOT copy the ancillary
+ * own-props that can re-embed the raw from/nonce — viem's `metaMessages`/`args`/
+ * `shortMessage`, the `.cause` chain, AggregateError's `.errors[]` — so the
+ * default `linkedErrors` integration finds nothing unredacted to serialize.
+ * Dropping them strictly improves the no-PII posture (the structured
+ * `network`/etc. still rides in Sentry `extra`). Built UNCONDITIONALLY for every
+ * `err instanceof Error` (F2/M3) — even a clean top-level message can hide a
+ * PII-bearing cause/leg. Cloning (vs mutating the caller's `err`) preserves the
+ * zero-behavioral-change contract.
+ */
+function sanitizedErrorClone(err: Error, message: string, stack: string | undefined): Error {
+  const clone = new Error(message)
+  clone.name = err.name
+  clone.stack = stack
+  return clone
+}
+
 function emit(level: LogLevel, msg: string, meta?: Record<string, unknown>, err?: unknown): void {
-  // Spread `meta` FIRST so the reserved structured keys (`level`/`msg`/`ts`)
+  // V-N3 channel B (free-text meta): redact ONLY the known free-text error keys,
+  // copy-on-write so a clean meta is never reallocated. Done before the spread so
+  // the stdout line + the Sentry `extra` both carry the sanitized values.
+  let safeMeta = meta
+  if (meta) {
+    let copy: Record<string, unknown> | undefined
+    for (const k of FREE_TEXT_ERROR_KEYS) {
+      const v = meta[k]
+      if (typeof v === 'string') {
+        const red = redactLogString(v)
+        if (red !== v) {
+          copy ??= { ...meta }
+          copy[k] = red
+        }
+      }
+    }
+    if (copy) safeMeta = copy
+  }
+
+  // Spread `safeMeta` FIRST so the reserved structured keys (`level`/`msg`/`ts`)
   // always win — a caller passing a human `{ msg: '…' }` meta (28 cron/crawler
   // sites do) must NOT clobber the positional event key that alert rules + log
   // queries key on. The `err`-derived `error`/`stack` assignment stays AFTER
   // the literal so a real Error still wins over any `meta.error`/`meta.stack`.
   const ts = new Date().toISOString()
   const entry: LogEntry = {
-    ...meta,
+    ...safeMeta,
     level,
     msg,
     ts,
   }
 
+  // V-N3 channel B (err 3rd arg): redact the message/stack the logger derives
+  // from the Error BEFORE it reaches stdout AND `Sentry.captureException`. A
+  // viem on-chain error carries the raw from+nonce in its call-arg message; a
+  // Postgres error echoes the raw `operation_id` from a `WHERE operationId=…`.
+  let safeErr = err
   if (err instanceof Error) {
-    entry.error = err.message
-    entry.stack = err.stack
+    // M5: guard the free-text inputs with a `typeof` check. An Error carrying a
+    // coerced non-string `.message`/`.stack` would make `redactLogString` throw
+    // `s.replace is not a function` OUT of emit() — and logger.error runs inside
+    // catch blocks, so a throw would alter control flow AND drop the log line
+    // (the pre-redaction code only ASSIGNED err.message, never called a method).
+    const message = redactLogString(
+      typeof err.message === 'string' ? err.message : String(err.message),
+    )
+    const stack = typeof err.stack === 'string' ? redactLogString(err.stack) : err.stack
+    entry.error = message
+    entry.stack = stack
+    // F2/M3: build the sanitized clone UNCONDITIONALLY (not only when the message
+    // or stack changed). A viem error can carry the raw from/nonce ONLY in
+    // ancillary own-props — `.cause`, AggregateError `.errors[]`, `.metaMessages`,
+    // `.args`, `.shortMessage` — leaving `.message`/`.stack` clean; the OLD
+    // conditional gate then shipped the ORIGINAL err, and `@sentry/nextjs`'s
+    // default `linkedErrors` integration serialized the `.cause` chain (and the
+    // AggregateError legs) UNREDACTED. The clone copies ONLY name + redacted
+    // message + redacted stack, so those ancillary props NEVER reach
+    // `captureException`. (DC-18 cost: Sentry loses cause chains app-wide —
+    // accepted; the no-PII posture wins and the exception type/grouping key is
+    // preserved via `clone.name`.)
+    safeErr = sanitizedErrorClone(err, message, stack)
   } else if (err !== undefined) {
-    entry.error = String(err)
+    entry.error = redactLogString(String(err))
   }
 
   const line = JSON.stringify(entry)
@@ -66,16 +143,16 @@ function emit(level: LogLevel, msg: string, meta?: Record<string, unknown>, err?
   // resulting issue.
   if (level === 'error' && process.env.SENTRY_DSN) {
     try {
-      if (err instanceof Error) {
-        Sentry.captureException(err, {
+      if (safeErr instanceof Error) {
+        Sentry.captureException(safeErr, {
           tags: { logKey: msg },
-          extra: meta,
+          extra: safeMeta,
         })
       } else {
         Sentry.captureMessage(msg, {
           level: 'error',
           tags: { logKey: msg },
-          extra: meta,
+          extra: safeMeta,
         })
       }
     } catch {

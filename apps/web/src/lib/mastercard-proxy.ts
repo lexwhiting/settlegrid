@@ -15,7 +15,7 @@ import type {
   MastercardToolConfig,
   MastercardErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 /**
  * P3.PROT1 — exported so the proxy route can build the 503 detection-stub
@@ -24,12 +24,7 @@ import { logger } from './logger'
  */
 export const mastercardAdapter = new MastercardVIAdapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isMastercardRequest(request: Request): boolean {
   return isMastercardRequestCore(request)

@@ -14,16 +14,11 @@ import type {
   DrainToolConfig,
   DrainErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isDrainEnabled, getDrainChannelAddress, getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 const drainAdapter = new DrainAdapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isDrainRequest(request: Request): boolean {
   return drainAdapter.canHandle(request)

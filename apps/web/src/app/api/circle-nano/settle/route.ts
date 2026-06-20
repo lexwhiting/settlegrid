@@ -38,6 +38,10 @@ import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { executeCircleNanoSettlement, circleNanoOperationId } from '@/lib/settlement/circle-nano/settle'
 import { creditSettlement } from '@/lib/settlement/reconcile'
+// V-N3-log-redaction — `settlement.operationId` here is the response randomUUID
+// (NOT the payer-bearing ledger op_id, which is circleNanoOperationId(proof) and
+// never logged); `redactOpId` passes the UUID through while satisfying the guard.
+import { redactOpId } from '@/lib/settlement/log-redaction'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -235,7 +239,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       logger.info('circle_nano.settle_success', {
         toolSlug,
         method,
-        operationId: settlement.operationId,
+        operationId: redactOpId(settlement.operationId),
         costCents,
         txHash: outcome.txHash,
       })
@@ -258,7 +262,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
     logger.info('circle_nano.settle_success_free', {
       toolSlug,
       method,
-      operationId: settlement.operationId,
+      operationId: redactOpId(settlement.operationId),
       costCents,
     })
     return successResponse(settlement)

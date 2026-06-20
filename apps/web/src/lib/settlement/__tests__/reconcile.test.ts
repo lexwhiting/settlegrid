@@ -122,14 +122,20 @@ vi.mock('../circle-nano/settle-engine', () => ({
   readAuthorizationStateBounded: mockNonceState,
   readSafeBlockTimestampBounded: mockChainTs,
 }))
-vi.mock('../ledger', () => ({
-  markSettlementSettled: mockSettled,
-  markSettlementFailed: mockFailed,
-  // (V) — the expiry pass's evidence-CAS terminal writer.
-  markSettlementExpiredNoBroadcast: mockExpired,
-  // (T) — the CAS-reject disambiguation re-read.
-  findSettlementRow: mockFindRow,
-}))
+vi.mock('../ledger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../ledger')>()
+  return {
+    markSettlementSettled: mockSettled,
+    markSettlementFailed: mockFailed,
+    // (V) — the expiry pass's evidence-CAS terminal writer.
+    markSettlementExpiredNoBroadcast: mockExpired,
+    // (T) — the CAS-reject disambiguation re-read.
+    findSettlementRow: mockFindRow,
+    // V-N3 — the REAL pure settlementEntryId, so the redacted operationId logged
+    // is the de-identified PK key the prod code emits (faithful canary).
+    settlementEntryId: actual.settlementEntryId,
+  }
+})
 
 import {
   parseSettlementOperationId,
@@ -141,6 +147,8 @@ import { eq, inArray, isNull } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 // Mocked above — the schema token objects, for tx.update(<table>) identity asserts.
 import { ledgerEntries } from '@/lib/db/schema'
+// V-N3 — the REAL (pure) PK-key fn the redacted logs emit; for log assertions.
+import { settlementEntryId } from '../ledger'
 
 const FROM = `0x${'a'.repeat(40)}`
 const NONCE = `0x${'b'.repeat(64)}`
@@ -428,7 +436,7 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(mockFindRow).toHaveBeenCalledWith(CNANO_OPID, 'circle-nano')
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'reconcile.failed_flip_stale_ref',
-      { operationId: CNANO_OPID, rail: 'circle-nano', staleTxHash: TX, currentRef: '0xNEWER' },
+      { operationId: settlementEntryId(CNANO_OPID), rail: 'circle-nano', staleTxHash: TX, currentRef: '0xNEWER' },
     )
     expect(mockDb.transaction).not.toHaveBeenCalled()
   })
@@ -469,7 +477,8 @@ describe('reconcileOneRow — credit-on-flip (x402 + circle-nano, exactly once)'
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.credit_failed',
       // (V-N2) the credited amount is the SETTLED value (30), not the frozen 50.
-      expect.objectContaining({ operationId: X402_OPID, developerId: 'dev-7', amountCents: 30 }),
+      // (V-N3) operationId logged as the de-identified PK key, not the raw op_id.
+      expect.objectContaining({ operationId: settlementEntryId(X402_OPID), developerId: 'dev-7', amountCents: 30 }),
       expect.any(Error),
     )
     expect(vi.mocked(logger.info)).not.toHaveBeenCalledWith('settlement.credited', expect.anything())
@@ -544,7 +553,7 @@ describe('(V-N2) reconcileOneRow — credits the settled value, not the frozen a
     expect(creditedAmounts().filter((v) => v === 50)).toHaveLength(2) // safe fallback
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'settlement.settled_value_legacy_fallback',
-      expect.objectContaining({ operationId: X402_OPID, rail: 'x402', amountCents: 50 }),
+      expect.objectContaining({ operationId: settlementEntryId(X402_OPID), rail: 'x402', amountCents: 50 }),
     )
   })
 
@@ -562,7 +571,7 @@ describe('(V-N2) reconcileOneRow — credits the settled value, not the frozen a
     expect(creditedAmounts().filter((v) => v === 50)).toHaveLength(2) // bounded fallback, not garbage
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.settled_value_unconvertible',
-      expect.objectContaining({ operationId: X402_OPID, rail: 'x402', amountCents: 50 }),
+      expect.objectContaining({ operationId: settlementEntryId(X402_OPID), rail: 'x402', amountCents: 50 }),
     )
   })
 
@@ -658,8 +667,10 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     sweepAgg.value = [{ total: '2' }]
     const oldSettled = new Date(Date.now() - 7_200_000)
     sweepAgg.sample = [
-      { operationId: X402_OPID, settledAt: oldSettled },
-      { operationId: CNANO_OPID, settledAt: new Date(Date.now() - 3_600_000) },
+      // V-N3 — the sweep SELECT now projects the de-identified PK `id` (not the raw
+      // payer-bearing operation_id), and the alert logs those ids.
+      { id: 'uncr-1', settledAt: oldSettled },
+      { id: 'uncr-2', settledAt: new Date(Date.now() - 3_600_000) },
     ]
     const summary = await reconcilePendingSettlements()
     expect(summary.uncredited).toBe(2) // postgres-js STRING '2' → Number (DC-18)
@@ -668,8 +679,8 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
       expect.objectContaining({
         uncreditedCount: 2,
         oldestSettledAt: oldSettled,
-        // operation_id is rail-prefixed by construction — NO extra rail prefix.
-        operationIds: [X402_OPID, CNANO_OPID],
+        // V-N3 — the de-identified PK ids the runbook's closure UPDATE keys on.
+        operationIds: ['uncr-1', 'uncr-2'],
       }),
     )
   })
@@ -731,7 +742,7 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     // rotation slot and sees the underlying error.
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'reconcile.watermark_update_failed',
-      { count: 2, operationIds: [CNANO_OPID, X402_OPID] },
+      { count: 2, operationIds: [settlementEntryId(CNANO_OPID), settlementEntryId(X402_OPID)] },
       expect.any(Error),
     )
   })
@@ -745,7 +756,7 @@ describe('reconcilePendingSettlements — bounded batch + summary', () => {
     expect(summary.settled).toBe(1)
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'reconcile.watermark_update_failed',
-      { count: 1, operationIds: [CNANO_OPID] },
+      { count: 1, operationIds: [settlementEntryId(CNANO_OPID)] },
       'string-rejection',
     )
   })
@@ -949,8 +960,10 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     expect(mockFailed).not.toHaveBeenCalled()
     expect(metadataSetCalls().length).toBe(1) // the quarantine merge
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      // V-N3 — operationId is the de-identified PK row id ('exp-1'); the raw
+      // from/nonce are DROPPED (the runbook reads them from the DB row by id).
       'reconcile.expired_nonce_consumed_quarantined',
-      expect.objectContaining({ operationId: CNANO_OPID, rail: 'circle-nano', validBefore: VB_EXPIRED }),
+      expect.objectContaining({ operationId: 'exp-1', rail: 'circle-nano', validBefore: VB_EXPIRED }),
     )
   })
 
@@ -1029,7 +1042,7 @@ describe('(V) reconcilePendingSettlements — the expiry pass (terminalization-e
     expect(mockFailed).not.toHaveBeenCalled() // never the (T) failed-CAS writer
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
       'reconcile.expired_terminalized',
-      expect.objectContaining({ operationId: CNANO_OPID, validBefore: VB_EXPIRED }),
+      expect.objectContaining({ operationId: 'exp-1', validBefore: VB_EXPIRED }),
     )
   })
 
@@ -1337,7 +1350,7 @@ describe('(V) reconcileOneRow — P8-c (the settled-noop failed-row re-read) + t
     expect(outcome).toBe('settled-noop') // tally unchanged — summary identity pinned
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.settled_evidence_on_terminal_failed_row',
-      expect.objectContaining({ operationId: CNANO_OPID, rowStatus: 'failed', winningTxHash: TX, storedRef: '0xOTHER' }),
+      expect.objectContaining({ operationId: settlementEntryId(CNANO_OPID), rowStatus: 'failed', winningTxHash: TX, storedRef: '0xOTHER' }),
     )
   })
 
@@ -1371,7 +1384,7 @@ describe('(V) reconcileOneRow — P8-c (the settled-noop failed-row re-read) + t
     expect(outcome).toBe('settled')
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.credit_tool_stat_unmatched',
-      expect.objectContaining({ operationId: CNANO_OPID, toolId: 'ghost-tool' }),
+      expect.objectContaining({ operationId: settlementEntryId(CNANO_OPID), toolId: 'ghost-tool' }),
     )
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('settlement.credited', expect.anything())
     expect(vi.mocked(logger.error)).not.toHaveBeenCalledWith('settlement.credit_failed', expect.anything(), expect.anything())

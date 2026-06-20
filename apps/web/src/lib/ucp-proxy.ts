@@ -12,16 +12,11 @@ import {
 } from '@settlegrid/mcp'
 import type { UcpPaymentResult, UcpToolConfig, UcpErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 const ucpAdapter = new UCPAdapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isUcpRequest(request: Request): boolean {
   return isUcpRequestCore(request)

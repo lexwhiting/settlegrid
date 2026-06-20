@@ -38,15 +38,20 @@ vi.mock('../settle-engine', () => ({
   submitCircleNanoOnChain: mockSubmit,
   confirmCircleNanoTx: mockConfirm,
 }))
-vi.mock('../../ledger', () => ({
-  recordSettlementEntry: mockRecord,
-  findSettlementRow: mockFindRow,
-  markSettlementSettled: mockSettled,
-  markSettlementFailed: mockFailed,
-  markSettlementBroadcast: mockBroadcast,
-  // (V) — the raise-only validBefore refresh (R1-B4/R2-B5b).
-  refreshPendingValidBefore: mockRefresh,
-}))
+vi.mock('../../ledger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../ledger')>()
+  return {
+    recordSettlementEntry: mockRecord,
+    findSettlementRow: mockFindRow,
+    markSettlementSettled: mockSettled,
+    markSettlementFailed: mockFailed,
+    markSettlementBroadcast: mockBroadcast,
+    // (V) — the raise-only validBefore refresh (R1-B4/R2-B5b).
+    refreshPendingValidBefore: mockRefresh,
+    // V-N3 — the REAL pure PK-key fn the redacted logs emit (faithful canary).
+    settlementEntryId: actual.settlementEntryId,
+  }
+})
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({ set: mockRedisSet, del: mockRedisDel }),
   tryRedis: async (fn: () => Promise<unknown>) => {
@@ -62,6 +67,8 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import { executeCircleNanoSettlement, circleNanoOperationId } from '../settle'
+// V-N3 — the REAL (pure) PK-key fn the redacted logs emit; for log assertions.
+import { settlementEntryId } from '../../ledger'
 import type { CircleNanoProof } from '@settlegrid/mcp'
 // Mocked above — imported for the (T)-seal funds-critical alert assertion.
 import { logger } from '@/lib/logger'
@@ -261,7 +268,7 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
     // detectability contract for this loss class (② seal HIGH).
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.settled_evidence_on_terminal_failed_row',
-      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', winningTxHash: '0xH2', storedRef: '0xH1' }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID), rowStatus: 'failed', winningTxHash: '0xH2', storedRef: '0xH1' }),
     )
   })
 
@@ -277,7 +284,7 @@ describe('executeCircleNanoSettlement — idempotency & locking (no double-charg
     await executeCircleNanoSettlement(PARAMS)
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.broadcast_evidence_on_terminal_failed_row',
-      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', broadcastTxHash: '0xH2', storedRef: '0xH1' }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID), rowStatus: 'failed', broadcastTxHash: '0xH2', storedRef: '0xH1' }),
     )
   })
 })
@@ -345,7 +352,7 @@ describe('(V-N2b) executeCircleNanoSettlement — recovery-confirm credits the R
     expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: null })
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'settlement.settled_value_legacy_fallback',
-      expect.objectContaining({ operationId: OP_ID, rail: 'circle-nano', amountCents: 50 }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID), rail: 'circle-nano', amountCents: 50 }),
     )
     expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'circle-nano', '0xPRIOR', undefined)
   })
@@ -465,7 +472,7 @@ describe('(V) executeCircleNanoSettlement — pending-row lifecycle', () => {
     expect(outcome).toMatchObject({ status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502 })
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'circle_nano.settle_reverted_stale_ref',
-      expect.objectContaining({ operationId: OP_ID }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID) }),
     )
   })
 

@@ -393,7 +393,7 @@ export interface RailSettlementRow {
  * derives a unique id and is never deduped — correct, since each such
  * call is a distinct event.
  */
-function settlementEntryId(invocationId: string): string {
+export function settlementEntryId(invocationId: string): string {
   const h = createHash('sha256').update(`settlement:${invocationId}`).digest('hex')
   const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16)
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
@@ -481,7 +481,10 @@ export function recordSettlementEntryAsync(input: RailSettlementRow): void {
     logger.error(
       'settlement.ledger_write_failed',
       {
-        invocationId: input.invocationId,
+        // V-N3 — the de-identified PK id (== the row's id; settlementEntryId is
+        // the same fn the writer keys the PK on), never the raw payer-bearing
+        // invocationId/op_id. The `err` 3rd arg is sanitized centrally in emit().
+        invocationId: settlementEntryId(input.invocationId),
         rail: input.rail,
         protocol: input.protocol,
       },

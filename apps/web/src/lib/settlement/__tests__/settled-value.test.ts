@@ -22,6 +22,8 @@ import {
   SETTLED_VALUE_BASE_UNITS_KEY,
 } from '../settled-value'
 import { logger } from '@/lib/logger'
+// V-N3 — the REAL (pure) PK-key fn the redacted logs emit; for log assertions.
+import { settlementEntryId } from '../ledger'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -128,7 +130,7 @@ describe('(V-N2b) resolveInRequestCreditCents — credit-the-recorded-value-OR-D
     expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: undefined })).toBeNull()
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'settlement.settled_value_legacy_fallback',
-      expect.objectContaining({ operationId: BASE.operationId, rail: 'x402', amountCents: 50 }),
+      expect.objectContaining({ operationId: settlementEntryId(BASE.operationId), rail: 'x402', amountCents: 50 }),
     )
     expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(2)
     expect(vi.mocked(logger.error)).not.toHaveBeenCalled() // absent is warn, NOT error
@@ -139,7 +141,7 @@ describe('(V-N2b) resolveInRequestCreditCents — credit-the-recorded-value-OR-D
     expect(resolveInRequestCreditCents({ ...BASE, settledValueBaseUnits: '1' + '0'.repeat(30) })).toBeNull()
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.settled_value_unconvertible',
-      expect.objectContaining({ operationId: BASE.operationId, rail: 'x402', settledValueBaseUnits: 'not-a-number', amountCents: 50 }),
+      expect.objectContaining({ operationId: settlementEntryId(BASE.operationId), rail: 'x402', settledValueBaseUnits: 'not-a-number', amountCents: 50 }),
     )
   })
 

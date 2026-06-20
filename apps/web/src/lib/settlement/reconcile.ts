@@ -27,7 +27,12 @@ import {
   markSettlementFailed,
   markSettlementExpiredNoBroadcast,
   findSettlementRow,
+  settlementEntryId,
 } from './ledger'
+// V-N3-log-redaction — the de-identified PK key `settlementEntryId(operationId)`
+// is the correlation-preserving redaction at payer-bearing op_id log sites;
+// `redactOpId` is the passthrough fallback for non-payer / unparseable shapes.
+import { redactOpId } from './log-redaction'
 import {
   confirmSettlementTx,
   readAuthorizationStateBounded,
@@ -141,7 +146,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
 
   const parsed = parseSettlementOperationId(operationId, rail)
   if (!parsed) {
-    logger.warn('reconcile.unparseable_operation_id', { operationId, rail })
+    logger.warn('reconcile.unparseable_operation_id', { operationId: redactOpId(operationId), rail })
     return 'skipped-unparseable'
   }
 
@@ -150,7 +155,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
   switch (confirmation.kind) {
     case 'settled': {
       const flipped = await markSettlementSettled(operationId, rail, confirmation.txHash)
-      logger.info('reconcile.settled', { operationId, rail, txHash: confirmation.txHash, flipped })
+      logger.info('reconcile.settled', { operationId: settlementEntryId(operationId), rail, txHash: confirmation.txHash, flipped })
       if (!flipped) {
         // (V) P8-c — name the divergent-receipt-views case instead of lumping it
         // into settled-noop silence: a settled-noop onto a terminally FAILED row
@@ -161,7 +166,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
         const current = await findSettlementRow(operationId, rail)
         if (current && current.settlementStatus === 'failed') {
           logger.error('settlement.settled_evidence_on_terminal_failed_row', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rowStatus: current.settlementStatus,
             winningTxHash: confirmation.txHash,
             storedRef: current.externalRef,
@@ -188,7 +193,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
       if (flipped && isReconcilableRail(rail)) {
         if (parsed.network !== X402_MAINNET_NETWORK && !isX402TestnetSettlementAllowed()) {
           logger.error('reconcile.credit_blocked_testnet', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rail,
             network: parsed.network,
           })
@@ -218,7 +223,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
             // observable.
             creditCents = row.amountCents
             logger.warn('settlement.settled_value_legacy_fallback', {
-              operationId: row.operationId,
+              operationId: settlementEntryId(operationId),
               rail,
               amountCents: row.amountCents ?? null,
             })
@@ -230,7 +235,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
               // bounded, valid frozen amountCents + alert at error level.
               creditCents = row.amountCents
               logger.error('settlement.settled_value_unconvertible', {
-                operationId: row.operationId,
+                operationId: settlementEntryId(operationId),
                 rail,
                 settledValueBaseUnits: String(rawSettled),
                 amountCents: row.amountCents ?? null,
@@ -255,7 +260,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
         // circle-nano: a concurrent tx spent the (from,nonce) → the USDC settled.
         // NOT a failure; leave 'pending' (we can't attribute the winning txHash).
         logger.warn('reconcile.reverted_nonce_consumed', {
-          operationId,
+          operationId: settlementEntryId(operationId),
           rail,
           txHash: confirmation.txHash,
         })
@@ -271,7 +276,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
         const current = await findSettlementRow(operationId, rail)
         if (current?.settlementStatus === 'pending') {
           logger.warn('reconcile.failed_flip_stale_ref', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rail,
             staleTxHash: confirmation.txHash,
             currentRef: current.externalRef,
@@ -279,7 +284,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
           return 'pending-stale-ref'
         }
       }
-      logger.warn('reconcile.failed', { operationId, rail, txHash: confirmation.txHash, flipped })
+      logger.warn('reconcile.failed', { operationId: settlementEntryId(operationId), rail, txHash: confirmation.txHash, flipped })
       return flipped ? 'failed' : 'failed-noop'
     }
     case 'unconfirmed':
@@ -287,7 +292,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
       // (U): reason distinguishes the LB-2 incomplete-revert-evidence case
       // (revert-nonce-unverifiable) from plain receipt-unavailable.
       logger.info('reconcile.unconfirmed', {
-        operationId,
+        operationId: settlementEntryId(operationId),
         rail,
         txHash: confirmation.txHash,
         reason: confirmation.reason ?? 'receipt-unavailable',
@@ -298,7 +303,7 @@ export async function reconcileOneRow(row: ReconcilableRow): Promise<ReconcileOu
       // x402 settle on a non-Base chain — latent today, facilitator is off in
       // prod). Never flip a row we can't confirm. warn (not error) so it doesn't
       // alarm-spam every run; see the DEBT note in the B1.4 tech-debt doc.
-      logger.warn('reconcile.unsupported_network', { operationId, rail })
+      logger.warn('reconcile.unsupported_network', { operationId: settlementEntryId(operationId), rail })
       return 'skipped-unsupported'
   }
 }
@@ -362,7 +367,7 @@ export async function creditSettlement(params: {
     // No data to credit (a pre-F4 row, or a non-positive amount). The dev balance
     // is the payout source of truth — flag loudly rather than silently lose it.
     logger.error('settlement.credit_skipped_no_data', {
-      operationId,
+      operationId: settlementEntryId(operationId ?? 'unknown'),
       hasDeveloperId: !!developerId,
       amountCents: amountCents ?? null,
     })
@@ -426,22 +431,22 @@ export async function creditSettlement(params: {
     if (toolStatUnmatched) {
       // (V) C4 rider, post-commit (② seal S4): the credit IS committed; only
       // the per-tool revenue stat found no row. Alert so it can be reconciled.
-      logger.error('settlement.credit_tool_stat_unmatched', { operationId, toolId })
+      logger.error('settlement.credit_tool_stat_unmatched', { operationId: settlementEntryId(operationId ?? 'unknown'), toolId })
     }
     if (marked === 0) {
       // Anomaly, not a loss: the credit committed but no settled row matched
       // the marker key (null operationId, or a row in an unexpected state).
       // Logged — never thrown (see the function doc).
-      logger.error('settlement.credit_marker_unmatched', { operationId, rail, developerId })
+      logger.error('settlement.credit_marker_unmatched', { operationId: settlementEntryId(operationId ?? 'unknown'), rail, developerId })
     }
     if (!toolId) {
       // Dev (the payout source) WAS credited; only the per-tool revenue stat is
       // missed because the row lacks a toolId. Alert so it can be reconciled.
-      logger.error('settlement.credit_missing_toolid', { operationId, developerId, amountCents })
+      logger.error('settlement.credit_missing_toolid', { operationId: settlementEntryId(operationId ?? 'unknown'), developerId, amountCents })
     }
-    logger.info('settlement.credited', { operationId, developerId, amountCents, toolId })
+    logger.info('settlement.credited', { operationId: settlementEntryId(operationId ?? 'unknown'), developerId, amountCents, toolId })
   } catch (err) {
-    logger.error('settlement.credit_failed', { operationId, developerId, amountCents }, err)
+    logger.error('settlement.credit_failed', { operationId: settlementEntryId(operationId ?? 'unknown'), developerId, amountCents }, err)
   }
 }
 
@@ -543,7 +548,7 @@ async function quarantineClassify(
     // UNPROVABLE — operator/runbook resolves. error level: Sentry mirrors
     // error only (the (U) ② M1 lesson). Gated on the rowcount so a row the
     // truth CAS rejected never alerts (it is live-tracked, not unprovable).
-    logger.error('reconcile.expiry_unprovable', { operationId, rail, expiryClass })
+    logger.error('reconcile.expiry_unprovable', { operationId: rowId, rail, expiryClass })
   }
   return classified
 }
@@ -702,10 +707,11 @@ async function runExpiryPass(opts: {
           stats.quarantined++
           bucketFor(parsed.network).quarantined++ // canonical site (nonce-consumed)
           logger.error('reconcile.expired_nonce_consumed_quarantined', {
-            operationId: row.operationId,
+            // V-N3 — the de-identified PK id (row.id); the raw from/nonce are
+            // DROPPED. The runbook reads (from,nonce) from the DB row BY this id
+            // (v-pending-lifecycle §2a) — never from the log/Sentry payload.
+            operationId: row.id,
             rail: row.rail,
-            from: parsed.eip3009.from,
-            nonce: parsed.eip3009.nonce,
             validBefore: vbRaw,
           })
         }
@@ -722,7 +728,7 @@ async function runExpiryPass(opts: {
         stats.terminalized++
         bucketFor(parsed.network).terminalized++ // canonical site (terminalized)
         logger.info('reconcile.expired_terminalized', {
-          operationId: row.operationId,
+          operationId: row.id,
           rail: row.rail,
           validBefore: vbRaw,
           chainTs: chainTs.ts, // scalar (V-N4)
@@ -956,11 +962,13 @@ export async function reconcilePendingSettlements(opts?: {
       .where(sweepWhere)
     uncredited = Number(agg.total)
     if (uncredited > 0) {
-      // Bounded id sample (≤ 25, oldest first) — operation_id is already
-      // rail-prefixed by construction, so the bare ids match the runbook's
-      // closure UPDATE keys exactly.
+      // V-N3 — Bounded sample of the de-identified PK `id` (≤ 25, oldest first),
+      // NOT the raw payer-bearing operation_id. These uncredited rows are the
+      // anonymizer's carve-out (their op_id is NOT minimized), so the operator
+      // resolves each row BY id; the runbook's closure UPDATE keys on the PK id
+      // (t-credited-at §2). The op_id projection is dropped (no payer in memory).
       const sample = await db
-        .select({ operationId: ledgerEntries.operationId, settledAt: ledgerEntries.settledAt })
+        .select({ id: ledgerEntries.id, settledAt: ledgerEntries.settledAt })
         .from(ledgerEntries)
         .where(sweepWhere)
         .orderBy(asc(ledgerEntries.settledAt))
@@ -969,7 +977,7 @@ export async function reconcilePendingSettlements(opts?: {
         uncreditedCount: uncredited,
         graceMs: creditGraceMs,
         oldestSettledAt: sample[0]?.settledAt ?? null,
-        operationIds: sample.map((s) => s.operationId),
+        operationIds: sample.map((s) => s.id),
       })
     }
   } catch (err) {
@@ -1122,13 +1130,13 @@ export async function reconcilePendingSettlements(opts?: {
       // after one rotation — it was already watermarked above).
       errored++
       if (isOverdue) examinedOverdue.errored++
-      logger.error('reconcile.row_error', { operationId: row.operationId, rail: row.rail }, err)
+      logger.error('reconcile.row_error', { operationId: row.id, rail: row.rail }, err)
     }
   }
   if (watermarkFailures > 0) {
     logger.error(
       'reconcile.watermark_update_failed',
-      { count: watermarkFailures, operationIds: watermarkFailedOps },
+      { count: watermarkFailures, operationIds: watermarkFailedOps.map((op) => settlementEntryId(op ?? 'unknown')) },
       lastWatermarkErr,
     )
   }

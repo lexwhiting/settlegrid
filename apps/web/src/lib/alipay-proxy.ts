@@ -14,16 +14,11 @@ import type {
   AlipayToolConfig,
   AlipayErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isAlipayEnabled, getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 const alipayAdapter = new AlipayAdapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isAlipayRequest(request: Request): boolean {
   return alipayAdapter.canHandle(request)

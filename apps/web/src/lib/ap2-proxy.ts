@@ -13,16 +13,11 @@ import {
 } from '@settlegrid/mcp'
 import type { Ap2PaymentResult, Ap2ToolConfig, Ap2ErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isAp2Enabled, getAp2SigningSecret, getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 const ap2Adapter = new AP2Adapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isAp2Request(request: Request): boolean {
   return isAp2RequestCore(request)

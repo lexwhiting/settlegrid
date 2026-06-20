@@ -20,6 +20,8 @@
  * orchestrator (broadcast seam) and the reconciler (credit seam) test contexts.
  */
 import { logger } from '@/lib/logger'
+// V-N3-log-redaction — the de-identified PK key for payer-bearing op_id log sites.
+import { settlementEntryId } from './ledger'
 
 /** 1 US cent = 10,000 USDC base units (USDC has 6 decimals). */
 const USDC_BASE_UNITS_PER_CENT = 10_000n
@@ -133,7 +135,7 @@ export function resolveInRequestCreditCents(params: {
   if (settledValueBaseUnits === null || settledValueBaseUnits === undefined) {
     // (§13.G mirror) absent recorded value — the bounded swallowed-write / legacy
     // residual. DEFER + warn (NOT error: a re-creatable window, not corruption).
-    logger.warn('settlement.settled_value_legacy_fallback', { operationId, rail, amountCents })
+    logger.warn('settlement.settled_value_legacy_fallback', { operationId: settlementEntryId(operationId ?? 'unknown'), rail, amountCents })
     return null
   }
   const cents = settledBaseUnitsToCents(settledValueBaseUnits)
@@ -142,7 +144,7 @@ export function resolveInRequestCreditCents(params: {
     // credit-winner path — never credit a guess, never mark a 0-credit. DEFER +
     // error so an operator reconciles by operationId (raw value in the payload).
     logger.error('settlement.settled_value_unconvertible', {
-      operationId,
+      operationId: settlementEntryId(operationId ?? 'unknown'),
       rail,
       settledValueBaseUnits,
       amountCents,
@@ -185,7 +187,7 @@ export function detectSettledValueDivergence(params: {
     // broadcast, so this is defensive — but a corrupt/unconvertible value AT
     // BROADCAST is a real anomaly worth surfacing.
     logger.error('settlement.settled_value_unconvertible', {
-      operationId,
+      operationId: settlementEntryId(operationId ?? 'unknown'),
       rail,
       settledValueBaseUnits,
       frozenAmountCents,
@@ -195,7 +197,7 @@ export function detectSettledValueDivergence(params: {
   if (settledCents === 0) return // defers to credit_skipped_no_data (no double-page)
   if (settledCents < frozenAmountCents) {
     logger.error('settlement.settled_value_below_frozen', {
-      operationId,
+      operationId: settlementEntryId(operationId ?? 'unknown'),
       rail,
       settledCents,
       frozenAmountCents,
@@ -204,7 +206,7 @@ export function detectSettledValueDivergence(params: {
     })
   } else if (settledCents > frozenAmountCents) {
     logger.warn('settlement.settled_value_above_frozen', {
-      operationId,
+      operationId: settlementEntryId(operationId ?? 'unknown'),
       rail,
       settledCents,
       frozenAmountCents,
