@@ -24,6 +24,8 @@ import { isX402Request, validateX402Payment, generateX402_402Response } from '@/
 import { extractX402PaymentHeader, parseX402ExactPayload } from '@/lib/settlement/x402/parse'
 import { executeX402Settlement, x402OperationId } from '@/lib/settlement/x402/orchestrate'
 import { executeCircleNanoSettlement, circleNanoOperationId } from '@/lib/settlement/circle-nano/settle'
+// V-N3-log-redaction — the de-identified PK key for payer-bearing op_id log sites.
+import { settlementEntryId } from '@/lib/settlement/ledger'
 import { parseCircleNanoProof } from '@settlegrid/mcp'
 import { isAp2Request, validateAp2Payment, generateAp2_402Response } from '@/lib/ap2-proxy'
 import { isVisaTapRequest, validateVisaTapPayment, generateVisaTap402Response } from '@/lib/visa-tap-proxy'
@@ -1667,7 +1669,10 @@ async function forwardAndBill(
       // can still deliver (F1 forwards a now-settled replay without re-charging).
       logger.error('proxy.onchain_settled_upstream_failed', {
         slug, requestId, paymentMethod,
-        txHash: paymentId, payer: payerIdentifier, costCents,
+        // V-N3 — the raw EVM payer (payerIdentifier) is dropped; the off-band
+        // refund runbook keys on txHash (the structured fields stay). `error` is
+        // sanitized centrally in emit().
+        txHash: paymentId, costCents,
         upstreamStatus: null, reason: 'upstream_unreachable',
         error: err instanceof Error ? err.message : String(err),
       })
@@ -1765,9 +1770,9 @@ async function forwardAndBill(
           // paging truthfully in the sweep and log; never throw (a thrown marker
           // would lose the rest of the response path for an accounting signal).
           if (devMatched === 0) {
-            logger.error('settlement.credit_zero_row_unmarked', { operationId, rail, slug, requestId })
+            logger.error('settlement.credit_zero_row_unmarked', { operationId: settlementEntryId(operationId), rail, slug, requestId })
           } else if (marked === 0) {
-            logger.error('settlement.credit_marker_unmatched', { operationId, rail, slug, requestId })
+            logger.error('settlement.credit_marker_unmatched', { operationId: settlementEntryId(operationId), rail, slug, requestId })
           }
         }
         // settledCreditCents == null ⇒ DEFER: no-op here. credited_at stays NULL
@@ -1794,7 +1799,8 @@ async function forwardAndBill(
         // signal so an operator credits manually (keyed by txHash + payer).
         logger.error('proxy.onchain_credit_lost_after_settle', {
           slug, requestId, paymentMethod,
-          txHash: paymentId, payer: payerIdentifier, costCents, upstreamStatus,
+          // V-N3 — raw EVM payer dropped; operator credits keyed on txHash.
+          txHash: paymentId, costCents, upstreamStatus,
         })
       }
     }
@@ -1806,7 +1812,8 @@ async function forwardAndBill(
     // replay without re-charging).
     logger.error('proxy.onchain_settled_upstream_failed', {
       slug, requestId, paymentMethod,
-      txHash: paymentId, payer: payerIdentifier, costCents, upstreamStatus,
+      // V-N3 — raw EVM payer dropped; off-band refund runbook keys on txHash.
+      txHash: paymentId, costCents, upstreamStatus,
       reason: 'upstream_non_2xx',
     })
   }

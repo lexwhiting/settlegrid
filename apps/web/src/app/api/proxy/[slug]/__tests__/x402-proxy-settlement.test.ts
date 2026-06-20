@@ -359,7 +359,8 @@ describe('handleX402Proxy — F3 settle-then-upstream-fail (charged, not deliver
     expect(H.dbTransaction).not.toHaveBeenCalled() // (T) and no marker txn
     expect(H.logger.error).toHaveBeenCalledWith(
       'proxy.onchain_settled_upstream_failed',
-      expect.objectContaining({ txHash: '0xTX', payer: PAYER, costCents: 50, upstreamStatus: 502 }),
+      // V-N3 — the raw EVM payer is dropped; the off-band refund runbook keys on txHash.
+      expect.objectContaining({ txHash: '0xTX', costCents: 50, upstreamStatus: 502 }),
     )
   })
 
@@ -373,7 +374,8 @@ describe('handleX402Proxy — F3 settle-then-upstream-fail (charged, not deliver
     expect(res.status).toBe(200) // delivered; we do NOT fail the buyer's served request
     expect(H.logger.error).toHaveBeenCalledWith(
       'proxy.onchain_credit_lost_after_settle',
-      expect.objectContaining({ txHash: '0xTX', payer: PAYER, costCents: 50 }),
+      // V-N3 — the raw EVM payer is dropped; operator credits keyed on txHash.
+      expect.objectContaining({ txHash: '0xTX', costCents: 50 }),
     )
   })
 })

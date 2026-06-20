@@ -12,16 +12,11 @@ import {
 } from '@settlegrid/mcp'
 import type { AcpPaymentResult, AcpToolConfig, AcpErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isAcpEnabled, getAcpStripeKey, getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 const acpAdapter = new ACPAdapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isAcpRequest(request: Request): boolean {
   return isAcpRequestCore(request)

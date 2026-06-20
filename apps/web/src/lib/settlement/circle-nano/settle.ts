@@ -30,6 +30,7 @@ import {
   markSettlementFailed,
   markSettlementBroadcast,
   refreshPendingValidBefore,
+  settlementEntryId,
 } from '../ledger'
 import {
   submitCircleNanoOnChain,
@@ -171,7 +172,7 @@ async function applyOutcome(
           // operator repairs the row + credits manually (runbook). No
           // auto-credit/auto-repair here: a new money path needs its own audit.
           logger.error('settlement.settled_evidence_on_terminal_failed_row', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rowStatus: row.settlementStatus,
             winningTxHash: result.txHash,
             storedRef: row.externalRef,
@@ -191,7 +192,7 @@ async function applyOutcome(
           alreadySettled: true,
         }
       }
-      logger.info('circle_nano.settle_onchain_success', { operationId, txHash: result.txHash })
+      logger.info('circle_nano.settle_onchain_success', { operationId: settlementEntryId(operationId), txHash: result.txHash })
       // (V-N2b) — resolve the value the in-request credit pays, OR DEFER (mirror of
       // x402's orchestrate.ts). fresh-submit: settledValueBaseUnits is THIS proof's
       // value (== costCents under exactAmount) — resolve directly, NO re-read.
@@ -224,7 +225,7 @@ async function applyOutcome(
         // no-clobber CAS makes a lock-less loser's write here lose against a
         // DIFFERENT live winner ref instead of overwriting it (③-(U) addendum (e)).
         await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
-        logger.warn('circle_nano.settle_reverted_nonce_consumed', { operationId, txHash: result.txHash })
+        logger.warn('circle_nano.settle_reverted_nonce_consumed', { operationId: settlementEntryId(operationId), txHash: result.txHash })
         return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Authorization settled by a concurrent transaction; confirmation reconciling.', txHash: result.txHash }
       }
       const flipped = await markSettlementFailed(operationId, RAIL, result.txHash)
@@ -237,7 +238,7 @@ async function applyOutcome(
         // reconciler's pending-stale-ref.
         const current = await findSettlementRow(operationId, RAIL)
         if (current?.settlementStatus === 'pending') {
-          logger.warn('circle_nano.settle_reverted_stale_ref', { operationId, staleTxHash: result.txHash, currentRef: current.externalRef })
+          logger.warn('circle_nano.settle_reverted_stale_ref', { operationId: settlementEntryId(operationId), staleTxHash: result.txHash, currentRef: current.externalRef })
           return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Settlement evidence was superseded by a concurrent re-point; confirmation reconciling.', txHash: current.externalRef ?? result.txHash }
         }
         if (current?.settlementStatus === 'settled') {
@@ -246,7 +247,7 @@ async function applyOutcome(
         }
         // Terminal 'failed' (or row absent): the truthful terminal response below.
       }
-      logger.warn('circle_nano.settle_reverted', { operationId, txHash: result.txHash })
+      logger.warn('circle_nano.settle_reverted', { operationId: settlementEntryId(operationId), txHash: result.txHash })
       return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_REVERTED', httpStatus: 402, reason: 'The settlement transaction reverted on-chain; the payment did not complete.' }
     }
     case 'broadcast-unconfirmed': {
@@ -260,14 +261,14 @@ async function applyOutcome(
       // correct value to pair with it. Consumed for a credit only if this tx later confirms
       // settled (then it collected exactly that value); a later revert never credits.
       await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef, settledValueBaseUnits)
-      logger.warn('circle_nano.settle_unconfirmed', { operationId, txHash: result.txHash, reason: result.reason })
+      logger.warn('circle_nano.settle_unconfirmed', { operationId: settlementEntryId(operationId), txHash: result.txHash, reason: result.reason })
       return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'Settlement broadcast on-chain but not yet confirmed; treat as pending and retry to confirm.', txHash: result.txHash }
     }
     case 'nonce-already-used': {
       // Nonce consumed on-chain but our row isn't 'settled'. Either our own
       // earlier broadcast confirmed or a third party settled it; we can't attribute
       // a txHash safely → leave 'pending' for reconciliation.
-      logger.warn('circle_nano.settle_nonce_used_unrecorded', { operationId })
+      logger.warn('circle_nano.settle_nonce_used_unrecorded', { operationId: settlementEntryId(operationId) })
       return { status: 'pending', code: 'CIRCLE_NANO_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502, reason: 'The authorization nonce is already spent on-chain; confirmation reconciling.' }
     }
     case 'insufficient-balance': {
@@ -276,14 +277,14 @@ async function applyOutcome(
       // authorization is still settleable. So leave the row 'pending' (retryable)
       // and surface a 402; do NOT mark 'failed', which would terminally brick a
       // valid authorization on a momentary balance dip.
-      logger.warn('circle_nano.settle_insufficient_balance', { operationId, have: result.haveBaseUnits, need: result.needBaseUnits })
+      logger.warn('circle_nano.settle_insufficient_balance', { operationId: settlementEntryId(operationId), have: result.haveBaseUnits, need: result.needBaseUnits })
       return { status: 'failed', code: 'CIRCLE_NANO_INSUFFICIENT_FUNDS', httpStatus: 402, reason: `Payer USDC balance (${result.haveBaseUnits} base units) is below the authorized ${result.needBaseUnits}.` }
     }
     case 'submit-error': {
       // No broadcast (nonce free, no money moved). Leave the row 'pending' (the
       // error may be transient) and surface it; do NOT mark 'failed'.
       const httpStatus = result.code === 'GAS_WALLET_INSUFFICIENT' || result.code === 'GAS_WALLET_NOT_CONFIGURED' ? 503 : 502
-      logger.error('circle_nano.settle_submit_error', { operationId, code: result.code, reason: result.reason })
+      logger.error('circle_nano.settle_submit_error', { operationId: settlementEntryId(operationId), code: result.code, reason: result.reason })
       return { status: 'pending', code: `CIRCLE_NANO_${result.code}`, httpStatus, reason: `Settlement could not be submitted on-chain: ${result.reason}` }
     }
   }
@@ -307,9 +308,9 @@ export async function executeCircleNanoSettlement(
       // Anomaly: a row this code settles ALWAYS carries its on-chain txHash
       // (markSettlementSettled sets it). An empty ref means a corrupted/legacy
       // row — surface it for reconciliation rather than silently returning ''.
-      logger.warn('circle_nano.settle_settled_missing_txhash', { operationId })
+      logger.warn('circle_nano.settle_settled_missing_txhash', { operationId: settlementEntryId(operationId) })
     }
-    logger.info('circle_nano.settle_idempotent_hit', { operationId, txHash: existing.externalRef })
+    logger.info('circle_nano.settle_idempotent_hit', { operationId: settlementEntryId(operationId), txHash: existing.externalRef })
     // Idempotent-hit: a prior settle already flipped + credited this authorization
     // → mark alreadySettled so the caller does NOT re-credit.
     return { status: 'settled', txHash: existing.externalRef ?? '', alreadySettled: true }
@@ -397,7 +398,7 @@ export async function executeCircleNanoSettlement(
         const row = await findSettlementRow(operationId, RAIL)
         if (row && row.settlementStatus === 'failed') {
           logger.error('settlement.broadcast_evidence_on_terminal_failed_row', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rowStatus: row.settlementStatus,
             broadcastTxHash: txHash,
             storedRef: row.externalRef,
@@ -423,7 +424,7 @@ export async function executeCircleNanoSettlement(
         }
         return { status: 'failed', code: 'CIRCLE_NANO_SETTLEMENT_PREVIOUSLY_FAILED', httpStatus: 402, reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.' }
       }
-      logger.info('circle_nano.settle_recovery_resubmit', { operationId, priorTx: existing.externalRef })
+      logger.info('circle_nano.settle_recovery_resubmit', { operationId: settlementEntryId(operationId), priorTx: existing.externalRef })
     }
 
     // 5. Submit on-chain + wait for a confirmed receipt, then flip the ledger row.

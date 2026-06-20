@@ -19,19 +19,14 @@ import { isAddress } from 'viem'
 import { getAppUrl, getCircleNanoRecipient, isCircleNanoKernelEnabled } from './env'
 import { verifyCircleNanoAuthorization, USDC_EIP712_DOMAINS } from './settlement/circle-nano/verify'
 import { USDC_ADDRESSES } from './settlement/x402/types'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 /** 1 US cent = 10,000 USDC base units (USDC has 6 decimals). */
 const USDC_BASE_UNITS_PER_CENT = 10_000n
 
 const circleNanoAdapter = new CircleNanoAdapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 export function isCircleNanoRequest(request: Request): boolean {
   return isCircleNanoRequestCore(request)
@@ -132,9 +127,11 @@ export async function validateCircleNanoCredentialString(
     }
   }
 
+  // V-N3 (H1): the raw EVM payer is NOT logged here — `toolSlug` carries the
+  // correlation an operator needs, and the sanitizing seam would redact a `payer`
+  // key anyway. Dropping it at the source keeps the static grep-guard honest.
   appLogger.info('circle_nano.payment_validated', {
     toolSlug: toolConfig.slug,
-    payer: result.payerAddress,
     amountBaseUnits: result.amountBaseUnits,
   })
   return {

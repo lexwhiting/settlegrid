@@ -267,7 +267,8 @@ export async function settleExactPayment(
     logger.info('x402.settle_exact_success', {
       txHash,
       network,
-      from: authorization.from,
+      // V-N3 — the raw EVM payer (authorization.from) is dropped from the log;
+      // `to` (the platform recipient) + `value` are structured, non-payer fields.
       to: authorization.to,
       value: authorization.value,
       payloadHash,

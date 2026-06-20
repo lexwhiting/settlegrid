@@ -39,21 +39,31 @@ visibility by design — §DELIBERATE 2).
 A quarantined row is resolved MANUALLY (by design). The (③) procedures:
 
 ### 2a. `nonce-consumed-untracked` (error → Sentry; the P8(b) loss detector)
-Payload: `{operationId, rail, from, nonce, validBefore}`.
+Payload: `{operationId, rail, validBefore}` where **(V-N3) `operationId` is the
+de-identified PK row `id`** (`settlementEntryId`), NOT the raw payer-bearing
+`operation_id` — and the raw `from`/`nonce` are no longer in the log / Sentry
+payload. They are recovered from the row below: these quarantined rows are NOT
+anonymized (the payer-minimizer only touches TERMINAL rows, and a quarantined row
+stays `pending`), so the row's `operation_id` `{rail}:{net}:{from}:{nonce}` is intact.
 
-**FIRST, rule out a stale classification (③ findings [3]/[19] — the alert can false-fire):**
-1. Re-read the row: `SELECT settlement_status, external_ref, metadata FROM ledger_entries
-   WHERE operation_id=$op AND rail=$rail;`. If it is now `settled` or carries an
+**FIRST, resolve the row BY id + rule out a stale classification (③ findings
+[3]/[19] — the alert can false-fire):**
+1. Re-read the row: `SELECT operation_id, rail, settlement_status, external_ref,
+   account_id, amount_cents, metadata FROM ledger_entries WHERE id=$id;` (`$id` =
+   the alert's `operationId` field). **Parse `(from,nonce,net)` from the returned
+   `operation_id`** for the steps below. If the row is now `settled` or carries an
    `external_ref` (a concurrent/in-flight tx settled it after the pass read), this was a
    **stale classification, NOT a loss** — close it (clear the marker if desired) and stop.
 2. Check the **sibling rail** for the same (from,nonce) — the identical authorization can be
-   presented on both rails (the false-page cross-rail case [3]): `SELECT rail, external_ref,
+   presented on both rails (the false-page cross-rail case [3]); `$net`/`$from`/`$nonce`
+   are parsed from the resolved row's `operation_id` (step 1): `SELECT rail, external_ref,
    settlement_status FROM ledger_entries WHERE operation_id IN
    ('circle-nano:'||$net||':'||$from||':'||$nonce, 'x402:'||$net||':'||$from||':'||$nonce);`
    If the sibling row is `settled` with an `external_ref`, the funds ARE tracked there —
    close this row as a duplicate-presentation artifact, no loss.
 
-**If still genuinely untracked, attribute on chain** (the (from,nonce) in the payload):
+**If still genuinely untracked, attribute on chain** (the (from,nonce) parsed from the
+resolved row's `operation_id` in step 1):
 - `eth_getLogs` on the USDC contract for `AuthorizationUsed(authorizer indexed=from,
   nonce indexed=nonce)` vs `AuthorizationCanceled(authorizer, nonce)`:
   - **AuthorizationUsed** present → funds moved via an untracked tx. Find the tx, confirm it
@@ -62,17 +72,20 @@ Payload: `{operationId, rail, from, nonce, validBefore}`.
     discipline of `t-credited-at-runbook`, adapted: the row is pending/ref-NULL, so after
     crediting, terminalize it with the same CAS guard the writer uses —
     `UPDATE ledger_entries SET settlement_status='settled', settled_at=now(), credited_at=now()
-    WHERE operation_id=$op AND rail=$rail AND settlement_status='pending' AND
-    external_ref IS NULL;` (set `external_ref` to the untracked tx hash in the same UPDATE).
+    WHERE id=$id AND settlement_status='pending' AND
+    external_ref IS NULL;` (`$id` = the alert's PK id; set `external_ref` to the untracked tx hash in the same UPDATE).
   - **AuthorizationCanceled** (or neither) → the payer canceled; NO credit owed. Terminalize:
-    `UPDATE ledger_entries SET settlement_status='failed' WHERE operation_id=$op AND
-    rail=$rail AND settlement_status='pending' AND external_ref IS NULL;`.
+    `UPDATE ledger_entries SET settlement_status='failed' WHERE id=$id AND
+    settlement_status='pending' AND external_ref IS NULL;`.
 
 ### 2b. `legacy-no-validbefore` / `unparseable` / `unsupported-network` (error → Sentry, one-shot)
-Payload: `{operationId, rail, expiryClass}` (one-shot per row — see the Sentry note below).
+Payload: `{operationId, rail, expiryClass}` where **(V-N3) `operationId` is the
+de-identified PK row `id`** (one-shot per row — see the Sentry note below).
 These rows cannot be proven dead by code (no recoverable validBefore, or an undecidable
-opid/network). Resolve manually: read the nonce state yourself
-(`authorizationState(from,nonce)` against the prod RPC, if the opid yields a from/nonce),
+opid/network). Resolve manually: first re-read the row BY id (`SELECT operation_id,
+metadata FROM ledger_entries WHERE id=$id;`), then read the nonce state yourself
+(`authorizationState(from,nonce)` against the prod RPC, if the row's `operation_id`
+yields a from/nonce),
 then either credit+terminalize (if consumed and funds tracked) or terminalize `failed`
 (if unconsumed and the authorization is genuinely abandoned). For a truly opaque legacy hop
 row, founder judgment. The class name describes WHY it could not be auto-proven:

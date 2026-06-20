@@ -45,15 +45,20 @@ vi.mock('../../circle-nano/settle-engine', () => ({
 vi.mock('../../circle-nano/verify', () => ({
   verifyEip3009Authorization: mockVerify,
 }))
-vi.mock('../../ledger', () => ({
-  recordSettlementEntry: mockRecord,
-  findSettlementRow: mockFindRow,
-  markSettlementSettled: mockSettled,
-  markSettlementFailed: mockFailed,
-  markSettlementBroadcast: mockBroadcast,
-  // (V) — the raise-only validBefore refresh (R1-B4/R2-B5b).
-  refreshPendingValidBefore: mockRefresh,
-}))
+vi.mock('../../ledger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../ledger')>()
+  return {
+    recordSettlementEntry: mockRecord,
+    findSettlementRow: mockFindRow,
+    markSettlementSettled: mockSettled,
+    markSettlementFailed: mockFailed,
+    markSettlementBroadcast: mockBroadcast,
+    // (V) — the raise-only validBefore refresh (R1-B4/R2-B5b).
+    refreshPendingValidBefore: mockRefresh,
+    // V-N3 — the REAL pure PK-key fn the redacted logs emit (faithful canary).
+    settlementEntryId: actual.settlementEntryId,
+  }
+})
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({ set: mockRedisSet, del: mockRedisDel }),
   tryRedis: async (fn: () => Promise<unknown>) => {
@@ -69,6 +74,8 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import { executeX402Settlement, x402OperationId } from '../orchestrate'
+// V-N3 — the REAL (pure) PK-key fn the redacted logs emit; for log assertions.
+import { settlementEntryId } from '../../ledger'
 import type { X402ExactPayload } from '../types'
 // Mocked above — imported for the (T)-seal funds-critical alert assertion.
 import { logger } from '@/lib/logger'
@@ -295,7 +302,7 @@ describe('executeX402Settlement — idempotency & locking (no double-charge)', (
     // success receipt and is the loss class's only detector (② seal HIGH).
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.settled_evidence_on_terminal_failed_row',
-      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', winningTxHash: '0xH2', storedRef: '0xH1' }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID), rowStatus: 'failed', winningTxHash: '0xH2', storedRef: '0xH1' }),
     )
   })
 
@@ -311,7 +318,7 @@ describe('executeX402Settlement — idempotency & locking (no double-charge)', (
     await executeX402Settlement(PARAMS)
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
       'settlement.broadcast_evidence_on_terminal_failed_row',
-      expect.objectContaining({ operationId: OP_ID, rowStatus: 'failed', broadcastTxHash: '0xH2', storedRef: '0xH1' }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID), rowStatus: 'failed', broadcastTxHash: '0xH2', storedRef: '0xH1' }),
     )
   })
 
@@ -376,7 +383,7 @@ describe('(V-N2b) executeX402Settlement — recovery-confirm credits the RECORDE
     expect(outcome).toEqual({ status: 'settled', txHash: '0xPRIOR', creditCents: null })
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'settlement.settled_value_legacy_fallback',
-      expect.objectContaining({ operationId: OP_ID, rail: 'x402', amountCents: 50 }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID), rail: 'x402', amountCents: 50 }),
     )
     expect(mockSettled).toHaveBeenCalledWith(OP_ID, 'x402', '0xPRIOR', undefined)
   })
@@ -498,7 +505,7 @@ describe('(V) executeX402Settlement — pending-row lifecycle', () => {
     expect(outcome).toMatchObject({ status: 'pending', code: 'X402_SETTLEMENT_PENDING_CONFIRMATION', httpStatus: 502 })
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       'x402.settle_reverted_stale_ref',
-      expect.objectContaining({ operationId: OP_ID }),
+      expect.objectContaining({ operationId: settlementEntryId(OP_ID) }),
     )
   })
 

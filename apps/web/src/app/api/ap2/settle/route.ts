@@ -32,6 +32,10 @@ import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { recordSettlementEntry } from '@/lib/settlement/ledger'
+// V-N3-log-redaction — `settlement.operationId` here is a synthetic randomUUID /
+// VDC transactionId (NOT a payer-bearing op_id); `redactOpId` passes it through
+// unchanged while satisfying the no-raw-op_id guard.
+import { redactOpId } from '@/lib/settlement/log-redaction'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -149,7 +153,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
     logger.info('ap2.settle_success', {
       toolSlug,
       method,
-      operationId: settlement.operationId,
+      operationId: redactOpId(settlement.operationId),
       costCents,
     })
 
@@ -192,7 +196,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
         }).catch((err) =>
           logger.error(
             'settlement.ledger_write_failed',
-            { invocationId: settlement.operationId, rail: 'ap2', protocol: 'ap2' },
+            { invocationId: redactOpId(settlement.operationId), rail: 'ap2', protocol: 'ap2' },
             err,
           ),
         ),

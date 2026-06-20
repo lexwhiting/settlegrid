@@ -32,6 +32,7 @@ import {
   markSettlementFailed,
   markSettlementBroadcast,
   refreshPendingValidBefore,
+  settlementEntryId,
 } from '../ledger'
 import {
   submitCircleNanoOnChain,
@@ -220,7 +221,7 @@ async function applyOutcome(
           // the caller skips the credit — this branch is the loss class's
           // sole detector. Alert → manual credit + row repair per the runbook.
           logger.error('settlement.settled_evidence_on_terminal_failed_row', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rowStatus: row.settlementStatus,
             winningTxHash: result.txHash,
             storedRef: row.externalRef,
@@ -238,7 +239,7 @@ async function applyOutcome(
           alreadySettled: true,
         }
       }
-      logger.info('x402.settle_onchain_success', { operationId, txHash: result.txHash })
+      logger.info('x402.settle_onchain_success', { operationId: settlementEntryId(operationId), txHash: result.txHash })
       // (V-N2b) — resolve the value the in-request credit pays, OR DEFER.
       //   - fresh-submit: settledValueBaseUnits is THIS proof's value (== costCents
       //     under exactAmount) — resolve directly, NO row re-read (hot-path DB
@@ -274,7 +275,7 @@ async function applyOutcome(
         // (V): the no-clobber CAS — a lock-less loser's write loses against a
         // DIFFERENT live winner ref instead of overwriting it (③-(U) addendum (e)).
         await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef)
-        logger.warn('x402.settle_reverted_nonce_consumed', { operationId, txHash: result.txHash })
+        logger.warn('x402.settle_reverted_nonce_consumed', { operationId: settlementEntryId(operationId), txHash: result.txHash })
         return {
           status: 'pending',
           code: 'X402_SETTLEMENT_PENDING_CONFIRMATION',
@@ -291,7 +292,7 @@ async function applyOutcome(
         // exactly like the reconciler's pending-stale-ref.
         const current = await findSettlementRow(operationId, RAIL)
         if (current?.settlementStatus === 'pending') {
-          logger.warn('x402.settle_reverted_stale_ref', { operationId, staleTxHash: result.txHash, currentRef: current.externalRef })
+          logger.warn('x402.settle_reverted_stale_ref', { operationId: settlementEntryId(operationId), staleTxHash: result.txHash, currentRef: current.externalRef })
           return {
             status: 'pending',
             code: 'X402_SETTLEMENT_PENDING_CONFIRMATION',
@@ -306,7 +307,7 @@ async function applyOutcome(
         }
         // Terminal 'failed' (or row absent): the truthful terminal response below.
       }
-      logger.warn('x402.settle_reverted', { operationId, txHash: result.txHash })
+      logger.warn('x402.settle_reverted', { operationId: settlementEntryId(operationId), txHash: result.txHash })
       return {
         status: 'failed',
         code: 'X402_SETTLEMENT_REVERTED',
@@ -325,7 +326,7 @@ async function applyOutcome(
       // correct value to pair with it. Consumed for a credit only if this tx later confirms
       // settled (then it collected exactly that value); a later revert never credits.
       await markSettlementBroadcast(operationId, RAIL, result.txHash, expectedPriorRef, settledValueBaseUnits)
-      logger.warn('x402.settle_unconfirmed', { operationId, txHash: result.txHash, reason: result.reason })
+      logger.warn('x402.settle_unconfirmed', { operationId: settlementEntryId(operationId), txHash: result.txHash, reason: result.reason })
       return {
         status: 'pending',
         code: 'X402_SETTLEMENT_PENDING_CONFIRMATION',
@@ -335,7 +336,7 @@ async function applyOutcome(
       }
     }
     case 'nonce-already-used': {
-      logger.warn('x402.settle_nonce_used_unrecorded', { operationId })
+      logger.warn('x402.settle_nonce_used_unrecorded', { operationId: settlementEntryId(operationId) })
       return {
         status: 'pending',
         code: 'X402_SETTLEMENT_PENDING_CONFIRMATION',
@@ -348,7 +349,7 @@ async function applyOutcome(
       // transient (they can top up + retry the same authorization), so this is a
       // 402 reject, not a 'failed' flip that would brick a valid authorization.
       logger.warn('x402.settle_insufficient_balance', {
-        operationId,
+        operationId: settlementEntryId(operationId),
         have: result.haveBaseUnits,
         need: result.needBaseUnits,
       })
@@ -366,7 +367,7 @@ async function applyOutcome(
         result.code === 'GAS_WALLET_INSUFFICIENT' || result.code === 'GAS_WALLET_NOT_CONFIGURED'
           ? 503
           : 502
-      logger.error('x402.settle_submit_error', { operationId, code: result.code, reason: result.reason })
+      logger.error('x402.settle_submit_error', { operationId: settlementEntryId(operationId), code: result.code, reason: result.reason })
       return {
         status: 'pending',
         code: `X402_${result.code}`,
@@ -401,7 +402,7 @@ export async function executeX402Settlement(
     exactAmount: true,
   })
   if (!verification.valid) {
-    logger.info('x402.settle_verify_rejected', { operationId, code: verification.errorCode })
+    logger.info('x402.settle_verify_rejected', { operationId: settlementEntryId(operationId), code: verification.errorCode })
     return verifyFailureOutcome(verification.errorCode, verification.invalidReason)
   }
 
@@ -411,7 +412,7 @@ export async function executeX402Settlement(
     // Idempotent replay: a prior request already settled this exact authorization
     // on-chain. alreadySettled tells the proxy to forward (the buyer paid once)
     // but NOT re-credit — the original settling request already credited.
-    logger.info('x402.settle_idempotent_hit', { operationId, txHash: existing.externalRef })
+    logger.info('x402.settle_idempotent_hit', { operationId: settlementEntryId(operationId), txHash: existing.externalRef })
     return { status: 'settled', txHash: existing.externalRef ?? '', alreadySettled: true }
   }
   if (existing?.settlementStatus === 'failed') {
@@ -491,7 +492,7 @@ export async function executeX402Settlement(
           reason: 'This authorization previously failed to settle on-chain. Re-issue a fresh authorization.',
         }
       }
-      logger.info('x402.settle_recovery_resubmit', { operationId, priorTx: existing.externalRef })
+      logger.info('x402.settle_recovery_resubmit', { operationId: settlementEntryId(operationId), priorTx: existing.externalRef })
     }
 
     // 6. Submit on-chain + wait for a CONFIRMED receipt, then flip. onBroadcast
@@ -525,7 +526,7 @@ export async function executeX402Settlement(
         const row = await findSettlementRow(operationId, RAIL)
         if (row && row.settlementStatus === 'failed') {
           logger.error('settlement.broadcast_evidence_on_terminal_failed_row', {
-            operationId,
+            operationId: settlementEntryId(operationId),
             rowStatus: row.settlementStatus,
             broadcastTxHash: txHash,
             storedRef: row.externalRef,

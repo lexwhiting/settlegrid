@@ -327,7 +327,7 @@ vi.mock('../circle-nano/settle-engine', () => ({ confirmSettlementTx: mockConfir
 // ../ledger is REAL: the CAS pin executes the actual emitted UPDATE.
 // ./rails and @/lib/env are REAL (pure; the testnet flag is cleared per-test).
 
-import { markSettlementFailed, markSettlementBroadcast, markSettlementExpiredNoBroadcast, refreshPendingValidBefore } from '../ledger'
+import { markSettlementFailed, markSettlementBroadcast, markSettlementExpiredNoBroadcast, refreshPendingValidBefore, settlementEntryId } from '../ledger'
 import { reconcileOneRow, reconcilePendingSettlements } from '../reconcile'
 
 const FROM = `0x${'a'.repeat(40)}`
@@ -387,7 +387,7 @@ describe('P2 — stale-hash CAS on markSettlementFailed (register HIGH #2)', () 
     expect(state.rows[0].settlementStatus).toBe('pending')
     expect(mockLogger.warn).toHaveBeenCalledWith(
       'reconcile.failed_flip_stale_ref',
-      expect.objectContaining({ operationId: MAINNET_OP, staleTxHash: '0xH1', currentRef: '0xH2' }),
+      expect.objectContaining({ operationId: settlementEntryId(MAINNET_OP), staleTxHash: '0xH1', currentRef: '0xH2' }),
     )
   })
 
@@ -433,7 +433,8 @@ describe('P1 — credited_at marker + uncredited-row sweep (register HIGH #1)', 
     expect(summary.uncredited).toBe(1)
     expect(mockLogger.error).toHaveBeenCalledWith(
       'reconcile.uncredited_settled',
-      expect.objectContaining({ uncreditedCount: 1, operationIds: [X402_MAINNET_OP] }),
+      // V-N3 — the sweep now logs the de-identified PK row id (default 'r1'), not the raw op_id.
+      expect.objectContaining({ uncreditedCount: 1, operationIds: ['r1'] }),
     )
   })
 
@@ -494,7 +495,7 @@ describe('P3 — reconciler credit-gate mainnet pin (latent, DC-13)', () => {
     expect(state.rows[0].creditedAt).toBeNull()
     expect(mockLogger.error).toHaveBeenCalledWith(
       'reconcile.credit_blocked_testnet',
-      expect.objectContaining({ operationId: SEPOLIA_OP, network: 'eip155:84532' }),
+      expect.objectContaining({ operationId: settlementEntryId(SEPOLIA_OP), network: 'eip155:84532' }),
     )
     // The open incident pages on the NEXT run's sweep (the row settled mid-run;
     // settledAt < cutoff needs a strictly earlier tick — same posture as the

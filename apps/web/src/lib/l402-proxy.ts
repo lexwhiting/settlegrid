@@ -11,16 +11,11 @@ import {
 } from '@settlegrid/mcp'
 import type { L402PaymentResult, L402ToolConfig, L402ErrorCode, AdapterLogger } from '@settlegrid/mcp'
 import { isL402Enabled, getLndRestUrl, getLndMacaroonHex, getAppUrl } from './env'
-import { logger } from './logger'
+import { createSanitizingAdapterLogger } from './sanitizing-adapter-logger'
 
 const l402Adapter = new L402Adapter()
 
-const appLogger: AdapterLogger = {
-  info: (event: string, data?: Record<string, unknown>) => logger.info(event, data ?? {}),
-  warn: (event: string, data?: Record<string, unknown>) => logger.warn(event, data ?? {}),
-  error: (event: string, data?: Record<string, unknown>, err?: unknown) =>
-    logger.error(event, data ?? {}, err),
-}
+const appLogger: AdapterLogger = createSanitizingAdapterLogger()
 
 function getSigningKey(): string | undefined {
   return process.env.LND_MACAROON_HEX ?? process.env.L402_SIGNING_KEY
