@@ -392,6 +392,19 @@ export async function processDataExport(
  * payer address remains unsettled (counsel pending). See
  * docs/tech-debt/v-n3-erasure-handoff-2026-06-18.md.
  *
+ * INVOCATIONS PAYER (contrast) — the anonymous on-chain payer that SettleGrid
+ * captures into `invocations.metadata` IS removed by THIS deletion when the
+ * subject owns tools: step 4 below nulls the entire `invocations.metadata`
+ * column for the subject's tools, removing the captured payer (and all other
+ * metadata) from those invocation rows. It is therefore disclosed under
+ * `anonymized`, NOT retained/minimized — unconditionally on deletion and
+ * independent of any platform-wide minimization schedule. This is unlike
+ * `ledger_entries`, a retained financial record kept for 7-year IRS/Stripe
+ * bookkeeping that this deletion does not touch and that is only minimized
+ * over time. The payer address itself stays permanently public ON-CHAIN via
+ * the settlement transaction and its EIP-3009 authorization event, so the
+ * null removes only SettleGrid's stored copy on the subject's tools' rows.
+ *
  * DEFERRED — a developer-owned organization's `organizations.billing_email` is
  * likewise retained un-scrubbed here: it is a DISTINCT entity's data (an org that
  * may have other members), and whether/how to scrub organization data on member
@@ -862,6 +875,13 @@ export async function processDataDeletion(
               // matched rows (most developers never joined the waitlist), so this
               // never claims a scrub that did not happen.
               ...(deletedWaitlist ? ['waitlist_signups'] : []),
+              // V-N3-erasure (contrast): step 4 nulls the entire
+              // invocations.metadata column for the subject's tools, which also
+              // removes the SettleGrid-captured anonymous on-chain payer from
+              // those protocol-invocation rows. Gated on the subject owning tools
+              // (toolIds.length > 0, identical to step 4). The payer stays
+              // permanently public on-chain (the settlement tx + its EIP-3009
+              // event); this nulls only SettleGrid's stored copy.
               ...(toolIds.length > 0 ? ['invocations.metadata'] : []),
               // V-N3 SLICE 4: api_keys are deleted for the developer's tools (step 3,
               // toolId-keyed) AND for the consumer twin (step-2, consumerId-keyed),
