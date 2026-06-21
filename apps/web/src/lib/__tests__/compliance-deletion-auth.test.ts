@@ -969,3 +969,43 @@ describe('processDataDeletion — V-N3 SLICE 5: all-rows consumer-twin erasure',
     expect(parsed.anonymized as string[]).toContain('consumer_schedules')
   })
 })
+
+describe('processDataDeletion — V-N3-enable-disclosure: invocations.metadata erasure (step 4) is regression-pinned', () => {
+  // The `anonymized: ['invocations.metadata']` claim is only HONEST because step 4
+  // actually nulls invocations.metadata for the subject's tools. The source-text
+  // presence of the `:865` entry is pinned in compliance-honesty-regression.test.ts;
+  // THIS is the load-bearing BEHAVIORAL guard — the entry gates on toolIds.length>0
+  // (NOT on step 4 running), so asserting the array string alone is VACUOUS (it stays
+  // GREEN even if step 4 were deleted, leaving the claim FALSE). Non-vacuous: removing
+  // or narrowing step 4 turns the behavioral clause RED.
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthDelete.mockResolvedValue(undefined)
+  })
+
+  it('step 4 nulls invocations.metadata scoped to the subject tool ids AND discloses it under anonymized', async () => {
+    seed({ devSupabaseUserId: null, toolIds: [{ id: 'tool-1' }] })
+    await processDataDeletion('exp-1')
+
+    // BEHAVIORAL clause (the real guard). Key on toolId so this never aliases the
+    // consumerId-keyed conversion_events.metadata scrub (also metadata:null, step 2).
+    const scrub = findUpdate((u) => u.vals?.metadata === null && isInArrayOn(u.pred, 'toolId'))
+    expect(
+      scrub,
+      'step 4 must issue update(invocations).set({metadata:null}).where(inArray(toolId, toolIds))',
+    ).toBeDefined()
+    expect(scrub!.vals).toEqual({ metadata: null })
+    expect((scrub!.pred as InArrayPred).inArray[1]).toEqual(['tool-1'])
+
+    // DISCLOSURE clause: the anonymized array names the column PATH (gated on toolIds>0).
+    expect(completedResultUrl()?.anonymized as string[]).toContain('invocations.metadata')
+  })
+
+  it('does NOT issue the step-4 invocations scrub when the developer owns no tools (gate holds)', async () => {
+    seed({ devSupabaseUserId: null }) // no toolIds → step 4 never fires
+    await processDataDeletion('exp-1')
+
+    expect(findUpdate((u) => u.vals?.metadata === null && isInArrayOn(u.pred, 'toolId'))).toBeUndefined()
+    expect(completedResultUrl()?.anonymized as string[]).not.toContain('invocations.metadata')
+  })
+})

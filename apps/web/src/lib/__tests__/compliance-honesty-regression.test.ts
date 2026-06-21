@@ -458,3 +458,33 @@ describe('V-N3 SLICE 3 — organizations.billing_email is DEFERRED + disclosed h
     expect(retainedUnscrubbedArray).toMatch(/'ledger_entries\.metadata\.payer'/)
   })
 })
+
+describe('V-N3-enable-disclosure — invocations.metadata erasure is documented + disclosed honestly', () => {
+  // Non-vacuity: the docstring contrast paragraph and THIS source-text pin are
+  // added by this chunk; the resultUrl `anonymized: ['invocations.metadata']`
+  // entry they document PRE-EXISTED (this chunk only makes its coverage explicit).
+  // Reverting the docstring paragraph ⇒ test 1 RED; removing that pre-existing
+  // entry ⇒ test 2 RED. (The behavioral coupling to step 4 actually running is
+  // pinned in compliance-deletion-auth.test.ts; these are SOURCE-TEXT presence
+  // pins per the same A/B + C surface split as the rest of this file.)
+  //
+  // The new docstring prose is ALSO covered by the existing whole-docstring banned
+  // scans (BANNED_COMPREHENSIVE_SCRUB at the A/B block, BANNED_LEGAL_CONCLUSIONS
+  // there + over the whole resultUrl) — so a banned phrase in the new text turns
+  // those RED. No duplicate scan is added here.
+
+  it('A/B docstring documents that step 4 nulls invocations.metadata (removing the captured on-chain payer)', () => {
+    // UNIQUE to the new paragraph: the frozen ledger text uses `metadata.payer`,
+    // never `invocations.metadata`; the SLICE-5 paragraph uses invocations.referralCode.
+    expect(docstring).toMatch(/INVOCATIONS PAYER \(contrast\)/)
+    expect(docstring).toMatch(/nulls the entire `invocations\.metadata`/)
+  })
+
+  it('C resultUrl anonymized array names invocations.metadata (gated on toolIds at runtime)', () => {
+    // No such pin existed before this chunk. End-marker is `retained:` so the
+    // array's spread expressions are not truncated early (mirrors the existing
+    // anonymizedArray slices). Non-vacuous: removing the :865 entry ⇒ RED.
+    const anonymizedArray = region(resultUrl, 'anonymized: [', 'retained:')
+    expect(anonymizedArray).toMatch(/'invocations\.metadata'/)
+  })
+})
