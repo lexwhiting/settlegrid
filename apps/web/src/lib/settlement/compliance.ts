@@ -361,7 +361,8 @@ export async function processDataExport(
  * call that cannot be transactional — then anonymizes the requesting developer's
  * own identifying PII at its source — the `developers` row (step 1: name, email,
  * bio, avatar, auth/Stripe linkage, notification webhooks) — and scrubs or
- * deletes the related consumer, API-key, invocation-metadata, audit-log
+ * deletes the related consumer, API-key (REVOKED, not deleted — see INVOCATION
+ * ROWS SURVIVE below), invocation-metadata, audit-log
  * (IP/UA/details — across the developer's own rows, the consumer twin's
  * consumerId-keyed rows, and cross-principal rows that name the developer as
  * their 'developer'/'developer_signup' resource), webhook, marketing-waitlist,
@@ -404,6 +405,22 @@ export async function processDataExport(
  * over time. The payer address itself stays permanently public ON-CHAIN via
  * the settlement transaction and its EIP-3009 authorization event, so the
  * null removes only SettleGrid's stored copy on the subject's tools' rows.
+ *
+ * INVOCATION ROWS SURVIVE — this deletion KEEPS the invocation rows (usage /
+ * financial records), it does not delete them. `invocations.api_key_id` is
+ * `NOT NULL … ON DELETE CASCADE`, so deleting the api_keys would cascade-destroy
+ * those rows; steps 2-3 therefore REVOKE the api_keys (status='revoked', null
+ * ip_allowlist) instead — the FK target survives, the cascade never fires, and
+ * step 4 nulls the metadata on the surviving own-tool rows (foreign-tool rows
+ * the twin called keep their metadata — disclosed in the resultUrl note below).
+ * A revoked key cannot
+ * authenticate: every lookup path (proxy + sdk/*) matches by key_hash AND rejects
+ * status!=='active'. This also stops a consumer-twin's deletion from destroying
+ * FOREIGN developers' invocation/usage history (cross-principal over-deletion):
+ * those foreign-tool rows remain, keyed to the now-pseudonymized consumer (direct
+ * identifiers removed in step 2 — still personal data, not erased) and to the
+ * revoked api_key, and are disclosed under the resultUrl `retainedUnscrubbed`
+ * column paths below.
  *
  * DEFERRED — a developer-owned organization's `organizations.billing_email` is
  * likewise retained un-scrubbed here: it is a DISTINCT entity's data (an org that
@@ -659,13 +676,26 @@ export async function processDataDeletion(
             .where(eq(consumers.id, id))
         }
 
-        // Delete the twins' OWN API keys (consumerId-keyed live credentials —
-        // consumer/keys inserts with consumerId=auth.id). Step 3 deletes only
-        // toolId-keyed keys (the developer's tools), so a deleted twin's keys would
-        // SURVIVE and still authenticate + bill the SDK meter. Mirror of the
-        // developer step-1b credential delete; idempotent on retry. inArray over the
-        // captured set (gated on consumerMatched, so never an empty-array inArray).
-        await tx.delete(apiKeys).where(inArray(apiKeys.consumerId, ids))
+        // REVOKE (do NOT delete) the twins' OWN API keys (consumerId-keyed live
+        // credentials — consumer/keys inserts with consumerId=auth.id). A DELETE
+        // here would cascade-destroy every `invocations` row these keys anchor
+        // (invocations.api_key_id is NOT NULL ON DELETE CASCADE), including FOREIGN
+        // developers' usage/financial history on tools the twin called —
+        // contradicting step 4's "keep financial data" intent and making step 4 a
+        // no-op. Setting status='revoked' fully de-authenticates the key on EVERY
+        // lookup path (proxy + all sdk/* match inArray(keyHash,…) AND reject
+        // status!=='active'), exactly how live revocation works
+        // (consumer/keys/[id]/route.ts:63 sets status only), while keeping the FK
+        // target alive so the invocation rows SURVIVE. Also null ip_allowlist (a
+        // nullable jsonb that can hold IP/CIDR PII). keyHash/keyPrefix are NOT NULL
+        // (and keyHash is UNIQUE) so they are LEFT intact — the one-way credential
+        // hash is not personal data and the status gate already renders it inert.
+        // Idempotent on retry. inArray over the captured set (gated on
+        // consumerMatched, so never an empty-array inArray).
+        await tx
+          .update(apiKeys)
+          .set({ status: 'revoked', ipAllowlist: null })
+          .where(inArray(apiKeys.consumerId, ids))
 
         // Delete the twins' cron schedules: payload jsonb is unvalidated free-form
         // (can embed consumer PII) and a scheduled job has no financial-retention
@@ -706,14 +736,27 @@ export async function processDataDeletion(
         .returning({ id: waitlistSignups.id })
       const deletedWaitlist = deletedWaitlistRows.length > 0
 
-      // ── 3. Delete API keys for this developer's tools ──────────────
+      // ── 3. Revoke API keys for this developer's tools ──────────────
+      //    Same revoke-not-delete rationale as step 2, toolId-keyed this time:
+      //    DELETE-ing these keys would cascade-destroy the subject's tools'
+      //    invocation rows BEFORE step 4 can null their metadata. status='revoked'
+      //    de-authenticates the key; the surviving (revoked) row keeps the
+      //    invocations.api_key_id FK target alive. Null ip_allowlist; leave the
+      //    NOT-NULL keyHash/keyPrefix intact (rendered inert by the status gate).
       if (toolIds.length > 0) {
         await tx
-          .delete(apiKeys)
+          .update(apiKeys)
+          .set({ status: 'revoked', ipAllowlist: null })
           .where(inArray(apiKeys.toolId, toolIds))
       }
 
-      // ── 4. Null out PII metadata on invocations (keep financial data) ──
+      // ── 4. Null PII metadata on invocations (rows are KEPT — financial data) ──
+      //    These rows now SURVIVE the deletion: steps 2-3 revoke (not delete) the
+      //    api_keys, so the invocations.api_key_id ON DELETE CASCADE never fires.
+      //    Null only the free-form metadata jsonb on the subject's tools' rows; the
+      //    usage/cost/financial columns are retained. (Foreign-tool rows the twin
+      //    called are NOT in toolIds, so their metadata is untouched here — that
+      //    pseudonymous retention is disclosed in retainedUnscrubbed/Note below.)
       if (toolIds.length > 0) {
         await tx
           .update(invocations)
@@ -883,9 +926,11 @@ export async function processDataDeletion(
               // permanently public on-chain (the settlement tx + its EIP-3009
               // event); this nulls only SettleGrid's stored copy.
               ...(toolIds.length > 0 ? ['invocations.metadata'] : []),
-              // V-N3 SLICE 4: api_keys are deleted for the developer's tools (step 3,
-              // toolId-keyed) AND for the consumer twin (step-2, consumerId-keyed),
-              // so the path is honest when EITHER gate fires.
+              // V-N3-deletion-cascade: api_keys are REVOKED (steps 2-3, NOT deleted —
+              // status='revoked', ip_allowlist nulled) for the developer's tools
+              // (toolId-keyed) AND for the consumer twin (consumerId-keyed); the PII
+              // ip_allowlist is nulled and the key de-authenticated, so listing it
+              // under `anonymized` is honest when EITHER gate fires.
               ...(toolIds.length > 0 || consumerMatched ? ['api_keys'] : []),
               'audit_logs.ip_address',
               'audit_logs.user_agent',
@@ -923,6 +968,28 @@ export async function processDataDeletion(
               ...(payerMinimizeEnabled
                 ? []
                 : ['ledger_entries.operation_id', 'ledger_entries.metadata.payer']),
+              // V-N3-deletion-cascade: with the api_keys REVOKED (not deleted, steps
+              // 2-3), invocation rows now SURVIVE — including FOREIGN developers' rows
+              // where the subject's consumer-twin was the caller. Those rows stay
+              // keyed to the now-pseudonymized consumer (direct identifiers removed in
+              // step 2) and to the surviving (revoked) api_key; this deletion does not
+              // scrub them (they are the foreign developer's retained usage/billing
+              // records). consumer_id/api_key_id are the pseudonymous linkage;
+              // session_id/referral_code are caller-supplied usage context kept intact
+              // (referral_code anchors a foreign developer's commission — see step 2).
+              // Column PATHS only (DC-11); gated on a matched twin (without one there
+              // are no twin-keyed foreign-tool rows to disclose). The own-tool
+              // metadata column is disclosed solely under `anonymized` (nulled by
+              // step 4) — never double-listed here; the foreign-tool metadata
+              // retention is covered in retainedUnscrubbedNote prose only.
+              ...(consumerMatched
+                ? [
+                    'invocations.consumer_id',
+                    'invocations.api_key_id',
+                    'invocations.session_id',
+                    'invocations.referral_code',
+                  ]
+                : []),
               // V-N3 SLICE 3: a distinct entity's data, DEFERRED (not scrubbed
               // here). Column PATH only — never a row value. Factual posture, no
               // lawful-basis conclusion (see retainedUnscrubbedNote). Always
@@ -941,8 +1008,8 @@ export async function processDataDeletion(
                 }
               : {}),
             retainedUnscrubbedNote: payerMinimizeEnabled
-              ? "organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately. The anonymous on-chain payer address (ledger_entries.operation_id / metadata.payer) is disclosed under `minimized` / `minimizedNote` above."
-              : "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending). organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately.",
+              ? "organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately. The anonymous on-chain payer address (ledger_entries.operation_id / metadata.payer) is disclosed under `minimized` / `minimizedNote` above. Invocation rows on other developers' tools (invocations.consumer_id / api_key_id / session_id / referral_code) survive as those developers' retained usage and billing records; they remain keyed to the consumer row this deletion pseudonymizes (direct identifiers removed in step 2 — still personal data, not erased) and to the revoked api_key, and this developer-deletion does not scrub them; invocations.metadata is nulled (step 4) only on the subject's own tools, so on other developers' tools it is retained un-scrubbed and may hold the captured on-chain payer (the subject's own EVM address) and free-form caller context — still personal data, not erased; the basis and any erasure path for this pseudonymous linkage are unsettled (counsel pending)."
+              : "The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending). organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately. Invocation rows on other developers' tools (invocations.consumer_id / api_key_id / session_id / referral_code) survive as those developers' retained usage and billing records; they remain keyed to the consumer row this deletion pseudonymizes (direct identifiers removed in step 2 — still personal data, not erased) and to the revoked api_key, and this developer-deletion does not scrub them; invocations.metadata is nulled (step 4) only on the subject's own tools, so on other developers' tools it is retained un-scrubbed and may hold the captured on-chain payer (the subject's own EVM address) and free-form caller context — still personal data, not erased; the basis and any erasure path for this pseudonymous linkage are unsettled (counsel pending).",
             toolCount: toolIds.length,
           }),
           completedAt: new Date(),

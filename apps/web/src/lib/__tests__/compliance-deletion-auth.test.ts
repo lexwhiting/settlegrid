@@ -139,9 +139,12 @@ vi.mock('@/lib/db/schema', () => {
     consumers: tbl(['id', 'email', 'supabaseUserId', 'passwordHash']),
     tools: tbl(['id', 'developerId', 'status', 'description', 'healthEndpoint', 'updatedAt', 'createdAt']),
     invocations: tbl(['id', 'toolId', 'metadata']),
-    // V-N3 SLICE 4: step-2 now deletes the consumer twin's OWN api_keys keyed on
-    // consumerId; without this column the eq() echo dereferences undefined (DC-05).
-    apiKeys: tbl(['id', 'toolId', 'consumerId']),
+    // V-N3-deletion-cascade: steps 2/3 now REVOKE the twin's / the tools' api_keys
+    // (status='revoked', ipAllowlist=null) instead of deleting them (a DELETE would
+    // cascade-kill invocations.api_key_id rows). Keep toolId/consumerId for the
+    // .where() echo and add status/ipAllowlist so the revoke .set() vals are
+    // capturable (§11 F6).
+    apiKeys: tbl(['id', 'toolId', 'consumerId', 'status', 'ipAllowlist']),
     developerApiKeys: tbl(['id', 'developerId']),
     payouts: tbl(['id', 'developerId']),
     webhookEndpoints: tbl(['id', 'developerId']),
@@ -192,9 +195,11 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 import { processDataDeletion } from '@/lib/settlement/compliance'
 // V-N3 SLICE 4: these resolve to the SAME mocked table objects compliance.ts
-// receives (vi.mock returns one module instance), so a delete assertion can
-// distinguish the consumerId-keyed api_keys/consumer_schedules deletes — which
-// share an identical eq(consumerId, id) predicate in the mock — by table identity.
+// receives (vi.mock returns one module instance), so a delete assertion can key on
+// table identity. V-N3-deletion-cascade: api_keys is now REVOKED (an update), not
+// deleted, so `apiKeys` is used here to assert the ABSENCE of any api_keys DELETE
+// (cascade safety); `consumerSchedules` still distinguishes its consumerId-keyed
+// DELETE (identical eq/inArray predicate across tables in the mock) by identity.
 import { apiKeys, consumerSchedules } from '@/lib/db/schema'
 
 /**
@@ -718,14 +723,42 @@ describe('processDataDeletion — V-N3 SLICE 4: consumer-side normalization + fi
 
   // ── (C) consumer-keyed sibling deletes + scrubs, gated on the twin ──
 
-  it('deletes the consumer twin’s OWN api_keys (consumerId-keyed) — distinct from the toolId-keyed delete', async () => {
+  it('REVOKES the consumer twin’s OWN api_keys (step 2, consumerId-keyed: status=revoked, ipAllowlist=null) — NOT a delete', async () => {
     seed({ devSupabaseUserId: null, consumerInTxn: true })
     await processDataDeletion('exp-1')
 
-    // Disambiguated by table IDENTITY (the inArray(consumerId, ids) predicate is
-    // identical across tables in the mock) + the consumerId predicate set.
-    const del = deleteCalls.find((c) => c.table === apiKeys && isInArrayContaining(c.pred, 'consumerId', 'cons-1'))
-    expect(del, 'a consumerId-keyed api_keys DELETE must be issued').toBeDefined()
+    // V-N3-deletion-cascade: keyed on the distinctive vals (status:'revoked'), NOT
+    // table identity — the update mock doesn't record the table arg (§11 F6).
+    // Distinguished from the step-3 toolId-keyed revoke by the consumerId predicate.
+    const revoke = findUpdate((u) => u.vals?.status === 'revoked' && isInArrayContaining(u.pred, 'consumerId', 'cons-1'))
+    expect(revoke, 'a consumerId-keyed api_keys REVOKE update must be issued').toBeDefined()
+    expect(revoke!.vals).toMatchObject({ status: 'revoked', ipAllowlist: null })
+    // De-auth rests on the status gate; the NOT-NULL credential (keyHash/keyPrefix)
+    // is LEFT intact (§11 F1) — nulling it would violate NOT NULL → txn rollback.
+    expect(revoke!.vals).not.toHaveProperty('keyHash')
+    expect(revoke!.vals).not.toHaveProperty('keyPrefix')
+    // Cascade safety: there must be NO api_keys DELETE (a delete would cascade-kill
+    // the invocations.api_key_id rows). deleteCalls records the table → assert absence.
+    expect(deleteCalls.find((c) => c.table === apiKeys), 'no api_keys DELETE — revoke only').toBeUndefined()
+  })
+
+  it('REVOKES the developer’s tools’ api_keys (step 3, toolId-keyed) when the dev owns tools', async () => {
+    // §11 F6: no toolId-keyed api_keys pin existed before — added here.
+    seed({ devSupabaseUserId: null, toolIds: [{ id: 'tool-1' }] })
+    await processDataDeletion('exp-1')
+
+    // update(apiKeys).set({status:'revoked', ipAllowlist:null}).where(inArray(toolId, toolIds)).
+    const revoke = findUpdate((u) => u.vals?.status === 'revoked' && isInArrayOn(u.pred, 'toolId'))
+    expect(revoke, 'a toolId-keyed api_keys REVOKE update must be issued (toolIds>0)').toBeDefined()
+    expect((revoke!.pred as InArrayPred).inArray[1]).toEqual(['tool-1'])
+    expect(revoke!.vals).toMatchObject({ status: 'revoked', ipAllowlist: null })
+    expect(deleteCalls.find((c) => c.table === apiKeys), 'no api_keys DELETE — revoke only').toBeUndefined()
+  })
+
+  it('does NOT revoke any api_keys when the dev owns no tools AND has no twin (both gates hold)', async () => {
+    seed({ devSupabaseUserId: null }) // no tools, no twin → neither step 2 nor step 3 fires
+    await processDataDeletion('exp-1')
+    expect(findUpdate((u) => u.vals?.status === 'revoked')).toBeUndefined()
   })
 
   it('deletes the consumer twin’s cron schedules (consumerId-keyed)', async () => {
@@ -760,7 +793,8 @@ describe('processDataDeletion — V-N3 SLICE 4: consumer-side normalization + fi
     seed({ devSupabaseUserId: null }) // no twin
     await processDataDeletion('exp-1')
 
-    expect(deleteCalls.find((c) => c.table === apiKeys && isInArrayContaining(c.pred, 'consumerId', 'cons-1'))).toBeUndefined()
+    // No consumerId-keyed api_keys REVOKE without a twin (step 2 gated on consumerMatched).
+    expect(findUpdate((u) => u.vals?.status === 'revoked' && isInArrayContaining(u.pred, 'consumerId', 'cons-1'))).toBeUndefined()
     expect(deleteCalls.find((c) => c.table === consumerSchedules)).toBeUndefined()
     expect(updateCalls.find((c) => 'referralCode' in c)).toBeUndefined()
     expect(findUpdate((u) => u.vals?.metadata === null && isInArrayContaining(u.pred, 'consumerId', 'cons-1'))).toBeUndefined()
@@ -896,10 +930,11 @@ describe('processDataDeletion — V-N3 SLICE 5: all-rows consumer-twin erasure',
     })
     await processDataDeletion('exp-1')
 
-    // api_keys + consumer_schedules deletes key on inArray(consumerId, [c1, c2]).
-    const apiDel = deleteCalls.find((c) => c.table === apiKeys && isInArrayOn(c.pred, 'consumerId'))
-    expect(apiDel, 'api_keys DELETE keyed inArray(consumerId, ids)').toBeDefined()
-    expect((apiDel!.pred as InArrayPred).inArray[1]).toEqual(['c1', 'c2'])
+    // api_keys REVOKE keys on inArray(consumerId, [c1, c2]); consumer_schedules
+    // DELETE keys on the same captured set.
+    const apiRevoke = findUpdate((u) => u.vals?.status === 'revoked' && isInArrayOn(u.pred, 'consumerId'))
+    expect(apiRevoke, 'api_keys REVOKE keyed inArray(consumerId, ids)').toBeDefined()
+    expect((apiRevoke!.pred as InArrayPred).inArray[1]).toEqual(['c1', 'c2'])
 
     const schedDel = deleteCalls.find((c) => c.table === consumerSchedules && isInArrayOn(c.pred, 'consumerId'))
     expect(schedDel, 'consumer_schedules DELETE keyed inArray(consumerId, ids)').toBeDefined()
@@ -1007,5 +1042,60 @@ describe('processDataDeletion — V-N3-enable-disclosure: invocations.metadata e
 
     expect(findUpdate((u) => u.vals?.metadata === null && isInArrayOn(u.pred, 'toolId'))).toBeUndefined()
     expect(completedResultUrl()?.anonymized as string[]).not.toContain('invocations.metadata')
+  })
+})
+
+describe('processDataDeletion — V-N3-deletion-cascade: retained-unscrubbed invocation linkage disclosure', () => {
+  // With the api_keys REVOKED (not deleted), invocation rows now SURVIVE — incl.
+  // FOREIGN developers' rows the consumer-twin called. Those rows stay keyed to the
+  // now-pseudonymized consumer + the surviving (revoked) api_key; the disclosure
+  // names the retained column PATHS (DC-11) gated on a matched twin. These pins
+  // prove the runtime GATING fires (the source-text presence pins live in
+  // compliance-honesty-regression.test.ts).
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthDelete.mockResolvedValue(undefined)
+  })
+
+  it('discloses the surviving invocation linkage column PATHS in retainedUnscrubbed (gated on the twin)', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true, toolIds: [{ id: 'tool-1' }] })
+    await processDataDeletion('exp-1')
+
+    const parsed = completedResultUrl()
+    const retainedUnscrubbed = parsed?.retainedUnscrubbed as string[]
+    expect(retainedUnscrubbed).toContain('invocations.consumer_id')
+    expect(retainedUnscrubbed).toContain('invocations.api_key_id')
+    // F3 RULING: session_id + referral_code RETAINED (referral_code anchors a
+    // foreign dev's commission) and disclosed alongside — no new scrub.
+    expect(retainedUnscrubbed).toContain('invocations.session_id')
+    expect(retainedUnscrubbed).toContain('invocations.referral_code')
+    // Single-bucket (SEAM): invocations.metadata lives SOLELY under anonymized
+    // (own-tool rows nulled by step 4) — never double-listed in retainedUnscrubbed.
+    expect(retainedUnscrubbed).not.toContain('invocations.metadata')
+    expect(parsed?.anonymized as string[]).toContain('invocations.metadata')
+  })
+
+  it('omits the invocation linkage paths when there is no consumer twin (no false disclosure)', async () => {
+    seed({ devSupabaseUserId: null, toolIds: [{ id: 'tool-1' }] }) // tools but no twin
+    await processDataDeletion('exp-1')
+
+    const retainedUnscrubbed = completedResultUrl()?.retainedUnscrubbed as string[]
+    expect(retainedUnscrubbed).not.toContain('invocations.consumer_id')
+    expect(retainedUnscrubbed).not.toContain('invocations.api_key_id')
+    expect(retainedUnscrubbed).not.toContain('invocations.session_id')
+    expect(retainedUnscrubbed).not.toContain('invocations.referral_code')
+    // The ledger + org deferrals are still present (unaffected by the twin gate).
+    expect(retainedUnscrubbed).toContain('organizations.billing_email')
+  })
+
+  it('the retainedUnscrubbedNote frames the surviving invocations as retained-pseudonymous, not erased', async () => {
+    seed({ devSupabaseUserId: null, consumerInTxn: true })
+    await processDataDeletion('exp-1')
+    const note = completedResultUrl()?.retainedUnscrubbedNote as string
+    expect(note).toMatch(/invocation rows on other developers' tools/i)
+    expect(note).toMatch(/pseudonymi[sz]e/i)
+    expect(note).toMatch(/not erased/i)
+    // PRESERVE the frozen payer sentence verbatim (honesty-regression :245 pin).
+    expect(note).toMatch(/The fields above retain the anonymous on-chain payer.s EVM address/)
   })
 })

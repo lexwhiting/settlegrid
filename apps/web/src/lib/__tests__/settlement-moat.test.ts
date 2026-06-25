@@ -83,9 +83,13 @@ vi.mock('@/lib/db/schema', () => ({
   referrals: { id: 'id', referrerId: 'referrer_id', createdAt: 'created_at' },
   auditLogs: { id: 'id', developerId: 'developer_id', ipAddress: 'ip_address', userAgent: 'user_agent', createdAt: 'created_at' },
   consumers: { id: 'id', email: 'email', supabaseUserId: 'supabase_user_id', passwordHash: 'password_hash', stripeCustomerId: 'stripe_customer_id', defaultPaymentMethodId: 'default_payment_method_id', referralCode: 'referral_code' },
-  // V-N3 SLICE 4: processDataDeletion now deletes the consumer twin's OWN api_keys
-  // (consumerId-keyed) + consumer_schedules and nulls conversion_events.metadata.
-  apiKeys: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id' },
+  // V-N3-deletion-cascade: processDataDeletion now REVOKES the consumer twin's OWN
+  // api_keys (consumerId-keyed) + the tools' api_keys (toolId-keyed) — status='revoked',
+  // ipAllowlist=null — instead of deleting them (a delete would cascade-kill
+  // invocations). status/ipAllowlist added so the revoke .set() vals resolve (§11 F6).
+  // (Neither revoke fires on this file's no-tools/no-twin rig, so the delete-count
+  // pins below are unaffected — steps 1b/2b/6 still total 3 deletes.)
+  apiKeys: { id: 'id', toolId: 'tool_id', consumerId: 'consumer_id', status: 'status', ipAllowlist: 'ip_allowlist' },
   consumerSchedules: { id: 'id', consumerId: 'consumer_id' },
   conversionEvents: { id: 'id', consumerId: 'consumer_id', metadata: 'metadata' },
   developerApiKeys: { id: 'id', developerId: 'developer_id' },
