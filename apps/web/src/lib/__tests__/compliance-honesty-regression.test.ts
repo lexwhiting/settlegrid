@@ -488,3 +488,64 @@ describe('V-N3-enable-disclosure — invocations.metadata erasure is documented 
     expect(anonymizedArray).toMatch(/'invocations\.metadata'/)
   })
 })
+
+describe('V-N3-deletion-cascade — revoke-not-delete + retained invocation linkage disclosed honestly', () => {
+  // The chunk that makes the deletion KEEP invocation rows: steps 2-3 REVOKE (not
+  // delete) the api_keys so the invocations.api_key_id ON DELETE CASCADE never
+  // fires; the surviving foreign-tool rows are disclosed as retained-pseudonymous.
+  // The new docstring + note prose is ALSO covered by the whole-docstring
+  // BANNED_COMPREHENSIVE_SCRUB scan (A/B block) + the whole-resultUrl
+  // BANNED_LEGAL_CONCLUSIONS scan (C block) — a banned phrase there turns those RED.
+  const deletionBody = region(complianceSrc, 'async function processDataDeletion', '} catch (err) {')
+  const retainedUnscrubbedArray = region(resultUrl, 'retainedUnscrubbed: [', 'retainedUnscrubbedNote:')
+  const note = region(resultUrl, 'retainedUnscrubbedNote:', 'toolCount:')
+
+  it('A/B docstring documents that invocation rows SURVIVE because the api_keys are REVOKED, not deleted', () => {
+    expect(docstring).toMatch(/INVOCATION ROWS SURVIVE/)
+    expect(docstring).toMatch(/REVOKE the api_keys/)
+    expect(docstring).toMatch(/ON DELETE CASCADE/)
+  })
+
+  it('steps 2-3 REVOKE (update status=revoked) the api_keys instead of deleting them', () => {
+    // Non-vacuous: a regression back to tx.delete(apiKeys) drops the revoke update
+    // AND re-introduces the banned .delete(apiKeys) (the cascade footgun).
+    expect(deletionBody).toMatch(/\.update\(apiKeys\)\s*\.set\(\{ status: 'revoked', ipAllowlist: null \}\)/)
+    expect(deletionBody).not.toMatch(/\.delete\(apiKeys\)/)
+  })
+
+  it('retainedUnscrubbed names the surviving invocation linkage column PATHS (DC-11)', () => {
+    expect(retainedUnscrubbedArray).toMatch(/'invocations\.consumer_id'/)
+    expect(retainedUnscrubbedArray).toMatch(/'invocations\.api_key_id'/)
+    // F3 RULING: session_id + referral_code RETAINED (referral_code anchors a
+    // foreign developer's commission) and disclosed alongside — no new scrub.
+    expect(retainedUnscrubbedArray).toMatch(/'invocations\.session_id'/)
+    expect(retainedUnscrubbedArray).toMatch(/'invocations\.referral_code'/)
+  })
+
+  it('does NOT double-list invocations.metadata in retainedUnscrubbed (single-bucket; it lives under anonymized)', () => {
+    expect(retainedUnscrubbedArray).not.toMatch(/'invocations\.metadata'/)
+    const anonymizedArray = region(resultUrl, 'anonymized: [', 'retained:')
+    expect(anonymizedArray).toMatch(/'invocations\.metadata'/)
+  })
+
+  it('the note frames the surviving invocations as retained-pseudonymous (not erased), basis unsettled', () => {
+    expect(note).toMatch(/Invocation rows on other developers' tools/)
+    expect(note).toMatch(/pseudonymi[sz]e/i)
+    expect(note).toMatch(/not erased/i)
+    expect(note).toMatch(/unsettled \(counsel pending\)/i)
+    // §11 F4 / §1: the frozen ledger-payer sentence is PRESERVED verbatim (added
+    // to, not reworded) — also pinned at the C block :245.
+    expect(note).toMatch(/The fields above retain the anonymous on-chain payer.s EVM address/)
+  })
+
+  it('the note discloses that foreign-tool invocations.metadata is RETAINED un-scrubbed (step 4 nulls only own-tool metadata)', () => {
+    // ② seal finding (DC-16): revoke-not-delete makes foreign-tool invocation rows
+    // SURVIVE with metadata un-scrubbed (step 4 scopes to the subject's own toolIds),
+    // and that metadata can hold the captured on-chain payer (the subject's own EVM
+    // address). `anonymized: ['invocations.metadata']` is own-tool-scoped, so the
+    // foreign-tool retention MUST be disclosed in the note prose (single-bucket — NOT
+    // a second bucket entry) or the column reads as fully anonymized when it is not.
+    expect(note).toMatch(/invocations\.metadata is nulled \(step 4\) only on the subject.s own tools/)
+    expect(note).toMatch(/retained un-?scrubbed and may hold the captured on-chain payer/i)
+  })
+})
