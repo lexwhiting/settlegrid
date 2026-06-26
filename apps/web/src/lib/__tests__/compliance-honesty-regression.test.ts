@@ -549,3 +549,67 @@ describe('V-N3-deletion-cascade — revoke-not-delete + retained invocation link
     expect(note).toMatch(/retained un-?scrubbed and may hold the captured on-chain payer/i)
   })
 })
+
+describe('V-N3-deletion-wiring — F-B1: deactivate-before-scrub + the in-flight residual are disclosed honestly', () => {
+  // The wiring chunk activates processDataDeletion and adds the F-B1 pre-commit
+  // (revoke api_keys + mark the subject's tools deleted BEFORE the scrub txn). That
+  // pre-commit (a) makes the sealed atomicity docstring's "pristine on failed" claim
+  // FALSE — §13.3 authorizes amending it — and (b) leaves a bounded ≤~90s in-flight
+  // residual that the positive `anonymized: ['invocations.metadata']` claim would
+  // overstate without a note — §13.2(A) authorizes re-scoping the disclosure freeze
+  // to add `anonymizedNote`. These pins back both honesty amendments. Non-vacuous:
+  // reverting the docstring qualifier or removing anonymizedNote turns this RED.
+  const deletionBody = region(complianceSrc, 'async function processDataDeletion', '} catch (err) {')
+
+  it('A/B docstring documents the F-B1 deactivate-before-scrub pre-commit', () => {
+    expect(docstring).toMatch(/F-B1/)
+    expect(docstring).toMatch(/PRE-COMMIT|pre-commit/)
+    expect(docstring).toMatch(/before the scrub/i)
+  })
+
+  it('A/B docstring no longer claims a strictly pristine DB on failed (acknowledges the committed deactivation)', () => {
+    // §13.3: after a committed pre-commit, 'failed' is NOT pristine — keys revoked +
+    // tools deactivated. The amended text must qualify "pristine" with that exception.
+    expect(docstring).toMatch(/pristine EXCEPT/)
+    expect(docstring).toMatch(/DEACTIVATED, not/)
+  })
+
+  it('A/B docstring honestly SCOPES "DEACTIVATED" to after the pre-commit commits (a pre-commit failure leaves the account live)', () => {
+    // ② seal fix (DC-16): the "DEACTIVATED, not live" guarantee is FALSE for a failure
+    // BEFORE the F-B1 pre-commit (e.g. the pre-txn auth-delete throws) — the account is
+    // then still live. The docstring must scope the claim, not overstate it as blanket.
+    expect(docstring).toMatch(/still LIVE/)
+    expect(docstring).toMatch(/once \(b\) commits|once the pre-commit/i)
+  })
+
+  it('the F-B1 pre-commit is a SEPARATE db.transaction placed BEFORE the scrub txn (source-text)', () => {
+    // The deactivation must commit independently of the scrub (so a scrub rollback
+    // leaves the account deactivated). Pin the two distinct pre-commit writes exist
+    // in source: the api_keys revoke and the tools status='deleted'. The behavioral
+    // independence is pinned in compliance-deletion-cascade.integration.test.ts
+    // (the forced-rollback test). Non-vacuous: deleting the pre-commit block ⇒ RED.
+    expect(deletionBody).toMatch(/await db\.transaction\(async \(preTx\)/)
+    expect(deletionBody).toMatch(/preTx\s*\n?\s*\.update\(tools\)\s*\n?\s*\.set\(\{ status: 'deleted' \}\)/)
+  })
+
+  it('C resultUrl carries an anonymizedNote disclosing the bounded ≤~90s in-flight metadata residual', () => {
+    // §13.2(A): the own-tool invocations.metadata claim is a positive "nulled" claim;
+    // the in-flight residual (a request authed before the pre-commit, ≤ proxy ~90s)
+    // must be named, not hidden (DC-16). Pin distinctive phrasing unique to this note.
+    expect(resultUrl).toMatch(/anonymizedNote:/)
+    expect(resultUrl).toMatch(/in flight at deletion/i)
+    expect(resultUrl).toMatch(/~90s|90s max/i)
+    expect(resultUrl).toMatch(/retained until purged by the scheduled data-retention job/i)
+    // ② seal fix (DC-16): "until purged" overstates for a tool owner whose log-retention
+    // is keep-forever (the cron purge is gated logRetentionDays>0, so it never runs). The
+    // note must name that case rather than promise an eventual purge that won't happen.
+    expect(resultUrl).toMatch(/keep-forever|indefinitely/i)
+  })
+
+  it('the anonymizedNote asserts no forbidden lawful-basis conclusion (banned CLASS clean)', () => {
+    const note = resultUrl.slice(resultUrl.indexOf('anonymizedNote:'))
+    for (const [re, label] of BANNED_LEGAL_CONCLUSIONS) {
+      expect(note, `anonymizedNote must not assert ${label}`).not.toMatch(re)
+    }
+  })
+})

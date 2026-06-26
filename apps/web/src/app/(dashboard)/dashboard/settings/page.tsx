@@ -356,6 +356,8 @@ export default function SettingsPage() {
   const [exportingData, setExportingData] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Data retention state
   const [logRetentionDays, setLogRetentionDays] = useState(90)
@@ -984,14 +986,36 @@ export default function SettingsPage() {
     }
   }
 
-  function handleDeleteAccount() {
+  async function handleDeleteAccount() {
     if (deleteConfirmText !== 'DELETE') {
       toast('Type DELETE to confirm account deletion', 'error')
       return
     }
-    toast('Account deletion request submitted. Contact support@settlegrid.ai to finalize.', 'info')
-    setShowDeleteConfirm(false)
-    setDeleteConfirmText('')
+    setDeletingAccount(true)
+    try {
+      const res = await fetch('/api/dashboard/developer/account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirm: deleteConfirmText,
+          // Step-up re-auth: sent for password accounts; ignored for OAuth-only.
+          ...(deletePassword ? { password: deletePassword } : {}),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(data.error || 'Account deletion failed. Please try again.', 'error')
+        return
+      }
+      // Success: the developer's auth identity is gone — do NOT make any further
+      // authenticated call. Hard-redirect to the login page (the session is dead).
+      toast('Your account has been deleted.', 'success')
+      window.location.href = '/login'
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setDeletingAccount(false)
+    }
   }
 
   function scrollToSection(id: SectionId) {
@@ -2131,11 +2155,22 @@ export default function SettingsPage() {
                         placeholder="Type DELETE"
                         className="max-w-xs border-red-300 dark:border-red-700"
                       />
+                      <p className="text-xs text-red-700 dark:text-red-300">
+                        Re-enter your password to confirm (leave blank if you sign in with Google or GitHub):
+                      </p>
+                      <Input
+                        type="password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="Password"
+                        autoComplete="current-password"
+                        className="max-w-xs border-red-300 dark:border-red-700"
+                      />
                       <div className="flex gap-2">
-                        <Button variant="destructive" onClick={handleDeleteAccount}>
-                          Confirm Deletion
+                        <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
+                          {deletingAccount ? 'Deleting...' : 'Confirm Deletion'}
                         </Button>
-                        <Button variant="outline" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText('') }}>
+                        <Button variant="outline" disabled={deletingAccount} onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeletePassword('') }}>
                           Cancel
                         </Button>
                       </div>

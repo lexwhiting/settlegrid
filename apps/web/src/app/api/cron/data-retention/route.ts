@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, lt, inArray, sql } from 'drizzle-orm'
+import { eq, and, or, lt, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
   developers,
@@ -16,6 +16,7 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { logger } from '@/lib/logger'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { processDataDeletion } from '@/lib/settlement/compliance'
 
 export const maxDuration = 300 // 5 minutes — may process many developers
 
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
       conversionEvents: 0,
       complianceExports: 0,
       developersProcessed: 0,
+      deletionsRecovered: 0,
     }
 
     // ── 1. Per-developer retention purge ──────────────────────────────
@@ -261,6 +263,73 @@ export async function GET(request: NextRequest) {
           .where(inArray(complianceExports.id, idsToDelete.map((r) => r.id)))
 
         totals.complianceExports += deleted
+      }
+    }
+
+    // ── 4. Recover wedged GDPR account-deletions (§13.7b) ────────────────
+    //    The deletion endpoint runs processDataDeletion SYNCHRONOUSLY. A run that
+    //    TIMED OUT mid-scrub dies before its catch → the compliance_exports row
+    //    wedges at 'processing'; a run that threw lands at 'failed' (retryable).
+    //    A wedged run usually has the Supabase auth user already deleted (pre-txn)
+    //    and, if it reached the F-B1 pre-commit, the account DEACTIVATED — the user
+    //    is locked out with the erasure INCOMPLETE, and there is NO async processor.
+    //    (A run that failed BEFORE the pre-commit may be only partially advanced;
+    //    the idempotent re-run completes it either way.) Re-drive them here: ALERT on
+    //    each, reset a stale 'processing' row to 'failed' so processDataDeletion's
+    //    pending/failed guard proceeds (it THROWS on 'processing'), then re-run it
+    //    (in-txn revoke/scrub are idempotent backstops). Staleness keys on createdAt
+    //    with a threshold (15m) ≫ the endpoint's 60s maxDuration, so a fresh run is
+    //    never reset; a reused long-stranded 'pending' row is the one edge, tolerated
+    //    because the re-run is idempotent. The reset is a COMPARE-AND-SET (only if
+    //    still 'processing') so a row that completed meanwhile is never reverted.
+    //    Capped per run.
+    {
+      const STALE_PROCESSING_MS = 15 * 60 * 1000 // 15 min ≫ the 60s endpoint maxDuration
+      const RECOVERY_CAP = 50
+      const staleCutoffIso = new Date(Date.now() - STALE_PROCESSING_MS).toISOString()
+
+      const wedged = await db
+        .select({ id: complianceExports.id, status: complianceExports.status })
+        .from(complianceExports)
+        .where(
+          and(
+            eq(complianceExports.requestType, 'data-deletion'),
+            or(
+              eq(complianceExports.status, 'failed'),
+              and(
+                eq(complianceExports.status, 'processing'),
+                lt(complianceExports.createdAt, sql`${staleCutoffIso}::timestamptz`)
+              )
+            )
+          )
+        )
+        .limit(RECOVERY_CAP)
+
+      for (const row of wedged) {
+        // ALERT (§13.7a): surface every wedged/failed deletion (no async actor else).
+        logger.error('compliance.account_deletion.recovery', { exportId: row.id, status: row.status })
+        try {
+          // A wedged 'processing' run is dead → reset so the guard re-drives it.
+          // COMPARE-AND-SET on status: never revert a row that completed (or moved
+          // on) between the batch SELECT and this UPDATE.
+          if (row.status === 'processing') {
+            await db
+              .update(complianceExports)
+              .set({ status: 'failed' })
+              .where(and(eq(complianceExports.id, row.id), eq(complianceExports.status, 'processing')))
+          }
+          const result = await processDataDeletion(row.id)
+          if (result.status === 'completed') {
+            totals.deletionsRecovered++
+          } else {
+            logger.error('compliance.account_deletion.recovery_failed', {
+              exportId: row.id,
+              status: result.status,
+            })
+          }
+        } catch (err) {
+          logger.error('compliance.account_deletion.recovery_failed', { exportId: row.id }, err)
+        }
       }
     }
 
