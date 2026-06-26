@@ -65,11 +65,34 @@ now-anonymized dev and assert the second `resultUrl` OMITS the foreign-tool clau
 ## 2. OPERATOR DECISION ③ MUST RESOLVE — OAuth-only step-up (DC-03, self-disclosed §13.8b)
 The step-up re-auth is implemented for password accounts (a throwaway `signInWithPassword` re-verify) but
 **pure-OAuth accounts get NO fresh re-auth** — deletion proceeds on the ambient live session + CSRF
-same-origin + typed `DELETE`. The build flagged this as a deferred enhancement. ③ must either (i) the
-operator/founder consciously ACCEPTS the residual (an attacker needs a live same-origin session — the same
-exposure as any sensitive action on a hijacked session), or (ii) ③ designs the OAuth re-consent redirect /
-TOTP re-challenge step-up. This is a security-posture call on an irreversible op; do not let it stay
-implicitly deferred.
+same-origin + typed `DELETE`. The build flagged this as a deferred enhancement.
+
+**RECOMMENDATION (operator-directed deep research, 2026-06-26 — CLOSE it, don't accept):** design a
+provider-AGNOSTIC step-up in ③, NOT the "OAuth re-consent" the original draft suggested (re-consent is the
+wrong primitive — a live IdP session grants consent silently = no real step-up). Research basis:
+- **OWASP Authentication Cheat Sheet:** "require the current credentials … before sensitive transactions,"
+  explicitly to defend session-hijacking; prescribes MFA-challenge for MFA users + current password otherwise.
+  OWASP Top-10 2025 A07 + RFC 9470 (OAuth Step-Up) extend this to SSO via authentication *recency/strength*.
+- **Irreversibility is the deciding factor:** deletion is the ONLY action here with no undo (hard-deletes the
+  Supabase auth user + anonymizes in place). Key-rotation / webhooks / (read-only) data-export are
+  recoverable/containable → deletion warrants step-up MOST.
+- **Feasible — primitives already exist:** Supabase MFA/AAL (`src/app/api/auth/mfa/route.ts`:
+  enroll/challenge/verify/`getAuthenticatorAssuranceLevel`), OAuth sign-in (google/github), password re-verify.
+- **The password/OAuth asymmetry is indefensible** (OAuth users aren't lower-risk); the only sane fix is to
+  EXTEND step-up to OAuth, not remove it from password users.
+MECHANISM to design: password users → fresh `signInWithPassword` (built); MFA-enrolled (any provider) → fresh
+MFA challenge → require **AAL2**; pure-OAuth no-MFA → re-login forcing fresh IdP auth via OIDC `prompt=login` /
+`max_age` (NOT silent re-consent); all gated by a short freshness window ("sudo mode").
+GUARDRAILS: (a) **GDPR Art. 17 accessibility** — the gate must FORCE re-auth, never BLOCK erasure (no mandatory
+pre-enrolled MFA; the fallback is always a re-login the user can complete); this satisfies Art. 12 identity
+verification (erasure-by-impostor is itself a GDPR failure). (b) **Platform-posture caveat:** today NO other
+sensitive mutation steps up — `data-export` (exports ALL data), `api-keys` create/rotate, `webhooks` ride the
+bare live session — so deletion step-up is partial; scope this as "deletion first → platform-wide follow-up
+(same freshness gate on export/keys)." (c) implementation may warrant a small dedicated build chunk (it is a
+UX-flow feature, not pure audit-hardening) — ③ nails the design + threat model; the operator decides build venue.
+The ACCEPT option remains defensible (deletion already exceeds the bare-session platform norm; the real hole is
+platform-wide), but is NOT recommended: it leaves the one irreversible action below best practice when the fix
+is cheap and the primitives are in-tree.
 
 ## 3. LOW residuals routed to ③ (verify each against the integrated system; fix or consciously accept)
 - **Recovery re-driver has ZERO test coverage** — the DC-08 safety net (reset stale `processing`, re-drive
