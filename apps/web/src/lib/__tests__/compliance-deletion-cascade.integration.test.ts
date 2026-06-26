@@ -134,6 +134,11 @@ const EXPORT_ID = '00000000-0000-0000-0000-0000000000f1'
 const CON_OTHER = '00000000-0000-0000-0000-0000000000b2'
 const KEY_OTHER = '00000000-0000-0000-0000-0000000000d3'
 const INV_OTHER = '00000000-0000-0000-0000-0000000000e3'
+// V-N3-deletion-wiring (F-B1 §13.6): a SECOND developer pre-seeded with the
+// deleted-<subject> sentinel email, so step 1's anonymize trips developers.email
+// UNIQUE → whole-scrub-txn rollback → the FAILURE mode that makes the pre-commit's
+// independent commit observable.
+const DEV_COLLIDER = '00000000-0000-0000-0000-0000000000a3'
 
 const countInvocations = async (toolId: string) =>
   (await db.select().from(schema.invocations).where(eq(schema.invocations.toolId, toolId))).length
@@ -313,5 +318,68 @@ describe('processDataDeletion — pglite cascade-faithful integration (LB2)', ()
     expect(note).toMatch(/The fields above retain the anonymous on-chain payer's EVM address/)
     // No twin ⇒ no twin-keyed invocation linkage paths disclosed in the array either.
     expect(disclosure.retainedUnscrubbed).not.toContain('invocations.consumer_id')
+  }, 30_000)
+
+  it('F-B1 PRE-COMMIT IS LOAD-BEARING: on a FORCED scrub-txn ROLLBACK, api_keys stay REVOKED + tools stay DELETED (the deactivation committed independently)', async () => {
+    // ① handoff §13.6 — the NON-VACUITY construction. On the SUCCESS path the
+    // pre-commit revoke and the in-txn revoke yield an IDENTICAL end state, and the
+    // single-connection pglite harness cannot observe mid-txn ordering, so "remove
+    // the pre-commit → RED" stays GREEN on success. Force the scrub txn to ROLL BACK
+    // so the pre-commit's INDEPENDENT commit becomes observable: pre-seed a SECOND
+    // developer whose email is ALREADY the deleted-<subject> sentinel, so step 1's
+    // anonymize (developers.email = deleted-<id>@…) trips the developers.email UNIQUE
+    // → the whole scrub txn rolls back → processDataDeletion catches → returns
+    // {status:'failed'} (no re-throw). The pre-commit ran in its OWN earlier txn, so
+    // its writes SURVIVE the rollback.
+    //   MUTATION (proves non-vacuity): delete the pre-commit block in compliance.ts →
+    //   the key/tool are revoked/deleted ONLY inside the scrub txn → the rollback
+    //   reverts them → key 'active' + tool 'active' → the two assertions below go RED.
+    await db.insert(schema.developers).values([
+      { id: DEV_SUBJECT, email: 'subject@x.com', name: 'Subject' },
+      // The collider: its email is the exact value step 1 will try to write.
+      { id: DEV_COLLIDER, email: `deleted-${DEV_SUBJECT}@deleted.settlegrid.ai`, name: 'Collider' },
+    ])
+    // A third-party consumer holds an ACTIVE key on the SUBJECT'S own tool — revoked
+    // ONLY via the toolId gate (the subject has no twin, so step 2 never runs); this
+    // exercises BOTH pre-commit writes (api_keys revoke + tools.status='deleted').
+    await db.insert(schema.consumers).values({ id: CON_OTHER, email: 'third-party@x.com' })
+    await db.insert(schema.tools).values({ id: TOOL_OWN, developerId: DEV_SUBJECT, name: 'Own', slug: 'own-rollback' })
+    await db.insert(schema.apiKeys).values({
+      id: KEY_OTHER, consumerId: CON_OTHER, toolId: TOOL_OWN,
+      keyHash: 'h-rb', keyPrefix: 'sg_rb', status: 'active', ipAllowlist: ['10.0.0.7'],
+    })
+    await db.insert(schema.invocations).values({
+      id: INV_OTHER, toolId: TOOL_OWN, consumerId: CON_OTHER, apiKeyId: KEY_OTHER,
+      method: 'POST', costCents: 4, metadata: { payer: '0xrb' },
+    })
+    await db.insert(schema.complianceExports).values({
+      id: EXPORT_ID, requestType: 'data-deletion', entityType: 'provider', entityId: DEV_SUBJECT, status: 'pending',
+    })
+
+    // Step 1's UNIQUE collision rolls the scrub txn back → catch → 'failed'.
+    const result = await processDataDeletion(EXPORT_ID)
+    expect(result.status).toBe('failed')
+
+    // The compliance row reflects the failure (retryable record of record).
+    const [exp] = await db.select().from(schema.complianceExports).where(eq(schema.complianceExports.id, EXPORT_ID))
+    expect(exp.status).toBe('failed')
+
+    // The scrub GENUINELY rolled back: the developer is NOT anonymized (step 1 reverted).
+    const [dev] = await db.select().from(schema.developers).where(eq(schema.developers.id, DEV_SUBJECT))
+    expect(dev.email).toBe('subject@x.com')
+
+    // ⇐ THE LOAD-BEARING ASSERTIONS: the pre-commit committed BEFORE (and independent
+    //   of) the rolled-back scrub, so the deactivation SURVIVES the failure.
+    const [key] = await db.select().from(schema.apiKeys).where(eq(schema.apiKeys.id, KEY_OTHER))
+    expect(key.status).toBe('revoked') // ← remove pre-commit ⇒ 'active' ⇒ RED
+    expect(key.ipAllowlist).toBeNull()
+    const [tool] = await db.select().from(schema.tools).where(eq(schema.tools.id, TOOL_OWN))
+    expect(tool.status).toBe('deleted') // ← remove pre-commit ⇒ 'active' ⇒ RED
+
+    // revoke-not-delete holds even on the failure path: the FK target survives, so
+    // the invocation is NOT cascade-killed (a failed deletion leaves the account
+    // DEACTIVATED, not partially destroyed).
+    expect(await countInvocations(TOOL_OWN)).toBe(1)
+    expect(key.keyHash).not.toBeNull()
   }, 30_000)
 })

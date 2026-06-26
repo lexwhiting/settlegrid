@@ -604,7 +604,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I request a data export or deletion?',
-      a: 'SettleGrid supports GDPR compliance exports. You can request a data export (all your data in a downloadable format) or a data deletion (removes your personal data) through the API. You receive an email when the export is ready for download.',
+      a: 'SettleGrid supports GDPR compliance exports. You can request a data export (all your data in a downloadable format) or a data deletion (anonymizes your personal data) through the API or from the developer settings page. You receive an email when the export is ready for download.',
     },
     {
       q: 'What security headers does SettleGrid use?',
@@ -612,7 +612,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How does GDPR data deletion work?',
-      a: 'Data deletion requests (GDPR Article 17, Right to Erasure) anonymize the personal data that identifies you across your developer profile and the records that reference you — your name, email, bio, and avatar are anonymized, your Supabase auth login is deleted, your API keys and webhook endpoints are deleted, and audit-log IP addresses are removed. Financial records (payouts, purchases) are retained for 7 years per IRS and Stripe requirements, referencing only your anonymized account. You receive an account deleted email confirming the deletion, with a 30-day data export download link if applicable.',
+      a: 'Data deletion requests (GDPR Article 17, Right to Erasure) anonymize the personal data that identifies you across your developer profile and the records that reference you — your name, email, bio, and avatar are anonymized, your Supabase auth login is deleted, your API keys are revoked, your webhook endpoints are deleted, and audit-log IP addresses are removed. Financial records (payouts, purchases) are retained for 7 years per IRS and Stripe requirements, referencing only your anonymized account. You receive an account deleted email confirming the deletion.',
     },
     {
       q: 'Is there an OpenAPI specification?',
@@ -632,7 +632,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What data is retained after account deletion?',
-      a: 'When you delete your account, the personal data that identifies you (name, email, bio, avatar) is immediately anonymized. Your API keys, webhook endpoints, and Supabase auth records are deleted. However, financial records (payouts, purchases) are retained for 7 years with your developer ID anonymized. Audit logs are retained with IP addresses removed. This process completes within 90 days of your deletion request.',
+      a: 'When you delete your account, the personal data that identifies you (name, email, bio, avatar) is immediately anonymized. Your API keys are revoked; your webhook endpoints and Supabase auth records are deleted. However, financial records (payouts, purchases) are retained for 7 years with your developer ID anonymized. Audit logs are retained with IP addresses removed. This process completes within 90 days of your deletion request.',
     },
     {
       q: 'Can I request my data be removed from backups?',
@@ -649,7 +649,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I delete my account?',
-      a: 'Request account deletion through the API or by contacting support@settlegrid.ai. Your personal data is anonymized (GDPR Article 17), and you receive a confirmation email with an optional 30-day data export download link. Some data may be retained for legal compliance before permanent removal.',
+      a: 'Delete your account from the developer settings page under Data & Privacy (or via the account API). Your personal data is anonymized and your API keys revoked (GDPR Article 17), and you receive a confirmation email. Some records, including financial records required by law, are retained — see the Privacy Policy.',
     },
     {
       q: 'How do I invite team members?',

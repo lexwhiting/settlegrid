@@ -34,12 +34,12 @@
 | # | Gate | State (2026-06-20) |
 |---|---|---|
 | ① | **Counsel sign-off** on lawful basis + minimization posture | **✅ CLEARED** |
-| ② | ~~`V-N3-enable-disclosure` chunk SEALED + DEPLOYED, dark~~ **CORRECTED 2026-06-20 — does NOT gate the flip** | **N/A.** The pre-build plan audit (5 lenses + adversarial refuter) proved the deletion-export ALREADY erases the invocations payer: `processDataDeletion` step 4 (`compliance.ts:716-722`) nulls the WHOLE `invocations.metadata` for the subject's tools → disclosed under `anonymized`, flag-INdependent. So flipping `INVOCATIONS_PAYER_MINIMIZE_ENABLED` needs NO deletion-export disclosure change. `V-N3-enable-disclosure` was re-scoped to an honesty-hardening (docstring + regression pin; user-facing JSON byte-identical) that does NOT block §5. |
+| ② | ~~`V-N3-enable-disclosure` chunk SEALED + DEPLOYED, dark~~ **CORRECTED 2026-06-20 — does NOT gate the flip** | **N/A.** The pre-build plan audit (5 lenses + adversarial refuter) proved the deletion-export ALREADY erases the invocations payer: `processDataDeletion` step 4 (`compliance.ts` step 4 — the `── 4. Null PII metadata on invocations` block (was `:716-722`; line shifted by the V-N3-deletion-wiring F-B1 pre-commit — use the semantic anchor)) nulls the WHOLE `invocations.metadata` for the subject's tools → disclosed under `anonymized`, flag-INdependent. So flipping `INVOCATIONS_PAYER_MINIMIZE_ENABLED` needs NO deletion-export disclosure change. `V-N3-enable-disclosure` was re-scoped to an honesty-hardening (docstring + regression pin; user-facing JSON byte-identical) that does NOT block §5. |
 | ③ | Prod deploy access + `CRON_SECRET` (for §5); a **read-only DB console** + `pg_dump` access to prod (for §3 + the §4 copy); **Docker locally** (recommended §4 method) — or Supabase project admin (cloud fallback) | operator to confirm |
 | ④ | **An isolated, populated copy** of `invocations` + `ledger_entries` for the dry-run | **❌ DOES NOT EXIST** — no staging env, no `.env.staging`, no per-env DB. **Created in §4** (LOCAL PG 17.6 Docker copy, recommended; cloud throwaway fallback). Needs Docker + `pg_dump`/`psql` locally. |
 
 > **No invocations disclosure blocker (CORRECTED 2026-06-20).** The deletion-export erases the invocations
-> on-chain payer regardless of the flag — `processDataDeletion` step 4 (`compliance.ts:716-722`) nulls the
+> on-chain payer regardless of the flag — `processDataDeletion` step 4 (`compliance.ts` step 4 — the `── 4. Null PII metadata on invocations` block (was `:716-722`; line shifted by the V-N3-deletion-wiring F-B1 pre-commit — use the semantic anchor)) nulls the
 > whole `invocations.metadata` for the subject's tools, disclosed under `anonymized`. There is therefore NO
 > under-disclosure risk from flipping the invocations flag before any disclosure chunk: the flip changes only
 > PLATFORM-WIDE write-path/backfill behavior on rows NOT subject to a deletion, not the deletion-export claim.

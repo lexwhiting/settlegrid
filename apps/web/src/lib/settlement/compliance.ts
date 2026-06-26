@@ -422,6 +422,27 @@ export async function processDataExport(
  * revoked api_key, and are disclosed under the resultUrl `retainedUnscrubbed`
  * column paths below.
  *
+ * F-B1 (DC-13) DEACTIVATE-BEFORE-SCRUB — the revoke-not-delete fix above keeps the
+ * api_key row alive, which re-opens a concurrent-insert window the OLD delete
+ * incidentally closed: a request that authenticated BEFORE steps 2-3 commit could
+ * INSERT a fresh invocation AFTER step 4 nulls metadata, landing payer-bearing PII
+ * that escapes the scrub. The scrub txn's revokes/`tools.status='deleted'` only
+ * commit at the END of the txn, so they cannot close it from inside. This deletion
+ * therefore PRE-COMMITS both insert gates in their OWN `db.transaction`, BEFORE the
+ * scrub txn (just below the toolIds capture): it revokes the SAME api_key sets
+ * steps 2-3 target (consumerId∈ids for the SDK-meter gate) AND marks the subject's
+ * tools `status='deleted'` (the proxy protocol/MPP inserts bypass api_keys via
+ * sentinel ids and gate ONLY on `tool.status==='active'` — api_key revoke alone is
+ * INSUFFICIENT). The captured `ids`/`toolIds` are reused verbatim (single source —
+ * no re-derivation, DC-07); in-txn steps 2-3 + step 8 stay as idempotent backstops.
+ * Once the pre-commit lands, every auth/tool lookup reads `revoked`/`deleted` and
+ * rejects, so no NEW request can create a row the scrub misses. A BOUNDED residual
+ * remains: a request already in flight at deletion (≤ the proxy's ~90s maxDuration)
+ * can still persist ONE final own-tool invocation whose `metadata` is retained
+ * until the data-retention job purges it — disclosed in the resultUrl
+ * `anonymizedNote` below (the `anonymized: invocations.metadata` claim is honest for
+ * every row that exists at scrub time; the in-flight residual is named, not hidden).
+ *
  * DEFERRED — a developer-owned organization's `organizations.billing_email` is
  * likewise retained un-scrubbed here: it is a DISTINCT entity's data (an org that
  * may have other members), and whether/how to scrub organization data on member
@@ -455,17 +476,28 @@ export async function processDataExport(
  *   Art. 17 processors retry). 'completed' is set ONLY inside the transaction
  *   below, AFTER a successful (or idempotent-already-done) auth-user delete, so
  *   'completed' ⇒ (Supabase auth user deleted ∧ DB anonymized).
- * - 'failed': RETRYABLE. Two writes happen: (a) the pre-txn Supabase
- *   auth-user delete, then (b) the atomic anonymization transaction, with
- *   'completed' set INSIDE the txn. The auth-delete is IDEMPOTENT (a not-found
- *   user is treated as already-deleted), so a 'failed' retry is safe whether it
- *   failed before or after the auth user was removed: a retry that finds the
- *   auth user already gone succeeds, and the txn either never committed (so the
- *   DB is pristine) or — being the only path that sets 'completed' — already
- *   ran, in which case the idempotent-completed no-op short-circuits. Thus
- *   'failed' implies the txn never committed and a retry sees pristine DB data.
- *   (Transient window: auth deleted, DB pristine, status 'failed' — erasure
- *   eagerly removed the auth identity; the retry finishes the DB anonymization.)
+ * - 'failed': RETRYABLE. THREE writes happen in order: (a) the pre-txn Supabase
+ *   auth-user delete, (b) the F-B1 pre-commit deactivation (its OWN txn: revoke
+ *   api_keys + mark the subject's tools deleted), then (c) the atomic
+ *   anonymization transaction, with 'completed' set INSIDE that final txn. The
+ *   auth-delete is IDEMPOTENT (a not-found user is treated as already-deleted)
+ *   and the pre-commit deactivation is IDEMPOTENT (re-revoking an already-revoked
+ *   key / re-deleting an already-deleted tool is a no-op), so a 'failed' retry is
+ *   safe whichever write it failed at: a retry that finds the auth user already
+ *   gone succeeds, the pre-commit re-applies harmlessly, and the scrub txn either
+ *   never committed or — being the only path that sets 'completed' — already ran,
+ *   in which case the idempotent-completed no-op short-circuits. Thus 'failed'
+ *   implies the SCRUB txn never committed and a retry sees DB data pristine EXCEPT
+ *   for the intended, idempotent F-B1 pre-commit deactivation (api_keys revoked +
+ *   the subject's tools marked deleted, committed before the scrub). That is by
+ *   design and DESIRABLE: once the pre-commit (b) has committed, a failed deletion
+ *   leaves the account DEACTIVATED, not live — no new auth/invocation can land while
+ *   the retry finishes the scrub. CAVEAT (honest scoping): a failure at (a) the
+ *   pre-txn auth-delete, or in the dev/twin capture before it, lands 'failed' with
+ *   the pre-commit (b) NOT yet run — the account is then still LIVE (keys active,
+ *   tools active). That is still safe (nothing irreversible beyond the idempotent
+ *   auth-delete has happened) and the idempotent retry re-runs (a)→(c) from the top.
+ *   So 'failed' is ALWAYS retryable; it is DEACTIVATED specifically once (b) commits.
  * - 'processing': guarded (throws) — another run is, or appears to be, in
  *   flight. A run that crashed mid-flight may have ALREADY deleted the Supabase
  *   auth user (the auth-delete is pre-txn + idempotent, so this is safe to
@@ -604,6 +636,47 @@ export async function processDataDeletion(
       .where(eq(tools.developerId, developerId))
 
     const toolIds = devTools.map((t) => t.id)
+
+    // ── F-B1 (DC-13): pre-commit deactivation — close the concurrent-insert window ──
+    //    The scrub txn below revokes api_keys (steps 2-3) and marks tools deleted
+    //    (step 8), but those writes only commit at the END of the txn. Between an
+    //    in-flight request's auth/tool read and that commit, a concurrent invocation
+    //    INSERT could still land (key still 'active' OR tool still 'active'), writing
+    //    fresh payer-bearing metadata AFTER step 4's metadata-null — a row that
+    //    ESCAPES the scrub. Closing it requires de-authenticating BOTH insert gates
+    //    BEFORE the scrub, in their OWN committed transaction:
+    //      • SDK-meter paths gate on api_key.status — revoke the SAME key sets steps
+    //        2-3 target (consumerId∈ids and toolId∈toolIds).
+    //      • proxy protocol/MPP/x402 paths bypass api_keys entirely (sentinel key
+    //        ids) and gate ONLY on tool.status==='active' (lookupToolBySlug at
+    //        proxy/[slug]:1225/:1498) — so the subject's tools must be marked
+    //        non-active too. An api_key revoke ALONE is INSUFFICIENT (handoff §13.1).
+    //    Reuse the ALREADY-captured ids/toolIds (single source — no re-derivation,
+    //    DC-07) with the SAME guards the in-txn steps use; status-only on tools
+    //    (PII-null is left to step 8). In-txn steps 2-3 + step 8 stay as idempotent
+    //    backstops. A failed scrub leaves this committed → the account is DEACTIVATED,
+    //    not live (retry-safe; see the status-machine docstring). The ≤~90s in-flight
+    //    residual is disclosed in the resultUrl `anonymizedNote` below.
+    if (consumerMatched || toolIds.length > 0) {
+      await db.transaction(async (preTx) => {
+        if (consumerMatched) {
+          await preTx
+            .update(apiKeys)
+            .set({ status: 'revoked', ipAllowlist: null })
+            .where(inArray(apiKeys.consumerId, ids))
+        }
+        if (toolIds.length > 0) {
+          await preTx
+            .update(apiKeys)
+            .set({ status: 'revoked', ipAllowlist: null })
+            .where(inArray(apiKeys.toolId, toolIds))
+          await preTx
+            .update(tools)
+            .set({ status: 'deleted' })
+            .where(inArray(tools.id, toolIds))
+        }
+      })
+    }
 
     await db.transaction(async (tx) => {
       // ── 1. Anonymize developer profile ─────────────────────────────
@@ -1020,6 +1093,22 @@ export async function processDataDeletion(
               ? `organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately. The anonymous on-chain payer address (ledger_entries.operation_id / metadata.payer) is disclosed under \`minimized\` / \`minimizedNote\` above.${consumerMatched ? " Invocation rows on other developers' tools (invocations.consumer_id / api_key_id / session_id / referral_code) survive as those developers' retained usage and billing records; they remain keyed to the consumer row this deletion pseudonymizes (direct identifiers removed in step 2 — still personal data, not erased) and to the revoked api_key, and this developer-deletion does not scrub them; invocations.metadata is nulled (step 4) only on the subject's own tools, so on other developers' tools it is retained un-scrubbed and may hold the captured on-chain payer (the subject's own EVM address) and free-form caller context — still personal data, not erased; the basis and any erasure path for this pseudonymous linkage are unsettled (counsel pending)." : ''}`
               : `The fields above retain the anonymous on-chain payer's EVM address; this deletion does not scrub them. Lawful basis and any erasure path are unsettled (counsel pending). organizations.billing_email belongs to a distinct entity (an organization, which may have other members) and is not scrubbed by this developer-deletion; whether and how to scrub organization data on member deletion is unsettled and routed separately.${consumerMatched ? " Invocation rows on other developers' tools (invocations.consumer_id / api_key_id / session_id / referral_code) survive as those developers' retained usage and billing records; they remain keyed to the consumer row this deletion pseudonymizes (direct identifiers removed in step 2 — still personal data, not erased) and to the revoked api_key, and this developer-deletion does not scrub them; invocations.metadata is nulled (step 4) only on the subject's own tools, so on other developers' tools it is retained un-scrubbed and may hold the captured on-chain payer (the subject's own EVM address) and free-form caller context — still personal data, not erased; the basis and any erasure path for this pseudonymous linkage are unsettled (counsel pending)." : ''}`,
             toolCount: toolIds.length,
+            // V-N3-deletion-wiring F-B1 (§13.2A): the `anonymized` entry
+            // 'invocations.metadata' is a positive "nulled" claim. It is honest for
+            // every own-tool row that exists at scrub time, but the F-B1 pre-commit
+            // (api_keys revoked + the subject's tools marked deleted BEFORE the
+            // scrub) cannot retract a request that was ALREADY IN FLIGHT when the
+            // deletion ran. Such a request (bounded by the proxy's ~90s maxDuration)
+            // may persist ONE final own-tool invocation whose metadata lands after
+            // step 4 and is retained until the data-retention job purges it. Disclose
+            // that bounded residual here rather than overstate the metadata-null
+            // (DC-16). Gated on the subject owning tools (no own-tool rows otherwise).
+            ...(toolIds.length > 0
+              ? {
+                  anonymizedNote:
+                    "invocations.metadata is nulled (step 4) for every own-tool row that exists when the deletion runs. The api_keys are revoked and the subject's tools marked deleted BEFORE the scrub, so no NEW request can create an un-nulled metadata row after step 4; but a request already in flight at deletion time (up to the proxy's ~90s max request duration) may persist one final own-tool invocation whose metadata is retained until purged by the scheduled data-retention job (or kept indefinitely where the tool owner's log-retention is set to keep-forever).",
+                }
+              : {}),
           }),
           completedAt: new Date(),
         })

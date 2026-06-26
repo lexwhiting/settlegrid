@@ -406,7 +406,11 @@ describe('processDataDeletion — V-N3 SLICE 3: completeness scrubs (behavioral)
     seed({ devSupabaseUserId: null, toolIds: [{ id: 'tool-1' }] })
     await processDataDeletion('exp-1')
 
-    const toolsSet = updateCalls.find((c) => c.status === 'deleted')
+    // V-N3-deletion-wiring (F-B1): the pre-commit ALSO issues
+    // update(tools).set({status:'deleted'}) — status ONLY — before the scrub txn, so
+    // a bare `status==='deleted'` finder now aliases it. Disambiguate step 8 by its
+    // full payload (only step 8 nulls sourceRepoUrl/etc).
+    const toolsSet = updateCalls.find((c) => c.status === 'deleted' && 'sourceRepoUrl' in c)
     expect(toolsSet, 'tools .set() must be captured (toolIds>0)').toBeDefined()
     // Non-vacuous: reverting any of the three null-outs drops that property.
     expect(toolsSet).toHaveProperty('sourceRepoUrl', null)
