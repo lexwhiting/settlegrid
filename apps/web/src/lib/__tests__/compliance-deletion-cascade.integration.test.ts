@@ -129,6 +129,11 @@ const KEY_FOREIGN = '00000000-0000-0000-0000-0000000000d2'
 const INV_OWN = '00000000-0000-0000-0000-0000000000e1'
 const INV_FOREIGN = '00000000-0000-0000-0000-0000000000e2'
 const EXPORT_ID = '00000000-0000-0000-0000-0000000000f1'
+// ③ deep-audit additions: a THIRD-PARTY (non-twin) consumer + its key/invocation on
+// the subject's OWN tool — to make step 3 (toolId-keyed) independently load-bearing.
+const CON_OTHER = '00000000-0000-0000-0000-0000000000b2'
+const KEY_OTHER = '00000000-0000-0000-0000-0000000000d3'
+const INV_OTHER = '00000000-0000-0000-0000-0000000000e3'
 
 const countInvocations = async (toolId: string) =>
   (await db.select().from(schema.invocations).where(eq(schema.invocations.toolId, toolId))).length
@@ -237,5 +242,76 @@ describe('processDataDeletion — pglite cascade-faithful integration (LB2)', ()
     )
     expect(disclosure.retainedUnscrubbed).not.toContain('invocations.metadata')
     expect(disclosure.anonymized).toEqual(expect.arrayContaining(['invocations.metadata', 'api_keys']))
+  }, 30_000)
+
+  it('STEP 3 IS LOAD-BEARING: a NON-TWIN consumer key on the subject\'s OWN tool is revoked ONLY by the toolId-keyed step 3', async () => {
+    // ③ deep-audit (F-A1, collective-miss critic): the original "THE FIX" fixture gave
+    // the consumer TWIN both keys, so step 2 (consumerId-keyed) revoked the own-tool key
+    // too and step 3 was REDUNDANT — neutering step 3 left that test GREEN. The
+    // production-dominant shape is a THIRD-PARTY consumer's key on the SUBJECT'S OWN
+    // tool: reached ONLY by step 3 (toolId-keyed), never step 2. Here the subject has NO
+    // twin (distinct email), so step 2 does not run at all and step 3 is the SOLE
+    // de-authentication / cascade-protection for this key. Neuter or remove step 3 ⇒ the
+    // key stays 'active' (and revert-to-delete cascade-kills its invocation) ⇒ RED.
+    await db.insert(schema.developers).values({ id: DEV_SUBJECT, email: 'subject@x.com', name: 'Subject' })
+    // A real third-party consumer — DISTINCT email ⇒ NOT a twin of the subject developer.
+    await db.insert(schema.consumers).values({ id: CON_OTHER, email: 'third-party@x.com' })
+    await db.insert(schema.tools).values({ id: TOOL_OWN, developerId: DEV_SUBJECT, name: 'Own', slug: 'own-tool-s3' })
+    // The third party's live key on the SUBJECT'S tool (consumerId=CON_OTHER, NOT the subject).
+    await db.insert(schema.apiKeys).values({
+      id: KEY_OTHER, consumerId: CON_OTHER, toolId: TOOL_OWN,
+      keyHash: 'h-s3', keyPrefix: 'sg_s3', status: 'active', ipAllowlist: ['10.0.0.9'],
+    })
+    await db.insert(schema.invocations).values({
+      id: INV_OTHER, toolId: TOOL_OWN, consumerId: CON_OTHER, apiKeyId: KEY_OTHER,
+      method: 'POST', costCents: 9, metadata: { payer: '0xthird' },
+    })
+    await db.insert(schema.complianceExports).values({
+      id: EXPORT_ID, requestType: 'data-deletion', entityType: 'provider', entityId: DEV_SUBJECT, status: 'pending',
+    })
+
+    const result = await processDataDeletion(EXPORT_ID)
+    expect(result.status).toBe('completed')
+
+    // No twin ⇒ step 2 did NOT run; this key was revoked ONLY by step 3 (toolId-keyed).
+    const [key] = await db.select().from(schema.apiKeys).where(eq(schema.apiKeys.id, KEY_OTHER))
+    expect(key.status).toBe('revoked') // ⇐ neuter/remove step 3 ⇒ stays 'active' ⇒ RED
+    expect(key.ipAllowlist).toBeNull()
+    expect(key.keyHash).not.toBeNull()
+
+    // The third party's invocation on the subject's tool SURVIVES (revoke-not-delete);
+    // revert step 3 → tx.delete(apiKeys) ⇒ this row is cascade-killed ⇒ RED.
+    expect(await countInvocations(TOOL_OWN)).toBe(1)
+    const [inv] = await db.select().from(schema.invocations).where(eq(schema.invocations.id, INV_OTHER))
+    expect(inv).toBeDefined()
+    expect(inv.metadata).toBeNull() // step 4 nulls own-tool metadata
+  }, 30_000)
+
+  it('NO-TWIN DISCLOSURE (F1): the persisted note OMITS the foreign-tool-retention clause when there is no consumer twin', async () => {
+    // ③ deep-audit (F1): the foreign-tool-invocation clause asserts a step-2
+    // pseudonymization + twin-keyed foreign-tool rows. For a subject with NO consumer
+    // twin, step 2 never runs and no such rows exist, so the clause is a FALSE PARTICULAR
+    // and must NOT appear in the persisted note. The unconditional org + ledger-payer
+    // posture MUST remain. (Runtime counterpart to the source-text pins in
+    // compliance-honesty-regression.test.ts, which cannot see this branch selection.)
+    await db.insert(schema.developers).values({ id: DEV_SUBJECT, email: 'lonely@x.com', name: 'Lonely' })
+    await db.insert(schema.complianceExports).values({
+      id: EXPORT_ID, requestType: 'data-deletion', entityType: 'provider', entityId: DEV_SUBJECT, status: 'pending',
+    })
+
+    const result = await processDataDeletion(EXPORT_ID)
+    expect(result.status).toBe('completed')
+
+    const [exp] = await db.select().from(schema.complianceExports).where(eq(schema.complianceExports.id, EXPORT_ID))
+    const disclosure = JSON.parse(exp.resultUrl as string)
+    const note: string = disclosure.retainedUnscrubbedNote
+    // The foreign-tool clause (and its false step-2 pseudonymization claim) is ABSENT.
+    expect(note).not.toMatch(/Invocation rows on other developers' tools/)
+    expect(note).not.toMatch(/pseudonymi[sz]e/i)
+    // The unconditional org + ledger-payer posture is PRESERVED.
+    expect(note).toMatch(/organizations\.billing_email/)
+    expect(note).toMatch(/The fields above retain the anonymous on-chain payer's EVM address/)
+    // No twin ⇒ no twin-keyed invocation linkage paths disclosed in the array either.
+    expect(disclosure.retainedUnscrubbed).not.toContain('invocations.consumer_id')
   }, 30_000)
 })
