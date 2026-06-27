@@ -170,10 +170,14 @@ vi.mock('@/lib/db/schema', () => {
 
 vi.mock('drizzle-orm', () => ({
   eq: (a: unknown, b: unknown) => ({ a, b }),
+  ne: (a: unknown, b: unknown) => ({ ne: [a, b] }),
   and: (...xs: unknown[]) => ({ and: xs }),
   gte: (a: unknown, b: unknown) => ({ gte: [a, b] }),
   desc: (x: unknown) => ({ desc: x }),
+  asc: (x: unknown) => ({ asc: x }),
   inArray: (a: unknown, b: unknown) => ({ inArray: [a, b] }),
+  // ③ already-erased guard: the authoritative-sibling query keys on resultUrl IS NOT NULL.
+  isNotNull: (x: unknown) => ({ isNotNull: x }),
   // V-N3 SLICE 3: the waitlist DELETE keys on sql`lower(${email}) = ${normalized}`.
   // Capture the template's interpolated values so a test can pin the NORMALIZED
   // (lowercased+trimmed) dev email — distinguishing it from a raw-case match.

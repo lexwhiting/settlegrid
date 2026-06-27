@@ -733,7 +733,7 @@ ${ctaButton('Download Data Export', exportUrl)}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your SettleGrid account associated with <strong>${escapeHtml(email)}</strong> has been deleted &mdash; your personal data has been anonymized and your login permanently removed.</p>
 ${alertBanner('info', 'Data retention', 'Your personal data has been anonymized. Some records — including financial and transaction records required by law — are retained; see our Privacy Policy for details.')}
 ${exportSection}
-<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px">If you believe this was a mistake, contact <a href="mailto:support@settlegrid.ai" style="color:#E5A336">support@settlegrid.ai</a> within 30 days.</p>
+<p class="sg-text" style="color:#6b7280;line-height:1.6;font-size:13px">This action is permanent and cannot be undone. If you did not request this deletion, contact <a href="mailto:support@settlegrid.ai" style="color:#E5A336">support@settlegrid.ai</a> right away so we can investigate.</p>
 `,
       { preheader: 'Your SettleGrid account has been deleted and your personal data anonymized.' }
     ),

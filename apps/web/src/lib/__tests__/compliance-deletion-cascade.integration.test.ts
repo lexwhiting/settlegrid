@@ -382,4 +382,74 @@ describe('processDataDeletion — pglite cascade-faithful integration (LB2)', ()
     expect(await countInvocations(TOOL_OWN)).toBe(1)
     expect(key.keyHash).not.toBeNull()
   }, 30_000)
+
+  it('RE-RUN ON ALREADY-ERASED DEV (③ primary, DC-13/DC-16/DC-17): a 2nd deletion row for an already-anonymized developer COPIES the authoritative disclosure — it does NOT recompute a DEGRADED resultUrl that under-discloses retained personal data', async () => {
+    // ③ deep-audit PRIMARY TARGET. processDataDeletion recomputes consumerMatched/
+    // deletedAuthUser from the LIVE developer row every call. A re-run that observes an
+    // ALREADY-anonymized dev (the cron re-driving a leftover failed/stale row after a
+    // retry's row already completed the scrub) matches ZERO consumers → consumerMatched=
+    // false → the persisted resultUrl OMITS the consumerMatched-gated retainedUnscrubbed
+    // foreign-tool linkage (invocations.consumer_id/api_key_id/session_id/referral_code)
+    // that GENUINELY persists (revoke-not-delete keeps those rows) → an under-disclosing
+    // record-of-processing. The already-erased guard must instead COPY the authoritative
+    // disclosure the run that actually erased the dev wrote (earliest data-deletion sibling).
+    //   MUTATION (proves non-vacuity): remove the already-erased guard in compliance.ts →
+    //   run #2 recomputes degraded → BOTH load-bearing assertions below go RED.
+    await db.insert(schema.developers).values([
+      { id: DEV_SUBJECT, email: 'subject@x.com', name: 'Subject' },
+      { id: DEV_FOREIGN, email: 'foreign@x.com', name: 'Foreign' },
+    ])
+    // A consumer twin (same normalized email) + a foreign-tool invocation the twin called.
+    await db.insert(schema.consumers).values({ id: CON_TWIN, email: 'subject@x.com' })
+    await db.insert(schema.tools).values([
+      { id: TOOL_OWN, developerId: DEV_SUBJECT, name: 'Own', slug: 'rerun-own' },
+      { id: TOOL_FOREIGN, developerId: DEV_FOREIGN, name: 'Foreign', slug: 'rerun-foreign' },
+    ])
+    await db.insert(schema.apiKeys).values({
+      id: KEY_FOREIGN, consumerId: CON_TWIN, toolId: TOOL_FOREIGN,
+      keyHash: 'h-rr', keyPrefix: 'sg_rr', status: 'active', ipAllowlist: ['10.0.0.5'],
+    })
+    await db.insert(schema.invocations).values({
+      id: INV_FOREIGN, toolId: TOOL_FOREIGN, consumerId: CON_TWIN, apiKeyId: KEY_FOREIGN,
+      method: 'POST', costCents: 7, metadata: { payer: '0xrr' }, sessionId: 's-rr', referralCode: 'r-rr',
+    })
+    // Export row #1 — the run that ACTUALLY erases the developer (dev still live).
+    await db.insert(schema.complianceExports).values({
+      id: EXPORT_ID, requestType: 'data-deletion', entityType: 'provider', entityId: DEV_SUBJECT, status: 'pending',
+    })
+
+    const r1 = await processDataDeletion(EXPORT_ID)
+    expect(r1.status).toBe('completed')
+    const [exp1] = await db.select().from(schema.complianceExports).where(eq(schema.complianceExports.id, EXPORT_ID))
+    const d1 = JSON.parse(exp1.resultUrl as string)
+    // Run #1 is authoritative: it discloses the retained foreign-tool linkage.
+    expect(d1.retainedUnscrubbed).toContain('invocations.consumer_id')
+
+    // The dev is now anonymized; the foreign-tool invocation row STILL persists (pseudonymous).
+    const [devAfter] = await db.select().from(schema.developers).where(eq(schema.developers.id, DEV_SUBJECT))
+    expect(devAfter.email).toBe(`deleted-${DEV_SUBJECT}@deleted.settlegrid.ai`)
+    expect(await countInvocations(TOOL_FOREIGN)).toBe(1)
+
+    // Export row #2 — a SECOND deletion row for the SAME (now anonymized) developer,
+    // exactly as the cron recovery re-driver creates/re-drives after a failed sibling.
+    const EXPORT_ID_2 = '00000000-0000-0000-0000-0000000000f2'
+    await db.insert(schema.complianceExports).values({
+      id: EXPORT_ID_2, requestType: 'data-deletion', entityType: 'provider', entityId: DEV_SUBJECT, status: 'pending',
+    })
+
+    const r2 = await processDataDeletion(EXPORT_ID_2)
+    expect(r2.status).toBe('completed')
+    const [exp2] = await db.select().from(schema.complianceExports).where(eq(schema.complianceExports.id, EXPORT_ID_2))
+    const d2 = JSON.parse(exp2.resultUrl as string)
+
+    // ⇐ THE LOAD-BEARING ASSERTIONS: run #2 must NOT under-disclose. It copies the
+    //   authoritative disclosure rather than recomputing a degraded one.
+    expect(d2.retainedUnscrubbed).toContain('invocations.consumer_id') // ← no guard ⇒ omitted ⇒ RED
+    expect(d2).toEqual(d1)                                             // exact authoritative copy
+
+    // Cross-isolation sanity: a data-EXPORT row for the same dev must NEVER be the
+    // copied sibling (its resultUrl is a base64 PII blob — critic JOB-B amendment 1).
+    expect(typeof exp2.resultUrl).toBe('string')
+    expect(exp2.resultUrl as string).not.toMatch(/^data:application\/json;base64,/)
+  }, 30_000)
 })

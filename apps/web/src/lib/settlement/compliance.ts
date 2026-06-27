@@ -16,7 +16,7 @@ import {
   consumerSchedules,
   conversionEvents,
 } from '@/lib/db/schema'
-import { eq, and, gte, desc, inArray, sql } from 'drizzle-orm'
+import { eq, ne, and, gte, desc, asc, inArray, isNotNull, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { deleteSupabaseAuthUser } from '@/lib/supabase/admin'
 import { isLedgerPayerAnonymizeEnabled } from '@/lib/env'
@@ -475,7 +475,9 @@ export async function processDataExport(
  * - 'completed': re-runs are an idempotent NO-OP (returns completed; GDPR
  *   Art. 17 processors retry). 'completed' is set ONLY inside the transaction
  *   below, AFTER a successful (or idempotent-already-done) auth-user delete, so
- *   'completed' ⇒ (Supabase auth user deleted ∧ DB anonymized).
+ *   'completed' ⇒ (Supabase auth user deleted or absent ∧ DB anonymized). A re-run
+ *   on an already-anonymized subject is reconciled by the ③ already-erased guard
+ *   (copies the authoritative disclosure, never re-scrubs) — see below.
  * - 'failed': RETRYABLE. THREE writes happen in order: (a) the pre-txn Supabase
  *   auth-user delete, (b) the F-B1 pre-commit deactivation (its OWN txn: revoke
  *   api_keys + mark the subject's tools deleted), then (c) the atomic
@@ -558,6 +560,73 @@ export async function processDataDeletion(
 
     if (!dev) {
       throw new Error(`Developer not found: ${developerId}`)
+    }
+
+    // ── ③ ALREADY-ERASED IDEMPOTENCY GUARD (DC-13/DC-16/DC-17) ───────────────
+    //    A re-run on an already-anonymized developer (the cron re-driving a leftover
+    //    'failed'/stale row after a retry's row completed the scrub, or a reused-pending
+    //    row re-driven) recomputes consumerMatched/deletedAuthUser=false from the MUTATED
+    //    `developers` row → would persist a DEGRADED resultUrl OMITTING the
+    //    consumerMatched-gated retainedUnscrubbed foreign-tool linkage
+    //    (invocations.consumer_id/api_key_id/session_id/referral_code) which GENUINELY
+    //    persists (revoke-not-delete keeps those rows) → an under-disclosing record of
+    //    processing. Detect already-erased via the deterministic sentinel step 1 writes
+    //    (keyed to THIS developerId — server-generated, not guessable/collidable) and
+    //    short-circuit WITHOUT re-scrubbing, persisting the AUTHORITATIVE disclosure
+    //    rather than a recompute. Step 1 (anonymize) and step 9 (completed + resultUrl)
+    //    are the SAME txn, so an anonymized dev IMPLIES some data-deletion row committed
+    //    that resultUrl: prefer THIS row's own resultUrl (its scrub committed, then a
+    //    catch flipped it), else copy the EARLIEST data-deletion sibling carrying a
+    //    resultUrl (the row whose txn actually erased the dev — a LATER row could itself
+    //    be a pre-fix degraded copy, so never pick most-recent). The sibling search is
+    //    SCOPED to requestType='data-deletion' for this entity, excluding self — NEVER a
+    //    data-export row, whose resultUrl is a base64 PII blob. If the authoritative row
+    //    was purged by the 30-day cron, persist NO degraded recompute (a null resultUrl
+    //    honestly records the absence). Every write CASes on status so a concurrent
+    //    completion is never reverted (re-read the row — the top-of-fn `record` may be
+    //    stale under a concurrent re-drive of the same exportId).
+    if (dev.email === `deleted-${developerId}@deleted.settlegrid.ai`) {
+      const [cur] = await db
+        .select({
+          status: complianceExports.status,
+          resultUrl: complianceExports.resultUrl,
+          completedAt: complianceExports.completedAt,
+        })
+        .from(complianceExports)
+        .where(eq(complianceExports.id, exportId))
+        .limit(1)
+      if (cur?.status === 'completed') {
+        logger.info('compliance.data_deletion_already_completed', { exportId })
+        return { status: 'completed' }
+      }
+      let authoritativeUrl = cur?.resultUrl ?? null
+      if (!authoritativeUrl) {
+        const [sibling] = await db
+          .select({ resultUrl: complianceExports.resultUrl })
+          .from(complianceExports)
+          .where(
+            and(
+              eq(complianceExports.requestType, 'data-deletion'),
+              eq(complianceExports.entityType, record.entityType),
+              eq(complianceExports.entityId, developerId),
+              ne(complianceExports.id, exportId),
+              isNotNull(complianceExports.resultUrl),
+            ),
+          )
+          .orderBy(asc(complianceExports.completedAt), asc(complianceExports.createdAt))
+          .limit(1)
+        authoritativeUrl = sibling?.resultUrl ?? null
+      }
+      await db
+        .update(complianceExports)
+        .set({ status: 'completed', resultUrl: authoritativeUrl, completedAt: cur?.completedAt ?? new Date() })
+        .where(and(eq(complianceExports.id, exportId), ne(complianceExports.status, 'completed')))
+      logger.info('compliance.data_deletion_already_erased_reconciled', {
+        exportId,
+        developerId,
+        authoritativeDisclosure: authoritativeUrl !== null,
+      })
+      return { status: 'completed' }
     }
 
     // Capture ALL consumer rows whose NORMALIZED email matches the developer's,
@@ -1124,10 +1193,16 @@ export async function processDataDeletion(
 
     return { status: 'completed' }
   } catch (err) {
+    // ③ idem-2 — COMPARE-AND-SET: only flip to 'failed' if NOT already 'completed'. A
+    // throw AFTER the scrub txn committed but before the return (e.g. a lost commit-ack
+    // / a post-commit throw) would otherwise revert a genuinely-completed deletion to
+    // 'failed', which the endpoint's find-or-reuse (ne(status,'failed')) then re-creates
+    // and the cron re-drives — re-feeding the already-erased re-run path. Mirrors the
+    // cron reset's CAS.
     await db
       .update(complianceExports)
       .set({ status: 'failed' })
-      .where(eq(complianceExports.id, exportId))
+      .where(and(eq(complianceExports.id, exportId), ne(complianceExports.status, 'completed')))
 
     logger.error('compliance.data_deletion_failed', { exportId }, err)
     return { status: 'failed' }
