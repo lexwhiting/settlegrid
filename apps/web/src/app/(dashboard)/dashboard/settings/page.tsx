@@ -343,6 +343,12 @@ export default function SettingsPage() {
 
   // MFA state
   const [mfaEnrolled, setMfaEnrolled] = useState(false)
+  // Whether a VERIFIED (active) TOTP factor exists — drives the delete-flow step-up
+  // affordance (the deletion step-up only challenges 'verified' factors). Tracked
+  // explicitly and kept in sync on enroll/disable so it never goes stale against the
+  // server's live capability check; it must mirror `mfaEnrolled` (which is itself
+  // verified-only, since /api/auth/mfa derives `enrolled` from the verified `totp` list).
+  const [mfaHasVerifiedFactor, setMfaHasVerifiedFactor] = useState(false)
   const [mfaLoading, setMfaLoading] = useState(true)
   const [mfaEnrolling, setMfaEnrolling] = useState(false)
   const [mfaFactorId, setMfaFactorId] = useState('')
@@ -357,6 +363,9 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deletePassword, setDeletePassword] = useState('')
+  // Dedicated step-up code for the delete flow — intentionally NOT the enrollment
+  // `mfaCode` state (a separate, out-of-scope surface).
+  const [deleteMfaCode, setDeleteMfaCode] = useState('')
   const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Data retention state
@@ -716,6 +725,12 @@ export default function SettingsPage() {
         if (res.ok) {
           const data = await res.json()
           setMfaEnrolled(data.enrolled)
+          // The deletion step-up challenges only 'verified' factors — derive the
+          // delete-flow affordance from per-factor status, not the (unverified-
+          // inclusive) `enrolled` flag.
+          setMfaHasVerifiedFactor(
+            Boolean(data.factors?.some((f: { status?: string }) => f.status === 'verified')),
+          )
           if (data.factors?.length > 0) {
             setMfaFactorId(data.factors[0].id)
           }
@@ -766,6 +781,9 @@ export default function SettingsPage() {
         return
       }
       setMfaEnrolled(true)
+      // Keep the delete-flow affordance in sync WITHOUT a refetch — a just-verified
+      // factor is now active, so the deletion step-up will require an MFA code.
+      setMfaHasVerifiedFactor(true)
       setMfaQrCode('')
       setMfaSecret('')
       setMfaCode('')
@@ -793,6 +811,9 @@ export default function SettingsPage() {
         return
       }
       setMfaEnrolled(false)
+      // Factor removed → the deletion step-up reverts to the password/accept path;
+      // keep the delete-flow affordance in sync without a refetch.
+      setMfaHasVerifiedFactor(false)
       setMfaFactorId('')
       toast('Two-factor authentication disabled', 'success')
     } catch {
@@ -998,8 +1019,12 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           confirm: deleteConfirmText,
-          // Step-up re-auth: sent for password accounts; ignored for OAuth-only.
+          // Step-up re-auth: a verified-MFA account sends `mfaCode`; a password
+          // account sends `password`; OAuth-no-MFA sends neither. The server derives
+          // capability and decides which proof it requires — these are only the
+          // supplied credentials, spread only when present.
           ...(deletePassword ? { password: deletePassword } : {}),
+          ...(deleteMfaCode ? { mfaCode: deleteMfaCode } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -2155,22 +2180,50 @@ export default function SettingsPage() {
                         placeholder="Type DELETE"
                         className="max-w-xs border-red-300 dark:border-red-700"
                       />
-                      <p className="text-xs text-red-700 dark:text-red-300">
-                        Re-enter your password to confirm (leave blank if you sign in with Google or GitHub):
-                      </p>
-                      <Input
-                        type="password"
-                        value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
-                        placeholder="Password"
-                        autoComplete="current-password"
-                        className="max-w-xs border-red-300 dark:border-red-700"
-                      />
+                      {mfaHasVerifiedFactor ? (
+                        <>
+                          {/* Verified-MFA account: the server requires a fresh 6-digit
+                              authenticator code (TERMINAL — a password will not satisfy
+                              it), so show ONLY the code field. */}
+                          <p className="text-xs text-red-700 dark:text-red-300">
+                            Enter your 6-digit authenticator code to confirm:
+                          </p>
+                          <Input
+                            value={deleteMfaCode}
+                            onChange={(e) => setDeleteMfaCode(e.target.value)}
+                            placeholder="123456"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            maxLength={6}
+                            className="max-w-xs border-red-300 dark:border-red-700"
+                          />
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Lost your authenticator? Disable 2FA in Settings &rarr; Security first.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {/* Non-MFA: password for a password account; OAuth-only
+                              accounts leave it blank (the server accepts on session +
+                              same-origin + confirm). */}
+                          <p className="text-xs text-red-700 dark:text-red-300">
+                            Re-enter your password to confirm (leave blank if you sign in with Google or GitHub):
+                          </p>
+                          <Input
+                            type="password"
+                            value={deletePassword}
+                            onChange={(e) => setDeletePassword(e.target.value)}
+                            placeholder="Password"
+                            autoComplete="current-password"
+                            className="max-w-xs border-red-300 dark:border-red-700"
+                          />
+                        </>
+                      )}
                       <div className="flex gap-2">
                         <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
                           {deletingAccount ? 'Deleting...' : 'Confirm Deletion'}
                         </Button>
-                        <Button variant="outline" disabled={deletingAccount} onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeletePassword('') }}>
+                        <Button variant="outline" disabled={deletingAccount} onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeletePassword(''); setDeleteMfaCode('') }}>
                           Cancel
                         </Button>
                       </div>

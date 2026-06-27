@@ -69,21 +69,27 @@ export async function DELETE(request: NextRequest) {
 
     // ── 5. Parse body + confirmation friction (defense-in-depth vs the client
     //    check; NOT a security control — see step 6). ──
-    const body = (await request.json().catch(() => ({}))) as { confirm?: unknown; password?: unknown }
+    const body = (await request.json().catch(() => ({}))) as {
+      confirm?: unknown
+      password?: unknown
+      mfaCode?: unknown
+    }
     if (body?.confirm !== 'DELETE') {
       return errorResponse('Type DELETE to confirm account deletion.', 422, 'CONFIRMATION_REQUIRED')
     }
     const password = typeof body?.password === 'string' ? body.password : undefined
+    // factorId is NEVER read from the body — it is server-derived in verifyStepUp.
+    const mfaCode = typeof body?.mfaCode === 'string' ? body.mfaCode : undefined
 
     // ── 6. Step-up re-auth (§13.8b): `confirm:'DELETE'` is client-supplied and is
     //    NOT a security control. Require a FRESH credential re-verification before
-    //    this irreversible op. For password-capable accounts we re-verify the
-    //    password server-side (a throwaway sign-in that does NOT persist a
-    //    session). Pure-OAuth accounts have no password to verify here; their
-    //    freshly-established OAuth session + the same-origin check + the typed
-    //    confirmation are the control (a full OAuth re-consent redirect / TOTP
-    //    re-challenge is a deferred enhancement — flagged for ②). ──
-    const stepUp = await verifyStepUp(request, auth.email, password)
+    //    this irreversible op. verifyStepUp applies a capability-keyed TERMINAL
+    //    precedence (MFA-enrolled → fresh `mfaCode` challenge+verify; else
+    //    password-capable → fresh password sign-in; else ACCEPT), forcing a fresh
+    //    credential from every account that HAS one while never blocking erasure
+    //    (GDPR Art. 17). The deferred residuals (pure-OAuth-no-MFA forced-IdP-reauth
+    //    + MFA-unenroll-session-only) are documented on verifyStepUp. ──
+    const stepUp = await verifyStepUp(request, password, mfaCode)
     if (!stepUp.ok) {
       return errorResponse(stepUp.message, stepUp.status, stepUp.code)
     }
@@ -229,61 +235,145 @@ type StepUpResult =
   | { ok: false; status: number; code: string; message: string }
 
 /**
- * Fresh step-up re-authentication for the destructive op (§13.8b).
+ * Fresh step-up re-authentication for the irreversible account-deletion op
+ * (§13.8b). Capability-keyed + TERMINAL precedence — the GDPR Art. 17 guardrail is
+ * FORCE re-auth, NEVER BLOCK erasure, NEVER mandate pre-enrolled MFA:
  *
- * Determines whether the authenticated user has a password ('email' provider).
- * - Password-capable: a non-empty `password` is REQUIRED and re-verified
- *   server-side via a throwaway `signInWithPassword` (no session is persisted —
- *   `setAll` is a no-op). A wrong/missing password is rejected.
- * - Pure-OAuth (no 'email' identity): there is no password to verify; the
- *   request's authenticated OAuth session + the same-origin check + the typed
- *   confirmation are the control. (A richer OAuth re-consent / TOTP re-challenge
- *   step-up is deferred.)
+ *   1. hasVerifiedMfa (any provider, incl. OAuth) → a fresh `mfaCode` is REQUIRED,
+ *      re-proven by a NEW challenge+verify on THIS request (freshness — an already-
+ *      AAL2 session does NOT bypass; we never read `getAAL().currentLevel`).
+ *      TERMINAL: a correct password must NOT satisfy an MFA-enrolled account (else a
+ *      breached password without the authenticator downgrades MFA — sec-3).
+ *   2. else isPasswordUser (an 'email' identity) → the password is REQUIRED and
+ *      re-verified via a throwaway `signInWithPassword` against `user.email` (no
+ *      session is persisted — `setAll` is a no-op).
+ *   3. else (pure-OAuth no-MFA, OR the irreducible no-identities-evidence +
+ *      no-verified-MFA residual) → ACCEPT: the live same-origin session + the typed
+ *      confirmation are the control. We must NOT force a password an OAuth user lacks.
+ *
+ * Capability is SERVER-DERIVED only: the factor list comes from `listFactors()`
+ * (the factorId is NEVER taken from the request body/query), and password-capability
+ * is the authoritative `user.identities`, NOT `app_metadata` (which can fail to
+ * hydrate and silently skip step-up — sec-3a; MFA-first ordering closes that hole
+ * for MFA users, and the residual no-evidence shape ACCEPTS by design). Every error
+ * body is a FIXED string — never a raw SDK message, factorId, or challengeId (this
+ * endpoint's no-raw-error / no-UUID contract).
+ *
+ * RESIDUALS (deferred — flagged, NOT closed here):
+ *  - **Pure-OAuth NO-MFA** gets no fresh proof-of-possession (forced-IdP-reauth via
+ *    OIDC `prompt=login`/`max_age` + a short-TTL deletion-sudo marker is a separate
+ *    redirect chunk). This shape steps up via session + same-origin + typed confirm.
+ *  - **MFA-unenroll-session-only** (§5): `DELETE /api/auth/mfa` has no step-up. An
+ *    attacker on a hijacked live OAuth+MFA session can unenroll the factor FIRST
+ *    (silent + self-scrubbing audit row — no email/notification), dropping the
+ *    victim to the OAuth-no-MFA ACCEPT path, then delete — bypassing THIS branch for
+ *    the OAuth+MFA subset (a password+MFA victim still hits the password branch).
+ *    Step-up-on-unenroll is the recommended IMMEDIATE next chunk and must preserve a
+ *    lost-authenticator recovery path (so erasure stays completable).
  */
 async function verifyStepUp(
   request: NextRequest,
-  email: string,
   password: string | undefined,
+  mfaCode: string | undefined,
 ): Promise<StepUpResult> {
-  const { data: { user } } = await createRequestSupabase(request).auth.getUser()
+  const client = createRequestSupabase(request)
+  const { data: { user } } = await client.auth.getUser()
   if (!user) {
     return { ok: false, status: 401, code: 'UNAUTHORIZED', message: 'Authentication required. Please sign in.' }
   }
 
-  const metaProviders = Array.isArray(user.app_metadata?.providers)
-    ? (user.app_metadata!.providers as string[])
-    : []
-  const identityProviders = Array.isArray(user.identities)
-    ? user.identities.map((i) => i.provider)
-    : []
-  const isPasswordUser = metaProviders.includes('email') || identityProviders.includes('email')
-
-  if (!isPasswordUser) {
-    // Pure-OAuth account: session + same-origin + confirm is the control.
-    return { ok: true }
-  }
-
-  if (!password) {
-    return {
-      ok: false,
-      status: 401,
-      code: 'REAUTH_REQUIRED',
-      message: 'Please re-enter your password to confirm account deletion.',
-    }
-  }
-
-  // Re-verify the password WITHOUT clobbering the live session (no-op setAll).
-  const verifier = createRequestSupabase(request)
-  const { data, error } = await verifier.auth.signInWithPassword({ email, password })
-  if (error || data?.user?.id !== user.id) {
+  // ── (1) MFA/AAL2 branch (LB-1). Server-derived verified TOTP factors ONLY — the
+  //    factorId is never taken from the request. `listFactors().totp` is verified-
+  //    only at the SDK level; the explicit `status==='verified'` filter is defensive
+  //    AND makes an enrolling-only ('unverified') factor invisible — it is NOT MFA,
+  //    so it falls through to password/accept, never blocked or challenged. ──
+  const listed = await client.auth.mfa.listFactors().catch(() => null)
+  if (!listed || listed.error) {
+    // DC-08 probe-error → fail-CLOSED-retryable, NOT accept: an errored/throwing
+    // listFactors() for an OAuth+MFA user must not silently skip the very control. A
+    // transient retryable block is Art.17-compliant (the 30-day window accommodates a
+    // retry); silently accepting on infra error is the wrong fail-mode.
     return {
       ok: false,
       status: 401,
       code: 'REAUTH_FAILED',
-      message: 'Incorrect password. Please try again.',
+      message: 'Could not verify your authenticator right now. Please try again.',
+    }
+  }
+  const verifiedFactors = (listed.data?.totp ?? []).filter((f) => f.status === 'verified')
+
+  if (verifiedFactors.length > 0) {
+    // Shape guard BEFORE any SDK round-trip (mirrors the PUT mfa-verify zod schema).
+    if (!mfaCode || !/^\d{6}$/.test(mfaCode)) {
+      return {
+        ok: false,
+        status: 401,
+        code: 'REAUTH_REQUIRED',
+        message: 'Enter your 6-digit authenticator code.',
+      }
+    }
+    // A 6-digit code is opaque — we cannot tell which factor it belongs to. ITERATE a
+    // FRESH challenge+verify across ALL verified factors; accept on the first clean
+    // verify (positive = `!challengeError && !verifyError`; there is NO data.user.id
+    // cross-check — the factorId is drawn from the user's own listFactors(), which IS
+    // the cross-user binding). Reject only if every verified factor fails (a fixed-
+    // first challenge would false-REJECT a second-authenticator code = an Art.17 block).
+    for (const factor of verifiedFactors) {
+      const { data: challengeData, error: challengeError } = await client.auth.mfa.challenge({
+        factorId: factor.id,
+      })
+      if (challengeError || !challengeData) continue
+      const { error: verifyError } = await client.auth.mfa.verify({
+        factorId: factor.id,
+        challengeId: challengeData.id,
+        code: mfaCode,
+      })
+      if (!verifyError) return { ok: true }
+    }
+    return {
+      ok: false,
+      status: 401,
+      code: 'REAUTH_FAILED',
+      message: 'Incorrect or expired code. Please try again.',
     }
   }
 
+  // ── (2) Password branch (sec-3a-hardened LB-2). Password-capability is the
+  //    AUTHORITATIVE `user.identities` (NOT app_metadata). `user.email` is the
+  //    Supabase auth email already loaded above — NOT the passed developers.email —
+  //    closing the literal-2 drift edge. A password identity with no resolvable
+  //    email cannot complete a password proof → falls through to ACCEPT rather than
+  //    BLOCK (Art.17). ──
+  const passwordEmail = Array.isArray(user.identities) && user.identities.some((i) => i.provider === 'email')
+    ? user.email
+    : undefined
+
+  if (passwordEmail) {
+    if (!password) {
+      return {
+        ok: false,
+        status: 401,
+        code: 'REAUTH_REQUIRED',
+        message: 'Please re-enter your password to confirm account deletion.',
+      }
+    }
+    // Re-verify WITHOUT clobbering the live session (no-op setAll discards it).
+    const { data, error } = await client.auth.signInWithPassword({ email: passwordEmail, password })
+    if (error || data?.user?.id !== user.id) {
+      return {
+        ok: false,
+        status: 401,
+        code: 'REAUTH_FAILED',
+        message: 'Incorrect password. Please try again.',
+      }
+    }
+    return { ok: true }
+  }
+
+  // ── (3) Residual ACCEPT (LB-2): pure-OAuth no-MFA, OR the irreducible
+  //    no-identities-evidence + no-verified-MFA shape (sec-3a closes only PARTIALLY,
+  //    by design). Session + same-origin + typed confirm is the control. See the
+  //    RESIDUALS note in the doc comment above. ──
   return { ok: true }
 }
 
