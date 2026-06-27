@@ -259,6 +259,15 @@ type StepUpResult =
  * body is a FIXED string — never a raw SDK message, factorId, or challengeId (this
  * endpoint's no-raw-error / no-UUID contract).
  *
+ * ONLINE BRUTE-FORCE BACKSTOP: a 6-digit `mfaCode` has only 10^6 values, so over the
+ * 30-day Art.17 window the endpoint's FROZEN 5/min `authLimiter` (IP+uid, consumed
+ * before step-up) does not BY ITSELF make guessing a single victim's code infeasible.
+ * The load-bearing backstop is GoTrue's own server-side MFA challenge/verify lockout
+ * (and the rate-limit posture is intentionally `failMode:'open'` for Art.17 — on a
+ * rate-store outage GoTrue's limit is the ONLY throttle). Ops MUST keep that hosted
+ * limit enabled. Do NOT add a stricter local bucket here (the rate-limit posture is
+ * frozen — see §6); a dedicated step-up-failure throttle is a separate chunk.
+ *
  * RESIDUALS (deferred — flagged, NOT closed here):
  *  - **Pure-OAuth NO-MFA** gets no fresh proof-of-possession (forced-IdP-reauth via
  *    OIDC `prompt=login`/`max_age` + a short-TTL deletion-sudo marker is a separate
@@ -277,7 +286,20 @@ async function verifyStepUp(
   mfaCode: string | undefined,
 ): Promise<StepUpResult> {
   const client = createRequestSupabase(request)
-  const { data: { user } } = await client.auth.getUser()
+  // getUser is an identity PROBE. A genuine no-session → UNAUTHORIZED, but a transient
+  // THROW (network/SDK blip) → fail-CLOSED-retryable REAUTH_FAILED, mirroring the
+  // listFactors().catch policy below — never a raw 500 on this Art.17 path (DC-08).
+  let user
+  try {
+    user = (await client.auth.getUser()).data.user
+  } catch {
+    return {
+      ok: false,
+      status: 401,
+      code: 'REAUTH_FAILED',
+      message: 'Could not verify your session right now. Please try again.',
+    }
+  }
   if (!user) {
     return { ok: false, status: 401, code: 'UNAUTHORIZED', message: 'Authentication required. Please sign in.' }
   }
@@ -288,11 +310,15 @@ async function verifyStepUp(
   //    AND makes an enrolling-only ('unverified') factor invisible — it is NOT MFA,
   //    so it falls through to password/accept, never blocked or challenged. ──
   const listed = await client.auth.mfa.listFactors().catch(() => null)
-  if (!listed || listed.error) {
+  if (!listed || listed.error || !listed.data) {
     // DC-08 probe-error → fail-CLOSED-retryable, NOT accept: an errored/throwing
     // listFactors() for an OAuth+MFA user must not silently skip the very control. A
     // transient retryable block is Art.17-compliant (the 30-day window accommodates a
-    // retry); silently accepting on infra error is the wrong fail-mode.
+    // retry); silently accepting on infra error is the wrong fail-mode. The `!listed.data`
+    // arm also fail-CLOSES a non-contractual `{data:null,error:null}` return (the SDK
+    // contract is data XOR error) so a malformed payload cannot downgrade an OAuth+MFA
+    // account to the residual ACCEPT — fail-OPEN is the dangerous direction on an
+    // irreversible op.
     return {
       ok: false,
       status: 401,
@@ -319,16 +345,25 @@ async function verifyStepUp(
     // the cross-user binding). Reject only if every verified factor fails (a fixed-
     // first challenge would false-REJECT a second-authenticator code = an Art.17 block).
     for (const factor of verifiedFactors) {
-      const { data: challengeData, error: challengeError } = await client.auth.mfa.challenge({
-        factorId: factor.id,
-      })
-      if (challengeError || !challengeData) continue
-      const { error: verifyError } = await client.auth.mfa.verify({
-        factorId: factor.id,
-        challengeId: challengeData.id,
-        code: mfaCode,
-      })
-      if (!verifyError) return { ok: true }
+      try {
+        const { data: challengeData, error: challengeError } = await client.auth.mfa.challenge({
+          factorId: factor.id,
+        })
+        if (challengeError || !challengeData) continue
+        const { error: verifyError } = await client.auth.mfa.verify({
+          factorId: factor.id,
+          challengeId: challengeData.id,
+          code: mfaCode,
+        })
+        if (!verifyError) return { ok: true }
+      } catch {
+        // Infra THROW on this factor (network/SDK blip) → treat as a failed attempt and
+        // try the next; a throw can NEVER become an accept (the only ok:true is the clean
+        // !verifyError above). If every verified factor fails/throws we fall to the fixed
+        // REAUTH_FAILED below — fail-CLOSED-retryable, harmonizing with listFactors (DC-08;
+        // pre-③ an uncaught throw surfaced a status-inconsistent 500 instead).
+        continue
+      }
     }
     return {
       ok: false,

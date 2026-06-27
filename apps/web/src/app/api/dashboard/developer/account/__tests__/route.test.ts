@@ -125,6 +125,12 @@ const OAUTH_USER = { id: 'user-2', email: 'dev@x.com', app_metadata: { providers
 // A user shape with NO password identity and ambiguous/empty provider evidence —
 // pins the sec-3a residual (no-identities-evidence + no-MFA → ACCEPT, not blocked).
 const NO_EVIDENCE_USER = { id: 'user-3', email: 'dev@x.com', app_metadata: {}, identities: [] as Array<{ provider: string }> }
+// sec-3a CORE: app_metadata is UN-hydrated ({} — no `providers`) but `identities`
+// authoritatively shows an 'email' (password) identity. Pins that capability is
+// derived from `user.identities`, NOT `app_metadata` — the distinguishing fixture the
+// pre-③ suite lacked (every other fixture had app_metadata ≡ identities, so a
+// regression to app_metadata-derivation would have shipped green; DC-05 vacuity class).
+const HYDRATION_GAP_USER = { id: 'user-4', email: 'gap-user@x.com', app_metadata: {}, identities: [{ provider: 'email' }] }
 
 // listFactors() shapes. The DEFAULT (beforeEach) is no-verified-MFA so the 4
 // pre-existing step-up tests still exercise the password/OAuth paths.
@@ -467,5 +473,72 @@ describe('DELETE /api/dashboard/developer/account — idempotency + fail-mode (�
     )
     // No download link / UUID is offered on the failure path.
     expect(mockSendEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe('DELETE /api/dashboard/developer/account — ③ post-seal hardening', () => {
+  const FACTOR_ID = '11111111-aaaa-bbbb-cccc-222222222222'
+
+  it('null-data probe (G-A): listFactors() resolves {data:null,error:null} → fail-CLOSED-retryable, NOT a silent OAuth ACCEPT', async () => {
+    // A non-contractual SDK shape (data XOR error is the contract). The pre-③ guard
+    // `if (!listed || listed.error)` let it through → empty verified set → an OAuth user
+    // fell to the residual ACCEPT and the scrub ran with NO fresh proof (fail-OPEN on an
+    // irreversible op — the dangerous direction). Hardened to treat missing data as a
+    // probe error too (DC-08 fail-CLOSED-retryable).
+    mockSupabaseAuth.getUser.mockResolvedValueOnce({ data: { user: OAUTH_USER } })
+    mockSupabaseAuth.mfa.listFactors.mockResolvedValueOnce({ data: null, error: null })
+    const res = await DELETE(delReq({ confirm: 'DELETE' }))
+    const body = await res.json()
+    expect(res.status).toBe(401)
+    expect(body.code).toBe('REAUTH_FAILED')
+    expect(mockProcessDataDeletion).not.toHaveBeenCalled()
+  })
+
+  it('getUser THROW (G-B1): an infra throw from getUser() → fail-CLOSED-retryable REAUTH_FAILED, not a raw 500', async () => {
+    // Harmonizes the step-up fail-mode (DC-08): a transient throw from the identity
+    // probe is retryable (Art.17-compliant within the 30-day window), mirroring the
+    // listFactors().catch policy — distinct from a genuine no-session (→ UNAUTHORIZED).
+    mockSupabaseAuth.getUser.mockRejectedValueOnce(new Error('network blip to /user'))
+    const res = await DELETE(delReq({ confirm: 'DELETE', password: 'pw' }))
+    const body = await res.json()
+    expect(res.status).toBe(401)
+    expect(body.code).toBe('REAUTH_FAILED')
+    expect(mockProcessDataDeletion).not.toHaveBeenCalled()
+  })
+
+  it('challenge THROW (G-B2): an infra throw mid-iterate from mfa.challenge() → fail-CLOSED-retryable REAUTH_FAILED, not a raw 500', async () => {
+    mockSupabaseAuth.mfa.listFactors.mockResolvedValueOnce(verifiedTotp({ id: FACTOR_ID, status: 'verified' }))
+    mockSupabaseAuth.mfa.challenge.mockRejectedValueOnce(new Error('network blip to /challenge'))
+    const res = await DELETE(delReq({ confirm: 'DELETE', mfaCode: '123456' }))
+    const body = await res.json()
+    expect(res.status).toBe(401)
+    expect(body.code).toBe('REAUTH_FAILED')
+    // A throw can NEVER become an accept: the only ok:true is on a clean !verifyError.
+    expect(mockProcessDataDeletion).not.toHaveBeenCalled()
+  })
+
+  it('verify THROW (G-B2): an infra throw from mfa.verify() → fail-CLOSED-retryable REAUTH_FAILED, not a raw 500', async () => {
+    mockSupabaseAuth.mfa.listFactors.mockResolvedValueOnce(verifiedTotp({ id: FACTOR_ID, status: 'verified' }))
+    mockSupabaseAuth.mfa.verify.mockRejectedValueOnce(new Error('network blip to /verify'))
+    const res = await DELETE(delReq({ confirm: 'DELETE', mfaCode: '123456' }))
+    const body = await res.json()
+    expect(res.status).toBe(401)
+    expect(body.code).toBe('REAUTH_FAILED')
+    expect(mockProcessDataDeletion).not.toHaveBeenCalled()
+  })
+
+  it('sec-3a CORE (G-D): un-hydrated app_metadata + an `email` identity → password STILL required (capability from identities, not app_metadata)', async () => {
+    // The distinguishing fixture (app_metadata:{} but identities:[{email}]). Production
+    // derives capability from identities, so a password is required → REAUTH_REQUIRED.
+    // This test goes RED against a regression that derives from app_metadata.providers
+    // (which is empty here → would wrongly ACCEPT) — closing the DC-05 vacuity that
+    // every pre-③ fixture had app_metadata ≡ identities.
+    mockSupabaseAuth.getUser.mockResolvedValueOnce({ data: { user: HYDRATION_GAP_USER } })
+    const res = await DELETE(delReq({ confirm: 'DELETE' })) // no password
+    const body = await res.json()
+    expect(res.status).toBe(401)
+    expect(body.code).toBe('REAUTH_REQUIRED')
+    expect(mockSupabaseAuth.signInWithPassword).not.toHaveBeenCalled()
+    expect(mockProcessDataDeletion).not.toHaveBeenCalled()
   })
 })

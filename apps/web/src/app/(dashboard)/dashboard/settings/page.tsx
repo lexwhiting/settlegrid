@@ -344,11 +344,18 @@ export default function SettingsPage() {
   // MFA state
   const [mfaEnrolled, setMfaEnrolled] = useState(false)
   // Whether a VERIFIED (active) TOTP factor exists — drives the delete-flow step-up
-  // affordance (the deletion step-up only challenges 'verified' factors). Tracked
-  // explicitly and kept in sync on enroll/disable so it never goes stale against the
-  // server's live capability check; it must mirror `mfaEnrolled` (which is itself
-  // verified-only, since /api/auth/mfa derives `enrolled` from the verified `totp` list).
+  // affordance (the deletion step-up only challenges 'verified' factors). Re-synced on
+  // in-tab enroll/disable; it mirrors `mfaEnrolled` (both are verified-only — /api/auth/mfa
+  // derives `enrolled` from the verified `totp` list). It is a SNAPSHOT, so it can still
+  // be stale vs the server's live check (cross-tab change, or a failed status load) —
+  // `mfaStatusKnown` (below) guards the failed-load case; the server is authoritative
+  // and fails CLOSED either way.
   const [mfaHasVerifiedFactor, setMfaHasVerifiedFactor] = useState(false)
+  // False until the MFA status fetch SUCCEEDS. While false (initial load, or a failed/
+  // errored /api/auth/mfa GET) the delete panel shows BOTH credential fields, so a
+  // verified-MFA developer is never dead-ended seeing only the password field while the
+  // server (which re-derives capability live) demands a code (GDPR Art.17 availability).
+  const [mfaStatusKnown, setMfaStatusKnown] = useState(false)
   const [mfaLoading, setMfaLoading] = useState(true)
   const [mfaEnrolling, setMfaEnrolling] = useState(false)
   const [mfaFactorId, setMfaFactorId] = useState('')
@@ -726,17 +733,21 @@ export default function SettingsPage() {
           const data = await res.json()
           setMfaEnrolled(data.enrolled)
           // The deletion step-up challenges only 'verified' factors — derive the
-          // delete-flow affordance from per-factor status, not the (unverified-
-          // inclusive) `enrolled` flag.
+          // delete-flow affordance from per-factor `status` (the server emits the same
+          // verified-only set the step-up gates on).
           setMfaHasVerifiedFactor(
             Boolean(data.factors?.some((f: { status?: string }) => f.status === 'verified')),
           )
           if (data.factors?.length > 0) {
             setMfaFactorId(data.factors[0].id)
           }
+          // Status is now authoritative for this load → the delete panel can pick a
+          // single credential field. On a non-ok response below we leave this false so
+          // the panel shows both (fail-safe for the Art.17 control's availability).
+          setMfaStatusKnown(true)
         }
       } catch {
-        // Non-critical — MFA status defaults to not enrolled
+        // Non-critical — MFA status unknown; the delete panel shows both fields.
       } finally {
         setMfaLoading(false)
       }
@@ -2180,11 +2191,22 @@ export default function SettingsPage() {
                         placeholder="Type DELETE"
                         className="max-w-xs border-red-300 dark:border-red-700"
                       />
-                      {mfaHasVerifiedFactor ? (
+                      {/* Credential field(s) for the step-up. When MFA status is known
+                          (the GET succeeded) exactly ONE field shows; when it could not be
+                          loaded (!mfaStatusKnown) BOTH show, so a verified-MFA developer is
+                          never dead-ended seeing only the password field while the server
+                          demands a code (Art.17 availability). The server is authoritative
+                          and decides which proof it requires; handleDeleteAccount spreads
+                          each field only when filled. */}
+                      {!mfaStatusKnown && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          We couldn&apos;t confirm your two-factor status. If 2FA is enabled, enter your authenticator code; otherwise re-enter your password (leave blank if you sign in with Google or GitHub).
+                        </p>
+                      )}
+                      {(mfaHasVerifiedFactor || !mfaStatusKnown) && (
                         <>
                           {/* Verified-MFA account: the server requires a fresh 6-digit
-                              authenticator code (TERMINAL — a password will not satisfy
-                              it), so show ONLY the code field. */}
+                              authenticator code (TERMINAL — a password will not satisfy it). */}
                           <p className="text-xs text-red-700 dark:text-red-300">
                             Enter your 6-digit authenticator code to confirm:
                           </p>
@@ -2201,7 +2223,8 @@ export default function SettingsPage() {
                             Lost your authenticator? Disable 2FA in Settings &rarr; Security first.
                           </p>
                         </>
-                      ) : (
+                      )}
+                      {(!mfaHasVerifiedFactor || !mfaStatusKnown) && (
                         <>
                           {/* Non-MFA: password for a password account; OAuth-only
                               accounts leave it blank (the server accepts on session +
