@@ -1199,9 +1199,16 @@ describe('accountDeletedEmail', () => {
     expect(result.html).toContain('user@test.com')
   })
 
-  it('includes 30-day retention notice', () => {
+  it('states the deletion is permanent and makes NO false recovery-window claim (③ DC-16)', () => {
+    // The endpoint calls accountDeletedEmail(email) WITHOUT exportUrl. The body must
+    // not imply a recovery window for an irreversible op: it formerly closed with
+    // "contact support within 30 days", which contradicts the synchronous hard-delete
+    // and the settings UI's "This action cannot be undone." Pin the honest wording.
     const result = accountDeletedEmail('user@test.com')
-    expect(result.html).toContain('30 days')
+    expect(result.html).toContain('cannot be undone')
+    expect(result.html).not.toContain('within 30 days')
+    // The retention banner (financial records retained) is still present.
+    expect(result.html).toContain('retained')
   })
 
   it('includes data export link when provided', () => {
