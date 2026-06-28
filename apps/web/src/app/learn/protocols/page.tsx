@@ -54,11 +54,14 @@ const PROTOCOLS: ProtocolCard[] = [
     name: 'MPP',
     fullName: 'Machine Payments Protocol',
     backer: 'Stripe + Tempo',
-    status: 'Production',
+    status: 'Pending',
     oneLiner: 'Autonomous machine-to-machine payments backed by Stripe infrastructure.',
     color: 'bg-violet-500/10 text-violet-400 hover:border-violet-500/40',
     borderColor: 'border-violet-800/30',
   },
+  // Resolution A: the standalone x402 facilitator verifies + settles on Base
+  // mainnet in production (see protocols/x402/facilitator/page.tsx:111). The
+  // platform/proxy x402 settlement layer is still in development (overview prose).
   {
     slug: 'x402',
     name: 'x402',
@@ -147,7 +150,7 @@ const PROTOCOLS: ProtocolCard[] = [
     name: 'L402',
     fullName: 'L402 Lightning Payments',
     backer: 'Lightning Labs',
-    status: 'Ready',
+    status: 'Testnet',
     oneLiner: 'Bitcoin Lightning micropayments with macaroon authentication — pseudonymous, per-request.',
     color: 'bg-yellow-500/10 text-yellow-400 hover:border-yellow-500/40',
     borderColor: 'border-yellow-800/30',
@@ -258,9 +261,9 @@ export default function ProtocolIndexPage() {
               One SDK. Multiple Protocols. Zero Vendor Lock-in.
             </h1>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              SettleGrid supports the major AI agent payment protocols out of the box. Wrap your tool once and
-              accept payments from agents across Anthropic, Google, Stripe, Visa, Mastercard, Coinbase,
-              OpenAI, Circle, Shopify, Lightning Labs, Ant Group, and Skyfire ecosystems.
+              SettleGrid integrates the major AI agent payment protocols. Wrap your tool once to reach
+              agents across the Anthropic, Google, Stripe, Visa, Mastercard, Coinbase, OpenAI, Circle,
+              Shopify, Lightning Labs, Ant Group, and Skyfire ecosystems.
             </p>
           </div>
 

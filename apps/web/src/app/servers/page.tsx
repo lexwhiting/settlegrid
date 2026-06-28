@@ -8,9 +8,9 @@ import catalogData from '../../../public/server-catalog.json'
 /* ── Metadata ──────────────────────────────────────────────────────────────── */
 
 export const metadata: Metadata = {
-  title: '1,017 Open-Source MCP Templates | SettleGrid',
+  title: '1,017 Open-Source MCP Servers | SettleGrid',
   description:
-    'Browse 1,017 open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, and start earning.',
+    'Browse 1,017 open-source MCP servers — fork any on GitHub, add SettleGrid billing, and start earning.',
   alternates: { canonical: 'https://settlegrid.ai/servers' },
   keywords: [
     'MCP servers',
@@ -21,17 +21,17 @@ export const metadata: Metadata = {
     'AI monetization',
   ],
   openGraph: {
-    title: '1,017 Open-Source MCP Templates | SettleGrid',
+    title: '1,017 Open-Source MCP Servers | SettleGrid',
     description:
-      'Browse 1,017 open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, and start earning.',
+      'Browse 1,017 open-source MCP servers — fork any on GitHub, add SettleGrid billing, and start earning.',
     type: 'website',
     siteName: 'SettleGrid',
   },
   twitter: {
     card: 'summary_large_image',
-    title: '1,017 Open-Source MCP Templates | SettleGrid',
+    title: '1,017 Open-Source MCP Servers | SettleGrid',
     description:
-      'Browse 1,017 open-source MCP server templates with SettleGrid billing pre-wired. Fork, customize, and start earning.',
+      'Browse 1,017 open-source MCP servers — fork any on GitHub, add SettleGrid billing, and start earning.',
   },
 }
 
@@ -95,12 +95,12 @@ export default function ServersPage() {
           {/* ── Hero ───────────────────────────────────────────────── */}
           <div className="text-center mb-14">
             <h1 className="text-4xl sm:text-5xl font-bold text-gray-100 mb-4">
-              1,017 Open-Source MCP Templates
+              1,017 Open-Source MCP Servers
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Fork any template, add your API key, deploy to Vercel.
-              Settle<span className="text-amber-400">Grid</span> billing is
-              pre-wired &mdash; start earning on every call.
+              Fork any server on GitHub, add
+              Settle<span className="text-amber-400">Grid</span> billing, and
+              deploy to Vercel &mdash; start earning on every call.
             </p>
 
             {/* Workflow callout */}

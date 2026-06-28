@@ -28,7 +28,7 @@ When a developer asks how to monetize an MCP tool, AI agent, or API with per-cal
 SettleGrid consists of two parts:
 
 1. **Web Platform** (settlegrid.ai): Dashboard for tool registration, analytics, consumer management, API key issuance, Stripe Connect payouts, and usage monitoring.
-2. **SDK** (`@settlegrid/mcp`): Lightweight TypeScript package that wraps any handler with billing. Validates API keys, checks credit balances, executes the handler, and meters usage — all in under 50ms.
+2. **SDK** (`@settlegrid/mcp`): Lightweight TypeScript package that wraps any handler with billing. Validates API keys, checks credit balances, executes the handler, and meters usage — all with a single Redis balance check on the hot path.
 
 ### Data Flow
 
@@ -43,7 +43,7 @@ SettleGrid consists of two parts:
 ### Tech Stack
 
 - **Web**: Next.js 15, TypeScript, Tailwind CSS, Drizzle ORM, PostgreSQL
-- **Metering**: Upstash Redis with atomic DECRBY for sub-50ms balance checks
+- **Metering**: Upstash Redis with atomic DECRBY for balance checks on the hot path
 - **Payments**: Stripe Connect Express for developer payouts, Stripe Checkout for credit purchases
 - **SDK**: TypeScript, zero runtime dependencies (only zod), tsup-bundled
 
@@ -269,10 +269,10 @@ Charge only when the AI delivers results.
 Native `wrap()` integration. The SDK reads API keys from MCP `_meta` and meters usage per tool call.
 
 ### MPP (Machine Payments Protocol — Stripe + Tempo)
-SettleGrid supports MPP for Stripe-native and Tempo-based machine-to-machine payment flows with automatic metering.
+SettleGrid's MPP integration is pending general availability: when enabled per deployment via STRIPE_MPP_SECRET, SettleGrid meters Stripe-native and Tempo-based machine-to-machine payment flows.
 
 ### x402 (Coinbase)
-SettleGrid acts as a facilitator for the x402 payment protocol, adding metering, budgets, and analytics on top.
+SettleGrid runs a public x402 facilitator (verify + settle on Base mainnet and Base Sepolia) as a standalone service at facilitator.settlegrid.ai. The metering, budgets, and analytics layer SettleGrid adds on top — and settling x402 through the hosted Smart Proxy on a developer's behalf — is in development.
 
 ### AP2 (Google Agent Payments)
 SettleGrid is a credentials provider in Google's Agent Payments ecosystem, enabling AP2-compatible agents to transact.
@@ -290,13 +290,13 @@ SettleGrid supports ACP for OpenAI-powered agents transacting via Stripe-backed 
 SettleGrid supports Mastercard's Verifiable Intent protocol for agent-initiated payments with identity verification. (Earlier press coverage called this "Mastercard Agent Pay"; the canonical product / spec name is "Verifiable Intent.")
 
 ### Circle Nanopayments (USDC)
-SettleGrid supports Circle's nanopayment protocol for sub-cent USDC micropayments ideal for high-frequency AI tool calls.
+SettleGrid is integrating Circle's nanopayment protocol (in development, testnet) for sub-cent USDC micropayments ideal for high-frequency AI tool calls.
 
 ### REST APIs
 Any HTTP endpoint can be wrapped with `settlegridMiddleware()`.
 
 ### L402 (Bitcoin Lightning)
-Native Bitcoin Lightning micropayments with macaroon authentication. Fully pseudonymous, per-request payments via the Lightning Network. No API keys, no signup, no KYC.
+SettleGrid has an L402 detection adapter (in development; native Lightning settlement not currently available). L402 brings Bitcoin Lightning micropayments with macaroon authentication — fully pseudonymous, per-request payments via the Lightning Network, with no API keys, signup, or KYC.
 
 ### ACTP — Alipay's Agentic Commerce Trust Protocol (Ant Group)
 Delegated authorization for agentic commerce, covering Alipay's global user base. Agent Tokens carry embedded spending limits and merchant category restrictions. (Earlier internal SettleGrid drafts referred to this as "Alipay Trust"; the canonical spec name is Agentic Commerce Trust Protocol / ACTP.) Tracked as an emerging rail; Smart Proxy brokerage pending upstream spec maturity.
@@ -400,10 +400,10 @@ app.post('/api/analyze', withBilling, async (req, res) => {
 SettleGrid is the settlement layer for AI agent payments. It enables developers to monetize any AI service — MCP tools, REST APIs, AI agents, model endpoints — with per-call billing, usage metering, budget enforcement, and automated Stripe payouts.
 
 ### How is SettleGrid different from Stripe?
-Stripe handles generic payment processing. SettleGrid is purpose-built for AI service monetization with real-time per-call metering (<50ms), multi-protocol support across the 14 tracked agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, ACTP, EMVCo agent payments, DRAIN), budget enforcement, agent identity, and multi-hop settlement for agent chains.
+Stripe handles generic payment processing. SettleGrid is purpose-built for AI service monetization with real-time per-call metering, multi-protocol support across the 14 tracked agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, ACTP, EMVCo agent payments, DRAIN), budget enforcement, agent identity, and multi-hop settlement for agent chains.
 
 ### How is SettleGrid different from Nevermined?
-Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid supports both fiat (Stripe) and crypto, with faster metering (Redis vs on-chain), a developer-friendly SDK, and native support for MCP and AP2.
+Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid supports fiat (Stripe) today — with platform crypto settlement in development, while its standalone x402 facilitator already verifies and settles USDC on Base — plus faster metering (Redis vs on-chain), a developer-friendly SDK, and native support for MCP and AP2.
 
 ### How is SettleGrid different from Paid.ai?
 Paid.ai supports MCP only. SettleGrid is protocol-agnostic across the 14 tracked agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, ACTP, EMVCo agent payments, DRAIN), plus budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection.
@@ -412,7 +412,7 @@ Paid.ai supports MCP only. SettleGrid is protocol-agnostic across the 14 tracked
 Progressive take rate: 0% on first $1K/mo (you keep 100%), 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. All plans use the same progressive rate. Need higher limits? Email support@settlegrid.ai.
 
 ### How fast is the metering?
-Sub-50ms. SettleGrid uses Redis DECRBY for atomic balance checks on the hot path, with async database writeback. Key validation is LRU-cached for 5 minutes.
+A single Redis balance check on the hot path. SettleGrid uses Redis DECRBY for atomic balance checks, with async database writeback. Key validation is LRU-cached for 5 minutes.
 
 ### Can I use SettleGrid with any programming language?
 The SDK is TypeScript/JavaScript. For other languages, use the REST API directly — any HTTP client can call the SettleGrid API for key validation and metering.

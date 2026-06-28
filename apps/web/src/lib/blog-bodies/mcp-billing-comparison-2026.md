@@ -80,7 +80,7 @@ AgenticTrade is a strong choice if you want to list a single API and let AI agen
 
 ## Our Recommendation
 
-For most MCP tool developers, SettleGrid offers the best combination of speed, features, and cost. The 5-minute setup, 15-protocol support, and built-in discovery marketplace eliminate the two biggest barriers to monetization: billing complexity and tool discoverability. The progressive take rate (0% on your first $1,000/mo of revenue, capping at 5% above $50K/mo) is also the most developer-friendly economics in the category at any meaningful scale.
+For most MCP tool developers, SettleGrid offers the best combination of speed, features, and cost. The 5-minute setup, multi-protocol support, and built-in discovery marketplace eliminate the two biggest barriers to monetization: billing complexity and tool discoverability. The progressive take rate (0% on your first $1,000/mo of revenue, capping at 5% above $50K/mo) is also the most developer-friendly economics in the category at any meaningful scale.
 
 If you process over $100K per month and need maximum control, consider Stripe direct with a custom metering layer. If you are in the Web3 ecosystem, evaluate Nevermined. If you just need basic per-call billing today and plan to upgrade later, MCPize is a reasonable starting point. If you want a turnkey marketplace with no code, want sub-cent per-call pricing, or need an MIT-licensed open-source platform, AgenticTrade is worth evaluating — though the commission economics flip in SettleGrid's favor above $1K/mo of revenue.
 

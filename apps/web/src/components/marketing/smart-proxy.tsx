@@ -5,7 +5,7 @@ const proxyCode = `curl https://settlegrid.ai/api/proxy/my-tool \\
 
 const features = [
   "Per-call metering & budget enforcement",
-  "15-protocol payment detection",
+  "Multi-protocol payment detection",
   "IP allowlisting & fraud signals",
   "Automatic Stripe payouts",
 ]
@@ -26,7 +26,8 @@ export function SmartProxy() {
             <p className="text-base text-muted-foreground leading-relaxed max-w-lg">
               Point any AI agent at your proxy endpoint. SettleGrid handles
               authentication, metering, rate limiting, budget enforcement, and
-              fraud detection — transparently, in under 50ms.
+              fraud detection — transparently, with a single Redis balance
+              check on the hot path.
             </p>
             <ul className="flex flex-col gap-2 mt-2">
               {features.map((feature) => (

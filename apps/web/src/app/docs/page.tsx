@@ -72,7 +72,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What pricing models are supported?',
-      a: 'SettleGrid supports per-call billing (flat fee per invocation), per-method pricing (different cost per method), and outcome-based billing (charge only when AI delivers results, with success criteria verification and dispute handling). Multi-currency settlement is supported across USD, EUR, GBP, JPY, and crypto (USDC, USDT).',
+      a: 'SettleGrid supports per-call billing (flat fee per invocation), per-method pricing (different cost per method), and outcome-based billing (charge only when AI delivers results, with success criteria verification and dispute handling). Multi-currency settlement is supported across USD, EUR, GBP, and JPY; settling your tool\'s on-chain crypto (USDC) revenue through the platform is in development, though SettleGrid\'s standalone x402 facilitator already verifies and settles USDC on Base.',
     },
     {
       q: 'Does the SDK work with non-MCP services?',
@@ -208,7 +208,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What payment methods are accepted?',
-      a: 'Fiat payments are processed via Stripe, so all major credit and debit cards are accepted. Crypto payments are supported via the x402 protocol using USDC and USDT stablecoins.',
+      a: 'Fiat payments are processed via Stripe, so all major credit and debit cards are accepted. Accepting x402 crypto payments (USDC) for your own tool through the platform is in development; SettleGrid\'s standalone x402 facilitator that verifies and settles those payments on Base is already live.',
     },
     {
       q: 'Can I set spending limits?',
@@ -236,7 +236,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How does multi-currency billing work?',
-      a: 'SettleGrid supports USD, EUR, GBP, JPY, and USDC. Exchange rates are fetched from Open Exchange Rates and cached in Redis for 1 hour. If the rate API is unavailable, hardcoded fallback rates are used. All amounts are stored in the smallest unit (cents, yen, micro-units).',
+      a: 'SettleGrid supports USD, EUR, GBP, JPY, and USDC as billing denominations (units of account for pricing and invoicing — distinct from on-chain crypto settlement). Exchange rates are fetched from Open Exchange Rates and cached in Redis for 1 hour. If the rate API is unavailable, hardcoded fallback rates are used. All amounts are stored in the smallest unit (cents, yen, micro-units).',
     },
   ],
 },
@@ -323,19 +323,19 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is x402?',
-      a: 'x402 is Coinbase\'s open protocol for machine-to-machine payments using HTTP 402 status codes. When an AI agent hits a paid endpoint, it receives a 402 response with payment instructions. The agent pays with USDC on-chain, and the server verifies the payment before serving the response. SettleGrid is the first x402 facilitator that adds metering, budgets, and analytics on top.',
+      a: 'x402 is Coinbase\'s open protocol for machine-to-machine payments using HTTP 402 status codes. When an AI agent hits a paid endpoint, it receives a 402 response with payment instructions. The agent pays with USDC on-chain, and the server verifies the payment before serving the response. SettleGrid runs a public x402 facilitator (verify + settle on Base mainnet and Base Sepolia) as a standalone service; the metering, budgets, and analytics layer SettleGrid adds on top — and settling x402 through the hosted proxy for your own tool\'s revenue — is in development.',
     },
     {
       q: 'What chains are supported?',
-      a: 'SettleGrid supports USDC and USDT stablecoins for crypto settlement. On-chain settlement details are handled through the x402 protocol specification. The platform maintains a unified fiat + crypto ledger so all revenue — regardless of payment method — is reconciled in one place.',
+      a: 'SettleGrid\'s standalone x402 facilitator verifies and settles USDC on Base mainnet (and Base Sepolia) today. Settling your own tool\'s revenue on-chain through the hosted proxy — with a unified fiat + crypto ledger that reconciles all revenue, regardless of payment method, in one place — is in development.',
     },
     {
       q: 'Do I need a crypto wallet to use SettleGrid?',
-      a: 'No. Crypto payments via x402 are optional. You can use SettleGrid entirely with fiat payments (credit cards via Stripe). Crypto settlement is an additional capability for developers and consumers who want on-chain payment options.',
+      a: 'No. The platform works entirely with fiat payments (credit cards via Stripe) today. Settling your tool\'s revenue on-chain via x402 through the platform is a planned additional capability (in development); SettleGrid does already run a standalone x402 facilitator that verifies and settles USDC on Base for developers integrating x402 directly.',
     },
     {
       q: 'How does on-chain settlement work?',
-      a: 'For x402 payments, the consumer\'s agent sends a payment header with the request. SettleGrid verifies the on-chain payment, meters the operation, and credits the developer. The developer can receive payouts in fiat via Stripe Connect regardless of how the consumer paid.',
+      a: 'For x402 payments, the consumer\'s agent sends a payment header with the request. SettleGrid\'s standalone x402 facilitator verifies and settles that payment on Base today; the platform layer that additionally meters the operation and credits the developer\'s SettleGrid balance is in development. The developer can receive payouts in fiat via Stripe Connect regardless of how the consumer paid.',
     },
     {
       q: 'What x402 API endpoints are available?',
@@ -356,7 +356,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Do I need separate integrations for each protocol?',
-      a: 'No. SettleGrid\'s protocol adapter layer handles MCP, x402, AP2, Visa TAP, and REST transparently. You integrate once with the SDK and all supported protocols work automatically. The adapter layer normalizes authentication, metering, and settlement across every protocol.',
+      a: 'No. SettleGrid\'s protocol adapter layer handles MCP, AP2, Visa TAP, and REST transparently through one SDK integration. Settling x402 and other on-chain rails through the hosted proxy is in development; the standalone x402 facilitator that verifies and settles on Base is already live. The adapter layer normalizes authentication and metering across the supported protocols.',
     },
   ],
 },
@@ -488,7 +488,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What are workflow sessions?',
-      a: 'A workflow session is a budget-capped container for multi-hop agent workflows. You create a session with a budget in cents and an expiry time; each tool call within the session is recorded as a hop. The session tracks total spent vs. budget in Redis for sub-millisecond checks, with PostgreSQL as the durable store.',
+      a: 'A workflow session is a budget-capped container for multi-hop agent workflows. You create a session with a budget in cents and an expiry time; each tool call within the session is recorded as a hop. The session tracks total spent vs. budget in Redis on the hot path, with PostgreSQL as the durable store.',
     },
     {
       q: 'How does budget delegation work?',
@@ -666,11 +666,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'How is SettleGrid different from Stripe Billing?',
-      a: 'Stripe Billing handles subscriptions and batch invoicing for traditional SaaS. SettleGrid is purpose-built for AI services with real-time per-call metering (<50ms), multi-hop settlement for agent chains, budget enforcement, Agent Identity (KYA), and outcome-based billing — none of which Stripe supports natively.',
+      a: 'Stripe Billing handles subscriptions and batch invoicing for traditional SaaS. SettleGrid is purpose-built for AI services with real-time per-call metering, multi-hop settlement for agent chains, budget enforcement, Agent Identity (KYA), and outcome-based billing — none of which Stripe supports natively.',
     },
     {
       q: 'How is SettleGrid different from Nevermined?',
-      a: 'Nevermined focuses on DeFi/on-chain AI payments. SettleGrid supports both fiat (Stripe Connect) and crypto (x402) in one unified ledger, adds per-method pricing, IP allowlisting, fraud detection, sandbox mode, and Stripe Connect payouts — features Nevermined lacks.',
+      a: 'Nevermined focuses on DeFi/on-chain AI payments. SettleGrid supports fiat (Stripe Connect) today — with platform crypto (x402) settlement into one unified ledger in development, while its standalone x402 facilitator already verifies and settles on Base — and adds per-method pricing, IP allowlisting, fraud detection, sandbox mode, and Stripe Connect payouts that Nevermined lacks.',
     },
     {
       q: 'Can I use SettleGrid with Stripe?',
@@ -703,7 +703,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Do these templates work with all the protocols SettleGrid supports?',
-      a: "Yes. The sg.wrap() pattern used in every template automatically supports the agent payment protocols SettleGrid handles through its Smart Proxy — MCP, x402 (Coinbase), Stripe MPP (Stripe + Tempo), AP2 (Google), ACP (OpenAI + Stripe), UCP (Google + Shopify), Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, with detection adapters for L402 and KYAPay, plus tracked-as-emerging rails (Alipay's ACTP, EMVCo agent payments, DRAIN). You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and handles settlement automatically. One template, multiple protocols.",
+      a: "Yes. The sg.wrap() pattern used in every template works with the agent payment protocols SettleGrid brokers through its Smart Proxy — MCP, x402 (Coinbase), Stripe MPP (Stripe + Tempo, pending GA), AP2 (Google), ACP (OpenAI + Stripe), UCP (Google + Shopify), Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, with detection adapters for L402 and KYAPay, plus tracked-as-emerging rails (Alipay's ACTP, EMVCo agent payments, DRAIN). You write zero protocol-specific code — SettleGrid detects the protocol from each incoming request and routes it through the matching adapter. Settlement is live today for fiat (cards via Stripe Connect); the on-chain crypto rails (x402, Circle Nanopayments) and Stripe MPP are in development. One template, multiple protocols.",
     },
   ],
 },
@@ -1809,7 +1809,7 @@ try {
           {/* ── Accepting MPP Payments ─────────────────────────── */}
           <Section title="Accepting MPP Payments" id="mpp">
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              SettleGrid natively accepts Stripe MPP (Machine Payments Protocol) Shared Payment Tokens alongside traditional API keys. Any agent using Stripe MPP can pay for your SettleGrid tools seamlessly — zero configuration required.
+              SettleGrid&apos;s MPP integration is pending general availability: when enabled per deployment via the <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">STRIPE_MPP_SECRET</code> configuration, SettleGrid tools accept Stripe MPP (Machine Payments Protocol) Shared Payment Tokens alongside traditional API keys.
             </p>
             <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
               <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">How MPP Works with SettleGrid</h3>
@@ -1847,7 +1847,7 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
             <div className="mt-6 bg-[#161822] border border-[#2A2D3E] rounded-xl p-6">
               <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Key Details</h3>
               <div className="space-y-3 text-sm text-gray-400">
-                <p><strong className="text-gray-300">Dual payment</strong> — Tools accept both MPP (SPT) and traditional API key payments. No code changes needed on the developer side.</p>
+                <p><strong className="text-gray-300">Dual payment</strong> — When MPP is enabled, tools accept both MPP (SPT) and traditional API key payments.</p>
                 <p><strong className="text-gray-300">Standard 402 flow</strong> — When payment is missing, SettleGrid returns a proper MPP 402 response with pricing headers so agents can negotiate.</p>
                 <p><strong className="text-gray-300">Stripe settlement</strong> — MPP payments settle through Stripe. Developers receive payouts via Stripe Connect alongside API key revenue.</p>
                 <p><strong className="text-gray-300">MPP directory</strong> — SettleGrid publishes a <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">/.well-known/mpp.json</code> manifest for automatic service discovery.</p>

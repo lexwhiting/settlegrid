@@ -661,13 +661,14 @@ export const BLOG_POSTS: BlogPost[] = [
     published: false,
   },
 
-  /* ── P4.MKT2. Public x402 facilitator announcement (DRAFT — published:false) ── */
-  /* Anchor for the launch announcement at facilitator.settlegrid.ai. Stays
-     published:false until the founder has provisioned DNS for
-     `facilitator.settlegrid.ai`, smoke-tested the three /v1 endpoints from
-     outside the SettleGrid network, and posted to the x402 community
-     Discord. See `apps/web/src/app/protocols/x402/facilitator/page.tsx`
-     for the docs landing page that supports this post.                    */
+  /* ── P4.MKT2. Public x402 facilitator announcement (LAUNCHED) ── */
+  /* Launched 2026-04-29: DNS for `facilitator.settlegrid.ai` was provisioned
+     and the three /v1 endpoints were smoke-tested green from outside the
+     SettleGrid network per docs/launch/x402-facilitator-dns-runbook.md, then
+     this post was flipped to published:true (Step 5 of the runbook makes the
+     flip a strict consequence of the external smoke-test passing). See
+     `apps/web/src/app/protocols/x402/facilitator/page.tsx` for the docs
+     landing page that supports this post.                                 */
   {
     slug: 'x402-facilitator-launch',
     title: 'SettleGrid is running a public x402 facilitator',

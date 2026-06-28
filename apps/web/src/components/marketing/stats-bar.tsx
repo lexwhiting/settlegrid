@@ -1,8 +1,7 @@
 import { AnimatedCounter } from "@/components/ui/animated-counter"
 
 const stats = [
-  { value: "15", label: "Payment protocols" },
-  { value: "< 50ms", label: "Metering latency" },
+  { value: "9", label: "Protocols brokered" },
   { value: "95–100%", label: "Revenue share" },
   { value: "Free forever", label: "50K ops/month" },
 ]

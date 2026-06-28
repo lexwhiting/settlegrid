@@ -68,7 +68,7 @@ npm install @settlegrid/mcp
 - Budget enforcement: spending limits, auto-refill, budget exceeded (402)
 - API keys: sg_live_ prefix for production, sg_test_ prefix for sandbox (no real charges)
 - Stripe Connect: developer payout onboarding, progressive take rate (0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K)
-- x402: facilitator for on-chain USDC settlement (Base network)
+- x402: SettleGrid runs a public x402 facilitator (verify + settle on Base) — live; settling x402 payments through the hosted Smart Proxy on a developer's behalf is in development
 - Webhooks: 10 event types, HMAC-SHA256 signed, retry with exponential backoff
 - Sessions: multi-hop workflow budgets with delegation
 - Agent identity: KYA (Know Your Agent) with trust scoring
