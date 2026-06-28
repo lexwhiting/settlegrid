@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # P4.MKT2 — Public x402 facilitator smoke test.
 #
-# Founder runs this from a non-dev machine after DNS for
-# facilitator.settlegrid.ai has been provisioned (see
-# docs/launch/x402-facilitator-dns-runbook.md). All three
-# endpoints are exercised; the verify + settle calls use
+# Launched 2026-04-29: DNS for facilitator.settlegrid.ai is provisioned and
+# the facilitator is live (see docs/launch/x402-facilitator-dns-runbook.md).
+# Run this from a non-dev machine as an ongoing reachability health check.
+# All three endpoints are exercised; the verify + settle calls use
 # deliberately MALFORMED payloads so they return error envelopes
 # without touching the gas wallet — running this script does not
 # spend money.

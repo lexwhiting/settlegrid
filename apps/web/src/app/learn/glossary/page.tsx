@@ -55,7 +55,7 @@ const glossaryTerms = [
   {
     name: 'Metering',
     definition:
-      'Real-time measurement of AI service usage at the individual call level. SettleGrid meters every invocation in under 50 milliseconds using atomic Redis operations, tracking call count, token usage, byte transfer, or execution time depending on the pricing model.',
+      'Real-time measurement of AI service usage at the individual call level. SettleGrid meters every invocation with atomic Redis operations on the hot path, tracking call count, token usage, byte transfer, or execution time depending on the pricing model.',
     link: '/learn/how-to/how-to-create-mcp-tool',
   },
   {

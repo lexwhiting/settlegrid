@@ -232,7 +232,7 @@ export default async function ShadowDetailPage({
               </li>
               <li className="flex gap-2">
                 <span className="text-[#E5A336] font-medium">2.</span>
-                AI agents pay per call via their SettleGrid balance or x402 protocol
+                AI agents pay per call via their SettleGrid balance
               </li>
               <li className="flex gap-2">
                 <span className="text-[#E5A336] font-medium">3.</span>

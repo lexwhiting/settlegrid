@@ -36,7 +36,7 @@ const PROTOCOLS: Protocol[] = [
     howItWorks:
       'An MCP server exposes "tools" — functions that AI assistants can call. When an assistant needs a capability (like web search or code analysis), it discovers available MCP servers and calls their tools with structured arguments. The server processes the request and returns results.\n\nThe protocol uses JSON-RPC 2.0 over stdio or HTTP transports. Each tool declares its name, description, and input schema so that AI models can decide when and how to invoke it. MCP servers can also expose "resources" (read-only data) and "prompts" (reusable templates).\n\nSettleGrid wraps this flow with automatic metering: every tool call is validated, charged, and recorded. The SDK intercepts the JSON-RPC call, checks credits, executes your handler, and meters usage — all before the response is returned to the AI assistant.',
     integration:
-      "SettleGrid's SDK wraps your MCP tool handler with billing. The sg.wrap() function intercepts each call, validates the consumer's API key, checks their credit balance, executes your handler, and meters the usage — all in under 50ms. No changes to your tool's logic required. The consumer passes their API key in the MCP _meta field, and SettleGrid handles the rest.",
+      "SettleGrid's SDK wraps your MCP tool handler with billing. The sg.wrap() function intercepts each call, validates the consumer's API key, checks their credit balance, executes your handler, and meters the usage — all with a single Redis balance check on the hot path. No changes to your tool's logic required. The consumer passes their API key in the MCP _meta field, and SettleGrid handles the rest.",
     detectionHeader: 'x-api-key / _meta.settlegrid-api-key',
     identityType: 'api-key',
     paymentType: 'credit-balance',
@@ -59,13 +59,13 @@ const search = sg.wrap(async (args: { query: string }) => {
     name: 'MPP',
     fullName: 'Machine Payments Protocol',
     backer: 'Stripe + Tempo',
-    status: 'Production',
+    status: 'Pending',
     overview:
-      'MPP (Machine Payments Protocol) is Stripe and Tempo Labs\' protocol for enabling autonomous machine-to-machine payments. Launched March 18, 2026, it is the most significant payment protocol for AI agent commerce because of Stripe\'s massive distribution and Visa\'s planned extension. SettleGrid has a deep, native MPP integration — every SettleGrid tool automatically accepts Stripe Shared Payment Tokens (SPTs) alongside traditional API keys with zero configuration.',
+      'MPP (Machine Payments Protocol) is Stripe and Tempo Labs\' protocol for enabling autonomous machine-to-machine payments. Launched March 18, 2026, it is the most significant payment protocol for AI agent commerce because of Stripe\'s massive distribution and Visa\'s planned extension. SettleGrid\'s MPP integration is pending general availability: when enabled via the Smart Proxy, SettleGrid tools accept Stripe Shared Payment Tokens (SPTs) alongside traditional API keys.',
     howItWorks:
       'MPP extends Stripe\'s existing payment rails to support autonomous agent transactions. A "model provider" (the AI agent\'s host) registers payment credentials with Stripe, receives a Shared Payment Token (SPT), and passes it along when the agent calls external services. The service provider verifies the SPT with Stripe and charges the model provider\'s account.\n\nThe protocol uses Stripe\'s existing infrastructure for settlement, compliance, and dispute resolution. This means developers get Stripe-grade payment processing with full PCI compliance, automatic currency conversion, and established fraud protection.\n\nSPTs carry embedded spending limits, expiration times, and scope constraints — so agents can only spend within pre-approved budgets. Every transaction is recorded in the Stripe dashboard alongside regular business payments.\n\nWhen an agent calls a SettleGrid tool without valid payment, it receives a standard HTTP 402 response with MPP headers (X-Payment-Protocol, X-Payment-Amount, X-Payment-Currency) that tell the agent exactly how to pay. The agent then re-sends the request with a valid SPT in the X-Payment-Token header. SettleGrid verifies the SPT, captures the payment, forwards the request to the upstream tool, and returns the result — all in a single round-trip.',
     integration:
-      'SettleGrid has a deep, native MPP integration. Every tool on the platform automatically accepts Stripe Shared Payment Tokens (SPTs) via the Smart Proxy — no configuration needed. When an agent presents an SPT via X-Payment-Token header or Authorization: Bearer spt_*, SettleGrid validates it with Stripe\'s MPP API, verifies the spending limits, captures the payment, forwards the request to the upstream tool, and records the invocation with paymentMethod: \'mpp\'. If the token is missing or invalid, SettleGrid returns a proper MPP 402 response with pricing information so the agent can negotiate payment. Developers receive payouts via Stripe Connect regardless of payment method. SettleGrid also publishes a /.well-known/mpp.json manifest for MPP directory registration.',
+      'SettleGrid\'s MPP integration is pending general availability and is enabled per deployment via the STRIPE_MPP_SECRET configuration. When enabled, SettleGrid tools accept Stripe Shared Payment Tokens (SPTs) via the Smart Proxy: when an agent presents an SPT via X-Payment-Token header or Authorization: Bearer spt_*, SettleGrid validates it with Stripe\'s MPP API, verifies the spending limits, captures the payment, forwards the request to the upstream tool, and records the invocation with paymentMethod: \'mpp\'. If the token is missing or invalid, SettleGrid returns a proper MPP 402 response with pricing information so the agent can negotiate payment. Developers receive payouts via Stripe Connect regardless of payment method. SettleGrid also publishes a /.well-known/mpp.json manifest for MPP directory registration.',
     detectionHeader: 'X-Payment-Token: spt_* / Authorization: Bearer spt_* / X-Payment-Protocol: MPP/1.0',
     identityType: 'mpp-token',
     paymentType: 'stripe-direct',
@@ -89,14 +89,14 @@ const response = await fetch('https://settlegrid.ai/api/proxy/data-enrichment', 
 // If not, you get a 402 with X-Payment-Amount header telling
 // you the price, so your agent can negotiate.
 
-// Developer side — zero config needed:
+// Developer side — once MPP is enabled (pending GA):
 import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
   toolSlug: 'data-enrichment',
   pricing: { defaultCostCents: 10 },
-  // MPP Shared Payment Tokens are accepted automatically
-  // alongside standard sg_live_* API keys — no extra code
+  // When MPP is enabled, Shared Payment Tokens are accepted
+  // alongside standard sg_live_* API keys
 })
 
 const enrich = sg.wrap(async (args: { domain: string }) => {
@@ -104,6 +104,10 @@ const enrich = sg.wrap(async (args: { domain: string }) => {
   return { content: [{ type: 'text', text: JSON.stringify(company) }] }
 }, { method: 'enrich' })`,
   },
+  // Resolution A: the standalone x402 facilitator verifies + settles on Base
+  // mainnet in production (matches protocols/x402/facilitator/page.tsx:111
+  // status:'production'). The platform/proxy x402 layer the overview scopes to
+  // "in development" is the part still pending.
   {
     slug: 'x402',
     name: 'x402',
@@ -111,11 +115,11 @@ const enrich = sg.wrap(async (args: { domain: string }) => {
     backer: 'Coinbase',
     status: 'Production',
     overview:
-      'x402 is Coinbase\'s open protocol for machine-to-machine payments using the HTTP 402 status code. When an AI agent hits a paid endpoint, it receives a 402 response with on-chain payment instructions. The agent pays with USDC, and the server verifies the payment before serving the response. SettleGrid is the first x402 facilitator that adds metering, budgets, and analytics on top.',
+      'x402 is Coinbase\'s open protocol for machine-to-machine payments using the HTTP 402 status code. When an AI agent hits a paid endpoint, it receives a 402 response with on-chain payment instructions. The agent pays with USDC, and the server verifies the payment before serving the response. SettleGrid runs a public x402 facilitator (verify + settle on Base) as a standalone service; the metering, budgets, and analytics layer SettleGrid adds on top — and settling x402 through the hosted proxy for your own tool\'s revenue — is in development.',
     howItWorks:
-      'The x402 flow begins when an AI agent sends a request to a paid endpoint without a payment header. The server responds with HTTP 402 and a JSON body specifying the price, the accepted token (USDC), network, and a payment address. The agent constructs an on-chain transaction, signs it, and resends the request with the payment proof in a custom header.\n\nThe server verifies the on-chain payment (checking amount, recipient, and confirmation status) before processing the request. This creates a trustless, permissionless payment channel between any two machines on the internet.\n\nSettleGrid extends x402 with credit-based budgets, rate limiting, and analytics. Instead of raw on-chain verification on every call, consumers can pre-fund a credit balance with USDC and SettleGrid handles the metering. This reduces gas costs and latency while maintaining the crypto-native payment model.',
+      'The x402 flow begins when an AI agent sends a request to a paid endpoint without a payment header. The server responds with HTTP 402 and a JSON body specifying the price, the accepted token (USDC), network, and a payment address. The agent constructs an on-chain transaction, signs it, and resends the request with the payment proof in a custom header.\n\nThe server verifies the on-chain payment (checking amount, recipient, and confirmation status) before processing the request. This creates a trustless, permissionless payment channel between any two machines on the internet.\n\nOn top of that on-chain flow, SettleGrid is building a platform layer that adds credit-based budgets, rate limiting, and analytics. When that layer is live, instead of raw on-chain verification on every call, consumers will be able to pre-fund a credit balance with USDC and let SettleGrid handle the metering — reducing gas costs and latency while keeping the crypto-native payment model. That metering, budgets, and analytics layer — settling x402 through SettleGrid\'s hosted proxy for your own tool\'s revenue — is in development; the standalone facilitator that verifies and settles x402 on Base is live today.',
     integration:
-      "SettleGrid supports x402 natively. When a consumer's agent sends an x402 payment header, SettleGrid verifies the on-chain transaction, credits the developer's balance, and meters the invocation. Developers receive payouts in fiat via Stripe Connect or in USDC — regardless of how the consumer paid. Three API endpoints handle the flow: /api/x402/verify, /api/x402/settle, and /api/x402/supported.",
+      "SettleGrid runs a live standalone x402 facilitator: three API endpoints handle the flow — /api/x402/verify and /api/x402/settle verify and settle USDC payments on Base, and /api/x402/supported lists the accepted networks. Settling x402 through SettleGrid's hosted proxy on your tool's behalf — crediting your developer balance and metering each invocation — is in development. When that platform layer is live, a consumer's agent sends an x402 payment header, SettleGrid verifies the transaction, credits the developer's balance, and meters the invocation; developers receive payouts in fiat via Stripe Connect regardless of how the consumer paid.",
     detectionHeader: 'X-402-Payment / X-Payment-*',
     identityType: 'wallet-address',
     paymentType: 'on-chain USDC (Base)',
@@ -317,11 +321,11 @@ const portfolioAnalysis = sg.wrap(async (args: { holdings: string[] }) => {
     backer: 'Circle (USDC)',
     status: 'Testnet',
     overview:
-      'Circle Nanopayments is Circle\'s infrastructure for sub-cent USDC micropayments, optimized for AI agents that pay per-token, per-byte, or per-call. SettleGrid wires it as an EIP-3009 USDC rail on Base: the payer signs a one-time transfer authorization offline, SettleGrid verifies it without a chain round-trip, then settles it on-chain from its own gas wallet.',
+      'Circle Nanopayments is Circle\'s infrastructure for sub-cent USDC micropayments, optimized for AI agents that pay per-token, per-byte, or per-call. SettleGrid\'s Circle Nano rail (in development, testnet only) is designed as an EIP-3009 USDC rail on Base: the payer signs a one-time transfer authorization offline, SettleGrid verifies it without a chain round-trip, then settles it on-chain from its own gas wallet.',
     howItWorks:
-      'Traditional on-chain transactions have a floor cost (gas fees) that makes sub-cent payments impractical. SettleGrid\'s Circle Nano rail uses an EIP-3009 transferWithAuthorization: the payer signs an EIP-712 authorization for a one-time USDC transfer to SettleGrid — amount, validity window, and nonce — and sends it in the x-circle-nano-auth header.\n\nSettleGrid verifies that signature entirely offline: it recovers the EIP-712 signer, confirms the payee is SettleGrid and the authorized amount covers the tool price, all with no chain round-trip and no Circle account or API key.\n\nWhen the consumer pays, SettleGrid submits the EIP-3009 transferWithAuthorization on-chain from its own gas wallet and waits for a confirmed receipt before recording the settlement — the payer signs once and SettleGrid pays the gas. Supported on Base mainnet and Base Sepolia.',
+      'Traditional on-chain transactions have a floor cost (gas fees) that makes sub-cent payments impractical. SettleGrid\'s Circle Nano rail uses an EIP-3009 transferWithAuthorization: the payer signs an EIP-712 authorization for a one-time USDC transfer to SettleGrid — amount, validity window, and nonce — and sends it in the x-circle-nano-auth header.\n\nSettleGrid verifies that signature entirely offline: it recovers the EIP-712 signer, confirms the payee is SettleGrid and the authorized amount covers the tool price, all with no chain round-trip and no Circle account or API key.\n\nWhen the consumer pays, SettleGrid submits the EIP-3009 transferWithAuthorization on-chain from its own gas wallet and waits for a confirmed receipt before recording the settlement — the payer signs once and SettleGrid pays the gas. Exercised on Base Sepolia testnet; Base mainnet settlement is pending go-live.',
     integration:
-      "SettleGrid supports Circle Nano as a USDC payment method. A consumer's agent sends an EIP-3009 transferWithAuthorization in the x-circle-nano-auth header; SettleGrid verifies it offline (EIP-712 signature recovery, payee, and amount), then submits it on-chain and waits for a confirmed receipt — all abstracted behind the same sg.wrap() interface. Verification itself needs no Circle account or API key.",
+      "SettleGrid's Circle Nano integration (in development, testnet only) is designed so a consumer's agent sends an EIP-3009 transferWithAuthorization in the x-circle-nano-auth header; SettleGrid verifies it offline (EIP-712 signature recovery, payee, and amount), then submits it on-chain and waits for a confirmed receipt — all abstracted behind the same sg.wrap() interface. Verification itself needs no Circle account or API key.",
     detectionHeader: 'x-circle-nano-auth: <base64 EIP-3009 authorization>',
     identityType: 'eip3009',
     paymentType: 'nanopayment-channel (USDC)',
@@ -339,7 +343,7 @@ const sg = settlegrid.init({
       'generate': { costCents: 2 },
     },
   },
-  // Circle Nanopayment channels are managed automatically
+  // Circle Nanopayment channels (in development, testnet only)
 })
 
 const embed = sg.wrap(async (args: { text: string }) => {
@@ -385,13 +389,13 @@ export async function POST(request: NextRequest) {
     name: 'L402',
     fullName: 'L402 Lightning Payments',
     backer: 'Lightning Labs (Bitcoin)',
-    status: 'Ready',
+    status: 'Testnet',
     overview:
-      'L402 (formerly LSAT) is Lightning Labs\' protocol for native Bitcoin Lightning payments over HTTP. It uses the HTTP 402 status code with Lightning invoices and cryptographic macaroons to enable fully pseudonymous, per-request payments. No API keys, no signup, no KYC — just pay-per-use via the Lightning Network. SettleGrid is the first multi-protocol billing platform with deep L402 support, allowing any AI tool to accept Bitcoin alongside fiat and stablecoin payments.',
+      'L402 (formerly LSAT) is Lightning Labs\' protocol for native Bitcoin Lightning payments over HTTP. It uses the HTTP 402 status code with Lightning invoices and cryptographic macaroons to enable fully pseudonymous, per-request payments. No API keys, no signup, no KYC — just pay-per-use via the Lightning Network. SettleGrid tracks L402 as a detection adapter; native Lightning settlement is in development and not currently available.',
     howItWorks:
       'The L402 flow begins when an agent calls a paid endpoint without credentials. The server returns HTTP 402 with a WWW-Authenticate header containing two components: a macaroon (a cryptographic bearer token with embedded caveats like expiry time, tool slug, and amount) and a Lightning invoice (a BOLT-11 payment request for the exact amount in satoshis).\n\nThe agent pays the Lightning invoice through the Bitcoin Lightning Network, which settles in seconds. Payment produces a preimage — the cryptographic proof of payment. The agent then re-sends the original request with an Authorization: L402 <macaroon>:<preimage> header.\n\nThe server verifies the macaroon\'s HMAC signature chain, checks that caveats are satisfied (correct tool, not expired, correct amount), and validates the preimage against the payment hash. If all checks pass, the request is processed.\n\nMacaroons support delegation — an agent can add additional caveats (further restrictions) before passing the macaroon to a sub-agent, enabling hierarchical payment authorization without server interaction.',
     integration:
-      'SettleGrid has a deep L402 integration with full macaroon minting and verification. Every tool on the platform can accept Lightning payments via the Smart Proxy. When an agent presents L402 credentials, SettleGrid verifies the HMAC-SHA256 macaroon signature chain, checks caveats (tool slug, expiry, amount), validates the preimage format, and records the invocation. If LND_REST_URL is configured, real Lightning invoices are generated via the LND REST API; otherwise, mock invoices are used for development.',
+      'SettleGrid\'s native L402 support is in development and not currently available. The Smart Proxy has an L402 detection adapter that verifies the HMAC-SHA256 macaroon signature chain, checks caveats (tool slug, expiry, amount), validates the preimage format, and records the invocation. In production, real Lightning invoices require a configured LND node (LND_REST_URL); without one, only mock invoices are generated for development.',
     detectionHeader: 'Authorization: L402 <macaroon>:<preimage> / Authorization: LSAT <macaroon>:<preimage>',
     identityType: 'pseudonymous (macaroon)',
     paymentType: 'bitcoin-lightning',
@@ -459,8 +463,8 @@ import { settlegrid } from '@settlegrid/mcp'
 const sg = settlegrid.init({
   toolSlug: 'market-research',
   pricing: { defaultCostCents: 15 },
-  // Alipay Agent Tokens are accepted automatically
-  // alongside all other payment protocols
+  // Alipay Agent Tokens (pending GA — requires ALIPAY_APP_ID)
+  // are detected; full settlement is not yet enabled
 })`,
   },
   {

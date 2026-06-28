@@ -23,7 +23,7 @@
   <a href="https://settlegrid.ai">Website</a> &middot;
   <a href="https://settlegrid.ai/docs">Docs</a> &middot;
   <a href="https://settlegrid.ai/tools">Showcase</a> &middot;
-  <a href="https://settlegrid.ai/servers">1,017 Templates</a> &middot;
+  <a href="https://settlegrid.ai/servers">1,017 Servers</a> &middot;
   <a href="https://settlegrid.ai/learn/discovery">Discovery Guide</a> &middot;
   <a href="https://settlegrid.ai/learn/handbook">Handbook</a>
 </p>
@@ -47,7 +47,7 @@ const sg = settlegrid.init({
 const billedHandler = sg.wrap(myHandler)
 ```
 
-Every call validates the consumer's API key, checks their credit balance, executes your function, and meters usage — all in under 50ms.
+Every call validates the consumer's API key, checks their credit balance, executes your function, and meters usage — all with a single Redis balance check on the hot path.
 
 Or scaffold a complete project instantly:
 
@@ -64,7 +64,7 @@ npx create-settlegrid-tool
 |  | SettleGrid | Stripe Billing | Nevermined | Paid.ai |
 |---|:---:|:---:|:---:|:---:|
 | **Protocol support** | 14 tracked (9 brokered + 2 detection + 3 emerging) | REST only | x402 / DeFi | MCP only |
-| **Real-time metering** | <50ms Redis | Batch only | On-chain | Per-call |
+| **Real-time metering** | Redis hot path | Batch only | On-chain | Per-call |
 | **Built-in discovery** | 8+ registries | None | None | None |
 | **Multi-hop settlement** | Yes | No | Yes | No |
 | **Agent identity (KYA)** | Yes | No | No | No |
@@ -132,7 +132,7 @@ ACTP (Alipay's Agentic Commerce Trust Protocol) &middot; EMVCo agent payments &m
 ## Features
 
 **Billing & Metering**
-- Sub-50ms Redis metering on every call
+- A single Redis balance check on the hot path, on every call
 - Budget enforcement — HTTP 402 when exceeded
 - Auto-refill credits via Stripe
 - Multi-hop atomic settlement across agent chains
@@ -148,7 +148,7 @@ ACTP (Alipay's Agentic Commerce Trust Protocol) &middot; EMVCo agent payments &m
 **Developer Experience**
 - `sg.wrap()` — one function, any handler
 - 6 pricing models configurable from dashboard
-- 1,017 open-source templates with billing pre-wired
+- 97 open-source templates with billing pre-wired
 - CLI scaffolder: `npx create-settlegrid-tool`
 - Discovery tab with badge generator, checklist, API URLs
 - Consumer reviews with developer responses
@@ -193,7 +193,7 @@ settlegrid/
 ├── packages/mcp/              # @settlegrid/mcp SDK
 ├── packages/discovery-server/ # @settlegrid/discovery MCP server
 ├── packages/create-tool/      # npx create-settlegrid-tool CLI
-├── open-source-servers/       # 1,017 MCP server templates
+├── open-source-servers/       # 1,017 indexed MCP servers
 └── .mcp.json                  # MCP plugin config (Cursor, Claude)
 ```
 

@@ -105,7 +105,7 @@ const jsonLdFaq = {
       name: 'How does per-call billing work for MCP tools?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'When an AI agent calls a billed MCP tool, the billing layer checks the caller\'s balance, executes the tool, records the usage event, deducts the per-call price from the caller\'s credits, and returns the result. Failed calls are not charged. The entire flow adds less than 50ms of latency.',
+        text: 'When an AI agent calls a billed MCP tool, the billing layer checks the caller\'s balance, executes the tool, records the usage event, deducts the per-call price from the caller\'s credits, and returns the result. Failed calls are not charged. The entire flow adds a single Redis balance check on the hot path, with metering batched asynchronously.',
       },
     },
     {
@@ -129,7 +129,7 @@ const jsonLdFaq = {
       name: 'How much latency does MCP billing add?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'SettleGrid adds less than 50ms of latency per call. The billing layer performs a single Redis lookup for balance verification (sub-millisecond), executes the tool handler, and batches metering events asynchronously. For serverless deployments, events are flushed at the end of the invocation.',
+        text: 'SettleGrid keeps per-call billing overhead minimal. The billing layer performs a single Redis lookup for balance verification on the hot path, executes the tool handler, and batches metering events asynchronously. For serverless deployments, events are flushed at the end of the invocation.',
       },
     },
   ],
@@ -145,7 +145,7 @@ const SECTIONS = [
     heading: 'What Is MCP Billing?',
     paragraphs: [
       'MCP billing is per-call payment infrastructure for AI tools built on the Model Context Protocol. It enables developers to charge a fixed amount for every successful invocation of their tool, turning free MCP servers into revenue-generating products. Over 12,770 MCP servers exist on PulseMCP alone, yet less than 5% generate any revenue. MCP billing solves this by making monetization as simple as adding two lines of code.',
-      'The billing layer sits between the AI agent (the caller) and the MCP tool handler (the developer\'s code). When an agent calls a billed tool, the billing layer verifies the caller has sufficient credits, executes the tool, records the usage, and settles the payment. Failed calls are not charged. The entire flow adds less than 50ms of latency.',
+      'The billing layer sits between the AI agent (the caller) and the MCP tool handler (the developer\'s code). When an agent calls a billed tool, the billing layer verifies the caller has sufficient credits, executes the tool, records the usage, and settles the payment. Failed calls are not charged. The entire flow adds a single Redis balance check on the hot path, with metering batched asynchronously.',
       'SettleGrid is the leading MCP billing platform. Its hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN) through a single SDK integration. According to Anthropic, the MCP SDK has been downloaded over 97 million times, making MCP the dominant standard for AI tool calling.',
     ],
   },
@@ -189,8 +189,8 @@ const SECTIONS = [
     id: 'protocol-negotiation',
     heading: 'How Does Multi-Protocol Payment Work?',
     paragraphs: [
-      'AI agents use different payment protocols depending on their platform and configuration. A Claude agent might use MCP-native payments, a Stripe-integrated agent uses MPP, and a crypto-native agent uses x402. Without a billing platform, tool developers would need to implement each protocol separately.',
-      'SettleGrid handles protocol negotiation automatically. When a consumer (agent) initiates a payment, SettleGrid detects the protocol from the request headers and metadata, validates the payment according to that protocol\'s rules, and settles the payment through the appropriate rail. The tool developer never interacts with protocol-specific code.',
+      'AI agents use different payment protocols depending on their platform and configuration. A Claude agent might use MCP-native payments, a Stripe-integrated agent would use MPP, and a crypto-native agent would use x402. Without a billing platform, tool developers would need to implement each protocol separately.',
+      'SettleGrid handles protocol negotiation automatically. When a consumer (agent) initiates a payment, SettleGrid detects the protocol from the request headers and metadata, validates the payment according to that protocol\'s rules, and settles fiat payments through Stripe Connect today; on-chain settlement (x402 via the hosted proxy, Circle Nanopayments) and Stripe MPP are in development. The tool developer never interacts with protocol-specific code.',
       'A small number of protocols account for the majority of agent payment volume today: MCP (dominant for tool calling), MPP (Stripe, growing fast after March 2026 launch), and x402 (crypto, approximately $28K daily volume). Several emerging protocols handle edge cases and new use cases. SettleGrid supports a broad set so developers do not have to bet on any single one.',
     ],
   },

@@ -57,8 +57,8 @@ export function Protocols() {
 
         {/* Footer text */}
         <p className="text-sm text-muted-foreground text-center max-w-2xl mx-auto">
-          From Stripe fiat rails to Bitcoin Lightning to stablecoin settlement —
-          one integration.
+          From Stripe fiat rails today to emerging Bitcoin Lightning and
+          stablecoin rails — one integration.
         </p>
       </div>
     </section>

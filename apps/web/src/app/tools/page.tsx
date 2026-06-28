@@ -107,7 +107,7 @@ export default async function ShowcasePage() {
                     </svg>
                   </div>
                   <h3 className="font-semibold text-gray-100 mb-1">Fork a template</h3>
-                  <p className="text-xs text-gray-400 mb-3">1,017 open-source MCP server templates across 22 categories. Fork, add your API key, deploy.</p>
+                  <p className="text-xs text-gray-400 mb-3">1,017 open-source MCP servers across 22 categories. Fork on GitHub, add SettleGrid billing, deploy.</p>
                   <Link href="/servers" className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
                     Browse templates &rarr;
                   </Link>

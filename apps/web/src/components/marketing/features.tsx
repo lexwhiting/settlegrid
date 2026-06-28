@@ -56,8 +56,8 @@ export function Features() {
               <div className="flex flex-col gap-3">
                 <h3 className="text-xl font-medium text-foreground">Meter</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Every call is metered, billed, and budget-enforced in under
-                  50ms.
+                  Every call is metered, billed, and budget-enforced with a
+                  single Redis balance check on the hot path.
                 </p>
               </div>
             </div>

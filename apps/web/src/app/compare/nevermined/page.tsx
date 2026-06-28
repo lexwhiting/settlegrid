@@ -396,7 +396,7 @@ export default function CompareNeverminedPage() {
             </h2>
             <p className="text-gray-400 mb-8 max-w-xl mx-auto">
               Free forever under $1,000/month. Two lines of code to start billing
-              any MCP, x402, or AP2 tool. No credit card required.
+              any MCP or AP2 tool. No credit card required.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

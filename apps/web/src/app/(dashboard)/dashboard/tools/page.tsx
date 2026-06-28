@@ -621,7 +621,7 @@ export default function ToolsPage() {
               <div className="text-xs text-gray-400 dark:text-gray-500 space-y-1">
                 <p>
                   Or browse{' '}
-                  <Link href="/servers" className="text-brand hover:underline">1,017 open-source templates</Link>{' '}
+                  <Link href="/servers" className="text-brand hover:underline">1,017 open-source servers</Link>{' '}
                   and{' '}
                   <Link href="/templates/" className="text-brand hover:underline">17 quickstart guides</Link>.
                 </p>

@@ -53,7 +53,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: "What's the fork-deploy-appear workflow?",
-        a: 'Fork one of our 1,017 open-source templates, add your API key, deploy to Vercel or Railway. Your tool automatically appears in the Showcase and becomes discoverable via the Discovery API and MCP Discovery Server.',
+        a: 'Fork any of 1,017 open-source MCP servers on GitHub, add SettleGrid billing, deploy to Vercel or Railway. Your tool automatically appears in the Showcase and becomes discoverable via the Discovery API and MCP Discovery Server.',
       },
     ],
   },
@@ -224,7 +224,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'How is SettleGrid different from Stripe or Orb?',
-        a: "Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — sub-50ms real-time metering with atomic balance checks, not batch billing. (3) Multi-protocol — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments) with detection adapters for 2 more (L402, KYAPay) and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN), versus Stripe/Orb's REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.",
+        a: "Stripe is a payment processor. Orb is a usage-based billing platform for SaaS. SettleGrid is an AI-native settlement layer purpose-built for the AI economy. Key differences: (1) Discovery — SettleGrid includes a built-in marketplace, Discovery API, and MCP Discovery Server so AI agents can find and pay for your services automatically. (2) Metering — real-time metering with atomic Redis balance checks on the hot path, not batch billing. (3) Multi-protocol — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments) with detection adapters for 2 more (L402, KYAPay) and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN), versus Stripe/Orb's REST-only approach. (4) Progressive pricing — 0% take rate on your first $1K/mo. (5) Agent-native — budget delegation, KYA identity, multi-hop settlement for autonomous agent workflows.",
       },
     ],
   },

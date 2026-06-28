@@ -86,9 +86,9 @@ const useCases = [
     title: 'AI Startup',
     headline: 'Usage-based billing for your AI product',
     description:
-      'Your AI product charges per token, per inference, or per generation. SettleGrid gives you 6 pricing models out of the box: per-call, per-token, per-byte, per-second, tiered, and outcome-based. Sub-50ms metering means your users see real-time balance updates. Budget enforcement prevents runaway costs.',
+      'Your AI product charges per token, per inference, or per generation. SettleGrid gives you 6 pricing models out of the box: per-call, per-token, per-byte, per-second, tiered, and outcome-based. Redis balance checks on the hot path mean your users see real-time balance updates. Budget enforcement prevents runaway costs.',
     example: 'An LLM inference API, an image generation service, a code analysis tool.',
-    keyBenefit: '6 pricing models, sub-50ms metering, budget enforcement',
+    keyBenefit: '6 pricing models, real-time metering, budget enforcement',
     cta: 'See pricing models →',
     href: '/pricing',
   },
@@ -146,7 +146,7 @@ const useCases = [
     title: 'Multi-Agent Workflows',
     headline: 'Settlement for agent-to-agent workflows',
     description:
-      'When Agent A calls Agent B which calls Agent C, who pays whom? SettleGrid handles multi-hop settlement automatically. Each agent in the chain gets their share. Multiple agent payment protocols including MCP, x402, AP2, L402, and KYAPay ensure agents can pay each other across platforms.',
+      'When Agent A calls Agent B which calls Agent C, who pays whom? SettleGrid handles multi-hop settlement automatically. Each agent in the chain gets their share. Multiple agent payment protocols including MCP and AP2 ensure agents can pay each other across platforms.',
     example: 'A research agent chain, an orchestrator calling specialist agents, a marketplace.',
     keyBenefit: 'Multi-hop settlement, multiple agent payment protocols, automatic revenue splits',
     cta: 'Learn about protocols →',

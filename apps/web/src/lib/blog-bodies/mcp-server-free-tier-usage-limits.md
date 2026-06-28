@@ -388,7 +388,7 @@ runTests().catch(console.error);
 A few additional testing practices worth noting:
 
 - Use `sg_test_*` format keys during local development. The key format `sg_live_*` is for production keys attached to real consumer accounts.
-- The `cacheTtlMs: 0` setting is only appropriate in test environments. In production, the default 5-minute TTL prevents a key validation round-trip on every single call, which keeps the SDK's sub-50ms latency guarantee achievable.
+- The `cacheTtlMs: 0` setting is only appropriate in test environments. In production, the default 5-minute TTL prevents a key validation round-trip on every single call, which keeps the SDK's per-call latency overhead minimal.
 - If you use a test runner like Vitest or Jest, call `sgTest.clearCache()` in `beforeEach` rather than manually between tests. This ensures each test starts with a clean cache regardless of test ordering.
 - `debug: true` also emits verbose logs to `console.debug`. In a test environment this is useful; suppress it in production by omitting the flag or setting it explicitly to `false`.
 

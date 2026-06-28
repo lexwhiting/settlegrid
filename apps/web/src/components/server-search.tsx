@@ -108,7 +108,7 @@ export function ServerSearch({ servers }: { servers: CatalogEntry[] }) {
             type="text"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setVisibleCount(PAGE_SIZE) }}
-            placeholder="Search 1,017 templates by name or description..."
+            placeholder="Search 1,017 servers by name or description..."
             className="w-full pl-12 pr-4 py-3.5 bg-[#161822] border border-[#2A2D3E] rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all text-sm"
             aria-label="Search servers"
           />
