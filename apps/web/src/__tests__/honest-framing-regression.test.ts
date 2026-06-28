@@ -304,9 +304,14 @@ describe('platform-agents.tsx — honest framing', () => {
   })
 
   it('uses the canonical "14 agent payment protocols" tagline rather than "15 payment protocols"', () => {
-    expect(PLATFORM_AGENTS_TSX).not.toMatch(/\b15 payment protocols\b/)
-    // Must mention some count — confirm 14 is present.
-    expect(PLATFORM_AGENTS_TSX).toContain('14')
+    // Negative catches BOTH the legacy contiguous form AND the live
+    // "15 agent payment protocols" form (the visible tagline infixes
+    // "agent"), so a 14→15 flip on the tagline is actually caught.
+    expect(PLATFORM_AGENTS_TSX).not.toMatch(/\b15 (?:agent )?payment protocols\b/)
+    // Positive pins the VISIBLE tagline phrase, not a bare "14": the
+    // "= 14 total" code comment makes toContain('14') vacuous (a flip to
+    // "15 … tracked" would otherwise stay green under the old positive).
+    expect(PLATFORM_AGENTS_TSX).toMatch(/\b14 agent payment protocols tracked\b/)
   })
 })
 
