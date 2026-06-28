@@ -42,7 +42,35 @@ verification-only; EMVCo well-scoped future-tense; MCP/REST genuinely live.)
 - **Founder confirm** of true live/stub status per rail (AP2, UCP, Visa-TAP, Mastercard-VI, DRAIN).
 - Then `/p1` a new chunk for the claims fixes; route the phantom-credit angle to the launch-gate owner.
 
+## ── ADDENDUM (honest-claims-sweep ③ post-seal deep audit, 2026-06-28) — widen the inventory ──
+
+The ③ deep audit surfaced more pre-existing claim-vs-runtime overclaims to fold into this chunk:
+
+- **NEW SUB-CLASS DC-18b — implemented-but-UNREACHABLE: "multi-hop atomic settlement / everyone gets paid
+  or no one does / rolls back as one unit / no partial payments"** is asserted live on ~12 surfaces, but the
+  atomic disbursement/rollback engine is **unreachable**: `createSession` hardcodes `settlementMode:'immediate'`
+  (`apps/web/src/lib/settlement/sessions.ts:136`), `/api/sessions` POST schema does NOT accept `settlementMode`
+  (`route.ts:14-20`), the disbursement-map + batch live only in the dead `'deferred'|'atomic'` branch
+  (`sessions.ts:580-660`), and `processSettlementBatch`/`rollbackSettlementBatch` have **zero runtime callers**.
+  The reachable `immediate` path settles each hop independently → the all-or-nothing guarantee is FALSE.
+  Sharpest: `apps/web/src/app/compare/nevermined/data.ts:320-322` cites the two zero-caller functions as the
+  "unique moat … shipped code" on a page whose thesis is "Claims anchored to shipped code." Surfaces to
+  reconcile: `README.md:69`, `use-cases/page.tsx:149,151`, `docs/page.tsx:669,681,1921-1927`, `llms.txt:45,65,81`,
+  `llms-full.txt:403,409,427`, `changelog/page.tsx:162-164`, `learn/handbook/page.tsx:589-597`,
+  `learn/glossary/page.tsx:80-83`, `faq/page.tsx:227`, `compare/nevermined/page.tsx:384-385`. **This is the
+  same FINANCIAL-INTEGRITY split as concern 2 above** (a published all-or-nothing money guarantee that the
+  reachable path does not provide) → route to the launch-gate/security owner. Owner ruling needed: wire the
+  atomic path vs. demote the claim (settlement code is FROZEN; claims-authoring → single-writer build).
+- **Surface inventory beyond `[slug]`:** the same AP2/Visa-TAP "pay" overclaims also live on
+  `apps/web/src/app/docs/page.tsx:351,355,359` and `compare/nevermined/page.tsx:381-384` ("merchants accept
+  whatever protocol the buyer arrives with" — MPP off-by-default, Circle Nano testnet). Widen the prose
+  re-scan past `[slug]` to `docs/page.tsx` + `compare/nevermined`.
+- **Sibling-field (DC-16d) MPP `[slug]:66` `howItWorks`** "SettleGrid verifies the SPT, captures the payment …
+  returns the result" present-tense for a `Pending` rail — fold a parity qualifier (match the x402 B19
+  `howItWorks` treatment).
+
 ## Defect-class note
-DC-18 (claim-vs-adapter-runtime). Recurring root: an honesty sweep that reconciles claims↔config-status will
-miss claims↔runtime-implementation. A complete claims audit must, per rail, trace the adapter runtime, not
-just its config gate / status badge.
+DC-18 (claim-vs-adapter-runtime) + **DC-18b (claim-vs-REACHABILITY: real code, no public caller).** Recurring
+root: an honesty sweep that reconciles claims↔config-status will miss claims↔runtime-implementation AND
+claims↔reachability. A complete claims audit must, per cited capability, trace the adapter runtime AND a
+reachable public entry point — not just its config gate / status badge / a unit test that calls it directly.
