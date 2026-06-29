@@ -22,8 +22,46 @@ function trackEmbedImpression(slug: string): void {
   })
 }
 
-function escapeJsString(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n')
+/**
+ * Escape untrusted tool data before it lands in the badge's `innerHTML`.
+ *
+ * The values are consumed in a DUAL context: the served script assigns an HTML
+ * string to `c.innerHTML` (cross-site embeddable via
+ * `Access-Control-Allow-Origin: *`), and that HTML string is itself written as
+ * a single-quoted JavaScript string literal in the served `.js`. The data must
+ * be safe in BOTH layers:
+ *   - HTML: `& < > " '` → entities (mirrors `escapeHtml` in
+ *     `api/widget/[slug]/route.ts`). Neutralizes a tool named
+ *     `<img src=x onerror=alert(1)>` (stored XSS) and the `'`/`"` that could
+ *     otherwise close the wrapping JS string.
+ *   - JS string: `\`, newline and carriage-return are JS-string-literal
+ *     metacharacters that HTML-escaping passes through unchanged. A tool
+ *     name/description containing a literal newline would emit a raw line
+ *     break inside the `'…'` literal, the whole IIFE would fail to parse, and
+ *     the badge would silently break on every embedding site (an availability
+ *     regression, not XSS). Backslash-escaping them keeps the served script
+ *     well-formed. (The earlier `escapeJsString` escaped these but not the
+ *     HTML metacharacters; one escaper now covers both contexts.)
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+}
+
+/**
+ * Restrict an arbitrary (possibly non-existent) tool slug to the slug charset
+ * before echoing it in a JS block comment, so it cannot terminate the comment
+ * early (via a comment-close sequence) and inject executable code.
+ */
+function safeSlugForComment(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, '')
 }
 
 function formatCents(cents: number): string {
@@ -79,17 +117,17 @@ export async function GET(request: NextRequest) {
 
     if (!tool || tool.status !== 'active') {
       return new NextResponse(
-        `/* SettleGrid badge: tool "${escapeJsString(slug)}" not found or inactive */`,
+        `/* SettleGrid badge: tool "${safeSlugForComment(slug)}" not found or inactive */`,
         { headers: { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300' } }
       )
     }
 
     const costCents = getEffectiveCost(tool.pricingConfig)
-    const name = escapeJsString(tool.name)
-    const desc = escapeJsString((tool.description ?? '').slice(0, 80))
-    const price = escapeJsString(formatCents(costCents))
-    const calls = escapeJsString(formatCallCount(tool.totalInvocations))
-    const toolUrl = `https://settlegrid.ai/tools/${escapeJsString(tool.slug)}`
+    const name = escapeHtml(tool.name)
+    const desc = escapeHtml((tool.description ?? '').slice(0, 80))
+    const price = escapeHtml(formatCents(costCents))
+    const calls = escapeHtml(formatCallCount(tool.totalInvocations))
+    const toolUrl = `https://settlegrid.ai/tools/${escapeHtml(tool.slug)}`
 
     // Fire-and-forget embed impression tracking
     trackEmbedImpression(tool.slug)
@@ -97,9 +135,9 @@ export async function GET(request: NextRequest) {
     logger.info('badge.embed_served', { slug })
 
     const js = `(function(){
-  if(document.getElementById('sg-badge-${escapeJsString(slug)}')){return;}
+  if(document.getElementById('sg-badge-${escapeHtml(slug)}')){return;}
   var c=document.createElement('div');
-  c.id='sg-badge-${escapeJsString(slug)}';
+  c.id='sg-badge-${escapeHtml(slug)}';
   c.style.cssText='display:inline-block;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;background:#0C0E14;border:1px solid #2A2D3E;border-radius:10px;padding:12px 16px;max-width:320px;color:#E5E7EB;font-size:13px;line-height:1.4;';
   c.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
     +'<span style="font-weight:700;color:#F9FAFB;font-size:14px">${name}</span>'

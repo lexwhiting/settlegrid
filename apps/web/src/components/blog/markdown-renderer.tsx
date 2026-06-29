@@ -26,6 +26,16 @@ import rehypeStringify from 'rehype-stringify'
  *
  * Exported for use in non-component contexts (tests, search indexing) — the
  * page renderer should prefer the `MarkdownRenderer` component below.
+ *
+ * ⚠ TRUST INVARIANT (security, launch-gate G2-1d): this pipeline runs with
+ * `allowDangerousHtml: true` and does NOT sanitize — raw HTML embedded in the
+ * markdown is passed through to `dangerouslySetInnerHTML`. It is therefore
+ * safe ONLY because every caller passes a TRUSTED, in-repo markdown body
+ * (the static `academy-lessons` / `blog-posts` content, verified by build:
+ * the only `MarkdownRenderer` callers are `learn/academy/[slug]` and
+ * `learn/blog/[slug]`, and the body sources never read from a DB or the
+ * network). If you ever feed DB- or user-sourced markdown here, you MUST add
+ * `rehype-sanitize` to this pipeline first, or it becomes a stored XSS sink.
  */
 export async function renderMarkdownBody(body: string): Promise<string> {
   const processor = unified()

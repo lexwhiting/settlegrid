@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google'
@@ -91,7 +92,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: safeJsonLd({
               '@context': 'https://schema.org',
               '@type': 'WebSite',
               name: 'SettleGrid',

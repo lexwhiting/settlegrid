@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { MarkdownRenderer } from '@/components/blog/markdown-renderer'
+import { safeJsonLd } from '@/lib/json-ld'
 import {
   ACADEMY_LESSONS,
   ACADEMY_SLUGS,
@@ -17,26 +18,6 @@ import {
 
 export function generateStaticParams() {
   return ACADEMY_SLUGS.map((slug) => ({ slug }))
-}
-
-// ─── JSON-LD safe serializer ────────────────────────────────────────────────
-
-/**
- * Serialize a JSON-LD object for embedding inside a `<script>` tag.
- *
- * `JSON.stringify` does not escape `</script>` — a lesson whose title
- * contained a literal `</script>` sequence would break out of the
- * script tag and render the remainder of the JSON as HTML. Escaping
- * `<` to its unicode form `\u003c` preserves JSON parsing
- * (JSON parsers treat the escape identically) while making it
- * impossible to close the script tag via the serialized payload.
- *
- * This is the same mitigation React's server-rendering docs
- * recommend for any `dangerouslySetInnerHTML` that embeds a
- * structured payload in a script tag.
- */
-function safeJsonLd(obj: unknown): string {
-  return JSON.stringify(obj).replace(/</g, '\\u003c')
 }
 
 // ─── Metadata ───────────────────────────────────────────────────────────────

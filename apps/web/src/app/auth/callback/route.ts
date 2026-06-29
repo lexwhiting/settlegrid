@@ -6,6 +6,7 @@ import { eq, sql } from 'drizzle-orm'
 import { welcomeDeveloperEmail, welcomeConsumerEmail, newSignupNotificationEmail, sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
+import { safeRelativePath } from '@/lib/safe-redirect'
 
 const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
 const INVITE_BONUS_OPS = 5000
@@ -92,7 +93,10 @@ function notifyAdminsOfSignup(type: 'developer' | 'consumer', email: string, nam
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  // Validate the user-controlled `next` to a same-origin path before it is
+  // concatenated onto `${origin}` below — otherwise `?next=//evil.com` /
+  // `?next=/\evil.com` escapes the origin (open redirect, G2-3).
+  const next = safeRelativePath(searchParams.get('next'))
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
