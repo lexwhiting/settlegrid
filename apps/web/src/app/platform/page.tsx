@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Navbar } from '@/components/marketing/navbar'
@@ -69,7 +70,7 @@ export default function PlatformPage() {
       <Navbar />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <PlatformHero />
       <div className="w-full max-w-5xl mx-auto px-6"><div className="border-t border-border" /></div>

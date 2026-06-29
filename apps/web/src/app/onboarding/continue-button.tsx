@@ -17,6 +17,7 @@
  */
 
 import { useState } from 'react'
+import { isSafeRelativePath } from '@/lib/safe-redirect'
 
 /**
  * H5 fix — defense-in-depth. The server today only emits Stripe URLs
@@ -30,9 +31,12 @@ function isAllowedRedirect(url: string): boolean {
   if (typeof url !== 'string' || url.length === 0 || url.length > 2048) {
     return false
   }
-  // Same-origin path (must start with single '/'; protocol-relative
-  // '//evil.com' starts with '/' too — explicitly reject).
-  if (url.startsWith('/') && !url.startsWith('//')) return true
+  // Same-origin path — delegated to the shared validator (single leading
+  // '/', not '//' protocol-relative, not '/\' backslash, no control chars).
+  // This feeds a bare `window.location.assign`, so the path check must match
+  // the auth-redirect rule exactly; the previous local copy omitted the
+  // backslash clause (G2-3 SEAM drift).
+  if (isSafeRelativePath(url)) return true
   // Stripe Connect onboarding URLs only. The Stripe SDK returns URLs
   // under connect.stripe.com / dashboard.stripe.com. Strict prefix
   // match prevents `https://evil.com#connect.stripe.com/...` games.

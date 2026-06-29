@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -231,7 +232,7 @@ export default async function TrendingPage() {
         <div className="max-w-5xl mx-auto">
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+            dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
           />
 
           {/* Header */}

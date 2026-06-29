@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { ACADEMY_LESSONS } from '@/lib/academy-lessons'
+import { safeJsonLd } from '@/lib/json-ld'
 
 // ─── Metadata ───────────────────────────────────────────────────────────────
 
@@ -120,12 +121,6 @@ export default function AcademyLandingPage() {
     ],
   }
 
-  // Same `<` → `\u003c` mitigation used by the [slug] page — a lesson
-  // title containing `</script>` must not break out of the embedded
-  // script tag during static generation.
-  const safe = (obj: unknown): string =>
-    JSON.stringify(obj).replace(/</g, '\\u003c')
-
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
       {/* ---- Header ---- */}
@@ -174,11 +169,11 @@ export default function AcademyLandingPage() {
         <div className="max-w-3xl mx-auto">
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: safe(jsonLdCollection) }}
+            dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdCollection) }}
           />
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: safe(jsonLdBreadcrumb) }}
+            dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdBreadcrumb) }}
           />
 
           {/* Breadcrumb */}

@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -133,11 +134,10 @@ export default async function ShadowDetailPage({
         repo={repo}
         hasClaim={Boolean(entry.settlegridAvailable)}
       />
-      {/* Escape < as \u003c to prevent </script> injection in JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+          __html: safeJsonLd(jsonLd),
         }}
       />
       <Navbar />

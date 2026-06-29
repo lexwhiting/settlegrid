@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Hero } from '@/components/marketing/hero'
@@ -73,7 +74,7 @@ export default function HomePage() {
       <Navbar />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <Hero />
       <StatsBar />

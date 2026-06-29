@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
@@ -187,8 +188,8 @@ const entries: ChangelogEntry[] = [
 export default function ChangelogPage() {
   return (
     <div className="dark min-h-screen flex flex-col bg-[#0C0E14] text-gray-100">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdWebPage) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdWebPage) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdBreadcrumb) }} />
 
       <Navbar />
 

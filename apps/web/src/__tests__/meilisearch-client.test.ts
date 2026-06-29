@@ -140,4 +140,37 @@ describe('sanitizeHighlight', () => {
   it('handles empty string', () => {
     expect(sanitizeHighlight('')).toBe('')
   })
+
+  // ── Adversarial bypass audit (G2-1d) ──────────────────────────────────────
+  // sanitizeHighlight output is rendered via `dangerouslySetInnerHTML` in the
+  // search dropdown (SearchBar.tsx), so a surviving non-<mark> tag is XSS.
+  // "Bypass" is string-decidable: sanitizeHighlight(input) STILL matches the
+  // sanitizer's own predicate `/<(?!\/?mark\s*>)[^>]*>/i` (a leftover tag that
+  // is not <mark>/</mark>). No bypass is found for any case below.
+  describe('adversarial inputs leave no surviving non-mark tag', () => {
+    // A standalone copy of the sanitizer predicate (no `g` flag → presence test).
+    const SURVIVING_NON_MARK_TAG = /<(?!\/?mark\s*>)[^>]*>/i
+
+    const ADVERSARIAL: string[] = [
+      '<svg/onload=1>',
+      '<img onerror=1', // unclosed tag at end-of-string (no closing `>`)
+      '<<mark>',
+      '<mark x=">" onerror=1>', // `>` inside an attribute value
+      '<img\nonerror=alert(1)>', // newline inside the tag (`[^>]` matches \n)
+      '<IMG SRC=x ONERROR=alert(1)>', // uppercase
+      '<marker onerror=1>', // mark-prefixed but not <mark>
+    ]
+
+    it.each(ADVERSARIAL)('neutralizes %j', (input) => {
+      const out = sanitizeHighlight(input)
+      expect(SURVIVING_NON_MARK_TAG.test(out)).toBe(false)
+    })
+
+    it('still preserves a legitimate Meilisearch <mark> highlight', () => {
+      const out = sanitizeHighlight('weather <mark>API</mark> tool')
+      expect(out).toBe('weather <mark>API</mark> tool')
+      // The preserved <mark> is allowed, so the non-mark-tag predicate is false.
+      expect(SURVIVING_NON_MARK_TAG.test(out)).toBe(false)
+    })
+  })
 })

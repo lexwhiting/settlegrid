@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -679,7 +680,7 @@ export default async function ProtocolDetailPage({
       {/* JSON-LD */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       {/* ---- Header ---- */}

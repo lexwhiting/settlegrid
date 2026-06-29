@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/json-ld'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { eq } from 'drizzle-orm'
@@ -207,7 +208,7 @@ export default async function ClaimPage({
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4 py-12">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <div className="max-w-lg w-full">
         {/* Header */}

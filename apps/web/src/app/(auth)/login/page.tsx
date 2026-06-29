@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { SettleGridLogo } from '@/components/ui/logo'
+import { safeRelativePath } from '@/lib/safe-redirect'
 
 function LoginForm() {
   const router = useRouter()
@@ -41,7 +42,9 @@ function LoginForm() {
       return
     }
 
-    const redirect = searchParams.get('redirect') ?? '/dashboard'
+    // Validate the user-controlled `redirect` to a same-origin path — an
+    // unvalidated `?redirect=https://evil.com` would phish after sign-in (G2-3).
+    const redirect = safeRelativePath(searchParams.get('redirect'))
     router.push(redirect)
     router.refresh()
   }
