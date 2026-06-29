@@ -5,8 +5,9 @@
  * `JSON.stringify`s untrusted tool / developer / review data without the `<`
  * escape is a stored XSS (CSP is `script-src 'unsafe-inline'`). One missed
  * sink defeats the whole hardening pass, so this guard reads EVERY source
- * file as text and fails if ANY raw sink survives — a future regression or an
- * un-migrated sink cannot ship green.
+ * file as text — every `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mdx` under `src/` — and
+ * fails if ANY raw sink survives — a future regression or an un-migrated sink
+ * cannot ship green, including one authored in a non-TS file.
  *
  * Design notes (why whole-file, why this regex):
  *   - Reads each file with `readFileSync` and tests the WHOLE file string, so
@@ -35,7 +36,16 @@ const ALLOWLIST = new Set<string>([
   '__tests__/json-ld-sink-guard.test.ts', // this guard itself — it names the patterns in its prose/titles
 ])
 
-/** Recursively collect every `.ts` / `.tsx` file under src/, as paths relative to src/. */
+/**
+ * Source extensions an ld+json `<script>` sink could legitimately live in. A
+ * Next.js sink is normally `.tsx`, but `.ts/.js/.jsx/.mjs/.cjs` route handlers
+ * and `.mdx` content can also emit a `dangerouslySetInnerHTML` ld+json script,
+ * so the completeness walk must cover them all — a `.ts/.tsx`-only walk would
+ * silently exempt a future sink in any other file type (DC-16 incomplete-sweep).
+ */
+const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mdx']
+
+/** Recursively collect every source file under src/, as paths relative to src/. */
 function collectSourceFiles(dir: string, relBase = ''): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -43,7 +53,7 @@ function collectSourceFiles(dir: string, relBase = ''): string[] {
     if (entry.isDirectory()) {
       if (entry.name === 'node_modules') continue
       out.push(...collectSourceFiles(resolve(dir, entry.name), rel))
-    } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+    } else if (SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       out.push(rel)
     }
   }
@@ -65,6 +75,22 @@ describe('json-ld sink completeness guard', () => {
     // very completeness this guard exists to enforce. 800 keeps headroom for
     // ordinary churn while still catching a whole-subtree drop.
     expect(SOURCE_FILES.length).toBeGreaterThan(800)
+  })
+
+  it('actually sees the ld+json sink files (catches a partial-subtree drop the total-file floor cannot)', () => {
+    // The >800 total-file floor only catches dropping the WHOLE app/ subtree.
+    // A glob/ignore regression that drops one sink-dense route group leaves
+    // >800 files yet hides real sinks from the walk. ~45 files carry an ld+json
+    // sink today; assert the walk still reaches a healthy floor of them. A drop
+    // that removes only NON-sink files leaves this count intact and correctly
+    // does not trip (no sink is missed).
+    const LDJSON = /type=["']application\/ld\+json["']/
+    let filesWithSink = 0
+    for (const rel of SOURCE_FILES) {
+      if (ALLOWLIST.has(rel)) continue
+      if (LDJSON.test(readFileSync(resolve(SRC_ROOT, rel), 'utf8'))) filesWithSink++
+    }
+    expect(filesWithSink).toBeGreaterThan(30)
   })
 
   it('has NO raw `__html:`+`JSON.stringify(` sink — every ld+json script must go through safeJsonLd', () => {
