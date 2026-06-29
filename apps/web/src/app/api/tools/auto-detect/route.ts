@@ -6,6 +6,7 @@ import { getOrCreateRequestId } from '@/lib/request-id'
 import { classifyWithAI, type ClassificationResult } from '@/lib/ai-classify'
 import { getSuggestedPricing } from '@/lib/pricing-utils'
 import { logger } from '@/lib/logger'
+import { safeFetch, isPublicUrlString } from '@/lib/safe-egress'
 
 export const maxDuration = 30
 
@@ -14,24 +15,11 @@ const autoDetectLimiter = createRateLimiter(10, '1 m')
 
 // ─── SSRF Protection ─────────────────────────────────────────────────────────
 
+// Registration-time UX pre-check (delegates to the shared guard, G2-2);
+// supersedes the old string-prefix denylist. The load-bearing block is
+// `safeFetch` (L1 literal + L2 connect-time DNS classify) on the probes below.
 function isPrivateUrl(urlStr: string): boolean {
-  try {
-    const url = new URL(urlStr)
-    const hostname = url.hostname.toLowerCase()
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') return true
-    if (hostname === 'metadata.google.internal' || hostname.endsWith('.internal')) return true
-    const parts = hostname.split('.').map(Number)
-    if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
-      if (parts[0] === 10) return true
-      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true
-      if (parts[0] === 192 && parts[1] === 168) return true
-      if (parts[0] === 169 && parts[1] === 254) return true
-      if (parts[0] === 0) return true
-    }
-    return false
-  } catch {
-    return true
-  }
+  return !isPublicUrlString(urlStr)
 }
 
 // ─── Request Schema ──────────────────────────────────────────────────────────
@@ -69,14 +57,18 @@ async function probeEndpoint(url: string): Promise<ProbeResult | null> {
 
   try {
     const start = performance.now()
-    const response = await fetch(url, {
+    // SSRF guard (G2-2): route the probe through the shared egress guard
+    // (L1 literal + L2 connect-time DNS classify). redirect:'error' (was
+    // 'follow') — no need to chase redirects for a classification probe.
+    const response = await safeFetch(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json, text/html, */*',
         'User-Agent': 'SettleGrid-AutoDetect/1.0',
       },
       signal: controller.signal,
-      redirect: 'follow',
+      redirect: 'error',
+      allowedProtocols: ['https:'],
     })
 
     const latencyMs = Math.round(performance.now() - start)
@@ -112,12 +104,14 @@ async function tryMcpHandshake(url: string): Promise<boolean> {
   const timeout = setTimeout(() => controller.abort(), 3000)
 
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
+      redirect: 'error',
+      allowedProtocols: ['https:'],
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'initialize',
@@ -152,9 +146,11 @@ async function checkOpenApiSpec(baseUrl: string): Promise<string | null> {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 3000)
 
-      const response = await fetch(specUrl, {
+      const response = await safeFetch(specUrl, {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
+        redirect: 'error',
+        allowedProtocols: ['https:'],
       })
       clearTimeout(timeout)
 

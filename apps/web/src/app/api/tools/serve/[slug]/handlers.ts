@@ -6,6 +6,8 @@
  * AbortController with a 10-second timeout.
  */
 
+import { safeFetch } from '@/lib/safe-egress'
+
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 const FETCH_TIMEOUT_MS = 10_000
@@ -199,8 +201,18 @@ const securityHeaders: Handler = async (p) => {
   const url = str(p.url, str(p.query, str(p.domain)))
   if (!url) throw new Error('url parameter required (e.g. "https://example.com")')
   const target = url.startsWith('http') ? url : `https://${url}`
+  // SSRF guard (G2-2): this is a PUBLIC, UNAUTHENTICATED handler whose HOST is
+  // attacker-controlled. Route through the shared egress guard (L1 literal +
+  // L2 connect-time DNS classify), https-only, redirect:'error'.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {
-    const res = await fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' })
+    const res = await safeFetch(target, {
+      method: 'HEAD',
+      redirect: 'error',
+      allowedProtocols: ['https:'],
+      signal: controller.signal,
+    })
     const headerNames = [
       'strict-transport-security',
       'content-security-policy',
@@ -231,6 +243,8 @@ const securityHeaders: Handler = async (p) => {
       score: 0,
       grade: 'F',
     }
+  } finally {
+    clearTimeout(timer)
   }
 }
 

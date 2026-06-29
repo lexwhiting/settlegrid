@@ -19,6 +19,7 @@ import {
   addFailoverHeaders,
   logFailoverEvent,
 } from '@/lib/failover'
+import { safeFetch, assertSafeUrlSync, SsrfBlockedError } from '@/lib/safe-egress'
 import { isMppRequest, validateMppPayment, generateMpp402Response } from '@/lib/mpp'
 import { isX402Request, validateX402Payment, generateX402_402Response } from '@/lib/x402-proxy'
 import { extractX402PaymentHeader, parseX402ExactPayload } from '@/lib/settlement/x402/parse'
@@ -63,6 +64,13 @@ import { decideUnifiedDispatch, shouldDispatchUnified, type EnabledMap } from '.
 export const maxDuration = 90
 
 const UPSTREAM_TIMEOUT_MS = 30_000
+// SSRF guard redirect cap for the money rail. The build's safeFetch default is 3,
+// which over-blocks a legitimate ≥4-redirect public upstream into a charged-but-
+// undelivered (F3) on the PREPAID rails (③ deep-audit finding). 10 covers any real
+// API redirect chain (http→https→canonical→slash→locale→…) while staying bounded;
+// every hop is still re-validated by L1+L2, so a higher cap does not weaken SSRF
+// defense, and the shared AbortController/UPSTREAM_TIMEOUT_MS bounds total time.
+const PROXY_MAX_REDIRECTS = 10
 const DEFAULT_CACHE_TTL_SECONDS = 60
 
 /**
@@ -765,7 +773,11 @@ async function handleProxy(
         }
       }
 
-      upstreamResponse = await fetch(auth.tool.proxyEndpoint, fetchInit)
+      // SSRF guard (G2-2): route through the shared fetch-time egress guard
+      // (L1 literal + L2 connect-time DNS classify + per-hop redirect re-check).
+      // An SSRF block throws → handled by the upstream-error path below
+      // (api-key is POSTPAID: costCents 0, not charged) ± SLA failover.
+      upstreamResponse = await safeFetch(auth.tool.proxyEndpoint, { ...fetchInit, redirect: 'manual', maxRedirects: PROXY_MAX_REDIRECTS })
     } catch (err) {
       clearTimeout(timeout)
       const latencyMs = Date.now() - startTime
@@ -1237,6 +1249,21 @@ async function handleMppProxy(
 
   const costCents = getCostCents(toolRow.pricingConfig)
 
+  // SSRF guard (G2-2), PRE-CAPTURE: MPP is PREPAID (validateMppPayment captures
+  // the Stripe SPT before the upstream fetch). proxyEndpoint is a stored value
+  // known now, so reject a private/reserved literal (scheme + L1) BEFORE any
+  // capture — a fetch-time block on a prepaid rail would be charged-but-
+  // undelivered (F3). The residual L2 (rebind) block at fetch is documented F3.
+  try {
+    assertSafeUrlSync(toolRow.proxyEndpoint)
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      logger.warn('proxy.mpp_endpoint_blocked', { slug, reason: err.reason, requestId })
+      return errorResponse('Tool endpoint is not allowed.', 502, 'UPSTREAM_BLOCKED', requestId)
+    }
+    throw err
+  }
+
   // Validate the MPP payment
   const mppResult = await validateMppPayment(request, {
     slug: toolRow.slug,
@@ -1292,7 +1319,9 @@ async function handleMppProxy(
       fetchInit.duplex = 'half'
     }
 
-    upstreamResponse = await fetch(toolRow.proxyEndpoint, fetchInit)
+    // SSRF guard (G2-2): the literal/scheme reject already ran pre-capture
+    // above; this adds the L2 connect-time (DNS/rebind) + redirect re-check.
+    upstreamResponse = await safeFetch(toolRow.proxyEndpoint, { ...fetchInit, redirect: 'manual', maxRedirects: PROXY_MAX_REDIRECTS })
   } catch (err) {
     clearTimeout(timeout)
     const latencyMs = Date.now() - startTime
@@ -1501,6 +1530,20 @@ async function lookupToolBySlug(slug: string, requestId: string) {
   if (!toolRow.proxyEndpoint) {
     return { ok: false as const, error: errorResponse('This tool does not have a proxy endpoint configured.', 404, 'NO_PROXY_ENDPOINT', requestId) }
   }
+  // SSRF guard (G2-2), PRE-SETTLEMENT: every protocol rail (x402 / circle-nano /
+  // ap2 / visa-tap / acp / l402 / generic) enters here BEFORE any on-chain
+  // settle. Reject a private/reserved literal (scheme + L1) now so a bad
+  // endpoint never triggers an irreversible settle (charged-but-undelivered).
+  // The L2 (rebind) block at fetch is the documented F3 residual.
+  try {
+    assertSafeUrlSync(toolRow.proxyEndpoint)
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      logger.warn('proxy.protocol_endpoint_blocked', { slug, reason: err.reason, requestId })
+      return { ok: false as const, error: errorResponse('Tool endpoint is not allowed.', 502, 'UPSTREAM_BLOCKED', requestId) }
+    }
+    throw err
+  }
   // After the null check above, proxyEndpoint is guaranteed to be a string.
   // Use an intermediate variable to help TypeScript narrow the type.
   const verifiedTool = {
@@ -1661,7 +1704,12 @@ async function forwardAndBill(
       fetchInit.duplex = 'half'
     }
 
-    upstreamResponse = await fetch(toolRow.proxyEndpoint, fetchInit)
+    // SSRF guard (G2-2): for on-chain (irreversibleOnChain) rails the literal/
+    // scheme reject ran pre-settlement in lookupToolBySlug; this adds the L2
+    // connect-time (DNS/rebind) + redirect re-check. A block here on a settled
+    // on-chain payment is the documented F3 (charged-but-undelivered) handled
+    // by the irreversibleOnChain branch below.
+    upstreamResponse = await safeFetch(toolRow.proxyEndpoint, { ...fetchInit, redirect: 'manual', maxRedirects: PROXY_MAX_REDIRECTS })
   } catch (err) {
     clearTimeout(timeout)
     const latencyMs = Date.now() - startTime
@@ -2606,7 +2654,10 @@ async function attemptFailover(params: FailoverParams): Promise<NextResponse | n
         fetchInit.body = requestBody
       }
 
-      fallbackResponse = await fetch(fallback.proxyEndpoint, fetchInit)
+      // SSRF guard (G2-2): the fallback tool's endpoint is also developer-
+      // supplied. A block throws → caught below → give up (POSTPAID: billing
+      // only runs after a 2xx, so a blocked fallback is never charged).
+      fallbackResponse = await safeFetch(fallback.proxyEndpoint, { ...fetchInit, redirect: 'manual', maxRedirects: PROXY_MAX_REDIRECTS })
     } catch {
       clearTimeout(timer)
       return null // Fallback also failed — give up
