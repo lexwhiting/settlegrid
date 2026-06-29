@@ -11,29 +11,18 @@ import { getOrCreateRequestId } from '@/lib/request-id'
 import { queueSeedInvocations } from '@/lib/seed-invocations'
 import { CATEGORY_SLUGS } from '@/lib/categories'
 import { logger } from '@/lib/logger'
+import { isPublicUrlString } from '@/lib/safe-egress'
 
 export const maxDuration = 60
 
 // ─── SSRF Protection ─────────────────────────────────────────────────────────
 
+// Registration-time UX pre-check (delegates to the shared SSRF guard, G2-2;
+// supersedes the old string-prefix denylist). This feeds the proxy sinks; the
+// load-bearing block is L1+L2 in `safeFetch` at the proxy fetch. The https
+// requirement is enforced by a separate schema refine.
 function isPrivateUrl(urlStr: string): boolean {
-  try {
-    const url = new URL(urlStr)
-    const hostname = url.hostname.toLowerCase()
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') return true
-    if (hostname === 'metadata.google.internal' || hostname.endsWith('.internal')) return true
-    const parts = hostname.split('.').map(Number)
-    if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
-      if (parts[0] === 10) return true
-      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true
-      if (parts[0] === 192 && parts[1] === 168) return true
-      if (parts[0] === 169 && parts[1] === 254) return true
-      if (parts[0] === 0) return true
-    }
-    return false
-  } catch {
-    return true
-  }
+  return !isPublicUrlString(urlStr)
 }
 
 // ─── Request Schema ──────────────────────────────────────────────────────────

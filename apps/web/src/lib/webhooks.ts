@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { webhookEndpoints, webhookDeliveries, developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import { safeFetch, isPublicUrlString } from '@/lib/safe-egress'
 
 /**
  * Compute the next retry timestamp using exponential backoff.
@@ -14,55 +15,15 @@ export function computeNextRetryAt(attempts: number): Date {
 }
 
 /**
- * Blocked hostnames and IP patterns for SSRF protection.
- * Prevents webhook delivery to internal/private network addresses.
- */
-const BLOCKED_HOSTS = [
-  'localhost',
-  '127.0.0.1',
-  '0.0.0.0',
-  '::1',
-  '[::1]',
-]
-
-const PRIVATE_IP_PREFIXES = [
-  '10.',
-  '172.16.', '172.17.', '172.18.', '172.19.',
-  '172.20.', '172.21.', '172.22.', '172.23.',
-  '172.24.', '172.25.', '172.26.', '172.27.',
-  '172.28.', '172.29.', '172.30.', '172.31.',
-  '192.168.',
-  '169.254.',
-  'fd',
-  'fe80:',
-]
-
-/**
- * Validates that a webhook URL is safe to deliver to.
- * Blocks internal/private IPs and non-HTTPS URLs.
+ * Cheap registration-/dispatch-time UX pre-check that a webhook URL is safe to
+ * deliver to (https-only; blocks private/reserved IP literals + obvious internal
+ * hostnames). Delegates to the shared SSRF guard (G2-2) — superseding the old
+ * string-prefix denylist. The LOAD-BEARING guard is `safeFetch` (L1 literal +
+ * L2 connect-time DNS classify), applied to the actual delivery below; this
+ * pre-check just lets us short-circuit obvious cases to a clean 'failed'.
  */
 export function isWebhookUrlSafe(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-
-    // Must be HTTPS
-    if (parsed.protocol !== 'https:') return false
-
-    const hostname = parsed.hostname.toLowerCase()
-
-    // Block known internal hostnames
-    if (BLOCKED_HOSTS.includes(hostname)) return false
-
-    // Block private IP prefixes
-    if (PRIVATE_IP_PREFIXES.some((prefix) => hostname.startsWith(prefix))) return false
-
-    // Block .local, .internal, .corp domains
-    if (hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.corp')) return false
-
-    return true
-  } catch {
-    return false
-  }
+  return isPublicUrlString(url, { allowedProtocols: ['https:'] })
 }
 
 // Headers that must not be overridden by custom headers
@@ -153,11 +114,15 @@ export async function attemptWebhookDelivery(
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
 
-    const res = await fetch(url, {
+    // SSRF guard (G2-2): the load-bearing fetch-time block (L1 literal + L2
+    // connect-time DNS classify; redirect:'error' — no need to follow).
+    const res = await safeFetch(url, {
       method: 'POST',
       headers,
       body,
       signal: controller.signal,
+      redirect: 'error',
+      allowedProtocols: ['https:'],
     })
 
     clearTimeout(timeout)

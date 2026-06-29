@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
+import { safeFetch } from '@/lib/safe-egress'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,11 +39,17 @@ export async function sendSlackNotification(
 
     const payload: SlackPayload = { text: message }
 
-    const res = await fetch(webhookUrl, {
+    // SSRF guard (G2-2): the developer-configured webhook host is untrusted.
+    // The guard-collapse on isWebhookUrlSafe alone does NOT attach the connect-
+    // time guard here — route the actual delivery through safeFetch (L1 literal
+    // + L2 connect-time DNS classify), https-only, redirect:'error'.
+    const res = await safeFetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      redirect: 'error',
+      allowedProtocols: ['https:'],
     })
 
     clearTimeout(timeout)
@@ -79,11 +86,17 @@ export async function sendDiscordNotification(
 
     const payload: DiscordPayload = { content: message }
 
-    const res = await fetch(webhookUrl, {
+    // SSRF guard (G2-2): the developer-configured webhook host is untrusted.
+    // The guard-collapse on isWebhookUrlSafe alone does NOT attach the connect-
+    // time guard here — route the actual delivery through safeFetch (L1 literal
+    // + L2 connect-time DNS classify), https-only, redirect:'error'.
+    const res = await safeFetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      redirect: 'error',
+      allowedProtocols: ['https:'],
     })
 
     clearTimeout(timeout)

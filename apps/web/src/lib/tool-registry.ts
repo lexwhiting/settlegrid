@@ -5,6 +5,8 @@
  * the actual API call or local computation. Used by /api/tools/[slug]/call.
  */
 
+import { safeFetch } from '@/lib/safe-egress'
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ToolMethod {
@@ -18,12 +20,21 @@ export interface ToolDefinition {
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
 async function fetchJSON<T>(url: string, headers?: Record<string, string>): Promise<T> {
-  const res = await fetch(url, {
+  // SSRF guard (G2-2): fetchJSON feeds ~50 showcase handlers; most hit FIXED
+  // hosts, but the wikipedia handlers interpolate the attacker-controlled `lang`
+  // arg into the HOST (`https://${lang}.wikipedia.org/...`), so this helper takes
+  // an attacker-influenced URL. Route through the shared egress guard (L1 literal
+  // + L2 connect-time DNS classify). redirect:'manual' keeps legitimate fixed-host
+  // APIs following redirects (capped + L1-re-validated per hop) while blocking a
+  // literal-IP / rebind / redirect-to-internal target. Reached PUBLIC + UNAUTH
+  // via /api/tools/[slug]/call.
+  const res = await safeFetch(url, {
     headers: {
       Accept: 'application/json',
       'User-Agent': 'settlegrid-tool-api/1.0',
       ...headers,
     },
+    redirect: 'manual',
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
@@ -651,7 +662,10 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
             'x-frame-options', 'x-xss-protection', 'referrer-policy', 'permissions-policy',
           ]
           try {
-            const res = await fetch(url, { method: 'HEAD', redirect: 'follow' })
+            // SSRF guard (G2-2): PUBLIC, UNAUTHENTICATED showcase tool whose
+            // HOST is attacker-controlled. Route through the shared egress guard
+            // (L1 literal + L2 connect-time DNS classify), redirect:'error'.
+            const res = await safeFetch(url, { method: 'HEAD', redirect: 'error' })
             const found: Record<string, string> = {}
             const missing: string[] = []
             for (const h of SECURITY_HEADERS) {
@@ -670,7 +684,10 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
         handler: async (args) => {
           const url = requireString(args, 'url')
           try {
-            const res = await fetch(url, { method: 'HEAD', redirect: 'follow' })
+            // SSRF guard (G2-2): PUBLIC, UNAUTHENTICATED showcase tool whose
+            // HOST is attacker-controlled. Route through the shared egress guard
+            // (L1 literal + L2 connect-time DNS classify), redirect:'error'.
+            const res = await safeFetch(url, { method: 'HEAD', redirect: 'error' })
             const csp = res.headers.get('content-security-policy')
             const cspReport = res.headers.get('content-security-policy-report-only')
             return { url, hasCSP: !!csp, csp: csp ?? null, cspReportOnly: cspReport ?? null, directives: csp ? Object.fromEntries(csp.split(';').map(d => d.trim()).filter(Boolean).map(d => { const [key, ...vals] = d.split(/\s+/); return [key, vals.join(' ')] })) : null }

@@ -8,33 +8,21 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { isPublicUrlString } from '@/lib/safe-egress'
 
 export const maxDuration = 60
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Block private/internal IPs to prevent SSRF */
+/**
+ * Registration-time UX pre-check that the proxy endpoint isn't a private/
+ * reserved literal or obvious internal host (delegates to the shared SSRF
+ * guard, G2-2; supersedes the old string-prefix denylist). The load-bearing
+ * block is L1+L2 in `safeFetch` at the proxy fetch. The https requirement is
+ * enforced by a separate schema refine.
+ */
 function isPrivateUrl(urlStr: string): boolean {
-  try {
-    const url = new URL(urlStr)
-    const hostname = url.hostname.toLowerCase()
-    // Block localhost
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') return true
-    // Block common internal hostnames
-    if (hostname === 'metadata.google.internal' || hostname.endsWith('.internal')) return true
-    // Block private IPv4 ranges
-    const parts = hostname.split('.').map(Number)
-    if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
-      if (parts[0] === 10) return true // 10.0.0.0/8
-      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true // 172.16.0.0/12
-      if (parts[0] === 192 && parts[1] === 168) return true // 192.168.0.0/16
-      if (parts[0] === 169 && parts[1] === 254) return true // 169.254.0.0/16 (AWS metadata)
-      if (parts[0] === 0) return true // 0.0.0.0/8
-    }
-    return false
-  } catch {
-    return true // invalid URL = block
-  }
+  return !isPublicUrlString(urlStr)
 }
 
 const endpointSchema = z.object({

@@ -10,6 +10,7 @@ import { notifyDeveloper } from '@/lib/notifications'
 import { hasFeature } from '@/lib/tier-config'
 import { baseEmailTemplate } from '@/lib/email'
 import { getRedis } from '@/lib/redis'
+import { safeFetch } from '@/lib/safe-egress'
 
 /** Cooldown between alerts for the same tool: 4 hours in seconds */
 const ALERT_COOLDOWN_SECONDS = 4 * 60 * 60
@@ -74,10 +75,16 @@ export async function GET(request: NextRequest) {
             const controller = new AbortController()
             const timeout = setTimeout(() => controller.abort(), 10000) // 10s timeout
 
-            const response = await fetch(tool.healthEndpoint!, {
+            // SSRF guard (G2-2): healthEndpoint is developer-supplied and was
+            // previously fetched with NO guard. Route through the shared egress
+            // guard (L1 literal + L2 connect-time DNS classify; redirect:'error').
+            // http is retained (cleartext-to-public is not SSRF; many health
+            // endpoints are http) — the private/reserved block is what matters.
+            const response = await safeFetch(tool.healthEndpoint!, {
               method: 'GET',
               signal: controller.signal,
               headers: { 'User-Agent': 'SettleGrid-HealthCheck/1.0' },
+              redirect: 'error',
             })
 
             clearTimeout(timeout)
