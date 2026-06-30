@@ -522,11 +522,12 @@ describe('P4.MKT3 — sitemap + cross-link integration', () => {
     expect(launchSrc).toContain('settlegrid.ai/compare/nevermined')
   })
 
-  it('Show HN response kit cross-links the comparison page', () => {
-    const kitSrc = readFileSync(
-      join(repoRoot, 'docs/launch/show-hn-response-kit.md'),
-      'utf8',
-    )
+  // docs/launch/ is gitignored (internal launch docs, .gitignore: "docs/launch/")
+  // → absent in a fresh clone / CI. Skip (visibly) when missing; full teeth on a
+  // machine that has the kit. (LBD-3 skip-if-absent guard.)
+  const showHnKitPath = join(repoRoot, 'docs/launch/show-hn-response-kit.md')
+  ;(existsSync(showHnKitPath) ? it : it.skip)('Show HN response kit cross-links the comparison page', () => {
+    const kitSrc = readFileSync(showHnKitPath, 'utf8')
     expect(kitSrc).toContain('settlegrid.ai/compare/nevermined')
   })
 })

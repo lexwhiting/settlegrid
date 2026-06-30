@@ -22,14 +22,21 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const PRIVACY_NOTICE_PATH = resolve(__dirname, '../../../../docs/legal/privacy-notice-draft.md')
 const STRIPE_DPA_PATH = resolve(__dirname, '../../../../docs/legal/stripe-dpa-status.md')
 
 const privacyNotice = readFileSync(PRIVACY_NOTICE_PATH, 'utf8')
-const stripeDpa = readFileSync(STRIPE_DPA_PATH, 'utf8')
+
+// stripe-dpa-status.md is an internal status tracker under docs/legal/, which is
+// gitignored by default (.gitignore: "docs/legal/" with a public-doc allowlist) —
+// so it is ABSENT in a fresh clone / CI checkout while present on the founder's
+// dev box. Read it only when present; its dependent block skips (visibly) when it
+// is not, instead of ENOENT-failing the whole file. (LBD-3 skip-if-absent guard.)
+const stripeDpaPresent = existsSync(STRIPE_DPA_PATH)
+const stripeDpa = stripeDpaPresent ? readFileSync(STRIPE_DPA_PATH, 'utf8') : ''
 
 /**
  * Extract the body of a markdown section between two heading prefixes.
@@ -321,7 +328,9 @@ describe('privacy-notice-draft.md — drafting notes lock-in', () => {
   })
 })
 
-describe('stripe-dpa-status.md — status tracker', () => {
+// Skips when the gitignored stripe-dpa-status.md is absent (CI / fresh clone);
+// full teeth on any machine that has the doc.
+;(stripeDpaPresent ? describe : describe.skip)('stripe-dpa-status.md — status tracker', () => {
   it('exists and is non-trivially long', () => {
     expect(stripeDpa.length).toBeGreaterThan(1000)
   })

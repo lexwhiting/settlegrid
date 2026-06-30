@@ -31,15 +31,49 @@ import { join, resolve } from 'node:path'
 const repoRoot = resolve(__dirname, '../../../../..')
 const legalDir = join(repoRoot, 'docs/legal')
 
+// Returns '' when the doc is absent instead of throwing. Several describe blocks
+// below read their doc at the TOP of the describe factory, and vitest executes a
+// describe.skip factory during collection — so an unguarded read would ENOENT
+// (failing collection) even for a skipped block. The describeIf* guards mark the
+// block skipped; this existsSync guard keeps its factory from throwing. The ''
+// fallback is never asserted because the block is skipped whenever its doc is
+// absent. (LBD-3 skip-if-absent guard.)
 function readDoc(filename: string): string {
-  return readFileSync(join(legalDir, filename), 'utf8')
+  const path = join(legalDir, filename)
+  return existsSync(path) ? readFileSync(path, 'utf8') : ''
 }
+
+// LBD-3 skip-if-absent guards. docs/legal/ is gitignored by default (.gitignore:
+// "docs/legal/" with a 4-file public allowlist), so most compliance docs these
+// tests read are internal and ABSENT in a fresh clone / CI while present on the
+// founder's dev box. Each describe is gated on the doc(s) it reads so it SKIPS
+// (visibly) instead of ENOENT-erroring or false-FAILing when its doc is absent —
+// full teeth on any machine that has the docs. (acceptable-use-policy.md / aup.md
+// are tracked, so their block keeps full teeth even in CI.)
+const present = (filename: string): boolean => existsSync(join(legalDir, filename))
+const describeIfOfac = present('ofac-program.md') ? describe : describe.skip
+const describeIfAup = present('acceptable-use-policy.md') ? describe : describe.skip
+const describeIfIr = present('incident-response-playbook.md') ? describe : describe.skip
+const describeIfEngagementLog = present('lawyer-engagement-log.md') ? describe : describe.skip
+// The "file presence" and cross-reference describes assert/traverse the WHOLE
+// compliance-doc set, so they need every referenced doc present to be meaningful.
+const allLegalDocsPresent = [
+  'ofac-program.md',
+  'acceptable-use-policy.md',
+  'incident-response-playbook.md',
+  'ofac-compliance-program.md',
+  'aup.md',
+  'ofac-training-log.md',
+  'lawyer-engagement-log.md',
+  'backup-mor-sop.md',
+].every(present)
+const describeIfAll = allLegalDocsPresent ? describe : describe.skip
 
 /* -------------------------------------------------------------------------- */
 /*  File presence — DoD item 1 + gate check 19                                 */
 /* -------------------------------------------------------------------------- */
 
-describe('P2.COMP1 — file presence (DoD + gate-check paths)', () => {
+describeIfAll('P2.COMP1 — file presence (DoD + gate-check paths)', () => {
   const canonicalDocs = [
     'ofac-program.md',
     'acceptable-use-policy.md',
@@ -88,7 +122,7 @@ describe('P2.COMP1 — file presence (DoD + gate-check paths)', () => {
 /*  OFAC program — required content sections                                   */
 /* -------------------------------------------------------------------------- */
 
-describe('P2.COMP1 — ofac-program.md required content', () => {
+describeIfOfac('P2.COMP1 — ofac-program.md required content', () => {
   const ofac = readDoc('ofac-program.md')
 
   it.each([
@@ -146,7 +180,7 @@ describe('P2.COMP1 — ofac-program.md required content', () => {
   })
 })
 
-describe('P2.COMP1 — ofac-program.md factual-accuracy regression guards', () => {
+describeIfOfac('P2.COMP1 — ofac-program.md factual-accuracy regression guards', () => {
   const ofac = readDoc('ofac-program.md')
 
   it('does NOT assert the incorrect "$1.37M per violation" IEEPA figure', () => {
@@ -176,7 +210,7 @@ describe('P2.COMP1 — ofac-program.md factual-accuracy regression guards', () =
   })
 })
 
-describe('P2.COMP1 — ofac-program.md implementation-honesty guards', () => {
+describeIfOfac('P2.COMP1 — ofac-program.md implementation-honesty guards', () => {
   const ofac = readDoc('ofac-program.md')
 
   it('§8 Implementation Status exists (prevents regression to overclaim)', () => {
@@ -204,7 +238,7 @@ describe('P2.COMP1 — ofac-program.md implementation-honesty guards', () => {
 /*  AUP — required content sections + AI-specific prohibitions                 */
 /* -------------------------------------------------------------------------- */
 
-describe('P2.COMP1 — acceptable-use-policy.md required content', () => {
+describeIfAup('P2.COMP1 — acceptable-use-policy.md required content', () => {
   const aup = readDoc('acceptable-use-policy.md')
 
   it.each([
@@ -271,7 +305,7 @@ describe('P2.COMP1 — acceptable-use-policy.md required content', () => {
 /*  Incident response playbook — one-pager + 5 scenarios + Pattern A+ pivot    */
 /* -------------------------------------------------------------------------- */
 
-describe('P2.COMP1 — incident-response-playbook.md required content', () => {
+describeIfIr('P2.COMP1 — incident-response-playbook.md required content', () => {
   const ir = readDoc('incident-response-playbook.md')
 
   it('has the one-pager section (spec required "one-page runbook")', () => {
@@ -329,7 +363,7 @@ describe('P2.COMP1 — incident-response-playbook.md required content', () => {
 /*  Cross-reference integrity — every docs/legal/*.md link resolves            */
 /* -------------------------------------------------------------------------- */
 
-describe('P2.COMP1 — no dangling cross-references between compliance docs', () => {
+describeIfAll('P2.COMP1 — no dangling cross-references between compliance docs', () => {
   const compDocs = [
     'ofac-program.md',
     'acceptable-use-policy.md',
@@ -369,7 +403,7 @@ describe('P2.COMP1 — no dangling cross-references between compliance docs', ()
 /*  Lawyer engagement log — evidences "kicked off"                             */
 /* -------------------------------------------------------------------------- */
 
-describe('P2.COMP1 — lawyer-engagement-log.md evidences engagement kickoff (spec DoD)', () => {
+describeIfEngagementLog('P2.COMP1 — lawyer-engagement-log.md evidences engagement kickoff (spec DoD)', () => {
   const log = readDoc('lawyer-engagement-log.md')
 
   it('has an active engagement entry (E-001)', () => {
