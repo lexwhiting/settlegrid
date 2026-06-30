@@ -1,0 +1,112 @@
+# web-ci — the apps/web test gate (launch-gate G4-1).
+#
+# WHY THIS EXISTS: `main` auto-deploys to Vercel production money traffic and
+# NOTHING else runs the apps/web vitest suite in CI (the other 9 workflows are
+# codemod/publish/reconcile/template jobs). This gate runs tsc + lint + vitest
+# on every change headed for `main`, so a logic regression that breaks an
+# EXISTING test can no longer ship silently. It does NOT prove untested new code
+# correct — there is no coverage floor; pinning a regression test stays each
+# money chunk's job.
+#
+# SCOPE OF THE GUARANTEE — read before trusting a green check:
+#   * The green check is a POST-HOC SIGNAL, not deploy-containment. A GitHub
+#     Actions run races Vercel's git auto-deploy; the YAML alone does NOT stop a
+#     bad commit from deploying. Real enforcement = a branch-protection rule on
+#     `main` requiring the `web-ci` check (+ require-PR + include-administrators
+#     + non-git-bypass lockdown). That is an OPERATOR action — see the
+#     "OPERATOR-ONLY" block in §12 of
+#     docs/tech-debt/ci-test-gate-handoff-2026-06-30.md. Do not read "web-ci is
+#     green" as "the deploy was gated".
+#   * Coverage boundary: this gate exercises packages/** only insofar as
+#     apps/web's own tests reach into them. It does NOT run the packages' own
+#     suites, and it builds web's deps but does NOT run a full `next build`
+#     (a next-build failure is fail-safe anyway: Vercel rejects the deploy).
+
+name: web-ci
+
+# BOTH triggers, by design (LBD-1): the team direct-pushes seals straight to
+# `main` (zero merge commits in history), so a pull_request-only trigger would
+# never fire on the real flow — push:[main] is what makes the gate run today.
+# pull_request:[main] covers the PR-merge flow that branch protection will later
+# require. The push leg produces a stable `web-ci` check that enforcement pins.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: this gate reads code and runs tests — it needs nothing else.
+# A secret-free, read-only job cannot leak credentials or mutate the repo.
+permissions:
+  contents: read
+
+# Cancel a superseded run when a newer commit lands on the same ref. Keyed on
+# github.ref (correct for a combined push+PR workflow; pull_request.number is
+# empty on push). On rapid back-to-back direct-push seals this drops the older
+# run's verdict — tolerable for a signal gate; branch protection moots it.
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# NO `paths:` filter, deliberately. apps/web imports packages/**, so an
+# apps/web/**-only filter would let a regression in a shared package through.
+# A paths filter on a REQUIRED check is also a known GitHub footgun: a PR that
+# touches none of the filtered paths leaves the required check stuck pending and
+# blocks the merge. Cost: every push (incl. docs-only seals) runs full CI
+# (~2-4 min) — accepted; it is what keeps the future required check non-vacuous.
+
+jobs:
+  web-ci: # <- job id. Keep `name:` equal to it so the CHECK-RUN name is exactly "web-ci".
+    # The check-run name (= this job `name:`) is what branch protection must require
+    # as its context. It is deliberately kept identical to the job id "web-ci": a
+    # descriptive job name would make the check-run name the longer string, and the
+    # §P cue's `context: web-ci` would then silently attach enforcement to nothing
+    # (LBD-1). Do not change this name without updating the branch-protection cue.
+    name: web-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Root install (npm workspaces). The whole job is secret-free below.
+      - name: Install dependencies
+        run: npm ci
+
+      # LBD-2(b): apps/web imports four @settlegrid/* packages that resolve ONLY
+      # via their built dist/ (dist-only `exports`, no src/dev condition). dist/
+      # is gitignored with no prepare/postinstall hook, so `npm ci` never builds
+      # it — bare tsc/vitest in a fresh checkout fail with 62x TS2307 +
+      # "Failed to resolve @settlegrid/mcp". Build web's DEPS (^...) only — not
+      # web itself — to stay inside the apps/web scope boundary (~6s, secret-free).
+      - name: Build workspace deps (dist/ for tsc + vitest)
+        run: npx turbo run build --filter=@settlegrid/web^...
+
+      # LBD-2(a): apps/web/next-env.d.ts references .next/types/routes.d.ts,
+      # which a fresh checkout lacks -> tsc TS6053. typegen regenerates it
+      # (fast, secret-free, no build artifact needed).
+      - name: Generate Next.js route types
+        run: npx next typegen
+        working-directory: apps/web
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+        working-directory: apps/web
+
+      # Warnings do NOT fail the gate: the current output is warnings-only
+      # (img-element, exhaustive-deps, one unused eslint-disable). Failing on
+      # pre-existing warnings would red the gate on day one for no regression.
+      - name: Lint
+        run: npm run lint
+        working-directory: apps/web
+
+      # Green only with the LBD-3 skip-if-absent guards in place: several tests
+      # readFileSync deliberately-gitignored internal docs that ENOENT in any
+      # fresh clone; the guards make those blocks SKIP (visibly) instead of fail.
+      - name: Test (vitest)
+        run: npx vitest run
+        working-directory: apps/web
