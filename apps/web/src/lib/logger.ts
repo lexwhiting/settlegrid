@@ -40,6 +40,28 @@ interface LogEntry {
 const FREE_TEXT_ERROR_KEYS = ['error', 'reason', 'message', 'details', 'stack'] as const
 
 /**
+ * Funds-integrity / money-LOSS event keys (launch-gate G4-5). When an
+ * error-level log carries one of these `msg` keys, the Sentry mirror also stamps
+ * a `money_loss: 'true'` tag so ONE alert rule can page on the whole class
+ * (instead of five separate `logKey` filters). These are the events where money
+ * actually moved incorrectly — consumer debited but developer not credited
+ * (off-chain), on-chain settled but credit lost, charged-but-undelivered (F3),
+ * or a credit-reconciliation marker broke. Keep this list TIGHT (each entry is a
+ * page-worthy funds event, low false-positive); add a new key here when a new
+ * funds-loss signal is introduced. The generic billing-record-update errors
+ * (`proxy.*_billing_update_error`) and the MPP `proxy.mpp_upstream_error` are
+ * deliberately EXCLUDED (noisier / not necessarily a loss) — see the ③ MPP
+ * F3-alert-parity follow-up before adding them.
+ */
+const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
+  'proxy.balance_race_unpaid_invocation', // off-chain: consumer debited, dev not credited
+  'proxy.onchain_credit_lost_after_settle', // on-chain settled, dev credit lost
+  'proxy.onchain_settled_upstream_failed', // charged on-chain, upstream undelivered (F3)
+  'settlement.credit_zero_row_unmarked', // credit reconciliation marker broke
+  'settlement.credit_marker_unmatched', // credit reconciliation marker broke
+])
+
+/**
  * A sanitized COPY of an Error for `Sentry.captureException` — the error NAME is
  * preserved (Sentry's exception type / grouping key, incl. `AggregateError`),
  * with a payer-redacted message + stack. Deliberately does NOT copy the ancillary
@@ -143,15 +165,19 @@ function emit(level: LogLevel, msg: string, meta?: Record<string, unknown>, err?
   // resulting issue.
   if (level === 'error' && process.env.SENTRY_DSN) {
     try {
+      // `logKey` lets an alert rule filter by the exact structured event; a
+      // money-LOSS key ALSO gets `money_loss:'true'` so one rule covers the class.
+      const sentryTags: Record<string, string> = { logKey: msg }
+      if (MONEY_LOSS_KEYS.has(msg)) sentryTags.money_loss = 'true'
       if (safeErr instanceof Error) {
         Sentry.captureException(safeErr, {
-          tags: { logKey: msg },
+          tags: sentryTags,
           extra: safeMeta,
         })
       } else {
         Sentry.captureMessage(msg, {
           level: 'error',
-          tags: { logKey: msg },
+          tags: sentryTags,
           extra: safeMeta,
         })
       }
