@@ -175,6 +175,36 @@ describe('Sentry mirror — error-level logs only, gated on SENTRY_DSN', () => {
     expect(mockCaptureException).not.toHaveBeenCalled()
   })
 
+  // G4-5: funds-integrity events get a `money_loss:'true'` Sentry tag so ONE
+  // alert rule covers the whole class. logKey is always present too.
+  it.each([
+    'proxy.balance_race_unpaid_invocation',
+    'proxy.onchain_credit_lost_after_settle',
+    'proxy.onchain_settled_upstream_failed',
+    'settlement.credit_zero_row_unmarked',
+    'settlement.credit_marker_unmatched',
+  ])('stamps money_loss:true on the funds-loss key %s (message path)', (key) => {
+    process.env.SENTRY_DSN = 'https://test@sentry.test/1'
+    logger.error(key, { requestId: 'r-1' })
+    const [, opts] = mockCaptureMessage.mock.calls[0] as [string, { tags: Record<string, unknown> }]
+    expect(opts.tags).toEqual({ logKey: key, money_loss: 'true' })
+  })
+
+  it('stamps money_loss:true on the Error (captureException) path too', () => {
+    process.env.SENTRY_DSN = 'https://test@sentry.test/1'
+    logger.error('proxy.onchain_credit_lost_after_settle', { txHash: '0xabc' }, new Error('credit lost'))
+    const [, opts] = mockCaptureException.mock.calls[0] as [Error, { tags: Record<string, unknown> }]
+    expect(opts.tags).toEqual({ logKey: 'proxy.onchain_credit_lost_after_settle', money_loss: 'true' })
+  })
+
+  it('does NOT stamp money_loss on a non-funds error (teeth: tag is class-specific)', () => {
+    process.env.SENTRY_DSN = 'https://test@sentry.test/1'
+    logger.error('payout.rollback_failed', { developerId: 'dev-1' })
+    const [, opts] = mockCaptureMessage.mock.calls[0] as [string, { tags: Record<string, unknown> }]
+    expect(opts.tags).toEqual({ logKey: 'payout.rollback_failed' })
+    expect(opts.tags).not.toHaveProperty('money_loss')
+  })
+
   it('does NOT call Sentry for info / warn levels even with DSN set', () => {
     process.env.SENTRY_DSN = 'https://test@sentry.test/1'
     logger.info('user.signed_in', { userId: 'u-1' })
