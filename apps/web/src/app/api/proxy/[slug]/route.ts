@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { tools, developers, apiKeys, consumerToolBalances, consumers, invocations, ledgerEntries } from '@/lib/db/schema'
 import { apiKeyHashCandidates } from '@/lib/crypto'
 import { tryRedis, getRedis } from '@/lib/redis'
+import { chargeIdemKey, claimCharge, releaseCharge, CHARGE_IDEM_TTL_SECONDS } from '@/lib/proxy-idempotency'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { sdkLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
@@ -98,6 +99,60 @@ interface CachedProxyResponse {
   body: string
   status: number
   contentType: string
+}
+
+/**
+ * Reads an explicit client `Idempotency-Key` header (the caller declaring "this
+ * is the same logical request"). UNTRUSTED input — bounded here, then hashed +
+ * consumer-scoped in `chargeIdemKey` so a hostile value cannot escape the
+ * key namespace or collide with another consumer.
+ */
+function readIdempotencyKeyHeader(request: NextRequest): string | null {
+  const raw = request.headers.get('idempotency-key')
+  if (!raw) return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  return trimmed.slice(0, 255)
+}
+
+/**
+ * The response returned when the charge-idempotency gate detects a duplicate
+ * (G3-3, FOLD 7): always 2xx (so the client stops retrying — a non-2xx would
+ * make it retry again, and a retry after the TTL re-charges) with
+ * `X-SettleGrid-Duplicate: true` and cost 0. When the tool is cacheable and the
+ * original call already cached its body, serve that body; otherwise a minimal
+ * marker (no new stored-response replay — that framework is out of scope).
+ */
+async function duplicateChargeResponse(params: {
+  requestId: string
+  cacheKey: string | null
+  cacheTtl: number
+}): Promise<NextResponse> {
+  const { requestId, cacheKey, cacheTtl } = params
+  const headers = new Headers()
+  headers.set('X-SettleGrid-Proxy', 'true')
+  headers.set('X-SettleGrid-Duplicate', 'true')
+  headers.set('X-SettleGrid-Cost-Cents', '0')
+  headers.set('x-request-id', requestId)
+
+  if (cacheKey && cacheTtl > 0) {
+    const cached = await tryRedis(() => getRedis().get<CachedProxyResponse>(cacheKey))
+    if (cached) {
+      headers.set('Content-Type', cached.contentType)
+      headers.set('X-SettleGrid-Cache', 'HIT')
+      return new NextResponse(cached.body, { status: cached.status, headers })
+    }
+  }
+
+  headers.set('Content-Type', 'application/json')
+  return new NextResponse(
+    JSON.stringify({
+      duplicate: true,
+      message:
+        'Duplicate request detected within the retry window; the original charge was not applied again.',
+    }),
+    { status: 200, headers }
+  )
 }
 
 /**
@@ -664,6 +719,60 @@ async function handleProxy(
       ? `cache:proxy:${slug}:c${costCents}:${hashBody(request.method + requestBody)}`
       : null
 
+    // ── Charge-idempotency gate (G3-3, LBD-1 / FOLD 1) ────────────────────
+    // Gate the CHARGE (the atomic CAS debit), not the fire-and-forget
+    // `invocations` record — that record is not where money moves. ONE claim
+    // here (after body capture, before the cache check + upstream forward)
+    // governs all THREE debiting paths (cache-hit, main, SLA-failover) so a
+    // client retry of a timed-out metered call cannot debit twice, AND a
+    // duplicate never re-executes a possibly non-idempotent upstream. Only
+    // charged calls debit: test keys / free tools never move money, so they
+    // skip the gate entirely (never false-dedup).
+    const chargeGated = !auth.isTestKey && costCents > 0
+    const idemKey = chargeGated
+      ? chargeIdemKey({
+          consumerId: auth.consumerId,
+          toolId: auth.toolId,
+          method: request.method,
+          bodyHash: hashBody(request.method + requestBody),
+          clientKey: readIdempotencyKeyHeader(request),
+        })
+      : null
+
+    if (idemKey) {
+      const claim = await claimCharge(idemKey, CHARGE_IDEM_TTL_SECONDS)
+      if (claim === 'duplicate') {
+        // A logically-identical charge is already in-flight or recently
+        // settled — skip the debit AND the upstream forward. Return a 2xx
+        // duplicate marker (FOLD 7); a non-2xx would make the client keep
+        // retrying, and a retry after the TTL re-charges.
+        logger.info('proxy.duplicate_charge_skipped', {
+          slug,
+          consumerId: auth.consumerId,
+          toolId: auth.toolId,
+          requestId,
+        })
+        return await duplicateChargeResponse({ requestId, cacheKey, cacheTtl })
+      }
+      if (claim === 'unavailable') {
+        // Redis down → fail-OPEN (proceed + charge) + page a money_loss alert
+        // (FOLD 3, founder default). Fail-closed would zero the money rail for
+        // the whole outage; the rare double-charge (outage ∩ timing-out-retrying
+        // client) is detectable + refundable via this alert. Net-new posture:
+        // authoritative-Redis with NO durable backstop (unlike x402/circle-nano).
+        logger.error('proxy.idempotency_gate_unavailable', {
+          slug,
+          consumerId: auth.consumerId,
+          toolId: auth.toolId,
+          costCents,
+          requestId,
+          message: 'Redis unavailable — charge-idempotency gate bypassed (fail-open). A client retry within the window may double-charge; reconcile/refund from this alert.',
+        })
+      }
+      // 'won' (and fail-open 'unavailable') fall through and charge normally.
+      // The key is RELEASED only at the no-charge exits below (FOLD 6).
+    }
+
     if (cacheKey && cacheTtl > 0) {
       const cached = await tryRedis(() => getRedis().get<CachedProxyResponse>(cacheKey))
       if (cached) {
@@ -842,6 +951,10 @@ async function handleProxy(
         }
       }
 
+      // No charge collected on this path (upstream errored, no successful
+      // failover) — release the claim so a legitimate retry can charge (FOLD 6).
+      if (idemKey) await releaseCharge(idemKey)
+
       if (isAbort) {
         return errorResponse(
           'Upstream tool timed out after 30 seconds.',
@@ -891,6 +1004,12 @@ async function handleProxy(
         }
       }
     }
+
+    // Upstream returned non-2xx and no failover charged — no debit will run
+    // (actualCost stays 0). Release the claim so a legitimate retry can charge
+    // (FOLD 6). When upstreamOk is true we fall through and charge, so we must
+    // NOT release here.
+    if (idemKey && !upstreamOk) await releaseCharge(idemKey)
 
     // Only charge if upstream returned success
     const actualCost = upstreamOk && !auth.isTestKey ? costCents : 0
