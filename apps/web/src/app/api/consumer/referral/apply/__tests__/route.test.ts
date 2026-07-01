@@ -117,6 +117,16 @@ describe('POST /api/consumer/referral/apply — G3-2', () => {
     expect(mockTx.update).toHaveBeenCalledTimes(2)
     // The referee update is null-gated (the real TOCTOU guard).
     expect(isNull).toHaveBeenCalledWith('referred_by_consumer_id')
+    // Row-scope teeth: BOTH in-txn UPDATEs must be scoped to the RIGHT row —
+    // the referee update to the authed caller's own row (id=auth.id) AND the
+    // null-gate; the referrer credit to the referrer's row (id=referrer.id).
+    // Deleting either row-scope is a mass-credit. eq('id','referee-1') is also
+    // called by the fast-path SELECT, so we assert on the TRANSACTION's WHERE
+    // (mockTx.where) — which only the two in-txn UPDATEs touch — not eq alone.
+    expect(mockTx.where).toHaveBeenCalledWith({
+      and: [{ eq: ['id', 'referee-1'] }, { isNull: 'referred_by_consumer_id' }],
+    })
+    expect(mockTx.where).toHaveBeenCalledWith({ eq: ['id', 'referrer-1'] })
   })
 
   it('TOCTOU teeth: a concurrent second apply matches 0 rows → credits NO ONE', async () => {

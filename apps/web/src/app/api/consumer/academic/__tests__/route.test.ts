@@ -60,7 +60,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import { POST } from '@/app/api/consumer/academic/route'
-import { isNull } from 'drizzle-orm'
+import { eq, isNull } from 'drizzle-orm'
 
 function makeRequest(body: Record<string, unknown> = { email: 'ignored@example.com', institutionName: 'Test University' }) {
   return new NextRequest('http://localhost/api/consumer/academic', {
@@ -136,6 +136,11 @@ describe('POST /api/consumer/academic — G3-1', () => {
     // (WHERE academic_granted_at IS NULL). Without this, a second claim would
     // re-credit $500 — and the outcome-stub tests below would not catch it.
     expect(isNull).toHaveBeenCalledWith('academic_granted_at')
+    // Row-scope teeth: the UPDATE MUST also be scoped to the AUTHED consumer's
+    // own row (WHERE id = auth.id). Deleting that predicate is a mass-mint —
+    // it would credit $500 to EVERY not-yet-granted consumer on one request —
+    // and the isNull pin above does NOT catch it (only eq is called here, once).
+    expect(eq).toHaveBeenCalledWith('id', 'con-1')
     expect(mockSendEmail).toHaveBeenCalledTimes(1)
     expect(mockSendEmail.mock.calls[0][0].to).toBe('alice@harvard.edu')
   })
