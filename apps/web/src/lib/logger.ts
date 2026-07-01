@@ -57,6 +57,7 @@ const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
   'proxy.balance_race_unpaid_invocation', // off-chain: consumer debited, dev not credited
   'proxy.onchain_credit_lost_after_settle', // on-chain settled, dev credit lost
   'proxy.onchain_settled_upstream_failed', // charged on-chain, upstream undelivered (F3)
+  'proxy.idempotency_gate_unavailable', // G3-3: Redis down → charge-dedup bypassed (fail-open); a client retry in the window may double-charge
   'settlement.credit_zero_row_unmarked', // credit reconciliation marker broke
   'settlement.credit_marker_unmatched', // credit reconciliation marker broke
 ])
