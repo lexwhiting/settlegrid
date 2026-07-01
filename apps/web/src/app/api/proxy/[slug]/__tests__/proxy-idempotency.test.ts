@@ -20,7 +20,7 @@ import { join } from 'path'
 import type { NextRequest } from 'next/server'
 
 const H = vi.hoisted(() => {
-  const redisState = { store: new Map<string, string>(), down: false }
+  const redisState = { store: new Map<string, string>(), down: false, claimUnavailable: false }
 
   const selectLimit = vi.fn()
   const selectChain = {
@@ -65,6 +65,7 @@ const H = vi.hoisted(() => {
     safeFetch: vi.fn(),
     findFallbackTool: vi.fn(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    delSpy: vi.fn(),
   }
 })
 
@@ -73,6 +74,9 @@ vi.mock('@/lib/redis', () => ({
   getRedis: () => ({
     set: async (k: string, v: string, opts?: { nx?: boolean; ex?: number }) => {
       if (H.redisState.down) throw new Error('redis down')
+      // Redis down at CLAIM time only (the SET-NX throws → 'unavailable'/fail-open),
+      // while del/get still work — models an outage that recovers by release time.
+      if (opts?.nx && H.redisState.claimUnavailable) throw new Error('redis down (claim)')
       if (opts?.nx && H.redisState.store.has(k)) return null
       H.redisState.store.set(k, v)
       return 'OK'
@@ -91,6 +95,7 @@ vi.mock('@/lib/redis', () => ({
     },
     del: async (k: string) => {
       if (H.redisState.down) throw new Error('redis down')
+      H.delSpy(k)
       H.redisState.store.delete(k)
       return 1
     },
@@ -222,8 +227,13 @@ function developerCredits() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // clearAllMocks resets call records but NOT the mockResolvedValueOnce queue;
+  // reset it so a test whose deduped 2nd request consumes fewer SELECTs than it
+  // primed cannot leak a leftover row into the next test's auth (③ test-hygiene).
+  H.selectLimit.mockReset()
   H.redisState.store.clear()
   H.redisState.down = false
+  H.redisState.claimUnavailable = false
   H.insertValues.mockResolvedValue(undefined)
   // Per-tool debit CAS succeeds by default (collects → credits developer).
   H.updateReturning.mockResolvedValue([{ balanceCents: 99_950 }])
@@ -428,6 +438,54 @@ describe('metered proxy — retry is charged at most once (G3-3)', () => {
     expect(consumerDebits()).toBe(1) // NOT re-debited at #6
     expect(developerCredits()).toBe(1)
   })
+
+  // ── ③ F2: a fail-open request must NOT release a key it never owned. ──
+  it('a fail-open (Redis-down-at-claim) request never DELETEs the shared key (③ F2)', async () => {
+    primeRequests(1)
+    // Redis is down ONLY at claim time → this request fails OPEN ('unavailable')
+    // and sets NO key; by the time it reaches its release path Redis has recovered
+    // (del works). A concurrent byte-identical winner may now hold this exact key,
+    // so releasing it would delete THAT winner's live claim → a later retry
+    // re-wins and re-charges → a double-charge in which every survivor saw a
+    // healthy Redis (outside the accepted outage∩retry envelope).
+    H.redisState.claimUnavailable = true
+    H.safeFetch.mockRejectedValue(new Error('upstream boom')) // → no-charge release exit
+
+    const res = await callPost(makeReq({ q: 'flap' }))
+    expect(res.status).toBe(503) // UPSTREAM_UNREACHABLE
+
+    // It failed open + paged the money_loss alert (holding NO key)…
+    expect(H.logger.error).toHaveBeenCalledWith(
+      'proxy.idempotency_gate_unavailable',
+      expect.objectContaining({ costCents: 50 }),
+    )
+    // …and therefore must NOT delete the shared key. Shipped code released on
+    // `if (idemKey)` regardless of the claim result → this asserted RED; the fix
+    // gates the release on `claim === 'won'` (the only request that HOLDS a key).
+    expect(H.delSpy).not.toHaveBeenCalled()
+  })
+
+  // ── ③ C1: behavioral teeth for the client Idempotency-Key wiring (FOLD A). ──
+  it('an explicit Idempotency-Key dedups a VARIED-body retry end-to-end (③ C1 / FOLD A)', async () => {
+    primeRequests(2)
+    H.safeFetch.mockImplementation(async () => upstream200())
+    const hdr = { 'idempotency-key': 'client-key-xyz' }
+
+    const r1 = await callPost(makeReq({ q: 'first' }, hdr))
+    expect(r1.status).toBe(200)
+    expect(r1.headers.get('X-SettleGrid-Duplicate')).toBeNull()
+    expect(consumerDebits()).toBe(1)
+
+    // Same header, DIFFERENT body → the header path (readIdempotencyKeyHeader →
+    // chargeIdemKey clientKey) keys on the header, not the body → a duplicate.
+    // Delete the `clientKey: readIdempotencyKeyHeader(request)` wiring in route.ts
+    // and this retry falls back to the server-derived key (different body →
+    // different key) → a 2nd debit → RED. This gives the new public boundary the
+    // behavioral teeth it previously lacked.
+    const r2 = await callPost(makeReq({ q: 'DIFFERENT' }, hdr))
+    expect(r2.headers.get('X-SettleGrid-Duplicate')).toBe('true')
+    expect(consumerDebits()).toBe(1) // deduped by the header despite the different body
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -463,8 +521,16 @@ describe('source: single claim precedes every debiting path (FOLD 1)', () => {
     expect(claim).toBeLessThan(lastFailoverCall)
   })
 
-  it('releases the claim at no-charge exits (upstream error + non-2xx)', () => {
-    expect(src).toContain('if (idemKey) await releaseCharge(idemKey)')
-    expect(src).toContain('if (idemKey && !upstreamOk) await releaseCharge(idemKey)')
+  it('releases the claim at no-charge exits ONLY when it was WON (③ F2)', () => {
+    // Both releases must be gated on `claimOwned` — a fail-open ('unavailable')
+    // request holds no key and must never del one (that would delete a concurrent
+    // winner's live claim → double-charge on recovery). A release on merely
+    // `if (idemKey)` would re-open ③ F2, so pin the guarded form.
+    expect(src).toContain('if (idemKey && claimOwned) await releaseCharge(idemKey)')
+    expect(src).toContain('if (idemKey && claimOwned && !upstreamOk) await releaseCharge(idemKey)')
+    // And the ungated form must be GONE (it was the ③ F2 defect).
+    expect(src).not.toContain('if (idemKey) await releaseCharge(idemKey)')
+    // `claimOwned` is set only on a WON claim (never on fail-open 'unavailable').
+    expect(src).toContain("if (claim === 'won') claimOwned = true")
   })
 })

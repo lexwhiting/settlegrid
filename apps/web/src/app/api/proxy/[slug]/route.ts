@@ -739,6 +739,10 @@ async function handleProxy(
         })
       : null
 
+    // Whether THIS request WON (and therefore now HOLDS) the idempotency claim.
+    // Only a holder may release its key at a no-charge exit — see the note in the
+    // claim block below (③ F2). Gated on this rather than merely `idemKey != null`.
+    let claimOwned = false
     if (idemKey) {
       const claim = await claimCharge(idemKey, CHARGE_IDEM_TTL_SECONDS)
       if (claim === 'duplicate') {
@@ -769,8 +773,12 @@ async function handleProxy(
           message: 'Redis unavailable — charge-idempotency gate bypassed (fail-open). A client retry within the window may double-charge; reconcile/refund from this alert.',
         })
       }
-      // 'won' (and fail-open 'unavailable') fall through and charge normally.
-      // The key is RELEASED only at the no-charge exits below (FOLD 6).
+      // Only a request that WON now HOLDS a key. A fail-open ('unavailable')
+      // request set NO key (its SET-NX threw), so it must NOT release later:
+      // deleting a concurrent winner's live claim would re-open the double-charge
+      // on recovery (③ F2 / DC-06). Both 'won' and 'unavailable' fall through and
+      // charge; the releases below are gated on `claimOwned` (FOLD 6).
+      if (claim === 'won') claimOwned = true
     }
 
     if (cacheKey && cacheTtl > 0) {
@@ -953,7 +961,8 @@ async function handleProxy(
 
       // No charge collected on this path (upstream errored, no successful
       // failover) — release the claim so a legitimate retry can charge (FOLD 6).
-      if (idemKey) await releaseCharge(idemKey)
+      // Only if we actually WON it (a fail-open request holds no key — ③ F2).
+      if (idemKey && claimOwned) await releaseCharge(idemKey)
 
       if (isAbort) {
         return errorResponse(
@@ -1008,8 +1017,8 @@ async function handleProxy(
     // Upstream returned non-2xx and no failover charged — no debit will run
     // (actualCost stays 0). Release the claim so a legitimate retry can charge
     // (FOLD 6). When upstreamOk is true we fall through and charge, so we must
-    // NOT release here.
-    if (idemKey && !upstreamOk) await releaseCharge(idemKey)
+    // NOT release here. Only if we actually WON the claim (③ F2).
+    if (idemKey && claimOwned && !upstreamOk) await releaseCharge(idemKey)
 
     // Only charge if upstream returned success
     const actualCost = upstreamOk && !auth.isTestKey ? costCents : 0

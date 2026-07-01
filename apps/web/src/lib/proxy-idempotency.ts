@@ -23,7 +23,16 @@ import { getRedis, tryRedis } from './redis'
 
 /** Retry window the gate covers (FOLD 5). Agent HTTP read-timeouts default to
  * 30/60/120s; SettleGrid always responds within maxDuration=90s. A 120s TTL
- * covers common timeouts; bounded above by the false-dedup / poll-collapse cost. */
+ * covers common timeouts; bounded above by the false-dedup / poll-collapse cost.
+ *
+ * LOAD-BEARING INVARIANT (③ F2): this MUST stay strictly greater than the proxy
+ * route's `maxDuration` (90s, proxy/[slug]/route.ts). A winner holds its key for
+ * this TTL and, because a request can never run longer than maxDuration, it
+ * always reaches its release (at a no-charge exit) before its own claim could
+ * expire and be re-won by a concurrent retry. If TTL ≤ maxDuration a slow winner
+ * could `del` a key a retry already re-claimed → double-charge. Do not lower
+ * below maxDuration without switching releaseCharge to a fencing-token
+ * compare-and-del (store the requestId, delete only if it still matches). */
 export const CHARGE_IDEM_TTL_SECONDS = 120
 
 /** Universal namespace prefix for the charge-dedup keys (FOLD 8). */
