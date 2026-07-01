@@ -174,6 +174,10 @@ export const consumers = pgTable('consumers', {
   referredByConsumerId: uuid('referred_by_consumer_id'), // FK intentionally omitted to avoid circular ref
   // Global Balance (Volume Discount Credit Packs)
   globalBalanceCents: integer('global_balance_cents').notNull().default(0),
+  // Academic credit grant marker (G3-1). Nullable: NULL = never granted the
+  // $500 academic credit. Set atomically (WHERE academic_granted_at IS NULL)
+  // by consumer/academic to make the grant idempotent — a per-row replay guard.
+  academicGrantedAt: timestamp('academic_granted_at', { withTimezone: true }),
   // Auto-refill configuration for global balance
   autoRefillPackId: text('auto_refill_pack_id'), // pack_20 | pack_100 | pack_500 | pack_1000
   autoRefillTriggerCents: integer('auto_refill_trigger_cents'), // trigger when balance drops below this

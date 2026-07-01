@@ -1,7 +1,12 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AcademicSignupForm } from './academic-signup-form'
+
+// Reads the session (cookies) to gate the claim form → dynamic render.
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Academic Program | SettleGrid — Free AI Tools for Researchers & Students',
@@ -87,7 +92,16 @@ const BENEFITS = [
   },
 ]
 
-export default function AcademicPage() {
+export default async function AcademicPage() {
+  // G3-1: the claim endpoint now requires an authenticated + email-verified
+  // session, so the public unauthenticated funnel would 401 on every submit.
+  // Gate the form behind sign-in — signed-out visitors get a "sign in to
+  // claim" CTA (return path preserved) instead of a form that can't succeed.
+  const supabase = await createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   return (
     <>
       <Navbar />
@@ -147,9 +161,41 @@ export default function AcademicPage() {
               Get Started
             </h2>
             <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
-              Use your .edu or institutional email to activate your academic account.
+              Sign in with your .edu or institutional email to activate your academic account.
             </p>
-            <AcademicSignupForm />
+            {user ? (
+              <AcademicSignupForm />
+            ) : (
+              <div className="text-center p-8 bg-white dark:bg-[#161822] rounded-xl border border-gray-200 dark:border-[#2A2D3E]">
+                <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-2">
+                  Sign in to claim your academic credit
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Your $500 credit is granted to your verified academic email. Sign in
+                  (or create an account) with your <span className="font-medium">.edu</span> or
+                  institutional email, then claim it here.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Link
+                    href="/login?redirect=/academic"
+                    className="w-full sm:w-auto px-6 py-3 bg-amber-500 text-white rounded-lg font-semibold text-sm hover:bg-amber-600 transition-colors"
+                  >
+                    Sign in to claim
+                  </Link>
+                  <Link
+                    href="/register?redirect=/academic"
+                    className="w-full sm:w-auto px-6 py-3 border border-gray-300 dark:border-[#2A2D3E] text-indigo dark:text-gray-100 rounded-lg font-semibold text-sm hover:bg-gray-50 dark:hover:bg-[#252836] transition-colors"
+                  >
+                    Create an account
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

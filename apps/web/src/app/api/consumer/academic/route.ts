@@ -1,15 +1,21 @@
 /**
- * POST /api/consumer/academic — Submit an academic verification request.
+ * POST /api/consumer/academic — claim the $500 academic credit.
  *
- * Validates .edu email domain, creates a consumer with the academic tier,
- * provisions $500 in global credits, and sends a welcome email.
+ * G3-1 hardening: the grant is keyed on the AUTHENTICATED + email-VERIFIED
+ * Supabase session (never a body-supplied email — that was the $500 hole), is
+ * gated to an academic institution email (real second-level-label match, not a
+ * substring), and is minted EXACTLY ONCE per consumer via a conditional atomic
+ * UPDATE (WHERE academic_granted_at IS NULL). `body.email` is ignored for
+ * eligibility; institutionName is logged, useCase is accepted for form-compat
+ * (neither affects eligibility or the grant).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { consumers } from '@/lib/db/schema'
+import { requireConsumer } from '@/lib/middleware/auth'
 import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -19,19 +25,15 @@ import { logger } from '@/lib/logger'
 /** Credits granted to academic accounts (in cents): $500 */
 const ACADEMIC_CREDIT_CENTS = 50_000
 
-/** Rate limit: 3 academic signups per day per IP */
+/** Rate limit: 3 academic claims per day per IP (pre-auth DoS guard) */
 const academicLimiter = createRateLimiter(3, '1 d')
 
-/** Rate limit: 2 attempts per email per day (prevent enumeration) */
-const academicEmailLimiter = createRateLimiter(2, '1 d')
+/** Rate limit: 2 academic claims per day per authenticated consumer */
+const academicUserLimiter = createRateLimiter(2, '1 d')
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
-/**
- * Validates that an email address belongs to an academic institution.
- * Checks for .edu TLD and common international academic domains.
- */
-/** Academic domain suffixes recognized worldwide */
+/** Academic domain suffixes recognized worldwide (matched with endsWith). */
 const ACADEMIC_SUFFIXES = [
   // Direct .edu (US)
   '.edu',
@@ -47,26 +49,51 @@ const ACADEMIC_SUFFIXES = [
   '.ac.uk', '.ac.jp', '.ac.kr', '.ac.nz', '.ac.za', '.ac.il', '.ac.th',
   '.ac.in', '.ac.at', '.ac.be', '.ac.id', '.ac.ir', '.ac.ke', '.ac.tz',
   '.ac.ug', '.ac.rw', '.ac.bd', '.ac.lk', '.ac.cy', '.ac.cr', '.ac.fj',
-  // European university domains
-  '.uni-', // German universities (e.g., uni-heidelberg.de)
-  '.univ-', // French universities (e.g., univ-paris.fr)
 ] as const
 
+/**
+ * European university domains: the SECOND-LEVEL label starts with one of these
+ * (e.g. uni-heidelberg.de, stud.uni-muenchen.de, univ-paris.fr). Testing the
+ * SLD — NOT "any label, and NOT a substring" — admits those while REJECTING
+ * both x@myuni-hack.com (substring) and x@uni-hack.attacker.com (a non-SLD
+ * label). Plain TS, no PSL dependency.
+ *
+ * ACCEPTED RESIDUAL (founder-decided; fast-follow = a curated allowlist): this
+ * admits ANY `uni-*`/`univ-*` SLD in ANY TLD (uni-grant.com, univ-x.io), not
+ * only academic ccTLDs. An attacker can register a ~$10 uni-* domain, confirm a
+ * mailbox on it, and claim $500 — the "honest MINIMUM" reduces free-unauth abuse
+ * to authed+audit-trailed per grant; it does not eliminate domain-purchase Sybil.
+ */
+const ACADEMIC_SLD_PREFIXES = ['uni-', 'univ-'] as const
+
+/**
+ * Validates that an email address belongs to an academic institution.
+ * Runs on the VERIFIED SESSION email, never on a body-supplied address.
+ */
 function isAcademicEmail(email: string): boolean {
-  const domain = email.split('@')[1]?.toLowerCase()
+  // Require exactly one '@' — a malformed `a@harvard.edu@evil.com` must not have
+  // its middle token treated as the (eligible) domain while mail routes to evil.com.
+  const parts = email.split('@')
+  if (parts.length !== 2) return false
+  const domain = parts[1]?.toLowerCase()
   if (!domain) return false
 
   for (const suffix of ACADEMIC_SUFFIXES) {
-    // For prefix patterns like '.uni-' and '.univ-', check if domain contains them
-    if (suffix.startsWith('.uni') && domain.includes(suffix.slice(1))) return true
-    // For suffix patterns, check if domain ends with them
-    if (!suffix.startsWith('.uni') && domain.endsWith(suffix)) return true
+    if (domain.endsWith(suffix)) return true
+  }
+
+  const labels = domain.split('.')
+  if (labels.length >= 2) {
+    const sld = labels[labels.length - 2]
+    if (ACADEMIC_SLD_PREFIXES.some((p) => sld.startsWith(p))) return true
   }
 
   return false
 }
 
 const academicSchema = z.object({
+  // Kept for form compatibility + logging. IGNORED for eligibility — the
+  // eligible email is the verified session email, not this field.
   email: z
     .string()
     .trim()
@@ -131,7 +158,7 @@ export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request.headers)
 
-    // Rate limit
+    // Pre-auth IP rate limit (cheap DoS guard).
     const rl = await checkRateLimit(academicLimiter, `academic:${ip}`)
     if (!rl.success) {
       return NextResponse.json(
@@ -140,77 +167,114 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse body
+    // Require an authenticated + email-VERIFIED consumer session. Eligibility
+    // is keyed on `auth.verifiedEmail` (the live confirmed session email),
+    // NEVER a body field — that was the unauthenticated $500 hole.
+    let auth
+    try {
+      auth = await requireConsumer(request, { requireEmailVerified: true })
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Authentication required. Please sign in.' },
+        { status: 401 }
+      )
+    }
+
+    // Per-consumer rate limit.
+    const userRl = await checkRateLimit(academicUserLimiter, `academic:uid:${auth.id}`)
+    if (!userRl.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again tomorrow.' },
+        { status: 429 }
+      )
+    }
+
+    // Parse body (institutionName/useCase are metadata; email is ignored).
     let body: z.infer<typeof academicSchema>
     try {
       const raw = await request.json()
       body = academicSchema.parse(raw)
     } catch {
       return NextResponse.json(
-        { error: 'Please provide a valid .edu email and institution name.' },
+        { error: 'Please provide a valid institution name.' },
         { status: 400 }
       )
     }
 
-    // Per-email rate limit to prevent enumeration attacks
-    const emailRl = await checkRateLimit(academicEmailLimiter, `academic-email:${body.email}`)
-    if (!emailRl.success) {
-      return NextResponse.json(
-        { error: 'Too many requests for this email. Please try again tomorrow.' },
-        { status: 429 }
-      )
-    }
-
-    // Validate academic email
-    if (!isAcademicEmail(body.email)) {
+    // Eligibility runs on the VERIFIED session email.
+    if (!isAcademicEmail(auth.verifiedEmail)) {
       return NextResponse.json(
         {
-          error: 'Academic email required. Please use your .edu or institutional email address.',
+          error: 'Academic email required. Sign in with your .edu or institutional email address to claim.',
           code: 'NON_ACADEMIC_EMAIL',
         },
         { status: 422 }
       )
     }
 
-    // Check if consumer already exists
-    const existing = await db
-      .select({ id: consumers.id, globalBalanceCents: consumers.globalBalanceCents })
-      .from(consumers)
-      .where(eq(consumers.email, body.email))
-      .limit(1)
+    // Defense-in-depth tripwire, evaluated at GRANT time (an academic-eligible
+    // session about to mint): if the Supabase project auto-confirms email
+    // (Confirm-email DISABLED), `email_confirmed_at` proves NO mailbox control
+    // and the whole verify gate is toothless — a $500 mint to anyone@harvard.edu.
+    // Fail CLOSED (do not silently grant) + loud money_loss alert. The operator
+    // §P item "Confirm email = REQUIRED" is the real fix; this is the tripwire.
+    if (auth.emailAutoConfirmSuspected) {
+      logger.error('academic.autoconfirm_blocked', {
+        money_loss: true,
+        consumerId: auth.id,
+        verifiedEmail: auth.verifiedEmail,
+        message: 'email_confirmed_at === created_at (auto-confirm signature); refusing academic grant. Verify Supabase "Confirm email = REQUIRED".',
+      })
+      return NextResponse.json(
+        { error: 'Academic verification is temporarily unavailable. Please contact support.', code: 'EMAIL_VERIFICATION_UNAVAILABLE' },
+        { status: 403 }
+      )
+    }
 
-    if (existing.length > 0) {
-      // Already registered — don't reveal details, return success
-      logger.info('academic.existing_consumer', { email: body.email })
+    // Atomic, idempotent grant: credit + set the marker in ONE conditional
+    // UPDATE on the authed consumer's own row. Under PG READ COMMITTED this is
+    // exactly-once — a concurrent second claim re-evaluates the WHERE against
+    // the committed row and matches 0 rows (no double-grant, no SELECT FOR
+    // UPDATE needed). length === 1 ⇒ granted; length === 0 ⇒ already granted.
+    const granted = await db
+      .update(consumers)
+      .set({
+        globalBalanceCents: sql`${consumers.globalBalanceCents} + ${ACADEMIC_CREDIT_CENTS}`,
+        academicGrantedAt: sql`now()`,
+      })
+      .where(and(eq(consumers.id, auth.id), isNull(consumers.academicGrantedAt)))
+      .returning({ id: consumers.id })
+
+    if (granted.length !== 1) {
+      // Already granted — idempotent success, NO re-credit.
+      logger.info('academic.already_granted', { consumerId: auth.id })
       return NextResponse.json({
         success: true,
-        message: 'If this email is eligible, you will receive a confirmation shortly.',
+        message: 'Your academic credit is already active.',
       })
     }
 
-    // Create consumer with academic credits
-    const [newConsumer] = await db
-      .insert(consumers)
-      .values({
-        email: body.email,
-        globalBalanceCents: ACADEMIC_CREDIT_CENTS,
-      })
-      .returning({ id: consumers.id })
-
-    logger.info('academic.signup', {
-      consumerId: newConsumer.id,
-      email: body.email,
+    logger.info('academic.granted', {
+      consumerId: auth.id,
+      verifiedEmail: auth.verifiedEmail,
       institutionName: body.institutionName,
       creditCents: ACADEMIC_CREDIT_CENTS,
     })
 
-    // Send welcome email
-    const template = academicWelcomeEmail(body.email, body.institutionName)
-    await sendEmail({
-      to: body.email,
-      subject: template.subject,
-      html: template.html,
-    })
+    // Welcome email: OUTSIDE any transaction, ONLY on a fresh grant, non-fatal
+    // (an email-provider outage must not undo a correct grant), to the VERIFIED
+    // SESSION email (never body.email — that would let an authed user make
+    // SettleGrid email an arbitrary address).
+    try {
+      const template = academicWelcomeEmail(auth.verifiedEmail, body.institutionName)
+      await sendEmail({
+        to: auth.verifiedEmail,
+        subject: template.subject,
+        html: template.html,
+      })
+    } catch (emailErr) {
+      logger.error('academic.welcome_email_failed', { consumerId: auth.id }, emailErr)
+    }
 
     return NextResponse.json({
       success: true,
