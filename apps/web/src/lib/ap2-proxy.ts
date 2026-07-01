@@ -27,10 +27,15 @@ export async function validateAp2Payment(
   request: Request,
   toolConfig: Ap2ToolConfig,
 ): Promise<Ap2PaymentResult> {
+  // Defense-in-depth: getAp2SigningSecret() is now fail-closed (throws when
+  // unset), so only fetch it when AP2 is enabled. The dark path
+  // (isAp2Enabled() false) passes '' — never used, since the Core checks
+  // !enabled before !signingSecret (packages/mcp/src/adapters/ap2.ts:356/377).
+  const enabled = isAp2Enabled()
   return validateAp2PaymentCore(request, {
-    enabled: isAp2Enabled(),
+    enabled,
     toolConfig,
-    signingSecret: getAp2SigningSecret(),
+    signingSecret: enabled ? getAp2SigningSecret() : '',
     logger: appLogger,
   })
 }
@@ -46,10 +51,12 @@ export async function validateAp2CredentialString(
   credential: string | null,
   toolConfig: Ap2ToolConfig,
 ): Promise<Ap2PaymentResult> {
+  // Same enablement-gated fetch as validateAp2Payment (see note there).
+  const enabled = isAp2Enabled()
   return validateAp2CredentialStringCore(credential, {
-    enabled: isAp2Enabled(),
+    enabled,
     toolConfig,
-    signingSecret: getAp2SigningSecret(),
+    signingSecret: enabled ? getAp2SigningSecret() : '',
     logger: appLogger,
   })
 }

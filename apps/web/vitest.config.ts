@@ -41,6 +41,12 @@ export default defineConfig({
       // so route tests that exercise the real apiKeyHashCandidates are saved.
       // Never a real pepper.
       API_KEY_PEPPER: 'test_pepper_not_for_production_use_only',
+      // AP2 (G0-2): getAp2SigningSecret is now fail-closed (requireEnv throws
+      // without it), and provisionCredentials / the smoke getter test call it
+      // on the no-throw path. Inject a deterministic NON-PROD signing secret so
+      // the AP2 suites run and FUTURE AP2-touching tests don't break. Never a
+      // real secret.
+      AP2_SIGNING_SECRET: 'ap2_test_signing_secret_not_for_production_use_only',
     },
   },
   resolve: {

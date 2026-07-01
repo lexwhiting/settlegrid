@@ -406,7 +406,11 @@ describe('Environment Module', () => {
     expect(getGateAuthTimeoutHours()).toBeGreaterThan(0)
   })
 
-  it('getAp2SigningSecret returns fallback in dev', async () => {
+  it('getAp2SigningSecret returns the configured secret (fail-closed, no fallback)', async () => {
+    // G0-2: the getter is fail-closed (requireEnv) — no 'ap2-dev-secret'
+    // fallback. It returns the injected AP2_SIGNING_SECRET here (vitest.config
+    // env); with the var unset it would throw. See the fail-closed unit test in
+    // ap2.test.ts.
     const { getAp2SigningSecret } = await import('@/lib/env')
     expect(typeof getAp2SigningSecret()).toBe('string')
     expect(getAp2SigningSecret().length).toBeGreaterThan(0)
