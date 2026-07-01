@@ -14,6 +14,7 @@
 
 import crypto from 'crypto'
 import { logger } from '@/lib/logger'
+import { getAp2SigningSecret } from '@/lib/env'
 import type {
   PaymentCredential,
   IntentMandate,
@@ -108,7 +109,9 @@ export function provisionCredentials(
   currency: string,
   merchantId: string
 ): { credentialRef: string; vdc: string } {
-  const secretKey = process.env.AP2_SIGNING_SECRET ?? 'ap2-dev-secret'
+  // Fail-closed via the single hardened getter (G0-2) — never the public
+  // 'ap2-dev-secret' fallback that made these VDCs forgeable.
+  const secretKey = getAp2SigningSecret()
 
   const claims: VDCClaims = {
     iss: 'settlegrid.ai',

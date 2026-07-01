@@ -245,7 +245,10 @@ describe('provisionCredentials', () => {
       'USD',
       TEST_MERCHANT_ID
     )
-    const claims = verifyJwt(result.vdc, 'ap2-dev-secret')
+    // provisionCredentials now signs with the fail-closed getter's secret
+    // (the vitest.config-injected AP2_SIGNING_SECRET), not the removed
+    // 'ap2-dev-secret' fallback. Verify against the same injected value.
+    const claims = verifyJwt(result.vdc, process.env.AP2_SIGNING_SECRET!)
     expect(claims).not.toBeNull()
     expect(claims!.iss).toBe('settlegrid.ai')
     expect(claims!.sub).toBe(TEST_CONSUMER_ID)
@@ -266,6 +269,25 @@ describe('provisionCredentials', () => {
     expect(result.credentialRef).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     )
+  })
+})
+
+// ─── getAp2SigningSecret fail-closed (G0-2) ─────────────────────────────────
+
+describe('getAp2SigningSecret fail-closed', () => {
+  it('throws when AP2_SIGNING_SECRET is unset/empty (no ap2-dev-secret fallback)', async () => {
+    const { getAp2SigningSecret } = await import('@/lib/env')
+    vi.stubEnv('AP2_SIGNING_SECRET', '')
+    try {
+      expect(() => getAp2SigningSecret()).toThrow(/AP2_SIGNING_SECRET/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('returns the configured secret when set', async () => {
+    const { getAp2SigningSecret } = await import('@/lib/env')
+    expect(getAp2SigningSecret()).toBe(process.env.AP2_SIGNING_SECRET)
   })
 })
 

@@ -120,9 +120,20 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
-// AP2 (Google Agentic Payments Protocol)
+// AP2 (Google Agentic Payments Protocol) — server secret keying the HMAC over
+// AP2/A2A VDC payment-credential JWTs (signJwt/verifyJwt), G0-2.
+// FAIL-CLOSED: mirrors getApiKeyPepper — requireEnv throws on missing/empty, so
+// a misconfigured secret is a loud error, never a silent degrade to the public
+// hardcoded 'ap2-dev-secret' fallback that made VDCs forgeable if unset. Lazy
+// (never evaluated at module load), so a dark deploy still boots. The ap2-proxy
+// verify/settle/proxy wrappers gate this call on isAp2Enabled(), so those paths
+// do NOT throw when AP2 is dark; provisionCredentials (a2a/skills) calls it
+// unconditionally, so a provision request under a dark or partial config (AP2
+// enabled via another key but this var unset) throws — caught as a fail-closed
+// 500, the intended refusal to sign/verify with a known key. Operator residual:
+// use a high-entropy value (>=32 bytes).
 export function getAp2SigningSecret(): string {
-  return process.env.AP2_SIGNING_SECRET ?? 'ap2-dev-secret'
+  return requireEnv('AP2_SIGNING_SECRET')
 }
 
 export function getAp2VerificationKey(): string | undefined {
