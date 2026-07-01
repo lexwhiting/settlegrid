@@ -149,21 +149,43 @@ export async function POST(request: NextRequest) {
 
           if (isValidPaidTier(plan) && subscriptionId) {
             const normalizedTier = normalizeTier(plan)
-            await db
-              .update(developers)
-              .set({
-                tier: normalizedTier,
-                stripeSubscriptionId: subscriptionId,
-                // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
-                updatedAt: new Date(),
-              })
-              .where(eq(developers.id, developerId))
+            // Retry-safety (G3-5): wrap the write + its success log in a
+            // single tx and delete the dedup marker on failure so Stripe's
+            // 500-triggered retry can replay. The tx makes delete-on-failure
+            // atomic-safe (a throw commits nothing → no double-write on
+            // retry); the logger.info goes INSIDE so a throwing log-meta
+            // rolls the write back instead of deleting-after-commit (DC-06).
+            try {
+              await db.transaction(async (tx) => {
+                await tx
+                  .update(developers)
+                  .set({
+                    tier: normalizedTier,
+                    stripeSubscriptionId: subscriptionId,
+                    // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(developers.id, developerId))
 
-            logger.info('stripe.webhook.subscription_activated', {
-              developerId,
-              plan: normalizedTier,
-              subscriptionId,
-            })
+                logger.info('stripe.webhook.subscription_activated', {
+                  developerId,
+                  plan: normalizedTier,
+                  subscriptionId,
+                })
+              })
+            } catch (handlerErr) {
+              await db
+                .delete(processedWebhookEvents)
+                .where(eq(processedWebhookEvents.eventId, event.id))
+                .catch((delErr) => {
+                  logger.error(
+                    'stripe.webhook.dedup_delete_failed',
+                    { eventId: event.id, eventType: event.type },
+                    delErr as Error,
+                  )
+                })
+              throw handlerErr
+            }
           } else {
             logger.error('stripe.webhook.subscription_invalid_metadata', {
               sessionId: session.id,
@@ -215,19 +237,38 @@ export async function POST(request: NextRequest) {
           }
 
           if (cpConsumerId && creditAmountCents > 0) {
-            await db
-              .update(consumers)
-              .set({
-                globalBalanceCents: sql`${consumers.globalBalanceCents} + ${creditAmountCents}`,
-              })
-              .where(eq(consumers.id, cpConsumerId))
+            // Retry-safety (G3-5): see the subscription path above — tx-wrap
+            // the credit + its log, delete the dedup marker on failure, and
+            // re-throw so Stripe's retry re-credits (exactly once).
+            try {
+              await db.transaction(async (tx) => {
+                await tx
+                  .update(consumers)
+                  .set({
+                    globalBalanceCents: sql`${consumers.globalBalanceCents} + ${creditAmountCents}`,
+                  })
+                  .where(eq(consumers.id, cpConsumerId))
 
-            logger.info('stripe.webhook.credit_pack_completed', {
-              consumerId: cpConsumerId,
-              packId,
-              creditAmountCents,
-              sessionId: session.id,
-            })
+                logger.info('stripe.webhook.credit_pack_completed', {
+                  consumerId: cpConsumerId,
+                  packId,
+                  creditAmountCents,
+                  sessionId: session.id,
+                })
+              })
+            } catch (handlerErr) {
+              await db
+                .delete(processedWebhookEvents)
+                .where(eq(processedWebhookEvents.eventId, event.id))
+                .catch((delErr) => {
+                  logger.error(
+                    'stripe.webhook.dedup_delete_failed',
+                    { eventId: event.id, eventType: event.type },
+                    delErr as Error,
+                  )
+                })
+              throw handlerErr
+            }
           } else {
             logger.error('stripe.webhook.credit_pack_missing_metadata', {
               sessionId: session.id,
@@ -261,54 +302,77 @@ export async function POST(request: NextRequest) {
           return successResponse({ received: true })
         }
 
-        // Update purchase status to completed
-        await db
-          .update(purchases)
-          .set({
-            status: 'completed',
-            stripePaymentIntentId: typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id ?? null,
-          })
-          .where(eq(purchases.id, purchaseId))
+        // Retry-safety (G3-5): wrap the purchase-status update + the credit
+        // upsert (and its success log) in ONE tx, then delete the dedup
+        // marker on failure and re-throw so Stripe's retry re-credits. The
+        // tx also NARROWS DC-01: the purchases + balance writes become
+        // atomic. The credit is the last write, but the logger.info goes
+        // INSIDE the tx so a throwing log-meta rolls the credit back instead
+        // of deleting-the-marker-after-commit → double-credit (DC-06).
+        try {
+          await db.transaction(async (tx) => {
+            // Update purchase status to completed
+            await tx
+              .update(purchases)
+              .set({
+                status: 'completed',
+                stripePaymentIntentId: typeof session.payment_intent === 'string'
+                  ? session.payment_intent
+                  : session.payment_intent?.id ?? null,
+              })
+              .where(eq(purchases.id, purchaseId))
 
-        // Upsert consumer tool balance: add credits
-        const [existingBalance] = await db
-          .select({ id: consumerToolBalances.id })
-          .from(consumerToolBalances)
-          .where(
-            and(
-              eq(consumerToolBalances.consumerId, consumerId),
-              eq(consumerToolBalances.toolId, toolId)
-            )
-          )
-          .limit(1)
+            // Upsert consumer tool balance: add credits
+            const [existingBalance] = await tx
+              .select({ id: consumerToolBalances.id })
+              .from(consumerToolBalances)
+              .where(
+                and(
+                  eq(consumerToolBalances.consumerId, consumerId),
+                  eq(consumerToolBalances.toolId, toolId)
+                )
+              )
+              .limit(1)
 
-        if (existingBalance) {
-          // Increment existing balance
-          await db
-            .update(consumerToolBalances)
-            .set({
-              balanceCents: sql`${consumerToolBalances.balanceCents} + ${amountCents}`,
-            })
-            .where(eq(consumerToolBalances.id, existingBalance.id))
-        } else {
-          // Create new balance record
-          await db
-            .insert(consumerToolBalances)
-            .values({
+            if (existingBalance) {
+              // Increment existing balance
+              await tx
+                .update(consumerToolBalances)
+                .set({
+                  balanceCents: sql`${consumerToolBalances.balanceCents} + ${amountCents}`,
+                })
+                .where(eq(consumerToolBalances.id, existingBalance.id))
+            } else {
+              // Create new balance record
+              await tx
+                .insert(consumerToolBalances)
+                .values({
+                  consumerId,
+                  toolId,
+                  balanceCents: amountCents,
+                })
+            }
+
+            logger.info('stripe.webhook.checkout_completed', {
+              purchaseId,
               consumerId,
               toolId,
-              balanceCents: amountCents,
+              amountCents,
             })
+          })
+        } catch (handlerErr) {
+          await db
+            .delete(processedWebhookEvents)
+            .where(eq(processedWebhookEvents.eventId, event.id))
+            .catch((delErr) => {
+              logger.error(
+                'stripe.webhook.dedup_delete_failed',
+                { eventId: event.id, eventType: event.type },
+                delErr as Error,
+              )
+            })
+          throw handlerErr
         }
-
-        logger.info('stripe.webhook.checkout_completed', {
-          purchaseId,
-          consumerId,
-          toolId,
-          amountCents,
-        })
 
         // Fire-and-forget credit purchase confirmation email
         lookupConsumerAndTool(consumerId, toolId).then((info) => {

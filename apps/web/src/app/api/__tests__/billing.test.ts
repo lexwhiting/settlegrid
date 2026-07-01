@@ -16,7 +16,15 @@ const { mockDb, mockRequireConsumer, mockStripeCheckoutSessions, mockStripeCusto
     orderBy: vi.fn().mockReturnThis(),
     // Consumer-audit #1 — webhook idempotency uses .onConflictDoNothing()
     onConflictDoNothing: vi.fn().mockReturnThis(),
+    // G3-5 — checkout.session.completed now wraps each write-path in a
+    // db.transaction and deletes the dedup marker on failure (retry-safety).
+    // Pass-through tx mirrors the transfer.* webhook-payout-events harness.
+    delete: vi.fn().mockReturnThis(),
+    transaction: vi.fn(),
   }
+  mockDb.transaction.mockImplementation(
+    async (fn: (tx: typeof mockDb) => Promise<unknown>) => fn(mockDb),
+  )
 
   const mockStripeCheckoutSessions = {
     create: vi.fn().mockResolvedValue({
