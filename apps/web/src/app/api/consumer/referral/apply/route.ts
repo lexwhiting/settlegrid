@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { consumers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
@@ -91,22 +91,52 @@ export async function POST(request: NextRequest) {
       return errorResponse('Cannot use your own referral code.', 400, 'SELF_REFERRAL')
     }
 
-    // Apply the referral: update referee with referrer ID and credit both
-    await db
-      .update(consumers)
-      .set({
-        referredByConsumerId: referrer.id,
-        globalBalanceCents: sql`${consumers.globalBalanceCents} + ${REFERRAL_CREDIT_CENTS}`,
-      })
-      .where(eq(consumers.id, auth.id))
+    // Apply the referral atomically. The SELECT null-check above is only a
+    // cheap fast-path; the REAL guard is the null-gated UPDATE inside this
+    // transaction. Two concurrent applies for the same referee serialize on the
+    // row lock: the loser re-evaluates `referred_by_consumer_id IS NULL` against
+    // the committed row, matches 0 rows, and we abort — crediting NO ONE. This
+    // closes the check-then-act TOCTOU that double-credited $25×N.
+    const applied = await db.transaction(async (tx) => {
+      const refereeUpdated = await tx
+        .update(consumers)
+        .set({
+          referredByConsumerId: referrer.id,
+          globalBalanceCents: sql`${consumers.globalBalanceCents} + ${REFERRAL_CREDIT_CENTS}`,
+        })
+        .where(and(eq(consumers.id, auth.id), isNull(consumers.referredByConsumerId)))
+        .returning({ id: consumers.id })
 
-    // Credit the referrer
-    await db
-      .update(consumers)
-      .set({
-        globalBalanceCents: sql`${consumers.globalBalanceCents} + ${REFERRAL_CREDIT_CENTS}`,
+      // A concurrent apply already won (or the referee was referred between the
+      // fast-path SELECT and here) ⇒ credit no one.
+      if (refereeUpdated.length !== 1) return false
+
+      // Credit the referrer — INSIDE the txn, ONLY after a 1-row referee update.
+      // rowCount-gate it too: referredByConsumerId has no FK, so a referrer
+      // deleted between its lookup and here would silently update 0 rows and
+      // COMMIT a referee-credited-but-unpaired state. Throw ⇒ rollback ⇒ the
+      // referee is NOT credited either (credit-both-or-neither).
+      const referrerUpdated = await tx
+        .update(consumers)
+        .set({
+          globalBalanceCents: sql`${consumers.globalBalanceCents} + ${REFERRAL_CREDIT_CENTS}`,
+        })
+        .where(eq(consumers.id, referrer.id))
+        .returning({ id: consumers.id })
+
+      if (referrerUpdated.length !== 1) {
+        throw new Error('referral apply: referrer row not found; rolling back')
+      }
+
+      return true
+    })
+
+    if (!applied) {
+      return successResponse({
+        message: 'Referral already applied.',
+        alreadyReferred: true,
       })
-      .where(eq(consumers.id, referrer.id))
+    }
 
     logger.info('consumer.referral.applied', {
       refereeId: auth.id,

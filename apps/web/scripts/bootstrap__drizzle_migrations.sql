@@ -123,6 +123,11 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
 SELECT 'e47be3c8fbc51876a9b3e8a3cca65cbec7aa34a660343270becfafb90b43dfe4', 1781136000000
 WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'e47be3c8fbc51876a9b3e8a3cca65cbec7aa34a660343270becfafb90b43dfe4');
 
+-- 0017_academic_granted_at  (hand-written, not in journal; ships with consumer-abuse-hardening (G3-1) 2026-07-01 — APPLY-THEN-DEPLOY: apply the .sql via SQL Editor + seed this row BEFORE the seal commit deploys; the new academic route UPDATEs/RETURNs consumers.academic_granted_at, so deploy-first 500s the academic route)
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+SELECT '46802cb3294b44d5ea16f687a3f34a31d87688cf4dd6e7a7e4e2187826ef9686', 1782864000000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '46802cb3294b44d5ea16f687a3f34a31d87688cf4dd6e7a7e4e2187826ef9686');
+
 COMMIT;
 
 -- POST-RUN VERIFICATION (run separately after the bootstrap):
@@ -130,6 +135,6 @@ COMMIT;
 --   FROM "drizzle"."__drizzle_migrations"
 --   ORDER BY created_at;
 --
--- Expected: 17 rows. MAX(created_at) = 1781136000000 (0016_credited_at).
+-- Expected: 18 rows. MAX(created_at) = 1782864000000 (0017_academic_granted_at).
 -- All three journal folderMillis (1773459112883, 1776513600000, 1777737600000)
 -- are < MAX, so drizzle-kit migrate will correctly skip them.

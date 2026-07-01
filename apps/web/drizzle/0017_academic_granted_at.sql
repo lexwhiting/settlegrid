@@ -1,0 +1,47 @@
+-- consumer-abuse-hardening (G3-1) — the academic-credit idempotency marker.
+--
+-- Adds `consumers.academic_granted_at`: "the $500 academic credit was granted,
+-- in the same statement that set this marker." The consumer/academic route
+-- grants via ONE atomic conditional UPDATE
+--   UPDATE consumers SET global_balance_cents = global_balance_cents + 50000,
+--     academic_granted_at = now() WHERE id = :authId AND academic_granted_at IS NULL
+-- and treats a 1-row result as "granted, credit", 0 rows as "already granted,
+-- idempotent no-op". This makes the grant EXACTLY-ONCE per consumer row under
+-- PG READ COMMITTED without SELECT FOR UPDATE (the loser of a concurrent race
+-- re-evaluates the WHERE against the committed row and matches 0 rows).
+--
+-- BACKFILL (FOLD 5 — verified against auth/callback shadow-consumer adoption):
+-- every PRE-migration consumer is treated as ALREADY through the pre-fix
+-- academic flow, so an email-only shadow consumer that later authenticates
+-- (auth/callback adopts it onto a supabase_user_id) CANNOT claim a SECOND $500
+-- via the new authed route. A legitimately-new post-migration consumer has
+-- academic_granted_at = NULL and can claim exactly once. Trade-off: a
+-- pre-existing consumer who never claimed cannot claim via the new route
+-- (acceptable pre-PMF — support-handled). FORWARD-ONLY: old fraudulently-minted
+-- $500 balances are NOT clawed back (out of scope).
+--
+-- ⚠️ DEPLOY ORDERING — APPLY-THEN-DEPLOY (FOLD 9): the new academic route
+-- UPDATEs/RETURNs this column, so deploying the code BEFORE applying this
+-- migration 500s the academic route ("column does not exist"). Applying FIRST
+-- is zero-impact: currently-deployed code never references the column (the
+-- other consumer INSERTs omit it; all consumer reads use explicit column
+-- projections; no bare .returning() on consumers). Order: (1) paste this file
+-- in the Supabase SQL Editor, (2) seed the 0017 hash row from
+-- scripts/bootstrap__drizzle_migrations.sql, (3) only then deploy the seal.
+--
+-- The ALTER ... ADD COLUMN IF NOT EXISTS is idempotent. The backfill UPDATE is
+-- NOT: it is a ONE-SHOT — run it exactly once at migration time. Re-pasting this
+-- file AFTER go-live would stamp now() onto every legitimately-new, not-yet-claimed
+-- consumer (marker still NULL), permanently blocking their valid one-time claim.
+-- Hand-written (NOT via drizzle-kit generate — drizzle/meta is intentionally
+-- partial: only 0000_snapshot.json + a 3-entry journal tracking idx 0/1/8, so
+-- generate would emit 0009 (COLLIDING with 0009_payouts) and diff against a
+-- stale snapshot). Register the applied hash in
+-- scripts/bootstrap__drizzle_migrations.sql.
+--
+-- FOUNDER-GATED: apply via the Supabase SQL Editor BEFORE the seal commit
+-- deploys. Do NOT auto-apply.
+
+ALTER TABLE "consumers" ADD COLUMN IF NOT EXISTS "academic_granted_at" timestamp with time zone;
+
+UPDATE "consumers" SET "academic_granted_at" = now() WHERE "academic_granted_at" IS NULL;
