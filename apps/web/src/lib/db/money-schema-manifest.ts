@@ -145,6 +145,20 @@ export interface MoneyIndexSpec {
   name: string
   table: string
   /**
+   * Expected UNIQUE-ness. The partial-UNIQUE property IS the mutex — a NON-unique
+   * same-named index with the identical predicate enforces nothing (③ deep-audit
+   * HIGH): two concurrent 'processing' payout rows for one dev would both insert
+   * without a unique violation → double-pay. So the checker asserts CREATE UNIQUE
+   * INDEX on the un-sliced indexdef, not just the predicate.
+   */
+  unique: boolean
+  /**
+   * The single key column the mutex is enforced on. A same-named index re-keyed
+   * onto a trivially-unique column (e.g. `id`) keeps the name+predicate but drops
+   * the per-developer mutex — the checker asserts the key column too (③ deep-audit).
+   */
+  keyColumn: string
+  /**
    * Literals the index PREDICATE must contain (§6 FOLD 10). pg renders the
    * `WHERE status IN ('processing','unknown')` predicate as an ANY(ARRAY[...])
    * expression, so we assert both literals are present rather than string-match
@@ -165,6 +179,8 @@ export const MONEY_INDEXES: readonly MoneyIndexSpec[] = [
   {
     name: 'payouts_one_processing_per_dev',
     table: 'payouts',
+    unique: true,
+    keyColumn: 'developer_id',
     predicateContains: ['processing', 'unknown'],
   },
 ]

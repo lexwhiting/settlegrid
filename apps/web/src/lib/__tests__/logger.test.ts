@@ -17,7 +17,7 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: mockCaptureException,
 }))
 
-import { logger } from '@/lib/logger'
+import { logger, MONEY_LOSS_KEYS } from '@/lib/logger'
 
 describe('Structured logger', () => {
   beforeEach(() => {
@@ -177,20 +177,23 @@ describe('Sentry mirror — error-level logs only, gated on SENTRY_DSN', () => {
 
   // G4-5: funds-integrity events get a `money_loss:'true'` Sentry tag so ONE
   // alert rule covers the whole class. logKey is always present too.
-  it.each([
-    'proxy.balance_race_unpaid_invocation',
-    'proxy.onchain_credit_lost_after_settle',
-    'proxy.onchain_settled_upstream_failed',
-    'settlement.credit_zero_row_unmarked',
-    'settlement.credit_marker_unmatched',
-    'stripe.webhook.dedup_delete_failed',
-    'stripe.connect_webhook.dedup_delete_failed',
-    'schema.money_column_drift', // G4-4: drift tripwire must page (paging-wiring teeth)
-  ])('stamps money_loss:true on the funds-loss key %s (message path)', (key) => {
+  // ③ deep-audit (SEAM): enumerate the ACTUAL MONEY_LOSS_KEYS set rather than a
+  // hand-maintained copy — the old copy had already drifted (it omitted
+  // proxy.idempotency_gate_unavailable), so a paging-wiring regression on any
+  // member (incl. every future key added) went unguarded. Iterating the exported
+  // set makes the teeth self-maintaining.
+  it.each([...MONEY_LOSS_KEYS])('stamps money_loss:true on the funds-loss key %s (message path)', (key) => {
     process.env.SENTRY_DSN = 'https://test@sentry.test/1'
     logger.error(key, { requestId: 'r-1' })
     const [, opts] = mockCaptureMessage.mock.calls[0] as [string, { tags: Record<string, unknown> }]
     expect(opts.tags).toEqual({ logKey: key, money_loss: 'true' })
+  })
+
+  it('keeps schema.money_column_drift IN and schema.check_unavailable OUT of MONEY_LOSS_KEYS (G4-4 design)', () => {
+    // The DRIFT tripwire pages; the check-COULDN'T-RUN branch deliberately does not
+    // (a transient boot DB blip must not false-page the money-loss class).
+    expect(MONEY_LOSS_KEYS.has('schema.money_column_drift')).toBe(true)
+    expect(MONEY_LOSS_KEYS.has('schema.check_unavailable')).toBe(false)
   })
 
   it('stamps money_loss:true on the Error (captureException) path too', () => {

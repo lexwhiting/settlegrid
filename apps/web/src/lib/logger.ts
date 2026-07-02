@@ -57,7 +57,7 @@ const FREE_TEXT_ERROR_KEYS = ['error', 'reason', 'message', 'details', 'stack'] 
  * deliberately EXCLUDED (noisier / not necessarily a loss) — see the ③ MPP
  * F3-alert-parity follow-up before adding them.
  */
-const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
+export const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
   'proxy.balance_race_unpaid_invocation', // off-chain: consumer debited, dev not credited
   'proxy.onchain_credit_lost_after_settle', // on-chain settled, dev credit lost
   'proxy.onchain_settled_upstream_failed', // charged on-chain, upstream undelivered (F3)
