@@ -60,6 +60,8 @@ const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
   'proxy.idempotency_gate_unavailable', // G3-3: Redis down → charge-dedup bypassed (fail-open); a client retry in the window may double-charge
   'settlement.credit_zero_row_unmarked', // credit reconciliation marker broke
   'settlement.credit_marker_unmatched', // credit reconciliation marker broke
+  'stripe.webhook.dedup_delete_failed', // G3-5: a credit/transfer tx failed AND the dedup-marker delete also failed → marker persists → Stripe retry deduped → paid credit permanently skipped (consumer paid, balance never incremented)
+  'stripe.connect_webhook.dedup_delete_failed', // G3-5: same funds-loss class on the Connect webhook rail
 ])
 
 /**

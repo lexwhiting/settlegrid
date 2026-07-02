@@ -151,3 +151,21 @@ scope-confirm ✓ → draft plan ✓ → **pre-build plan audit (this `/p1` sess
 - **Connect webhook (`billing/webhook/connect/route.ts`) — correctly OUT (§5.5 FOLD 5(a)):** shares the `processedWebhookEvents` ledger but its `payout.failed` handler writes NO balance and is ALREADY txn+delete-marker protected. No fix; recorded so "transfer.* are the only protected cases" isn't read as exhaustive.
 
 **Gate (from `apps/web` cwd, matches `web-ci`) — evidence attached in the session's cadence report:** `npx tsc -p tsconfig.json --noEmit` exit 0; `npm run lint` exit 0, 0 error lines; `npx vitest run` exit 0, **223 files, 5109 passed, 0 skipped, 0 failed** (baseline 5103 + 6 new checkout-retry tests). NO `drizzle-kit generate` run; `schema.ts` + `apps/web/drizzle/` untouched. Self-verified by a fresh-context subagent (positive evidence + normalized digest); `CLAUDE_CODE_FORK_SUBAGENT` unset at the gate pass.
+
+---
+
+## 13. ② SEAL-GATING REVIEW ADDENDUM (2026-07-02 — SEALED, operator `/seal-go`; full record: `billing-correctness-seal-record-2026-07-02.md`)
+
+**Verdict: ✅ SEAL** (HIGH-STAKES, NOT escalated). 5 lens-distinct fresh-context reviewers (4× xhigh: atomicity/concurrency · spec-conformance · SEAM · literal-execution/test-teeth; 1× **max**: money-core/DC-06, report-back-confirmed `effort=max`). Gate GREEN on folded bytes: tsc0/lint0/**vitest 223f/5112p/0skip/0fail** (build 5109 → +1 insert-branch test → +2 logger money_loss cases).
+
+**⚠ CORRECTION TO THE PLAN'S CONTRACT (§1, §5 LBD-1, §5.5):** the certification *"close the skip WITHOUT opening a double-credit"* is **REFUTED**. The built delete-marker fix opens a **rare ambiguous-commit double-credit** on the two non-idempotent consumer-credit paths (credit-pack `:246-250`, credit-purchase `:339-353`): `drizzle-orm/postgres-js` `db.transaction` rejects the promise when a connection drops *after* COMMIT durably applies → catch deletes the marker → Stripe retry re-credits. "A throw commits nothing" does NOT hold for the in-doubt commit. **Operator-accepted as a DOCUMENTED RESIDUAL** (rare + revenue-leak direction; the fix is a net reduction in both frequency and severity vs the live common-case G3-5 permanent-skip; now page-able). Do NOT re-assert "no double-credit". True fix roadmapped (G3-5-fu: co-commit the marker inside each credit tx).
+
+**② FOLDS (each reproduced fail-then-pass live):**
+- **F1 (HIGH test-teeth, DC-24+DC-05 recurrence)** — the regression harness's `mockDb` lacked `.catch`, so the failure-path 500 came from a `TypeError`, not `throw handlerErr`; `expect(500)` was vacuous and a dropped-rethrow regression (silently reintroducing G3-5 as a prod 200) stayed GREEN. Fixed the mock (real resolved `.catch`), added the `event.id` delete-target assertion, added the new-balance INSERT-branch exactly-once test. **Test-only; route.ts production logic unchanged from `340c35d9`.**
+- **F2 (MED→FOLD-NOW, 3-lens convergent)** — added `stripe.webhook.dedup_delete_failed` + `stripe.connect_webhook.dedup_delete_failed` to `MONEY_LOSS_KEYS` (`logger.ts`) so the delete-failure permanent-skip corner PAGES (`money_loss:'true'`) instead of going silent. Behavior-neutral; covers the pre-existing transfer/Connect twins.
+
+**DOCUMENTED RESIDUALS (bounded/rare/inherent, now page-able):** RES-1 ambiguous-commit double-credit (above); RES-2 crash/timeout permanent-skip (inherent, shared with `transfer.*`; the "closed forever" wording overstates — closes the JS-throw skip, not the crash path); RES-3 concurrent delete-after-ACK (low).
+
+**NEW follow-ups spun OUT (roadmap G3-5-fu / G3-5-pi / G3-5-vp):** idempotent-credit redesign; `payment_intent.succeeded` auto_refill G3-5 (2 bugs); **credit-pack unknown-`packId` validation bypass** (`if (expectedPack && …)` at `:217/:229` skips amount+credit validation for unknown packs — pre-existing, surfaced by the max lens; cross-check `c83d837a`). G3-4 stays ➖. Redis balance-cache staleness minor-flag.
+
+**③ post-seal deep audit IS warranted** (HIGH-STAKES) — integrated-whole scope to adjudicate the RES-1 redesign + the credit-pack validation-bypass cross-chunk interaction.
