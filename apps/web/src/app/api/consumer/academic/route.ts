@@ -132,7 +132,7 @@ function academicWelcomeEmail(email: string, institutionName: string): { subject
             <p style="margin:0;font-size:14px;color:#166534;font-weight:600">Your Academic Benefits:</p>
             <ul style="margin:8px 0 0;padding-left:20px;font-size:14px;color:#166534">
               <li>$500 in global credits (no expiration)</li>
-              <li>Scale-tier features (advanced analytics, data export, audit logs)</li>
+              <li>Scale-tier features (advanced analytics, CSV analytics export, audit logs)</li>
               <li>500,000 operations per month</li>
               <li>90-day log retention</li>
               <li>Access to all marketplace tools</li>

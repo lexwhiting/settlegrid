@@ -153,6 +153,18 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
     expect(response.status).toBe(401)
   })
 
+  it('STAYS GATED (G5-2): a FREE-tier developer is 403 TIER_REQUIRED — this paid CSV analytics export keeps its data_export gate (RED if that gate is removed)', async () => {
+    // Uses the REAL hasFeature (this file mocks no tier-config): 'free' lacks
+    // data_export → 403. The GDPR subject-access export (data-export/route.ts) was
+    // un-gated, but this analytics CSV convenience is a distinct paid feature.
+    mockDb.limit.mockResolvedValueOnce([{ tier: 'free', isFoundingMember: false }]) // dev tier
+
+    const response = await GET(makeRequest('/api/dashboard/developer/stats/export'))
+    const body = await response.json()
+    expect(response.status).toBe(403)
+    expect(body.code).toBe('TIER_REQUIRED')
+  })
+
   it('returns 429 when rate limited', async () => {
     mockCheckRateLimit.mockResolvedValueOnce({ success: false, limit: 100, remaining: 0, reset: 60 })
 

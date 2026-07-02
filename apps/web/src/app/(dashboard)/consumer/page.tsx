@@ -112,6 +112,14 @@ export default function ConsumerDashboardPage() {
   const [toolUsageData, setToolUsageData] = useState<Record<string, UsageInvocation[]>>({})
   const [toolUsageLoading, setToolUsageLoading] = useState<string | null>(null)
 
+  // Account deletion state (GDPR Art. 17 — drives the unified dev-delete pipeline)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteMfaCode, setDeleteMfaCode] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
   // Track credit purchase success via PostHog when redirected from Stripe
   useEffect(() => {
     const purchaseStatus = searchParams.get('purchase')
@@ -312,6 +320,44 @@ export default function ConsumerDashboardPage() {
       })
     } catch {
       setError('Network error')
+    }
+  }
+
+  // Account deletion (GDPR Art. 17). Drives DELETE /api/consumer/account, which
+  // resolves the developer twin and runs the SAME certified deletion pipeline
+  // that erases BOTH the consumer and developer halves of this shared identity.
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== 'DELETE') {
+      setDeleteError('Type DELETE to confirm account deletion.')
+      return
+    }
+    setDeletingAccount(true)
+    setDeleteError('')
+    try {
+      const res = await fetch('/api/consumer/account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirm: deleteConfirmText,
+          // Step-up re-auth: a verified-MFA account sends `mfaCode`; a password
+          // account sends `password`; OAuth-no-MFA sends neither. The server derives
+          // capability and decides which proof it requires — spread only when present.
+          ...(deletePassword ? { password: deletePassword } : {}),
+          ...(deleteMfaCode ? { mfaCode: deleteMfaCode } : {}),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDeleteError(data.error || 'Account deletion failed. Please try again.')
+        return
+      }
+      // Success: the auth identity is gone — do NOT make any further authenticated
+      // call. Hard-redirect to the login page (the session is dead).
+      window.location.href = '/login'
+    } catch {
+      setDeleteError('Network error. Please try again.')
+    } finally {
+      setDeletingAccount(false)
     }
   }
 
@@ -862,6 +908,90 @@ export default function ConsumerDashboardPage() {
           </Card>
         </Link>
       </div>
+
+      {/* Danger Zone — Delete Account (GDPR Art. 17) */}
+      <Card className="border-red-200 dark:border-red-800/40">
+        <CardHeader>
+          <CardTitle className="text-red-600 dark:text-red-400">Delete My Account</CardTitle>
+          <CardDescription>
+            Permanently delete your account and personal data (GDPR Article 17). Financial
+            records required for tax compliance are retained but anonymized. If you also have a
+            developer account on this same login, it is deleted too. This action cannot be undone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {deleteError && (
+            <div className="mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{deleteError}</div>
+          )}
+          {!showDeleteConfirm ? (
+            <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
+              Delete My Account
+            </Button>
+          ) : (
+            <div className="space-y-3 p-4 border border-red-200 dark:border-red-800/40 rounded-md bg-red-50 dark:bg-red-900/10 max-w-md">
+              <div>
+                <label htmlFor="delete-confirm" className="block text-sm text-red-700 dark:text-red-300 font-medium mb-1">Type DELETE to confirm account deletion:</label>
+                <input
+                  id="delete-confirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE"
+                  className="flex h-9 w-full max-w-xs rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                />
+              </div>
+              {/* Credentials for the server-side step-up. The server derives which
+                  proof it requires and returns a specific prompt if the wrong/none is
+                  supplied; each field is spread only when filled (Art.17 availability). */}
+              <p className="text-xs text-red-700 dark:text-red-300">
+                If you use two-factor authentication, enter your 6-digit code. Otherwise re-enter
+                your password (leave both blank if you sign in with Google or GitHub):
+              </p>
+              <div>
+                <label htmlFor="delete-mfa" className="sr-only">Authenticator code</label>
+                <input
+                  id="delete-mfa"
+                  value={deleteMfaCode}
+                  onChange={(e) => setDeleteMfaCode(e.target.value)}
+                  placeholder="123456"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  className="flex h-9 w-full max-w-xs rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="delete-password" className="sr-only">Password</label>
+                <input
+                  id="delete-password"
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Password"
+                  autoComplete="current-password"
+                  className="flex h-9 w-full max-w-xs rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
+                  {deletingAccount ? 'Deleting...' : 'Confirm Deletion'}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={deletingAccount}
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeletePassword(''); setDeleteMfaCode(''); setDeleteError('') }}
+                >
+                  Cancel
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Can&apos;t sign in? Email{' '}
+                <a href="mailto:privacy@settlegrid.ai" className="text-brand hover:text-brand-dark font-medium">privacy@settlegrid.ai</a>
+                {' '}to request deletion.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
