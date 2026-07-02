@@ -13,6 +13,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import {
   MONEY_COLUMNS,
   MONEY_CHECKS,
@@ -204,9 +206,113 @@ describe('verifyMoneySchema (DC-14 live-drift detection)', () => {
     expect(drifts.map(keyOf)).toContain('missing_check:check:ledger_entries_take_cents_nonneg')
   })
 
+  it('detects take_cents nonneg CHECK weakened >= 0 → <> 0 (allows negatives) — anchored to the operand', async () => {
+    // Symmetric with the amount_positive '<> 0' fold: a weakened `CHECK (take_cents <> 0)`
+    // renders the substring `>= 0`? no — but `<> 0` permits negatives; the anchor
+    // 'take_cents >= 0' must not be satisfied by a `<> 0` render (③ deep-audit teeth).
+    const badChecks = cleanCheckRows().map((c) =>
+      c.conname === 'ledger_entries_take_cents_nonneg'
+        ? { conname: c.conname, def: 'CHECK (((take_cents IS NULL) OR (take_cents <> 0)))' }
+        : c,
+    )
+    const drifts = await verifyMoneySchema(makeDb(cleanColumnRows(), badChecks, cleanIndexRows()))
+    expect(drifts.map(keyOf)).toContain('check_definition_mismatch:check:ledger_entries_take_cents_nonneg')
+  })
+
+  // ── ③ deep-audit HIGH: the payout mutex is the UNIQUE-ness on (developer_id),
+  //    not merely the WHERE predicate. A non-unique or re-keyed same-named index
+  //    keeps name+predicate but enforces NO mutex → double-pay reopens silently.
+  it('detects a NON-UNIQUE same-named payout index (mutex gone even with the right predicate)', async () => {
+    const badIndex = [
+      {
+        indexname: 'payouts_one_processing_per_dev',
+        indexdef:
+          'CREATE INDEX payouts_one_processing_per_dev ON public.payouts USING btree (developer_id) ' +
+          "WHERE ((status = ANY (ARRAY['processing'::text, 'unknown'::text])))",
+      },
+    ]
+    const drifts = await verifyMoneySchema(makeDb(cleanColumnRows(), cleanCheckRows(), badIndex))
+    expect(drifts.map(keyOf)).toContain('index_definition_mismatch:index:payouts_one_processing_per_dev')
+  })
+
+  it('detects a RE-KEYED payout index (unique on id, not developer_id — per-dev mutex gone)', async () => {
+    const badIndex = [
+      {
+        indexname: 'payouts_one_processing_per_dev',
+        indexdef:
+          'CREATE UNIQUE INDEX payouts_one_processing_per_dev ON public.payouts USING btree (id) ' +
+          "WHERE ((status = ANY (ARRAY['processing'::text, 'unknown'::text])))",
+      },
+    ]
+    const drifts = await verifyMoneySchema(makeDb(cleanColumnRows(), cleanCheckRows(), badIndex))
+    expect(drifts.map(keyOf)).toContain('index_definition_mismatch:index:payouts_one_processing_per_dev')
+  })
+
+  // ── ③ deep-audit MED (DC-14): normalizeLiveDefault must reject an EXPRESSION
+  //    default whose leading digit-run coincides with the expected value.
+  it('detects an EXPRESSION default whose first integer coincides with the expected (tax_cents 0 → (0 + 500))', async () => {
+    const cols = cleanColumnRows()
+    const target = cols.find((c) => c.table_name === 'ledger_entries' && c.column_name === 'tax_cents')!
+    // real default silently becomes 500, but the text begins with '0' — the old
+    // 'first \d+ wins' parser read this as 0 and false-passed a default-0 column.
+    target.column_default = '(0 + 500)'
+    const drifts = await verifyMoneySchema(makeDb(cols, cleanCheckRows(), cleanIndexRows()))
+    expect(drifts.map(keyOf)).toContain('default_mismatch:ledger_entries.tax_cents')
+  })
+
+  it('still accepts a healthy integer-literal default with a type cast (0::integer)', async () => {
+    const cols = cleanColumnRows()
+    const target = cols.find((c) => c.table_name === 'developers' && c.column_name === 'balance_cents')!
+    target.column_default = '0::integer' // some pg renders the cast — must NOT drift
+    const drifts = await verifyMoneySchema(makeDb(cols, cleanCheckRows(), cleanIndexRows()))
+    expect(drifts.map(keyOf)).not.toContain('default_mismatch:developers.balance_cents')
+  })
+
   it('manifest predicate literals include both processing and unknown', () => {
     const mutex = MONEY_INDEXES.find((i) => i.name === 'payouts_one_processing_per_dev')!
     expect(mutex.predicateContains).toEqual(expect.arrayContaining(['processing', 'unknown']))
     expect(MONEY_CHECKS.map((c) => c.name)).toContain('ledger_entries_amount_positive')
+  })
+})
+
+// ── (C) EXECUTABILITY teeth (③ deep-audit) — the mocked-execute tests above cannot
+//    catch a query-GENERATION bug, so this drives verifyMoneySchema, captures the
+//    SQL objects it hands to db.execute, and renders each via the real drizzle
+//    PgDialect. Guards the HIGH "dead-on-arrival" defect: `= ANY(${jsArray}::text[])`
+//    rendered as `= ANY(($1,$2,…)::text[])` — a RECORD tuple that Postgres rejects
+//    at parse ("cannot cast type record to text[]"), so the check threw on every
+//    real run and silently never detected drift.
+describe('verifyMoneySchema emits EXECUTABLE Postgres (query-render teeth)', () => {
+  function captureQueries(): { db: IntrospectableDb; rendered: () => string[] } {
+    const captured: SQL[] = []
+    const db: IntrospectableDb = {
+      execute: vi.fn(async (q: SQL) => {
+        captured.push(q)
+        return []
+      }),
+    }
+    const dialect = new PgDialect()
+    return { db, rendered: () => captured.map((q) => dialect.sqlToQuery(q).sql) }
+  }
+
+  it('binds name arrays as text[] params, never a `($1,$2,…)` record tuple cast', async () => {
+    const { db, rendered } = captureQueries()
+    await verifyMoneySchema(db)
+    const queries = rendered()
+    expect(queries.length).toBe(3) // columns, checks, indexes
+    for (const q of queries) {
+      // The shipped bug: `= ANY(($1, $2, …)::text[])` — record cast, pg-invalid.
+      expect(q).not.toMatch(/ANY\(\(\$/)
+      // The fix: a genuine `ARRAY[$1, $2, …]::text[]`.
+      expect(q).toMatch(/ANY\(ARRAY\[\$/)
+    }
+  })
+
+  it('scopes the CHECK-constraint query to public-schema CHECK constraints (no cross-schema masking)', async () => {
+    const { db, rendered } = captureQueries()
+    await verifyMoneySchema(db)
+    const checkQuery = rendered()[1] // columns[0], checks[1], indexes[2]
+    expect(checkQuery).toMatch(/contype = 'c'/)
+    expect(checkQuery).toMatch(/connamespace = 'public'::regnamespace/)
   })
 })

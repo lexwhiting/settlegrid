@@ -32,6 +32,7 @@ export type SchemaDriftKind =
   | 'missing_check'
   | 'check_definition_mismatch'
   | 'missing_index'
+  | 'index_definition_mismatch'
   | 'index_predicate_mismatch'
 
 export interface SchemaDrift {
@@ -70,13 +71,44 @@ interface IndexRow {
   indexdef: string
 }
 
-/** information_schema column_default text ('0' | null) → normalized numeric-or-null. */
+/**
+ * information_schema column_default text → normalized numeric-or-null.
+ *
+ * ③ deep-audit (DC-14): only a PURE integer literal (optionally with a single
+ * ::int/::integer/::bigint/::smallint cast, e.g. `0` or `0::integer`) is a valid
+ * default for an integer money column. ANY other form — an expression / function /
+ * CASE / arithmetic default such as `(0 + 500)` or `nextval('…')` — is ITSELF a
+ * drift on a money column, so it must NOT be coerced by grabbing its first
+ * digit-run (the old `/-?\d+/` grabbed the `0` out of `(0 + 500)` and false-passed
+ * a default-0 column while the real default was 500). Return NaN for any
+ * non-literal so it can never `===` a manifest expectation (null or a number).
+ */
 function normalizeLiveDefault(raw: string | null): number | null {
   if (raw === null) return null
-  const m = /-?\d+/.exec(raw)
-  // A non-numeric default on an integer money column is itself a drift — return
-  // NaN so it can never `===` a manifest expectation (null or a number).
-  return m ? Number(m[0]) : Number.NaN
+  const stripped = raw
+    .trim()
+    .replace(/::\s*(?:integer|int|int4|int8|bigint|smallint)\s*$/i, '')
+    .trim()
+  const m = /^'?(-?\d+)'?$/.exec(stripped)
+  return m ? Number(m[1]) : Number.NaN
+}
+
+/**
+ * Bind a JS string[] as a Postgres text[] for a `col = ANY(...)` match.
+ *
+ * ③ deep-audit (HIGH — DEAD-ON-ARRIVAL fix): a bare `${array}` interpolation in a
+ * drizzle `sql` template renders as a `($1, $2, …)` RECORD tuple, and `(…)::text[]`
+ * is a cast of a *record* to text[] — Postgres rejects it at parse-analysis with
+ * "cannot cast type record to text[]". So the SHIPPED `= ANY(${arr}::text[])`
+ * threw on EVERY real execution; the check silently never ran (the mocked-execute
+ * unit tests never exercised the real drizzle render). `ARRAY[...]` binds each
+ * element as a scalar param and yields a genuine text[].
+ */
+function textArray(values: readonly string[]): SQL {
+  return sql`ARRAY[${sql.join(
+    values.map((v) => sql`${v}`),
+    sql`, `,
+  )}]::text[]`
 }
 
 function fmtDefault(v: number | null): string {
@@ -92,7 +124,7 @@ export async function verifyMoneySchema(db: IntrospectableDb): Promise<SchemaDri
     SELECT table_name, column_name, data_type, is_nullable, column_default
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name = ANY(${columnTables}::text[])
+      AND table_name = ANY(${textArray(columnTables)})
   `)) as ColumnRow[]
 
   const colByKey = new Map<string, ColumnRow>()
@@ -139,7 +171,9 @@ export async function verifyMoneySchema(db: IntrospectableDb): Promise<SchemaDri
     const checkRows = (await db.execute(sql`
       SELECT conname, pg_get_constraintdef(oid) AS def
       FROM pg_constraint
-      WHERE conname = ANY(${checkNames}::text[])
+      WHERE contype = 'c'
+        AND connamespace = 'public'::regnamespace
+        AND conname = ANY(${textArray(checkNames)})
     `)) as CheckRow[]
     const defByName = new Map(checkRows.map((r) => [r.conname, r.def]))
     for (const spec of MONEY_CHECKS) {
@@ -170,7 +204,7 @@ export async function verifyMoneySchema(db: IntrospectableDb): Promise<SchemaDri
     const indexRows = (await db.execute(sql`
       SELECT indexname, indexdef
       FROM pg_indexes
-      WHERE schemaname = 'public' AND indexname = ANY(${indexNames}::text[])
+      WHERE schemaname = 'public' AND indexname = ANY(${textArray(indexNames)})
     `)) as IndexRow[]
     const defByName = new Map(indexRows.map((r) => [r.indexname, r.indexdef]))
     for (const spec of MONEY_INDEXES) {
@@ -184,14 +218,35 @@ export async function verifyMoneySchema(db: IntrospectableDb): Promise<SchemaDri
         })
         continue
       }
-      // Assert against the WHERE-predicate portion ONLY. pg_indexes.indexdef embeds
-      // the index NAME (the payout mutex name literally contains 'processing'), so
-      // matching the whole def would let the name vacuously satisfy a predicate
-      // literal — a drift dropping 'processing' from the WHERE clause would go
-      // undetected and reopen the double-pay hole (② seal fold). No WHERE at all
-      // (a mutex that lost its partial predicate) → empty predicate → both literals
-      // missing → drift, which is correct.
       const whereAt = def.search(/\bWHERE\b/i)
+
+      // (③ deep-audit HIGH) SHAPE: the partial-UNIQUE property on the key column IS
+      // the mutex — a NON-unique, or a re-keyed (e.g. onto `id`), same-named index
+      // with the identical predicate enforces nothing → double-pay reopens. Assert
+      // CREATE UNIQUE INDEX + the key column against the index HEADER (the portion
+      // BEFORE any WHERE), so the predicate can't accidentally satisfy the shape and
+      // the header can't accidentally satisfy a predicate literal.
+      const header = (whereAt >= 0 ? def.slice(0, whereAt) : def).toUpperCase()
+      const shapeExpected: string[] = []
+      if (spec.unique) shapeExpected.push('UNIQUE INDEX')
+      shapeExpected.push(`(${spec.keyColumn})`)
+      const shapeMissing = shapeExpected.filter((s) => !header.includes(s.toUpperCase()))
+      if (shapeMissing.length > 0) {
+        drifts.push({
+          kind: 'index_definition_mismatch',
+          target: `index:${spec.name}`,
+          expected: `${spec.unique ? 'UNIQUE ' : ''}index on (${spec.keyColumn})`,
+          actual: (whereAt >= 0 ? def.slice(0, whereAt) : def).trim(),
+        })
+      }
+
+      // Assert the predicate literals against the WHERE-predicate portion ONLY.
+      // pg_indexes.indexdef embeds the index NAME (the payout mutex name literally
+      // contains 'processing'), so matching the whole def would let the name
+      // vacuously satisfy a predicate literal — a drift dropping 'processing' from
+      // the WHERE clause would go undetected and reopen the double-pay hole (② seal
+      // fold). No WHERE at all (a mutex that lost its partial predicate) → empty
+      // predicate → both literals missing → drift, which is correct.
       const predicate = whereAt >= 0 ? def.slice(whereAt) : ''
       if (spec.predicateContains.some((s) => !predicate.includes(s))) {
         drifts.push({
