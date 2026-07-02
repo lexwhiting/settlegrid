@@ -42,6 +42,13 @@ const {
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     for: vi.fn().mockReturnThis(),
+    // Real Drizzle `db.delete(...).where(...)` returns an awaitable QueryPromise
+    // exposing `.catch`; the marker-delete in the route's failure catch calls
+    // `.catch(...)`. Model it as a resolved thenable so `.catch` DOESN'T throw a
+    // TypeError — otherwise the failure-path 500 would come from that TypeError,
+    // not from the intended `throw handlerErr`, making the 500 assertion vacuous
+    // (a dropped rethrow would still 500 under the mock but return 200 in prod).
+    catch: vi.fn().mockResolvedValue(undefined),
   }
   mockDb.transaction = vi.fn().mockImplementation(async (fn: (tx: typeof mockDb) => Promise<unknown>) =>
     fn(mockDb),
@@ -194,6 +201,15 @@ function creditWriteCount(column: 'balanceCents' | 'globalBalanceCents'): number
   ).length
 }
 
+// The NEW-balance branch credits via `.insert(...).values({balanceCents})` (not
+// `.set()`), so creditWriteCount is blind to it. Count the credit .values()
+// calls (the marker insert's .values carries eventId/source, not balanceCents).
+function creditInsertCount(): number {
+  return mockDb.values.mock.calls.filter(
+    ([arg]) => arg && typeof arg === 'object' && 'balanceCents' in (arg as Record<string, unknown>),
+  ).length
+}
+
 describe('Stripe webhook — checkout.session.completed retry-safety (G3-5)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -209,6 +225,7 @@ describe('Stripe webhook — checkout.session.completed retry-safety (G3-5)', ()
     mockDb.set.mockReturnThis()
     mockDb.delete.mockReturnThis()
     mockDb.for.mockReturnThis()
+    mockDb.catch.mockResolvedValue(undefined)
     mockDb.transaction.mockImplementation(
       async (fn: (tx: typeof mockDb) => Promise<unknown>) => fn(mockDb),
     )
@@ -227,10 +244,17 @@ describe('Stripe webhook — checkout.session.completed retry-safety (G3-5)', ()
 
       const res = await webhookPOST(makeRequest('{}'))
 
-      // Outer route catches the re-thrown error → retryable 500.
+      // Outer route catches the re-thrown error → retryable 500. With the mock's
+      // delete-chain `.catch` resolving, this 500 can ONLY come from `throw
+      // handlerErr` — so it has teeth for the rethrow (dropping the rethrow →
+      // falls through → 200 → RED), not just for the delete's presence.
       expect(res.status).toBe(500)
-      // THE TEETH: the dedup marker was deleted so Stripe's retry replays.
+      // THE TEETH: the dedup marker was deleted so Stripe's retry replays...
       expect(mockDb.delete).toHaveBeenCalled()
+      // ...targeting THIS event's marker (a wrong key e.g. session.id would
+      // leave the marker → permanent skip). On the failure path the delete's
+      // is the only .where() (the tx callback never ran).
+      expect(mockDb.where).toHaveBeenCalledWith({ field: 'event_id', value: 'evt_cpur_fail' })
     })
 
     it('success → NO dedup delete + the balance credit ran exactly once', async () => {
@@ -247,6 +271,22 @@ describe('Stripe webhook — checkout.session.completed retry-safety (G3-5)', ()
       // The consumer-credit write ran exactly once (not the purchases .set()).
       expect(creditWriteCount('balanceCents')).toBe(1)
     })
+
+    it('success (NEW balance row) → NO dedup delete + the credit inserted exactly once', async () => {
+      mockEvent(creditPurchaseEvent('evt_cpur_new'))
+      mockDb.returning.mockResolvedValueOnce([{ eventId: 'evt_cpur_new' }]) // not duplicate
+      // existingBalance SELECT (inside the tx) → NO row → insert branch.
+      mockDb.limit.mockResolvedValueOnce([])
+
+      const res = await webhookPOST(makeRequest('{}'))
+
+      expect(res.status).toBe(200)
+      expect(mockDb.delete).not.toHaveBeenCalled()
+      // The insert branch is invisible to creditWriteCount (.values, not .set) —
+      // assert it credited exactly once via .insert().values({balanceCents}).
+      expect(creditInsertCount()).toBe(1)
+      expect(creditWriteCount('balanceCents')).toBe(0)
+    })
   })
 
   describe('credit-pack path (consumers.globalBalanceCents)', () => {
@@ -259,6 +299,7 @@ describe('Stripe webhook — checkout.session.completed retry-safety (G3-5)', ()
 
       expect(res.status).toBe(500)
       expect(mockDb.delete).toHaveBeenCalled()
+      expect(mockDb.where).toHaveBeenCalledWith({ field: 'event_id', value: 'evt_cpack_fail' })
     })
 
     it('success → NO dedup delete + the global-balance credit ran exactly once', async () => {

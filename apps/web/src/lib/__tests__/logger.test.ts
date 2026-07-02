@@ -183,6 +183,8 @@ describe('Sentry mirror — error-level logs only, gated on SENTRY_DSN', () => {
     'proxy.onchain_settled_upstream_failed',
     'settlement.credit_zero_row_unmarked',
     'settlement.credit_marker_unmatched',
+    'stripe.webhook.dedup_delete_failed',
+    'stripe.connect_webhook.dedup_delete_failed',
   ])('stamps money_loss:true on the funds-loss key %s (message path)', (key) => {
     process.env.SENTRY_DSN = 'https://test@sentry.test/1'
     logger.error(key, { requestId: 'r-1' })
