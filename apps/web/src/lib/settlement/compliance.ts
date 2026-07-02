@@ -19,6 +19,7 @@ import {
 import { eq, ne, and, gte, desc, asc, inArray, isNotNull, sql } from 'drizzle-orm'
 import { logger } from '@/lib/logger'
 import { deleteSupabaseAuthUser } from '@/lib/supabase/admin'
+import { isSystemPrincipal } from '@/lib/system-principal'
 import { isLedgerPayerAnonymizeEnabled } from '@/lib/env'
 
 // ---- Types ------------------------------------------------------------------
@@ -552,6 +553,7 @@ export async function processDataDeletion(
       .select({
         id: developers.id,
         email: developers.email,
+        slug: developers.slug,
         supabaseUserId: developers.supabaseUserId,
       })
       .from(developers)
@@ -560,6 +562,28 @@ export async function processDataDeletion(
 
     if (!dev) {
       throw new Error(`Developer not found: ${developerId}`)
+    }
+
+    // ── ③ A-1 / DC-27 — SYSTEM-PRINCIPAL DELETION GUARD (the single chokepoint) ──
+    //    The crawler/scan system developer (owns the ENTIRE crawled catalog, NULL
+    //    supabaseUserId) is NEVER a GDPR data subject. It can only reach this
+    //    function if it was ADOPTED — auth/callback's unconditional by-email relink
+    //    binds it to any auth user who controls its email (historically on the
+    //    THIRD-PARTY settlegrid.com domain) — then driven via the developer OR
+    //    consumer erasure door, or the cron re-driver. Refuse BEFORE any scrub so NO
+    //    caller can erase the catalog; this one chokepoint covers all three. Keyed on
+    //    the stable slug (+ legacy email). Set 'failed' + a distinct security alert.
+    if (isSystemPrincipal(dev)) {
+      await db
+        .update(complianceExports)
+        .set({ status: 'failed' })
+        .where(and(eq(complianceExports.id, exportId), ne(complianceExports.status, 'completed')))
+      logger.error('compliance.data_deletion.system_principal_refused', {
+        exportId,
+        developerId,
+        slug: dev.slug,
+      })
+      return { status: 'failed' }
     }
 
     // ── ③ ALREADY-ERASED IDEMPOTENCY GUARD (DC-13/DC-16/DC-17) ───────────────

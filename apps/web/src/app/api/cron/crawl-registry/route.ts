@@ -6,6 +6,7 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { logger } from '@/lib/logger'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { SYSTEM_DEVELOPER_EMAIL, SYSTEM_DEVELOPER_SLUG, SYSTEM_DEVELOPER_NAME } from '@/lib/system-principal'
 import {
   crawlSource,
   getSourceForCurrentRun,
@@ -27,9 +28,6 @@ export const maxDuration = 300
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const MAX_SERVERS_PER_RUN = 300
-const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
-const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
-const SYSTEM_DEVELOPER_NAME = 'SettleGrid System'
 
 /**
  * Maps registry crawler source identifiers to the `source_ecosystem` column values.

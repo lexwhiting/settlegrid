@@ -18,12 +18,10 @@ import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { getInstallationToken, fetchFileContent } from '@/lib/github'
+import { SYSTEM_DEVELOPER_EMAIL, SYSTEM_DEVELOPER_SLUG, SYSTEM_DEVELOPER_NAME } from '@/lib/system-principal'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
-const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
-const SYSTEM_DEVELOPER_NAME = 'SettleGrid System'
 export const MAX_NAME_LENGTH = 256
 export const MAX_DESCRIPTION_LENGTH = 2000
 
