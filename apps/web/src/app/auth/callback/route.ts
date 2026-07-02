@@ -7,6 +7,7 @@ import { welcomeDeveloperEmail, welcomeConsumerEmail, newSignupNotificationEmail
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { safeRelativePath } from '@/lib/safe-redirect'
+import { isSystemPrincipal } from '@/lib/system-principal'
 
 const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
 const INVITE_BONUS_OPS = 5000
@@ -146,12 +147,20 @@ export async function GET(request: NextRequest) {
 
       if (!existing) {
         const [byEmail] = await db
-          .select({ id: developers.id })
+          .select({ id: developers.id, slug: developers.slug })
           .from(developers)
           .where(eq(developers.email, email))
           .limit(1)
 
-        if (byEmail) {
+        if (byEmail && isSystemPrincipal({ email, slug: byEmail.slug })) {
+          // ③ A-1: NEVER relink the SYSTEM catalog principal to a login. Its email is
+          // on the THIRD-PARTY settlegrid.com domain, so any auth user who controls
+          // that mailbox would otherwise ADOPT it here — owning every crawled tool
+          // (mutate proxy/pricing/payout) and/or driving its erasure (the catalog
+          // takeover/destroy primitive). Skip the relink + ALERT; this session gets no
+          // developer identity (correct — it is not the system). developerId stays unset.
+          logger.error('auth.system_principal_relink_blocked', { email, userId: user.id })
+        } else if (byEmail) {
           developerId = byEmail.id
           await db
             .update(developers)

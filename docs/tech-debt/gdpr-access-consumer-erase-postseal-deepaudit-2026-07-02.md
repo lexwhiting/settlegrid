@@ -35,7 +35,7 @@ Policy report-back: session switched to `/effort xhigh` before the 5-lens fan-ou
 - **Fix (in-scope, NEW consumer door only — 2 files, no frozen surface):** `resolveOrCreateDeveloperId` now selects `email`+`slug` on BOTH resolution paths and throws a typed `SystemPrincipalDeletionError` when the resolved developer is the system principal (`isSystemPrincipal`: `email === SYSTEM_DEVELOPER_EMAIL || slug === SYSTEM_DEVELOPER_SLUG`); the door maps it to the safe **409 `ACCOUNT_RESOLUTION_CONFLICT`** (→ privacy@ manual runbook — the caller's OWN Art.17 erasure is still honored there) and logs `compliance.consumer_account_deletion.system_principal_blocked` for ops alerting. **Discriminator choice (per the max critic):** system-principal IDENTITY, NOT "owns tools" — an owns-tools guard would 409 a legitimate null-linked owns-tools developer's own erasure in the FOLD-6 window (violates the FOLD-2 never-block invariant). Identity is zero-false-positive (a real subject's row is never the system principal).
 - **Live GREEN (after fix):** 409 / system developer + tool untouched / no auth-user delete. +2 DC-27 teeth (byEmail/FOLD-6 path + bySupabase/post-relink path) in the pglite integration test.
 
-## 5. 🚨 ESCALATION (operator action — NOT code-closeable in this chunk; the fix perturbs FROZEN surfaces the handoff did not authorize)
+## 5. 🚨 ESCALATION (was: operator action / frozen surfaces) → ✅ REMEDIATED post-③ (operator-directed) — see §11
 
 The consumer-door guard closes the surface THIS chunk introduced, but **A-1's root is a pre-existing FROZEN-surface vulnerability the ③ audit surfaced, and the in-scope guard does NOT close it:**
 
@@ -82,3 +82,43 @@ EXCLUDE (pre-existing / gitignored / other chunks): `dashboard/tools/page.tsx`, 
 
 ## 10. Verdict
 **🔧 RE-CERTIFIED (HARDENED).** The shipped ② diff is internally correct and correctly scoped (un-gate precise, extraction byte-identical, boundary sound). ③ found + closed one HIGH latent defect (A-1, DC-27) that ②'s diff scope structurally could not see, in-scope with a live fail-then-pass repro + teeth, touching no frozen surface. The deeper frozen-surface root (catalog-takeover via the `auth/callback` relink + the dev door) is ESCALATED (§5) as an operator/launch-gate item. Push remains gated on `/push-go`.
+
+## 11. A-1 ROOT REMEDIATION (operator-directed, post-③ — 2026-07-02)
+The operator authorized the escalated frozen-surface fix (chose "Implement Steps 1+3, then 2") and disclosed a fact that materially changed the risk framing:
+
+**⚠ NEW FINDING (the pivot): `settlegrid.com` is a THIRD-PARTY domain the company does NOT own** — a live Gulf-region debt-settlement platform ("XoBot"). The company owns `settlegrid.ai`. The system catalog principal's email `system@settlegrid.com` is therefore an **attacker-obtainable mailbox on someone else's domain**. Consequences:
+- A-1 is **not** misconfig-gated — its precondition (an auth user controlling the system principal's email) is **reachable under standard Supabase config** by anyone who can receive mail at `system@settlegrid.com`. This **confirms A-1 HIGH** (removes the "config-unreachable/LOW" mitigation the ③ writeup floated) and makes the root fix urgent, not deferrable.
+- **Second finding (`internal-accounts.ts`):** `INTERNAL_EMAIL_DOMAINS` trusted `settlegrid.com` as an internal org domain → any `@settlegrid.com` signup was silently excluded from traction metrics (and would inherit trust once the planned `developers.isInternal` flag backfills from that list). A third-party-controlled domain must never be a trust anchor.
+
+**Fixes landed (all guards key on the stable, company-owned SLUG `settlegrid-system`, so they protect the EXISTING prod row regardless of its current email):**
+1. **`lib/system-principal.ts` (NEW, shared)** — single source for the system identity: `SYSTEM_DEVELOPER_{SLUG,EMAIL,NAME}` (EMAIL migrated to `system@settlegrid.ai`) + `isSystemPrincipal(row)` (slug-primary; matches new + legacy email as belt-and-suspenders until the prod row is migrated). Kills the duplicated-constant SEAM (§7 DC-27 / Lens-C).
+2. **CHOKEPOINT guard in `processDataDeletion` (`compliance.ts`)** — refuses the system principal BEFORE any scrub (sets export `failed`, logs `compliance.data_deletion.system_principal_refused`). This is the DURABLE fix: it covers **all three callers** (consumer door, developer door, cron re-driver) — the consumer-door-only ③ guard could not.
+3. **`auth/callback` relink guard (Step 2)** — the takeover-primitive root: the unconditional by-email relink now SKIPS + ALERTS (`auth.system_principal_relink_blocked`) when the by-email row is the system principal, so no login can ADOPT it (adoption = own every crawled tool's proxy/pricing/payout, a superset of the erasure vector).
+4. **`internal-accounts.ts`** — removed `settlegrid.com` from `INTERNAL_EMAIL_DOMAINS`; the one legit internal account on that domain (the system principal) is now listed EXPLICITLY (`INTERNAL_DEVELOPER_EMAILS`) with a migrate-then-drop note.
+5. **Refactor** — consumer door + the 3 crawl/scan routes (`cron/crawl-registry`, `cron/crawl-services`, `webhooks/github/scan-impl`) now import from `lib/system-principal`; FUTURE system rows are created with the safe `.ai` email.
+
+**Teeth (live fail-then-pass):**
+- **Chokepoint revert-RED** in `compliance-deletion-cascade.integration.test.ts` (pglite real-FK): guard neutralized → `processDataDeletion` returns `completed` and erases the system principal + its catalog (RED); guard restored → `failed`, principal + tool untouched (GREEN).
+- **`system-principal.test.ts` (NEW)** — unit teeth on the discriminator (slug match; new + legacy + case-insensitive email; zero false-positive on real subjects; regression guard that `SYSTEM_DEVELOPER_EMAIL` is NOT on `settlegrid.com`).
+
+**Gate (hardened tree, cwd apps/web):** `tsc` exit 0 · `lint` 0 errors · `vitest` **228 files / 5174 passed / 0 skip / 0 fail** (5169 → +1 chokepoint + 4 unit). **NO migration.**
+
+**Commit manifest (explicit pathspec — A-1 root remediation, 10 files):**
+```
+apps/web/src/lib/system-principal.ts                                      (NEW — shared identity)
+apps/web/src/lib/settlement/compliance.ts                                 (chokepoint guard)
+apps/web/src/app/auth/callback/route.ts                                   (relink guard)
+apps/web/src/lib/internal-accounts.ts                                     (drop settlegrid.com trust)
+apps/web/src/app/api/consumer/account/route.ts                            (refactor → shared)
+apps/web/src/app/api/cron/crawl-registry/route.ts                         (refactor → shared)
+apps/web/src/app/api/cron/crawl-services/route.ts                         (refactor → shared)
+apps/web/src/app/api/webhooks/github/scan-impl.ts                         (refactor → shared)
+apps/web/src/lib/__tests__/compliance-deletion-cascade.integration.test.ts (+1 chokepoint revert-RED)
+apps/web/src/lib/__tests__/system-principal.test.ts                       (NEW — unit teeth)
+```
+
+**REMAINING — operator / prod actions (NOT code-closeable):**
+- **P1 — prod exploitation check (URGENT):** does a Supabase auth user exist with email `system@settlegrid.com`? Has the system developer row (`slug='settlegrid-system'`) been relinked (non-null `supabaseUserId`)? Is the crawled catalog intact (tool count sane, none `status='deleted'`)? The code guards stop FUTURE exploitation but cannot detect PAST adoption.
+- **P2 — prod-data migration:** `UPDATE developers SET email='system@settlegrid.ai' WHERE slug='settlegrid-system'` — moves the existing row off the third-party domain, after which the legacy-email arm of `isSystemPrincipal` + the explicit `internal-accounts` entry can be dropped.
+- **P3 — coverage gap (disclosed):** the `auth/callback` relink guard has NO integration test (no callback test harness exists in the repo); it is a simple skip keyed on the unit-tested `isSystemPrincipal`, and the load-bearing protection (erasure refusal) is the chokepoint, which IS tested. A callback harness is a fast-follow.
+- **P4 — launch gate:** the third-party-domain exposure + prod checks warrant a launch-gate blocker entry.

@@ -452,4 +452,31 @@ describe('processDataDeletion — pglite cascade-faithful integration (LB2)', ()
     expect(typeof exp2.resultUrl).toBe('string')
     expect(exp2.resultUrl as string).not.toMatch(/^data:application\/json;base64,/)
   }, 30_000)
+
+  it('③ A-1 / DC-27 — SYSTEM-PRINCIPAL CHOKEPOINT: processDataDeletion REFUSES to erase the system catalog principal (protects the dev door + cron, not just the consumer door)', async () => {
+    // The crawler/scan system developer: slug 'settlegrid-system', legacy third-party
+    // email, NULL supabaseUserId, owns a crawled tool. It reaches processDataDeletion
+    // only if ADOPTED (auth/callback's unconditional relink) then driven via the
+    // developer door OR the cron re-driver — surfaces the consumer-door guard cannot
+    // reach. The chokepoint must refuse BEFORE any scrub so the catalog is never erased.
+    const SYS_DEV = '00000000-0000-0000-0000-0000000000f9'
+    const SYS_TOOL = '00000000-0000-0000-0000-0000000000fa'
+    const SYS_EXPORT = '00000000-0000-0000-0000-0000000000fb'
+    await db.insert(schema.developers).values({ id: SYS_DEV, email: 'system@settlegrid.com', name: 'SettleGrid System', slug: 'settlegrid-system' })
+    await db.insert(schema.tools).values({ id: SYS_TOOL, developerId: SYS_DEV, name: 'Crawled', slug: 'crawled-guard-tool' })
+    await db.insert(schema.complianceExports).values({
+      id: SYS_EXPORT, requestType: 'data-deletion', entityType: 'provider', entityId: SYS_DEV, status: 'pending',
+    })
+
+    const result = await processDataDeletion(SYS_EXPORT)
+
+    // Refused (RED without the chokepoint guard: it would scrub + return 'completed').
+    expect(result.status).toBe('failed')
+    // The system developer is UNTOUCHED (not anonymized) and its catalog is intact.
+    const [sys] = await db.select().from(schema.developers).where(eq(schema.developers.id, SYS_DEV))
+    expect(sys.email).toBe('system@settlegrid.com')
+    expect(sys.slug).toBe('settlegrid-system')
+    const [tool] = await db.select().from(schema.tools).where(eq(schema.tools.id, SYS_TOOL))
+    expect(tool.status).not.toBe('deleted')
+  }, 30_000)
 })

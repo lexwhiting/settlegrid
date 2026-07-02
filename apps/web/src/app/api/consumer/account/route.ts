@@ -9,6 +9,7 @@ import { accountDeletedEmail, sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { isSameOriginRequest, verifyStepUp, createRequestSupabase } from '@/lib/account-deletion'
+import { isSystemPrincipal } from '@/lib/system-principal'
 
 // A normal single-subject scrub completes well within this budget; set
 // explicitly so a serverless TIMEOUT mid-scrub is bounded + recoverable (the
@@ -247,28 +248,14 @@ export async function DELETE(request: NextRequest) {
 class DeveloperTwinConflictError extends Error {}
 
 /**
- * The crawler/scan SYSTEM developer principal (cron/crawl-registry + crawl-services
- * + webhooks/github/scan-impl `ensureSystemDeveloper`) owns every crawled/unclaimed
- * tool and carries a NULL `supabaseUserId`. It is NEVER a GDPR data subject. Because
- * its link is NULL, the {@link DeveloperTwinConflictError} cross-identity guard below
- * (which only fires on a non-null DIFFERENT link) would PERMIT relinking + driving its
- * erasure — scrubbing the ENTIRE catalog (③ deep-audit A-1). Refuse to resolve it as a
- * deletion target on BOTH the bySupabase path (after an auth/callback login-relink) and
- * the byEmail path (FOLD 6). Reachable only under a Supabase email-collision (the config
- * the academic route's `emailAutoConfirmSuspected` tripwire treats as live).
- *
- * SEAM (kept in sync manually): mirrors SYSTEM_DEVELOPER_{EMAIL,SLUG} in the three
- * crawl/scan routes. This closes the CONSUMER door only. The DURABLE fix is a
- * system-principal guard at the shared `processDataDeletion` chokepoint (covers the
- * developer door + the cron re-driver too) plus guarding auth/callback's unconditional
- * relink — itself an independent catalog-TAKEOVER primitive. See the ③ deep-audit record.
+ * Thrown by {@link resolveOrCreateDeveloperId} when the caller resolves to the crawler
+ * SYSTEM catalog principal ({@link isSystemPrincipal}) — never a GDPR data subject. Its
+ * NULL `supabaseUserId` would otherwise pass the {@link DeveloperTwinConflictError} guard
+ * (which fires only on a non-null DIFFERENT link) as "safe to adopt", so we refuse it
+ * explicitly on BOTH resolution paths (③ deep-audit A-1). The shared `processDataDeletion`
+ * chokepoint backstops the developer door + cron; this closes the consumer door.
  */
-const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
-const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
 class SystemPrincipalDeletionError extends Error {}
-function isSystemPrincipal(row: { email: string | null; slug: string | null }): boolean {
-  return row.email === SYSTEM_DEVELOPER_EMAIL || row.slug === SYSTEM_DEVELOPER_SLUG
-}
 
 /**
  * Resolve the developer TWIN for this authenticated identity, or (FOLD 6) ENSURE
