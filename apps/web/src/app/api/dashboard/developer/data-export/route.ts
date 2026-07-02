@@ -1,8 +1,5 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -12,7 +9,6 @@ import { dataExportReadyEmail, sendEmail } from '@/lib/email'
 import { getAppUrl } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
-import { hasFeature } from '@/lib/tier-config'
 
 const exportBodySchema = z.object({
   categories: z.array(z.enum(['profile', 'tools', 'invocations', 'payouts', 'webhooks', 'audit_logs'])).min(1).optional(),
@@ -43,26 +39,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    // ── Tier gate: data_export requires Scale+ ─────────────────────────
-    const [developer] = await db
-      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
-      .from(developers)
-      .where(eq(developers.id, auth.id))
-      .limit(1)
-
-    if (!developer) {
-      return errorResponse('Developer account not found.', 404, 'NOT_FOUND')
-    }
-
-    if (!hasFeature(developer.tier, 'data_export', developer.isFoundingMember)) {
-      return errorResponse(
-        'This feature requires the Scale plan.',
-        403,
-        'TIER_REQUIRED',
-        undefined,
-        { requiredTier: 'scale', currentTier: developer.tier, upgradeUrl: '/pricing' }
-      )
-    }
+    // ── NO TIER GATE (G5-2): this is the GDPR Art. 15/20 subject-access /
+    //    portability export of the developer's OWN personal + business data. A
+    //    data-subject right MUST NOT be gated on hasFeature(...) — a free-tier
+    //    developer can export their own data for free. (The Scale-paid CSV
+    //    ANALYTICS export at stats/export/route.ts is a distinct convenience and
+    //    KEEPS its data_export gate.) The abuse surface is bounded by the
+    //    existing data-export:${ip} + data-export:uid rate limits above; do NOT
+    //    "helpfully" re-paywall this right. ──
 
     // Parse optional body for selective export
     let categories: ExportCategory[] | undefined

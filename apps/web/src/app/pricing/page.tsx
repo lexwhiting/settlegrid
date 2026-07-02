@@ -80,7 +80,7 @@ const jsonLdProduct = {
       availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' },
       description:
-        '2,000,000 operations/month, advanced analytics, consumer insights, fraud detection, anomaly alerts, data export, audit logs, team access, dedicated support.',
+        '2,000,000 operations/month, advanced analytics, consumer insights, fraud detection, anomaly alerts, CSV analytics export, audit logs, team access, dedicated support.',
     },
   ],
 }
@@ -159,7 +159,7 @@ const plans = [
       'Fraud detection (12 signals)',
       'Tool failover & SLA monitoring',
       'Edge caching for low-latency calls',
-      'Data export (GDPR)',
+      'CSV analytics export',
       'Audit logs',
       'IP allowlisting',
       'Enhanced weekly reports',

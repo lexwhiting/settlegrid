@@ -31,7 +31,7 @@ const scaleTier = [
   "Consumer insights & churn detection",
   "Anomaly detection alerts",
   "Fraud detection (12 signals)",
-  "Data export & audit logs",
+  "CSV analytics export & audit logs",
   "IP allowlisting",
   "Enhanced weekly reports",
   "10 webhook endpoints",
