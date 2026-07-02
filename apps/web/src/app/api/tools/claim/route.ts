@@ -55,9 +55,14 @@ const claimSchema = z.object({
 export async function POST(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
   try {
-    // Rate limit: use authLimiter (5/min) to prevent brute-force token guessing
+    // Rate limit: use authLimiter (5/min) to prevent brute-force token guessing.
+    // G4-3 (LBD-2): fail-CLOSED so a rate-limit-store REJECTION can't drop that
+    // protection. Closes the store-REJECTION path only (conn-refused / DNS / auth /
+    // 5xx); a HANGING store still fails-OPEN via Upstash's built-in 5s timeout race.
+    // That hang residual is backstopped by the claim token's 192-bit entropy
+    // (48 hex chars = 24 bytes) — guessing is cryptographically infeasible regardless.
     const ip = getClientIp(request.headers)
-    const rl = await checkRateLimit(authLimiter, `tools-claim:${ip}`)
+    const rl = await checkRateLimit(authLimiter, `tools-claim:${ip}`, { failMode: 'closed' })
     if (!rl.success) {
       return errorResponse(
         'Too many requests. Please try again later.',
@@ -91,7 +96,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const userRl = await checkRateLimit(authLimiter, `tools-claim:uid:${auth.id}`)
+    // G4-3 (LBD-2): fail-CLOSED, same rationale as the ip bucket above.
+    const userRl = await checkRateLimit(authLimiter, `tools-claim:uid:${auth.id}`, { failMode: 'closed' })
     if (!userRl.success) {
       return errorResponse(
         'Too many requests. Please try again later.',

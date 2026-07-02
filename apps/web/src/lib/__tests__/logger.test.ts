@@ -185,6 +185,7 @@ describe('Sentry mirror — error-level logs only, gated on SENTRY_DSN', () => {
     'settlement.credit_marker_unmatched',
     'stripe.webhook.dedup_delete_failed',
     'stripe.connect_webhook.dedup_delete_failed',
+    'schema.money_column_drift', // G4-4: drift tripwire must page (paging-wiring teeth)
   ])('stamps money_loss:true on the funds-loss key %s (message path)', (key) => {
     process.env.SENTRY_DSN = 'https://test@sentry.test/1'
     logger.error(key, { requestId: 'r-1' })

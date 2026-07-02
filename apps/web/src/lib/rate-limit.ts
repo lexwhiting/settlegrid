@@ -43,7 +43,10 @@ export type RateLimitFailMode = 'open' | 'closed'
  * operator alert and allow the request — rate limiting here is anti-abuse,
  * not authentication (same trust stance as checkDemoRateLimit). Pass
  * { failMode: 'closed' } for a route class where blocking on store-failure
- * is preferable (none do today; hook only).
+ * is preferable — the G4-3 credential-brute-force surfaces (mfa-verify,
+ * tools-claim, /api/gate) pass it so a store REJECTION can't evaporate their
+ * throttle. NB this only closes the REJECTION path; a HANGING store still fails
+ * OPEN via the Upstash 5s timeout race (see those call-sites' LBD-2 comments).
  */
 export async function checkRateLimit(
   limiter: Ratelimit,
