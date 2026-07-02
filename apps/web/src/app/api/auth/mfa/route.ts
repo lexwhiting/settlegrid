@@ -110,7 +110,13 @@ const verifySchema = z.object({
 export async function PUT(request: NextRequest) {
   try {
     const ip = getClientIp(request.headers)
-    const rl = await checkRateLimit(apiLimiter, `mfa-verify:${ip}`)
+    // G4-3 (LBD-2): fail-CLOSED so a rate-limit-store REJECTION can't evaporate
+    // brute-force protection on this TOTP-code verify surface. This closes the
+    // store-REJECTION path only (conn-refused / DNS / auth / 5xx); a HANGING store
+    // still fails-OPEN via Upstash's built-in 5s timeout race (resolves
+    // success:true inside limiter.limit() before checkRateLimit's catch). That
+    // hang residual is backstopped by GoTrue's own server-side MFA-verify throttle.
+    const rl = await checkRateLimit(apiLimiter, `mfa-verify:${ip}`, { failMode: 'closed' })
     if (!rl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
@@ -122,7 +128,8 @@ export async function PUT(request: NextRequest) {
       return errorResponse(err instanceof Error ? err.message : 'Authentication required', 401, 'UNAUTHORIZED')
     }
 
-    const userRl = await checkRateLimit(apiLimiter, `mfa-verify:uid:${auth.id}`)
+    // G4-3 (LBD-2): fail-CLOSED, same rationale as the ip bucket above.
+    const userRl = await checkRateLimit(apiLimiter, `mfa-verify:uid:${auth.id}`, { failMode: 'closed' })
     if (!userRl.success) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }

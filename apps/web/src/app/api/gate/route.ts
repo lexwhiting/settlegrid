@@ -14,9 +14,16 @@ const gateSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting via Upstash Redis (consistent with other auth routes)
+    // Rate limiting via Upstash Redis (consistent with other auth routes).
+    // G4-3 FOLD 1 (LBD-2): fail-CLOSED — this app-side limiter is the SOLE throttle
+    // on the gate-password guess surface (a low-entropy human secret with NO
+    // upstream backstop, unlike mfa-verify's GoTrue throttle or claim-token's
+    // 192-bit entropy). Closes the store-REJECTION path only; a HANGING store still
+    // fails-OPEN via Upstash's built-in 5s timeout race. Fail-closed here briefly
+    // blocks NEW gate entry during a store rejection — recoverable, no account/data
+    // lockout, and the gate is removed at public launch. Pre-auth, so ONE bucket.
     const ip = getClientIp(request.headers)
-    const rl = await checkRateLimit(authLimiter, `gate:${ip}`)
+    const rl = await checkRateLimit(authLimiter, `gate:${ip}`, { failMode: 'closed' })
     if (!rl.success) {
       return errorResponse('Too many attempts. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }

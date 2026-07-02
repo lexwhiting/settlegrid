@@ -46,8 +46,12 @@ const FREE_TEXT_ERROR_KEYS = ['error', 'reason', 'message', 'details', 'stack'] 
  * (instead of five separate `logKey` filters). These are the events where money
  * actually moved incorrectly — consumer debited but developer not credited
  * (off-chain), on-chain settled but credit lost, charged-but-undelivered (F3),
- * or a credit-reconciliation marker broke. Keep this list TIGHT (each entry is a
- * page-worthy funds event, low false-positive); add a new key here when a new
+ * or a credit-reconciliation marker broke — plus one PROACTIVE integrity tripwire
+ * (`schema.money_column_drift`, G4-4): "nothing moved yet," but a load-bearing
+ * money column has silently drifted from schema.ts on the no-rollback push
+ * substrate (DC-14) — page-worthy because it is the precondition for silent
+ * future money loss. Keep this list TIGHT (each entry is a page-worthy
+ * funds-integrity event, low false-positive); add a new key here when a new
  * funds-loss signal is introduced. The generic billing-record-update errors
  * (`proxy.*_billing_update_error`) and the MPP `proxy.mpp_upstream_error` are
  * deliberately EXCLUDED (noisier / not necessarily a loss) — see the ③ MPP
@@ -62,6 +66,7 @@ const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
   'settlement.credit_marker_unmatched', // credit reconciliation marker broke
   'stripe.webhook.dedup_delete_failed', // G3-5: a credit/transfer tx failed AND the dedup-marker delete also failed → marker persists → Stripe retry deduped → paid credit permanently skipped (consumer paid, balance never incremented)
   'stripe.connect_webhook.dedup_delete_failed', // G3-5: same funds-loss class on the Connect webhook rail
+  'schema.money_column_drift', // G4-4: a load-bearing money column drifted from schema.ts on the no-rollback push substrate (DC-14) — proactive integrity tripwire (precondition for silent future money loss). NB: 'schema.check_unavailable' (the check-couldn't-run branch) is deliberately NOT here — a transient boot DB blip must not false-page this class.
 ])
 
 /**
