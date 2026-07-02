@@ -102,6 +102,9 @@ const CON = '00000000-0000-0000-0000-0000000000b1'
 const TOOL = '00000000-0000-0000-0000-0000000000c1'
 const KEY = '00000000-0000-0000-0000-0000000000d1'
 const INV = '00000000-0000-0000-0000-0000000000e1'
+// The crawler/scan SYSTEM developer principal (owns every crawled tool).
+const SYS = '00000000-0000-0000-0000-0000000000f1'
+const SYS_TOOL = '00000000-0000-0000-0000-0000000000f2'
 
 beforeAll(async () => {
   pg = new PGlite()
@@ -269,6 +272,50 @@ describe('DELETE /api/consumer/account — the consumer erasure door drives the 
     expect(victim.email).toBe('victim@x.com')
     expect(victim.supabaseUserId).toBe('auth-victim')
     // No auth user was deleted (neither the victim's nor the shared one).
+    expect(mockAuthUserDelete).not.toHaveBeenCalled()
+  }, 30_000)
+
+  it('SYSTEM-PRINCIPAL GUARD (byEmail/FOLD-6): a consumer whose email is the crawler system account cannot adopt+erase the NULL-linked system developer that owns the whole catalog — 409, catalog untouched', async () => {
+    // The crawler/scan system developer: NULL supabaseUserId, owns every crawled tool
+    // (cron/crawl-registry ensureSystemDeveloper). Its NULL link means the ② cross-
+    // identity guard (fires only on a non-null DIFFERENT link) would PERMIT adoption.
+    await db.insert(schema.developers).values({ id: SYS, email: 'system@settlegrid.com', name: 'SettleGrid System', slug: 'settlegrid-system' })
+    await db.insert(schema.tools).values({ id: SYS_TOOL, developerId: SYS, name: 'Crawled Tool', slug: 'crawled-tool' })
+    // Caller: an authenticated consumer whose email collides with the system account
+    // (only reachable if Supabase email-confirmation is disabled / an IdP asserts an
+    // unverified email) AND — the FOLD-6 window — has NO developer row of their own.
+    await db.insert(schema.consumers).values({ id: CON, email: 'system@settlegrid.com', supabaseUserId: AUTH })
+    authState.user = { id: AUTH, email: 'system@settlegrid.com', identities: [{ provider: 'github' }] }
+
+    const res = await DELETE(delReq({ confirm: 'DELETE' }))
+    const body = await res.json()
+    // The door REFUSES: the system catalog principal is never a GDPR data subject.
+    expect(res.status).toBe(409)
+    expect(body.code).toBe('ACCOUNT_RESOLUTION_CONFLICT')
+
+    // The system developer + its crawled tool are UNTOUCHED — no catalog erasure.
+    const [sys] = await db.select().from(schema.developers).where(eq(schema.developers.id, SYS))
+    expect(sys.email).toBe('system@settlegrid.com')
+    expect(sys.supabaseUserId).toBeNull()
+    const [tool] = await db.select().from(schema.tools).where(eq(schema.tools.id, SYS_TOOL))
+    expect(tool.status).not.toBe('deleted')
+    expect(mockAuthUserDelete).not.toHaveBeenCalled()
+  }, 30_000)
+
+  it('SYSTEM-PRINCIPAL GUARD (bySupabase): even if auth/callback already relinked the system developer to the caller, the consumer door refuses — 409, catalog untouched', async () => {
+    // Simulate the auth/callback login-relink having bound the system dev to the caller
+    // (the dominant vector — the door then resolves it via bySupabase, not byEmail).
+    await db.insert(schema.developers).values({ id: SYS, email: 'system@settlegrid.com', name: 'SettleGrid System', slug: 'settlegrid-system', supabaseUserId: AUTH })
+    await db.insert(schema.tools).values({ id: SYS_TOOL, developerId: SYS, name: 'Crawled Tool', slug: 'crawled-tool' })
+    await db.insert(schema.consumers).values({ id: CON, email: 'system@settlegrid.com', supabaseUserId: AUTH })
+    authState.user = { id: AUTH, email: 'system@settlegrid.com', identities: [{ provider: 'github' }] }
+
+    const res = await DELETE(delReq({ confirm: 'DELETE' }))
+    const body = await res.json()
+    expect(res.status).toBe(409)
+    expect(body.code).toBe('ACCOUNT_RESOLUTION_CONFLICT')
+    const [tool] = await db.select().from(schema.tools).where(eq(schema.tools.id, SYS_TOOL))
+    expect(tool.status).not.toBe('deleted')
     expect(mockAuthUserDelete).not.toHaveBeenCalled()
   }, 30_000)
 })

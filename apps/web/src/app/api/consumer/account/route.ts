@@ -122,7 +122,17 @@ export async function DELETE(request: NextRequest) {
     try {
       developerId = await resolveOrCreateDeveloperId(user.id, consumer.email)
     } catch (err) {
-      if (err instanceof DeveloperTwinConflictError) {
+      // The system-principal case additionally ALERTS: it is only reachable if
+      // auth/callback relinked the crawler catalog owner to this session under a
+      // Supabase email-collision — a catalog-erasure attempt, not a normal deletion.
+      if (err instanceof SystemPrincipalDeletionError) {
+        logger.error('compliance.consumer_account_deletion.system_principal_blocked', {
+          supabaseUserId: user.id,
+        })
+      }
+      // Both resolution refusals map to the same safe 409 → the privacy@ manual
+      // runbook (the caller's OWN Art.17 erasure is still honored via that path).
+      if (err instanceof DeveloperTwinConflictError || err instanceof SystemPrincipalDeletionError) {
         return errorResponse(
           'We could not resolve your account for deletion. Please contact privacy@settlegrid.ai to complete your request.',
           409,
@@ -237,6 +247,30 @@ export async function DELETE(request: NextRequest) {
 class DeveloperTwinConflictError extends Error {}
 
 /**
+ * The crawler/scan SYSTEM developer principal (cron/crawl-registry + crawl-services
+ * + webhooks/github/scan-impl `ensureSystemDeveloper`) owns every crawled/unclaimed
+ * tool and carries a NULL `supabaseUserId`. It is NEVER a GDPR data subject. Because
+ * its link is NULL, the {@link DeveloperTwinConflictError} cross-identity guard below
+ * (which only fires on a non-null DIFFERENT link) would PERMIT relinking + driving its
+ * erasure — scrubbing the ENTIRE catalog (③ deep-audit A-1). Refuse to resolve it as a
+ * deletion target on BOTH the bySupabase path (after an auth/callback login-relink) and
+ * the byEmail path (FOLD 6). Reachable only under a Supabase email-collision (the config
+ * the academic route's `emailAutoConfirmSuspected` tripwire treats as live).
+ *
+ * SEAM (kept in sync manually): mirrors SYSTEM_DEVELOPER_{EMAIL,SLUG} in the three
+ * crawl/scan routes. This closes the CONSUMER door only. The DURABLE fix is a
+ * system-principal guard at the shared `processDataDeletion` chokepoint (covers the
+ * developer door + the cron re-driver too) plus guarding auth/callback's unconditional
+ * relink — itself an independent catalog-TAKEOVER primitive. See the ③ deep-audit record.
+ */
+const SYSTEM_DEVELOPER_EMAIL = 'system@settlegrid.com'
+const SYSTEM_DEVELOPER_SLUG = 'settlegrid-system'
+class SystemPrincipalDeletionError extends Error {}
+function isSystemPrincipal(row: { email: string | null; slug: string | null }): boolean {
+  return row.email === SYSTEM_DEVELOPER_EMAIL || row.slug === SYSTEM_DEVELOPER_SLUG
+}
+
+/**
  * Resolve the developer TWIN for this authenticated identity, or (FOLD 6) ENSURE
  * one when the auth/callback developer-branch insert failed — a rare authenticated
  * consumer with NO developer row (the callback swallows a dev-insert dbErr and
@@ -251,20 +285,28 @@ class DeveloperTwinConflictError extends Error {}
  */
 async function resolveOrCreateDeveloperId(supabaseUserId: string, email: string): Promise<string> {
   const [bySupabase] = await db
-    .select({ id: developers.id })
+    .select({ id: developers.id, email: developers.email, slug: developers.slug })
     .from(developers)
     .where(eq(developers.supabaseUserId, supabaseUserId))
     .limit(1)
-  if (bySupabase) return bySupabase.id
+  if (bySupabase) {
+    // A-1: never resolve the system catalog principal as a deletion target (an
+    // auth/callback login-relink can bind it to this session).
+    if (isSystemPrincipal(bySupabase)) throw new SystemPrincipalDeletionError()
+    return bySupabase.id
+  }
 
   // FOLD 6: no developer twin for this auth user. Ensure one, mirroring
   // auth/callback's by-email relink → insert ladder.
   const [byEmail] = await db
-    .select({ id: developers.id, supabaseUserId: developers.supabaseUserId })
+    .select({ id: developers.id, email: developers.email, slug: developers.slug, supabaseUserId: developers.supabaseUserId })
     .from(developers)
     .where(eq(developers.email, email))
     .limit(1)
   if (byEmail) {
+    // A-1: never ADOPT-and-erase the NULL-linked system catalog principal (its NULL
+    // link would otherwise pass the cross-identity guard below as "safe to adopt").
+    if (isSystemPrincipal(byEmail)) throw new SystemPrincipalDeletionError()
     // CORE-INVARIANT GUARD: NEVER relink — and then irreversibly erase — a
     // developer row already bound to a DIFFERENT live auth user. In the FOLD-6
     // window, under a Supabase email-collision (email-confirmation disabled, or an
