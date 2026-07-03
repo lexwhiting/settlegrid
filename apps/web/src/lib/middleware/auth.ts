@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { developers, consumers } from '@/lib/db/schema'
+import { ensureDeveloperTwin, ensureConsumerTwin } from '@/lib/auth/ensure-twin'
 
 export interface AuthenticatedDeveloper {
   id: string
@@ -152,15 +150,15 @@ export async function requireDeveloper(
     throw new Error('Authentication required. Please sign in.')
   }
 
-  const [developer] = await db
-    .select({ id: developers.id, email: developers.email })
-    .from(developers)
-    .where(eq(developers.supabaseUserId, user.id))
-    .limit(1)
-
-  if (!developer) {
-    throw new Error('Developer account not found. Please complete registration.')
-  }
+  // SELF-HEAL the twin invariant: the developer row is normally created in
+  // auth/callback, but callback-bypassing auth paths (password sign-in on /login,
+  // which does signInWithPassword → router.push('/dashboard') without a code
+  // exchange) leave a valid session with NO row → this used to throw "account not
+  // found" (dashboard 401). ensureDeveloperTwin creates/relinks it race-safely (the
+  // dashboard fans out ~10 parallel requests) with the A-1 system-principal +
+  // cross-identity guards; adopting a pre-existing NULL-linked row requires a
+  // VERIFIED email (proven-email invariant). On the guarded cases it throws → 401.
+  const developer = await ensureDeveloperTwin(user.id, user.email, { emailVerified: currentEmailIsVerified(user) })
 
   return { id: developer.id, email: developer.email }
 }
@@ -209,15 +207,14 @@ export async function requireConsumer(
     throw new Error('Authentication required. Please sign in.')
   }
 
-  const [consumer] = await db
-    .select({ id: consumers.id, email: consumers.email })
-    .from(consumers)
-    .where(eq(consumers.supabaseUserId, user.id))
-    .limit(1)
-
-  if (!consumer) {
-    throw new Error('Consumer account not found. Please complete registration.')
-  }
+  // SELF-HEAL the consumer twin (same rationale as requireDeveloper above). Also
+  // relinks the no-login lead cohort's NULL-linked row (verified-email only),
+  // preserving their balance/history. Previously a missing row threw "account not
+  // found"; on consumer routes that lacked a 401-mapping catch it surfaced as a raw
+  // 500 + Sentry page (e.g. /api/consumer/schedules). Self-heal fixes that for the
+  // common case; the rare TwinConflict/empty-email residual still throws (→ 500 on
+  // those routes) but is not the reported rowless-session symptom.
+  const consumer = await ensureConsumerTwin(user.id, user.email, { emailVerified: currentEmailIsVerified(user) })
 
   if (opts?.requireEmailVerified) {
     if (!user.email || !currentEmailIsVerified(user)) {
