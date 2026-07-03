@@ -53,6 +53,14 @@ import {
   isAp2Enabled,
   isVisaTapEnabled,
   isAcpEnabled,
+  isAp2SettlementEnabled,
+  isUcpSettlementEnabled,
+  isDrainSettlementEnabled,
+  isVisaTapSettlementEnabled,
+  isAlipaySettlementEnabled,
+  isKyaPaySettlementEnabled,
+  isEmvcoSettlementEnabled,
+  isL402SettlementEnabled,
   useUnifiedAdapters,
   isInvocationsPayerMinimizeEnabled,
 } from '@/lib/env'
@@ -2386,6 +2394,16 @@ async function handleAp2Proxy(
   requestId: string,
   startTime: number
 ): Promise<NextResponse> {
+  // G3-8 CREDIT-BOUNDARY dark-gate. AP2 validates a self-issued HS256 JWT and
+  // collects NO external money, yet forwardAndBill credits the WITHDRAWABLE
+  // developers.balanceCents. Refuse before validating (mirrors x402's
+  // isX402SettlementEnabled shape) until a real settlement path exists. Keyed on
+  // AP2_SETTLEMENT_ENABLED — NOT the routing gate isAp2Enabled (set in prod).
+  if (!isAp2SettlementEnabled()) {
+    logger.info('proxy.ap2_settlement_not_configured', { slug, requestId })
+    return errorResponse('AP2 settlement is not currently available on this SettleGrid instance.', 503, 'SETTLEMENT_NOT_CONFIGURED', requestId)
+  }
+
   const lookup = await lookupToolBySlug(slug, requestId)
   if (!lookup.ok) return lookup.error
   const { toolRow } = lookup
@@ -2434,6 +2452,17 @@ async function handleVisaTapProxy(
   requestId: string,
   startTime: number
 ): Promise<NextResponse> {
+  // G3-8 CREDIT-BOUNDARY dark-gate. Visa-TAP only AUTHORIZES (a hold) via VTS —
+  // there is NO capture/clearing call anywhere, so no money is collected even on a
+  // live Visa host, yet forwardAndBill credits the WITHDRAWABLE balance. Gate MUST
+  // sit BEFORE validateVisaTapPayment (it performs a real external authorize) so a
+  // dark instance never leaves an external hold. Keyed on VISA_TAP_SETTLEMENT_ENABLED
+  // — NOT the routing gate isVisaTapEnabled.
+  if (!isVisaTapSettlementEnabled()) {
+    logger.info('proxy.visa_tap_settlement_not_configured', { slug, requestId })
+    return errorResponse('Visa-TAP settlement is not currently available on this SettleGrid instance.', 503, 'SETTLEMENT_NOT_CONFIGURED', requestId)
+  }
+
   const lookup = await lookupToolBySlug(slug, requestId)
   if (!lookup.ok) return lookup.error
   const { toolRow } = lookup
@@ -2541,6 +2570,26 @@ async function handleProtocolProxy(
   startTime: number,
   protocol: 'ucp' | 'mastercard-vi' | 'alipay' | 'kyapay' | 'emvco' | 'drain'
 ): Promise<NextResponse> {
+  // G3-8 CREDIT-BOUNDARY dark-gate (per-protocol). UCP/DRAIN/Alipay/KyaPay/EMVCo
+  // credit the WITHDRAWABLE developers.balanceCents on structural-only validation
+  // (stubs / no-ecrecover / authorize-without-capture) with NO external money
+  // collected. Gate each BEFORE its validate* (mirrors x402's default-dark
+  // refuse-503 shape). Mastercard-VI is intentionally absent — it always returns
+  // valid:false → 503 already and never credits. Each predicate keys on a DISTINCT
+  // *_SETTLEMENT_ENABLED var, NOT the routing gate (which is set in prod).
+  const SETTLEMENT_GATE: Partial<Record<typeof protocol, () => boolean>> = {
+    ucp: isUcpSettlementEnabled,
+    drain: isDrainSettlementEnabled,
+    alipay: isAlipaySettlementEnabled,
+    kyapay: isKyaPaySettlementEnabled,
+    emvco: isEmvcoSettlementEnabled,
+  }
+  const settlementGate = SETTLEMENT_GATE[protocol]
+  if (settlementGate && !settlementGate()) {
+    logger.info('proxy.protocol_settlement_not_configured', { slug, requestId, protocol })
+    return errorResponse(`${protocol} settlement is not currently available on this SettleGrid instance.`, 503, 'SETTLEMENT_NOT_CONFIGURED', requestId)
+  }
+
   const lookup = await lookupToolBySlug(slug, requestId)
   if (!lookup.ok) return lookup.error
   const { toolRow } = lookup
@@ -2668,6 +2717,16 @@ async function handleL402Proxy(
   requestId: string,
   startTime: number
 ): Promise<NextResponse> {
+  // G3-8 CREDIT-BOUNDARY dark-gate. validateL402Payment verifies the macaroon +
+  // preimage FORMAT only (the real SHA256(preimage)==payment_hash check lives in an
+  // unused helper), so L402 credits the WITHDRAWABLE balance with no money collected
+  // even with LND configured. Refuse before validating. Keyed on
+  // L402_SETTLEMENT_ENABLED — NOT the routing gate isL402Enabled.
+  if (!isL402SettlementEnabled()) {
+    logger.info('proxy.l402_settlement_not_configured', { slug, requestId })
+    return errorResponse('L402 settlement is not currently available on this SettleGrid instance.', 503, 'SETTLEMENT_NOT_CONFIGURED', requestId)
+  }
+
   const lookup = await lookupToolBySlug(slug, requestId)
   if (!lookup.ok) return lookup.error
   const { toolRow } = lookup

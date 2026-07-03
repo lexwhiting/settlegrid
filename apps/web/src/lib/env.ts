@@ -354,6 +354,52 @@ export function getDrainChannelAddress(): string | undefined {
   return process.env.DRAIN_CHANNEL_ADDRESS
 }
 
+// ─── Per-rail SETTLEMENT-ENABLED gates (G3-8 phantom-credit-hardening) ────────
+//
+// These gate the CREDIT boundary (developers.balanceCents at route.ts:1976-1979),
+// NOT rail routing. Eight rails (AP2/UCP/DRAIN/Visa-TAP/Alipay/KyaPay/EMVCo/L402)
+// today credit a WITHDRAWABLE developer balance on structural-only validation
+// (self-signed JWTs / stubs / authorize-without-capture / format-only checks) with
+// NO external money collected — a balance the payout job pays out as real USD via
+// stripe.transfers.create. x402 (isX402SettlementEnabled) and circle-nano already
+// close this class; these mirror the default-dark refuse-503 SHAPE.
+//
+// ⚠ NO-OP TRAP — these MUST default DARK and MUST NOT read any ROUTING var
+// (AP2_SIGNING_SECRET / UCP_API_KEY / DRAIN_* / VISA_*_KEY / ALIPAY_APP_ID /
+// KYAPAY_VERIFICATION_KEY / EMVCO_ENABLED / L402_ENABLED / LND_REST_URL). Aliasing
+// a routing var makes the gate a prod no-op: AP2_SIGNING_SECRET IS set in prod, so
+// `return isAp2Enabled()` would return true → the gate never fires → the fix does
+// NOTHING while every test passes. Each predicate keys on a DISTINCT new
+// *_SETTLEMENT_ENABLED var, strict '==="true"'.
+//
+// Setting one true ASSERTS SettleGrid collects real external money for that rail.
+// NO such integration exists today for any of these rails — flipping one re-opens a
+// self-exploitable phantom-credit → real-withdrawal path. The honest state is dark.
+export function isAp2SettlementEnabled(): boolean {
+  return process.env.AP2_SETTLEMENT_ENABLED === 'true'
+}
+export function isUcpSettlementEnabled(): boolean {
+  return process.env.UCP_SETTLEMENT_ENABLED === 'true'
+}
+export function isDrainSettlementEnabled(): boolean {
+  return process.env.DRAIN_SETTLEMENT_ENABLED === 'true'
+}
+export function isVisaTapSettlementEnabled(): boolean {
+  return process.env.VISA_TAP_SETTLEMENT_ENABLED === 'true'
+}
+export function isAlipaySettlementEnabled(): boolean {
+  return process.env.ALIPAY_SETTLEMENT_ENABLED === 'true'
+}
+export function isKyaPaySettlementEnabled(): boolean {
+  return process.env.KYAPAY_SETTLEMENT_ENABLED === 'true'
+}
+export function isEmvcoSettlementEnabled(): boolean {
+  return process.env.EMVCO_SETTLEMENT_ENABLED === 'true'
+}
+export function isL402SettlementEnabled(): boolean {
+  return process.env.L402_SETTLEMENT_ENABLED === 'true'
+}
+
 /**
  * Feature flag for the unified-adapter dispatch path.
  *
