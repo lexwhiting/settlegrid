@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
     // Used by /admin/templater (P3.4).
     authInterrupts: true,
   },
-  webpack: (config) => {
+  webpack: (config, { nextRuntime }) => {
     // Inline markdown bodies for blog posts + Academy lessons as raw
     // strings at build time. Both directories share the asset/source
     // treatment so body-type content renders through the same
@@ -25,6 +25,28 @@ const nextConfig: NextConfig = {
       ],
       type: 'asset/source',
     })
+    // Next compiles instrumentation.ts for BOTH the nodejs AND edge runtimes.
+    // instrumentation.ts dynamically imports @/lib/db (postgres) inside a
+    // `NEXT_RUNTIME === 'nodejs'` guard, but webpack still statically traces that
+    // dynamic import into the EDGE bundle, where Node built-ins (net/tls/crypto/
+    // stream/perf_hooks) don't exist → `Module not found: Can't resolve 'net'`
+    // and the build fails. `serverExternalPackages` externalizes postgres for the
+    // node server runtime only, not edge. The db path NEVER executes in edge (the
+    // runtime guard), so stub those built-ins to empty modules for the edge build.
+    if (nextRuntime === 'edge') {
+      config.resolve = config.resolve ?? {}
+      config.resolve.fallback = {
+        ...(config.resolve.fallback ?? {}),
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        perf_hooks: false,
+        fs: false,
+        dns: false,
+        os: false,
+      }
+    }
     return config
   },
 }
