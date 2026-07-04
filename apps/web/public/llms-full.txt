@@ -275,19 +275,19 @@ SettleGrid's MPP integration is pending general availability: when enabled per d
 SettleGrid runs a public x402 facilitator (verify + settle on Base mainnet and Base Sepolia) as a standalone service at facilitator.settlegrid.ai. The metering, budgets, and analytics layer SettleGrid adds on top — and settling x402 through the hosted Smart Proxy on a developer's behalf — is in development.
 
 ### AP2 (Google Agent Payments)
-SettleGrid is a credentials provider in Google's Agent Payments ecosystem, enabling AP2-compatible agents to transact.
+SettleGrid has an AP2 detection adapter that verifies a SettleGrid-issued AP2 credential (issuer settlegrid.ai); it does not call Google's infrastructure, and live settlement is dark-gated (in development).
 
 ### Visa TAP (Token Agent Payments)
 Adapter ready for Visa's Token Agent Payments protocol (pending sandbox access).
 
 ### UCP (Universal Commerce Protocol — Google + Shopify)
-SettleGrid integrates with UCP for unified commerce flows across Google and Shopify agent ecosystems.
+SettleGrid has a UCP detection adapter for catalog visibility; live settlement is dark-gated (in development).
 
 ### ACP (Agentic Commerce Protocol — OpenAI + Stripe)
 SettleGrid supports ACP for OpenAI-powered agents transacting via Stripe-backed agentic commerce.
 
 ### Mastercard Verifiable Intent
-SettleGrid supports Mastercard's Verifiable Intent protocol for agent-initiated payments with identity verification. (Earlier press coverage called this "Mastercard Agent Pay"; the canonical product / spec name is "Verifiable Intent.")
+SettleGrid has a Mastercard Verifiable Intent detection adapter; the rail is not yet live (validation returns not-yet-supported), so no payment is processed today. (Earlier press coverage called this "Mastercard Agent Pay"; the canonical product / spec name is "Verifiable Intent.")
 
 ### Circle Nanopayments (USDC)
 SettleGrid is integrating Circle's nanopayment protocol (in development, testnet) for sub-cent USDC micropayments ideal for high-frequency AI tool calls.
@@ -403,7 +403,7 @@ SettleGrid is the settlement layer for AI agent payments. It enables developers 
 Stripe handles generic payment processing. SettleGrid is purpose-built for AI service monetization with real-time per-call metering, multi-protocol support across the 14 tracked agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, ACTP, EMVCo agent payments, DRAIN), budget enforcement, agent identity, and multi-hop settlement for agent chains.
 
 ### How is SettleGrid different from Nevermined?
-Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid supports fiat (Stripe) today — with platform crypto settlement in development, while its standalone x402 facilitator already verifies and settles USDC on Base — plus faster metering (Redis vs on-chain), a developer-friendly SDK, and native support for MCP and AP2.
+Nevermined focuses on crypto/DeFi payments with on-chain settlement. SettleGrid supports fiat (Stripe) today — with platform crypto settlement in development, while its standalone x402 facilitator already verifies and settles USDC on Base — plus faster metering (Redis vs on-chain), a developer-friendly SDK, and native support for MCP.
 
 ### How is SettleGrid different from Paid.ai?
 Paid.ai supports MCP only. SettleGrid is protocol-agnostic across the 14 tracked agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments, L402, KYAPay, ACTP, EMVCo agent payments, DRAIN), plus budget enforcement, agent identity (KYA), multi-hop settlement, and fraud detection.
@@ -424,4 +424,4 @@ Yes. The `@settlegrid/mcp` SDK is MIT-licensed and available on GitHub at https:
 Developers connect their Stripe account via Stripe Connect Express. Payouts are processed automatically based on usage. Progressive take rate applied at payout time (0% on first $1K/mo, up to 5% at $50K+).
 
 ### Does SettleGrid support multi-agent workflows?
-Yes. Multi-hop settlement handles agent chains (A calls B calls C) with atomic settlement — everyone gets paid or no one does. Revenue splits are resolved in real time.
+Yes. Multi-hop settlement handles agent chains (A calls B calls C): each hop is metered and settled independently as it completes. Revenue splits are resolved in real time.

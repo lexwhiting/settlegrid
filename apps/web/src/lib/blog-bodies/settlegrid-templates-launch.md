@@ -90,10 +90,10 @@ Whatever protocol an incoming agent request arrives with, the
 runtime routes it. Stripe Connect powers the underlying fiat
 settlement; SettleGrid is built on top of it, not against it,
 and adds the per-call metering, the multi-protocol detection
-chain, and what I'm calling settlement sessions: an Agent A
-paying Agent B paying Agent C call chain commits or rolls back
-as one atomic unit, so a publisher gets paid only when the
-whole hop succeeded
+chain, and what I'm calling settlement sessions: in an Agent A
+paying Agent B paying Agent C call chain, each hop is metered
+and settled as it completes, so a publisher gets paid when its
+own hop succeeds
 ([sessions.ts](https://github.com/lexwhiting/settlegrid/blob/main/apps/web/src/lib/settlement/sessions.ts)).
 Pricing is 0% under $1,000/month of revenue and capped at 5%
 at scale, which makes the long-tail (the 12,770+ unmonetized
@@ -142,10 +142,10 @@ are four specific holes I keep hitting.
   that calls an embeddings tool, the outer tool used to either
   eat the inner cost (loss leader) or hide the inner call
   from the invoice (consumer can't audit, inner author never
-  gets credited). The atomic-session half of this is shipped
-  in SettleGrid — every hop commits or rolls back as a single
-  settlement session, so a publisher gets paid only when the
-  whole hop succeeded. The revenue-*apportionment* half (who
+  gets credited). The per-hop settlement-session half of this
+  is shipped in SettleGrid — every hop is metered and settled
+  as a session hop as it completes, so a publisher gets paid
+  when its own hop succeeds. The revenue-*apportionment* half (who
   gets what cut of the outer fee) is the next piece I'm
   working on.
 

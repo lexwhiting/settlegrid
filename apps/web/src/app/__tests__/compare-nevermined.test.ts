@@ -173,7 +173,7 @@ describe('P2.MKT1 — DoD item 4: differentiation statement', () => {
 
   it('includes the full canonical paragraph (multi-hop + progressive pricing phrasing)', () => {
     expect(normalized).toContain(
-      'Settlement sessions support multi-hop atomic workflows',
+      'Settlement sessions meter multi-hop agent workflows',
     )
     expect(normalized).toContain(
       'Progressive pricing means developers keep 100% of revenue under $1,000 per month',

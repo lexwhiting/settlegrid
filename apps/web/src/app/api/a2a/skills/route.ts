@@ -5,9 +5,8 @@ import {
   provisionCredentials,
   verifyIntentMandate,
   verifyCartMandate,
-  processPayment,
 } from '@/lib/settlement/ap2/credentials'
-import type { IntentMandate, CartMandate, PaymentMandate } from '@/lib/settlement/ap2/types'
+import type { IntentMandate, CartMandate } from '@/lib/settlement/ap2/types'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -95,10 +94,15 @@ export async function POST(req: NextRequest) {
       }
 
       case 'process_payment': {
-        const consumerId = z.string().uuid().parse(params.consumerId)
-        const mandate = params.mandate as PaymentMandate
-        const result = processPayment(consumerId, mandate)
-        return NextResponse.json({ success: true, data: result }, { headers: CORS_HEADERS })
+        // AP2 process_payment is not a live settlement path: the backing processPayment()
+        // is a no-op stub that moves no money. Refuse unconditionally (mirrors Mastercard-VI's
+        // not-yet-live posture) rather than gate behind isAp2SettlementEnabled — that flag asserts
+        // the *proxy* collects real AP2 money, so gating here would re-arm the false success:true
+        // the day it is flipped on. Re-enable only when processPayment() is actually implemented.
+        return NextResponse.json(
+          { success: false, error: 'AP2 process_payment is not currently available on this SettleGrid instance.' },
+          { status: 503, headers: CORS_HEADERS },
+        )
       }
 
       default:

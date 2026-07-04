@@ -144,7 +144,6 @@ describe('AP2AgentCard type', () => {
       skills: [
         'get_eligible_payment_methods',
         'provision_credentials',
-        'process_payment',
         'verify_intent_mandate',
         'verify_cart_mandate',
       ],
@@ -153,7 +152,7 @@ describe('AP2AgentCard type', () => {
     }
 
     expect(card.name).toBe('SettleGrid Settlement')
-    expect(card.skills).toHaveLength(5)
+    expect(card.skills).toHaveLength(4)
     expect(card.ap2_roles).toContain('credentials-provider')
     expect(card.extensions).toHaveLength(1)
   })
@@ -824,7 +823,8 @@ describe('GET /api/a2a (Agent Card)', () => {
     const data = await res.json()
 
     expect(data.name).toBe('SettleGrid Settlement')
-    expect(data.skills).toHaveLength(5)
+    expect(data.skills).toHaveLength(4)
+    expect(data.skills).not.toContain('process_payment')
     expect(data.ap2_roles).toContain('credentials-provider')
     expect(data.url).toContain('settlegrid')
   })
@@ -922,7 +922,11 @@ describe('POST /api/a2a/skills', () => {
     expect(data.data.valid).toBe(true)
   })
 
-  it('dispatches process_payment', async () => {
+  it('refuses process_payment with a not-available 503 (backing stub moves no money)', async () => {
+    // The A2A card no longer advertises process_payment and the backing
+    // processPayment() is a no-op stub. The route returns an UNCONDITIONAL
+    // honest refusal (503, success:false) so a machine consumer is never told a
+    // live AP2 settlement occurred. CORS headers are still present (cross-origin).
     const req = await createSkillRequest({
       skill: 'process_payment',
       params: {
@@ -932,10 +936,37 @@ describe('POST /api/a2a/skills', () => {
     })
     const res = await POST(req)
     const data = await res.json()
-    expect(res.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.data.success).toBe(true)
-    expect(data.data.transactionId).toBeTruthy()
+    expect(res.status).toBe(503)
+    expect(data.success).toBe(false)
+    expect(data.error).toMatch(/not currently available/i)
+    expect(data.data).toBeUndefined()
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('process_payment refusal is flag-INDEPENDENT (503 with AP2_SETTLEMENT_ENABLED unset AND ="true")', async () => {
+    // Real RED-teeth guard: the refusal must NOT be coupled to
+    // AP2_SETTLEMENT_ENABLED. That flag asserts the *proxy* collects real AP2
+    // money; gating this stub behind it would re-arm the false success:true the
+    // day an operator flips it on. Asserting both env states proves independence
+    // and catches any future re-coupling regression.
+    for (const flag of [undefined, 'true'] as const) {
+      vi.stubEnv('AP2_SETTLEMENT_ENABLED', flag as unknown as string)
+      try {
+        const req = await createSkillRequest({
+          skill: 'process_payment',
+          params: {
+            consumerId: TEST_CONSUMER_ID,
+            mandate: makePaymentMandate(),
+          },
+        })
+        const res = await POST(req)
+        const data = await res.json()
+        expect(res.status).toBe(503)
+        expect(data.success).toBe(false)
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
   })
 
   it('returns 400 for invalid skill', async () => {

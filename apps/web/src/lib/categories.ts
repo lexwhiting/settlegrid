@@ -256,12 +256,12 @@ export const CATEGORIES: CategoryDefinition[] = [
     slug: 'agent-to-agent',
     name: 'Agent-to-Agent Services',
     description:
-      'Multi-hop settlement for agent-to-agent workflows. When Agent A delegates to Agent B delegates to Agent C, SettleGrid settles every hop atomically.',
+      'Multi-hop settlement for agent-to-agent workflows. When Agent A delegates to Agent B delegates to Agent C, SettleGrid settles each hop as it completes.',
     color: 'bg-stone-500/15 text-stone-400 border-stone-500/25',
     icon: 'M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5',
     keywords: ['agent payments', 'multi-agent billing', 'A2A settlement', 'agent-to-agent payments', 'multi-hop settlement', 'AI agent delegation billing'],
     guideIntro:
-      'Agent-to-agent workflows are the next frontier. When an orchestrator agent delegates to specialized sub-agents, each hop needs billing. SettleGrid is the only system that handles multi-hop settlement atomically across the full agent chain.',
+      'Agent-to-agent workflows are the next frontier. When an orchestrator agent delegates to specialized sub-agents, each hop needs billing. SettleGrid handles multi-hop settlement across the full agent chain, metering and settling each hop as it completes.',
     categoryType: 'ai-service',
   },
   {

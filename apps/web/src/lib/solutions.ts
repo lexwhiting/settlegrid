@@ -408,7 +408,7 @@ const billedEmail = sg.wrap(async (args: { to: string; subject: string; body: st
     slug: 'agent-to-agent',
     headline: 'Multi-Hop Settlement for Agent-to-Agent Workflows',
     subtext:
-      'When Agent A calls Agent B calls Agent C, every hop needs billing. SettleGrid\'s atomic multi-hop settlement is the only system that handles the full chain.',
+      'When Agent A calls Agent B calls Agent C, every hop needs billing. SettleGrid\'s multi-hop settlement handles the full chain, metering and settling each hop as it completes.',
     codeExample: `import { settlegrid } from '@settlegrid/mcp'
 
 const sg = settlegrid.init({
@@ -422,7 +422,7 @@ const billedResearch = sg.wrap(async (args: { topic: string }) => {
   const searchResults = await callAgent('search-agent', { query: args.topic })
   // Sub-agent 2: Summarize (billed separately)
   const summary = await callAgent('summarize-agent', { text: searchResults })
-  // Multi-hop settlement: all 3 agents are paid atomically
+  // Multi-hop settlement: each agent is paid as its hop completes
   return { content: [{ type: 'text', text: summary }] }
 })`,
     providers: [
@@ -434,7 +434,7 @@ const billedResearch = sg.wrap(async (args: { topic: string }) => {
     ],
     billingModel: 'per-delegation',
     billingModelExplanation:
-      'Agent-to-agent workflows create billing chains: Agent A pays Agent B, who pays Agent C. Without atomic settlement, failed hops can leave money in limbo. SettleGrid settles the entire chain atomically -- if any hop fails, no money moves. Each agent sets its own price, and the total cost cascades up to the original caller.',
+      'Agent-to-agent workflows create billing chains: Agent A pays Agent B, who pays Agent C. SettleGrid meters and settles each hop as it completes, so a hop that fails is simply not charged and never leaves money in limbo. Each agent sets its own price, and the total cost cascades up to the original caller.',
     tam: 'Emerging -- $1B+ by 2028',
     keywords: [
       'agent payments', 'multi-agent billing', 'A2A settlement',
@@ -444,11 +444,11 @@ const billedResearch = sg.wrap(async (args: { topic: string }) => {
     faqEntries: [
       {
         q: 'What is multi-hop settlement?',
-        a: 'When Agent A calls Agent B, which calls Agent C, there are 3 hops in the billing chain. Multi-hop settlement means all 3 payments (A to B, B to C) are settled atomically -- either all succeed or none do.',
+        a: 'When Agent A calls Agent B, which calls Agent C, there are 3 hops in the billing chain. Multi-hop settlement means each payment (A to B, B to C) is metered and settled independently as its hop completes.',
       },
       {
         q: 'What happens if a sub-agent fails mid-chain?',
-        a: 'Atomic settlement means no partial charges. If Agent C fails, Agent B is not charged for Agent C\'s call, and Agent A is not charged for Agent B\'s call. The entire transaction rolls back.',
+        a: 'Per-hop settlement means each hop is charged only when it completes. If Agent C fails, the Agent B to Agent C hop is not charged; hops that already completed remain settled as they finished.',
       },
       {
         q: 'How does pricing work across agent chains?',
