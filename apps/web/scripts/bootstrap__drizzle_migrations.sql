@@ -130,8 +130,8 @@ WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '4
 
 -- 0018_email_suppressions  (hand-written, not in journal; ships with email-compliance (G6-1/2/3) 2026-07-04 — APPLY-BEFORE-DEPLOY intended, but deploy-first is NOT an outage: bulk reads fail-closed (sends pause), unsubscribe writes degrade via their durable fallback, the Resend webhook redelivers until the table exists; see the 0018 header)
 INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
-SELECT '41ac48c4cfb2d2b158171de0ce368754b74927e8630980fb1ad9d87b7fada4ed', 1783185585000
-WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '41ac48c4cfb2d2b158171de0ce368754b74927e8630980fb1ad9d87b7fada4ed');
+SELECT 'd11954736be2138fbd239e3099c3d6db9747e69937646cfc5e356bc0ff8cb9be', 1783185585000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'd11954736be2138fbd239e3099c3d6db9747e69937646cfc5e356bc0ff8cb9be');
 
 COMMIT;
 
